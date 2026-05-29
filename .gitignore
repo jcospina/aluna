@@ -1,0 +1,6 @@
+# Dependencies (created by `bun install`)
+node_modules/
+
+# Build output
+dist/
+artifacts/
