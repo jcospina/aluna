@@ -12,10 +12,21 @@
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --target=bun --outdir=dist",
     "start": "bun ./dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts,json,jsonc,css}": [
+      "bunx biome check --write --no-errors-on-unmatched"
+    ]
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
     "@types/bun": "latest",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.6",
     "typescript": "^5.9.0"
   }
 }
