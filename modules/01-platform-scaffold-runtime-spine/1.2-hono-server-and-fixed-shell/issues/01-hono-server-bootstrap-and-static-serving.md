@@ -44,7 +44,7 @@ Files:
   (`/capability/:id/:action`, `/files/:key`, the SSE channel). Exporting `app`
   separately from the bootstrap keeps it `app.request()`-testable.
 - `src/index.ts` — entrypoint (repurposed from the 1.1 boot-line stub). Reads
-  the port from `PORT` (default **3000**), starts `Bun.serve({ port, fetch:
+  the port from `PORT` (default **3030**), starts `Bun.serve({ port, fetch:
   app.fetch })`, and logs `http://localhost:<bound-port>`. `PORT` parsing:
   unset / empty / non-numeric → default; an explicit `"0"` → OS-assigned
   ephemeral port (handy for tests); the **actual bound** port is logged, so it
@@ -63,7 +63,7 @@ Verification:
   path-traversal `GET /static/../package.json` → **404** (blocked by
   serveStatic's built-in `..` guard).
 - Port config: a custom `PORT` binds that port; unset / empty / invalid `PORT`
-  all target the **3000** default.
+  all target the **3030** default.
 - `bun run build` bundles the server (47 modules, 56.7 KB) and `bun run start`
   serves the built artifact (`/` and `/static/*` both 200).
 - `git status` after running shows only the intended changes (hono dep +
@@ -71,6 +71,6 @@ Verification:
 
 Note: on this machine `bun run dev` with the default port currently fails
 `EADDRINUSE` because an unrelated `node`/Next.js dev server already holds
-:3000. That's a local environment conflict, not a defect — the default of 3000
+:3030. That's a local environment conflict, not a defect — the default of 3000
 is the conventional choice; set `PORT` to use another port (e.g.
 `PORT=8723 bun run dev`). Changes left uncommitted pending the usual go-ahead.

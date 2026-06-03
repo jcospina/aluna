@@ -2,7 +2,7 @@
 //
 // Starts Bun's built-in HTTP server with the Hono app (src/app.ts) and logs the
 // URL it is listening on. The port is configurable via the PORT environment
-// variable, defaulting to 3000. Started by `bun run dev` (bun --watch).
+// variable, defaulting to 3030. Started by `bun run dev` (bun --watch).
 //
 // No shell markup, SSE, database, or AI yet — those build on this.
 

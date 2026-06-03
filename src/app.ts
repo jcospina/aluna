@@ -3,18 +3,29 @@
 // shell page, the SSE channel, the capability router (/capability/:id/:action),
 // and file serving (/files/:key).
 //
-// At this stage (Epic 1.2, issue 01) it does the bare minimum: answer the root
-// route and serve static assets. No shell markup, SSE, database, or capability
-// logic yet — those land in later epics and build on this.
+// At this stage (Epic 1.2, issue 02) it serves the fixed shell page at `/` and
+// static assets under /static/*. No SSE, database, or capability logic yet —
+// those land in later epics and build on this.
 
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 
 export const app = new Hono();
 
-// Root route. A 200 here proves the server is up. The next issue (1.2 issue 02)
-// replaces this with the fixed shell HTML page; for now it is a plain stub.
-app.get("/", (c) => c.text("omni-crud platform — server up"));
+// Root route — the fixed shell (ARCH §6.1). Returns the authored static page
+// public/index.html via Bun.file, read per request (Bun file I/O is
+// microsecond-fast and stays live under `bun --watch`). Content-Type is set
+// explicitly: Bun infers it from the file, but that lazily-computed header is
+// dropped when the Response passes through Hono's router. Kept as an explicit
+// route — rather than a serveStatic fall-through — so `/` stays greppable for
+// later epics and `app.request("/")`-testable.
+app.get(
+  "/",
+  () =>
+    new Response(Bun.file("./public/index.html"), {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    }),
+);
 
 // Static assets live in ./public and are served under the /static/* prefix
 // (e.g. the shell's CSS/JS will be referenced as /static/<file>). A dedicated

@@ -12,6 +12,7 @@
       "!**/.claude",
       "!**/.agents",
       "!**/.husky",
+      "!public/vendor",
       "!dist",
       "!artifacts",
       "!capabilities",
