@@ -1,0 +1,90 @@
+# Aluna
+
+The single-context domain doc for this repo. **Aluna** is a platform where stated
+intent becomes a working app: the user describes what they want to keep track of,
+and the app builds — and rebuilds — itself to fit. The interface must always read
+as a friendly consumer product, never an engineering tool (ARCH §9.7).
+
+> The repository name **"omni-crud" is an engineering name** (it contains "CRUD")
+> and must never appear as user-facing branding (ARCH §9.7). **Aluna** is the
+> user-facing brand.
+
+## Language
+
+Use these terms verbatim in UI copy, issues, code, tests, and docs. The left
+column is the word to use; `_Avoid_` lists the synonyms to keep out.
+
+**Aluna**:
+The product. A Kogi word for the realm of thought/spirit from which the material
+world is born — a precise metaphor for a platform where stated intent becomes a
+working app. The user-facing brand and wordmark.
+_Avoid_: omni-crud (engineering name only), "the app", "the platform" (in UI copy)
+
+**Shell**:
+The single static HTML page that is Aluna's one fixed UI surface. It ships once
+and never changes; everything inside its regions is generated at runtime and
+streamed in. The shell is dumb on purpose — it renders what the server sends and
+reports what the user does, nothing more (ARCH §6.1).
+_Avoid_: page, layout, frame
+
+**Capability**:
+One thing Aluna has built for the user to keep track of (e.g. their photos, their
+recipes). Each capability the app has built is an entry in the capability toolbar.
+_Avoid_: feature, module, CRUD, resource, entity, model
+
+**Capability toolbar** (a.k.a. **sidebar**):
+The left sidebar listing the user's capabilities. Starts empty on a fresh user and
+rehydrates from the registry on load; clicking an entry loads that capability into
+the content area. This is the only navigation, and it is the thing that *grows*.
+_Avoid_: nav, menu, drawer (the off-canvas mobile presentation is a "drawer", but
+the region is the "sidebar")
+
+**Prompt bar**:
+The always-visible, free-form text input pinned to the bottom of the content
+column. Context-aware: it scopes to the active capability. The user types intent
+here and watches the app build above.
+_Avoid_: search box, command bar, chat input, composer (acceptable when describing
+the field itself, but the region is the "prompt bar")
+
+**Content area**:
+The surface that fills the space above the prompt bar. Capabilities and build
+narration render here. At cold-start it shows the Aluna wordmark and a neutral
+placeholder.
+_Avoid_: main panel, canvas, workspace, body
+
+**The pet**:
+An anthropomorphic *spark of Aluna* — a small luminous companion with a face that
+lives on the prompt bar, walks along it, and talks from there. A first-class
+delight feature carrying no business logic. Defined now, deferred to a later issue
+(full spec: [docs/pet.md](docs/pet.md)); its name is a TBD authentic Kogi word (do
+not fabricate one). It is *related to* Aluna but is **not Aluna herself**.
+_Avoid_: orb (the superseded concept), mascot, avatar, assistant, bot, spinner
+
+**Product voice**:
+The single voice all of Aluna's UI copy speaks in — warm, encouraging, gently
+curious, first person, addressing the user directly. See *Product voice* below.
+_Avoid_: tone, copy style, microcopy guidelines
+
+## Product voice
+
+The voice every piece of UI copy speaks in, and the guide every future coding
+agent follows when it writes copy. (Authored here, in the durable doc, because it
+steers all generated copy — not just this issue's.)
+
+- **Persona:** warm, encouraging, gently curious. Speaks in **first person**,
+  addresses the user directly ("you"). Plainspoken and concise, with a quiet
+  thread of wonder. Friendly and clear — not cutesy, not cryptic.
+- **Hard rule (ARCH §9.7):** never expose internals. No "handler", "spec",
+  "migration", "compile", "build artifact", "schema", "endpoint", "CRUD". Ever.
+  Narration, proposals, confirmations, and errors all speak in product voice.
+
+### Do / Don't
+
+| Do (product voice) | Don't (internals leak) |
+| --- | --- |
+| "Got it — putting that together now." | "Generating handler and running migration." |
+| "All set. Want to add anything else?" | "Build committed; v1 artifacts written." |
+| "Hmm, that didn't work — mind trying again?" | "Smoke test failed; build aborted." |
+
+The one piece of voice copy shipped today is the cold-start prompt placeholder:
+**"What would you like to keep track of?"** — warm, jargon-free, on-thesis.

@@ -1,0 +1,16 @@
+{
+  // Type-check the authored browser assets (public/*.js) with no build step.
+  // They run in the browser, not Bun, so they get the DOM lib (not Bun globals)
+  // — kept separate from the server tsconfig so each environment stays honest.
+  // `// @ts-check` + JSDoc in the files; checkJs runs tsc over them. Vendored
+  // third-party blobs are excluded (not ours to type-check).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "allowJs": true,
+    "checkJs": true,
+    "types": []
+  },
+  "include": ["public/**/*.js"],
+  "exclude": ["public/vendor"]
+}

@@ -1,0 +1,367 @@
+/* =============================================================================
+   Aluna — base product-voice style
+   Subtler neobrutalism on a Paper & Ink palette (see docs/adr/0001 and
+   docs/design-system.md). Light theme only, single :root, no theming machinery
+   — but expressed through semantic tokens, so a dark theme stays a purely
+   additive future override. Served static from /static/app.css, no build step.
+   ========================================================================== */
+
+/* ── Font: Outfit, vendored locally ───────────────────────────────────────────
+   The OFL-licensed Outfit variable woff2 (wght axis) is committed under
+   public/fonts/ and served from /static/fonts/. One @font-face spanning the
+   whole weight axis; font-display: swap renders the system fallback first so
+   text is never invisible while the font loads. No CDN, no build step. */
+@font-face {
+  font-family: "Outfit";
+  src: url("/static/fonts/outfit-variable.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  /* ── Color — Paper & Ink (momo themes.config.ts, the `paper` theme) ──────── */
+  --color-bg: oklch(95% 0.025 85); /* warm cream page          */
+  --color-surface: oklch(98% 0.012 85); /* warm near-white surface  */
+  --color-text: oklch(18% 0.02 60); /* warm near-black ink      */
+  --color-text-muted: color-mix(in oklch, var(--color-text), var(--color-surface) 25%);
+  --color-text-subtle: color-mix(in oklch, var(--color-text), var(--color-surface) 45%);
+  --color-border: color-mix(in oklch, var(--color-text), var(--color-surface) 25%);
+  --color-shadow: color-mix(in oklch, var(--color-text), transparent 82%);
+  --color-accent: oklch(63% 0.16 38); /* terracotta (primary) — focus, wordmark accent */
+  /* Reserved roles — defined now, capabilities use them later (additive). */
+  --color-accent-secondary: oklch(40% 0.06 250); /* deep blue                */
+  --color-text-on-secondary: oklch(98% 0.012 85);
+  --color-info: oklch(75% 0.1 195);
+  --color-feature: oklch(82% 0.13 90);
+  --color-warm: oklch(82% 0.12 75);
+  /* Status tones (error/success) intentionally omitted — the inert shell
+     surfaces no errors yet; add additively when a capability needs them. */
+
+  /* ── Typography ──────────────────────────────────────────────────────────── */
+  --font-sans:
+    "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --type-xs: 0.75rem;
+  --type-sm: 0.875rem;
+  --type-md: 1rem;
+  --type-lg: 1.25rem;
+  --type-xl: 1.5rem;
+  --type-xxl: 2rem;
+  --weight-regular: 400;
+  --weight-bold: 700; /* 300/800/900 available on the var font */
+  --body: var(--weight-regular) var(--type-md) / 1.5 var(--font-sans);
+  --body-emph: var(--weight-bold) var(--type-md) / 1.5 var(--font-sans);
+  --h1: var(--weight-bold) var(--type-xxl) / 1.2 var(--font-sans);
+  --h2: var(--weight-bold) var(--type-xl) / 1.3 var(--font-sans);
+  --h3: var(--weight-bold) var(--type-lg) / 1.35 var(--font-sans);
+  --meta: var(--weight-regular) var(--type-sm) / 1.4 var(--font-sans);
+  /* clamp() reserved for the wordmark (and later the emphatic pet copy) only */
+  --type-wordmark: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem);
+
+  /* ── Spacing (8px base) ──────────────────────────────────────────────────── */
+  --space-0_5: 4px;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-6: 48px;
+  --space-8: 64px;
+
+  /* ── Borders / radius ────────────────────────────────────────────────────── */
+  --border-width: 1px;
+  --radius-sm: 5px;
+  --radius-md: 10px;
+  --radius-pill: 999px;
+
+  /* ── Hard shadows — quiet, down-right, two steps ─────────────────────────── */
+  --shadow-sm: 2px 2px 0 var(--color-shadow);
+  --shadow-md: 4px 4px 0 var(--color-shadow);
+  --shadow-none: none;
+
+  /* ── Motion ──────────────────────────────────────────────────────────────── */
+  --ease-pop: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 160ms;
+  --duration-slow: 200ms;
+  --duration-toggle: 300ms;
+}
+
+/* ── Base / reset ─────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: var(--body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Wordmark — the Aluna brand, typographic in Outfit ────────────────────── */
+.wordmark {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+/* Terracotta accent dot — exercises --color-accent in the wordmark while the
+   word itself stays ink (always AA-legible). Decorative, hidden from a11y. */
+.wordmark__dot {
+  color: var(--color-accent);
+}
+
+/* =============================================================================
+   Layout — the shell (Claude/ChatGPT shape)
+   Clean, not boxed: regions separate by background tone + spacing, not frames.
+   The sole structural divider is the sidebar's border-right.
+   ========================================================================== */
+.shell {
+  display: flex;
+  /* 100dvh so mobile browser chrome never clips the bottom-pinned prompt bar. */
+  height: 100dvh;
+}
+
+/* ── Capability toolbar (sidebar) ─────────────────────────────────────────────
+   Hidden entirely at cold-start (no capabilities). When capabilities exist the
+   shell gains .has-capabilities and the sidebar appears. */
+.toolbar {
+  display: none;
+  flex: 0 0 16rem;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border-right: var(--border-width) solid var(--color-border);
+}
+.shell.has-capabilities .toolbar {
+  display: flex;
+}
+/* Sidebar-top home of the wordmark (shown when the sidebar is present). */
+.toolbar .wordmark {
+  font-size: var(--type-lg);
+  padding-block: var(--space-0_5) var(--space-2);
+}
+
+/* ── Content column — fills the remaining width; stacks over the prompt. ───── */
+.content-column {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Content top bar — hosts the sidebar toggle; only when a sidebar exists. ─ */
+.content-topbar {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+}
+.shell.has-capabilities .content-topbar {
+  display: flex;
+}
+
+/* ── Content area — fills the rest; sits directly on the page background. ──── */
+.content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--color-bg);
+}
+
+/* Cold-start composition (zero capabilities): wordmark on top + a neutral,
+   deliberately-blank placeholder, centred. Switches off when capabilities land
+   (then the wordmark lives in the sidebar and capabilities fill this area). */
+.cold-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: 100%;
+  padding: var(--space-4);
+  text-align: center;
+}
+.shell.has-capabilities .cold-start {
+  display: none;
+}
+.cold-start .wordmark {
+  font-size: var(--type-wordmark);
+}
+/* Neutral empty-state block: a muted, low-contrast canvas, no copy, no frame —
+   "empty on purpose", friendly rather than built-out. */
+.cold-start__placeholder {
+  width: min(28rem, 72%);
+  height: clamp(7rem, 18vh, 11rem);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--color-text), transparent 94%);
+}
+
+/* ── Prompt bar — pinned to the bottom; borderless, no surface fill. ──────────
+   Visually continuous with the content area (both on --color-bg); only the
+   field itself carries treatment, reading as a composer placed inside the page
+   (the ChatGPT/Claude composer — but on the theme background, not a panel). */
+.prompt {
+  flex: 0 0 auto;
+  padding: var(--space-3);
+  background: var(--color-bg);
+}
+.prompt__field {
+  display: block;
+  width: 100%;
+  max-width: 46rem;
+  margin-inline: auto;
+  padding: var(--space-1) var(--space-2);
+  font: var(--body);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    transform var(--duration-fast) var(--ease-pop),
+    box-shadow var(--duration-fast) var(--ease-pop),
+    border-color var(--duration-fast) var(--ease-pop);
+}
+.prompt__field::placeholder {
+  color: var(--color-text-subtle);
+}
+/* Pointer hover: a quiet lift (gentle press, step one). */
+.prompt__field:hover {
+  transform: translate(1px, 1px);
+  box-shadow: var(--shadow-sm);
+}
+/* Focus: accent border + accent ring. No translate here — the field must stay
+   put while the user types (a moving text box is disorienting). */
+.prompt__field:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-accent), transparent 70%);
+}
+
+/* =============================================================================
+   Sidebar toggle (shell chrome) + the gentle press
+   ========================================================================== */
+.sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-0_5);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-pop),
+    box-shadow var(--duration-fast) var(--ease-pop);
+}
+.sidebar-toggle svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+/* Gentle press — tactile but quiet. Hover lifts a small hard shadow and nudges
+   1px down-right; active presses to 2px and flattens the shadow. */
+.sidebar-toggle:hover {
+  transform: translate(1px, 1px);
+  box-shadow: var(--shadow-sm);
+}
+.sidebar-toggle:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-none);
+}
+
+/* ── Mobile drawer backdrop — only meaningful on mobile (see media query). ── */
+.backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: color-mix(in oklch, var(--color-text), transparent 55%);
+}
+
+/* =============================================================================
+   Responsive — desktop full-collapse vs mobile off-canvas drawer
+   ========================================================================== */
+
+/* Desktop (≥ 768px): the sidebar is inline and collapsible. Toggling it off
+   fully collapses the rail to reclaim content width (no icon rail). */
+@media (min-width: 768px) {
+  .shell.has-capabilities .toolbar {
+    overflow: hidden;
+    transition:
+      flex-basis var(--duration-toggle) var(--ease-pop),
+      padding var(--duration-toggle) var(--ease-pop);
+  }
+  .shell.has-capabilities:not(.sidebar-open) .toolbar {
+    flex-basis: 0;
+    padding-inline: 0;
+    border-right-width: 0;
+  }
+}
+
+/* Mobile (< 768px): the sidebar is an off-canvas drawer over the content, with
+   a dismissable backdrop. The toggle slides it in; tapping the backdrop closes. */
+@media (max-width: 767.98px) {
+  .shell.has-capabilities .toolbar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: 16rem;
+    flex-basis: auto;
+    transform: translateX(-100%);
+    transition: transform var(--duration-toggle) var(--ease-pop);
+  }
+  .shell.has-capabilities.sidebar-open .toolbar {
+    transform: translateX(0);
+    /* Horizontal-only hard shadow: a full-height left drawer casts to the right,
+       so drop the down-offset of --shadow-md (it left a gap at the top edge). */
+    box-shadow: 4px 0 0 var(--color-shadow);
+  }
+  .shell.has-capabilities.sidebar-open .backdrop {
+    display: block;
+  }
+}
+
+/* =============================================================================
+   Accessibility & polish
+   ========================================================================== */
+
+/* Visible focus ring (accent) on every interactive element, keyboard only. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* The field manages its own accent ring on :focus; avoid doubling it up. */
+.prompt__field:focus-visible {
+  outline: none;
+}
+
+/* Reduced motion: no press translate, no slide — collapse/drawer switch
+   instantly, with a calm static fallback. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore-start lint/complexity/noImportantStyles: the reduced-motion
+       reset must defeat any component animation/transition regardless of
+       specificity — the canonical a11y pattern. */
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    /* biome-ignore-end lint/complexity/noImportantStyles: end reset */
+  }
+  .sidebar-toggle:hover,
+  .sidebar-toggle:active,
+  .prompt__field:hover {
+    transform: none;
+  }
+}
