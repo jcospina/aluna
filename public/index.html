@@ -5,112 +5,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <!-- Empty icon: suppresses the browser's automatic /favicon.ico request so
-         it isn't a 404 in the console. A real favicon is branding (issue 03). -->
+         it isn't a 404 in the console. A real favicon mark is future work. -->
     <link rel="icon" href="data:," />
 
     <!--
-      The fixed shell — the platform's one static UI surface (ARCH §4, §6.1).
-      It ships once and never changes; everything inside the regions below is
-      generated at runtime and streamed in by later epics. This file owns
-      structure, the static shell layout, and asset plumbing. Visual styling
-      (colors, fonts, theme), sidebar collapse/responsive behavior, the
-      cold-start orb, and product-voice copy/branding are all issue 03.
+      The fixed shell — Aluna's one static UI surface (ARCH §4, §6.1). It ships
+      once and never changes; everything inside the regions below is generated at
+      runtime and streamed in by later epics. Layout is the Claude/ChatGPT shape:
+      a collapsible left sidebar (the capability toolbar) beside a content column
+      whose content area fills the space and whose prompt bar is pinned to the
+      bottom. Style is subtler neobrutalism on Paper & Ink — see
+      docs/design-system.md and docs/adr/0001.
     -->
 
-    <!-- Placeholder tab title. Product name/voice/branding is issue 03; the
-         repo name "omni-crud" is an engineering name and is not user-facing
-         (ARCH §9.7), so no wordmark here. -->
-    <title>Workspace</title>
+    <!-- Aluna is the user-facing brand (ARCH §9.7); the repository's engineering
+         name never appears in the UI (not even in this page's source). -->
+    <title>Aluna</title>
+
+    <!-- Authored style — semantic tokens, Outfit (vendored), the shell layout.
+         Static from /static/app.css, no build step. -->
+    <link rel="stylesheet" href="/static/app.css" />
 
     <!--
-      Vendored client libraries (ARCH §4) — HTMX 2.0.10 + Alpine.js 3.15.12,
-      committed under public/vendor/ at exact patch versions and served from our
-      own /static/, no CDN and no build step. `defer` runs both after the DOM is
-      parsed: HTMX wires up hx-* attributes (none yet) and Alpine starts the
-      x-data root below.
+      Scripts, all vendored/static and deferred (run in order after the DOM is
+      parsed, before DOMContentLoaded). HTMX wires hx-* attributes (none yet).
+
+      Order matters: app.js registers the Alpine `shell` component on the
+      `alpine:init` event, so it must run BEFORE alpine.min.js — Alpine's cdn
+      build auto-starts in a microtask the moment it executes (dispatching
+      `alpine:init`), which is before any later deferred script would run.
     -->
     <script defer src="/static/vendor/htmx.min.js"></script>
+    <script defer src="/static/app.js"></script>
     <script defer src="/static/vendor/alpine.min.js"></script>
-
-    <!--
-      Static shell layout only — the Claude/ChatGPT shape: a left sidebar
-      (capability toolbar) beside a content column whose content area fills the
-      space and whose prompt bar is pinned to the bottom. Structural rules only
-      (flex, sizing) plus 1px placeholder borders for delineation — NO colors,
-      fonts, theme, spacing polish, collapse, or responsive behavior; those are
-      issue 03, which replaces this whole block with public/app.css.
-    -->
-    <style>
-      * {
-        box-sizing: border-box;
-      }
-      html,
-      body {
-        height: 100%;
-      }
-      body {
-        margin: 0;
-      }
-
-      /* Row: sidebar + content column, filling the viewport. */
-      .shell {
-        display: flex;
-        height: 100vh;
-      }
-
-      /* Left sidebar — fixed width, scrolls independently. */
-      .toolbar {
-        flex: 0 0 16rem;
-        overflow: auto;
-        border-right: 1px solid;
-      }
-
-      /* Right column — takes the remaining width; stacks content over prompt. */
-      .content-column {
-        flex: 1 1 auto;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-      }
-
-      /* Content area — fills the remaining height, scrolls independently. */
-      .content {
-        flex: 1 1 auto;
-        overflow: auto;
-      }
-
-      /* Prompt bar — pinned to the bottom of the content column. */
-      .prompt {
-        flex: 0 0 auto;
-        padding: 0.5rem;
-        border-top: 1px solid;
-      }
-      .prompt input {
-        width: 100%;
-      }
-    </style>
   </head>
 
   <body>
     <!--
-      Empty Alpine root (no state/directives yet) so later epics extend the
-      shell rather than restructure it (e.g. issue 03's sidebar-collapse state).
+      The shell. Alpine `shell` component (public/app.js) holds two bits of
+      presentation state: `hasCapabilities` (false at cold-start → sidebar hidden)
+      and `open` (the sidebar shown/expanded — collapse chrome). Both are
+      reflected as classes the stylesheet keys off; with neither class the markup
+      renders the correct cold-start state, so there's no flash before Alpine.
     -->
-    <div class="shell" x-data>
-      <!-- Capability toolbar — the left sidebar; empty, the registry
-           rehydrates it later. -->
-      <nav class="toolbar" aria-label="Capabilities"></nav>
+    <div
+      class="shell"
+      x-data="shell"
+      :class="{ 'has-capabilities': hasCapabilities, 'sidebar-open': open }"
+    >
+      <!-- Capability toolbar — the left sidebar. Hidden at cold-start; the
+           registry rehydrates its entries (and flips hasCapabilities) later. -->
+      <nav class="toolbar" id="capability-toolbar" aria-label="Capabilities">
+        <!-- Sidebar-top home of the Aluna wordmark (shown when the sidebar is). -->
+        <p class="wordmark">Aluna<span class="wordmark__dot" aria-hidden="true">.</span></p>
+        <!-- Capability entries render here later. -->
+      </nav>
+
+      <!-- Mobile drawer backdrop — tap to dismiss the open sidebar. Shown only on
+           mobile while the drawer is open (CSS); inert otherwise. -->
+      <div class="backdrop" @click="open = false" aria-hidden="true"></div>
 
       <!-- Content column — the content area fills the space above the
            bottom-pinned prompt bar. -->
       <div class="content-column">
-        <!-- Content area — empty; capabilities and SSE streams render here. -->
-        <main class="content"></main>
+        <!-- Top bar — hosts the sidebar toggle (shell chrome). Shown only when a
+             sidebar exists; at cold-start there's nothing to toggle. -->
+        <div class="content-topbar">
+          <button
+            type="button"
+            class="sidebar-toggle"
+            @click="open = !open"
+            :aria-expanded="open ? 'true' : 'false'"
+            aria-controls="capability-toolbar"
+            aria-label="Toggle capabilities"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <line x1="9" y1="4" x2="9" y2="20" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Content area — empty surface; capabilities and SSE streams render
+             here later. At cold-start it shows the Aluna wordmark + a neutral
+             placeholder (hidden once capabilities exist). -->
+        <main class="content">
+          <div class="cold-start">
+            <h1 class="wordmark">Aluna<span class="wordmark__dot" aria-hidden="true">.</span></h1>
+            <!-- A muted, deliberately-blank empty-state block — "empty on
+                 purpose", friendly rather than built-out. No copy. -->
+            <div class="cold-start__placeholder" aria-hidden="true"></div>
+          </div>
+        </main>
 
         <!-- Prompt bar — a real form, but inert: no hx-post yet, and submission
-             is suppressed so it neither reloads nor calls the orchestrator. -->
+             is suppressed so it neither reloads nor calls the orchestrator. The
+             placeholder is the one bit of product-voice copy that ships. -->
         <form class="prompt" onsubmit="return false">
-          <input type="text" aria-label="Prompt" />
+          <input
+            class="prompt__field"
+            type="text"
+            aria-label="Prompt"
+            placeholder="What would you like to keep track of?"
+          />
         </form>
       </div>
     </div>
