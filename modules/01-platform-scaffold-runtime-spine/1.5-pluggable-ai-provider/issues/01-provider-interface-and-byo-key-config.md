@@ -9,7 +9,7 @@ Module 1 — Platform Scaffold & Runtime Spine · Epic 1.5 — Pluggable AI prov
 
 ## What to build
 
-Define the thin, pluggable AI provider contract the orchestrator depends on: a streaming `generate(prompt, schema)` interface that returns a structured object matching the schema (ARCH §4 "Model strategy"). The orchestrator depends on this contract, **not** on any specific SDK.
+Define the thin, pluggable AI provi1der contract the orchestrator depends on: a streaming `generate(prompt, schema)` interface that returns a structured object matching the schema (ARCH §4 "Model strategy"). The orchestrator depends on this contract, **not** on any specific SDK.
 
 Add the configuration layer alongside it: a **BYO-key** setup (API key from the environment) and a **single, globally configured model** — no per-task routing. Comparing models means running the demo twice, not mixing them in one session.
 
