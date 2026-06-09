@@ -93,7 +93,7 @@ Chosen for minimal overhead, native speed, and the fact that **LLMs generate HTM
 | **Client shell** | HTMX + Alpine.js | HTMX swaps server HTML into the DOM with no build step; Alpine handles local interactivity. Zero framework in the critical path |
 | **Persistence** | `bun:sqlite` | Zero-dependency, in-process, microsecond queries. A separate **read-only connection** serves the read/query path |
 | **File storage** | `Bun.file` / `Bun.write` (local FS), S3-shaped provider | No separate storage process (same "no dependency tax" logic as choosing SQLite over Postgres). Zero-copy `sendfile` streaming; swap to R2/S3/Garage on deploy by config |
-| **AI** | Fast variants of flagship models — Claude Opus (fast mode), top GPT (fast tier), pluggable | Capability quality matters more than per-call cost; latency is part of the thesis. BYO-key keeps the open-sourced demo free |
+| **AI** | Fast variants of flagship models — Claude Opus (fast mode), top GPT (fast tier), pluggable — behind the **Vercel AI SDK** as the in-process provider spine | Capability quality matters more than per-call cost; latency is part of the thesis. BYO-key keeps the open-sourced demo free. The SDK supplies streaming + structured output + a bounded tool-loop so we don't hand-build a streaming client; provider-agnosticism comes from targeting the Anthropic-/OpenAI-compatible wire shapes (see ADR-0003) |
 | **Spec format** | JSON (AG-UI–aligned shape) | Open, structured, diffable. Not invented from scratch |
 
 The shell ships as a single static HTML page with HTMX attributes. Everything inside it is generated.
@@ -101,6 +101,8 @@ The shell ships as a single static HTML page with HTMX attributes. Everything in
 ### Model strategy
 
 The system targets the **fast variants of each provider's most powerful model**, selected **globally** (one configured model serves the whole run — no per-task routing). This keeps the experiment clean (results attributable to a single model), the config trivial (one key), and removes a routing layer. Comparing models means running the demo twice, not mixing them in one session. Architecturally this implies a **thin, pluggable provider interface** — the orchestrator depends on a `generate(prompt, schema)` contract, not on a specific SDK.
+
+That contract is realized by the **Vercel AI SDK** (in-process, fetch-based, runs on Bun, BYO-key) behind a provider registry keyed by `baseURL`. Because the Anthropic Messages API has become the de-facto wire format for coding models, that registry swaps the global model with one config change across **Claude, GPT, Gemini, and the open Chinese coding models** (Qwen3-Coder, GLM, Kimi, MiniMax, DeepSeek) — all of which expose an Anthropic-compatible endpoint. The SDK owns the streaming client, retries, structured-output validation, and the multi-provider switch; it does **not** own the harness *discipline* (the build pipeline, Diff Engine, layered gate, migration runner), which stays ours because it *is* the thesis. The code-writing step is a loop **bounded to a single build unit** (write → type-check → fix), agentic within a unit but deterministic across them — not a roaming autonomous agent, which would fight the spec→derived-caches discipline (§9.1). Rationale, the rejected autonomous-agent and hosted-API shapes, and the deferred execution sandbox are recorded in ADR-0003.
 
 ---
 
