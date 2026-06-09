@@ -19,3 +19,6 @@ storage/*
 # SQLite database file + its WAL/SHM/journal sidecars
 data/*
 !data/README.md
+
+# Env vars
+.env
