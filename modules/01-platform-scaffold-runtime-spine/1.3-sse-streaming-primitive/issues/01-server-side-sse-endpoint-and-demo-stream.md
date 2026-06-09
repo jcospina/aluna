@@ -1,6 +1,6 @@
 # Server-side SSE endpoint & demo token stream
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 

@@ -51,6 +51,16 @@
       "semicolons": "always"
     }
   },
+  "css": {
+    "formatter": {
+      "enabled": true
+    }
+  },
+  "html": {
+    "formatter": {
+      "enabled": true
+    }
+  },
   "assist": {
     "enabled": true,
     "actions": {

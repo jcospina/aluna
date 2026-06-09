@@ -1,6 +1,6 @@
 # Client SSE wiring: swap/append into content area
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 

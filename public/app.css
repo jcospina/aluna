@@ -205,6 +205,63 @@ body {
   background: color-mix(in oklch, var(--color-text), transparent 94%);
 }
 
+/* ── SSE demo (Epic 1.3, issue 02) ────────────────────────────────────────────
+   Temporary wiring that proves the client half of the streaming primitive: the
+   trigger opens /demo/stream and its chunks render into the output below as they
+   arrive. Styled on-system (the same quiet hard-shadow press as .sidebar-toggle).
+   Remove when the real build flow (prompt bar → orchestrator) lands. */
+.sse-demo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: min(46rem, 100%);
+}
+.sse-demo__trigger {
+  font: var(--body-emph);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-pop),
+    box-shadow var(--duration-fast) var(--ease-pop);
+}
+.sse-demo__trigger:hover {
+  transform: translate(1px, 1px);
+  box-shadow: var(--shadow-sm);
+}
+.sse-demo__trigger:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-none);
+}
+.sse-demo__trigger:disabled {
+  cursor: default;
+  color: var(--color-text-subtle);
+  transform: none;
+  box-shadow: var(--shadow-none);
+}
+/* The live output box: hidden until the first chunk arrives (:empty), then a
+   bordered surface holding the streamed text + fragment, left-aligned to read. */
+.sse-demo__output {
+  align-self: stretch;
+  padding: var(--space-2);
+  font: var(--body);
+  color: var(--color-text);
+  text-align: left;
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.sse-demo__output:empty {
+  display: none;
+}
+.sse-demo__output .demo-build {
+  margin: var(--space-1) 0 0;
+}
+
 /* ── Prompt bar — pinned to the bottom; borderless, no surface fill. ──────────
    Visually continuous with the content area (both on --color-bg); only the
    field itself carries treatment, reading as a composer placed inside the page
@@ -361,6 +418,8 @@ body {
   }
   .sidebar-toggle:hover,
   .sidebar-toggle:active,
+  .sse-demo__trigger:hover,
+  .sse-demo__trigger:active,
   .prompt__field:hover {
     transform: none;
   }

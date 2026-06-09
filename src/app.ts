@@ -3,12 +3,13 @@
 // shell page, the SSE channel, the capability router (/capability/:id/:action),
 // and file serving (/files/:key).
 //
-// At this stage (Epic 1.2, issue 02) it serves the fixed shell page at `/` and
-// static assets under /static/*. No SSE, database, or capability logic yet —
-// those land in later epics and build on this.
+// At this stage it serves the fixed shell page at `/`, static assets under
+// /static/*, and a demo SSE channel at /demo/stream (Epic 1.3). No database or
+// capability logic yet — those land in later epics and build on this.
 
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
+import { streamSSE } from "hono/streaming";
 
 export const app = new Hono();
 
@@ -25,6 +26,39 @@ app.get(
     new Response(Bun.file("./public/index.html"), {
       headers: { "content-type": "text/html; charset=utf-8" },
     }),
+);
+
+// Demo SSE channel (ARCH §4, §6.2) — a stand-in for the future build narration
+// that will power "watch the UI build itself". It streams product-voice tokens
+// incrementally, then a small HTML fragment, then closes cleanly. No generation
+// or domain logic; the content is demo-only. GET (so the next epic can consume it
+// with EventSource, and `curl -N` can verify it) under the /demo/* prefix, which
+// marks it clearly removable and out of the reserved real routes
+// (/capability/:id/:action, /files/:key, the production SSE channel).
+//
+// streamSSE sets the SSE headers (text/event-stream, no-cache, keep-alive) and
+// closes the connection when the callback returns.
+const DEMO_NARRATION = ["Got it — ", "putting that ", "together ", "for you ", "now…"];
+const DEMO_FRAGMENT = `<p class="demo-build">Here's a little something I made. ✨</p>`;
+const DEMO_TICK_MS = 120;
+
+app.get("/demo/stream", (c) =>
+  streamSSE(c, async (stream) => {
+    let aborted = false;
+    stream.onAbort(() => {
+      aborted = true;
+    });
+
+    let id = 0;
+    for (const token of DEMO_NARRATION) {
+      if (aborted) return;
+      await stream.writeSSE({ id: String(id++), event: "narration", data: token });
+      await stream.sleep(DEMO_TICK_MS);
+    }
+    if (aborted) return;
+    await stream.writeSSE({ id: String(id++), event: "fragment", data: DEMO_FRAGMENT });
+    await stream.writeSSE({ id: String(id++), event: "done", data: "ok" });
+  }),
 );
 
 // Static assets live in ./public and are served under the /static/* prefix

@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <!-- Empty icon: suppresses the browser's automatic /favicon.ico request so
          it isn't a 404 in the console. A real favicon mark is future work. -->
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="data:,">
 
     <!--
       The fixed shell — Aluna's one static UI surface (ARCH §4, §6.1). It ships
@@ -24,7 +24,7 @@
 
     <!-- Authored style — semantic tokens, Outfit (vendored), the shell layout.
          Static from /static/app.css, no build step. -->
-    <link rel="stylesheet" href="/static/app.css" />
+    <link rel="stylesheet" href="/static/app.css">
 
     <!--
       Scripts, all vendored/static and deferred (run in order after the DOM is
@@ -100,22 +100,35 @@
         <main class="content">
           <div class="cold-start">
             <h1 class="wordmark">Aluna<span class="wordmark__dot" aria-hidden="true">.</span></h1>
-            <!-- A muted, deliberately-blank empty-state block — "empty on
-                 purpose", friendly rather than built-out. No copy. -->
-            <div class="cold-start__placeholder" aria-hidden="true"></div>
+
+            <!-- DEMO (Epic 1.3, issue 02): proves the client half of the
+                 SSE primitive. The trigger opens the demo stream from
+                 /demo/stream (issue 01); its chunks render into the output
+                 below as they arrive. Wiring lives in public/app.js. Later
+                 epics replace this trigger with real builds (prompt bar →
+                 orchestrator) and this output with build narration — remove
+                 it then. -->
+            <div class="sse-demo">
+              <button type="button" class="sse-demo__trigger" id="sse-demo-trigger">
+                Watch a demo stream
+              </button>
+              <!-- Streamed chunks land here. aria-live announces them as
+                 they arrive; :empty hides the box until the first chunk. -->
+              <div class="sse-demo__output" id="sse-demo-output" aria-live="polite"></div>
+            </div>
           </div>
         </main>
 
         <!-- Prompt bar — a real form, but inert: no hx-post yet, and submission
              is suppressed so it neither reloads nor calls the orchestrator. The
              placeholder is the one bit of product-voice copy that ships. -->
-        <form class="prompt" onsubmit="return false">
+        <form class="prompt" onsubmit="return false;">
           <input
             class="prompt__field"
             type="text"
             aria-label="Prompt"
             placeholder="What would you like to keep track of?"
-          />
+          >
         </form>
       </div>
     </div>
