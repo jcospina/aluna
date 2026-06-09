@@ -4,9 +4,19 @@
 // URL it is listening on. The port is configurable via the PORT environment
 // variable, defaulting to 3030. Started by `bun run dev` (bun --watch).
 //
-// No shell markup, SSE, database, or AI yet — those build on this.
+// On boot it first brings the platform-owned schema up to date by running the
+// migrations runner (Epic 1.4) against the read-write connection — synchronously,
+// before serving, so the db is ready the moment the first request arrives.
 
 import { app } from "./app.ts";
+import { runMigrations } from "./migrations.ts";
+
+// Apply platform migrations before accepting traffic. Idempotent: a no-op once the
+// ledger is up to date, so steady-state restarts pay nothing.
+const applied = runMigrations();
+if (applied.length > 0) {
+  console.log(`omni-crud applied ${applied.length} migration(s): ${applied.join(", ")}`);
+}
 
 const DEFAULT_PORT = 3030;
 
