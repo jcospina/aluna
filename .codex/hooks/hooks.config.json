@@ -1,0 +1,66 @@
+{
+  "enforcePackageManager": {
+    "enabled": true,
+    "allowed": "bun",
+    "alternatives": {
+      "npm": {
+        "commands": [
+          "npm install",
+          "npm ci",
+          "npm run",
+          "npm exec",
+          "npm add",
+          "npm remove",
+          "npm uninstall"
+        ],
+        "replacements": {
+          "npm install": "bun install",
+          "npm ci": "bun install --frozen-lockfile",
+          "npm run": "bun run",
+          "npm exec": "bunx",
+          "npm add": "bun add",
+          "npm remove": "bun remove",
+          "npm uninstall": "bun remove"
+        }
+      },
+      "npx": {
+        "commands": ["npx"],
+        "replacements": {
+          "npx": "bunx"
+        }
+      },
+      "yarn": {
+        "commands": ["yarn install", "yarn add", "yarn remove", "yarn run", "yarn dlx"],
+        "replacements": {
+          "yarn install": "bun install",
+          "yarn add": "bun add",
+          "yarn remove": "bun remove",
+          "yarn run": "bun run",
+          "yarn dlx": "bunx"
+        }
+      },
+      "pnpm": {
+        "commands": [
+          "pnpm install",
+          "pnpm add",
+          "pnpm remove",
+          "pnpm run",
+          "pnpm exec",
+          "pnpm dlx"
+        ],
+        "replacements": {
+          "pnpm install": "bun install",
+          "pnpm add": "bun add",
+          "pnpm remove": "bun remove",
+          "pnpm run": "bun run",
+          "pnpm exec": "bunx",
+          "pnpm dlx": "bunx"
+        }
+      }
+    }
+  },
+  "biomeLint": {
+    "enabled": true,
+    "extensions": [".ts", ".tsx", ".js", ".jsx", ".json", ".jsonc", ".css"]
+  }
+}

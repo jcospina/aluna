@@ -1,6 +1,6 @@
 # Deterministic spec→DDL mapper
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -35,15 +35,41 @@ writes SQL** (ARCH §1 schema ownership, PLAN decision 8).
 
 ## Acceptance criteria
 
-- [ ] Deterministic: the same spec always produces the same DDL (snapshot-tested)
-- [ ] Every generated table carries the `cap_` prefix and the platform trio
-- [ ] All four enum types map correctly; `required` maps to NOT NULL handling
-- [ ] Output contains only additive statements
-- [ ] Applying the same DDL to a file-backed connection and an in-memory scratch
+- [x] Deterministic: the same spec always produces the same DDL (snapshot-tested)
+- [x] Every generated table carries the `cap_` prefix and the platform trio
+- [x] All four enum types map correctly; `required` maps to NOT NULL handling
+- [x] Output contains only additive statements
+- [x] Applying the same DDL to a file-backed connection and an in-memory scratch
       connection produces identical schemas
-- [ ] Tests cover the mapping table, determinism, and the arbitrary-connection
+- [x] Tests cover the mapping table, determinism, and the arbitrary-connection
       property
 
 ## Blocked by
 
 - modules/02-explicit-loop-i-build-your-first-capability/2.1-capability-registry/issues/01-registry-store-and-capability-spec-shape.md
+
+## Comments
+
+**2026-06-12 — implemented.** The deterministic mapper lives in
+[`src/capability-data/ddl.ts`](../../../../src/capability-data/ddl.ts), exported
+through [`src/capability-data/index.ts`](../../../../src/capability-data/index.ts).
+
+- `deriveCapabilityTableDdl` validates the incoming capability spec with the
+  registry schema, derives the `cap_<id>` table name, emits the platform trio
+  first (`id`, `created_at`, `extra`), then maps M2 fields deterministically:
+  `string -> TEXT`, `number -> REAL`, `boolean -> INTEGER`, `datetime -> TEXT`.
+  Required fields become `NOT NULL`; boolean fields carry a 0/1 check; `extra`
+  is JSON-checked text with a `{}` default.
+- `applyCapabilityTableDdl` accepts any `bun:sqlite` `Database`, so the same DDL
+  path works for the real database and the gate's scratch in-memory database.
+  Output is a single additive `CREATE TABLE IF NOT EXISTS ... STRICT` statement;
+  no destructive statement path exists in the mapper.
+- Tests in
+  [`src/capability-data/ddl.test.ts`](../../../../src/capability-data/ddl.test.ts)
+  cover the snapshot-pinned DDL, platform trio, type/nullability mapping,
+  additive-only output, and identical schema application on file-backed and
+  in-memory SQLite connections.
+
+Verification: `bun test` passed (61 tests, 1 snapshot); `bun run typecheck`
+passed; touched files passed `bunx biome check`. Full `bun run lint` is blocked
+by the unrelated untracked `.codex/hooks/hooks.config.json` formatting issue.

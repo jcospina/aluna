@@ -1,0 +1,44 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/jcospina/personal/omni-crud/.codex/hooks/enforce-package-manager.sh'"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/jcospina/personal/omni-crud/.codex/hooks/block-no-verify.sh'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/jcospina/personal/omni-crud/.codex/hooks/biome-format.sh'"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/jcospina/personal/omni-crud/.codex/hooks/biome-lint.sh'"
+          }
+        ]
+      }
+    ]
+  }
+}
