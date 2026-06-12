@@ -65,6 +65,35 @@ The single voice all of Aluna's UI copy speaks in — warm, encouraging, gently
 curious, first person, addressing the user directly. See *Product voice* below.
 _Avoid_: tone, copy style, microcopy guidelines
 
+## Engineering language (never user-facing)
+
+Canonical terms for issues, code, tests, and docs. Per the hard rule (ARCH §9.7)
+none of these words ever appear in UI copy.
+
+**Action**:
+One operation a capability exposes — `create`, `read`, `update`, `delete`,
+`search` (Module 2 ships create + read). Always reached through the fixed route
+convention; never an AI-invented route.
+_Avoid_: endpoint, route, operation
+
+**Handler**:
+The generated logic unit behind one capability action. Written fresh by the
+builder each version; runs when the action is called; receives its inputs and
+capability-scoped tools, and returns the HTML the user sees (ADR-0004).
+_Avoid_: controller, service, route handler
+
+**View**:
+A capability's generated, data-free HTML scaffolding, cached per version. Live
+data always arrives through the capability's `read` action — never baked into
+the view (ADR-0004).
+_Avoid_: template, page, screen
+
+**Gate**:
+The layered, fail-closed validation every build must clear before commit —
+type-check, signature assertion, smoke run, and (when the tier is on) behavioral
+tests. Runs against a scratch database, never user data (ADR-0004).
+_Avoid_: CI, checks, test suite
+
 ## Product voice
 
 The voice every piece of UI copy speaks in, and the guide every future coding
