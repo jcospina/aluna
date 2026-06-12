@@ -1,0 +1,3 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`capability table DDL mapper derives deterministic CREATE TABLE DDL from the same spec: notes capability DDL 1`] = `"CREATE TABLE IF NOT EXISTS "cap_notes" ("id" TEXT PRIMARY KEY, "created_at" TEXT NOT NULL DEFAULT (datetime('now')), "extra" TEXT NOT NULL DEFAULT ('{}') CHECK (json_valid("extra")), "title" TEXT NOT NULL, "amount" REAL, "done" INTEGER NOT NULL CHECK ("done" IN (0, 1)), "logged_at" TEXT) STRICT;"`;
