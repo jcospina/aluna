@@ -3,11 +3,11 @@
 // read-write connection, records each applied migration in a tracking table, and
 // runs on boot (src/index.ts).
 //
-// This is *platform* schema only. Module 1 ships no domain or capability tables —
-// those are created at runtime by the modules that build them (registry: M2,
-// data tables: M2, event log: M6, metrics: M2). So the only schema this runner
-// owns today is its own ledger, which is exactly enough to prove the mechanism:
-// a migration runs once, is recorded, and a second boot is a clean no-op.
+// This is *platform* schema only: the ledger (M1) and the capability registry
+// (M2), with metrics (M2) and the event log (M6) to follow. Capability *data*
+// tables (`cap_<id>`) never appear here — those are derived from specs and
+// created at runtime by the builder. The mechanism's guarantee holds for every
+// entry: a migration runs once, is recorded, and a second boot is a clean no-op.
 //
 // Two invariants, both straight from the unifying principle (ARCH §3):
 //
@@ -20,6 +20,7 @@
 
 import type { Database } from "bun:sqlite";
 import { db } from "./db.ts";
+import { REGISTRY_TABLE } from "./registry/store.ts";
 
 // The bookkeeping table that records which migrations have been applied. Its name
 // is a fixed platform constant (never user input), so interpolating it into SQL
@@ -52,6 +53,30 @@ export const MIGRATIONS: readonly Migration[] = [
         `CREATE TABLE IF NOT EXISTS ${MIGRATIONS_TABLE} (
            id         TEXT PRIMARY KEY,
            applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+         ) STRICT;`,
+      );
+    },
+  },
+  // 0002 creates the capability registry (M2, Epic 2.1) — the source of truth
+  // for everything Aluna has become (ARCH §6.3). One row per capability, kept
+  // lean (spec + version + artifacts pointer) because the intent resolver scans
+  // every row on every classification. `schema`, `ui_intent`, and `tools` hold
+  // JSON text; the access module (src/registry/store.ts) owns the (de)serialization
+  // and validates rows against the Zod spec shape in both directions.
+  {
+    id: "0002_capability_registry",
+    up: (database) => {
+      database.exec(
+        `CREATE TABLE IF NOT EXISTS ${REGISTRY_TABLE} (
+           id             TEXT PRIMARY KEY,
+           label          TEXT NOT NULL,
+           version        INTEGER NOT NULL,
+           schema         TEXT NOT NULL,
+           ui_intent      TEXT NOT NULL,
+           behavior       TEXT NOT NULL,
+           tools          TEXT NOT NULL,
+           artifacts_path TEXT NOT NULL,
+           prompt_context TEXT NOT NULL
          ) STRICT;`,
       );
     },

@@ -1,6 +1,6 @@
 # Registry store & capability spec shape
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -43,16 +43,63 @@ The spec is the only artifact that cannot be reconstructed from something else
 
 ## Acceptance criteria
 
-- [ ] An additive platform migration creates the registry table via the existing
+- [x] An additive platform migration creates the registry table via the existing
       migrations runner; a second boot is a clean no-op
-- [ ] The spec shape is Zod-validated: exactly the four field types, each with
+- [x] The spec shape is Zod-validated: exactly the four field types, each with
       `required`; specs containing list/file/relation shapes fail validation loudly
-- [ ] A valid spec written through the access module reads back deep-equal, with
+- [x] A valid spec written through the access module reads back deep-equal, with
       `version` and `artifacts_path` intact
-- [ ] Access module exposes create / get-by-id / list-all; the row stays lean per
+- [x] Access module exposes create / get-by-id / list-all; the row stays lean per
       ARCH §6.3
-- [ ] Tests cover both the validation rejections and the round-trip
+- [x] Tests cover both the validation rejections and the round-trip
 
 ## Blocked by
 
 None - can start immediately
+
+## Comments
+
+**2026-06-12 — implemented.** The registry lives in
+[`src/registry/`](../../../../src/registry/), mirroring the provider subsystem's
+layout: the shape in [`spec.ts`](../../../../src/registry/spec.ts), the access
+module in [`store.ts`](../../../../src/registry/store.ts), the public surface in
+[`index.ts`](../../../../src/registry/index.ts).
+
+- **Migration `0002_capability_registry`** appended to the existing runner
+  ([`src/migrations.ts`](../../../../src/migrations.ts)): a STRICT table with
+  exactly the nine lean columns (`id, label, version, schema, ui_intent,
+  behavior, tools, artifacts_path, prompt_context`); `schema`/`ui_intent`/`tools`
+  are JSON text, (de)serialized only by the store. Idempotency rides the
+  runner's existing ledger mechanics — the runner tests' re-run case now covers
+  0002, and the boot test proves boot-time application. The Module 1 "ledger
+  only" assertion in `migrations.test.ts` was updated: the invariant is now
+  *platform stores only, never `cap_<id>` data tables*.
+- **The spec shape** ([`spec.ts`](../../../../src/registry/spec.ts)) is two Zod
+  strict objects sharing one shape: `capabilitySpecSchema` (what the AI authors:
+  `id`, `label`, `schema`, `ui_intent`, `behavior`, `tools`, `prompt_context`)
+  and `capabilityRowSchema` (the spec plus platform-assigned `version` +
+  `artifacts_path`). The M2 pantry is enforced exactly per PLAN decision 8:
+  the four-type field enum each with `required`; views `list|create`; tools
+  `create|read`; `behavior` free text. List/file/relation shapes fail loudly —
+  the enum rejects the types, strictness rejects smuggled keys (`references`,
+  and `auto`, the recorded ARCH §6.3 deviation). The platform trio is exported
+  as `PLATFORM_COLUMNS` for the 2.2 mapper and is rejected as spec field names;
+  ids and field names are confined to safe SQL identifiers since they become
+  `cap_<id>` and column names.
+- **The store** validates in *both* directions — `insertCapability` parses
+  before writing (an invalid row throws and writes nothing), and reads re-parse
+  on the way out, so a non-conforming row can neither enter nor leave the
+  registry unnoticed. Writes ride `db`; `getCapability`/`listCapabilities`
+  default to `dbReadonly` per the read-path convention. `listCapabilities`
+  orders by `id` so toolbar rehydration and resolver context see one stable
+  order. Duplicate ids throw the PK violation — duplicates are the resolver's
+  to deflect (PLAN decision 6), not the store's to suffix.
+
+**Tests** ([`spec.test.ts`](../../../../src/registry/spec.test.ts),
+[`store.test.ts`](../../../../src/registry/store.test.ts)): 20 cases covering
+the four accepted types (each with `required` both ways), the loud rejections
+(list/file/relation, `auto`, platform-trio names, duplicate/blank/unknown
+shapes), the deep-equal round-trip with `version` and `artifacts_path` intact
+read back through the read-only connection, list-all ordering, and the
+nine-column lean-row pin. Full suite: `bun test` 56 pass, `bun run typecheck`
+and `biome check` green.
