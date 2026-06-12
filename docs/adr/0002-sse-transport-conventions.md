@@ -65,6 +65,31 @@ deletion of the throwaway demo that established it.
   **channel topology** — and must be settled by the consuming module, not
   assumed from the demo.
 
+## Update (Module 2 planning — channel topology settled)
+
+The **channel topology** question above is now decided for the explicit loop
+(settled in the M2 grilling session, 2026-06-12; implementation lands with epic
+2.6):
+
+- **Per-build ephemeral streams** ("phone call", not "intercom"). `POST /prompt`
+  creates a build job and immediately returns a small HTML fragment containing
+  the SSE subscriber for that job's stream (`GET /build/:id/stream`). All
+  narration, fragments, the commit swap, and the terminal `done` ride that
+  per-build stream, which the server closes — the same ephemeral lifecycle the
+  1.3/1.5 streams proved, now keyed by job.
+- **Intent resolution runs inside the job**, narrated over the stream — the
+  POST never blocks on an AI call, so the prompt bar gets instant feedback.
+- **The persistent shell channel is deliberately not built in M2.** Unprompted
+  server push is exactly the implicit loop's need, and its UX is still open
+  design work (modules.md §6.1) — M6 adds its own persistent proposal channel
+  *alongside* the ephemeral build streams if its design wants one. The two
+  topologies coexist; nothing in M2 is throwaway.
+
+The **client consumption mechanism** question is affirmed, not yet proven: the
+htmx SSE extension + `hx-swap-oob` is the chosen path, to be vendored and proven
+by epic 2.6 as flagged. The production **event vocabulary** remains M2 work and
+will be recorded here when finalized.
+
 ## Update (Epic 1.5 — Module 1 finalized)
 
 The throwaway `/demo/stream` was **replaced, not just deleted**, by the real
