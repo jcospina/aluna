@@ -8,7 +8,7 @@
 // Today it does two things, both presentation-only (no product logic — the shell
 // is dumb on purpose, ARCH §6.1):
 //   1. Registers the `shell` Alpine component (sidebar collapse / mobile drawer).
-//   2. Wires the demo SSE stream into the content area (Epic 1.3, issue 02).
+//   2. Wires the provider liveness stream into the content area (Epic 1.5).
 
 /**
  * The shell's presentation state.
@@ -53,14 +53,14 @@ function shell() {
   };
 }
 
-// ── Demo SSE wiring (Epic 1.3, issue 02) ─────────────────────────────────────
-// Proves the client half of the streaming primitive: the trigger opens the demo
-// stream from /demo/stream (issue 01) and renders its chunks into the content
-// area live — narration tokens append as text so the phrase assembles itself,
-// the trailing HTML fragment appends as markup. The connection is closed on the
-// server's `done` event so EventSource treats the end as final and does NOT
-// reconnect (a clean close, and no console errors). Later epics replace the
-// trigger with real builds and the content with build narration; remove then.
+// ── Provider liveness stream (Epic 1.5 — Module 1 finalized) ──────────────────
+// The trigger opens /stream (src/app.ts), where the real AI provider answers with
+// a short greeting; its chunks render into the content area live — narration tokens
+// append as text so the greeting assembles itself, the trailing HTML fragment (the
+// invitation) appends as markup. The connection closes on the server's `done` event
+// so EventSource treats the end as final and does NOT reconnect (a clean close, no
+// console errors). Module 2 swaps this raw-EventSource path for the HTMX-driven one
+// (ADR-0002) and the trigger for the real prompt-bar build flow.
 
 /**
  * Read the string payload from an SSE message event. EventSource types listeners
@@ -72,9 +72,9 @@ function sseData(event) {
   return /** @type {MessageEvent<string>} */ (event).data;
 }
 
-function initSseDemo() {
-  const trigger = document.getElementById("sse-demo-trigger");
-  const output = document.getElementById("sse-demo-output");
+function initIntroStream() {
+  const trigger = document.getElementById("intro-trigger");
+  const output = document.getElementById("intro-output");
   if (!(trigger instanceof HTMLButtonElement) || output === null) return;
 
   trigger.addEventListener("click", () => {
@@ -82,9 +82,9 @@ function initSseDemo() {
     const idleLabel = trigger.textContent;
     output.replaceChildren(); // clear any prior run
     trigger.disabled = true;
-    trigger.textContent = "Streaming…";
+    trigger.textContent = "Saying hello…";
 
-    const source = new EventSource("/demo/stream");
+    const source = new EventSource("/stream");
 
     // Idempotent teardown: close the stream and return the trigger to idle. Used
     // for both the clean end (`done`) and a real transport error.
@@ -107,4 +107,4 @@ function initSseDemo() {
 
 // This file is deferred, so the DOM is fully parsed by the time it runs — the
 // trigger/output elements already exist and can be wired directly.
-initSseDemo();
+initIntroStream();

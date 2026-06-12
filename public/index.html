@@ -101,20 +101,20 @@
           <div class="cold-start">
             <h1 class="wordmark">Aluna<span class="wordmark__dot" aria-hidden="true">.</span></h1>
 
-            <!-- DEMO (Epic 1.3, issue 02): proves the client half of the
-                 SSE primitive. The trigger opens the demo stream from
-                 /demo/stream (issue 01); its chunks render into the output
-                 below as they arrive. Wiring lives in public/app.js. Later
-                 epics replace this trigger with real builds (prompt bar →
-                 orchestrator) and this output with build narration — remove
-                 it then. -->
-            <div class="sse-demo">
-              <button type="button" class="sse-demo__trigger" id="sse-demo-trigger">
-                Watch a demo stream
-              </button>
+            <!-- Module 1 finalized (Epic 1.5): the provider liveness proof.
+                 Clicking asks the real AI provider for a short greeting and
+                 streams it into the output below as it arrives — the whole
+                 runtime spine end-to-end through the shell (shell → SSE →
+                 provider → content area), with zero domain logic. User-
+                 initiated, so the provider is never called on page load.
+                 Wiring lives in public/app.js; the stream is /stream
+                 (src/app.ts). The prompt bar above stays inert — turning real
+                 intent into a built capability is Module 2. -->
+            <div class="intro">
+              <button type="button" class="intro__trigger" id="intro-trigger">Meet Aluna</button>
               <!-- Streamed chunks land here. aria-live announces them as
                  they arrive; :empty hides the box until the first chunk. -->
-              <div class="sse-demo__output" id="sse-demo-output" aria-live="polite"></div>
+              <div class="intro__output" id="intro-output" aria-live="polite"></div>
             </div>
           </div>
         </main>

@@ -130,3 +130,38 @@ and no SDK ships it.
 - **If orchestration ergonomics strain the raw SDK,** Mastra is the pre-vetted
   layer to reconsider — superseding or amending this ADR rather than bolting on
   silently.
+
+## Implementation note (epic 1.5, issue 02)
+
+The spine landed in `src/provider/spine.ts` as a **three-wire** registry, `selectWire`
+keying off the endpoint host:
+
+- **`openai`** — the first-party `@ai-sdk/openai` (`createOpenAI`) for OpenAI's *own*
+  host (`api.openai.com`). It gives native structured-output validation and the
+  reasoning-effort knob that makes "fast mode" a real call-site setting
+  (`reasoningEffort: 'minimal'`). This wire is OpenAI-specific by design: the
+  first-party provider defaults to OpenAI's proprietary **Responses API**, which
+  third-party "compatible" endpoints do not implement.
+- **`openai-compatible`** — `@ai-sdk/openai-compatible` (`createOpenAICompatible`,
+  Chat Completions) for *every other* OpenAI-compatible endpoint. **This is the path
+  the open Chinese coding models take** (Qwen, GLM/Zhipu, Kimi/Moonshot, MiniMax,
+  DeepSeek) — first-class targets, exactly as this ADR requires. Reached by
+  `OMNI_BASE_URL` alone; no per-model code.
+- **`anthropic`** — `@ai-sdk/anthropic` (`createAnthropic`) for the Anthropic Messages
+  endpoint.
+
+> **Correction (supersedes the original first draft of this note).** The first cut
+> used `createOpenAI` for *all* non-Anthropic endpoints and claimed "the open Chinese
+> models reach the first-party provider by `baseURL` alone." That was **wrong**: the
+> first-party provider's Responses-API default (plus the OpenAI-only `reasoningEffort`
+> option and strict `json_schema` outputs) would have failed against those Chat-
+> Completions endpoints. Keeping the Chinese models first-class is why this ADR named
+> `createOpenAICompatible` in the first place; the dedicated `openai-compatible` wire
+> restores that. (The compatible wire is wired but not yet verified against a live
+> third-party endpoint — no such key on hand.)
+
+- **The shipped default is `gpt-5` in fast mode, not Claude Opus** — the platform
+  with credits/key on hand. This exercises (not contradicts) the "which model is the
+  configured default … is deliberately open" clause above: a one-env swap of the
+  trio (`OMNI_MODEL` + `OMNI_BASE_URL` + `OMNI_API_KEY`) moves it to any `claude-*`
+  or other model. Selecting the *empirical* default remains M7 experiment work.

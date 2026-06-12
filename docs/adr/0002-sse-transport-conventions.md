@@ -64,3 +64,16 @@ deletion of the throwaway demo that established it.
 - Two questions remain explicitly open — the **HTMX-driven client path** and the
   **channel topology** — and must be settled by the consuming module, not
   assumed from the demo.
+
+## Update (Epic 1.5 — Module 1 finalized)
+
+The throwaway `/demo/stream` was **replaced, not just deleted**, by the real
+provider-backed `/stream` (`src/app.ts`): the shell's `Meet Aluna` trigger streams a
+live AI-provider greeting into the content area (`narration` for the greeting,
+`fragment` for the invitation, `done` to close). This **reuses the seed vocabulary
+above unchanged** and keeps the **raw `EventSource` + manual DOM** client path — it
+does **not** settle either open question. The HTMX-driven swap path (`hx-swap-oob`)
+and the channel topology remain Module 2's to prove and finalize (epic 2.6); the
+event names here are still a seed M2 may rename or extend. The route is user-
+initiated (never hit on load) and carries zero domain logic — it proves the spine
+end-to-end, nothing more.

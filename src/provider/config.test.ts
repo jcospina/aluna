@@ -8,9 +8,12 @@ import { describe, expect, test } from "bun:test";
 
 import {
   API_KEY_ENV_VAR,
+  BASE_URL_ENV_VAR,
+  DEFAULT_BASE_URL,
   DEFAULT_MODEL,
   MODEL_ENV_VAR,
   requireApiKey,
+  resolveBaseURL,
   resolveModel,
   resolveProviderConfig,
 } from "./config.ts";
@@ -52,19 +55,43 @@ describe("resolveModel (a single global model)", () => {
   });
 });
 
-describe("resolveProviderConfig (key + model together)", () => {
-  test("resolves both the BYO key and the global model", () => {
+describe("resolveBaseURL (the endpoint, third leg of the swap)", () => {
+  test("falls back to the one configured default when no override is set", () => {
+    expect(resolveBaseURL({})).toBe(DEFAULT_BASE_URL);
+    expect(DEFAULT_BASE_URL.length).toBeGreaterThan(0);
+  });
+
+  test("a single env var overrides the endpoint (swap = point elsewhere)", () => {
+    expect(resolveBaseURL({ [BASE_URL_ENV_VAR]: "https://api.anthropic.com/v1" })).toBe(
+      "https://api.anthropic.com/v1",
+    );
+  });
+
+  test("ignores an empty or whitespace-only override", () => {
+    expect(resolveBaseURL({ [BASE_URL_ENV_VAR]: "" })).toBe(DEFAULT_BASE_URL);
+    expect(resolveBaseURL({ [BASE_URL_ENV_VAR]: "   " })).toBe(DEFAULT_BASE_URL);
+  });
+});
+
+describe("resolveProviderConfig (key + model + endpoint together)", () => {
+  test("resolves the whole swap trio", () => {
     const config = resolveProviderConfig({
       [API_KEY_ENV_VAR]: "sk-test-123",
       [MODEL_ENV_VAR]: "claude-custom",
+      [BASE_URL_ENV_VAR]: "https://api.anthropic.com/v1",
     });
-    expect(config).toEqual({ apiKey: "sk-test-123", model: "claude-custom" });
+    expect(config).toEqual({
+      apiKey: "sk-test-123",
+      model: "claude-custom",
+      baseURL: "https://api.anthropic.com/v1",
+    });
   });
 
-  test("uses the default model when only the key is set", () => {
+  test("uses the default model and endpoint when only the key is set", () => {
     expect(resolveProviderConfig({ [API_KEY_ENV_VAR]: "sk-test-123" })).toEqual({
       apiKey: "sk-test-123",
       model: DEFAULT_MODEL,
+      baseURL: DEFAULT_BASE_URL,
     });
   });
 

@@ -31,6 +31,10 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.82",
+    "@ai-sdk/openai": "^3.0.69",
+    "@ai-sdk/openai-compatible": "^2.0.48",
+    "ai": "^6.0.199",
     "hono": "^4.12.23",
     "zod": "^4.4.3"
   }
