@@ -1,6 +1,6 @@
 # Full-enum intent classification
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -36,15 +36,39 @@ classification is asserted through a fake provider behind the existing contract.
 
 ## Acceptance criteria
 
-- [ ] The intent schema carries the full enum + reject bucket, is Zod-validated,
+- [x] The intent schema carries the full enum + reject bucket, is Zod-validated,
       and includes `requires_confirmation` (always `false` in M2)
-- [ ] The classification call assembles registry context from every row's
+- [x] The classification call assembles registry context from every row's
       `prompt_context` plus the active capability
-- [ ] With a faked provider: "track my notes" while Notes exists classifies as
+- [x] With a faked provider: "track my notes" while Notes exists classifies as
       `extend_capability` (the duplicate falls out as overlap, not collision)
-- [ ] `user_facing_label` arrives from the same call — no second AI call for copy
-- [ ] No test calls a real provider
+- [x] `user_facing_label` arrives from the same call — no second AI call for copy
+- [x] No test calls a real provider
 
 ## Blocked by
 
 - modules/02-explicit-loop-i-build-your-first-capability/2.1-capability-registry/issues/01-registry-store-and-capability-spec-shape.md
+
+## Comments
+
+**2026-06-23 - implemented.** Added the classification-only Intent Resolver
+surface in [`src/intent-resolver/`](../../../../src/intent-resolver/), leaving
+job wiring and deflection behavior to issue 02 as planned.
+
+- [`schema.ts`](../../../../src/intent-resolver/schema.ts) defines the full M2+
+  intent language (`new_capability | extend_capability | ui_change |
+  data_query | reject`) with Zod validation, `confidence`,
+  `target_capability`, `proposed_action`, `user_facing_label`, and a literal
+  `requires_confirmation: false` for M2.
+- [`resolver.ts`](../../../../src/intent-resolver/resolver.ts) lists the whole
+  registry, assembles every row's `prompt_context`, includes the active
+  capability, and makes one provider `generate(prompt, schema)` call. The prompt
+  explicitly treats duplicate-looking asks as overlap (`extend_capability`) and
+  forbids suffixed duplicate ids.
+- [`resolver.test.ts`](../../../../src/intent-resolver/resolver.test.ts) uses a
+  fake provider only. It covers the full enum, the M2 confirmation invariant,
+  registry-context assembly, same-call `user_facing_label`, the "track my notes"
+  overlap case, and Zod rejection of non-conforming provider output.
+
+**Verification:** `bun test src/intent-resolver/resolver.test.ts`, `bun test`,
+`bun run typecheck`, `bun run lint`, and `git diff --check` all passed.
