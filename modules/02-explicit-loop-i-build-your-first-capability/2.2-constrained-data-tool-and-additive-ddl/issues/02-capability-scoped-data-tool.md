@@ -1,6 +1,6 @@
 # Capability-scoped data tool
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -32,15 +32,46 @@ convention** (ADR-0004).
 
 ## Acceptance criteria
 
-- [ ] A tool constructed for capability A cannot read or write capability B's
+- [x] A tool constructed for capability A cannot read or write capability B's
       table; no API shape accepts a table/capability name after construction
-- [ ] `insert` rides the read-write connection; `select` rides the read-only one
-- [ ] Round-trip: insert then select returns the row with the platform trio
+- [x] `insert` rides the read-write connection; `select` rides the read-only one
+- [x] Round-trip: insert then select returns the row with the platform trio
       populated and `extra` defaulted
-- [ ] The same round-trip passes against an in-memory scratch database (the
+- [x] The same round-trip passes against an in-memory scratch database (the
       practice-toolbox property)
-- [ ] Required-field violations surface as clear errors, not silent drops
+- [x] Required-field violations surface as clear errors, not silent drops
 
 ## Blocked by
 
 - modules/02-explicit-loop-i-build-your-first-capability/2.2-constrained-data-tool-and-additive-ddl/issues/01-deterministic-spec-to-ddl-mapper.md
+
+## Comments
+
+**2026-06-12 — implemented.** The capability-scoped data tool lives in
+[`src/capability-data/tool.ts`](../../../../src/capability-data/tool.ts), exported
+through [`src/capability-data/index.ts`](../../../../src/capability-data/index.ts).
+
+- `createCapabilityDataTool(spec, databases)` validates the capability spec,
+  derives the `cap_<id>` table through the deterministic DDL path, then closes
+  over that table name. The public surface is only `insert(values)` and
+  `select()`: no table name, capability name, or raw SQL entry point exists on
+  the injected handler tool.
+- `insert` uses only the injected read-write connection. It accepts spec fields
+  plus optional `extra`, generates `id` in platform code, lets SQLite populate
+  `created_at` and default `extra`, and returns normalized row values.
+- `select` uses only the injected read-only connection and normalizes rows back
+  into handler-friendly values (`boolean` fields as booleans, `extra` as a JSON
+  object).
+- Insert validation fails before SQLite for platform-populated columns,
+  unknown fields, missing required fields, bad field types, and non-JSON
+  `extra` values. That keeps handler mistakes loud and local, which is the
+  long-term contract ADR-0004 needs for generated code and scratch-gate reuse.
+- Tests in
+  [`src/capability-data/tool.test.ts`](../../../../src/capability-data/tool.test.ts)
+  cover capability isolation, method surface shape, RW/RO split, round-trip
+  defaults, explicit `extra`, shared in-memory scratch databases, and clear
+  required-field failures.
+
+Verification: `bun test src/capability-data/tool.test.ts` passed; `bun test`
+passed (70 tests, 1 snapshot); `bun run typecheck` passed; `bun run lint`
+passed.
