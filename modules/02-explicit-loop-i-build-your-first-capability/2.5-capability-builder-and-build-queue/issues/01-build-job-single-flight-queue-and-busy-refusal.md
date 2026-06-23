@@ -1,6 +1,6 @@
 # Build job, single-flight queue & busy refusal
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -36,18 +36,36 @@ is live from day one.
 
 ## Acceptance criteria
 
-- [ ] `POST /prompt` returns the subscriber fragment immediately; no AI call
+- [x] `POST /prompt` returns the subscriber fragment immediately; no AI call
       happens during the POST
-- [ ] The job's events ride `GET /build/:id/stream` with event types + monotonic
+- [x] The job's events ride `GET /build/:id/stream` with event types + monotonic
       ids, and the server closes the stream on `done`
-- [ ] A second POST while a job is active gets the friendly busy notice aimed at
+- [x] A second POST while a job is active gets the friendly busy notice aimed at
       the transient notice spot; no job is created, no AI is called, the running
       stream is unaffected
-- [ ] After `done`, a new POST starts a new job — single-flight, not single-use
-- [ ] Stream requests for unknown or completed jobs end cleanly
-- [ ] Tests drive the whole lifecycle against the stub pipeline with no real
+- [x] After `done`, a new POST starts a new job — single-flight, not single-use
+- [x] Stream requests for unknown or completed jobs end cleanly
+- [x] Tests drive the whole lifecycle against the stub pipeline with no real
       provider calls
 
 ## Blocked by
 
 None - can start immediately
+
+## Implementation notes
+
+- Added `src/build-jobs.ts`: an injectable in-memory single-flight build queue
+  with deterministic test ids, a placeholder product-voice pipeline, terminal
+  `done` semantics, and clean handling for unknown/completed job streams.
+- Wired `POST /prompt` and `GET /build/:id/stream` in `src/app.ts`. The POST
+  only admits the job and returns the SSE subscriber fragment; busy refusals
+  retarget `#prompt-notice` with friendly copy and do not touch the content area.
+- Extended `src/app.test.ts` to drive the lifecycle through HTTP/SSE, including
+  a paused active stream proving busy refusal does not disturb the running job.
+
+## Verification
+
+- `bun test src/app.test.ts`
+- `bun run typecheck`
+- `bun test`
+- `bunx biome check src/app.ts src/app.test.ts src/build-jobs.ts`
