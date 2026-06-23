@@ -20,3 +20,20 @@ export {
   hardcodedNewCapabilityIntent,
   type SpecGenResult,
 } from "./spec-gen.ts";
+export {
+  buildUnitPrompt,
+  DEFAULT_UNIT_FIX_ATTEMPTS,
+  type GenerateCapabilityUnitsInput,
+  type GenerateCapabilityUnitsResult,
+  type GeneratedUnit,
+  generateCapabilityUnits,
+  type HandlerUnitName,
+  type UnitDescriptor,
+  type UnitGenerationAttempt,
+  type UnitGenerationAttemptEvent,
+  UnitGenerationError,
+  type UnitGenerationObserver,
+  type UnitGenerationPartialEvent,
+  type UnitGenerationStartEvent,
+  type ViewUnitName,
+} from "./units.ts";

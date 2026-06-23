@@ -21,6 +21,34 @@ modules/<module-slug>/<epic-slug>/issues/<NN>-<slug>.md
 - "Blocked by" references use the full repo-relative path to the blocking issue file.
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading.
 
+## Living demo rule
+
+The homepage demo is the running integration surface for work in progress. Any
+issue that adds or changes runtime behavior should wire that behavior into the
+current demo route/UI as soon as the behavior can be exercised, even if the demo
+is temporary, rough, or developer-facing. The demo is allowed to show raw
+engineering previews under `/demo/*`; it exists to catch mismatched pieces before
+the final end-to-end flow lands.
+
+If an issue is genuinely not demo-relevant, say why in the implementation notes.
+Otherwise, do not mark the issue done until the issue file records how the demo
+was updated.
+
+## Completion notes and HITL
+
+Before setting `Status: done`, add implementation notes and verification commands
+to the issue file. Also add a `HITL test instructions` section for the human
+reviewer with:
+
+- the command to start the app or focused check,
+- the URL or route to open,
+- the prompt/action to perform,
+- the visible behavior that confirms the change,
+- any expected developer-only preview or console output.
+
+Every agent final response should repeat the HITL instructions in concise form so
+the human can run them without hunting through the issue file.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a new issue file under the owning epic: `modules/<module-slug>/<epic-slug>/issues/` (creating the module and epic directories if needed). Keep each issue scoped to a single epic.
