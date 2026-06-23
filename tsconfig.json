@@ -22,5 +22,10 @@
     "noImplicitOverride": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Hand-written/generated capability handlers (ADR-0004) carry no imports and no
+  // type annotations on purpose — the platform's tsc never checks them; the gate
+  // (epic 2.5) type-checks generated handlers in isolation. The 2.3 tracer-bullet
+  // fixtures mirror that, so they are excluded here too.
+  "exclude": ["src/router/__fixtures__"]
 }

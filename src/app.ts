@@ -1,7 +1,7 @@
 // The Hono application — the platform's one route file (ARCH §4: "no framework
 // ceremony, one route file"). Every later epic attaches its routes here: the
-// shell page, the SSE channel, the capability router (/capability/:id/:action),
-// and file serving (/files/:key).
+// shell page, the SSE channel, the capability router (/capability/:id/:action,
+// now wired — Epic 2.3), and file serving (/files/:key).
 //
 // At this stage it serves the fixed shell page at `/`, static assets under
 // /static/*, and the SSE channel at /stream — which, for Module 1's finalization
@@ -19,6 +19,7 @@ import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 
 import { createProvider, type Provider } from "./provider/index.ts";
+import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
 
 // ── The greeting round-trip (Module-1 liveness content; zero domain logic) ────
 // A tiny structured ask: the real provider returns a warm, product-voice hello and
@@ -108,6 +109,10 @@ export interface AppDeps {
   // Called once per stream. Defaults to the real provider, constructed lazily so a
   // missing key does not stop the server from booting — it surfaces in the stream.
   readonly getProvider?: () => Provider;
+  // Capability router wiring (Epic 2.3). Defaults to the platform db singletons and
+  // the real file loader; tests inject a scratch db pair (and, where they assert
+  // load ordering, a spy loader).
+  readonly capabilityRouter?: CapabilityRouterDeps;
 }
 
 export function createApp(deps: AppDeps = {}): Hono {
@@ -149,6 +154,14 @@ export function createApp(deps: AppDeps = {}): Hono {
       }
     }),
   );
+
+  // The deterministic capability router (ARCH §6.2, ADR-0004): the fixed
+  // `/capability/:id/:action` convention the generated UI targets. It validates the
+  // action against the registry row's tools, loads the version-keyed handler, builds
+  // the scoped context, and wraps the returned fragment — routing is never an AI
+  // concern. Registered as its own subsystem (src/router) so this file stays the
+  // thin wiring sheet.
+  registerCapabilityRoutes(app, deps.capabilityRouter ?? {});
 
   // Static assets live in ./public and are served under the /static/* prefix
   // (e.g. the shell's CSS/JS will be referenced as /static/<file>). A dedicated
