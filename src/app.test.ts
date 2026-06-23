@@ -9,7 +9,7 @@
 // reassembled narration equals the greeting), not via wall-clock timing, to stay
 // non-flaky. app.request() drives app.fetch without binding a port.
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import type { ZodType } from "zod";
 
 import { createApp } from "./app.ts";
@@ -21,6 +21,8 @@ interface SseEvent {
   readonly event: string;
   readonly data: string;
 }
+
+setDefaultTimeout(15_000);
 
 // A fake provider: streams `greeting` one character at a time (like the real
 // partialStream building up), then resolves the validated object carrying both
@@ -121,6 +123,10 @@ function createDeferred(): { readonly promise: Promise<void>; readonly resolve: 
   return { promise, resolve };
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function promptPost(prompt: string): RequestInit {
   return {
     method: "POST",
@@ -149,6 +155,7 @@ describe("GET / (shell)", () => {
     expect(html).toContain("Make it");
     expect(html).toContain('id="spec-build-preview"');
     expect(html).toContain('id="spec-migration-preview"');
+    expect(html).toContain('id="spec-units-preview"');
     expect(html).toContain('id="spec-build-output"');
     expect(html).not.toContain("Meet Aluna");
     expect(html).not.toContain('id="intro-trigger"');
@@ -211,19 +218,31 @@ describe("GET /stream (failure surfaces clearly, not silently)", () => {
   });
 });
 
-// A fake provider that returns a valid capability spec for any schema, recording
-// each prompt — so the spec-gen demo route is driven end-to-end without a real call.
+// A fake provider that returns a valid capability spec and then the four generated
+// units, recording each prompt — so the builder-stage demo route is driven
+// end-to-end without a real call.
 function makeSpecProvider(spec: unknown): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];
+  const responses = [
+    spec,
+    { content: CREATE_HANDLER },
+    { content: READ_HANDLER },
+    { content: LIST_VIEW },
+    { content: CREATE_VIEW },
+  ];
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
       prompts.push(prompt);
+      const response = responses.shift();
+      if (response === undefined) {
+        throw new Error(`fake provider exhausted after ${prompts.length} prompt(s)`);
+      }
       async function* stream(): AsyncGenerator<DeepPartial<T>> {
-        yield spec as DeepPartial<T>;
+        yield response as DeepPartial<T>;
       }
       return {
         partialStream: stream(),
-        object: Promise.resolve(spec as T),
+        object: Promise.resolve(response as T),
         usage: Promise.resolve({ inputTokens: 41, outputTokens: 12, totalTokens: 53 }),
       };
     },
@@ -241,8 +260,57 @@ const NOTES_SPEC = {
   prompt_context: "Stores the user's text notes.",
 };
 
-describe("GET /demo/spec-build (spec-gen liveness, fake provider)", () => {
-  test("narrates in product voice, previews the spec, confirms with the label, and closes", async () => {
+const CREATE_HANDLER = [
+  "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
+  "  const note = data.insert({ text: input.text });",
+  '  return `<article class="note"><p>$' + "{escapeHtml(note.text)}</p></article>`;",
+  "}",
+  "",
+  "function escapeHtml(value: unknown): string {",
+  "  return String(value)",
+  '    .replaceAll("&", "&amp;")',
+  '    .replaceAll("<", "&lt;")',
+  '    .replaceAll(">", "&gt;")',
+  '    .replaceAll(\'"\', "&quot;")',
+  '    .replaceAll("\'", "&#39;");',
+  "}",
+].join("\n");
+
+const READ_HANDLER = [
+  "export default async function read({ data }: CapabilityContext): Promise<string> {",
+  "  const notes = data.select();",
+  '  if (notes.length === 0) return \'<ul class="notes" data-empty="true"></ul>\';',
+  "  const items = notes",
+  '    .map((note) => `<li class="note">$' + "{escapeHtml(note.text)}</li>`)",
+  '    .join("");',
+  '  return `<ul class="notes">$' + "{items}</ul>`;",
+  "}",
+  "",
+  "function escapeHtml(value: unknown): string {",
+  "  return String(value)",
+  '    .replaceAll("&", "&amp;")',
+  '    .replaceAll("<", "&lt;")',
+  '    .replaceAll(">", "&gt;")',
+  '    .replaceAll(\'"\', "&quot;")',
+  '    .replaceAll("\'", "&#39;");',
+  "}",
+].join("\n");
+
+const LIST_VIEW = `<section class="capability-view" aria-labelledby="notes-heading">
+  <h2 id="notes-heading">Notes</h2>
+  <div id="notes-list" hx-get="/capability/notes/read" hx-trigger="load" hx-swap="innerHTML"></div>
+</section>`;
+
+const CREATE_VIEW = `<form class="capability-form" hx-post="/capability/notes/create" hx-target="#notes-list" hx-swap="afterbegin">
+  <label>
+    <span>Text</span>
+    <textarea name="text" required></textarea>
+  </label>
+  <button type="submit">Add</button>
+</form>`;
+
+describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
+  test("narrates, previews spec/migration/units, confirms with the label, and closes", async () => {
     const { provider, prompts } = makeSpecProvider(NOTES_SPEC);
     const app = createApp({ getProvider: () => provider });
 
@@ -255,14 +323,17 @@ describe("GET /demo/spec-build (spec-gen liveness, fake provider)", () => {
         .map((event) => event.data)
         .join("\n");
 
-    // Wire order: product-voice narration → live spec preview(s) → confirmation → done.
-    expect(events.map((event) => event.event)).toEqual([
-      "narration",
-      "spec-preview",
-      "migration-preview",
-      "fragment",
-      "done",
-    ]);
+    const eventNames = events.map((event) => event.event);
+    expect(eventNames[0]).toBe("narration");
+    expect(eventNames).toContain("spec-preview");
+    expect(eventNames).toContain("migration-preview");
+    expect(eventNames).toContain("units-preview");
+    expect(eventNames.at(-2)).toBe("fragment");
+    expect(eventNames.at(-1)).toBe("done");
+    expect(eventNames.indexOf("units-preview")).toBeGreaterThan(
+      eventNames.indexOf("migration-preview"),
+    );
+    expect(eventNames.indexOf("units-preview")).toBeLessThan(eventNames.indexOf("fragment"));
 
     // The demo preview deliberately carries the raw spec (the developer's liveness
     // view) — internals here are the point.
@@ -291,6 +362,50 @@ describe("GET /demo/spec-build (spec-gen liveness, fake provider)", () => {
     ]);
     expect(migrationPreview.columns.map((column) => column.name)).toContain("text");
 
+    const unitPreviewEvents = events.filter((event) => event.event === "units-preview");
+    expect(unitPreviewEvents.length).toBeGreaterThan(1);
+    const firstUnitsPreview = JSON.parse(unitPreviewEvents[0]?.data ?? "") as {
+      status: string;
+      units: Array<{ kind: string; name: string; status: string; content: string }>;
+    };
+    expect(firstUnitsPreview.status).toBe("running");
+    expect(firstUnitsPreview.units[0]).toMatchObject({
+      kind: "handler",
+      name: "create",
+      status: "generating",
+    });
+
+    const unitsPreview = JSON.parse(unitPreviewEvents.at(-1)?.data ?? "") as {
+      kind: string;
+      status: string;
+      codeGenDurationMs: number;
+      htmlGenDurationMs: number;
+      units: Array<{
+        kind: string;
+        name: string;
+        filename: string;
+        attempts: number;
+        content: string;
+      }>;
+    };
+    expect(unitsPreview.kind).toBe("unit-generation-preview");
+    expect(unitsPreview.status).toBe("complete");
+    expect(unitsPreview.codeGenDurationMs).toBeGreaterThanOrEqual(0);
+    expect(unitsPreview.htmlGenDurationMs).toBeGreaterThanOrEqual(0);
+    expect(unitsPreview.units.map((unit) => `${unit.kind}:${unit.name}:${unit.filename}`)).toEqual([
+      "handler:create:create.ts",
+      "handler:read:read.ts",
+      "view:list:list.html",
+      "view:create:create.html",
+    ]);
+    expect(unitsPreview.units.every((unit) => unit.attempts === 1)).toBe(true);
+    expect(unitsPreview.units.find((unit) => unit.filename === "create.ts")?.content).toContain(
+      "export default async function create",
+    );
+    expect(unitsPreview.units.find((unit) => unit.filename === "list.html")?.content).toContain(
+      'hx-get="/capability/notes/read"',
+    );
+
     // The product-voice events — narration + confirmation — must NOT leak internals
     // (ARCH §9.7). Only the user-facing label crosses into the confirmation.
     const userVisible = `${dataFor("narration")}\n${dataFor("fragment")}`;
@@ -299,11 +414,13 @@ describe("GET /demo/spec-build (spec-gen liveness, fake provider)", () => {
     expect(userVisible).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
     expect(dataFor("done")).toBe("ok");
 
-    // The typed prompt reached the provider, inside the M2 pantry instructions —
-    // proof the whole stage wiring ran, not a canned string.
-    expect(prompts).toHaveLength(1);
+    // The typed prompt reached the provider, then the four unit-generation prompts
+    // followed — proof the demo runs the current builder stages, not a canned string.
+    expect(prompts).toHaveLength(5);
     expect(prompts[0]).toContain("track my notes");
     expect(prompts[0]).toContain("tools: only create, read.");
+    expect(prompts[1]).toContain("Generate the create.ts handler");
+    expect(prompts[4]).toContain("Generate the create.html view");
   });
 
   test("falls back to the default prompt when the field is empty", async () => {
@@ -378,6 +495,31 @@ describe("POST /prompt and GET /build/:id/stream (build jobs)", () => {
     expect(events[0]?.data).toMatch(/putting that together/i);
     expect(events[1]?.data).toBe("ok");
     expect(providerCalls).toBe(0);
+  });
+
+  test("the job stream sends transport heartbeats while a build stage is silent", async () => {
+    const pipeline: BuildPipeline = async ({ send }) => {
+      await send("narration", "Starting.");
+      await wait(70);
+      await send("narration", "Finished.");
+    };
+    const buildJobs = createBuildJobQueue({
+      createId: createIdSequence(["job-heartbeat"]),
+      pipeline,
+    });
+    const app = createApp({ buildJobs, sseHeartbeatMs: 20 });
+
+    await postPrompt(app, "track notes");
+    const events = collectSseEvents(
+      await readSse(await app.request("/build/job-heartbeat/stream")),
+    );
+    const eventNames = events.map((event) => event.event);
+    const heartbeatIndex = eventNames.indexOf("heartbeat");
+
+    expect(heartbeatIndex).toBeGreaterThan(0);
+    expect(heartbeatIndex).toBeLessThan(eventNames.lastIndexOf("narration"));
+    expect(events[heartbeatIndex]).toEqual({ id: "", event: "heartbeat", data: "" });
+    expect(events.at(-1)).toEqual({ id: "2", event: "done", data: "ok" });
   });
 
   test("a second prompt during an active job gets a transient busy notice and does not disturb the stream", async () => {

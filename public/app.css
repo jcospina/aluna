@@ -205,9 +205,10 @@ body {
   background: color-mix(in oklch, var(--color-text), transparent 94%);
 }
 
-/* ── Spec-generation verification stream (Module 2 §2.5b+) ───────────────────
-   The prompt bar opens /demo/spec-build and the real builder stage streams
-   product-voice narration plus a raw spec preview into the content area. */
+/* ── Builder-stage verification stream (Module 2 §2.5+) ──────────────────────
+   The prompt bar opens /demo/spec-build and the current real builder stages
+   stream product-voice narration plus raw developer previews into the content
+   area. */
 .intro {
   display: flex;
   flex-direction: column;
@@ -230,8 +231,8 @@ body {
 .intro__output:empty {
   display: none;
 }
-/* §2.5b demo: the live spec preview — the raw spec as it streams in. A quiet,
-   monospaced, scrollable surface; hidden until the first snapshot (:empty). */
+/* §2.5 demo: raw stage previews. Quiet, monospaced, scrollable surfaces; hidden
+   until their first payload (:empty). */
 .spec-build__preview {
   align-self: stretch;
   max-height: 16rem;

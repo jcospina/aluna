@@ -89,8 +89,14 @@ committed (held at the developer's request)._
   **spine** (`src/provider/spine.ts`, `pumpStream`): a background pump drains the SDK
   stream so `object`/`usage` self-resolve while `partialStream` stays live for
   narration. Guarded by network-free unit tests. This also un-breaks the resolver.
-- Raised Bun's `idleTimeout` to 120s (`src/index.ts`): SSE streams fall silent during
-  generation, and the 10s default would sever the real build streams, not just this one.
+- Raised Bun's `idleTimeout` to 120s (`src/index.ts`): SSE streams can fall silent
+  during generation, and the 10s default would sever the real build streams, not
+  just this one.
+- Follow-up from issue 04: timeout protection is now an SSE transport concern, not
+  a demo affordance. Long-running SSE routes send id-less `heartbeat` events below
+  the server idle timeout while generation/checking is silent, so the connection
+  remains open without inventing user-visible product events or disturbing
+  app-level event ordering.
 
 ### Verification
 
@@ -100,14 +106,17 @@ committed (held at the developer's request)._
   the server logged the validated spec, ~4s spec-gen duration, and token usage (e.g.
   `{ input: 532, output: 159, total: 691 }`).
 
-### Demo scaffolding (verification only, not part of the stage)
+### Living demo scaffolding
 
 - A "Build a capability (demo)" affordance (`GET /demo/spec-build`; shell +
-  `public/app.js`), sibling to "Meet Aluna", runs the stage live. For developer
-  verification it currently **streams the spec into the UI** (a `spec-preview` event).
-  That spec-streaming-to-UI portion is **slated for removal before commit** (the
-  developer's call); the base liveness demo (narration + confirmation + server-console
-  spec log) may remain, matching the committed "Meet Aluna" pattern.
+  `public/app.js`) runs the stage live. For developer verification it streams the
+  spec into the UI as a `spec-preview` event. This preview is intentionally a
+  development surface: every later builder-stage issue should keep adding its
+  relevant state to the same homepage demo until the real prompt-bar flow replaces
+  it piece by piece.
+- The preview stream is useful for watching generation progress, but connection
+  liveness does not depend on preview events. The transport heartbeat described
+  above is what keeps the SSE request open when a provider or gate is silent.
 
 ### Intentionally deferred (later issues)
 

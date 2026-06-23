@@ -29,6 +29,11 @@ Three rules govern the ordering:
 1. **Scaffolding first.** Module 1 stands up the repo and wires every dependency together with zero domain logic.
 2. **Explicit prompting before implicit prompting.** Modules 2–5 build the entire explicit loop end to end. Implicit (Module 6) reuses that work.
 3. **Each module is progressive and self-contained.** It builds on the one before it, and on its own it is a complete, demonstrable, testable piece of the product. You can stop after any module and have a thing that runs.
+4. **The demo stays alive.** Relevant runtime work is wired into the current
+   homepage demo as soon as it can be exercised. The demo is allowed to be ugly
+   and developer-facing while it is temporary; it is the integration surface that
+   prevents pieces from drifting apart before the final end-to-end flow replaces
+   it.
 
 ### The shared grounding vs. the implicit-only pieces
 

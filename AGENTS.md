@@ -11,3 +11,14 @@ Uses the default five-role vocabulary (needs-triage, needs-info, ready-for-agent
 ### Domain docs
 
 Single-context repo — one `CONTEXT.md` and `docs/adr/` at the root. See `docs/agents/domain.md`.
+
+### Living demo and HITL
+
+Relevant runtime work must be wired into the current homepage demo as soon as it
+can be exercised, even if the demo is temporary or ugly. The demo is replaced
+piece by piece by real functionality; do not leave integration gaps invisible
+until the final end-to-end slice.
+
+Every completed turn must end with human-in-the-loop (HITL) test instructions:
+what command to run, what URL or route to open, what prompt/action to try, and
+what visible behavior confirms the work.

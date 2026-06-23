@@ -18,8 +18,13 @@ import { type ZodType, z } from "zod";
 
 import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
 import {
+  type GeneratedUnit,
+  generateCapabilityUnits,
   generateSpec,
   hardcodedNewCapabilityIntent,
+  type UnitDescriptor,
+  type UnitGenerationAttempt,
+  type UnitGenerationObserver,
   withCapabilityMigrationTransaction,
 } from "./builder/index.ts";
 import { createProvider, type GenerateResult, type Provider } from "./provider/index.ts";
@@ -68,6 +73,7 @@ function escapeHtml(value: string): string {
 const PROMPT_NOTICE_TARGET = "#prompt-notice";
 const BUSY_NOTICE =
   "I'm already putting something together. Give me a moment and I'll be ready for the next one.";
+const DEFAULT_SSE_HEARTBEAT_MS = 15_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -111,15 +117,65 @@ function renderBusyNotice(): string {
   return `<p id="prompt-notice" role="status" aria-live="polite">${escapeHtml(BUSY_NOTICE)}</p>`;
 }
 
-// An SSE writer that owns the monotonic `id` (ADR-0002). The event vocabulary is
-// the 1.3 seed — `narration` (product-voice text to append), `fragment` (HTML to
-// place), `done` (terminal, server closes so EventSource does not reconnect). M2
-// owns finalizing that vocabulary and the channel topology (ADR-0002); this reuses
-// the seed.
+// SSE transport owns app-level monotonic ids and id-less heartbeats (ADR-0002).
+// The event vocabulary is the 1.3 seed — `narration` (product-voice text to
+// append), `fragment` (HTML to place), `done` (terminal, server closes so
+// EventSource does not reconnect). M2 owns finalizing that vocabulary and the
+// channel topology; this reuses the seed.
 type Send = (event: string, data: string) => Promise<void>;
-function sseWriter(stream: SSEStreamingApi): Send {
+interface SseTransport {
+  readonly send: Send;
+  readonly heartbeat: () => Promise<void>;
+}
+
+function sseTransport(stream: SSEStreamingApi): SseTransport {
   let id = 0;
-  return (event, data) => stream.writeSSE({ id: String(id++), event, data });
+  let writes: Promise<void> = Promise.resolve();
+  const enqueue = (write: () => Promise<void>) => {
+    const next = writes.then(write, write);
+    writes = next.catch(() => {
+      // Keep the write chain usable after an aborted stream; the route's main path
+      // handles the actual abort/error state.
+    });
+    return next;
+  };
+
+  return {
+    send: (event, data) => enqueue(() => stream.writeSSE({ id: String(id++), event, data })),
+    heartbeat: () => enqueue(() => stream.writeSSE({ event: "heartbeat", data: "" })),
+  };
+}
+
+async function withSseHeartbeat(
+  transport: SseTransport,
+  intervalMs: number,
+  body: () => Promise<void>,
+): Promise<void> {
+  if (intervalMs <= 0) {
+    await body();
+    return;
+  }
+
+  let complete = false;
+  const completion = body().finally(() => {
+    complete = true;
+  });
+
+  while (!complete) {
+    await Promise.race([
+      completion.catch(() => {
+        // Preserve the original rejection for the final await below.
+      }),
+      new Promise((resolve) => setTimeout(resolve, intervalMs)),
+    ]);
+    if (!complete) {
+      await transport.heartbeat().catch(() => {
+        // Best-effort transport keepalive; aborted streams are handled by the route.
+      });
+    }
+  }
+
+  await completion;
 }
 
 // Stream the real greeting: narrate the `greeting` as it builds, then reveal the
@@ -191,6 +247,26 @@ interface DemoMigrationPreview {
   readonly columns: readonly DemoMigrationColumnPreview[];
 }
 
+interface DemoUnitPreview {
+  readonly kind: GeneratedUnit["kind"];
+  readonly name: GeneratedUnit["name"];
+  readonly filename: GeneratedUnit["filename"];
+  readonly status: "generating" | "fixing" | "complete";
+  readonly attempts: number;
+  readonly durationMs?: number;
+  readonly usage?: GeneratedUnit["usage"];
+  readonly error?: string;
+  readonly content: string;
+}
+
+interface DemoUnitsPreview {
+  readonly kind: "unit-generation-preview";
+  readonly status: "running" | "complete";
+  readonly codeGenDurationMs: number;
+  readonly htmlGenDurationMs: number;
+  readonly units: readonly DemoUnitPreview[];
+}
+
 interface SqliteColumnInfo {
   readonly name: string;
   readonly type: string;
@@ -239,6 +315,44 @@ async function buildScratchMigrationPreview(spec: CapabilitySpec): Promise<DemoM
   } finally {
     database.close();
   }
+}
+
+function unitPreviewKey(unit: UnitDescriptor): string {
+  return `${unit.kind}:${unit.name}`;
+}
+
+function unitPreviewFilename(unit: UnitDescriptor): GeneratedUnit["filename"] {
+  return unit.kind === "handler" ? `${unit.name}.ts` : `${unit.name}.html`;
+}
+
+function buildUnitsPreview(
+  units: readonly DemoUnitPreview[],
+  status: DemoUnitsPreview["status"],
+): DemoUnitsPreview {
+  return {
+    kind: "unit-generation-preview",
+    status,
+    codeGenDurationMs: units
+      .filter((unit) => unit.kind === "handler")
+      .reduce((sum, unit) => sum + (unit.durationMs ?? 0), 0),
+    htmlGenDurationMs: units
+      .filter((unit) => unit.kind === "view")
+      .reduce((sum, unit) => sum + (unit.durationMs ?? 0), 0),
+    units,
+  };
+}
+
+function finalUnitPreview(unit: GeneratedUnit): DemoUnitPreview {
+  return {
+    kind: unit.kind,
+    name: unit.name,
+    filename: unit.filename,
+    status: "complete",
+    attempts: unit.attempts.length,
+    durationMs: unit.durationMs,
+    usage: unit.usage,
+    content: unit.content,
+  };
 }
 
 // Demo-only provider decorator: as the spec streams in, it forwards each partial
@@ -305,11 +419,76 @@ async function streamSpecBuildDemo(
   if (isAborted()) return;
   await send("migration-preview", JSON.stringify(migrationPreview));
 
+  await send("narration", " I'm shaping it into something you can use.");
+  const liveUnits = new Map<string, DemoUnitPreview>();
+  let lastPreviewAt = 0;
+  const sendUnitsPreview = async (status: DemoUnitsPreview["status"], force = false) => {
+    if (isAborted()) return;
+    const now = performance.now();
+    if (!force && now - lastPreviewAt < 500) return;
+    lastPreviewAt = now;
+    await send("units-preview", JSON.stringify(buildUnitsPreview([...liveUnits.values()], status)));
+  };
+  const updateLiveUnit = (
+    unit: UnitDescriptor,
+    patch: Partial<Omit<DemoUnitPreview, "kind" | "name" | "filename">>,
+  ) => {
+    const key = unitPreviewKey(unit);
+    const current = liveUnits.get(key);
+    liveUnits.set(key, {
+      kind: unit.kind,
+      name: unit.name,
+      filename: unitPreviewFilename(unit),
+      status: current?.status ?? "generating",
+      attempts: current?.attempts ?? 0,
+      content: current?.content ?? "",
+      ...patch,
+    });
+  };
+  const recordAttempt = (unit: UnitDescriptor, attempt: UnitGenerationAttempt) => {
+    updateLiveUnit(unit, {
+      status: attempt.error ? "fixing" : "generating",
+      attempts: attempt.attempt,
+      durationMs: attempt.durationMs,
+      usage: attempt.usage,
+      ...(attempt.error ? { error: attempt.error } : {}),
+    });
+  };
+  const observer: UnitGenerationObserver = {
+    async onUnitStart({ unit, attempt }) {
+      updateLiveUnit(unit, { status: "generating", attempts: attempt });
+      await sendUnitsPreview("running", true);
+    },
+    async onUnitPartial({ unit, attempt, content }) {
+      updateLiveUnit(unit, { status: "generating", attempts: attempt, content });
+      await sendUnitsPreview("running");
+    },
+    async onUnitAttempt({ unit, attempt }) {
+      recordAttempt(unit, attempt);
+      await sendUnitsPreview("running", true);
+    },
+    async onUnitGenerated(unit) {
+      liveUnits.set(unitPreviewKey(unit), finalUnitPreview(unit));
+      await sendUnitsPreview("running", true);
+    },
+  };
+  const unitResult = await generateCapabilityUnits({ provider, spec, observer });
+  if (isAborted()) return;
+  const finalUnits = unitResult.units.map(finalUnitPreview);
+  await send("units-preview", JSON.stringify(buildUnitsPreview(finalUnits, "complete")));
+
   // The developer's verification surface: the full validated spec and the duration +
   // token usage the metrics row will record (Epic 2.7). Console only.
   console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
     usage,
     spec,
+    units: unitResult.units.map((unit) => ({
+      kind: unit.kind,
+      name: unit.name,
+      attempts: unit.attempts.length,
+      durationMs: Math.round(unit.durationMs),
+      usage: unit.usage,
+    })),
   });
 
   await send("fragment", renderSpecBuiltConfirmation(spec.label));
@@ -340,11 +519,15 @@ export interface AppDeps {
   // Build-job queue (Epic 2.5). Defaults to an in-memory single-flight queue with a
   // placeholder pipeline; tests inject deterministic ids and paused pipelines.
   readonly buildJobs?: BuildJobQueue;
+  // SSE transport heartbeat interval. Defaults below Bun's server idle timeout;
+  // tests lower it to prove silent long-running stages keep the connection open.
+  readonly sseHeartbeatMs?: number;
 }
 
 export function createApp(deps: AppDeps = {}): Hono {
   const getProvider = deps.getProvider ?? (() => createProvider());
   const buildJobs = deps.buildJobs ?? createBuildJobQueue();
+  const sseHeartbeatMs = deps.sseHeartbeatMs ?? DEFAULT_SSE_HEARTBEAT_MS;
   const app = new Hono();
 
   // Root route — the fixed shell (ARCH §6.1). Returns the authored static page
@@ -368,18 +551,20 @@ export function createApp(deps: AppDeps = {}): Hono {
   // when the callback returns.
   app.get("/stream", (c) =>
     streamSSE(c, async (stream) => {
-      let aborted = false;
-      stream.onAbort(() => {
-        aborted = true;
-      });
-      const isAborted = () => aborted;
-      const send = sseWriter(stream);
+      const transport = sseTransport(stream);
+      await withSseHeartbeat(transport, sseHeartbeatMs, async () => {
+        let aborted = false;
+        stream.onAbort(() => {
+          aborted = true;
+        });
+        const isAborted = () => aborted;
 
-      try {
-        await streamGreeting(send, isAborted, getProvider());
-      } catch (err) {
-        await handleStreamError(send, isAborted, err);
-      }
+        try {
+          await streamGreeting(transport.send, isAborted, getProvider());
+        } catch (err) {
+          await handleStreamError(transport.send, isAborted, err);
+        }
+      });
     }),
   );
 
@@ -389,20 +574,22 @@ export function createApp(deps: AppDeps = {}): Hono {
   // (EventSource is GET-only), with a default so the bare button still works.
   app.get("/demo/spec-build", (c) =>
     streamSSE(c, async (stream) => {
-      let aborted = false;
-      stream.onAbort(() => {
-        aborted = true;
-      });
-      const isAborted = () => aborted;
-      const send = sseWriter(stream);
-      const typed = (c.req.query("prompt") ?? "").trim();
-      const prompt = typed.length > 0 ? typed : DEMO_SPEC_PROMPT;
+      const transport = sseTransport(stream);
+      await withSseHeartbeat(transport, sseHeartbeatMs, async () => {
+        let aborted = false;
+        stream.onAbort(() => {
+          aborted = true;
+        });
+        const isAborted = () => aborted;
+        const typed = (c.req.query("prompt") ?? "").trim();
+        const prompt = typed.length > 0 ? typed : DEMO_SPEC_PROMPT;
 
-      try {
-        await streamSpecBuildDemo(send, isAborted, getProvider(), prompt);
-      } catch (err) {
-        await handleSpecBuildError(send, isAborted, err);
-      }
+        try {
+          await streamSpecBuildDemo(transport.send, isAborted, getProvider(), prompt);
+        } catch (err) {
+          await handleSpecBuildError(transport.send, isAborted, err);
+        }
+      });
     }),
   );
 
@@ -427,17 +614,21 @@ export function createApp(deps: AppDeps = {}): Hono {
     });
   });
 
-  // Per-build ephemeral stream ("phone call", ADR-0002 update). Event ids are
-  // monotonic per stream via sseWriter; the route always emits a terminal `done`
-  // and returns, so unknown/completed jobs end cleanly instead of reconnecting.
+  // Per-build ephemeral stream ("phone call", ADR-0002 update). App event ids are
+  // monotonic per stream via the transport writer; heartbeat events are id-less
+  // transport keepalives so a silent long-running builder stage does not let the
+  // connection go idle.
   app.get("/build/:id/stream", (c) =>
     streamSSE(c, async (stream) => {
-      let aborted = false;
-      stream.onAbort(() => {
-        aborted = true;
-      });
+      const transport = sseTransport(stream);
+      await withSseHeartbeat(transport, sseHeartbeatMs, async () => {
+        let aborted = false;
+        stream.onAbort(() => {
+          aborted = true;
+        });
 
-      await buildJobs.stream(c.req.param("id"), sseWriter(stream), () => aborted);
+        await buildJobs.stream(c.req.param("id"), transport.send, () => aborted);
+      });
     }),
   );
 

@@ -18,7 +18,11 @@ deletion of the throwaway demo that established it.
   - `fragment` — a chunk of HTML to place into the content area.
   - `done` — terminal signal; the server closes the stream so the browser
     `EventSource` treats the end as final and does **not** auto-reconnect.
-- **Monotonic `id`** on each message.
+- **Monotonic `id`** on each app-level message.
+- **Transport heartbeat.** Long-running SSE routes send id-less `heartbeat`
+  events below the server idle timeout. Clients ignore them; they exist to keep
+  the TCP/SSE connection active while a builder stage is generating or checking
+  without producing user-visible output.
 - **Route namespacing.** `/demo/*` is throwaway and freely removable. The
   **production SSE channel**, the capability router `/capability/:id/:action`,
   and `/files/:key` are reserved real routes (see `src/app.ts`). The demo must
@@ -52,6 +56,11 @@ deletion of the throwaway demo that established it.
   enabling M3's "stream only the changed fragments with targeted `hx-swap`."
 - **Server-closed `done`** avoids `EventSource`'s default auto-reconnect, giving
   a clean, no-console-error end to each stream.
+- **Heartbeat as transport, not product state.** A build stage may be silent for
+  longer than the server's idle timeout while a provider generates a large unit
+  or while a gate runs. The heartbeat is deliberately not part of the product
+  event vocabulary and carries no app event id, so it does not disturb
+  application ordering.
 
 ## Consequences
 
