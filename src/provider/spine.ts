@@ -98,6 +98,67 @@ export function selectWire(baseURL: string): Wire {
   return "openai-compatible";
 }
 
+// `streamObject` is **pull-based**: its `object` and `usage` promises only settle
+// once the partial stream is consumed (verified against a live provider — awaiting
+// `object` without reading the stream hangs indefinitely). The contract promises the
+// opposite: a caller may iterate `partialStream`, await `object` directly, or both
+// (./contract.ts). This bridges the two with a single background pump that drains the
+// SDK stream as fast as it arrives — which drives `object`/`usage` to resolve even
+// with no consumer — while replaying each snapshot to a caller that *does* iterate,
+// preserving the live timing build narration depends on. The pump never applies
+// backpressure, so a slow or absent consumer can't starve it; snapshots buffer (a
+// spec is ~100 small objects), and the buffer is drained or dropped with the result.
+// Exported for a network-free unit test (spine.test.ts), like `selectWire`. Single
+// consumer by construction — the contract's `partialStream` is read at most once.
+export function pumpStream<U>(source: AsyncIterable<U>): AsyncIterable<U> {
+  const buffer: U[] = [];
+  let finished = false;
+  let failure: unknown;
+  let hasFailure = false;
+  let wake: (() => void) | undefined;
+  const signal = () => {
+    wake?.();
+    wake = undefined;
+  };
+
+  void (async () => {
+    try {
+      for await (const item of source) {
+        buffer.push(item);
+        signal();
+      }
+    } catch (err) {
+      failure = err;
+      hasFailure = true;
+    } finally {
+      finished = true;
+      signal();
+    }
+  })();
+
+  const waitForNext = () =>
+    new Promise<void>((resolve) => {
+      wake = resolve;
+    });
+
+  async function* drain(): AsyncGenerator<U> {
+    for (;;) {
+      if (buffer.length > 0) {
+        yield buffer.shift() as U;
+      } else if (finished) {
+        break;
+      } else {
+        await waitForNext();
+      }
+    }
+    if (hasFailure) {
+      throw failure;
+    }
+  }
+
+  return { [Symbol.asyncIterator]: drain };
+}
+
 // Build the one real provider behind the contract. Resolves the config trio eagerly
 // (key + model + endpoint), so a missing key fails *here*, loudly, with the
 // actionable message from `requireApiKey` — never as a confusing mid-stream error
@@ -122,13 +183,21 @@ export function createProvider(env: NodeJS.ProcessEnv = process.env): Provider {
         providerOptions: adapter.fastModeOptions,
       });
 
-      // The SDK's partial-object stream and final-object promise *are* the contract's
-      // two handles. The casts cross the one seam where the SDK's structurally
-      // identical `DeepPartial`/object types meet ours; nothing else in the codebase
-      // sees them.
+      // The SDK's partial-object stream, final-object promise, and usage promise *are*
+      // the contract's three handles. `partialStream` goes through `pumpStream` so the
+      // request self-drives: `object`/`usage` resolve even when the caller only awaits
+      // them (the SDK won't otherwise — it is pull-based). The casts cross the one seam
+      // where the SDK's structurally identical `DeepPartial`/object types meet ours;
+      // nothing else in the codebase sees them. `usage` is narrowed to our three-count
+      // `TokenUsage`, dropping SDK-only figures (reasoning/cached tokens) M2 omits.
       return {
-        partialStream: result.partialObjectStream as AsyncIterable<DeepPartial<T>>,
+        partialStream: pumpStream(result.partialObjectStream) as AsyncIterable<DeepPartial<T>>,
         object: result.object as Promise<T>,
+        usage: result.usage.then(({ inputTokens, outputTokens, totalTokens }) => ({
+          inputTokens,
+          outputTokens,
+          totalTokens,
+        })),
       };
     },
   };

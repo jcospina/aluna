@@ -37,7 +37,11 @@ function makeFakeProvider(greeting: string, invitation: string): Provider {
         }
         yield { greeting, invitation } as DeepPartial<T>;
       }
-      return { partialStream: stream(), object: Promise.resolve({ greeting, invitation } as T) };
+      return {
+        partialStream: stream(),
+        object: Promise.resolve({ greeting, invitation } as T),
+        usage: Promise.resolve({ inputTokens: 0, outputTokens: 0, totalTokens: 0 }),
+      };
     },
   };
 }
@@ -184,6 +188,103 @@ describe("GET /stream (failure surfaces clearly, not silently)", () => {
     expect(payload).not.toMatch(/OMNI_API_KEY|api key|provider/i);
     // No proposal fragment on the error path.
     expect(payload).not.toContain("event: fragment");
+  });
+});
+
+// A fake provider that returns a valid capability spec for any schema, recording
+// each prompt — so the spec-gen demo route is driven end-to-end without a real call.
+function makeSpecProvider(spec: unknown): { provider: Provider; prompts: string[] } {
+  const prompts: string[] = [];
+  const provider: Provider = {
+    generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
+      prompts.push(prompt);
+      async function* stream(): AsyncGenerator<DeepPartial<T>> {
+        yield spec as DeepPartial<T>;
+      }
+      return {
+        partialStream: stream(),
+        object: Promise.resolve(spec as T),
+        usage: Promise.resolve({ inputTokens: 41, outputTokens: 12, totalTokens: 53 }),
+      };
+    },
+  };
+  return { provider, prompts };
+}
+
+const NOTES_SPEC = {
+  id: "notes",
+  label: "Notes",
+  schema: { fields: [{ name: "text", type: "string", required: true }] },
+  ui_intent: { views: ["list", "create"] },
+  behavior: "Text is required. Newest notes appear first.",
+  tools: ["create", "read"],
+  prompt_context: "Stores the user's text notes.",
+};
+
+describe("GET /demo/spec-build (spec-gen liveness, fake provider)", () => {
+  test("narrates in product voice, previews the spec, confirms with the label, and closes", async () => {
+    const { provider, prompts } = makeSpecProvider(NOTES_SPEC);
+    const app = createApp({ getProvider: () => provider });
+
+    const events = collectSseEvents(
+      await readSse(await app.request("/demo/spec-build?prompt=track%20my%20notes")),
+    );
+    const dataFor = (name: string) =>
+      events
+        .filter((event) => event.event === name)
+        .map((event) => event.data)
+        .join("\n");
+
+    // Wire order: product-voice narration → live spec preview(s) → confirmation → done.
+    expect(events.map((event) => event.event)).toEqual([
+      "narration",
+      "spec-preview",
+      "fragment",
+      "done",
+    ]);
+
+    // The demo preview deliberately carries the raw spec (the developer's liveness
+    // view) — internals here are the point.
+    expect(dataFor("spec-preview")).toContain("schema");
+    expect(dataFor("spec-preview")).toContain("notes");
+
+    // The product-voice events — narration + confirmation — must NOT leak internals
+    // (ARCH §9.7). Only the user-facing label crosses into the confirmation.
+    const userVisible = `${dataFor("narration")}\n${dataFor("fragment")}`;
+    expect(dataFor("fragment")).toContain("All set");
+    expect(dataFor("fragment")).toContain("Notes");
+    expect(userVisible).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
+    expect(dataFor("done")).toBe("ok");
+
+    // The typed prompt reached the provider, inside the M2 pantry instructions —
+    // proof the whole stage wiring ran, not a canned string.
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain("track my notes");
+    expect(prompts[0]).toContain("tools: only create, read.");
+  });
+
+  test("falls back to the default prompt when the field is empty", async () => {
+    const { provider, prompts } = makeSpecProvider(NOTES_SPEC);
+    const app = createApp({ getProvider: () => provider });
+
+    const payload = await readSse(await app.request("/demo/spec-build"));
+
+    expect(payload).toContain("event: done");
+    expect(prompts[0]).toContain("I want to keep track of my notes");
+  });
+
+  test("a missing key streams a warm apology, not a crash", async () => {
+    const app = createApp({ getProvider: throwingProvider("Missing OMNI_API_KEY. ...") });
+    const res = await app.request("/demo/spec-build?prompt=track%20notes");
+    expect(res.status).toBe(200);
+
+    const payload = await readSse(res);
+    expect(payload).toMatch(/mind trying again/i);
+    expect(payload).toContain("event: done");
+    expect(payload).toMatch(/data: error/);
+    // No fragment on the failure path, and no internals leaked.
+    expect(payload).not.toContain("event: fragment");
+    expect(payload).not.toMatch(/OMNI_API_KEY|api key|provider/i);
   });
 });
 

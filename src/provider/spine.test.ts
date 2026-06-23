@@ -15,7 +15,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { API_KEY_ENV_VAR } from "./config.ts";
-import { createProvider, selectWire } from "./spine.ts";
+import { createProvider, pumpStream, selectWire } from "./spine.ts";
 
 describe("selectWire (the registry, keyed by baseURL)", () => {
   test("routes Anthropic Messages hosts to the Anthropic wire", () => {
@@ -55,5 +55,63 @@ describe("createProvider (failure modes surface clearly)", () => {
   test("constructs without a network call once a key is present", () => {
     // Building the provider is pure wiring; nothing is sent until `generate` runs.
     expect(() => createProvider({ [API_KEY_ENV_VAR]: "sk-test-not-used" })).not.toThrow();
+  });
+});
+
+describe("pumpStream (self-driving partial stream)", () => {
+  // `streamObject` is pull-based: its `object`/`usage` only settle once the partial
+  // stream is consumed. `pumpStream` is what makes the contract's "await `object`
+  // directly" promise true — it drains the source itself. These guard that, without a
+  // live provider: the regression (awaiting object hangs) would resurface silently
+  // otherwise, since every fake provider's `object` resolves eagerly.
+  test("drives the source to completion even when nothing iterates the result", async () => {
+    let resolveDone!: () => void;
+    const done = new Promise<void>((resolve) => {
+      resolveDone = resolve;
+    });
+    const source = (async function* () {
+      yield 1;
+      yield 2;
+      resolveDone(); // reached only if the source is fully consumed
+    })();
+
+    pumpStream(source); // deliberately not iterated — the pump must drain it anyway
+
+    const outcome = await Promise.race([
+      done.then(() => "driven"),
+      new Promise((resolve) => setTimeout(() => resolve("hung"), 1000)),
+    ]);
+    expect(outcome).toBe("driven");
+  });
+
+  test("replays every snapshot in order to a consumer that does iterate", async () => {
+    const source = (async function* () {
+      yield "a";
+      yield "b";
+      yield "c";
+    })();
+
+    const seen: string[] = [];
+    for await (const item of pumpStream(source)) {
+      seen.push(item);
+    }
+    expect(seen).toEqual(["a", "b", "c"]);
+  });
+
+  test("surfaces a source failure to the consumer, after the items that preceded it", async () => {
+    const source = (async function* () {
+      yield "first";
+      throw new Error("stream blew up");
+    })();
+
+    const seen: string[] = [];
+    await expect(
+      (async () => {
+        for await (const item of pumpStream(source)) {
+          seen.push(item);
+        }
+      })(),
+    ).rejects.toThrow("stream blew up");
+    expect(seen).toEqual(["first"]);
   });
 });

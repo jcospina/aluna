@@ -116,6 +116,33 @@
                  they arrive; :empty hides the box until the first chunk. -->
               <div class="intro__output" id="intro-output" aria-live="polite"></div>
             </div>
+
+            <!-- Module 2 §2.5b: the spec-generation liveness check (demo
+                 scaffolding, sibling of "Meet Aluna"). Type what you'd like to
+                 keep track of and click; the server runs the real spec-generation
+                 stage (src/builder/spec-gen.ts) against the AI provider from a
+                 hardcoded new_capability intent, streams the product-voice
+                 narration here, and logs the resulting validated spec to the
+                 SERVER console. It is deliberately NOT the real build pipeline —
+                 issues 03–07 assemble that and Epic 2.6 wires the prompt bar; this
+                 block is removed then. Wiring: public/app.js, /demo/spec-build
+                 (src/app.ts). -->
+            <div class="intro">
+              <p class="intro__label">Build a capability (demo)</p>
+              <input
+                class="prompt__field"
+                type="text"
+                id="spec-build-prompt"
+                value="I want to keep track of my notes"
+                aria-label="What would you like to keep track of?"
+              >
+              <button type="button" class="intro__trigger" id="spec-build-trigger">Build it</button>
+              <!-- Demo-only: the spec streams in here as it builds (raw, internals
+                   visible on purpose — this is the developer's liveness view, not
+                   product UI). Hidden until the first snapshot (:empty). -->
+              <pre class="spec-build__preview" id="spec-build-preview" aria-hidden="true"></pre>
+              <div class="intro__output" id="spec-build-output" aria-live="polite"></div>
+            </div>
           </div>
         </main>
 

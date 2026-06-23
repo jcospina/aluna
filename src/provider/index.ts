@@ -18,5 +18,5 @@ export {
   resolveModel,
   resolveProviderConfig,
 } from "./config.ts";
-export type { DeepPartial, GenerateResult, Provider } from "./contract.ts";
+export type { DeepPartial, GenerateResult, Provider, TokenUsage } from "./contract.ts";
 export { createProvider } from "./spine.ts";

@@ -105,6 +105,69 @@ function initIntroStream() {
   });
 }
 
+// ── Spec-generation liveness demo (Module 2 §2.5b — demo scaffolding) ─────────
+// Sibling of the greeting stream above, for the spec-generation stage. Sends the
+// typed prompt to /demo/spec-build (src/app.ts), where the real builder stage runs
+// against the AI provider; the product-voice narration renders here as it arrives
+// and a confirmation fragment lands at the end. The full validated result is logged
+// to the SERVER console (the spec is engineering data, never shown to the user).
+// Removed when Epic 2.6 wires the real prompt-bar build flow.
+
+function initSpecBuildDemo() {
+  const trigger = document.getElementById("spec-build-trigger");
+  const input = document.getElementById("spec-build-prompt");
+  const output = document.getElementById("spec-build-output");
+  const preview = document.getElementById("spec-build-preview");
+  if (
+    !(trigger instanceof HTMLButtonElement) ||
+    !(input instanceof HTMLInputElement) ||
+    output === null ||
+    preview === null
+  ) {
+    return;
+  }
+
+  trigger.addEventListener("click", () => {
+    const idleLabel = trigger.textContent;
+    output.replaceChildren(); // clear any prior run
+    preview.textContent = "";
+    trigger.disabled = true;
+    trigger.textContent = "Putting it together…";
+
+    // EventSource is GET-only, so the typed prompt rides a query param. An empty
+    // field lets the server fall back to its default demo prompt.
+    const prompt = input.value.trim();
+    const query = prompt.length > 0 ? `?prompt=${encodeURIComponent(prompt)}` : "";
+    const source = new EventSource(`/demo/spec-build${query}`);
+
+    const finish = () => {
+      source.close();
+      trigger.disabled = false;
+      trigger.textContent = idleLabel;
+    };
+
+    source.addEventListener("narration", (event) => {
+      output.append(document.createTextNode(sseData(event)));
+    });
+    // Demo-only: each snapshot is the spec so far (more complete each time), shown
+    // pretty-printed as plain text (never as markup — it's untrusted model output).
+    source.addEventListener("spec-preview", (event) => {
+      const raw = sseData(event);
+      try {
+        preview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
+      } catch {
+        preview.textContent = raw;
+      }
+    });
+    source.addEventListener("fragment", (event) => {
+      output.insertAdjacentHTML("beforeend", sseData(event));
+    });
+    source.addEventListener("done", finish);
+    source.addEventListener("error", finish);
+  });
+}
+
 // This file is deferred, so the DOM is fully parsed by the time it runs — the
 // trigger/output elements already exist and can be wired directly.
 initIntroStream();
+initSpecBuildDemo();

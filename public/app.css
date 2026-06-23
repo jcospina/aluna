@@ -217,6 +217,12 @@ body {
   gap: var(--space-2);
   width: min(46rem, 100%);
 }
+/* Caption above the §2.5b spec-generation demo's input (demo scaffolding). */
+.intro__label {
+  margin: 0;
+  font: var(--body-emph);
+  color: var(--color-text);
+}
 .intro__trigger {
   font: var(--body-emph);
   color: var(--color-text);
@@ -256,6 +262,26 @@ body {
   border-radius: var(--radius-md);
 }
 .intro__output:empty {
+  display: none;
+}
+/* §2.5b demo: the live spec preview — the raw spec as it streams in. A quiet,
+   monospaced, scrollable surface; hidden until the first snapshot (:empty). */
+.spec-build__preview {
+  align-self: stretch;
+  max-height: 16rem;
+  margin: 0;
+  overflow: auto;
+  padding: var(--space-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  text-align: left;
+  white-space: pre-wrap;
+  color: var(--color-text-subtle);
+  background: color-mix(in oklch, var(--color-text), transparent 96%);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.spec-build__preview:empty {
   display: none;
 }
 .intro__output .intro__invitation {

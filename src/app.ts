@@ -16,10 +16,11 @@ import { type Context, Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import type { SSEStreamingApi } from "hono/streaming";
 import { streamSSE } from "hono/streaming";
-import { z } from "zod";
+import { type ZodType, z } from "zod";
 
 import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
-import { createProvider, type Provider } from "./provider/index.ts";
+import { generateSpec, hardcodedNewCapabilityIntent } from "./builder/index.ts";
+import { createProvider, type GenerateResult, type Provider } from "./provider/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
 
 // ── The greeting round-trip (Module-1 liveness content; zero domain logic) ────
@@ -149,6 +150,109 @@ async function handleStreamError(send: Send, isAborted: () => boolean, err: unkn
   await send("done", "error");
 }
 
+// ── Spec-generation liveness demo (Module 2 §2.5b; demo scaffolding) ───────────
+// A sibling to the greeting round-trip above, this one for the spec-generation
+// stage (src/builder/spec-gen.ts). It runs that real stage against the configured
+// provider from a hardcoded `new_capability` intent, streams the product-voice
+// narration to the shell, and logs the resulting *validated* spec to the SERVER
+// console — the spec is engineering data, never user-visible (ARCH §9.7).
+//
+// It is deliberately NOT the real build pipeline: the POST /prompt build lifecycle
+// is what issues 03–07 grow, and Epic 2.6 wires the prompt bar to it. This route
+// exists only so the spec-gen wiring is verifiable in the running app today — the
+// way "Meet Aluna" proves the provider round-trip live — and is removed when 2.6
+// lands the real flow. Keeping it separate means none of that later work has to
+// unwind a demo.
+const DEMO_SPEC_PROMPT = "I want to keep track of my notes";
+
+// The one user-visible line confirming the round-trip produced a usable capability.
+// Only the user-facing `label` crosses into the UI (escaped); everything else about
+// the spec stays in the console (ARCH §9.7).
+function renderSpecBuiltConfirmation(label: string): string {
+  return `<p class="intro__invitation">All set — I've made a place for your ${escapeHtml(label)}.</p>`;
+}
+
+// Demo-only provider decorator: as the spec streams in, it forwards each partial
+// snapshot to the shell as a `spec-preview` event so the developer watches the spec
+// assemble live. This deliberately surfaces internals — that is the whole point of a
+// liveness check — and exists ONLY on this demo path; the real pipeline never emits
+// it, and the product's no-internals rule (ARCH §9.7) still governs narration and
+// the confirmation. `generateSpec` only awaits `object` (self-driven by the spine),
+// so consuming `partialStream` here for previews doesn't starve the stage. The
+// returned `settled` promise lets the route flush every preview before the warm
+// confirmation, keeping the wire order narration → preview* → confirmation.
+function previewingProvider(
+  real: Provider,
+  send: Send,
+): { provider: Provider; settled: Promise<void> } {
+  let settle!: () => void;
+  const settled = new Promise<void>((resolve) => {
+    settle = resolve;
+  });
+
+  const provider: Provider = {
+    generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
+      const result = real.generate(prompt, schema);
+      void (async () => {
+        try {
+          for await (const partial of result.partialStream) {
+            await send("spec-preview", JSON.stringify(partial));
+          }
+        } catch {
+          // Best-effort preview; the real outcome surfaces through generateSpec.
+        } finally {
+          settle();
+        }
+      })();
+      return result;
+    },
+  };
+
+  return { provider, settled };
+}
+
+async function streamSpecBuildDemo(
+  send: Send,
+  isAborted: () => boolean,
+  provider: Provider,
+  prompt: string,
+) {
+  const intent = hardcodedNewCapabilityIntent(prompt);
+  // Wrap the provider so the spec streams to the shell as it builds (demo preview),
+  // while the stage itself runs unchanged.
+  const { provider: observed, settled } = previewingProvider(provider, send);
+  // `generateSpec` narrates the intent's `user_facing_label` over `send` and returns
+  // the validated spec plus the build's measurements.
+  const { spec, durationMs, usage } = await generateSpec({
+    provider: observed,
+    prompt,
+    intent,
+    send,
+  });
+  await settled; // every spec-preview is on the wire before the confirmation
+  if (isAborted()) return;
+
+  // The developer's verification surface: the full validated spec and the duration +
+  // token usage the metrics row will record (Epic 2.7). Console only.
+  console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
+    usage,
+    spec,
+  });
+
+  await send("fragment", renderSpecBuiltConfirmation(spec.label));
+  await send("done", "ok");
+}
+
+// A non-conforming model output (the spec-gen gate throwing) or a missing key both
+// surface the same way the greeting does: precise in the server log, warm and
+// jargon-free in the UI (the build-failure voice, build-jobs.ts).
+async function handleSpecBuildError(send: Send, isAborted: () => boolean, err: unknown) {
+  console.error("Aluna spec-build demo failed:", err instanceof Error ? err.message : err);
+  if (isAborted()) return;
+  await send("narration", "Hmm, that didn't work. Mind trying again?");
+  await send("done", "error");
+}
+
 // Dependencies the app is built with. The provider is injected (defaulting to the
 // real spine) so the route's wiring is testable through a fake `Provider` with no
 // network and no spend — the orchestrator depends on the contract, never the SDK.
@@ -202,6 +306,29 @@ export function createApp(deps: AppDeps = {}): Hono {
         await streamGreeting(send, isAborted, getProvider());
       } catch (err) {
         await handleStreamError(send, isAborted, err);
+      }
+    }),
+  );
+
+  // Spec-generation liveness demo (Module 2 §2.5b; demo scaffolding, removed when
+  // Epic 2.6 wires the real prompt bar). User-initiated like /stream, so the
+  // provider is never called on page load. The typed prompt rides a query param
+  // (EventSource is GET-only), with a default so the bare button still works.
+  app.get("/demo/spec-build", (c) =>
+    streamSSE(c, async (stream) => {
+      let aborted = false;
+      stream.onAbort(() => {
+        aborted = true;
+      });
+      const isAborted = () => aborted;
+      const send = sseWriter(stream);
+      const typed = (c.req.query("prompt") ?? "").trim();
+      const prompt = typed.length > 0 ? typed : DEMO_SPEC_PROMPT;
+
+      try {
+        await streamSpecBuildDemo(send, isAborted, getProvider(), prompt);
+      } catch (err) {
+        await handleSpecBuildError(send, isAborted, err);
       }
     }),
   );

@@ -28,6 +28,19 @@ export type DeepPartial<T> =
       ? { [K in keyof T]?: DeepPartial<T[K]> }
       : T;
 
+// Token counts for a single `generate` call — the measurement the build's metrics
+// row records (ARCH §6.2 "Every generation writes a metrics record … tokens"). A
+// contract-local shape, defined here rather than imported, so no SDK usage type
+// leaks past this seam (same discipline as `DeepPartial`). Counts are
+// `number | undefined` because not every provider reports every figure: the
+// contract is honest about absence rather than fabricating a zero, and the metrics
+// writer decides how to store a missing count.
+export interface TokenUsage {
+  readonly inputTokens: number | undefined;
+  readonly outputTokens: number | undefined;
+  readonly totalTokens: number | undefined;
+}
+
 // The result of a single `generate` call. Streaming is first-class: `partialStream`
 // exposes the object as it is built (for build narration → Hono SSE, ADR-0002/0003),
 // and `object` resolves to the final value once it is complete *and* validated
@@ -43,6 +56,11 @@ export interface GenerateResult<T> {
   // Rejects if the model's output never conforms — non-conformance surfaces here
   // rather than silently returning a malformed object (issue 02 leans on this).
   readonly object: Promise<T>;
+  // Token usage for the call, resolved once the response is finished (same lifetime
+  // as `object`). A required handle: measurement is part of the contract, not an
+  // optional extra — every build stage that calls `generate` can record what the
+  // generation cost (the spec-gen stage is the first, Module 2 §2.5).
+  readonly usage: Promise<TokenUsage>;
 }
 
 // The contract. One method: stream a structured object that conforms to `schema`

@@ -9,7 +9,7 @@
 import { describe, expect, test } from "bun:test";
 import { type ZodType, z } from "zod";
 
-import type { DeepPartial, GenerateResult, Provider } from "./contract.ts";
+import type { DeepPartial, GenerateResult, Provider, TokenUsage } from "./contract.ts";
 
 // The schema a caller hands to `generate` — a tiny stand-in for the structured
 // output the orchestrator will ask for later.
@@ -19,6 +19,11 @@ const ProposalSchema = z.object({
   ready: z.boolean(),
 });
 type Proposal = z.infer<typeof ProposalSchema>;
+
+// A fixed usage both fakes report — the contract requires the handle, and a real
+// provider fills it from the SDK's `usage` (the spine). Tests that don't care about
+// counts ignore it; the usage test below asserts it threads through unchanged.
+const STUB_USAGE: TokenUsage = { inputTokens: 7, outputTokens: 11, totalTokens: 18 };
 
 // A consumer written against the contract and nothing else: drain the stream,
 // then take the validated object. This is the shape the orchestrator depends on —
@@ -48,7 +53,11 @@ function makeEchoProvider(raw: unknown): Provider {
           yield raw as DeepPartial<T>;
         }
       }
-      return { partialStream: stream(), object: Promise.resolve().then(() => schema.parse(raw)) };
+      return {
+        partialStream: stream(),
+        object: Promise.resolve().then(() => schema.parse(raw)),
+        usage: Promise.resolve(STUB_USAGE),
+      };
     },
   };
 }
@@ -61,7 +70,11 @@ function makeImmediateProvider(raw: unknown): Provider {
       async function* stream(): AsyncGenerator<DeepPartial<T>> {
         yield raw as DeepPartial<T>;
       }
-      return { partialStream: stream(), object: Promise.resolve().then(() => schema.parse(raw)) };
+      return {
+        partialStream: stream(),
+        object: Promise.resolve().then(() => schema.parse(raw)),
+        usage: Promise.resolve(STUB_USAGE),
+      };
     },
   };
 }
@@ -91,6 +104,13 @@ describe("Provider contract", () => {
     // More than one snapshot proves the object arrived incrementally, not in one blob.
     expect(snapshots.length).toBeGreaterThan(1);
     expect(snapshots.at(-1)).toEqual(proposal);
+  });
+
+  test("exposes token usage for the call alongside the object", async () => {
+    // The measurement handle the metrics row records (ARCH §6.2). A required part of
+    // the contract: every consumer of `generate` can read what the call cost.
+    const result = makeImmediateProvider(proposal).generate("p", ProposalSchema);
+    await expect(result.usage).resolves.toEqual(STUB_USAGE);
   });
 
   test("surfaces non-conforming output as a rejection on .object", async () => {
