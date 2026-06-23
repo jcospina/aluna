@@ -136,6 +136,26 @@ async function responseText(res: Response): Promise<string> {
   return res.text();
 }
 
+describe("GET / (shell)", () => {
+  test("uses the prompt bar for the spec-generation demo and removes the old greeting button", async () => {
+    const app = createApp();
+    const res = await app.request("/");
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(html).toContain('id="spec-build-form"');
+    expect(html).toContain('id="spec-build-prompt"');
+    expect(html).toContain('id="spec-build-trigger"');
+    expect(html).toContain("Make it");
+    expect(html).toContain('id="spec-build-preview"');
+    expect(html).toContain('id="spec-migration-preview"');
+    expect(html).toContain('id="spec-build-output"');
+    expect(html).not.toContain("Meet Aluna");
+    expect(html).not.toContain('id="intro-trigger"');
+    expect(html).not.toContain('id="intro-output"');
+  });
+});
+
 describe("GET /stream (provider liveness, fake provider)", () => {
   const greeting = "Hi — I'm so glad you're here.";
   const invitation = "Tell me what you'd like to keep <3";
@@ -239,6 +259,7 @@ describe("GET /demo/spec-build (spec-gen liveness, fake provider)", () => {
     expect(events.map((event) => event.event)).toEqual([
       "narration",
       "spec-preview",
+      "migration-preview",
       "fragment",
       "done",
     ]);
@@ -247,6 +268,28 @@ describe("GET /demo/spec-build (spec-gen liveness, fake provider)", () => {
     // view) — internals here are the point.
     expect(dataFor("spec-preview")).toContain("schema");
     expect(dataFor("spec-preview")).toContain("notes");
+
+    const migrationPreview = JSON.parse(dataFor("migration-preview")) as {
+      kind: string;
+      tableName: string;
+      sql: string;
+      columns: Array<{ name: string; type: string; required: boolean; primaryKey: boolean }>;
+    };
+    expect(migrationPreview.kind).toBe("scratch-migration-preview");
+    expect(migrationPreview.tableName).toBe("cap_notes");
+    expect(migrationPreview.sql).toContain('CREATE TABLE "cap_notes"');
+    expect(migrationPreview.columns.slice(0, 3)).toMatchObject([
+      { name: "id", type: "TEXT", required: true, primaryKey: true, defaultValue: null },
+      {
+        name: "created_at",
+        type: "TEXT",
+        required: true,
+        primaryKey: false,
+        defaultValue: "datetime('now')",
+      },
+      { name: "extra", type: "TEXT", required: true, primaryKey: false, defaultValue: "'{}'" },
+    ]);
+    expect(migrationPreview.columns.map((column) => column.name)).toContain("text");
 
     // The product-voice events — narration + confirmation — must NOT leak internals
     // (ARCH §9.7). Only the user-facing label crosses into the confirmation.

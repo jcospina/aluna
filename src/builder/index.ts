@@ -7,6 +7,13 @@
 // entry point.
 
 export {
+  type ApplyCapabilityMigrationInput,
+  applyCapabilityMigration,
+  type CapabilityMigrationResult,
+  type CapabilityMigrationTransactionResult,
+  withCapabilityMigrationTransaction,
+} from "./migration.ts";
+export {
   buildSpecPrompt,
   type GenerateSpecInput,
   generateSpec,
