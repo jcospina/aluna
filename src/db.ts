@@ -33,6 +33,30 @@ export interface PlatformDatabase {
   readonly: Database;
 }
 
+// Bun's `Database.transaction` helper is synchronous; it commits before an
+// awaited continuation settles. Builder work needs one rollback scope that can
+// span later async stages, so this explicit helper keeps the transaction open
+// until the whole continuation resolves.
+export async function withWriteTransaction<T>(
+  database: Database,
+  body: () => T | Promise<T>,
+): Promise<T> {
+  database.exec("BEGIN IMMEDIATE TRANSACTION;");
+
+  try {
+    const result = await body();
+    database.exec("COMMIT;");
+    return result;
+  } catch (err) {
+    try {
+      database.exec("ROLLBACK;");
+    } catch (rollbackErr) {
+      throw new AggregateError([err, rollbackErr], "Transaction failed and rollback failed");
+    }
+    throw err;
+  }
+}
+
 // Open the read-write + read-only pair against `path`. Exported as a factory so
 // tests can drive it against a throwaway file; the platform's shared singletons
 // below open it against DB_PATH.

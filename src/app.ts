@@ -4,14 +4,12 @@
 // now wired — Epic 2.3), and file serving (/files/:key).
 //
 // At this stage it serves the fixed shell page at `/`, static assets under
-// /static/*, and the SSE channel at /stream — which, for Module 1's finalization
-// (Epic 1.5), proves the whole runtime spine end-to-end through the real shell:
-// the shell triggers it, the server asks the **real AI provider** for a short
-// greeting, and streams that structured response into the content area as it
-// arrives. Zero domain logic — it builds, persists, and routes nothing; it only
-// proves "the AI provider answers", live, in the UI. Wiring real intent (the
-// prompt bar) → a built capability is Module 2.
+// /static/*, the Module 1 `/stream` provider-liveness endpoint, and the Module 2
+// spec-generation demo stream. The home page now uses the real prompt bar to
+// drive that spec-generation demo while later builder slices assemble the full
+// prompt → built capability pipeline.
 
+import { Database } from "bun:sqlite";
 import { type Context, Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import type { SSEStreamingApi } from "hono/streaming";
@@ -19,8 +17,13 @@ import { streamSSE } from "hono/streaming";
 import { type ZodType, z } from "zod";
 
 import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
-import { generateSpec, hardcodedNewCapabilityIntent } from "./builder/index.ts";
+import {
+  generateSpec,
+  hardcodedNewCapabilityIntent,
+  withCapabilityMigrationTransaction,
+} from "./builder/index.ts";
 import { createProvider, type GenerateResult, type Provider } from "./provider/index.ts";
+import type { CapabilitySpec } from "./registry/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
 
 // ── The greeting round-trip (Module-1 liveness content; zero domain logic) ────
@@ -172,6 +175,72 @@ function renderSpecBuiltConfirmation(label: string): string {
   return `<p class="intro__invitation">All set — I've made a place for your ${escapeHtml(label)}.</p>`;
 }
 
+interface DemoMigrationColumnPreview {
+  readonly name: string;
+  readonly type: string;
+  readonly required: boolean;
+  readonly defaultValue: string | null;
+  readonly primaryKey: boolean;
+}
+
+interface DemoMigrationPreview {
+  readonly kind: "scratch-migration-preview";
+  readonly tableName: string;
+  readonly durationMs: number;
+  readonly sql: string;
+  readonly columns: readonly DemoMigrationColumnPreview[];
+}
+
+interface SqliteColumnInfo {
+  readonly name: string;
+  readonly type: string;
+  readonly notnull: 0 | 1;
+  readonly dflt_value: string | null;
+  readonly pk: number;
+}
+
+function sqliteIdentifier(identifier: string): string {
+  return `"${identifier.replaceAll('"', '""')}"`;
+}
+
+function tableCreateSql(database: Database, tableName: string): string {
+  const row = database
+    .query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(tableName) as { sql: string } | null;
+  if (!row) throw new Error(`missing migrated table ${tableName}`);
+  return row.sql;
+}
+
+function tableColumns(database: Database, tableName: string): DemoMigrationColumnPreview[] {
+  const columns = database
+    .query(`PRAGMA table_xinfo(${sqliteIdentifier(tableName)})`)
+    .all() as SqliteColumnInfo[];
+
+  return columns.map((column) => ({
+    name: column.name,
+    type: column.type,
+    required: column.notnull === 1,
+    defaultValue: column.dflt_value,
+    primaryKey: column.pk > 0,
+  }));
+}
+
+async function buildScratchMigrationPreview(spec: CapabilitySpec): Promise<DemoMigrationPreview> {
+  const database = new Database(":memory:");
+  try {
+    const result = await withCapabilityMigrationTransaction({ database, spec }, (migration) => ({
+      kind: "scratch-migration-preview" as const,
+      tableName: migration.tableName,
+      durationMs: migration.durationMs,
+      sql: tableCreateSql(database, migration.tableName),
+      columns: tableColumns(database, migration.tableName),
+    }));
+    return result.value;
+  } finally {
+    database.close();
+  }
+}
+
 // Demo-only provider decorator: as the spec streams in, it forwards each partial
 // snapshot to the shell as a `spec-preview` event so the developer watches the spec
 // assemble live. This deliberately surfaces internals — that is the whole point of a
@@ -232,6 +301,10 @@ async function streamSpecBuildDemo(
   await settled; // every spec-preview is on the wire before the confirmation
   if (isAborted()) return;
 
+  const migrationPreview = await buildScratchMigrationPreview(spec);
+  if (isAborted()) return;
+  await send("migration-preview", JSON.stringify(migrationPreview));
+
   // The developer's verification surface: the full validated spec and the duration +
   // token usage the metrics row will record (Epic 2.7). Console only.
   console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
@@ -289,10 +362,10 @@ export function createApp(deps: AppDeps = {}): Hono {
       }),
   );
 
-  // The SSE channel (ARCH §4, §6.2). User-initiated from the shell — it is **not**
-  // hit on page load, so it never spends against the BYO key unprompted. streamSSE
-  // sets the SSE headers (text/event-stream, no-cache, keep-alive) and closes the
-  // connection when the callback returns.
+  // Module 1 provider-liveness endpoint. It remains testable directly even though
+  // the home page no longer shows the old "Meet Aluna" trigger. streamSSE sets the
+  // SSE headers (text/event-stream, no-cache, keep-alive) and closes the connection
+  // when the callback returns.
   app.get("/stream", (c) =>
     streamSSE(c, async (stream) => {
       let aborted = false;

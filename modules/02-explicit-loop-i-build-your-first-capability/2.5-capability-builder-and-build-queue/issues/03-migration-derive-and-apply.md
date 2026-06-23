@@ -1,6 +1,6 @@
 # Migration derive & apply in transaction
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -28,17 +28,72 @@ platform owns schema; no AI-generated SQL exists anywhere on this path.
 
 ## Acceptance criteria
 
-- [ ] DDL comes from the deterministic mapper only; the stage contains no SQL
+- [x] DDL comes from the deterministic mapper only; the stage contains no SQL
       authoring and no AI involvement
-- [ ] After a successful apply, the capability's table exists with the platform
+- [x] After a successful apply, the capability's table exists with the platform
       trio and the spec's fields
-- [ ] A failure after apply (simulated gate/commit failure) rolls back and
+- [x] A failure after apply (simulated gate/commit failure) rolls back and
       leaves the schema with no trace of the build
-- [ ] Migration duration is captured for metrics
-- [ ] Tests cover the applied-schema snapshot and the rollback-leaves-no-trace
+- [x] Migration duration is captured for metrics
+- [x] Tests cover the applied-schema snapshot and the rollback-leaves-no-trace
       property
 
 ## Blocked by
 
 - modules/02-explicit-loop-i-build-your-first-capability/2.2-constrained-data-tool-and-additive-ddl/issues/01-deterministic-spec-to-ddl-mapper.md
 - modules/02-explicit-loop-i-build-your-first-capability/2.5-capability-builder-and-build-queue/issues/01-build-job-single-flight-queue-and-busy-refusal.md
+
+## Implementation notes
+
+_2026-06-23 — implemented and verified._
+
+- Added the migration apply stage in
+  [`src/builder/migration.ts`](../../../../src/builder/migration.ts), exported
+  through [`src/builder/index.ts`](../../../../src/builder/index.ts).
+  `applyCapabilityMigration({ database, spec })` delegates DDL derivation and
+  application to the deterministic mapper (`applyCapabilityTableDdl`) and returns
+  the mapper result, table name, and `durationMs` for the future metrics row.
+- Added `withCapabilityMigrationTransaction`, which applies the migration and
+  then runs downstream builder work in the same rollback scope. If a later async
+  stage throws, the transaction rolls back and the `cap_` table disappears; if
+  the continuation completes, the table commits.
+- Added the generic async write-transaction helper in
+  [`src/db.ts`](../../../../src/db.ts). This is needed because Bun's built-in
+  `Database.transaction` helper commits before an awaited continuation settles;
+  the builder needs rollback scope to survive later async gate/commit work.
+- Added focused tests in
+  [`src/builder/migration.test.ts`](../../../../src/builder/migration.test.ts)
+  with a snapshot sidecar
+  [`src/builder/__snapshots__/migration.test.ts.snap`](../../../../src/builder/__snapshots__/migration.test.ts.snap).
+  The tests assert mapper-derived DDL, the applied table's platform trio and
+  spec fields, successful commit visibility, duration capture, and the
+  rollback-leaves-no-trace property after a simulated gate failure.
+- Not wired into `BuildJobQueue` yet. This follows issue 02's boundary: issues
+  03-07 add the builder stages, and the later slices assemble them into the real
+  prompt pipeline.
+
+### Visual verification path
+
+_2026-06-23 — added after implementation, at the owner's request._
+
+- The home-page prompt-bar demo now runs `spec -> scratch migration` through
+  `/demo/spec-build` and streams a `migration-preview` SSE event. The preview
+  contains the scratch table name, SQLite `CREATE TABLE` SQL, migration duration,
+  and `PRAGMA table_xinfo`-derived columns, so the browser can visually verify
+  the DB shape produced by the real mapper/stage.
+- The preview intentionally uses a throwaway in-memory SQLite database. It does
+  **not** leave a `cap_*` table in `data/omni-crud.db`; the real persistent commit
+  remains issue 07, after the full gate and registry row exist.
+
+## Verification
+
+- `bun test --update-snapshots src/builder/migration.test.ts`
+- `bun test src/builder/migration.test.ts`
+- `bun test`
+- `bun run typecheck`
+- `bunx biome check src/db.ts src/builder/index.ts src/builder/migration.ts src/builder/migration.test.ts`
+- `bun run lint`
+- `git diff --check`
+- Browser smoke at `http://localhost:3030/`: submitting the prompt streamed
+  `spec-preview` and `migration-preview`; the real DB still had no `cap_*` tables
+  afterward (`SELECT ... name GLOB 'cap_*'` returned `[]`).

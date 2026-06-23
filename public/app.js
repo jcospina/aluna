@@ -8,7 +8,7 @@
 // Today it does two things, both presentation-only (no product logic — the shell
 // is dumb on purpose, ARCH §6.1):
 //   1. Registers the `shell` Alpine component (sidebar collapse / mobile drawer).
-//   2. Wires the provider liveness stream into the content area (Epic 1.5).
+//   2. Wires the prompt bar to the spec-generation verification stream.
 
 /**
  * The shell's presentation state.
@@ -53,15 +53,6 @@ function shell() {
   };
 }
 
-// ── Provider liveness stream (Epic 1.5 — Module 1 finalized) ──────────────────
-// The trigger opens /stream (src/app.ts), where the real AI provider answers with
-// a short greeting; its chunks render into the content area live — narration tokens
-// append as text so the greeting assembles itself, the trailing HTML fragment (the
-// invitation) appends as markup. The connection closes on the server's `done` event
-// so EventSource treats the end as final and does NOT reconnect (a clean close, no
-// console errors). Module 2 swaps this raw-EventSource path for the HTMX-driven one
-// (ADR-0002) and the trigger for the real prompt-bar build flow.
-
 /**
  * Read the string payload from an SSE message event. EventSource types listeners
  * for custom event names as the base Event, so narrow to MessageEvent for `.data`.
@@ -72,67 +63,40 @@ function sseData(event) {
   return /** @type {MessageEvent<string>} */ (event).data;
 }
 
-function initIntroStream() {
-  const trigger = document.getElementById("intro-trigger");
-  const output = document.getElementById("intro-output");
-  if (!(trigger instanceof HTMLButtonElement) || output === null) return;
-
-  trigger.addEventListener("click", () => {
-    // Capture the idle label so teardown restores it without duplicating copy.
-    const idleLabel = trigger.textContent;
-    output.replaceChildren(); // clear any prior run
-    trigger.disabled = true;
-    trigger.textContent = "Saying hello…";
-
-    const source = new EventSource("/stream");
-
-    // Idempotent teardown: close the stream and return the trigger to idle. Used
-    // for both the clean end (`done`) and a real transport error.
-    const finish = () => {
-      source.close();
-      trigger.disabled = false;
-      trigger.textContent = idleLabel;
-    };
-
-    source.addEventListener("narration", (event) => {
-      output.append(document.createTextNode(sseData(event)));
-    });
-    source.addEventListener("fragment", (event) => {
-      output.insertAdjacentHTML("beforeend", sseData(event));
-    });
-    source.addEventListener("done", finish);
-    source.addEventListener("error", finish);
-  });
-}
-
-// ── Spec-generation liveness demo (Module 2 §2.5b — demo scaffolding) ─────────
-// Sibling of the greeting stream above, for the spec-generation stage. Sends the
-// typed prompt to /demo/spec-build (src/app.ts), where the real builder stage runs
-// against the AI provider; the product-voice narration renders here as it arrives
-// and a confirmation fragment lands at the end. The full validated result is logged
-// to the SERVER console (the spec is engineering data, never shown to the user).
-// Removed when Epic 2.6 wires the real prompt-bar build flow.
+// ── Spec-generation verification stream (Module 2 §2.5b+) ───────────────────
+// The real prompt bar now sends its text to /demo/spec-build (src/app.ts), where
+// the current builder stage runs against the AI provider. Product-voice narration
+// renders into the content area, while the raw streamed spec remains visible as a
+// developer verification surface until the production build stream replaces it.
 
 function initSpecBuildDemo() {
+  const form = document.getElementById("spec-build-form");
   const trigger = document.getElementById("spec-build-trigger");
   const input = document.getElementById("spec-build-prompt");
   const output = document.getElementById("spec-build-output");
   const preview = document.getElementById("spec-build-preview");
+  const migrationPreview = document.getElementById("spec-migration-preview");
   if (
+    !(form instanceof HTMLFormElement) ||
     !(trigger instanceof HTMLButtonElement) ||
     !(input instanceof HTMLInputElement) ||
     output === null ||
-    preview === null
+    preview === null ||
+    migrationPreview === null
   ) {
     return;
   }
 
-  trigger.addEventListener("click", () => {
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+
     const idleLabel = trigger.textContent;
     output.replaceChildren(); // clear any prior run
     preview.textContent = "";
+    migrationPreview.textContent = "";
     trigger.disabled = true;
-    trigger.textContent = "Putting it together…";
+    input.disabled = true;
+    trigger.textContent = "Making";
 
     // EventSource is GET-only, so the typed prompt rides a query param. An empty
     // field lets the server fall back to its default demo prompt.
@@ -143,7 +107,9 @@ function initSpecBuildDemo() {
     const finish = () => {
       source.close();
       trigger.disabled = false;
+      input.disabled = false;
       trigger.textContent = idleLabel;
+      input.focus();
     };
 
     source.addEventListener("narration", (event) => {
@@ -159,6 +125,14 @@ function initSpecBuildDemo() {
         preview.textContent = raw;
       }
     });
+    source.addEventListener("migration-preview", (event) => {
+      const raw = sseData(event);
+      try {
+        migrationPreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
+      } catch {
+        migrationPreview.textContent = raw;
+      }
+    });
     source.addEventListener("fragment", (event) => {
       output.insertAdjacentHTML("beforeend", sseData(event));
     });
@@ -169,5 +143,4 @@ function initSpecBuildDemo() {
 
 // This file is deferred, so the DOM is fully parsed by the time it runs — the
 // trigger/output elements already exist and can be wired directly.
-initIntroStream();
 initSpecBuildDemo();

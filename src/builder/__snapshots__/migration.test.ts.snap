@@ -1,0 +1,65 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`capability migration apply stage derives through the deterministic mapper, applies the schema, and captures duration: applied notes schema 1`] = `
+{
+  "columns": [
+    {
+      "dflt_value": null,
+      "hidden": 0,
+      "name": "id",
+      "notnull": 1,
+      "pk": 1,
+      "type": "TEXT",
+    },
+    {
+      "dflt_value": "datetime('now')",
+      "hidden": 0,
+      "name": "created_at",
+      "notnull": 1,
+      "pk": 0,
+      "type": "TEXT",
+    },
+    {
+      "dflt_value": "'{}'",
+      "hidden": 0,
+      "name": "extra",
+      "notnull": 1,
+      "pk": 0,
+      "type": "TEXT",
+    },
+    {
+      "dflt_value": null,
+      "hidden": 0,
+      "name": "title",
+      "notnull": 1,
+      "pk": 0,
+      "type": "TEXT",
+    },
+    {
+      "dflt_value": null,
+      "hidden": 0,
+      "name": "amount",
+      "notnull": 0,
+      "pk": 0,
+      "type": "REAL",
+    },
+    {
+      "dflt_value": null,
+      "hidden": 0,
+      "name": "done",
+      "notnull": 1,
+      "pk": 0,
+      "type": "INTEGER",
+    },
+    {
+      "dflt_value": null,
+      "hidden": 0,
+      "name": "logged_at",
+      "notnull": 0,
+      "pk": 0,
+      "type": "TEXT",
+    },
+  ],
+  "sql": "CREATE TABLE "cap_notes" ("id" TEXT PRIMARY KEY, "created_at" TEXT NOT NULL DEFAULT (datetime('now')), "extra" TEXT NOT NULL DEFAULT ('{}') CHECK (json_valid("extra")), "title" TEXT NOT NULL, "amount" REAL, "done" INTEGER NOT NULL CHECK ("done" IN (0, 1)), "logged_at" TEXT) STRICT",
+}
+`;
