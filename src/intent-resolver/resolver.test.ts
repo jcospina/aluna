@@ -72,7 +72,11 @@ function makeRecordingProvider(raw: unknown): RecordingProvider {
         yield schema.parse(raw) as DeepPartial<T>;
       }
 
-      return { partialStream: stream(), object: Promise.resolve().then(() => schema.parse(raw)) };
+      return {
+        partialStream: stream(),
+        object: Promise.resolve().then(() => schema.parse(raw)),
+        usage: Promise.resolve({ inputTokens: 0, outputTokens: 0, totalTokens: 0 }),
+      };
     },
   };
 }

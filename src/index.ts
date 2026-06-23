@@ -27,8 +27,18 @@ const rawPort = process.env.PORT;
 const requestedPort = rawPort ? Number(rawPort) : Number.NaN;
 const port = Number.isInteger(requestedPort) && requestedPort >= 0 ? requestedPort : DEFAULT_PORT;
 
+// Bun severs an idle connection after `idleTimeout` seconds (default 10). The SSE
+// streams here fall silent for whole seconds while the AI provider generates — a
+// narration line, then quiet until the structured result lands (the spec-gen stage
+// and, later, the build pipeline's longer stages) — so the default would cut a slow
+// generation off mid-flight. Raised to give a generation room to finish; each stream
+// still ends deterministically on the server's `done` event (ADR-0002), so this only
+// bounds how long a genuinely *stalled* stream lingers before Bun reclaims it.
+const STREAM_IDLE_TIMEOUT_SECONDS = 120;
+
 const server = Bun.serve({
   port,
+  idleTimeout: STREAM_IDLE_TIMEOUT_SECONDS,
   fetch: app.fetch,
 });
 
