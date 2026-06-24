@@ -8,7 +8,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { type CapabilitySpec, PLATFORM_COLUMNS } from "../registry/index.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilitySpec,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  PLATFORM_COLUMNS,
+} from "../registry/index.ts";
 import {
   applyCapabilityTableDdl,
   CAPABILITY_TABLE_PREFIX,
@@ -40,6 +45,15 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     },
     ui_intent: { views: ["list", "create"] },
     behavior: "Required title, optional amount and log time, newest records first.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["title", "done"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     tools: ["create", "read"],
     prompt_context: "Stores notes with optional amount metadata.",
     ...overrides,

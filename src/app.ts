@@ -18,6 +18,7 @@ import { type ZodType, z } from "zod";
 
 import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
 import {
+  type BehavioralGateResult,
   type GateRungOutcome,
   type GeneratedUnit,
   generateCapabilityUnits,
@@ -283,6 +284,15 @@ interface DemoGatePreview {
   readonly durationMs: number;
   readonly rungs: readonly GateRungOutcome[];
   readonly smoke: SmokeGateResult;
+  readonly behavioral: BehavioralGateResult;
+}
+
+interface DemoBuildErrorPreview {
+  readonly kind: "build-error-preview";
+  readonly status: "failed";
+  readonly errorName: string;
+  readonly message: string;
+  readonly diagnostic?: unknown;
 }
 
 interface SqliteColumnInfo {
@@ -380,6 +390,7 @@ function buildGatePreview(
   durationMs: number,
   rungs: readonly GateRungOutcome[],
   smoke: SmokeGateResult,
+  behavioral: BehavioralGateResult,
 ): DemoGatePreview {
   return {
     kind: "gate-preview",
@@ -387,7 +398,27 @@ function buildGatePreview(
     durationMs,
     rungs,
     smoke,
+    behavioral,
   };
+}
+
+function buildDemoErrorPreview(error: unknown): DemoBuildErrorPreview {
+  return {
+    kind: "build-error-preview",
+    status: "failed",
+    errorName: error instanceof Error ? error.name : "UnknownError",
+    message: error instanceof Error ? error.message : String(error),
+    ...(hasDiagnostic(error) ? { diagnostic: error.diagnostic } : {}),
+  };
+}
+
+function hasDiagnostic(error: unknown): error is { readonly diagnostic: unknown } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "diagnostic" in error &&
+    (error as { diagnostic?: unknown }).diagnostic !== undefined
+  );
 }
 
 // Demo-only provider decorator: as the spec streams in, it forwards each partial
@@ -517,12 +548,20 @@ async function streamSpecBuildDemo(
     spec,
     ddl: migrationBuild.ddl,
     handlers: unitResult.handlers,
+    provider,
     realDatabase: db,
   });
   if (isAborted()) return;
   await send(
     "gate-preview",
-    JSON.stringify(buildGatePreview(gateResult.durationMs, gateResult.outcomes, gateResult.smoke)),
+    JSON.stringify(
+      buildGatePreview(
+        gateResult.durationMs,
+        gateResult.outcomes,
+        gateResult.smoke,
+        gateResult.behavioral,
+      ),
+    ),
   );
 
   // The developer's verification surface: the full validated spec and the duration +
@@ -541,6 +580,7 @@ async function streamSpecBuildDemo(
       durationMs: Math.round(gateResult.durationMs),
       rungs: gateResult.outcomes,
       smoke: gateResult.smoke,
+      behavioral: gateResult.behavioral,
     },
   });
 
@@ -554,6 +594,7 @@ async function streamSpecBuildDemo(
 async function handleSpecBuildError(send: Send, isAborted: () => boolean, err: unknown) {
   console.error("Aluna spec-build demo failed:", err instanceof Error ? err.message : err);
   if (isAborted()) return;
+  await send("build-error-preview", JSON.stringify(buildDemoErrorPreview(err)));
   await send("narration", "Hmm, that didn't work. Mind trying again?");
   await send("done", "error");
 }

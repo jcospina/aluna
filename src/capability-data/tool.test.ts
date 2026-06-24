@@ -11,7 +11,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { openDatabase, type PlatformDatabase } from "../db.ts";
-import type { CapabilitySpec } from "../registry/index.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilitySpec,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "../registry/index.ts";
 import { applyCapabilityTableDdl, createCapabilityDataTool } from "./index.ts";
 
 function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
@@ -26,6 +30,15 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     },
     ui_intent: { views: ["list", "create"] },
     behavior: "Text is required. Newest notes appear first.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     tools: ["create", "read"],
     prompt_context: "Stores the user's text notes.",
     ...overrides,
@@ -37,6 +50,15 @@ function recipesSpec(): CapabilitySpec {
     id: "recipes",
     label: "Recipes",
     schema: { fields: [{ name: "title", type: "string", required: true }] },
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["title"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     prompt_context: "Stores the user's recipes.",
   });
 }

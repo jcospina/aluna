@@ -144,6 +144,7 @@ function specFromRow(row: CapabilityRow): CapabilitySpec {
     schema: row.schema,
     ui_intent: row.ui_intent,
     behavior: row.behavior,
+    behavioral_errors: row.behavioral_errors,
     tools: row.tools,
     prompt_context: row.prompt_context,
   };

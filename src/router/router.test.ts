@@ -20,7 +20,11 @@ import { applyCapabilityTableDdl, createCapabilityDataTool } from "../capability
 import { openDatabase, type PlatformDatabase } from "../db.ts";
 import { runMigrations } from "../migrations.ts";
 import type { CapabilityRow, CapabilitySpec } from "../registry/index.ts";
-import { insertCapability } from "../registry/index.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  insertCapability,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "../registry/index.ts";
 import type { HandlerLoader } from "./router.ts";
 
 const NOTES_ARTIFACTS = "src/router/__fixtures__/notes/v1/";
@@ -39,6 +43,15 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     },
     ui_intent: { views: ["list", "create"] },
     behavior: "Text is required. Newest notes appear first.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     tools: ["create", "read"],
     prompt_context: "Stores the user's text notes.",
     ...overrides,
@@ -58,6 +71,7 @@ function boomRow(): CapabilityRow {
     schema: { fields: [{ name: "note", type: "string", required: false }] },
     ui_intent: { views: ["list"] },
     behavior: "Always fails, to prove failures stay friendly.",
+    behavioral_errors: [],
     tools: ["read"],
     artifacts_path: BOOM_ARTIFACTS,
     prompt_context: "A fixture whose handler throws.",
@@ -78,6 +92,7 @@ function rowSpec(row: CapabilityRow): CapabilitySpec {
     schema: row.schema,
     ui_intent: row.ui_intent,
     behavior: row.behavior,
+    behavioral_errors: row.behavioral_errors,
     tools: row.tools,
     prompt_context: row.prompt_context,
   };

@@ -13,7 +13,13 @@ import ts from "typescript";
 import { z } from "zod";
 
 import type { DeepPartial, Provider, TokenUsage } from "../provider/index.ts";
-import type { CapabilitySpec, CapabilityTool, SpecView } from "../registry/index.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type BehavioralErrorCase,
+  type CapabilitySpec,
+  type CapabilityTool,
+  type SpecView,
+} from "../registry/index.ts";
 
 export const DEFAULT_UNIT_FIX_ATTEMPTS = 2;
 
@@ -240,6 +246,13 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
       (field) => `- ${field.name}: ${field.type}${field.required ? " (required)" : " (optional)"}`,
     )
     .join("\n");
+  const validationErrors = spec.behavioral_errors.filter(
+    (errorCase) => errorCase.action === action,
+  );
+  const validationErrorContract =
+    validationErrors.length > 0
+      ? buildValidationErrorContract(validationErrors)
+      : "- No spec-owned validation error cases apply to this action.";
 
   return [
     `Generate the ${action}.ts handler for this Aluna capability.`,
@@ -266,11 +279,28 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
       ? "- Coerce form strings into the spec field types, call `data.insert`, and return a fragment for the new row."
       : "- Call `data.select()` and return a fragment for the current rows, including a helpful empty state.",
     "",
+    "Validation error contract:",
+    validationErrorContract,
+    "",
     "Spec fields:",
     fields,
     "",
     "Capability spec JSON:",
     JSON.stringify(spec, null, 2),
+  ].join("\n");
+}
+
+function buildValidationErrorContract(errorCases: readonly BehavioralErrorCase[]): string {
+  return [
+    "- Before calling `data.insert`, detect the validation errors listed below.",
+    "- When one applies, return an HTML error fragment and do not insert a row.",
+    "- The user-facing copy inside the fragment can vary in Aluna's product voice.",
+    "- The stable contract is semantic attributes on the error element:",
+    `  - ${BEHAVIORAL_ERROR_MARKERS.role_attribute}="${BEHAVIORAL_ERROR_MARKERS.role}"`,
+    `  - ${BEHAVIORAL_ERROR_MARKERS.code_attribute} set to the case code`,
+    `  - ${BEHAVIORAL_ERROR_MARKERS.fields_attribute} set to affected field names joined by "${BEHAVIORAL_ERROR_MARKERS.fields_separator}"`,
+    "- Validation error cases:",
+    JSON.stringify(errorCases, null, 2),
   ].join("\n");
 }
 

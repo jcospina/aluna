@@ -9,7 +9,11 @@ import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import type { ZodType } from "zod";
 
 import type { DeepPartial, GenerateResult, Provider, TokenUsage } from "../provider/index.ts";
-import type { CapabilitySpec } from "../registry/index.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilitySpec,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "../registry/index.ts";
 import {
   buildUnitPrompt,
   DEFAULT_UNIT_FIX_ATTEMPTS,
@@ -37,6 +41,15 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     },
     ui_intent: { views: ["list", "create"] },
     behavior: "Text is required. Newest notes appear first.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     tools: ["create", "read"],
     prompt_context: "Stores the user's text notes.",
     ...overrides,
@@ -256,5 +269,15 @@ describe("unit generation with bounded fix loop", () => {
     expect(prompt).toContain("No imports.");
     expect(prompt).toContain("Previous attempt failed");
     expect(prompt).toContain("Generated handlers must not import anything.");
+  });
+
+  test("handler prompts include the stable validation error marker contract", () => {
+    const prompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "create" });
+
+    expect(prompt).toContain("Validation error contract:");
+    expect(prompt).toContain(`${BEHAVIORAL_ERROR_MARKERS.role_attribute}="error"`);
+    expect(prompt).toContain(BEHAVIORAL_ERROR_MARKERS.code_attribute);
+    expect(prompt).toContain(BEHAVIORAL_ERROR_MARKERS.fields_attribute);
+    expect(prompt).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
   });
 });

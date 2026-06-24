@@ -155,6 +155,14 @@ function initSpecBuildDemo() {
         gatePreview.textContent = raw;
       }
     });
+    source.addEventListener("build-error-preview", (event) => {
+      const raw = sseData(event);
+      try {
+        gatePreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
+      } catch {
+        gatePreview.textContent = raw;
+      }
+    });
     source.addEventListener("fragment", (event) => {
       output.insertAdjacentHTML("beforeend", sseData(event));
     });

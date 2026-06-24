@@ -7,12 +7,20 @@
 // entry point.
 
 export {
+  BEHAVIORAL_TIER_ENV_VAR,
+  type BehavioralGateResult,
+  type BehavioralTestCaseOutcome,
+  type BehavioralTestGenerationMetrics,
+  type BehavioralTestRunMetrics,
+  type BehavioralTierInput,
+  buildBehavioralTestPrompt,
   CapabilityGateError,
   type CapabilityGateInput,
   type CapabilityGateResult,
   type GateRungName,
   type GateRungOutcome,
   type GateRungStatus,
+  resolveBehavioralTierEnabled,
   runCapabilityGate,
   type SmokeGateResult,
 } from "./gate.ts";
