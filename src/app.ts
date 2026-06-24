@@ -18,15 +18,20 @@ import { type ZodType, z } from "zod";
 
 import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
 import {
+  type GateRungOutcome,
   type GeneratedUnit,
   generateCapabilityUnits,
   generateSpec,
   hardcodedNewCapabilityIntent,
+  runCapabilityGate,
+  type SmokeGateResult,
   type UnitDescriptor,
   type UnitGenerationAttempt,
   type UnitGenerationObserver,
   withCapabilityMigrationTransaction,
 } from "./builder/index.ts";
+import type { CapabilityTableDdl } from "./capability-data/index.ts";
+import { db } from "./db.ts";
 import { createProvider, type GenerateResult, type Provider } from "./provider/index.ts";
 import type { CapabilitySpec } from "./registry/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
@@ -247,6 +252,11 @@ interface DemoMigrationPreview {
   readonly columns: readonly DemoMigrationColumnPreview[];
 }
 
+interface DemoMigrationBuild {
+  readonly preview: DemoMigrationPreview;
+  readonly ddl: CapabilityTableDdl;
+}
+
 interface DemoUnitPreview {
   readonly kind: GeneratedUnit["kind"];
   readonly name: GeneratedUnit["name"];
@@ -265,6 +275,14 @@ interface DemoUnitsPreview {
   readonly codeGenDurationMs: number;
   readonly htmlGenDurationMs: number;
   readonly units: readonly DemoUnitPreview[];
+}
+
+interface DemoGatePreview {
+  readonly kind: "gate-preview";
+  readonly status: "passed";
+  readonly durationMs: number;
+  readonly rungs: readonly GateRungOutcome[];
+  readonly smoke: SmokeGateResult;
 }
 
 interface SqliteColumnInfo {
@@ -301,15 +319,18 @@ function tableColumns(database: Database, tableName: string): DemoMigrationColum
   }));
 }
 
-async function buildScratchMigrationPreview(spec: CapabilitySpec): Promise<DemoMigrationPreview> {
+async function buildScratchMigrationPreview(spec: CapabilitySpec): Promise<DemoMigrationBuild> {
   const database = new Database(":memory:");
   try {
     const result = await withCapabilityMigrationTransaction({ database, spec }, (migration) => ({
-      kind: "scratch-migration-preview" as const,
-      tableName: migration.tableName,
-      durationMs: migration.durationMs,
-      sql: tableCreateSql(database, migration.tableName),
-      columns: tableColumns(database, migration.tableName),
+      ddl: migration.ddl,
+      preview: {
+        kind: "scratch-migration-preview" as const,
+        tableName: migration.tableName,
+        durationMs: migration.durationMs,
+        sql: tableCreateSql(database, migration.tableName),
+        columns: tableColumns(database, migration.tableName),
+      },
     }));
     return result.value;
   } finally {
@@ -352,6 +373,20 @@ function finalUnitPreview(unit: GeneratedUnit): DemoUnitPreview {
     durationMs: unit.durationMs,
     usage: unit.usage,
     content: unit.content,
+  };
+}
+
+function buildGatePreview(
+  durationMs: number,
+  rungs: readonly GateRungOutcome[],
+  smoke: SmokeGateResult,
+): DemoGatePreview {
+  return {
+    kind: "gate-preview",
+    status: "passed",
+    durationMs,
+    rungs,
+    smoke,
   };
 }
 
@@ -415,9 +450,9 @@ async function streamSpecBuildDemo(
   await settled; // every spec-preview is on the wire before the confirmation
   if (isAborted()) return;
 
-  const migrationPreview = await buildScratchMigrationPreview(spec);
+  const migrationBuild = await buildScratchMigrationPreview(spec);
   if (isAborted()) return;
-  await send("migration-preview", JSON.stringify(migrationPreview));
+  await send("migration-preview", JSON.stringify(migrationBuild.preview));
 
   await send("narration", " I'm shaping it into something you can use.");
   const liveUnits = new Map<string, DemoUnitPreview>();
@@ -477,6 +512,19 @@ async function streamSpecBuildDemo(
   const finalUnits = unitResult.units.map(finalUnitPreview);
   await send("units-preview", JSON.stringify(buildUnitsPreview(finalUnits, "complete")));
 
+  await send("narration", " I'm checking the first version now.");
+  const gateResult = await runCapabilityGate({
+    spec,
+    ddl: migrationBuild.ddl,
+    handlers: unitResult.handlers,
+    realDatabase: db,
+  });
+  if (isAborted()) return;
+  await send(
+    "gate-preview",
+    JSON.stringify(buildGatePreview(gateResult.durationMs, gateResult.outcomes, gateResult.smoke)),
+  );
+
   // The developer's verification surface: the full validated spec and the duration +
   // token usage the metrics row will record (Epic 2.7). Console only.
   console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
@@ -489,6 +537,11 @@ async function streamSpecBuildDemo(
       durationMs: Math.round(unit.durationMs),
       usage: unit.usage,
     })),
+    gate: {
+      durationMs: Math.round(gateResult.durationMs),
+      rungs: gateResult.outcomes,
+      smoke: gateResult.smoke,
+    },
   });
 
   await send("fragment", renderSpecBuiltConfirmation(spec.label));
