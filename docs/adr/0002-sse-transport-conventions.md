@@ -99,6 +99,74 @@ htmx SSE extension + `hx-swap-oob` is the chosen path, to be vendored and proven
 by epic 2.6 as flagged. The production **event vocabulary** remains M2 work and
 will be recorded here when finalized.
 
+## Update (Epic 2.6a — event vocabulary finalized; htmx swap path proven)
+
+> **⚠️ Flagged for owner review.** This update closes the last open question in
+> ADR-0002 and locks the production event vocabulary — the one durable decision
+> in epic 2.6 (the disposable proving scaffold that established it is already
+> marked for deletion). The only *new* name is **`commit`**, plus a sharpened
+> client contract for **`done`**. Please review the vocabulary table and the
+> `sse-close` finding below before 2.6c builds on them. Issue:
+> `modules/02-explicit-loop-i-build-your-first-capability/2.6-shell-render-and-commit-swap/issues/01-htmx-sse-extension-and-event-vocabulary.md`.
+
+The **client consumption mechanism** question is now **resolved**. The htmx SSE
+extension (`htmx-ext-sse` 2.2.4, the htmx-2.x line; peer `htmx.org ^2.0.2`) is
+vendored verbatim at `public/vendor/htmx-ext-sse.min.js` (npm tarball integrity
+verified) and loaded by the shell right after `htmx.min.js`. A disposable proving
+scaffold (`/demo/swap-proof/*`, a `.swap-proof` shell `<section>`) demonstrated —
+in a real browser — the exact mechanism the commit swap relies on: **one named SSE
+event drives a targeted `sse-swap` into the content region and an `hx-swap-oob`
+sidecar updates the capability toolbar out of band, from the same response.** The
+scaffold has since been removed (the 1.3 pattern: the decision record outlives the
+demo); what it proved is recorded below.
+
+### Finalized production event vocabulary
+
+Named, app-level SSE events carry a monotonic `id` (transport invariant, above).
+Starting from the 1.3 seed plus what the commit swap needs:
+
+| Event | Role | Client wire |
+|---|---|---|
+| `narration` | Product-voice text chunk to append (the "watch it build" copy). | `sse-swap="narration"`, `hx-swap="beforeend"` on the narration region. *(seed, kept)* |
+| `fragment` | A discrete HTML fragment placed into a targeted region. M1's invitation; M3's diff engine streams changed units this way (targeted `hx-swap`). | `sse-swap="fragment"` (or a dedicated region) with that region's `hx-swap`. *(seed, kept)* |
+| **`commit`** | **New.** The terminal *success* swap: one event carrying the committed capability's view (targeted swap into the content/view region) **plus** the new toolbar entry as an `hx-swap-oob` sidecar — content area + capability toolbar in one response. | `sse-swap="commit"`, `hx-swap="innerHTML"` on the view region; the payload's `hx-swap-oob` element lands in `#capability-toolbar`. |
+| `done` | Terminal lifecycle signal; the server sends it (data is a short outcome: `ok` / `error` / `missing`), then closes the stream. | The subscriber element carries **`sse-close="done"`** (see finding below). *(seed; client contract sharpened)* |
+| `heartbeat` | Transport keepalive — id-less, ignored by clients. **Not** product vocabulary. | none *(transport, unchanged)* |
+
+Failures do **not** get a dedicated event: a build that fails streams a warm,
+product-voice apology over `narration` and ends with `done` (data `error`) — the
+existing `build-jobs.ts` pattern. This keeps the product vocabulary to the four
+names above (`commit` being the single addition this epic).
+
+### Finding — `sse-close` is mandatory for clean termination
+
+`htmx-ext-sse` wraps a **native `EventSource`**, which auto-reconnects with
+backoff whenever the server closes the stream (`onerror` → `ensureEventSource`).
+So a server-closed `done` is **not** enough under htmx: without intervention the
+browser reconnects and the per-build stream re-runs. The extension's
+`sse-close="<event>"` attribute closes the source on a named event; wiring
+`sse-close="done"` on the subscriber is the htmx analogue of the raw-EventSource
+path's `source.close()` on `done`. `renderBuildSubscriber` (`src/app.ts`) now
+sets it. This *sharpens* — does not contradict — the original "server-closed
+`done` avoids auto-reconnect" note above, which silently assumed the raw-
+EventSource client that closes its own source; the htmx client must be told to.
+
+### Consequences of this update
+
+- The **two open questions** flagged at the top of this ADR (HTMX-driven client
+  path, channel topology) are now both closed for the explicit loop: topology by
+  the M2-planning update above, client mechanism here.
+- The vocabulary is now a **contract**, not a seed: `commit` and the
+  `done`/`sse-close` pairing are what 2.6c (commit swap) and M3 (diff engine,
+  which adds no names — it reuses `fragment`) build on. A future rename still
+  follows this ADR's own rule: update or supersede.
+- The proving scaffold (`/demo/swap-proof/*`, `renderSwapProof*` in `src/app.ts`,
+  the `.swap-proof` block in `public/app.css`, the shell `<section>`, and its
+  tests) was **disposable** and has been **removed** now that the wire is proven
+  and the vocabulary recorded here. Its removal took no decision with it (the 1.3
+  pattern). What stays in the codebase from 2.6a is durable: the vendored
+  extension + its `<script>`, and `sse-close="done"` on `renderBuildSubscriber`.
+
 ## Update (Epic 1.5 — Module 1 finalized)
 
 The throwaway `/demo/stream` was **replaced, not just deleted**, by the real
