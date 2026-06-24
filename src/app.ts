@@ -112,8 +112,15 @@ async function readPrompt(c: Context): Promise<string> {
 
 function renderBuildSubscriber(jobId: string): string {
   const streamPath = `/build/${encodeURIComponent(jobId)}/stream`;
+  // `sse-close="done"` is the htmx-ext-sse equivalent of the raw-EventSource path's
+  // `source.close()` on `done` (ADR-0002): the extension wraps a native EventSource,
+  // which auto-reconnects with backoff whenever the server closes the stream. Without
+  // closing on `done` the browser would reconnect after the server-closed stream and
+  // re-run the build. Proven during Epic 2.6a (proving scaffold since removed) and
+  // recorded in ADR-0002's finalized vocabulary. The `commit` swap region (content +
+  // toolbar oob) is added when Epic 2.6c wires the commit swap.
   return [
-    `<section class="build-stream" data-build-job-id="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}">`,
+    `<section class="build-stream" data-build-job-id="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}" sse-close="done">`,
     '  <div class="build-stream__narration" aria-live="polite" sse-swap="narration" hx-swap="beforeend"></div>',
     "</section>",
   ].join("\n");

@@ -163,6 +163,30 @@ describe("GET / (shell)", () => {
     expect(html).not.toContain('id="intro-trigger"');
     expect(html).not.toContain('id="intro-output"');
   });
+
+  test("loads the vendored htmx SSE extension after htmx", async () => {
+    const app = createApp();
+    const html = await responseText(await app.request("/"));
+
+    // The extension is vendored locally and its <script> is loaded after htmx's
+    // (it calls htmx.defineExtension at load). Compare the full src attributes so
+    // prose mentions of the filenames in nearby comments can't skew the order.
+    expect(html).toContain('src="/static/vendor/htmx-ext-sse.min.js"');
+    expect(html.indexOf('src="/static/vendor/htmx.min.js"')).toBeLessThan(
+      html.indexOf('src="/static/vendor/htmx-ext-sse.min.js"'),
+    );
+  });
+
+  test("serves the vendored htmx SSE extension as JavaScript at its static path", async () => {
+    const app = createApp();
+    const res = await app.request("/static/vendor/htmx-ext-sse.min.js");
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") ?? "").toContain("javascript");
+    // It is the htmx SSE extension: it registers itself on htmx at load.
+    expect(body).toContain('defineExtension("sse"');
+  });
 });
 
 describe("GET /stream (provider liveness, fake provider)", () => {
@@ -766,6 +790,10 @@ describe("POST /prompt and GET /build/:id/stream (build jobs)", () => {
     expect(fragment).toContain('data-build-job-id="job-one"');
     expect(fragment).toContain('sse-connect="/build/job-one/stream"');
     expect(fragment).toContain('sse-swap="narration"');
+    // Proven in Epic 2.6a: htmx-ext-sse wraps a native EventSource that auto-
+    // reconnects on a server-closed stream, so the subscriber must close on `done`
+    // (the htmx analogue of the raw path's source.close()) or the build re-runs.
+    expect(fragment).toContain('sse-close="done"');
     expect(providerCalls).toBe(0);
   });
 

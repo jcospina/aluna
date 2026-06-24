@@ -27,15 +27,21 @@
     <link rel="stylesheet" href="/static/app.css">
 
     <!--
-      Scripts, all vendored/static and deferred (run in order after the DOM is
-      parsed, before DOMContentLoaded). HTMX wires hx-* attributes (none yet).
+      Scripts, all vendored/static and deferred (run in document order after the
+      DOM is parsed, before DOMContentLoaded). HTMX wires hx-* attributes; the
+      SSE extension teaches HTMX the sse-connect / sse-swap / sse-close vocabulary
+      that the per-build stream uses to drive swaps (ADR-0002, Epic 2.6).
 
-      Order matters: app.js registers the Alpine `shell` component on the
-      `alpine:init` event, so it must run BEFORE alpine.min.js — Alpine's cdn
-      build auto-starts in a microtask the moment it executes (dispatching
-      `alpine:init`), which is before any later deferred script would run.
+      Order matters twice:
+        - htmx-ext-sse.min.js calls htmx.defineExtension at load, so it must come
+          AFTER htmx.min.js.
+        - app.js registers the Alpine `shell` component on the `alpine:init`
+          event, so it must run BEFORE alpine.min.js — Alpine's cdn build
+          auto-starts in a microtask the moment it executes (dispatching
+          `alpine:init`), which is before any later deferred script would run.
     -->
     <script defer src="/static/vendor/htmx.min.js"></script>
+    <script defer src="/static/vendor/htmx-ext-sse.min.js"></script>
     <script defer src="/static/app.js"></script>
     <script defer src="/static/vendor/alpine.min.js"></script>
   </head>
