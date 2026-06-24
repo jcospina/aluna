@@ -15,6 +15,7 @@ import type { ZodType } from "zod";
 import { createApp } from "./app.ts";
 import { type BuildPipeline, createBuildJobQueue } from "./build-jobs.ts";
 import type { DeepPartial, GenerateResult, Provider } from "./provider/index.ts";
+import { BEHAVIORAL_ERROR_MARKERS, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "./registry/index.ts";
 
 interface SseEvent {
   readonly id: string;
@@ -222,14 +223,24 @@ describe("GET /stream (failure surfaces clearly, not silently)", () => {
 // A fake provider that returns a valid capability spec and then the four generated
 // units, recording each prompt — so the builder-stage demo route is driven
 // end-to-end without a real call.
-function makeSpecProvider(spec: unknown): { provider: Provider; prompts: string[] } {
+function makeSpecProvider(
+  spec: unknown,
+  behavioralSuite: unknown = BEHAVIORAL_SUITE,
+  units: {
+    readonly create?: string;
+    readonly read?: string;
+    readonly list?: string;
+    readonly createView?: string;
+  } = {},
+): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];
   const responses = [
     spec,
-    { content: CREATE_HANDLER },
-    { content: READ_HANDLER },
-    { content: LIST_VIEW },
-    { content: CREATE_VIEW },
+    { content: units.create ?? CREATE_HANDLER },
+    { content: units.read ?? READ_HANDLER },
+    { content: units.list ?? LIST_VIEW },
+    { content: units.createView ?? CREATE_VIEW },
+    behavioralSuite,
   ];
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
@@ -251,18 +262,85 @@ function makeSpecProvider(spec: unknown): { provider: Provider; prompts: string[
   return { provider, prompts };
 }
 
+function makeSpecProviderWithBehavioralError(
+  spec: unknown,
+  error: Error,
+): { provider: Provider; prompts: string[] } {
+  const prompts: string[] = [];
+  const responses = [
+    spec,
+    { content: CREATE_HANDLER },
+    { content: READ_HANDLER },
+    { content: LIST_VIEW },
+    { content: CREATE_VIEW },
+  ];
+  const provider: Provider = {
+    generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
+      prompts.push(prompt);
+      const response = responses.shift();
+
+      async function* stream(): AsyncGenerator<DeepPartial<T>> {
+        if (response !== undefined) yield response as DeepPartial<T>;
+      }
+
+      if (response === undefined) {
+        return {
+          partialStream: stream(),
+          object: Promise.reject(error),
+          usage: Promise.resolve({ inputTokens: 0, outputTokens: 0, totalTokens: 0 }),
+        };
+      }
+
+      return {
+        partialStream: stream(),
+        object: Promise.resolve(response as T),
+        usage: Promise.resolve({ inputTokens: 41, outputTokens: 12, totalTokens: 53 }),
+      };
+    },
+  };
+  return { provider, prompts };
+}
+
 const NOTES_SPEC = {
   id: "notes",
   label: "Notes",
   schema: { fields: [{ name: "text", type: "string", required: true }] },
   ui_intent: { views: ["list", "create"] },
   behavior: "Text is required. Newest notes appear first.",
+  behavioral_errors: [
+    {
+      action: "create",
+      trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      fields: ["text"],
+      expected_markers: BEHAVIORAL_ERROR_MARKERS,
+    },
+  ],
   tools: ["create", "read"],
   prompt_context: "Stores the user's text notes.",
 };
 
 const CREATE_HANDLER = [
   "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
+  "  const note = data.insert({ text: input.text });",
+  '  return `<article class="note"><p>$' + "{escapeHtml(note.text)}</p></article>`;",
+  "}",
+  "",
+  "function escapeHtml(value: unknown): string {",
+  "  return String(value)",
+  '    .replaceAll("&", "&amp;")',
+  '    .replaceAll("<", "&lt;")',
+  '    .replaceAll(">", "&gt;")',
+  '    .replaceAll(\'"\', "&quot;")',
+  '    .replaceAll("\'", "&#39;");',
+  "}",
+].join("\n");
+
+const MISSING_MARKER_CREATE_HANDLER = [
+  "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
+  '  if (String(input.text ?? "").trim().length === 0) {',
+  "    return '<div class=\"error\">Any friendly copy can go here.</div>';",
+  "  }",
   "  const note = data.insert({ text: input.text });",
   '  return `<article class="note"><p>$' + "{escapeHtml(note.text)}</p></article>`;",
   "}",
@@ -309,6 +387,44 @@ const CREATE_VIEW = `<form class="capability-form" hx-post="/capability/notes/cr
   </label>
   <button type="submit">Add</button>
 </form>`;
+
+const BEHAVIORAL_SUITE = {
+  cases: [
+    {
+      name: "stores and renders note text",
+      setupRows: [],
+      input: [{ field: "text", value: "Behavioral note" }],
+      expectedCreatedRow: [{ field: "text", value: "Behavioral note" }],
+      expectedRowCount: 1,
+      expectCreateFragmentIncludes: ["Behavioral note"],
+      expectReadFragmentIncludes: ["Behavioral note"],
+      expectReadFragmentIncludesInOrder: [],
+      expectedError: null,
+    },
+  ],
+};
+
+const VALIDATION_ERROR_SUITE = {
+  cases: [
+    {
+      name: "missing note text emits stable validation markers",
+      setupRows: [],
+      input: [],
+      expectedCreatedRow: [],
+      expectedRowCount: 0,
+      expectCreateFragmentIncludes: [],
+      expectReadFragmentIncludes: [],
+      expectReadFragmentIncludesInOrder: [],
+      expectedError: {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    },
+  ],
+};
 
 describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
   test("narrates, previews spec/migration/units, confirms with the label, and closes", async () => {
@@ -423,6 +539,12 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
         readFragmentLength: number;
         realDatabaseUnchanged: boolean;
       };
+      behavioral: {
+        tier: string;
+        status: string;
+        testGen: { outcome: string; testCount: number; usage: { totalTokens: number } };
+        testRun: { outcome: string; cases: Array<{ name: string; status: string }> };
+      };
     };
     expect(gatePreview.kind).toBe("gate-preview");
     expect(gatePreview.status).toBe("passed");
@@ -430,6 +552,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(gatePreview.rungs.map((rung) => `${rung.rung}:${rung.status}`)).toEqual([
       "structural:passed",
       "smoke:passed",
+      "behavioral:passed",
     ]);
     expect(gatePreview.rungs.every((rung) => rung.durationMs >= 0)).toBe(true);
     expect(gatePreview.smoke).toMatchObject({
@@ -439,6 +562,15 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     });
     expect(gatePreview.smoke.createFragmentLength).toBeGreaterThan(0);
     expect(gatePreview.smoke.readFragmentLength).toBeGreaterThan(0);
+    expect(gatePreview.behavioral).toMatchObject({
+      tier: "on",
+      status: "passed",
+      testGen: { outcome: "passed", testCount: 1, usage: { totalTokens: 53 } },
+      testRun: {
+        outcome: "passed",
+        cases: [{ name: "stores and renders note text", status: "passed" }],
+      },
+    });
 
     // The product-voice events — narration + confirmation — must NOT leak internals
     // (ARCH §9.7). Only the user-facing label crosses into the confirmation.
@@ -449,12 +581,18 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(dataFor("done")).toBe("ok");
 
     // The typed prompt reached the provider, then the four unit-generation prompts
-    // followed — proof the demo runs the current builder stages, not a canned string.
-    expect(prompts).toHaveLength(5);
+    // and the behavioral test-generation prompt followed — proof the demo runs the
+    // current builder stages, not a canned string.
+    expect(prompts).toHaveLength(6);
     expect(prompts[0]).toContain("track my notes");
     expect(prompts[0]).toContain("tools: only create, read.");
     expect(prompts[1]).toContain("Generate the create.ts handler");
     expect(prompts[4]).toContain("Generate the create.html view");
+    expect(prompts[5]).toContain("Text is required. Newest notes appear first.");
+    expect(prompts[5]).toContain('"schema"');
+    expect(prompts[5]).toContain('"behavioral_errors"');
+    expect(prompts[5]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
+    expect(prompts[5]).not.toContain("export default async function");
   });
 
   test("falls back to the default prompt when the field is empty", async () => {
@@ -473,12 +611,137 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(res.status).toBe(200);
 
     const payload = await readSse(res);
-    expect(payload).toMatch(/mind trying again/i);
-    expect(payload).toContain("event: done");
-    expect(payload).toMatch(/data: error/);
-    // No fragment on the failure path, and no internals leaked.
+    const events = collectSseEvents(payload);
+    const dataFor = (name: string) =>
+      events
+        .filter((event) => event.event === name)
+        .map((event) => event.data)
+        .join("\n");
+
+    expect(dataFor("narration")).toMatch(/mind trying again/i);
+    expect(dataFor("done")).toBe("error");
+    expect(dataFor("build-error-preview")).toContain("Missing OMNI_API_KEY");
+    expect(dataFor("build-error-preview")).toContain("Error");
+    // No fragment on the failure path, and no internals leak through product copy.
     expect(payload).not.toContain("event: fragment");
-    expect(payload).not.toMatch(/OMNI_API_KEY|api key|provider/i);
+    expect(dataFor("narration")).not.toMatch(/OMNI_API_KEY|api key|provider/i);
+  });
+
+  test("a behavioral gate failure sends developer evidence without leaking into narration", async () => {
+    const failingSuite = {
+      cases: [
+        {
+          name: "expects text that read never returns",
+          setupRows: [],
+          input: [{ field: "text", value: "Behavioral note" }],
+          expectedCreatedRow: [{ field: "text", value: "Behavioral note" }],
+          expectedRowCount: 1,
+          expectCreateFragmentIncludes: ["Behavioral note"],
+          expectReadFragmentIncludes: ["Definitely absent"],
+          expectReadFragmentIncludesInOrder: [],
+          expectedError: null,
+        },
+      ],
+    };
+    const { provider } = makeSpecProvider(NOTES_SPEC, failingSuite);
+    const app = createApp({ getProvider: () => provider });
+
+    const events = collectSseEvents(
+      await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
+    );
+    const dataFor = (name: string) =>
+      events
+        .filter((event) => event.event === name)
+        .map((event) => event.data)
+        .join("\n");
+    const preview = JSON.parse(dataFor("build-error-preview")) as {
+      errorName: string;
+      diagnostic: {
+        failure: string;
+        testCase: { name: string };
+        scratchRows: Array<{ text: string }>;
+        readFragment: string;
+      };
+    };
+
+    expect(dataFor("narration")).toMatch(/mind trying again/i);
+    expect(dataFor("narration")).not.toMatch(/handler|behavioral|gate|scratch/i);
+    expect(dataFor("done")).toBe("error");
+    expect(preview.errorName).toBe("CapabilityGateError");
+    expect(preview.diagnostic.testCase.name).toBe("expects text that read never returns");
+    expect(preview.diagnostic.failure).toContain("Definitely absent");
+    expect(preview.diagnostic.scratchRows).toEqual([
+      expect.objectContaining({ text: "Behavioral note" }),
+    ]);
+    expect(preview.diagnostic.readFragment).toContain("Behavioral note");
+  });
+
+  test("a behavioral test-generation provider error is captured in the developer preview", async () => {
+    const { provider } = makeSpecProviderWithBehavioralError(
+      NOTES_SPEC,
+      new Error("Invalid schema for response_format 'response': Missing required expectedError."),
+    );
+    const app = createApp({ getProvider: () => provider });
+
+    const events = collectSseEvents(
+      await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
+    );
+    const dataFor = (name: string) =>
+      events
+        .filter((event) => event.event === name)
+        .map((event) => event.data)
+        .join("\n");
+    const preview = JSON.parse(dataFor("build-error-preview")) as {
+      errorName: string;
+      message: string;
+    };
+
+    expect(dataFor("narration")).toMatch(/mind trying again/i);
+    expect(dataFor("narration")).not.toMatch(/response_format|schema|expectedError/i);
+    expect(dataFor("done")).toBe("error");
+    expect(preview.errorName).toBe("CapabilityGateError");
+    expect(preview.message).toContain("Invalid schema for response_format");
+    expect(preview.message).toContain("expectedError");
+  });
+
+  test("a validation marker mismatch is visible in the developer-only demo diagnostic", async () => {
+    const { provider } = makeSpecProvider(NOTES_SPEC, VALIDATION_ERROR_SUITE, {
+      create: MISSING_MARKER_CREATE_HANDLER,
+    });
+    const app = createApp({ getProvider: () => provider });
+
+    const events = collectSseEvents(
+      await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
+    );
+    const dataFor = (name: string) =>
+      events
+        .filter((event) => event.event === name)
+        .map((event) => event.data)
+        .join("\n");
+    const preview = JSON.parse(dataFor("build-error-preview")) as {
+      errorName: string;
+      diagnostic: {
+        failure: string;
+        testCase: { name: string; expectedError: { code: string; fields: string[] } };
+        createFragment: string;
+        scratchRows: unknown[];
+      };
+    };
+
+    expect(dataFor("narration")).toMatch(/mind trying again/i);
+    expect(dataFor("narration")).not.toMatch(/handler|behavioral|gate|scratch/i);
+    expect(dataFor("done")).toBe("error");
+    expect(preview.errorName).toBe("CapabilityGateError");
+    expect(preview.diagnostic.testCase.name).toBe(
+      "missing note text emits stable validation markers",
+    );
+    expect(preview.diagnostic.testCase.expectedError).toMatchObject({
+      code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      fields: ["text"],
+    });
+    expect(preview.diagnostic.failure).toContain('data-role="error"');
+    expect(preview.diagnostic.createFragment).toContain("Any friendly copy");
+    expect(preview.diagnostic.scratchRows).toEqual([]);
   });
 });
 

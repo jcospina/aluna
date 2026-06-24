@@ -14,7 +14,11 @@ import type { ZodType } from "zod";
 import type { SendBuildEvent } from "../build-jobs.ts";
 import { type IntentClassification, intentClassificationSchema } from "../intent-resolver/index.ts";
 import type { DeepPartial, GenerateResult, Provider, TokenUsage } from "../provider/index.ts";
-import type { CapabilitySpec } from "../registry/index.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilitySpec,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "../registry/index.ts";
 import { buildSpecPrompt, generateSpec, hardcodedNewCapabilityIntent } from "./index.ts";
 
 const STUB_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
@@ -80,6 +84,15 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     schema: { fields: [{ name: "text", type: "string", required: true }] },
     ui_intent: { views: ["list", "create"] },
     behavior: "Text is required. Newest notes appear first.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     tools: ["create", "read"],
     prompt_context: "Stores the user's text notes.",
     ...overrides,
@@ -131,6 +144,9 @@ describe("spec generation stage", () => {
     // Identity: engineering id vs user-facing label, kept distinct.
     expect(prompt).toContain("id is the engineering identity");
     expect(prompt).toContain("label is the user-facing name shown in the capability toolbar");
+    expect(prompt).toContain("behavioral_errors: structured validation-error cases");
+    expect(prompt).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
+    expect(prompt).toContain('"data-error-fields"');
     // The resolved intent and the user's words both reach the model.
     expect(prompt).toContain(intent.proposed_action);
     expect(prompt).toContain(intent.user_facing_label);

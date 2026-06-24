@@ -17,7 +17,8 @@
 //     `references`, `added_in_version` — fails validation instead of slipping by.
 //   - `ui_intent` speaks M2's two views (`list`, `create`); `tools` speaks M2's
 //     two actions (`create`, `read`); `behavior` is free text the behavioral
-//     tier generates tests from.
+//     tier generates tests from; `behavioral_errors` is the stable validation
+//     error contract product copy must not stand in for.
 //   - The platform trio — `id`, `created_at`, `extra` — is platform-owned, never
 //     a spec field. A spec naming one of them is rejected. This deviates from
 //     ARCH §6.3's example (`created_at` with `auto`) deliberately, per the PLAN:
@@ -75,6 +76,36 @@ export type SpecView = z.infer<typeof specViewSchema>;
 export const capabilityToolSchema = z.enum(["create", "read"]);
 export type CapabilityTool = z.infer<typeof capabilityToolSchema>;
 
+export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
+export const BEHAVIORAL_ERROR_MARKERS = {
+  role_attribute: "data-role",
+  role: "error",
+  code_attribute: "data-error-code",
+  fields_attribute: "data-error-fields",
+  fields_separator: " ",
+} as const;
+
+export const behavioralErrorMarkersSchema = z.strictObject({
+  role_attribute: z.literal(BEHAVIORAL_ERROR_MARKERS.role_attribute),
+  role: z.literal(BEHAVIORAL_ERROR_MARKERS.role),
+  code_attribute: z.literal(BEHAVIORAL_ERROR_MARKERS.code_attribute),
+  fields_attribute: z.literal(BEHAVIORAL_ERROR_MARKERS.fields_attribute),
+  fields_separator: z.literal(BEHAVIORAL_ERROR_MARKERS.fields_separator),
+});
+export type BehavioralErrorMarkers = z.infer<typeof behavioralErrorMarkersSchema>;
+
+export const behavioralErrorCaseSchema = z.strictObject({
+  action: z.literal("create"),
+  trigger: z.literal(MISSING_REQUIRED_FIELDS_ERROR_CODE),
+  code: z.literal(MISSING_REQUIRED_FIELDS_ERROR_CODE),
+  fields: z
+    .array(z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE))
+    .min(1)
+    .refine(allUnique, "behavioral error fields must be unique"),
+  expected_markers: behavioralErrorMarkersSchema,
+});
+export type BehavioralErrorCase = z.infer<typeof behavioralErrorCaseSchema>;
+
 function allUnique(values: readonly string[]): boolean {
   return new Set(values).size === values.length;
 }
@@ -104,12 +135,16 @@ const specShape = {
   // Free text. The behavioral tier generates tests from this — from stated
   // intent, never from handler code (ARCH §2).
   behavior: nonBlankText,
+  // Stable validation-error behavior that the generated handler and independent
+  // behavioral tests both consume. User-facing copy can vary; this contract is
+  // made of semantic markers and affected fields.
+  behavioral_errors: z.array(behavioralErrorCaseSchema).max(8),
   tools: z.array(capabilityToolSchema).min(1).refine(allUnique, "tools must be unique"),
   // What the intent resolver reads to understand this capability (ARCH §6.3).
   prompt_context: nonBlankText,
 };
 
-export const capabilitySpecSchema = z.strictObject(specShape);
+export const capabilitySpecSchema = z.strictObject(specShape).superRefine(validateBehavioralErrors);
 export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 
 // One registry row (ARCH §6.3): the spec plus the two platform-assigned values —
@@ -117,9 +152,100 @@ export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 // `artifacts_path` (the version directory holding handlers and views). The row
 // stays lean — spec + version + pointer — because the intent resolver scans
 // every row on every classification; nothing bulky lives here.
-export const capabilityRowSchema = z.strictObject({
-  ...specShape,
-  version: z.number().int().min(1),
-  artifacts_path: nonBlankText,
-});
+export const capabilityRowSchema = z
+  .strictObject({
+    ...specShape,
+    version: z.number().int().min(1),
+    artifacts_path: nonBlankText,
+  })
+  .superRefine(validateBehavioralErrors);
 export type CapabilityRow = z.infer<typeof capabilityRowSchema>;
+
+export function defaultBehavioralErrorsForSchema(
+  schema: CapabilitySpec["schema"],
+): BehavioralErrorCase[] {
+  const fields = schema.fields.filter((field) => field.required).map((field) => field.name);
+  if (fields.length === 0) return [];
+
+  return [
+    {
+      action: "create",
+      trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      fields,
+      expected_markers: BEHAVIORAL_ERROR_MARKERS,
+    },
+  ];
+}
+
+function validateBehavioralErrors(
+  spec: Pick<CapabilitySpec, "schema" | "behavioral_errors">,
+  ctx: z.RefinementCtx,
+): void {
+  const fieldsByName = new Map(spec.schema.fields.map((field) => [field.name, field]));
+  const requiredFieldNames = spec.schema.fields
+    .filter((field) => field.required)
+    .map((field) => field.name);
+
+  for (const [index, errorCase] of spec.behavioral_errors.entries()) {
+    validateBehavioralErrorFields(ctx, fieldsByName, errorCase, index);
+  }
+
+  if (missingRequiredFieldsCaseIsMissing(spec.behavioral_errors, requiredFieldNames)) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "behavioral_errors must include one missing_required_fields case covering all required fields",
+      path: ["behavioral_errors"],
+    });
+  }
+}
+
+function validateBehavioralErrorFields(
+  ctx: z.RefinementCtx,
+  fieldsByName: ReadonlyMap<string, SpecField>,
+  errorCase: BehavioralErrorCase,
+  index: number,
+): void {
+  for (const fieldName of errorCase.fields) {
+    const field = fieldsByName.get(fieldName);
+    if (!field) {
+      addBehavioralErrorFieldIssue(ctx, index, fieldName, "is not in schema.fields");
+      continue;
+    }
+    if (!field.required) {
+      addBehavioralErrorFieldIssue(ctx, index, fieldName, "must be required");
+    }
+  }
+}
+
+function addBehavioralErrorFieldIssue(
+  ctx: z.RefinementCtx,
+  index: number,
+  fieldName: string,
+  reason: string,
+): void {
+  ctx.addIssue({
+    code: "custom",
+    message: `behavioral error field "${fieldName}" ${reason}`,
+    path: ["behavioral_errors", index, "fields"],
+  });
+}
+
+function missingRequiredFieldsCaseIsMissing(
+  errorCases: readonly BehavioralErrorCase[],
+  requiredFieldNames: readonly string[],
+): boolean {
+  if (requiredFieldNames.length === 0) return false;
+  return !errorCases.some(
+    (errorCase) =>
+      errorCase.code === MISSING_REQUIRED_FIELDS_ERROR_CODE &&
+      sameStringSet(errorCase.fields, requiredFieldNames),
+  );
+}
+
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((value) => rightSet.has(value));
+}

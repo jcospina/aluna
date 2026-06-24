@@ -25,10 +25,12 @@ import type { SendBuildEvent } from "../build-jobs.ts";
 import type { IntentClassification } from "../intent-resolver/index.ts";
 import type { Provider, TokenUsage } from "../provider/index.ts";
 import {
+  BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   capabilitySpecSchema,
   capabilityToolSchema,
   fieldTypeSchema,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
   specViewSchema,
 } from "../registry/index.ts";
@@ -86,6 +88,9 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "",
     "Other fields:",
     "- behavior: one or two plain sentences describing how this capability behaves (what is required, default ordering). Aluna generates tests from this, so state intent, not implementation.",
+    "- behavioral_errors: structured validation-error cases. Product copy is not the contract.",
+    `  - If any schema fields are required, include one case with action "create", trigger/code "${MISSING_REQUIRED_FIELDS_ERROR_CODE}", fields set to every required field name in schema order, and expected_markers exactly ${JSON.stringify(BEHAVIORAL_ERROR_MARKERS)}.`,
+    "  - If no fields are required, use an empty array.",
     "- prompt_context: one concise sentence describing what this capability stores, used later to recognise related requests.",
     "",
     "Resolved intent:",

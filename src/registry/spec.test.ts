@@ -7,26 +7,44 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   capabilityRowSchema,
   capabilitySpecSchema,
+  defaultBehavioralErrorsForSchema,
   fieldTypeSchema,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
 } from "./spec.ts";
 
 // A minimal valid spec, fresh per call so tests can mutate freely. Overrides
 // merge shallowly — pass a whole `schema`/`ui_intent` object to change those.
 function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
-  return {
+  const spec: CapabilitySpec = {
     id: "notes",
     label: "Notes",
     schema: { fields: [{ name: "text", type: "string", required: true }] },
     ui_intent: { views: ["list", "create"] },
     behavior: "Text is required. Newest notes appear first.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     tools: ["create", "read"],
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
+
+  if (overrides.schema && !("behavioral_errors" in overrides)) {
+    return { ...spec, behavioral_errors: defaultBehavioralErrorsForSchema(spec.schema) };
+  }
+
+  return spec;
 }
 
 describe("capability spec shape", () => {
@@ -134,6 +152,30 @@ describe("capability spec shape", () => {
 
     const noTools = validSpec({ tools: [] });
     expect(capabilitySpecSchema.safeParse(noTools).success).toBe(false);
+  });
+
+  test("requires stable behavioral error markers for missing required fields", () => {
+    const missingContract = validSpec({ behavioral_errors: [] });
+    expect(capabilitySpecSchema.safeParse(missingContract).success).toBe(false);
+
+    const wrongFields = validSpec({
+      behavioral_errors: [
+        {
+          action: "create",
+          trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          fields: ["unknown"],
+          expected_markers: BEHAVIORAL_ERROR_MARKERS,
+        },
+      ],
+    });
+    expect(capabilitySpecSchema.safeParse(wrongFields).success).toBe(false);
+
+    const optionalOnly = validSpec({
+      schema: { fields: [{ name: "text", type: "string", required: false }] },
+      behavioral_errors: [],
+    });
+    expect(capabilitySpecSchema.parse(optionalOnly)).toEqual(optionalOnly);
   });
 
   test("rejects unknown top-level keys and blank free text", () => {

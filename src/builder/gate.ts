@@ -10,23 +10,35 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
+import { z } from "zod";
 
 import { type CapabilityTableDdl, createCapabilityDataTool } from "../capability-data/index.ts";
-import type { CapabilitySpec, SpecField } from "../registry/index.ts";
+import type { Provider, TokenUsage } from "../provider/index.ts";
+import {
+  type BehavioralErrorCase,
+  behavioralErrorMarkersSchema,
+  type CapabilitySpec,
+  type SpecField,
+} from "../registry/index.ts";
 import type { CapabilityHandler } from "../router/index.ts";
 import type { HandlerUnitName } from "./units.ts";
 
-const GATE_RUNG_ORDER = ["structural", "smoke"] as const;
+export const BEHAVIORAL_TIER_ENV_VAR = "OMNI_BEHAVIORAL_TIER";
+
+const GATE_RUNG_ORDER = ["structural", "smoke", "behavioral"] as const;
 const HANDLER_NAMES = ["create", "read"] as const satisfies readonly HandlerUnitName[];
+const BEHAVIORAL_TIER_ON_VALUES = new Set(["1", "true", "on", "yes"]);
+const BEHAVIORAL_TIER_OFF_VALUES = new Set(["0", "false", "off", "no"]);
 
 export type GateRungName = (typeof GATE_RUNG_ORDER)[number];
-export type GateRungStatus = "passed" | "failed";
+export type GateRungStatus = "passed" | "failed" | "skipped";
 
 export interface GateRungOutcome {
   readonly rung: GateRungName;
   readonly status: GateRungStatus;
   readonly durationMs: number;
   readonly error?: string;
+  readonly reason?: string;
 }
 
 export interface SmokeGateResult {
@@ -38,12 +50,54 @@ export interface SmokeGateResult {
   readonly realDatabaseUnchanged?: boolean;
 }
 
+export interface BehavioralTierInput {
+  readonly enabled?: boolean;
+}
+
+export interface BehavioralTestGenerationMetrics {
+  readonly outcome: "passed";
+  readonly durationMs: number;
+  readonly usage: TokenUsage;
+  readonly testCount: number;
+}
+
+export interface BehavioralTestCaseOutcome {
+  readonly name: string;
+  readonly status: "passed";
+  readonly durationMs: number;
+}
+
+export interface BehavioralTestRunMetrics {
+  readonly outcome: "passed";
+  readonly durationMs: number;
+  readonly cases: readonly BehavioralTestCaseOutcome[];
+}
+
+export type BehavioralGateResult =
+  | {
+      readonly tier: "on";
+      readonly status: "passed";
+      readonly testGen: BehavioralTestGenerationMetrics;
+      readonly testRun: BehavioralTestRunMetrics;
+    }
+  | {
+      readonly tier: "off";
+      readonly status: "skipped";
+      readonly reason: string;
+    };
+
 export interface CapabilityGateInput {
   readonly spec: CapabilitySpec;
   // The migration stage owns DDL derivation. The gate applies that exact output to
   // scratch so smoke proves the build's own schema, not a separately-derived one.
   readonly ddl: CapabilityTableDdl;
   readonly handlers: Readonly<Record<HandlerUnitName, string>>;
+  // The behavioral tier generates tests from spec behavior + schema only. The
+  // provider is required when the tier is enabled, and unused when it is off.
+  readonly provider?: Provider;
+  // Global default comes from OMNI_BEHAVIORAL_TIER (default ON); tests and future
+  // orchestration can override explicitly without mutating process.env.
+  readonly behavioralTier?: BehavioralTierInput;
   // Optional assertion hook for the real db: the gate snapshots capability tables
   // before and after smoke and fails if they changed.
   readonly realDatabase?: Database;
@@ -53,18 +107,23 @@ export interface CapabilityGateResult {
   readonly outcomes: readonly GateRungOutcome[];
   readonly durationMs: number;
   readonly smoke: SmokeGateResult;
+  readonly behavioral: BehavioralGateResult;
 }
 
 export class CapabilityGateError extends Error {
   override readonly name = "CapabilityGateError";
   readonly failedRung: GateRungName;
   readonly outcomes: readonly GateRungOutcome[];
+  readonly diagnostic?: unknown;
+  override readonly cause?: unknown;
 
-  constructor(failedRung: GateRungName, outcomes: readonly GateRungOutcome[]) {
+  constructor(failedRung: GateRungName, outcomes: readonly GateRungOutcome[], cause?: unknown) {
     const failed = outcomes.find((outcome) => outcome.rung === failedRung);
     super(`Capability gate failed at ${failedRung}: ${failed?.error ?? "unknown failure"}`);
     this.failedRung = failedRung;
     this.outcomes = outcomes;
+    this.cause = cause;
+    this.diagnostic = diagnosticForError(cause);
   }
 }
 
@@ -74,12 +133,25 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
 
   await runGateRung(outcomes, "structural", () => runStructuralRung(input));
   const smoke = await runGateRung(outcomes, "smoke", () => runSmokeRung(input));
+  const behavioral = resolveBehavioralTierEnabledForInput(input)
+    ? await runGateRung(outcomes, "behavioral", () => runBehavioralRung(input))
+    : skipGateRung(outcomes, "behavioral", "Behavioral tier is off for this run.");
 
   return {
     outcomes,
     durationMs: performance.now() - startedAt,
     smoke,
+    behavioral,
   };
+}
+
+export function resolveBehavioralTierEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env[BEHAVIORAL_TIER_ENV_VAR]?.trim().toLowerCase();
+  if (!raw) return true;
+  if (BEHAVIORAL_TIER_ON_VALUES.has(raw)) return true;
+  if (BEHAVIORAL_TIER_OFF_VALUES.has(raw)) return false;
+
+  throw new Error(`${BEHAVIORAL_TIER_ENV_VAR} must be one of on/off, true/false, yes/no, or 1/0.`);
 }
 
 async function runGateRung<T>(
@@ -99,8 +171,21 @@ async function runGateRung<T>(
       durationMs: performance.now() - startedAt,
       error: errorMessage(error),
     });
-    throw new CapabilityGateError(rung, outcomes);
+    throw new CapabilityGateError(rung, outcomes, error);
   }
+}
+
+function skipGateRung(
+  outcomes: GateRungOutcome[],
+  rung: GateRungName,
+  reason: string,
+): BehavioralGateResult {
+  outcomes.push({ rung, status: "skipped", durationMs: 0, reason });
+  return { tier: "off", status: "skipped", reason };
+}
+
+function resolveBehavioralTierEnabledForInput(input: CapabilityGateInput): boolean {
+  return input.behavioralTier?.enabled ?? resolveBehavioralTierEnabled();
 }
 
 function runStructuralRung(input: CapabilityGateInput): void {
@@ -162,6 +247,467 @@ async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGateResult
   if (smokeError) throw smokeError;
   if (!smoke) throw new Error("Smoke rung did not produce a result.");
   return smoke;
+}
+
+const behavioralScalarSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const nonEmptyStringSchema = z.string().min(1);
+const behavioralFieldValueSchema = z.strictObject({
+  field: nonEmptyStringSchema,
+  value: behavioralScalarSchema,
+});
+const behavioralInputValueSchema = z.strictObject({
+  field: nonEmptyStringSchema,
+  value: z.string(),
+});
+const behavioralExpectedErrorSchema = z.strictObject({
+  action: z.literal("create"),
+  trigger: z.literal("missing_required_fields"),
+  code: z.literal("missing_required_fields"),
+  fields: z.array(nonEmptyStringSchema).min(1),
+  expected_markers: behavioralErrorMarkersSchema,
+});
+const behavioralRowSchema = z.strictObject({
+  values: z.array(behavioralFieldValueSchema),
+});
+const behavioralTestCaseSchema = z.strictObject({
+  name: nonEmptyStringSchema,
+  setupRows: z.array(behavioralRowSchema),
+  input: z.array(behavioralInputValueSchema),
+  expectedCreatedRow: z.array(behavioralFieldValueSchema),
+  expectedRowCount: z.number().int().nonnegative(),
+  expectCreateFragmentIncludes: z.array(nonEmptyStringSchema),
+  expectReadFragmentIncludes: z.array(nonEmptyStringSchema),
+  expectReadFragmentIncludesInOrder: z.array(nonEmptyStringSchema),
+  expectedError: behavioralExpectedErrorSchema.nullable(),
+});
+const behavioralTestSuiteSchema = z.strictObject({
+  cases: z.array(behavioralTestCaseSchema).min(1).max(8),
+});
+
+type BehavioralTestCase = z.infer<typeof behavioralTestCaseSchema>;
+type BehavioralTestSuite = z.infer<typeof behavioralTestSuiteSchema>;
+type BehavioralScalar = z.infer<typeof behavioralScalarSchema>;
+type BehavioralExpectedError = z.infer<typeof behavioralExpectedErrorSchema>;
+
+interface GeneratedBehavioralTests {
+  readonly suite: BehavioralTestSuite;
+  readonly durationMs: number;
+  readonly usage: TokenUsage;
+}
+
+interface BehavioralCaseDiagnostic {
+  readonly testCase: BehavioralTestCase;
+  readonly setupRows: readonly Record<string, BehavioralScalar>[];
+  readonly createInput?: Record<string, string>;
+  readonly scratchRows?: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]>;
+  readonly createFragment?: string;
+  readonly readFragment?: string;
+  readonly failure: string;
+}
+
+class BehavioralCaseFailure extends Error {
+  override readonly name = "BehavioralCaseFailure";
+  readonly diagnostic: BehavioralCaseDiagnostic;
+
+  constructor(testName: string, diagnostic: BehavioralCaseDiagnostic) {
+    super(`Behavioral test "${testName}" failed: ${diagnostic.failure}`);
+    this.diagnostic = diagnostic;
+  }
+}
+
+async function runBehavioralRung(input: CapabilityGateInput): Promise<BehavioralGateResult> {
+  if (!input.provider) {
+    throw new Error(
+      "Behavioral tier is on, but no provider was supplied for behavioral test generation.",
+    );
+  }
+
+  const generated = await generateBehavioralTests(input.provider, input.spec);
+  const testRun = await runBehavioralTests({
+    spec: input.spec,
+    ddl: input.ddl,
+    handlers: input.handlers,
+    suite: generated.suite,
+    realDatabase: input.realDatabase,
+  });
+
+  return {
+    tier: "on",
+    status: "passed",
+    testGen: {
+      outcome: "passed",
+      durationMs: generated.durationMs,
+      usage: generated.usage,
+      testCount: generated.suite.cases.length,
+    },
+    testRun,
+  };
+}
+
+export function buildBehavioralTestPrompt(spec: CapabilitySpec): string {
+  return [
+    "Generate behavioral tests for this Aluna capability.",
+    "",
+    "Return one structured object with a `cases` array. Each case is a deterministic black-box test:",
+    "- `input` is an array of `{ field, value }` form/query inputs for the create action, as strings.",
+    "- `setupRows` is an array of `{ values }` objects; each `values` is an array of `{ field, value }` pairs inserted before the action as preexisting older rows. Use an empty array when no setup is needed.",
+    "- `expectedCreatedRow` is an array of `{ field, value }` spec fields that must be present in one scratch row. Use an empty array when no specific row assertion is needed.",
+    "- `expectedRowCount` is required. For a normal create test with no setup rows, use 1.",
+    "- `expectCreateFragmentIncludes`, `expectReadFragmentIncludes`, and `expectReadFragmentIncludesInOrder` assert visible HTML substrings. Use empty arrays when not needed.",
+    "- `expectedError` is required on every case. For normal success behavior, set it to null. For validation-error behavior, set it to one object copied from a `behavioral_errors` case in the source material. Do not assert user-facing error copy with fragment includes; leave those arrays empty.",
+    "",
+    "Important constraints:",
+    "- Use only the source material JSON below. It is the complete test-generation input.",
+    "- Do not assume or reference handler implementation details.",
+    "- Validation-error assertions must check semantic markers, stable error codes, and affected fields from `behavioral_errors`, never exact product-copy strings.",
+    "- Prefer one or two high-signal cases that prove the stated behavior.",
+    "",
+    "Source material JSON:",
+    JSON.stringify(
+      { behavior: spec.behavior, schema: spec.schema, behavioral_errors: spec.behavioral_errors },
+      null,
+      2,
+    ),
+  ].join("\n");
+}
+
+async function generateBehavioralTests(
+  provider: Provider,
+  spec: CapabilitySpec,
+): Promise<GeneratedBehavioralTests> {
+  const startedAt = performance.now();
+  const result = provider.generate(buildBehavioralTestPrompt(spec), behavioralTestSuiteSchema);
+  const suite = behavioralTestSuiteSchema.parse(await result.object);
+  const usage = await result.usage;
+  return { suite, usage, durationMs: performance.now() - startedAt };
+}
+
+interface RunBehavioralTestsInput {
+  readonly spec: CapabilitySpec;
+  readonly ddl: CapabilityTableDdl;
+  readonly handlers: Readonly<Record<HandlerUnitName, string>>;
+  readonly suite: BehavioralTestSuite;
+  readonly realDatabase?: Database;
+}
+
+async function runBehavioralTests(
+  input: RunBehavioralTestsInput,
+): Promise<BehavioralTestRunMetrics> {
+  const startedAt = performance.now();
+  const beforeReal = input.realDatabase ? snapshotCapabilityTables(input.realDatabase) : undefined;
+  const handlers = await loadHandlers(input.handlers);
+  const cases: BehavioralTestCaseOutcome[] = [];
+  let runError: unknown;
+
+  try {
+    for (const testCase of input.suite.cases) {
+      const caseStartedAt = performance.now();
+      await runBehavioralCase(input.spec, input.ddl, handlers, testCase);
+      cases.push({
+        name: testCase.name,
+        status: "passed",
+        durationMs: performance.now() - caseStartedAt,
+      });
+    }
+  } catch (error) {
+    runError = error;
+  }
+
+  if (
+    beforeReal &&
+    input.realDatabase &&
+    !sameSnapshot(beforeReal, snapshotCapabilityTables(input.realDatabase))
+  ) {
+    throw new Error("Behavioral gate execution changed real capability data tables.");
+  }
+
+  if (runError) throw runError;
+
+  return {
+    outcome: "passed",
+    durationMs: performance.now() - startedAt,
+    cases,
+  };
+}
+
+async function runBehavioralCase(
+  spec: CapabilitySpec,
+  ddl: CapabilityTableDdl,
+  handlers: Readonly<Record<HandlerUnitName, CapabilityHandler>>,
+  testCase: BehavioralTestCase,
+): Promise<void> {
+  assertBehavioralCaseReferencesSpecFields(spec, testCase);
+  const scratch = openScratchDatabasePair();
+  const setupRows = testCase.setupRows.map((row) => fieldValuesToRecord(row.values));
+  const createInput = inputValuesToRecord(testCase.input);
+  let createFragment: string | undefined;
+  let readFragment: string | undefined;
+  let scratchRows: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]> | undefined;
+
+  try {
+    applyDdl(ddl, scratch.readwrite);
+    const data = createCapabilityDataTool(spec, scratch);
+    const setupIds: string[] = [];
+
+    for (const row of setupRows) {
+      setupIds.push(data.insert(row).id);
+    }
+    ageSetupRows(scratch.readwrite, ddl.tableName, setupIds);
+
+    createFragment = await handlers.create({
+      input: createInput,
+      data,
+    });
+    assertFragment("create", createFragment);
+
+    scratchRows = data.select();
+    const expectedRowCount = testCase.expectedRowCount;
+    if (scratchRows.length !== expectedRowCount) {
+      throw new Error(
+        `expected ${expectedRowCount} scratch row(s), received ${scratchRows.length}.`,
+      );
+    }
+
+    if (testCase.expectedError) {
+      assertValidationErrorCase(spec, testCase, createFragment);
+      return;
+    }
+
+    assertFragmentIncludes("create", createFragment, testCase.expectCreateFragmentIncludes);
+    const expectedCreatedRow = fieldValuesToRecord(testCase.expectedCreatedRow);
+    if (
+      Object.keys(expectedCreatedRow).length > 0 &&
+      !scratchRows.some((row) => rowMatches(row, expectedCreatedRow))
+    ) {
+      throw new Error(`did not find a scratch row matching ${JSON.stringify(expectedCreatedRow)}.`);
+    }
+
+    readFragment = await handlers.read({ input: {}, data });
+    assertFragment("read", readFragment);
+    assertFragmentIncludes("read", readFragment, testCase.expectReadFragmentIncludes);
+    assertFragmentIncludesInOrder(readFragment, testCase.expectReadFragmentIncludesInOrder);
+  } catch (error) {
+    throw new BehavioralCaseFailure(testCase.name, {
+      testCase,
+      setupRows,
+      createInput,
+      scratchRows,
+      createFragment,
+      readFragment,
+      failure: errorMessage(error),
+    });
+  } finally {
+    scratch.readonly.close();
+    scratch.readwrite.close();
+  }
+}
+
+function ageSetupRows(database: Database, tableName: string, setupIds: readonly string[]): void {
+  const update = database.query(
+    `UPDATE ${sqlIdentifier(tableName)} SET "created_at" = ? WHERE "id" = ?`,
+  );
+  for (const [index, id] of setupIds.entries()) {
+    update.run(`2000-01-01 00:00:${String(index).padStart(2, "0")}`, id);
+  }
+}
+
+function assertBehavioralCaseReferencesSpecFields(
+  spec: CapabilitySpec,
+  testCase: BehavioralTestCase,
+): void {
+  const fields = new Set(spec.schema.fields.map((field) => field.name));
+  assertKnownFields(
+    testCase.name,
+    "input",
+    testCase.input.map((entry) => entry.field),
+    fields,
+  );
+  for (const [index, row] of testCase.setupRows.entries()) {
+    assertKnownFields(
+      testCase.name,
+      `setupRows[${index}]`,
+      row.values.map((entry) => entry.field),
+      fields,
+    );
+  }
+  assertKnownFields(
+    testCase.name,
+    "expectedCreatedRow",
+    testCase.expectedCreatedRow.map((entry) => entry.field),
+    fields,
+  );
+  if (testCase.expectedError) {
+    assertKnownFields(testCase.name, "expectedError.fields", testCase.expectedError.fields, fields);
+    assertExpectedErrorMatchesSpecContract(spec, testCase.expectedError);
+  }
+}
+
+function assertKnownFields(
+  testName: string,
+  label: string,
+  names: readonly string[],
+  fields: ReadonlySet<string>,
+): void {
+  for (const name of names) {
+    if (!fields.has(name)) {
+      throw new Error(
+        `Behavioral test "${testName}" ${label} references unknown spec field "${name}".`,
+      );
+    }
+  }
+}
+
+function assertFragmentIncludes(
+  action: HandlerUnitName,
+  fragment: string,
+  expected: readonly string[],
+): void {
+  for (const text of expected) {
+    if (!fragment.includes(text)) {
+      throw new Error(`expected ${action} fragment to include ${JSON.stringify(text)}.`);
+    }
+  }
+}
+
+function assertFragmentIncludesInOrder(fragment: string, expected: readonly string[]): void {
+  let cursor = 0;
+  for (const text of expected) {
+    const index = fragment.indexOf(text, cursor);
+    if (index === -1) {
+      throw new Error(`expected read fragment to include ${JSON.stringify(text)} in order.`);
+    }
+    cursor = index + text.length;
+  }
+}
+
+function assertValidationErrorCase(
+  spec: CapabilitySpec,
+  testCase: BehavioralTestCase,
+  createFragment: string,
+): void {
+  const expected = testCase.expectedError;
+  if (!expected) return;
+
+  assertExpectedErrorMatchesSpecContract(spec, expected);
+  if (
+    testCase.expectedCreatedRow.length > 0 ||
+    testCase.expectCreateFragmentIncludes.length > 0 ||
+    testCase.expectReadFragmentIncludes.length > 0 ||
+    testCase.expectReadFragmentIncludesInOrder.length > 0
+  ) {
+    throw new Error(
+      "validation-error behavioral cases must assert expectedError markers, not product-copy fragment includes",
+    );
+  }
+
+  assertValidationErrorMarkers(createFragment, expected);
+}
+
+function assertExpectedErrorMatchesSpecContract(
+  spec: CapabilitySpec,
+  expected: BehavioralExpectedError,
+): void {
+  if (!spec.behavioral_errors.some((errorCase) => sameBehavioralError(errorCase, expected))) {
+    throw new Error(
+      `expectedError ${JSON.stringify(expected)} does not match the spec-owned behavioral_errors contract`,
+    );
+  }
+}
+
+function sameBehavioralError(
+  specCase: BehavioralErrorCase,
+  expected: BehavioralExpectedError,
+): boolean {
+  return (
+    specCase.action === expected.action &&
+    specCase.trigger === expected.trigger &&
+    specCase.code === expected.code &&
+    sameStringSet(specCase.fields, expected.fields) &&
+    JSON.stringify(specCase.expected_markers) === JSON.stringify(expected.expected_markers)
+  );
+}
+
+function assertValidationErrorMarkers(fragment: string, expected: BehavioralExpectedError): void {
+  const marker = expected.expected_markers;
+  const elements = parseHtmlStartTagAttributes(fragment).filter(
+    (attributes) => attributes[marker.role_attribute] === marker.role,
+  );
+  if (elements.length === 0) {
+    throw new Error(
+      `expected create fragment to include an error element with ${marker.role_attribute}="${marker.role}".`,
+    );
+  }
+
+  const actualSummary = elements.map((attributes) => ({
+    code: attributes[marker.code_attribute],
+    fields: attributes[marker.fields_attribute],
+  }));
+  const match = elements.find((attributes) => {
+    const fields = splitErrorFields(attributes[marker.fields_attribute], marker.fields_separator);
+    return (
+      attributes[marker.code_attribute] === expected.code && sameStringSet(fields, expected.fields)
+    );
+  });
+
+  if (!match) {
+    throw new Error(
+      `expected error markers code=${JSON.stringify(expected.code)} fields=${JSON.stringify(expected.fields)}, received ${JSON.stringify(actualSummary)}.`,
+    );
+  }
+}
+
+function parseHtmlStartTagAttributes(fragment: string): Array<Record<string, string>> {
+  const elements: Array<Record<string, string>> = [];
+  const tagPattern = /<[A-Za-z][A-Za-z0-9:-]*(?:\s+[^<>]*?)?>/g;
+  for (const [tag] of fragment.matchAll(tagPattern)) {
+    elements.push(parseAttributes(tag));
+  }
+  return elements;
+}
+
+function parseAttributes(tag: string): Record<string, string> {
+  const attributes: Record<string, string> = {};
+  const attributePattern =
+    /\s([A-Za-z_:][A-Za-z0-9_.:-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  for (const match of tag.matchAll(attributePattern)) {
+    const name = match[1];
+    if (!name) continue;
+    attributes[name] = match[2] ?? match[3] ?? match[4] ?? "";
+  }
+  return attributes;
+}
+
+function splitErrorFields(value: string | undefined, separator: string): string[] {
+  if (!value) return [];
+  return value
+    .split(separator)
+    .map((field) => field.trim())
+    .filter((field) => field.length > 0);
+}
+
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((value) => rightSet.has(value));
+}
+
+function rowMatches(
+  row: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]>[number],
+  expected: Readonly<Record<string, BehavioralScalar>>,
+): boolean {
+  return Object.entries(expected).every(([field, value]) => row[field] === value);
+}
+
+function fieldValuesToRecord(
+  values: readonly z.infer<typeof behavioralFieldValueSchema>[],
+): Record<string, BehavioralScalar> {
+  return Object.fromEntries(values.map((entry) => [entry.field, entry.value]));
+}
+
+function inputValuesToRecord(
+  values: readonly z.infer<typeof behavioralInputValueSchema>[],
+): Record<string, string> {
+  return Object.fromEntries(values.map((entry) => [entry.field, entry.value]));
 }
 
 function assertHandlerExportShapes(handlers: Readonly<Record<HandlerUnitName, string>>): void {
@@ -442,6 +988,19 @@ function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function diagnosticForError(error: unknown): unknown {
+  return isDiagnosticError(error) ? error.diagnostic : undefined;
+}
+
+function isDiagnosticError(error: unknown): error is { readonly diagnostic: unknown } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "diagnostic" in error &&
+    (error as { diagnostic?: unknown }).diagnostic !== undefined
+  );
 }
 
 const handlerContractDeclarations = `

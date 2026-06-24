@@ -81,6 +81,18 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
+  // 0003 adds the stable behavioral error contract to the registry spec row.
+  // The default keeps already-created rows readable; the access layer backfills
+  // the standard missing-required-fields contract from their stored schema.
+  {
+    id: "0003_capability_registry_behavioral_errors",
+    up: (database) => {
+      database.exec(
+        `ALTER TABLE ${REGISTRY_TABLE}
+         ADD COLUMN behavioral_errors TEXT NOT NULL DEFAULT '[]';`,
+      );
+    },
+  },
 ];
 
 // The set of migration ids already recorded in the ledger. Returns empty when the

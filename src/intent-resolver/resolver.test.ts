@@ -14,7 +14,12 @@ import type { ZodType } from "zod";
 import { openDatabase, type PlatformDatabase } from "../db.ts";
 import { runMigrations } from "../migrations.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
-import { type CapabilityRow, insertCapability } from "../registry/index.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilityRow,
+  insertCapability,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "../registry/index.ts";
 import {
   classifyIntent,
   INTENT_TYPES,
@@ -39,6 +44,15 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     schema: { fields: [{ name: "text", type: "string", required: true }] },
     ui_intent: { views: ["list", "create"] },
     behavior: "Text is required. Newest notes appear first.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     tools: ["create", "read"],
     artifacts_path: "capabilities/notes/v1/",
     prompt_context: "Stores the user's text notes.",
@@ -54,6 +68,15 @@ function recipesRow(): CapabilityRow {
     schema: { fields: [{ name: "title", type: "string", required: true }] },
     ui_intent: { views: ["list", "create"] },
     behavior: "Recipes have titles and cooking notes.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["title"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     tools: ["create", "read"],
     artifacts_path: "capabilities/recipes/v2/",
     prompt_context: "Stores recipes the user wants to cook again.",

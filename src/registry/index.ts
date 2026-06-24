@@ -6,14 +6,21 @@
 // epics import from here and depend on nothing inside.
 
 export {
+  BEHAVIORAL_ERROR_MARKERS,
+  type BehavioralErrorCase,
+  type BehavioralErrorMarkers,
+  behavioralErrorCaseSchema,
+  behavioralErrorMarkersSchema,
   type CapabilityRow,
   type CapabilitySpec,
   type CapabilityTool,
   capabilityRowSchema,
   capabilitySpecSchema,
   capabilityToolSchema,
+  defaultBehavioralErrorsForSchema,
   type FieldType,
   fieldTypeSchema,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
   type SpecField,
   type SpecView,

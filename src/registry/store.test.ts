@@ -3,7 +3,7 @@
 // touched. The headline guarantees: a valid row written through the access
 // module reads back deep-equal — version and artifacts_path intact — through
 // the read-only connection; an invalid row writes nothing; and the registry
-// table stays lean (exactly the nine spec'd columns, ARCH §6.3).
+// table stays lean (exactly the ten spec'd columns, ARCH §6.3).
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -12,7 +12,11 @@ import { join } from "node:path";
 
 import { openDatabase, type PlatformDatabase } from "../db.ts";
 import { runMigrations } from "../migrations.ts";
-import type { CapabilityRow } from "./spec.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilityRow,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "./spec.ts";
 import { getCapability, insertCapability, listCapabilities, REGISTRY_TABLE } from "./store.ts";
 
 // A complete, valid registry row — the M2 demo's notes capability. Fresh per
@@ -30,6 +34,15 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     },
     ui_intent: { views: ["list", "create"] },
     behavior: "Text is required. Newest notes appear first.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     tools: ["create", "read"],
     artifacts_path: "capabilities/notes/v1/",
     prompt_context: "Stores the user's text notes.",
@@ -106,7 +119,7 @@ describe("capability registry store", () => {
     expect(() => insertCapability(notesRow(), conns.readwrite)).toThrow();
   });
 
-  test("the registry row stays lean — exactly the nine spec'd columns", () => {
+  test("the registry row stays lean — exactly the ten spec'd columns", () => {
     const columns = conns.readonly
       .query(`SELECT name FROM pragma_table_info('${REGISTRY_TABLE}') ORDER BY cid`)
       .all() as { name: string }[];
@@ -121,6 +134,7 @@ describe("capability registry store", () => {
       "tools",
       "artifacts_path",
       "prompt_context",
+      "behavioral_errors",
     ]);
   });
 });

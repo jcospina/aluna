@@ -7,7 +7,11 @@ import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 
 import { deriveCapabilityTableDdl } from "../capability-data/index.ts";
-import type { CapabilitySpec } from "../registry/index.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilitySpec,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "../registry/index.ts";
 import { applyCapabilityMigration, withCapabilityMigrationTransaction } from "./migration.ts";
 
 interface TableColumn {
@@ -34,6 +38,15 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     },
     ui_intent: { views: ["list", "create"] },
     behavior: "Required title, optional amount and log time, newest records first.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["title", "done"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
     tools: ["create", "read"],
     prompt_context: "Stores notes with optional amount metadata.",
     ...overrides,
