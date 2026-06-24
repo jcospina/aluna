@@ -156,6 +156,7 @@ describe("GET / (shell)", () => {
     expect(html).toContain('id="spec-build-preview"');
     expect(html).toContain('id="spec-migration-preview"');
     expect(html).toContain('id="spec-units-preview"');
+    expect(html).toContain('id="spec-gate-preview"');
     expect(html).toContain('id="spec-build-output"');
     expect(html).not.toContain("Meet Aluna");
     expect(html).not.toContain('id="intro-trigger"');
@@ -328,12 +329,16 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(eventNames).toContain("spec-preview");
     expect(eventNames).toContain("migration-preview");
     expect(eventNames).toContain("units-preview");
+    expect(eventNames).toContain("gate-preview");
     expect(eventNames.at(-2)).toBe("fragment");
     expect(eventNames.at(-1)).toBe("done");
     expect(eventNames.indexOf("units-preview")).toBeGreaterThan(
       eventNames.indexOf("migration-preview"),
     );
-    expect(eventNames.indexOf("units-preview")).toBeLessThan(eventNames.indexOf("fragment"));
+    expect(eventNames.indexOf("gate-preview")).toBeGreaterThan(
+      eventNames.lastIndexOf("units-preview"),
+    );
+    expect(eventNames.indexOf("gate-preview")).toBeLessThan(eventNames.indexOf("fragment"));
 
     // The demo preview deliberately carries the raw spec (the developer's liveness
     // view) — internals here are the point.
@@ -405,6 +410,35 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(unitsPreview.units.find((unit) => unit.filename === "list.html")?.content).toContain(
       'hx-get="/capability/notes/read"',
     );
+
+    const gatePreview = JSON.parse(dataFor("gate-preview")) as {
+      kind: string;
+      status: string;
+      durationMs: number;
+      rungs: Array<{ rung: string; status: string; durationMs: number }>;
+      smoke: {
+        tableName: string;
+        rowCount: number;
+        createFragmentLength: number;
+        readFragmentLength: number;
+        realDatabaseUnchanged: boolean;
+      };
+    };
+    expect(gatePreview.kind).toBe("gate-preview");
+    expect(gatePreview.status).toBe("passed");
+    expect(gatePreview.durationMs).toBeGreaterThanOrEqual(0);
+    expect(gatePreview.rungs.map((rung) => `${rung.rung}:${rung.status}`)).toEqual([
+      "structural:passed",
+      "smoke:passed",
+    ]);
+    expect(gatePreview.rungs.every((rung) => rung.durationMs >= 0)).toBe(true);
+    expect(gatePreview.smoke).toMatchObject({
+      tableName: "cap_notes",
+      rowCount: 1,
+      realDatabaseUnchanged: true,
+    });
+    expect(gatePreview.smoke.createFragmentLength).toBeGreaterThan(0);
+    expect(gatePreview.smoke.readFragmentLength).toBeGreaterThan(0);
 
     // The product-voice events — narration + confirmation — must NOT leak internals
     // (ARCH §9.7). Only the user-facing label crosses into the confirmation.

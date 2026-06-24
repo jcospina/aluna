@@ -7,6 +7,16 @@
 // entry point.
 
 export {
+  CapabilityGateError,
+  type CapabilityGateInput,
+  type CapabilityGateResult,
+  type GateRungName,
+  type GateRungOutcome,
+  type GateRungStatus,
+  runCapabilityGate,
+  type SmokeGateResult,
+} from "./gate.ts";
+export {
   type ApplyCapabilityMigrationInput,
   applyCapabilityMigration,
   type CapabilityMigrationResult,

@@ -77,6 +77,7 @@ function initSpecBuildDemo() {
   const preview = document.getElementById("spec-build-preview");
   const migrationPreview = document.getElementById("spec-migration-preview");
   const unitsPreview = document.getElementById("spec-units-preview");
+  const gatePreview = document.getElementById("spec-gate-preview");
   if (
     !(form instanceof HTMLFormElement) ||
     !(trigger instanceof HTMLButtonElement) ||
@@ -84,7 +85,8 @@ function initSpecBuildDemo() {
     output === null ||
     preview === null ||
     migrationPreview === null ||
-    unitsPreview === null
+    unitsPreview === null ||
+    gatePreview === null
   ) {
     return;
   }
@@ -97,6 +99,7 @@ function initSpecBuildDemo() {
     preview.textContent = "";
     migrationPreview.textContent = "";
     unitsPreview.textContent = "";
+    gatePreview.textContent = "";
     trigger.disabled = true;
     input.disabled = true;
     trigger.textContent = "Making";
@@ -142,6 +145,14 @@ function initSpecBuildDemo() {
         unitsPreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
       } catch {
         unitsPreview.textContent = raw;
+      }
+    });
+    source.addEventListener("gate-preview", (event) => {
+      const raw = sseData(event);
+      try {
+        gatePreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
+      } catch {
+        gatePreview.textContent = raw;
       }
     });
     source.addEventListener("fragment", (event) => {
