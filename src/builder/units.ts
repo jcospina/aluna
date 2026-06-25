@@ -5,21 +5,16 @@
 // `create` + `read` handlers and `list` + `create` views. Generation is agentic
 // only inside one unit at a time: write -> check -> feed back the failure -> fix,
 // capped by a small config knob. Across units the order and scope are fixed.
+//
+// This file owns the public contract and the orchestration; the per-unit prompts
+// live in `unit-prompts.ts` and the static checks in `unit-checks.ts`.
 
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import ts from "typescript";
 import { z } from "zod";
-
 import type { DeepPartial, Provider, TokenUsage } from "../provider/index.ts";
-import {
-  BEHAVIORAL_ERROR_MARKERS,
-  type BehavioralErrorCase,
-  type CapabilitySpec,
-  type CapabilityTool,
-  type SpecView,
-} from "../registry/index.ts";
+import type { CapabilitySpec, CapabilityTool, SpecView } from "../registry/index.ts";
+
+import { checkGeneratedUnit } from "./unit-checks.ts";
+import { buildUnitPrompt } from "./unit-prompts.ts";
 
 export const DEFAULT_UNIT_FIX_ATTEMPTS = 2;
 
@@ -77,7 +72,8 @@ export type UnitDescriptor =
   | { readonly kind: "handler"; readonly name: HandlerUnitName }
   | { readonly kind: "view"; readonly name: ViewUnitName };
 
-type UnitGenerationFailure = UnitDescriptor & { readonly message: string };
+/** A failed unit check: the unit being generated, plus the message fed back to fix it. */
+export type UnitGenerationFailure = UnitDescriptor & { readonly message: string };
 
 export interface UnitGenerationStartEvent {
   readonly unit: UnitDescriptor;
@@ -116,6 +112,16 @@ export class UnitGenerationError extends Error {
   }
 }
 
+// Re-exported so the public builder surface (src/builder/index.ts) and callers can
+// reach the prompt builder without depending on the prompts file directly.
+export { buildUnitPrompt } from "./unit-prompts.ts";
+
+/**
+ * Generate all four M2 units for `spec`, in fixed order (handlers then views), each
+ * through its bounded write→check→fix loop. Returns the generated units plus the
+ * handler/view content maps the gate and commit consume. Throws
+ * {@link UnitGenerationError} if any unit never passes its checks.
+ */
 export async function generateCapabilityUnits(
   input: GenerateCapabilityUnitsInput,
 ): Promise<GenerateCapabilityUnitsResult> {
@@ -158,27 +164,6 @@ export async function generateCapabilityUnits(
       create: contentFor(units, "view", "create"),
     },
   };
-}
-
-export function buildUnitPrompt(
-  spec: CapabilitySpec,
-  unit: UnitDescriptor,
-  previousFailure?: UnitGenerationFailure,
-): string {
-  const base =
-    unit.kind === "handler"
-      ? buildHandlerPrompt(spec, unit.name)
-      : buildViewPrompt(spec, unit.name);
-
-  if (!previousFailure) return base;
-
-  return [
-    base,
-    "",
-    "Previous attempt failed. Return a complete corrected unit, not a patch.",
-    "Failure to fix:",
-    previousFailure.message,
-  ].join("\n");
 }
 
 async function generateUnit(
@@ -238,244 +223,6 @@ async function observeUnitPartials(
       await observer.onUnitPartial({ unit, attempt, content: partial.content });
     }
   }
-}
-
-function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): string {
-  const fields = spec.schema.fields
-    .map(
-      (field) => `- ${field.name}: ${field.type}${field.required ? " (required)" : " (optional)"}`,
-    )
-    .join("\n");
-  const validationErrors = spec.behavioral_errors.filter(
-    (errorCase) => errorCase.action === action,
-  );
-  const validationErrorContract =
-    validationErrors.length > 0
-      ? buildValidationErrorContract(validationErrors)
-      : "- No spec-owned validation error cases apply to this action.";
-
-  return [
-    `Generate the ${action}.ts handler for this Aluna capability.`,
-    "",
-    "Return one structured object with a single `content` string containing the complete TypeScript file.",
-    "",
-    "Hard contract:",
-    "- No imports.",
-    "- No raw HTTP: no Request, Response, Headers, or fetch.",
-    "- No table names or SQL. Use only the injected `data` tool.",
-    "- Exactly one export: `export default async function ...`.",
-    "- The function receives one `CapabilityContext` parameter and returns `Promise<string>`.",
-    "- It returns an HTML fragment string.",
-    "- Include any escaping helper locally in the file.",
-    "",
-    "Available global types in the isolated type-check:",
-    "- `CapabilityContext` has `{ input, data }`.",
-    "- `input` is a flat record of form/query strings.",
-    "- `data.insert(values)` returns the inserted row.",
-    "- `data.select()` returns rows ordered newest first.",
-    "",
-    "Action behavior:",
-    action === "create"
-      ? "- Coerce form strings into the spec field types, call `data.insert`, and return a fragment for the new row."
-      : "- Call `data.select()` and return a fragment for the current rows, including a helpful empty state.",
-    "",
-    "Validation error contract:",
-    validationErrorContract,
-    "",
-    "Spec fields:",
-    fields,
-    "",
-    "Capability spec JSON:",
-    JSON.stringify(spec, null, 2),
-  ].join("\n");
-}
-
-function buildValidationErrorContract(errorCases: readonly BehavioralErrorCase[]): string {
-  return [
-    "- Before calling `data.insert`, detect the validation errors listed below.",
-    "- When one applies, return an HTML error fragment and do not insert a row.",
-    "- The user-facing copy inside the fragment can vary in Aluna's product voice.",
-    "- The stable contract is semantic attributes on the error element:",
-    `  - ${BEHAVIORAL_ERROR_MARKERS.role_attribute}="${BEHAVIORAL_ERROR_MARKERS.role}"`,
-    `  - ${BEHAVIORAL_ERROR_MARKERS.code_attribute} set to the case code`,
-    `  - ${BEHAVIORAL_ERROR_MARKERS.fields_attribute} set to affected field names joined by "${BEHAVIORAL_ERROR_MARKERS.fields_separator}"`,
-    "- Validation error cases:",
-    JSON.stringify(errorCases, null, 2),
-  ].join("\n");
-}
-
-function buildViewPrompt(spec: CapabilitySpec, view: ViewUnitName): string {
-  const fieldControls = spec.schema.fields
-    .map(
-      (field) => `- ${field.name}: ${field.type}${field.required ? " (required)" : " (optional)"}`,
-    )
-    .join("\n");
-
-  return [
-    `Generate the ${view}.html view for this Aluna capability.`,
-    "",
-    "Return one structured object with a single `content` string containing the complete HTML fragment.",
-    "",
-    "Hard contract:",
-    "- Data-free scaffolding only. Do not include sample rows, record ids, created_at values, or user data.",
-    "- No scripts and no template/interpolation placeholders.",
-    "- Use the fixed router convention; generated views never invent routes.",
-    view === "list"
-      ? `- Include one dynamic region that loads through hx-get="/capability/${spec.id}/read".`
-      : `- Include one form that submits through hx-post="/capability/${spec.id}/create".`,
-    "",
-    "Fields for create controls:",
-    fieldControls,
-    "",
-    "Capability spec JSON:",
-    JSON.stringify(spec, null, 2),
-  ].join("\n");
-}
-
-function checkGeneratedUnit(
-  spec: CapabilitySpec,
-  unit: UnitDescriptor,
-  content: string,
-): UnitGenerationFailure | undefined {
-  const message =
-    unit.kind === "handler"
-      ? checkHandlerUnit(spec, unit.name, content)
-      : checkViewUnit(spec, unit.name, content);
-
-  return message ? { ...unit, message } : undefined;
-}
-
-function checkHandlerUnit(
-  spec: CapabilitySpec,
-  action: HandlerUnitName | ViewUnitName,
-  content: string,
-): string | undefined {
-  const source = ts.createSourceFile(`${action}.ts`, content, ts.ScriptTarget.Latest, true);
-  const exportMessage = validateHandlerExports(source);
-  if (exportMessage) return exportMessage;
-  if (source.statements.some((statement) => ts.isImportDeclaration(statement))) {
-    return "Generated handlers must not import anything.";
-  }
-  if (/\b(fetch|Request|Response|Headers|XMLHttpRequest)\b|https?:\/\//.test(content)) {
-    return "Generated handlers must not touch raw HTTP.";
-  }
-  if (new RegExp(`\\bcap_${escapeRegExp(spec.id)}\\b|\\bcap_[a-z0-9_]+\\b`).test(content)) {
-    return "Generated handlers must not name capability tables.";
-  }
-
-  return typeCheckHandler(content);
-}
-
-function validateHandlerExports(source: ts.SourceFile): string | undefined {
-  const exported = source.statements.filter(hasExportSurface);
-  if (exported.length !== 1) {
-    return "Generated handlers must have exactly one export: the default async function.";
-  }
-
-  const [statement] = exported;
-  if (!statement || !ts.isFunctionDeclaration(statement)) {
-    return "Generated handlers must default-export an async function declaration.";
-  }
-  const modifiers = ts.getModifiers(statement) ?? [];
-  const hasDefault = modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword);
-  const hasAsync = modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword);
-  if (!hasDefault || !hasAsync) {
-    return "Generated handlers must use `export default async function`.";
-  }
-  if (statement.parameters.length !== 1) {
-    return "Generated handlers must receive one platform-built context parameter.";
-  }
-
-  return undefined;
-}
-
-function hasExportSurface(statement: ts.Statement): boolean {
-  if (ts.isExportAssignment(statement) || ts.isExportDeclaration(statement)) return true;
-  if (!ts.canHaveModifiers(statement)) return false;
-  return (ts.getModifiers(statement) ?? []).some(
-    (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
-  );
-}
-
-function typeCheckHandler(content: string): string | undefined {
-  const dir = mkdtempSync(join(tmpdir(), "aluna-handler-check-"));
-  try {
-    writeFileSync(join(dir, "contract.d.ts"), handlerContractDeclarations);
-    writeFileSync(join(dir, "unit.ts"), content);
-    writeFileSync(
-      join(dir, "assert.ts"),
-      'import handler from "./unit";\nconst assertHandler: CapabilityHandler = handler;\nvoid assertHandler;\n',
-    );
-
-    const program = ts.createProgram(
-      [join(dir, "contract.d.ts"), join(dir, "unit.ts"), join(dir, "assert.ts")],
-      {
-        allowImportingTsExtensions: true,
-        forceConsistentCasingInFileNames: true,
-        lib: ["lib.esnext.d.ts"],
-        module: ts.ModuleKind.ESNext,
-        moduleDetection: ts.ModuleDetectionKind.Force,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        noEmit: true,
-        noFallthroughCasesInSwitch: true,
-        noImplicitOverride: true,
-        noUncheckedIndexedAccess: true,
-        noUnusedLocals: true,
-        noUnusedParameters: true,
-        skipLibCheck: true,
-        strict: true,
-        target: ts.ScriptTarget.ESNext,
-        verbatimModuleSyntax: true,
-      },
-    );
-    const diagnostics = ts.getPreEmitDiagnostics(program);
-    if (diagnostics.length === 0) return undefined;
-
-    return formatDiagnostics(diagnostics);
-  } finally {
-    rmSync(dir, { force: true, recursive: true });
-  }
-}
-
-function checkViewUnit(
-  spec: CapabilitySpec,
-  view: HandlerUnitName | ViewUnitName,
-  content: string,
-): string | undefined {
-  const lower = content.toLowerCase();
-  if (lower.includes("<script")) return "Generated views must not contain scripts.";
-  if (content.includes("{{") || content.includes("${")) {
-    return "Generated views must not contain template or interpolation placeholders.";
-  }
-  if (/\bdata-id\s*=|\bcreated_at\b/.test(content)) {
-    return "Generated views must not contain user record data.";
-  }
-
-  return view === "list" ? checkListView(spec, content) : checkCreateView(spec, content);
-}
-
-function checkListView(spec: CapabilitySpec, content: string): string | undefined {
-  if (!content.includes(`hx-get="/capability/${spec.id}/read"`)) {
-    return `The list view must load live data with hx-get="/capability/${spec.id}/read".`;
-  }
-  if (/<(li|article|tbody|tr)\b/i.test(content)) {
-    return "The list view must not bake row markup into the cached view.";
-  }
-  return undefined;
-}
-
-function checkCreateView(spec: CapabilitySpec, content: string): string | undefined {
-  if (!/<form\b/i.test(content)) return "The create view must contain a form.";
-  if (!content.includes(`hx-post="/capability/${spec.id}/create"`)) {
-    return `The create view form must submit with hx-post="/capability/${spec.id}/create".`;
-  }
-
-  for (const field of spec.schema.fields) {
-    if (!new RegExp(`\\bname=["']${escapeRegExp(field.name)}["']`).test(content)) {
-      return `The create view must include a control named "${field.name}".`;
-    }
-  }
-  return undefined;
 }
 
 function toGeneratedUnit(
@@ -565,44 +312,3 @@ function sumOptional(values: readonly (number | undefined)[]): number | undefine
   }
   return seen ? sum : undefined;
 }
-
-function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
-  return diagnostics
-    .map((diagnostic) => {
-      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
-      if (!diagnostic.file || diagnostic.start === undefined) return message;
-
-      const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
-      return `${diagnostic.file.fileName}:${position.line + 1}:${position.character + 1} - ${message}`;
-    })
-    .join("\n");
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-const handlerContractDeclarations = `
-type JsonPrimitive = string | number | boolean | null;
-interface JsonObject {
-  readonly [key: string]: JsonValue;
-}
-type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
-type CapabilityDataColumnValue = string | number | boolean | JsonObject | null;
-interface CapabilityDataRow {
-  readonly id: string;
-  readonly created_at: string;
-  readonly extra: JsonObject;
-  readonly [field: string]: CapabilityDataColumnValue;
-}
-type CapabilityInput = Readonly<Record<string, string>>;
-interface CapabilityDataTool {
-  insert(values: Record<string, unknown>): CapabilityDataRow;
-  select(): CapabilityDataRow[];
-}
-interface CapabilityContext {
-  readonly input: CapabilityInput;
-  readonly data: CapabilityDataTool;
-}
-type CapabilityHandler = (context: CapabilityContext) => Promise<string>;
-`;

@@ -12,7 +12,7 @@
     "dev": "bun --watch src/index.ts",
     "test": "bun test",
     "build": "bun build src/index.ts --target=bun --outdir=dist",
-    "reset": "find data capabilities storage -mindepth 1 -depth ! -name README.md -exec rm -rf {} +",
+    "reset": "bun scripts/reset-runtime.ts",
     "start": "bun ./dist/index.js",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.browser.json",
     "lint": "biome check .",
