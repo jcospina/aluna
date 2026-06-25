@@ -22,6 +22,7 @@ import {
 } from "../registry/index.ts";
 import {
   classifyIntent,
+  classifyIntentWithUsage,
   INTENT_TYPES,
   type IntentClassification,
   intentClassificationSchema,
@@ -181,7 +182,62 @@ describe("intent resolver classification", () => {
     expect(provider.calls[0]?.prompt).toContain(
       "If the prompt overlaps an existing capability, choose extend_capability",
     );
+    expect(provider.calls[0]?.prompt).toContain(
+      "Existing capability check — do this before deciding",
+    );
+    expect(provider.calls[0]?.prompt).toContain(
+      "The registry context below is the complete list of existing capabilities",
+    );
+    expect(provider.calls[0]?.prompt).toContain(
+      "Choose new_capability when the prompt names a distinct kind of thing with its own natural structure",
+    );
+    expect(provider.calls[0]?.prompt).toContain(
+      "Do not choose extend_capability just because a generic capability could technically hold the information as unstructured text",
+    );
+    expect(provider.calls[0]?.prompt).toContain(
+      "Do not overspecialize an existing capability with fields or behavior that belong to a different real-world thing",
+    );
+    expect(provider.calls[0]?.prompt).toContain(
+      "I want to keep track of my recipes' is new_capability",
+    );
+    expect(provider.calls[0]?.prompt).toContain("'add due dates to my notes' is extend_capability");
+    expect(provider.calls[0]?.prompt).toContain(
+      "'let me store notes with images' is extend_capability",
+    );
     expect(provider.calls[0]?.prompt).toContain("do not invent suffixed duplicate ids");
+  });
+
+  test("narrates the resolver stage in product voice before the provider round trip", async () => {
+    const order: string[] = [];
+    const provider = makeRecordingProvider({
+      type: "new_capability",
+      confidence: 0.91,
+      target_capability: null,
+      proposed_action: "Create a trips capability.",
+      user_facing_label: "I'll make a place for your trips.",
+      requires_confirmation: false,
+    });
+    const send = async (event: "narration", data: string) => {
+      order.push(`${event}:${data}`);
+    };
+    const originalGenerate = provider.generate.bind(provider);
+    provider.generate = <T>(prompt: string, schema: ZodType<T>): GenerateResult<T> => {
+      order.push("provider");
+      return originalGenerate(prompt, schema);
+    };
+
+    await classifyIntentWithUsage({
+      provider,
+      prompt: "track my trips",
+      database: conns.readonly,
+      send,
+    });
+
+    expect(order[0]).toMatch(/^narration:/);
+    expect(order[1]).toBe("provider");
+    expect(order[0]).toContain("new place");
+    expect(order[0]).toContain("already started");
+    expect(order[0]).not.toMatch(/intent|resolver|capability|registry|schema|provider/i);
   });
 
   test('classifies "track my notes" as extend_capability through a fake provider when Notes already exists', async () => {

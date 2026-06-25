@@ -336,6 +336,16 @@ body {
   transform: none;
   box-shadow: var(--shadow-none);
 }
+.prompt__notice {
+  max-width: 46rem;
+  min-height: 1.4em;
+  margin: var(--space-1) auto 0;
+  font: var(--meta);
+  color: var(--color-text-subtle);
+}
+.prompt__notice:empty {
+  display: none;
+}
 
 /* =============================================================================
    Sidebar toggle (shell chrome) + the gentle press
