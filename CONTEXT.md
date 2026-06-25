@@ -47,10 +47,25 @@ _Avoid_: search box, command bar, chat input, composer (acceptable when describi
 the field itself, but the region is the "prompt bar")
 
 **Content area**:
-The surface that fills the space above the prompt bar. Capabilities and build
-narration render here. At cold-start it shows the Aluna wordmark and a neutral
-placeholder.
+The surface that fills the space above the prompt bar and below the header row.
+Capabilities and build narration render here. At cold-start it is a neutral,
+deliberately-empty surface (the brand lives in the header row, not here).
 _Avoid_: main panel, canvas, workspace, body
+
+**Header row**:
+The always-present top bar of the content column. Three slots on one line: the
+capability-toolbar toggle (left, shown once capabilities exist), the centred Aluna
+wordmark, and the developer-panel toggle (right, the `</>` icon).
+_Avoid_: topbar, banner, masthead
+
+**Developer panel**:
+The right sidebar, mirroring the capability toolbar's look but anchored right and
+toggled by the header's `</>` icon. A developer-facing verification surface holding
+the build's raw generation internals — each stage's JSON (spec, migration, units,
+gate, commit) — shown as it streams. Not product UI; product-voice narration stays
+in the content area.
+_Avoid_: console, debug drawer, inspector (the off-canvas mobile presentation is a
+"drawer", but the region is the "developer panel")
 
 **The pet**:
 An anthropomorphic *spark of Aluna* — a small luminous companion with a face that

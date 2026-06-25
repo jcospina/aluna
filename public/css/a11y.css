@@ -1,0 +1,38 @@
+/* =============================================================================
+   Accessibility & polish
+   Loaded last so the reduced-motion resets override every component's hover /
+   press transition regardless of where it was declared.
+   ========================================================================== */
+
+/* Visible focus ring (accent) on every interactive element, keyboard only. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* The field manages its own accent ring on :focus; avoid doubling it up. */
+.prompt__field:focus-visible {
+  outline: none;
+}
+
+/* Reduced motion: no press translate, no slide — collapse/drawer switch
+   instantly, with a calm static fallback. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore-start lint/complexity/noImportantStyles: the reduced-motion
+       reset must defeat any component animation/transition regardless of
+       specificity — the canonical a11y pattern. */
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    /* biome-ignore-end lint/complexity/noImportantStyles: end reset */
+  }
+  .sidebar-toggle:hover,
+  .sidebar-toggle:active,
+  .prompt__submit:hover,
+  .prompt__submit:active,
+  .prompt__field:hover {
+    transform: none;
+  }
+}

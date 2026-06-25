@@ -1,0 +1,86 @@
+/* =============================================================================
+   Design tokens — the vendored font + the single :root token layer
+   Subtler neobrutalism on a Paper & Ink palette (see docs/adr/0001 and
+   docs/design-system.md). Light theme only, single :root, no theming machinery
+   — but expressed through semantic tokens, so a dark theme stays a purely
+   additive future override.
+   ========================================================================== */
+
+/* ── Font: Outfit, vendored locally ───────────────────────────────────────────
+   The OFL-licensed Outfit variable woff2 (wght axis) is committed under
+   public/fonts/ and served from /static/fonts/. One @font-face spanning the
+   whole weight axis; font-display: swap renders the system fallback first so
+   text is never invisible while the font loads. No CDN, no build step. */
+@font-face {
+  font-family: "Outfit";
+  src: url("/static/fonts/outfit-variable.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  /* ── Color — Paper & Ink (momo themes.config.ts, the `paper` theme) ──────── */
+  --color-bg: oklch(95% 0.025 85); /* warm cream page          */
+  --color-surface: oklch(98% 0.012 85); /* warm near-white surface  */
+  --color-text: oklch(18% 0.02 60); /* warm near-black ink      */
+  --color-text-muted: color-mix(in oklch, var(--color-text), var(--color-surface) 25%);
+  --color-text-subtle: color-mix(in oklch, var(--color-text), var(--color-surface) 45%);
+  --color-border: color-mix(in oklch, var(--color-text), var(--color-surface) 25%);
+  --color-shadow: color-mix(in oklch, var(--color-text), transparent 82%);
+  --color-accent: oklch(63% 0.16 38); /* terracotta (primary) — focus, wordmark accent */
+  /* Reserved roles — defined now, capabilities use them later (additive). */
+  --color-accent-secondary: oklch(40% 0.06 250); /* deep blue                */
+  --color-text-on-secondary: oklch(98% 0.012 85);
+  --color-info: oklch(75% 0.1 195);
+  --color-feature: oklch(82% 0.13 90);
+  --color-warm: oklch(82% 0.12 75);
+  /* Status tones (error/success) intentionally omitted — the inert shell
+     surfaces no errors yet; add additively when a capability needs them. */
+
+  /* ── Typography ──────────────────────────────────────────────────────────── */
+  --font-sans:
+    "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --type-xs: 0.75rem;
+  --type-sm: 0.875rem;
+  --type-md: 1rem;
+  --type-lg: 1.25rem;
+  --type-xl: 1.5rem;
+  --type-xxl: 2rem;
+  --weight-regular: 400;
+  --weight-bold: 700; /* 300/800/900 available on the var font */
+  --body: var(--weight-regular) var(--type-md) / 1.5 var(--font-sans);
+  --body-emph: var(--weight-bold) var(--type-md) / 1.5 var(--font-sans);
+  --h1: var(--weight-bold) var(--type-xxl) / 1.2 var(--font-sans);
+  --h2: var(--weight-bold) var(--type-xl) / 1.3 var(--font-sans);
+  --h3: var(--weight-bold) var(--type-lg) / 1.35 var(--font-sans);
+  --meta: var(--weight-regular) var(--type-sm) / 1.4 var(--font-sans);
+  /* clamp() reserved for the wordmark (and later the emphatic pet copy) only */
+  --type-wordmark: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem);
+
+  /* ── Spacing (8px base) ──────────────────────────────────────────────────── */
+  --space-0_5: 4px;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-6: 48px;
+  --space-8: 64px;
+
+  /* ── Borders / radius ────────────────────────────────────────────────────── */
+  --border-width: 1px;
+  --radius-sm: 5px;
+  --radius-md: 10px;
+  --radius-pill: 999px;
+
+  /* ── Hard shadows — quiet, down-right, two steps ─────────────────────────── */
+  --shadow-sm: 2px 2px 0 var(--color-shadow);
+  --shadow-md: 4px 4px 0 var(--color-shadow);
+  --shadow-none: none;
+
+  /* ── Motion ──────────────────────────────────────────────────────────────── */
+  --ease-pop: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 160ms;
+  --duration-slow: 200ms;
+  --duration-toggle: 300ms;
+}

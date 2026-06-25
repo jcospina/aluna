@@ -1,0 +1,81 @@
+/* =============================================================================
+   Developer panel — a floating debug drawer
+   Unlike the capability toolbar (a structural rail that shares the row's width),
+   this floats OVER the content as a right-anchored modal drawer at every
+   viewport, so opening it costs the content no width. It is a debugging surface
+   for the curious — not part of the product chrome — dismissed by its own close
+   button or by clicking the dimmed content behind it (the shared backdrop).
+   Holds the build's raw stage internals; product narration stays in the content.
+   ========================================================================== */
+.devbar {
+  position: fixed;
+  inset: 0 0 0 auto; /* pinned to the right edge, full height */
+  z-index: 20; /* above the backdrop (z 10) and the content */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(22rem, 88vw);
+  padding: var(--space-2);
+  overflow: auto;
+  background: var(--color-surface);
+  border-left: var(--border-width) solid var(--color-border);
+  /* Parked off-canvas; .devbar-open slides it in (below). */
+  transform: translateX(100%);
+  transition: transform var(--duration-toggle) var(--ease-pop);
+}
+.shell.devbar-open .devbar {
+  transform: translateX(0);
+  /* Horizontal-only hard shadow — a right-anchored drawer casts to the left. */
+  box-shadow: -4px 0 0 var(--color-shadow);
+}
+/* The shared backdrop rises with the panel at every size: the panel always
+   floats, so clicking the dimmed content behind it always dismisses it. (On
+   desktop the capability toolbar stays an inline rail and never raises it.) */
+.shell.devbar-open .backdrop {
+  display: block;
+}
+
+/* ── Header — title on the left, close button on the right. ────────────────── */
+.devbar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.devbar__title {
+  margin: 0;
+  font: var(--meta);
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+/* Square icon button (chrome from .sidebar-toggle); never let it squish. */
+.devbar__close {
+  flex: 0 0 auto;
+}
+
+/* One labelled stage block. Hidden until its preview has content (:has) so a
+   fresh panel shows only the header, then reveals each stage as its JSON streams in. */
+.devbar__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0_5);
+}
+.devbar__block:has(.spec-build__preview:empty) {
+  display: none;
+}
+.devbar__block-label {
+  margin: 0;
+  font: var(--meta);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-subtle);
+}
+
+/* ── Desktop (≥ 768px): a far wider panel — well over twice the mobile width —
+   so the streamed JSON has real room to read. ──────────────────────────────── */
+@media (min-width: 768px) {
+  .devbar {
+    width: min(52rem, 92vw);
+  }
+}

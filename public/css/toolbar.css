@@ -1,0 +1,66 @@
+/* =============================================================================
+   Capability toolbar — the left sidebar
+   Hidden entirely at cold-start (no capabilities). When capabilities exist the
+   shell gains .has-capabilities and the sidebar appears. Responsive behaviour
+   lives at the bottom: a full collapse on desktop, an off-canvas drawer on
+   mobile (mirrored by the developer panel in devbar.css).
+   ========================================================================== */
+.toolbar {
+  display: none;
+  flex: 0 0 16rem;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border-right: var(--border-width) solid var(--color-border);
+}
+.shell.has-capabilities .toolbar {
+  display: flex;
+}
+/* Sidebar-top home of the wordmark (shown when the sidebar is present). */
+.toolbar .wordmark {
+  font-size: var(--type-lg);
+  padding-block: var(--space-0_5) var(--space-2);
+}
+
+/* ── Responsive — desktop full-collapse vs mobile off-canvas drawer ────────── */
+
+/* Desktop (≥ 768px): the sidebar is inline and collapsible. Toggling it off
+   fully collapses the rail to reclaim content width (no icon rail). */
+@media (min-width: 768px) {
+  .shell.has-capabilities .toolbar {
+    overflow: hidden;
+    transition:
+      flex-basis var(--duration-toggle) var(--ease-pop),
+      padding var(--duration-toggle) var(--ease-pop);
+  }
+  .shell.has-capabilities:not(.sidebar-open) .toolbar {
+    flex-basis: 0;
+    padding-inline: 0;
+    border-right-width: 0;
+  }
+}
+
+/* Mobile (< 768px): the sidebar is an off-canvas drawer over the content, with
+   a dismissable backdrop. The toggle slides it in; tapping the backdrop closes. */
+@media (max-width: 767.98px) {
+  .shell.has-capabilities .toolbar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: 16rem;
+    flex-basis: auto;
+    transform: translateX(-100%);
+    transition: transform var(--duration-toggle) var(--ease-pop);
+  }
+  .shell.has-capabilities.sidebar-open .toolbar {
+    transform: translateX(0);
+    /* Horizontal-only hard shadow: a full-height left drawer casts to the right,
+       so drop the down-offset of --shadow-md (it left a gap at the top edge). */
+    box-shadow: 4px 0 0 var(--color-shadow);
+  }
+  .shell.has-capabilities.sidebar-open .backdrop {
+    display: block;
+  }
+}

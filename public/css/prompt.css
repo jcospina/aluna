@@ -1,0 +1,92 @@
+/* =============================================================================
+   Prompt bar — pinned to the bottom; borderless, no surface fill.
+   Visually continuous with the content area (both on --color-bg); only the
+   field itself carries treatment, reading as a composer placed inside the page
+   (the ChatGPT/Claude composer — but on the theme background, not a panel).
+   ========================================================================== */
+.prompt {
+  flex: 0 0 auto;
+  padding: var(--space-3);
+  background: var(--color-bg);
+}
+.prompt__composer {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+  width: 100%;
+  max-width: 46rem;
+  margin-inline: auto;
+}
+.prompt__field {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  font: var(--body);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    transform var(--duration-fast) var(--ease-pop),
+    box-shadow var(--duration-fast) var(--ease-pop),
+    border-color var(--duration-fast) var(--ease-pop);
+}
+.prompt__field::placeholder {
+  color: var(--color-text-subtle);
+}
+/* Pointer hover: a quiet lift (gentle press, step one). */
+.prompt__field:hover {
+  transform: translate(1px, 1px);
+  box-shadow: var(--shadow-sm);
+}
+/* Focus: accent border + accent ring. No translate here — the field must stay
+   put while the user types (a moving text box is disorienting). */
+.prompt__field:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-accent), transparent 70%);
+}
+.prompt__field:disabled {
+  cursor: default;
+  color: var(--color-text-subtle);
+  transform: none;
+  box-shadow: var(--shadow-none);
+}
+.prompt__submit {
+  flex: 0 0 auto;
+  min-width: 6rem;
+  padding: var(--space-1) var(--space-2);
+  font: var(--body-emph);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-pop),
+    box-shadow var(--duration-fast) var(--ease-pop);
+}
+.prompt__submit:hover {
+  transform: translate(1px, 1px);
+  box-shadow: var(--shadow-sm);
+}
+.prompt__submit:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-none);
+}
+.prompt__submit:disabled {
+  cursor: default;
+  color: var(--color-text-subtle);
+  transform: none;
+  box-shadow: var(--shadow-none);
+}
+.prompt__notice {
+  max-width: 46rem;
+  min-height: 1.4em;
+  margin: var(--space-1) auto 0;
+  font: var(--meta);
+  color: var(--color-text-subtle);
+}
+.prompt__notice:empty {
+  display: none;
+}
