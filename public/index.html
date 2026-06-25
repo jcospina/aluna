@@ -49,10 +49,12 @@
   <body>
     <!--
       The shell. Alpine `shell` component (public/app.js) holds two bits of
-      presentation state: `hasCapabilities` (false at cold-start → sidebar hidden)
-      and `open` (the sidebar shown/expanded — collapse chrome). Both are
-      reflected as classes the stylesheet keys off; with neither class the markup
-      renders the correct cold-start state, so there's no flash before Alpine.
+      presentation state for shell chrome and prompt-bar courtesy state:
+      `hasCapabilities` (false at cold-start -> sidebar hidden), `open` /
+      `devbarOpen` (the sidebars shown/expanded), and `promptBusy` (an active
+      build stream is open). These are reflected as classes and attributes the
+      stylesheet keys off; with neither class the markup renders the correct
+      cold-start state, so there's no flash before Alpine.
     -->
     <div
       class="shell"
@@ -154,19 +156,37 @@
           </div>
         </main>
 
-        <!-- Prompt bar — wired to POST /prompt and the per-build stream. -->
-        <form class="prompt" id="spec-build-form">
+        <!-- Prompt bar — HTMX posts to /prompt; the returned subscriber fragment
+             opens the per-build stream. Alpine only mirrors stream lifecycle as a
+             courtesy busy presentation state (PLAN decision 7). -->
+        <form
+          class="prompt"
+          id="spec-build-form"
+          hx-post="/prompt"
+          hx-target="#spec-build-output"
+          hx-swap="innerHTML"
+          :class="{ 'prompt--busy': promptBusy }"
+          :aria-busy="promptBusy ? 'true' : 'false'"
+        >
           <div class="prompt__composer">
             <input
               class="prompt__field"
               type="text"
               id="spec-build-prompt"
               name="prompt"
-              value="I want to keep track of my notes"
+              x-ref="promptField"
+              :disabled="promptBusy"
               aria-label="Prompt"
               placeholder="What would you like to keep track of?"
             >
-            <button type="submit" class="prompt__submit" id="spec-build-trigger">Make it</button>
+            <button
+              type="submit"
+              class="prompt__submit"
+              id="spec-build-trigger"
+              :disabled="promptBusy"
+            >
+              <span x-text="promptBusy ? 'Making it' : 'Make it'">Make it</span>
+            </button>
           </div>
           <div id="prompt-notice" class="prompt__notice" aria-live="polite"></div>
         </form>

@@ -8,7 +8,7 @@
 // Today it does two things, both presentation-only (no product logic — the shell
 // is dumb on purpose, ARCH §6.1):
 //   1. Registers the `shell` Alpine component (sidebar collapse / mobile drawer).
-//   2. Wires the prompt bar to the build-job stream.
+//   2. Renders developer-preview SSE payloads as plain text after HTMX receives them.
 
 /**
  * The shell's presentation state.
@@ -16,6 +16,7 @@
  * @property {boolean} open - Capability toolbar shown: expanded (desktop) / drawer in (mobile).
  * @property {boolean} devbarOpen - Developer panel shown: expanded (desktop) / drawer in (mobile).
  * @property {boolean} hasCapabilities - Whether any capability exists yet.
+ * @property {boolean} promptBusy - Courtesy presentation state while a build stream is open.
  * @property {() => void} init - Alpine lifecycle hook; sets the responsive defaults.
  */
 
@@ -48,6 +49,10 @@ function shell() {
     // flips this when the registry rehydrates the toolbar with entries.
     hasCapabilities: false,
 
+    // Courtesy prompt-bar state only. The server is still the single-flight
+    // authority; Alpine just mirrors HTMX SSE open/close events in the UI.
+    promptBusy: false,
+
     init() {
       // Desktop opens the capability toolbar expanded; mobile starts with its
       // drawer closed. Re-sync on breakpoint crossings so a resized window lands
@@ -59,168 +64,54 @@ function shell() {
       desktop.addEventListener("change", (event) => {
         this.open = event.matches;
       });
+
+      const wakePrompt = () => {
+        this.promptBusy = false;
+        requestAnimationFrame(() => {
+          document.getElementById("spec-build-prompt")?.focus();
+        });
+      };
+
+      document.addEventListener("htmx:sseOpen", () => {
+        this.promptBusy = true;
+      });
+      document.addEventListener("htmx:sseClose", wakePrompt);
+      document.addEventListener("htmx:sseError", wakePrompt);
     },
   };
 }
 
 /**
- * Read the string payload from an SSE message event. EventSource types listeners
- * for custom event names as the base Event, so narrow to MessageEvent for `.data`.
- * @param {Event} event
+ * Pretty-print a structured developer-preview payload, falling back to the raw
+ * string if a future event sends non-JSON text.
+ * @param {string} raw
  * @returns {string}
  */
-function sseData(event) {
-  return /** @type {MessageEvent<string>} */ (event).data;
-}
-
-// ── Build-job stream (Module 2) ─────────────────────────────────────────────
-// The prompt bar submits to POST /prompt. That POST only admits the job and returns
-// the per-build stream address; classification and any builder work happen on
-// GET /build/:id/stream. Product-voice narration renders into the content area;
-// raw streamed stage previews stay visible as a developer surface.
-
-function initSpecBuildDemo() {
-  const form = document.getElementById("spec-build-form");
-  const trigger = document.getElementById("spec-build-trigger");
-  const input = document.getElementById("spec-build-prompt");
-  const output = document.getElementById("spec-build-output");
-  const preview = document.getElementById("spec-build-preview");
-  const migrationPreview = document.getElementById("spec-migration-preview");
-  const unitsPreview = document.getElementById("spec-units-preview");
-  const gatePreview = document.getElementById("spec-gate-preview");
-  const commitPreview = document.getElementById("spec-commit-preview");
-  const notice = document.getElementById("prompt-notice");
-  if (
-    !(form instanceof HTMLFormElement) ||
-    !(trigger instanceof HTMLButtonElement) ||
-    !(input instanceof HTMLInputElement) ||
-    output === null ||
-    preview === null ||
-    migrationPreview === null ||
-    unitsPreview === null ||
-    gatePreview === null ||
-    commitPreview === null ||
-    notice === null
-  ) {
-    return;
+function formatPreviewPayload(raw) {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
   }
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const idleLabel = trigger.textContent;
-    /** @type {EventSource | undefined} */
-    let source;
-    output.replaceChildren(); // clear any prior run
-    notice.replaceChildren();
-    preview.textContent = "";
-    migrationPreview.textContent = "";
-    unitsPreview.textContent = "";
-    gatePreview.textContent = "";
-    commitPreview.textContent = "";
-    trigger.disabled = true;
-    input.disabled = true;
-    trigger.textContent = "Making";
-
-    const finish = () => {
-      source?.close();
-      trigger.disabled = false;
-      input.disabled = false;
-      trigger.textContent = idleLabel;
-      input.focus();
-    };
-
-    const prompt = input.value.trim();
-    try {
-      const response = await fetch("/prompt", {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ prompt }),
-      });
-      const fragment = await response.text();
-      const template = document.createElement("template");
-      template.innerHTML = fragment;
-      const subscriber = template.content.querySelector("[data-build-job-id]");
-      const streamPath = subscriber?.getAttribute("sse-connect");
-
-      if (!streamPath) {
-        notice.replaceChildren();
-        notice.textContent = template.content.textContent ?? fragment;
-        finish();
-        return;
-      }
-
-      source = new EventSource(streamPath);
-    } catch {
-      output.append(document.createTextNode("Hmm, that didn't work. Mind trying again?"));
-      finish();
-      return;
-    }
-
-    source.addEventListener("narration", (event) => {
-      output.append(document.createTextNode(sseData(event)));
-    });
-    // Demo-only: each snapshot is the spec so far (more complete each time), shown
-    // pretty-printed as plain text (never as markup — it's untrusted model output).
-    source.addEventListener("spec-preview", (event) => {
-      const raw = sseData(event);
-      try {
-        preview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
-      } catch {
-        preview.textContent = raw;
-      }
-    });
-    source.addEventListener("migration-preview", (event) => {
-      const raw = sseData(event);
-      try {
-        migrationPreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
-      } catch {
-        migrationPreview.textContent = raw;
-      }
-    });
-    source.addEventListener("units-preview", (event) => {
-      const raw = sseData(event);
-      try {
-        unitsPreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
-      } catch {
-        unitsPreview.textContent = raw;
-      }
-    });
-    source.addEventListener("gate-preview", (event) => {
-      const raw = sseData(event);
-      try {
-        gatePreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
-      } catch {
-        gatePreview.textContent = raw;
-      }
-    });
-    source.addEventListener("build-error-preview", (event) => {
-      const raw = sseData(event);
-      try {
-        gatePreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
-      } catch {
-        gatePreview.textContent = raw;
-      }
-    });
-    // Demo-only: the terminal commit stage (issue 07) — the committed capability,
-    // its version, the artifacts pointer, and the files written. The client-side
-    // content/toolbar swap is Epic 2.6; here we just surface that it committed.
-    source.addEventListener("commit-preview", (event) => {
-      const raw = sseData(event);
-      try {
-        commitPreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
-      } catch {
-        commitPreview.textContent = raw;
-      }
-    });
-    source.addEventListener("fragment", (event) => {
-      output.insertAdjacentHTML("beforeend", sseData(event));
-    });
-    source.addEventListener("done", finish);
-    source.addEventListener("error", finish);
-  });
 }
 
-// This file is deferred, so the DOM is fully parsed by the time it runs — the
-// trigger/output elements already exist and can be wired directly.
-initSpecBuildDemo();
+// ── Developer-preview rendering (Module 2) ──────────────────────────────────
+// HTMX owns the EventSource connection. For the developer panel only, hidden
+// `sse-swap` listener nodes cancel HTMX's HTML swap and write the event payload as
+// text into the target <pre>, preserving the existing liveness surface without
+// reopening a raw EventSource path in app.js.
+document.addEventListener("htmx:sseBeforeMessage", (event) => {
+  const listener = event.target;
+  if (!(listener instanceof HTMLElement)) return;
+
+  const previewTargetId = listener.dataset.previewTarget;
+  if (!previewTargetId) return;
+
+  event.preventDefault();
+
+  const previewTarget = document.getElementById(previewTargetId);
+  if (previewTarget === null) return;
+
+  const message = /** @type {CustomEvent<MessageEvent<string>>} */ (event).detail;
+  previewTarget.textContent = formatPreviewPayload(message.data);
+});

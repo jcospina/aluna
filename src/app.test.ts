@@ -182,7 +182,16 @@ describe("GET / (shell)", () => {
 
     expect(res.status).toBe(200);
     expect(html).toContain('id="spec-build-form"');
+    expect(html).toContain('hx-post="/prompt"');
+    expect(html).toContain('hx-target="#spec-build-output"');
+    expect(html).toContain('hx-swap="innerHTML"');
+    expect(html).not.toContain("@htmx:sseOpen.window");
+    expect(html).not.toContain("@htmx:sseClose.window");
+    expect(html).not.toContain("@htmx:sseError.window");
+    expect(html).toContain("promptBusy ? 'Making it' : 'Make it'");
     expect(html).toContain('id="spec-build-prompt"');
+    expect(html).toContain('placeholder="What would you like to keep track of?"');
+    expect(html).not.toContain('value="I want to keep track of my notes"');
     expect(html).toContain('id="spec-build-trigger"');
     expect(html).toContain("Make it");
     expect(html).toContain('id="spec-build-preview"');
@@ -195,6 +204,20 @@ describe("GET / (shell)", () => {
     expect(html).not.toContain("Meet Aluna");
     expect(html).not.toContain('id="intro-trigger"');
     expect(html).not.toContain('id="intro-output"');
+  });
+
+  test("browser prompt glue leaves the prompt request and stream connection to HTMX", async () => {
+    const app = createApp();
+    const js = await responseText(await app.request("/static/app.js"));
+
+    expect(js).toContain('document.addEventListener("htmx:sseBeforeMessage"');
+    expect(js).toContain('document.addEventListener("htmx:sseOpen"');
+    expect(js).toContain('document.addEventListener("htmx:sseClose"');
+    expect(js).toContain('document.addEventListener("htmx:sseError"');
+    expect(js).toContain("dataset.previewTarget");
+    expect(js).not.toContain("new EventSource");
+    expect(js).not.toContain('fetch("/prompt"');
+    expect(js).not.toContain('addEventListener("submit"');
   });
 
   test("loads the vendored htmx SSE extension after htmx", async () => {
@@ -1381,6 +1404,12 @@ describe("POST /prompt and GET /build/:id/stream (build jobs)", () => {
     expect(fragment).toContain('data-build-job-id="job-one"');
     expect(fragment).toContain('sse-connect="/build/job-one/stream"');
     expect(fragment).toContain('sse-swap="narration"');
+    expect(fragment).toContain('sse-swap="fragment"');
+    expect(fragment).toContain('sse-swap="spec-preview"');
+    expect(fragment).toContain('data-preview-target="spec-build-preview"');
+    expect(fragment).toContain('sse-swap="build-error-preview"');
+    expect(fragment).toContain('data-preview-target="spec-gate-preview"');
+    expect(fragment).toContain('id="prompt-notice" hx-swap-oob="innerHTML"');
     // Proven in Epic 2.6a: htmx-ext-sse wraps a native EventSource that auto-
     // reconnects on a server-closed stream, so the subscriber must close on `done`
     // (the htmx analogue of the raw path's source.close()) or the build re-runs.

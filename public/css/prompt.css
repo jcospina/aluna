@@ -17,6 +17,9 @@
   max-width: 46rem;
   margin-inline: auto;
 }
+.prompt--busy .prompt__composer {
+  opacity: 0.82;
+}
 .prompt__field {
   display: block;
   width: 100%;
@@ -79,6 +82,10 @@
   color: var(--color-text-subtle);
   transform: none;
   box-shadow: var(--shadow-none);
+}
+.prompt--busy .prompt__submit {
+  color: var(--color-text);
+  background: color-mix(in oklch, var(--color-accent), var(--color-surface) 84%);
 }
 .prompt__notice {
   max-width: 46rem;
