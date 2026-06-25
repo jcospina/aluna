@@ -13,9 +13,10 @@
 /**
  * The shell's presentation state.
  * @typedef {Object} ShellState
- * @property {boolean} open - Sidebar shown: expanded (desktop) / drawer in (mobile).
+ * @property {boolean} open - Capability toolbar shown: expanded (desktop) / drawer in (mobile).
+ * @property {boolean} devbarOpen - Developer panel shown: expanded (desktop) / drawer in (mobile).
  * @property {boolean} hasCapabilities - Whether any capability exists yet.
- * @property {() => void} init - Alpine lifecycle hook; sets the responsive default.
+ * @property {() => void} init - Alpine lifecycle hook; sets the responsive defaults.
  */
 
 // Register on `alpine:init` (dispatched at the start of Alpine.start()). This
@@ -32,18 +33,27 @@ document.addEventListener("alpine:init", () => {
  */
 function shell() {
   return {
-    // Sidebar shown. The default is responsive (set in init); the user's toggle
-    // then stands until the next breakpoint crossing. Persistence is deferred.
+    // Capability toolbar shown. The default is responsive (set in init); the
+    // user's toggle then stands until the next breakpoint crossing. Persistence
+    // is deferred.
     open: true,
 
-    // No capabilities at cold-start, so the sidebar stays hidden. A later epic
+    // Developer panel shown. Starts closed on every viewport — the panel is a
+    // developer surface, not the default view. Stages stream into it whether it
+    // is open or not (the handlers write unconditionally), so opening it mid-build
+    // reveals the full latest state; nothing is missed by starting closed.
+    devbarOpen: false,
+
+    // No capabilities at cold-start, so the toolbar stays hidden. A later epic
     // flips this when the registry rehydrates the toolbar with entries.
     hasCapabilities: false,
 
     init() {
-      // Desktop opens with the sidebar expanded; mobile starts with the drawer
-      // closed. Re-sync on breakpoint crossings so a resized window lands on the
-      // sensible default for its size (collapse chrome only — no product state).
+      // Desktop opens the capability toolbar expanded; mobile starts with its
+      // drawer closed. Re-sync on breakpoint crossings so a resized window lands
+      // on the sensible default for its size (collapse chrome only — no product
+      // state). The developer panel is left out: it starts closed everywhere and
+      // only opens when the user toggles it.
       const desktop = window.matchMedia("(min-width: 768px)");
       this.open = desktop.matches;
       desktop.addEventListener("change", (event) => {

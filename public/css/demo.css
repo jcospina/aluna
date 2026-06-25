@@ -1,0 +1,85 @@
+/* =============================================================================
+   Living demo — the content-area surfaces driven by the build flow
+   The cold-start placeholder, the product-voice intro stream, and the raw
+   developer stage previews (the latter rendered inside the developer panel's
+   blocks). Replaced piece by piece as real capabilities land.
+   ========================================================================== */
+
+/* Cold-start composition (zero capabilities): wordmark on top + a neutral,
+   deliberately-blank placeholder, centred. Switches off when capabilities land
+   (then the wordmark lives in the sidebar and capabilities fill this area). */
+.cold-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: 100%;
+  padding: var(--space-4);
+  text-align: center;
+}
+.shell.has-capabilities .cold-start {
+  display: none;
+}
+.cold-start .wordmark {
+  font-size: var(--type-wordmark);
+}
+/* Neutral empty-state block: a muted, low-contrast canvas, no copy, no frame —
+   "empty on purpose", friendly rather than built-out. */
+.cold-start__placeholder {
+  width: min(28rem, 72%);
+  height: clamp(7rem, 18vh, 11rem);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--color-text), transparent 94%);
+}
+
+/* ── Builder-stage verification stream (Module 2 §2.5+) ──────────────────────
+   The prompt bar opens /demo/spec-build and the current real builder stages
+   stream product-voice narration plus raw developer previews into the content
+   area. */
+.intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: min(46rem, 100%);
+}
+/* The live output box: hidden until the first chunk arrives (:empty), then a
+   bordered surface holding the streamed greeting + invitation, left-aligned. */
+.intro__output {
+  align-self: stretch;
+  padding: var(--space-2);
+  font: var(--body);
+  color: var(--color-text);
+  text-align: left;
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.intro__output:empty {
+  display: none;
+}
+/* §2.5 demo: raw stage previews. Quiet, monospaced, scrollable surfaces; hidden
+   until their first payload (:empty). */
+.spec-build__preview {
+  align-self: stretch;
+  max-height: 16rem;
+  margin: 0;
+  overflow: auto;
+  padding: var(--space-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  text-align: left;
+  white-space: pre-wrap;
+  color: var(--color-text-subtle);
+  background: color-mix(in oklch, var(--color-text), transparent 96%);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.spec-build__preview:empty {
+  display: none;
+}
+.intro__output .intro__invitation {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-subtle);
+}

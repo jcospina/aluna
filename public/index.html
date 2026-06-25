@@ -57,7 +57,7 @@
     <div
       class="shell"
       x-data="shell"
-      :class="{ 'has-capabilities': hasCapabilities, 'sidebar-open': open }"
+      :class="{ 'has-capabilities': hasCapabilities, 'sidebar-open': open, 'devbar-open': devbarOpen }"
     >
       <!-- Capability toolbar — the left sidebar. Hidden at cold-start; the
            registry rehydrates its entries (and flips hasCapabilities) later. -->
@@ -67,19 +67,24 @@
         <!-- Capability entries render here later. -->
       </nav>
 
-      <!-- Mobile drawer backdrop — tap to dismiss the open sidebar. Shown only on
-           mobile while the drawer is open (CSS); inert otherwise. -->
-      <div class="backdrop" @click="open = false" aria-hidden="true"></div>
+      <!-- Mobile drawer backdrop — tap to dismiss whichever sidebar is open. Shown
+           only on mobile while a drawer is open (CSS); inert otherwise. -->
+      <div class="backdrop" @click="open = false; devbarOpen = false" aria-hidden="true"></div>
 
       <!-- Content column — the content area fills the space above the
            bottom-pinned prompt bar. -->
       <div class="content-column">
-        <!-- Top bar — hosts the sidebar toggle (shell chrome). Shown only when a
-             sidebar exists; at cold-start there's nothing to toggle. -->
+        <!-- Top bar — the always-present header row. Three slots on one line:
+             the capability-toolbar toggle (left, revealed once capabilities
+             exist), the Aluna wordmark (centre), and the developer-panel toggle
+             (right). Explicit grid columns keep the wordmark centred even while
+             the left toggle is hidden at cold-start. -->
         <div class="content-topbar">
           <button
             type="button"
-            class="sidebar-toggle"
+            class="sidebar-toggle content-topbar__toolbar-toggle"
+            x-cloak
+            x-show="hasCapabilities"
             @click="open = !open"
             :aria-expanded="open ? 'true' : 'false'"
             aria-controls="capability-toolbar"
@@ -98,6 +103,36 @@
               <line x1="9" y1="4" x2="9" y2="20" />
             </svg>
           </button>
+
+          <!-- Aluna wordmark — centred home of the brand (was the cold-start hero). -->
+          <p class="wordmark content-topbar__brand">
+            Aluna<span class="wordmark__dot" aria-hidden="true">.</span>
+          </p>
+
+          <!-- Developer-panel toggle — the classic </> code icon. Opens the right
+               sidebar holding the build's raw generation internals. -->
+          <button
+            type="button"
+            class="sidebar-toggle content-topbar__dev-toggle"
+            @click="devbarOpen = !devbarOpen"
+            :aria-expanded="devbarOpen ? 'true' : 'false'"
+            aria-controls="developer-panel"
+            aria-label="Toggle developer panel"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m18 16 4-4-4-4" />
+              <path d="m6 8-4 4 4 4" />
+              <path d="m14.5 4-5 16" />
+            </svg>
+          </button>
         </div>
 
         <!-- Content area — empty surface; capabilities and SSE streams render
@@ -106,23 +141,14 @@
              capabilities exist). -->
         <main class="content">
           <div class="cold-start">
-            <h1 class="wordmark">Aluna<span class="wordmark__dot" aria-hidden="true">.</span></h1>
-
             <!-- Module 2: the prompt bar below drives the production build-job
-                 flow — POST /prompt admits a job immediately, then the
-                 per-build stream classifies, deflects unsupported requests, or
-                 proceeds through the builder. The previews are developer-only
-                 visibility until the committed capability swap fully takes over. -->
+                 flow — POST /prompt admits a job immediately, then the per-build
+                 stream classifies, deflects unsupported requests, or proceeds
+                 through the builder. Product-voice narration streams into the
+                 output box here; the raw generation internals (spec, migration,
+                 units, gate, commit JSON) now live in the developer panel on the
+                 right, toggled by the </> icon. -->
             <div class="intro">
-              <!-- Demo-only: the spec streams in here as it builds (raw,
-                   internals visible on purpose — this is the developer's
-                 liveness view, not product UI). Hidden until the first
-                 snapshot (:empty). -->
-              <pre class="spec-build__preview" id="spec-build-preview" aria-hidden="true"></pre>
-              <pre class="spec-build__preview" id="spec-migration-preview" aria-hidden="true"></pre>
-              <pre class="spec-build__preview" id="spec-units-preview" aria-hidden="true"></pre>
-              <pre class="spec-build__preview" id="spec-gate-preview" aria-hidden="true"></pre>
-              <pre class="spec-build__preview" id="spec-commit-preview" aria-hidden="true"></pre>
               <div class="intro__output" id="spec-build-output" aria-live="polite"></div>
             </div>
           </div>
@@ -145,6 +171,61 @@
           <div id="prompt-notice" class="prompt__notice" aria-live="polite"></div>
         </form>
       </div>
+
+      <!-- Developer panel — the right sidebar. Mirrors the left capability toolbar
+           (same surface, border, collapse behaviour) but anchored right, and holds
+           the build's raw internals: each generation stage's JSON, populated as it
+           streams. A developer-facing verification surface, toggled by the </> icon
+           in the header; product narration stays in the content area. The stage
+           previews keep their original ids so app.js writes to them unchanged. -->
+      <aside class="devbar" id="developer-panel" aria-label="Developer panel">
+        <!-- Header — panel title plus its own close affordance. The panel also
+             dismisses on a click outside (the shared backdrop), so this is the
+             explicit, discoverable way out for a floating modal-style drawer. -->
+        <header class="devbar__header">
+          <p class="devbar__title">Generation process</p>
+          <button
+            type="button"
+            class="sidebar-toggle devbar__close"
+            @click="devbarOpen = false"
+            aria-label="Close developer panel"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </header>
+
+        <section class="devbar__block">
+          <h2 class="devbar__block-label">Spec</h2>
+          <pre class="spec-build__preview" id="spec-build-preview" aria-hidden="true"></pre>
+        </section>
+        <section class="devbar__block">
+          <h2 class="devbar__block-label">Migration</h2>
+          <pre class="spec-build__preview" id="spec-migration-preview" aria-hidden="true"></pre>
+        </section>
+        <section class="devbar__block">
+          <h2 class="devbar__block-label">Units</h2>
+          <pre class="spec-build__preview" id="spec-units-preview" aria-hidden="true"></pre>
+        </section>
+        <section class="devbar__block">
+          <h2 class="devbar__block-label">Gate</h2>
+          <pre class="spec-build__preview" id="spec-gate-preview" aria-hidden="true"></pre>
+        </section>
+        <section class="devbar__block">
+          <h2 class="devbar__block-label">Commit</h2>
+          <pre class="spec-build__preview" id="spec-commit-preview" aria-hidden="true"></pre>
+        </section>
+      </aside>
     </div>
   </body>
 </html>

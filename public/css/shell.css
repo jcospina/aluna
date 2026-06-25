@@ -1,0 +1,95 @@
+/* =============================================================================
+   Layout — the shell (Claude/ChatGPT shape)
+   Clean, not boxed: regions separate by background tone + spacing, not frames.
+   The sole structural divider is the sidebar's border-right. The collapsible
+   side panels themselves live in toolbar.css and devbar.css.
+   ========================================================================== */
+.shell {
+  display: flex;
+  /* 100dvh so mobile browser chrome never clips the bottom-pinned prompt bar. */
+  height: 100dvh;
+}
+
+/* ── Content column — fills the remaining width; stacks over the prompt. ───── */
+.content-column {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Content top bar — the always-present header row. Three explicit grid columns
+   keep the wordmark centred regardless of which toggles show: the capability-
+   toolbar toggle (left, revealed once capabilities exist), the Aluna wordmark
+   (centre), and the developer-panel toggle (right). ──────────────────────────── */
+.content-topbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+}
+.content-topbar__toolbar-toggle {
+  grid-column: 1;
+  justify-self: start;
+}
+.content-topbar__brand {
+  grid-column: 2;
+  justify-self: center;
+}
+.content-topbar__dev-toggle {
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* ── Content area — fills the rest; sits directly on the page background. ──── */
+.content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--color-bg);
+}
+
+/* =============================================================================
+   Sidebar toggle (shell chrome) + the gentle press
+   ========================================================================== */
+.sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-0_5);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-pop),
+    box-shadow var(--duration-fast) var(--ease-pop);
+}
+.sidebar-toggle svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+/* Gentle press — tactile but quiet. Hover lifts a small hard shadow and nudges
+   1px down-right; active presses to 2px and flattens the shadow. */
+.sidebar-toggle:hover {
+  transform: translate(1px, 1px);
+  box-shadow: var(--shadow-sm);
+}
+.sidebar-toggle:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-none);
+}
+
+/* ── Mobile drawer backdrop — only meaningful on mobile (see the toolbar/devbar
+   media queries, which flip it to display:block while a drawer is open). ──── */
+.backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: color-mix(in oklch, var(--color-text), transparent 55%);
+}

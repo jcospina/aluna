@@ -1,0 +1,43 @@
+/* =============================================================================
+   Base — global reset, document defaults, the wordmark, and the Alpine cloak.
+   The general rules every page leans on, kept free of component specifics.
+   ========================================================================== */
+
+/* ── Base / reset ─────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: var(--body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Wordmark — the Aluna brand, typographic in Outfit ────────────────────── */
+.wordmark {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  font-size: var(--type-xxl);
+}
+/* Terracotta accent dot — exercises --color-accent in the wordmark while the
+   word itself stays ink (always AA-legible). Decorative, hidden from a11y. */
+.wordmark__dot {
+  color: var(--color-accent);
+}
+
+/* Alpine cloak — keep x-show elements hidden until Alpine evaluates them, so the
+   capability-toolbar toggle doesn't flash before hasCapabilities resolves. */
+[x-cloak] {
+  /* biome-ignore lint/complexity/noImportantStyles: canonical Alpine x-cloak guard. */
+  display: none !important;
+}
