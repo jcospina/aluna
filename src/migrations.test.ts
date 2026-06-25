@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { openDatabase, type PlatformDatabase } from "./db.ts";
+import { GENERATION_METRICS_TABLE } from "./metrics/store.ts";
 import { MIGRATIONS, MIGRATIONS_TABLE, runMigrations } from "./migrations.ts";
 import { REGISTRY_TABLE } from "./registry/store.ts";
 
@@ -78,10 +79,13 @@ describe("platform migrations runner", () => {
   test("creates platform schema only — no capability data tables", () => {
     runMigrations(conns.readwrite);
 
-    // The platform stands up exactly its own stores: the migrations ledger (M1)
-    // and the capability registry (M2). Capability data tables (`cap_<id>`) are
-    // never migrated here — the builder derives them from specs at runtime.
-    expect(userTables(conns.readwrite)).toEqual([REGISTRY_TABLE, MIGRATIONS_TABLE].sort());
+    // The platform stands up exactly its own stores: the migrations ledger (M1),
+    // the capability registry (M2), and the generation-metrics store (M2). Capability
+    // data tables (`cap_<id>`) are never migrated here — the builder derives them from
+    // specs at runtime.
+    expect(userTables(conns.readwrite)).toEqual(
+      [REGISTRY_TABLE, MIGRATIONS_TABLE, GENERATION_METRICS_TABLE].sort(),
+    );
   });
 
   test("the migration is durable on the read-only connection", () => {

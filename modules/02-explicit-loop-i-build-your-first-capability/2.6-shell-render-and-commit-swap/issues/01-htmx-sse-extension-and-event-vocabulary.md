@@ -1,6 +1,6 @@
 # Vendor the htmx SSE extension & finalize the event vocabulary
 
-Status: ready-for-human
+Status: done
 
 ## Epic
 

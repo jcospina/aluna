@@ -19,6 +19,7 @@ import { type ZodType, z } from "zod";
 import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
 import {
   type BehavioralGateResult,
+  CapabilityGateError,
   type GateRungOutcome,
   type GeneratedUnit,
   generateCapabilityUnits,
@@ -28,12 +29,28 @@ import {
   type SmokeGateResult,
   type UnitDescriptor,
   type UnitGenerationAttempt,
+  UnitGenerationError,
   type UnitGenerationObserver,
   withCapabilityMigrationTransaction,
 } from "./builder/index.ts";
 import type { CapabilityTableDdl } from "./capability-data/index.ts";
 import { db } from "./db.ts";
-import { createProvider, type GenerateResult, type Provider } from "./provider/index.ts";
+import type { IntentClassification } from "./intent-resolver/index.ts";
+import {
+  type GenerationFailure,
+  type GenerationMetrics,
+  type GenerationTimings,
+  sumTokenUsage,
+  type UnitAttemptSummary,
+  writeGenerationMetrics,
+} from "./metrics/index.ts";
+import {
+  createProvider,
+  type GenerateResult,
+  type Provider,
+  resolveModel,
+  type TokenUsage,
+} from "./provider/index.ts";
 import type { CapabilitySpec } from "./registry/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
 
@@ -428,6 +445,27 @@ function hasDiagnostic(error: unknown): error is { readonly diagnostic: unknown 
   );
 }
 
+// Name the stage (and, for the gate, the rung) a failed build stopped at, for the
+// metrics row's "failure is data" record (Epic 2.7). The two structured build
+// errors carry the precise location; otherwise the failure is inferred from how far
+// the timing accumulator got — spec-gen and migration both throw before producing a
+// dedicated error type.
+function classifyDemoFailure(error: unknown, timings: GenerationTimings): GenerationFailure {
+  const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof CapabilityGateError) {
+    return { stage: "gate", rung: error.failedRung, message };
+  }
+  if (error instanceof UnitGenerationError) {
+    return { stage: "unit_generation", message };
+  }
+  if (timings.specGenMs === undefined) return { stage: "spec_gen", message };
+  if (timings.migrationMs === undefined) return { stage: "migration", message };
+  if (timings.codeGenMs === undefined || timings.htmlGenMs === undefined) {
+    return { stage: "unit_generation", message };
+  }
+  return { stage: "gate", message };
+}
+
 // Demo-only provider decorator: as the spec streams in, it forwards each partial
 // snapshot to the shell as a `spec-preview` event so the developer watches the spec
 // assemble live. This deliberately surfaces internals — that is the whole point of a
@@ -467,13 +505,111 @@ function previewingProvider(
   return { provider, settled };
 }
 
+// How the app persists a generation-metrics row. Injected (AppDeps.recordMetrics)
+// so the real writer rides the read-write connection in production while tests pass
+// a capturing stub — no real-db writes, and the wiring stays assertable.
+type RecordMetrics = (metrics: GenerationMetrics) => void;
+
+// The build measurements the stages fill in as they land. Held in one mutable
+// accumulator so the metrics row (Epic 2.7) can be written from it at the end —
+// complete on success, or carrying everything up to the failing rung on failure
+// (failure is data).
+interface DemoBuildAccumulator {
+  readonly usages: TokenUsage[];
+  readonly timings: GenerationTimings;
+  capabilityId?: string;
+  gateRungs?: readonly GateRungOutcome[];
+  unitAttempts?: UnitAttemptSummary[];
+}
+
+// Write the build's one metrics row through the injected recorder (the real
+// read-write connection by default). Guarded so a metrics-write hiccup never flips
+// a genuine outcome or masks the original build error.
+function writeDemoBuildMetrics(
+  recordMetrics: RecordMetrics,
+  intent: IntentClassification,
+  acc: DemoBuildAccumulator,
+  builtAt: number,
+  outcome: GenerationMetrics["outcome"],
+  failure?: GenerationFailure,
+): void {
+  try {
+    recordMetrics({
+      id: `demo-${crypto.randomUUID()}`,
+      outcome,
+      model: resolveModel(),
+      intent: {
+        type: intent.type,
+        confidence: intent.confidence,
+        targetCapability: intent.target_capability,
+      },
+      usage: sumTokenUsage(acc.usages),
+      timings: { ...acc.timings, totalMs: performance.now() - builtAt },
+      ...(acc.capabilityId ? { capabilityId: acc.capabilityId } : {}),
+      ...(acc.gateRungs ? { gateRungs: acc.gateRungs } : {}),
+      ...(acc.unitAttempts ? { unitAttempts: acc.unitAttempts } : {}),
+      ...(failure ? { failure } : {}),
+    });
+  } catch (metricsError) {
+    console.error(
+      "Aluna spec-build demo: metrics write failed:",
+      metricsError instanceof Error ? metricsError.message : metricsError,
+    );
+  }
+}
+
 async function streamSpecBuildDemo(
   send: Send,
   isAborted: () => boolean,
   provider: Provider,
   prompt: string,
+  recordMetrics: RecordMetrics,
 ) {
   const intent = hardcodedNewCapabilityIntent(prompt);
+  const builtAt = performance.now();
+  const acc: DemoBuildAccumulator = { usages: [], timings: {} };
+
+  let label: string | undefined;
+  try {
+    label = await runSpecBuildStages(send, isAborted, provider, prompt, intent, acc);
+  } catch (error) {
+    // An aborted stream is not a build failure — don't record one.
+    if (!isAborted()) {
+      writeDemoBuildMetrics(
+        recordMetrics,
+        intent,
+        acc,
+        builtAt,
+        "failure",
+        classifyDemoFailure(error, acc.timings),
+      );
+    }
+    throw error;
+  }
+
+  // Aborted mid-build (label undefined): nothing committed, nothing recorded.
+  if (label === undefined) return;
+
+  // The row lands before the build's `done` — PLAN flow step 8 ("written before the
+  // job ends"). On the demo path the migration ran on a throwaway db, so nothing was
+  // committed; the metrics row still records the full generation.
+  writeDemoBuildMetrics(recordMetrics, intent, acc, builtAt, "success");
+  await send("fragment", renderSpecBuiltConfirmation(label));
+  await send("done", "ok");
+}
+
+// Run the builder stages, streaming the developer previews and filling `acc` with
+// the metrics measurements. Returns the capability's user-facing label on success,
+// or undefined when the stream was aborted mid-build. Throws on a build failure;
+// the caller records the failure metrics row and surfaces the warm apology.
+async function runSpecBuildStages(
+  send: Send,
+  isAborted: () => boolean,
+  provider: Provider,
+  prompt: string,
+  intent: IntentClassification,
+  acc: DemoBuildAccumulator,
+): Promise<string | undefined> {
   // Wrap the provider so the spec streams to the shell as it builds (demo preview),
   // while the stage itself runs unchanged.
   const { provider: observed, settled } = previewingProvider(provider, send);
@@ -485,10 +621,14 @@ async function streamSpecBuildDemo(
     intent,
     send,
   });
+  acc.capabilityId = spec.id;
+  acc.timings.specGenMs = durationMs;
+  acc.usages.push(usage);
   await settled; // every spec-preview is on the wire before the confirmation
   if (isAborted()) return;
 
   const migrationBuild = await buildScratchMigrationPreview(spec);
+  acc.timings.migrationMs = migrationBuild.preview.durationMs;
   if (isAborted()) return;
   await send("migration-preview", JSON.stringify(migrationBuild.preview));
 
@@ -547,6 +687,7 @@ async function streamSpecBuildDemo(
   };
   const unitResult = await generateCapabilityUnits({ provider, spec, observer });
   if (isAborted()) return;
+  recordUnitMetrics(acc, unitResult.units);
   const finalUnits = unitResult.units.map(finalUnitPreview);
   await send("units-preview", JSON.stringify(buildUnitsPreview(finalUnits, "complete")));
 
@@ -559,6 +700,7 @@ async function streamSpecBuildDemo(
     realDatabase: db,
   });
   if (isAborted()) return;
+  recordGateMetrics(acc, gateResult);
   await send(
     "gate-preview",
     JSON.stringify(
@@ -572,7 +714,7 @@ async function streamSpecBuildDemo(
   );
 
   // The developer's verification surface: the full validated spec and the duration +
-  // token usage the metrics row will record (Epic 2.7). Console only.
+  // token usage the metrics row records (Epic 2.7). Console only.
   console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
     usage,
     spec,
@@ -591,8 +733,42 @@ async function streamSpecBuildDemo(
     },
   });
 
-  await send("fragment", renderSpecBuiltConfirmation(spec.label));
-  await send("done", "ok");
+  return spec.label;
+}
+
+// Record the unit-generation legs of the metrics row: code-gen (handlers) and
+// HTML-gen (views) wall time, the per-unit fix-loop attempts (PLAN decision 5), and
+// each unit's token usage.
+function recordUnitMetrics(acc: DemoBuildAccumulator, units: readonly GeneratedUnit[]): void {
+  acc.timings.codeGenMs = sumUnitDuration(units, "handler");
+  acc.timings.htmlGenMs = sumUnitDuration(units, "view");
+  acc.unitAttempts = units.map((unit) => ({
+    kind: unit.kind,
+    name: unit.name,
+    attempts: unit.attempts.length,
+    durationMs: unit.durationMs,
+    usage: unit.usage,
+  }));
+  for (const unit of units) acc.usages.push(unit.usage);
+}
+
+function sumUnitDuration(units: readonly GeneratedUnit[], kind: GeneratedUnit["kind"]): number {
+  return units.filter((unit) => unit.kind === kind).reduce((sum, unit) => sum + unit.durationMs, 0);
+}
+
+// Record the gate legs: the per-rung outcomes, plus the behavioral tier's test-gen
+// and test-run timings (and its token usage) when the tier is on — the columns that
+// let M7 weigh the behavioral tier against the no-test baseline.
+function recordGateMetrics(
+  acc: DemoBuildAccumulator,
+  gateResult: Awaited<ReturnType<typeof runCapabilityGate>>,
+): void {
+  acc.gateRungs = gateResult.outcomes;
+  if (gateResult.behavioral.tier === "on") {
+    acc.timings.testGenMs = gateResult.behavioral.testGen.durationMs;
+    acc.timings.testRunMs = gateResult.behavioral.testRun.durationMs;
+    acc.usages.push(gateResult.behavioral.testGen.usage);
+  }
 }
 
 // A non-conforming model output (the spec-gen gate throwing) or a missing key both
@@ -623,12 +799,18 @@ export interface AppDeps {
   // SSE transport heartbeat interval. Defaults below Bun's server idle timeout;
   // tests lower it to prove silent long-running stages keep the connection open.
   readonly sseHeartbeatMs?: number;
+  // Generation-metrics writer (Epic 2.7). Defaults to the real writer on the
+  // platform read-write connection; tests inject a capturing stub so the demo's
+  // metrics wiring is assertable without writing to the real data file.
+  readonly recordMetrics?: RecordMetrics;
 }
 
 export function createApp(deps: AppDeps = {}): Hono {
   const getProvider = deps.getProvider ?? (() => createProvider());
   const buildJobs = deps.buildJobs ?? createBuildJobQueue();
   const sseHeartbeatMs = deps.sseHeartbeatMs ?? DEFAULT_SSE_HEARTBEAT_MS;
+  const recordMetrics: RecordMetrics =
+    deps.recordMetrics ?? ((metrics) => void writeGenerationMetrics(metrics, db));
   const app = new Hono();
 
   // Root route — the fixed shell (ARCH §6.1). Returns the authored static page
@@ -686,7 +868,13 @@ export function createApp(deps: AppDeps = {}): Hono {
         const prompt = typed.length > 0 ? typed : DEMO_SPEC_PROMPT;
 
         try {
-          await streamSpecBuildDemo(transport.send, isAborted, getProvider(), prompt);
+          await streamSpecBuildDemo(
+            transport.send,
+            isAborted,
+            getProvider(),
+            prompt,
+            recordMetrics,
+          );
         } catch (err) {
           await handleSpecBuildError(transport.send, isAborted, err);
         }

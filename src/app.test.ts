@@ -14,8 +14,20 @@ import type { ZodType } from "zod";
 
 import { createApp } from "./app.ts";
 import { type BuildPipeline, createBuildJobQueue } from "./build-jobs.ts";
+import type { GenerationMetrics } from "./metrics/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "./provider/index.ts";
 import { BEHAVIORAL_ERROR_MARKERS, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "./registry/index.ts";
+
+// A capturing metrics recorder: the demo path writes its generation-metrics row
+// (Epic 2.7) through AppDeps.recordMetrics, so the demo tests inject this to assert
+// the wiring without touching the real data file. Always injected on the demo path.
+function makeMetricsRecorder(): {
+  rows: GenerationMetrics[];
+  recordMetrics: (m: GenerationMetrics) => void;
+} {
+  const rows: GenerationMetrics[] = [];
+  return { rows, recordMetrics: (m) => void rows.push(m) };
+}
 
 interface SseEvent {
   readonly id: string;
@@ -453,7 +465,8 @@ const VALIDATION_ERROR_SUITE = {
 describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
   test("narrates, previews spec/migration/units, confirms with the label, and closes", async () => {
     const { provider, prompts } = makeSpecProvider(NOTES_SPEC);
-    const app = createApp({ getProvider: () => provider });
+    const { rows, recordMetrics } = makeMetricsRecorder();
+    const app = createApp({ getProvider: () => provider, recordMetrics });
 
     const events = collectSseEvents(
       await readSse(await app.request("/demo/spec-build?prompt=track%20my%20notes")),
@@ -617,20 +630,54 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(prompts[5]).toContain('"behavioral_errors"');
     expect(prompts[5]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
     expect(prompts[5]).not.toContain("export default async function");
+
+    // A successful build writes exactly one metrics row (Epic 2.7), before `done`,
+    // carrying the PLAN step-8 fields: intent, the built capability, the full timing
+    // breakdown including test-gen/test-run, the per-rung gate outcomes, and the
+    // per-unit fix-loop attempts.
+    expect(rows).toHaveLength(1);
+    const metrics = rows[0];
+    expect(metrics?.outcome).toBe("success");
+    expect(metrics?.capabilityId).toBe("notes");
+    expect(metrics?.intent.type).toBe("new_capability");
+    expect(metrics?.failure).toBeUndefined();
+    expect(metrics?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
+    expect(metrics?.timings?.codeGenMs).toBeGreaterThanOrEqual(0);
+    expect(metrics?.timings?.htmlGenMs).toBeGreaterThanOrEqual(0);
+    expect(metrics?.timings?.testGenMs).toBeGreaterThanOrEqual(0);
+    expect(metrics?.timings?.testRunMs).toBeGreaterThanOrEqual(0);
+    expect(metrics?.timings?.totalMs).toBeGreaterThanOrEqual(0);
+    expect(metrics?.gateRungs?.map((rung) => rung.rung)).toEqual([
+      "structural",
+      "smoke",
+      "behavioral",
+    ]);
+    expect(metrics?.unitAttempts?.map((unit) => `${unit.kind}:${unit.name}`)).toEqual([
+      "handler:create",
+      "handler:read",
+      "view:list",
+      "view:create",
+    ]);
   });
 
   test("falls back to the default prompt when the field is empty", async () => {
     const { provider, prompts } = makeSpecProvider(NOTES_SPEC);
-    const app = createApp({ getProvider: () => provider });
+    const { rows, recordMetrics } = makeMetricsRecorder();
+    const app = createApp({ getProvider: () => provider, recordMetrics });
 
     const payload = await readSse(await app.request("/demo/spec-build"));
 
     expect(payload).toContain("event: done");
     expect(prompts[0]).toContain("I want to keep track of my notes");
+    expect(rows[0]?.outcome).toBe("success");
   });
 
   test("a missing key streams a warm apology, not a crash", async () => {
-    const app = createApp({ getProvider: throwingProvider("Missing OMNI_API_KEY. ...") });
+    const { rows, recordMetrics } = makeMetricsRecorder();
+    const app = createApp({
+      getProvider: throwingProvider("Missing OMNI_API_KEY. ..."),
+      recordMetrics,
+    });
     const res = await app.request("/demo/spec-build?prompt=track%20notes");
     expect(res.status).toBe(200);
 
@@ -649,6 +696,9 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     // No fragment on the failure path, and no internals leak through product copy.
     expect(payload).not.toContain("event: fragment");
     expect(dataFor("narration")).not.toMatch(/OMNI_API_KEY|api key|provider/i);
+    // The build never started (the provider threw before any stage), so no metrics
+    // row is written — the demo records generations, not failed admissions.
+    expect(rows).toHaveLength(0);
   });
 
   test("a behavioral gate failure sends developer evidence without leaking into narration", async () => {
@@ -668,7 +718,8 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       ],
     };
     const { provider } = makeSpecProvider(NOTES_SPEC, failingSuite);
-    const app = createApp({ getProvider: () => provider });
+    const { rows, recordMetrics } = makeMetricsRecorder();
+    const app = createApp({ getProvider: () => provider, recordMetrics });
 
     const events = collectSseEvents(
       await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
@@ -698,6 +749,14 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       expect.objectContaining({ text: "Behavioral note" }),
     ]);
     expect(preview.diagnostic.readFragment).toContain("Behavioral note");
+
+    // Failure is data: one metrics row, outcome failure, pinpointing the rung that
+    // failed (the behavioral gate), with the timings up to that point present.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.outcome).toBe("failure");
+    expect(rows[0]?.failure).toMatchObject({ stage: "gate", rung: "behavioral" });
+    expect(rows[0]?.capabilityId).toBe("notes");
+    expect(rows[0]?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
   });
 
   test("a behavioral test-generation provider error is captured in the developer preview", async () => {
@@ -705,7 +764,8 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       NOTES_SPEC,
       new Error("Invalid schema for response_format 'response': Missing required expectedError."),
     );
-    const app = createApp({ getProvider: () => provider });
+    const { rows, recordMetrics } = makeMetricsRecorder();
+    const app = createApp({ getProvider: () => provider, recordMetrics });
 
     const events = collectSseEvents(
       await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
@@ -726,13 +786,17 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(preview.errorName).toBe("CapabilityGateError");
     expect(preview.message).toContain("Invalid schema for response_format");
     expect(preview.message).toContain("expectedError");
+    // The behavioral test-generation failure is recorded as a gate/behavioral failure.
+    expect(rows[0]?.outcome).toBe("failure");
+    expect(rows[0]?.failure).toMatchObject({ stage: "gate", rung: "behavioral" });
   });
 
   test("a validation marker mismatch is visible in the developer-only demo diagnostic", async () => {
     const { provider } = makeSpecProvider(NOTES_SPEC, VALIDATION_ERROR_SUITE, {
       create: MISSING_MARKER_CREATE_HANDLER,
     });
-    const app = createApp({ getProvider: () => provider });
+    const { rows, recordMetrics } = makeMetricsRecorder();
+    const app = createApp({ getProvider: () => provider, recordMetrics });
 
     const events = collectSseEvents(
       await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
@@ -766,6 +830,9 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(preview.diagnostic.failure).toContain('data-role="error"');
     expect(preview.diagnostic.createFragment).toContain("Any friendly copy");
     expect(preview.diagnostic.scratchRows).toEqual([]);
+    // Recorded as a behavioral-gate failure.
+    expect(rows[0]?.outcome).toBe("failure");
+    expect(rows[0]?.failure).toMatchObject({ stage: "gate", rung: "behavioral" });
   });
 });
 
