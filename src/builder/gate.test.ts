@@ -532,6 +532,44 @@ describe("capability gate", () => {
     ]);
   });
 
+  test("setup rows are newest-first: array order maps directly to a newest-first read", async () => {
+    // Regression: with two+ setup rows, the model lists them newest-first and derives
+    // expectReadFragmentIncludesInOrder = [new row, ...setupRows]. The gate must age
+    // them so setupRows[0] is the most recent preexisting row; otherwise a correct
+    // newest-first handler fails a self-inconsistent test (the bug this guards).
+    const orderSuite = {
+      cases: [
+        {
+          name: "new note, then setup rows in listed (newest-first) order",
+          setupRows: [
+            { values: [{ field: "text", value: "Middle note" }] },
+            { values: [{ field: "text", value: "Oldest note" }] },
+          ],
+          input: [
+            { field: "text", value: "Newest note" },
+            { field: "pinned", value: "false" },
+          ],
+          expectedCreatedRow: [{ field: "text", value: "Newest note" }],
+          expectedRowCount: 3,
+          expectCreateFragmentIncludes: ["Newest note"],
+          expectReadFragmentIncludes: ["Newest note", "Middle note", "Oldest note"],
+          expectReadFragmentIncludesInOrder: ["Newest note", "Middle note", "Oldest note"],
+          expectedError: null,
+        },
+      ],
+    };
+
+    const result = await runCapabilityGate(
+      gateInput({ provider: makeBehaviorProvider(orderSuite).provider }),
+    );
+
+    expect(result.outcomes.map((outcome) => `${outcome.rung}:${outcome.status}`)).toEqual([
+      "structural:passed",
+      "smoke:passed",
+      "behavioral:passed",
+    ]);
+  });
+
   test("validation-error behavioral cases assert stable markers, not product copy", async () => {
     const spec = articlesSpec();
     const result = await runCapabilityGate(
@@ -553,6 +591,97 @@ describe("capability gate", () => {
         name: "missing title and body emits stable validation markers",
         status: "passed",
       }),
+    ]);
+  });
+
+  test("datetime fields match by instant, not by literal string form", async () => {
+    // Regression: a real model produced a handler that canonicalizes the datetime
+    // through a Date round-trip ("2025-06-01T12:00:00Z" → "2025-06-01T12:00:00.000Z")
+    // while authoring the behavioral test with the raw input form. The row is the same
+    // instant, so the rung must pass — not fail on a representational difference.
+    const eventsSpec = notesSpec({
+      id: "events",
+      label: "Events",
+      schema: {
+        fields: [
+          { name: "title", type: "string", required: true },
+          { name: "happens_at", type: "datetime", required: true },
+        ],
+      },
+      behavior: "Title and happens_at are required. Newest events appear first.",
+      behavioral_errors: [
+        {
+          action: "create",
+          trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          fields: ["title", "happens_at"],
+          expected_markers: BEHAVIORAL_ERROR_MARKERS,
+        },
+      ],
+      prompt_context: "Stores the user's events.",
+    });
+    const canonicalizingCreate = [
+      "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
+      '  const happensAt = new Date(input.happens_at ?? "").toISOString();',
+      "  const event = data.insert({ title: input.title, happens_at: happensAt });",
+      "  return `<article><h3>$" +
+        "{escapeHtml(event.title)}</h3><time>$" +
+        "{escapeHtml(event.happens_at)}</time></article>`;",
+      "}",
+      "",
+      "function escapeHtml(value: unknown): string {",
+      '  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;");',
+      "}",
+    ].join("\n");
+    const eventsRead = [
+      "export default async function read({ data }: CapabilityContext): Promise<string> {",
+      "  const events = data.select();",
+      "  const items = events.map((event) => `<article>$" +
+        '{escapeHtml(event.title)}</article>`).join("");',
+      '  return `<section class="events">$' + "{items}</section>`;",
+      "}",
+      "",
+      "function escapeHtml(value: unknown): string {",
+      '  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;");',
+      "}",
+    ].join("\n");
+    const datetimeSuite = {
+      cases: [
+        {
+          name: "stores the event at the given instant",
+          setupRows: [],
+          input: [
+            { field: "title", value: "Launch" },
+            { field: "happens_at", value: "2025-06-01T12:00:00Z" },
+          ],
+          // Expected datetime in the raw input form — the stored value is the
+          // canonicalized "...T12:00:00.000Z", a different string for the same instant.
+          expectedCreatedRow: [
+            { field: "title", value: "Launch" },
+            { field: "happens_at", value: "2025-06-01T12:00:00Z" },
+          ],
+          expectedRowCount: 1,
+          expectCreateFragmentIncludes: ["Launch"],
+          expectReadFragmentIncludes: ["Launch"],
+          expectReadFragmentIncludesInOrder: [],
+          expectedError: null,
+        },
+      ],
+    };
+
+    const result = await runCapabilityGate(
+      gateInput({
+        spec: eventsSpec,
+        ddl: deriveCapabilityTableDdl(eventsSpec),
+        provider: makeBehaviorProvider(datetimeSuite).provider,
+        handlers: { create: canonicalizingCreate, read: eventsRead },
+      }),
+    );
+
+    expect(result.outcomes.map((outcome) => `${outcome.rung}:${outcome.status}`)).toEqual([
+      "structural:passed",
+      "smoke:passed",
+      "behavioral:passed",
     ]);
   });
 

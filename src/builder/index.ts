@@ -7,6 +7,13 @@
 // entry point.
 
 export {
+  type CommitCapabilityInput,
+  type CommitCapabilityResult,
+  commitCapability,
+  DEFAULT_ARTIFACTS_ROOT,
+  FIRST_CAPABILITY_VERSION,
+} from "./commit.ts";
+export {
   BEHAVIORAL_TIER_ENV_VAR,
   type BehavioralGateResult,
   type BehavioralTestCaseOutcome,

@@ -18,6 +18,7 @@ import {
   type BehavioralErrorCase,
   behavioralErrorMarkersSchema,
   type CapabilitySpec,
+  type FieldType,
   type SpecField,
 } from "../registry/index.ts";
 import type { CapabilityHandler } from "../router/index.ts";
@@ -350,10 +351,11 @@ export function buildBehavioralTestPrompt(spec: CapabilitySpec): string {
     "",
     "Return one structured object with a `cases` array. Each case is a deterministic black-box test:",
     "- `input` is an array of `{ field, value }` form/query inputs for the create action, as strings.",
-    "- `setupRows` is an array of `{ values }` objects; each `values` is an array of `{ field, value }` pairs inserted before the action as preexisting older rows. Use an empty array when no setup is needed.",
+    "- `setupRows` is an array of `{ values }` objects; each `values` is an array of `{ field, value }` pairs. They are preexisting rows, all older than the action's new row, and are listed NEWEST-FIRST: `setupRows[0]` is the most recent preexisting row and each later entry is older. Use an empty array when no setup is needed.",
     "- `expectedCreatedRow` is an array of `{ field, value }` spec fields that must be present in one scratch row. Use an empty array when no specific row assertion is needed.",
     "- `expectedRowCount` is required. For a normal create test with no setup rows, use 1.",
     "- `expectCreateFragmentIncludes`, `expectReadFragmentIncludes`, and `expectReadFragmentIncludesInOrder` assert visible HTML substrings. Use empty arrays when not needed.",
+    "- For a newest-first read, the action's new row is newest of all, so `expectReadFragmentIncludesInOrder` is `[<new row marker>, <setupRows[0] marker>, <setupRows[1] marker>, ...]` — the new row, then the setup rows in their array order.",
     "- `expectedError` is required on every case. For normal success behavior, set it to null. For validation-error behavior, set it to one object copied from a `behavioral_errors` case in the source material. Do not assert user-facing error copy with fragment includes; leave those arrays empty.",
     "",
     "Important constraints:",
@@ -477,7 +479,7 @@ async function runBehavioralCase(
     const expectedCreatedRow = fieldValuesToRecord(testCase.expectedCreatedRow);
     if (
       Object.keys(expectedCreatedRow).length > 0 &&
-      !scratchRows.some((row) => rowMatches(row, expectedCreatedRow))
+      !scratchRows.some((row) => rowMatches(spec.schema.fields, row, expectedCreatedRow))
     ) {
       throw new Error(`did not find a scratch row matching ${JSON.stringify(expectedCreatedRow)}.`);
     }
@@ -502,12 +504,22 @@ async function runBehavioralCase(
   }
 }
 
+// Stamp the setup rows with deterministic created_at values, **newest-first**:
+// setupRows[0] is the most recent preexisting row, each later entry older. Index 0
+// gets the largest second-offset and the final entry 00:00:00 — all in the year 2000,
+// so every setup row is older than the action's new row (stamped at the real `now`).
+// A newest-first read therefore renders as [new row, ...setupRows in array order],
+// which is the order the model authors `expectReadFragmentIncludesInOrder` in
+// (documented in buildBehavioralTestPrompt). The model picking the order and the gate
+// enforcing it must agree, or a correct handler fails a self-inconsistent test.
 function ageSetupRows(database: Database, tableName: string, setupIds: readonly string[]): void {
   const update = database.query(
     `UPDATE ${sqlIdentifier(tableName)} SET "created_at" = ? WHERE "id" = ?`,
   );
+  const lastIndex = setupIds.length - 1;
   for (const [index, id] of setupIds.entries()) {
-    update.run(`2000-01-01 00:00:${String(index).padStart(2, "0")}`, id);
+    const secondsFromOldest = lastIndex - index;
+    update.run(`2000-01-01 00:00:${String(secondsFromOldest).padStart(2, "0")}`, id);
   }
 }
 
@@ -692,10 +704,37 @@ function sameStringSet(left: readonly string[], right: readonly string[]): boole
 }
 
 function rowMatches(
+  fields: readonly SpecField[],
   row: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]>[number],
   expected: Readonly<Record<string, BehavioralScalar>>,
 ): boolean {
-  return Object.entries(expected).every(([field, value]) => row[field] === value);
+  return Object.entries(expected).every(([field, value]) => {
+    const type = fields.find((candidate) => candidate.name === field)?.type;
+    return type ? fieldValueMatches(type, row[field], value) : row[field] === value;
+  });
+}
+
+// Compare a stored field value to a behavioral test's expected value *by the field's
+// spec type*. This is the success-path analogue of the validation tier's stable error
+// codes: assert on semantic content, not on a byte-identical representation the model
+// can't be made to emit deterministically. Datetimes compare as instants — a handler
+// may legitimately canonicalize "2025-06-01T12:00:00Z" to "2025-06-01T12:00:00.000Z"
+// (a `new Date(...).toISOString()` round-trip) while the model authors the test in the
+// raw input form; the same *moment* is a match. Strings, numbers, and booleans are
+// already normalized by the data tool, so a value comparison is exact for them.
+function fieldValueMatches(type: FieldType, stored: unknown, expected: unknown): boolean {
+  if (type === "datetime") return sameInstant(stored, expected);
+  return stored === expected;
+}
+
+function sameInstant(stored: unknown, expected: unknown): boolean {
+  if (typeof stored !== "string" || typeof expected !== "string") return stored === expected;
+  const storedMs = Date.parse(stored);
+  const expectedMs = Date.parse(expected);
+  // A non-parseable datetime on either side is not something to silently treat as
+  // equal — fall back to exact comparison so a genuinely malformed value still fails.
+  if (Number.isNaN(storedMs) || Number.isNaN(expectedMs)) return stored === expected;
+  return storedMs === expectedMs;
 }
 
 function fieldValuesToRecord(
@@ -935,7 +974,7 @@ function assertSmokeRows(
 
   for (const field of spec.schema.fields) {
     const expected = expectedValues[field.name];
-    if (row[field.name] !== expected) {
+    if (!fieldValueMatches(field.type, row[field.name], expected)) {
       throw new Error(
         `Smoke row field "${field.name}" expected ${JSON.stringify(expected)}, received ${JSON.stringify(row[field.name])}.`,
       );
