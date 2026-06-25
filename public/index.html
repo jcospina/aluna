@@ -108,12 +108,11 @@
           <div class="cold-start">
             <h1 class="wordmark">Aluna<span class="wordmark__dot" aria-hidden="true">.</span></h1>
 
-            <!-- Module 2 §2.5: the prompt bar below drives the full build
-                 pipeline (src/app.ts /demo/spec-build) — spec → migration →
-                 units → gate → commit — against the AI provider and the real
-                 db/disk. Epic 2.6 swaps this developer-preview demo for the
-                 production POST /prompt → build-queue stream and the committed
-                 capability's content/toolbar render. -->
+            <!-- Module 2: the prompt bar below drives the production build-job
+                 flow — POST /prompt admits a job immediately, then the
+                 per-build stream classifies, deflects unsupported requests, or
+                 proceeds through the builder. The previews are developer-only
+                 visibility until the committed capability swap fully takes over. -->
             <div class="intro">
               <!-- Demo-only: the spec streams in here as it builds (raw,
                    internals visible on purpose — this is the developer's
@@ -129,10 +128,7 @@
           </div>
         </main>
 
-        <!-- Prompt bar — currently wired to the build demo stream
-             (/demo/spec-build), which runs the whole pipeline through commit. The
-             production per-build prompt flow lands when Epic 2.6 replaces this
-             demo route. -->
+        <!-- Prompt bar — wired to POST /prompt and the per-build stream. -->
         <form class="prompt" id="spec-build-form">
           <div class="prompt__composer">
             <input
@@ -146,6 +142,7 @@
             >
             <button type="submit" class="prompt__submit" id="spec-build-trigger">Make it</button>
           </div>
+          <div id="prompt-notice" class="prompt__notice" aria-live="polite"></div>
         </form>
       </div>
     </div>

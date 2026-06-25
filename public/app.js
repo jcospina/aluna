@@ -8,7 +8,7 @@
 // Today it does two things, both presentation-only (no product logic — the shell
 // is dumb on purpose, ARCH §6.1):
 //   1. Registers the `shell` Alpine component (sidebar collapse / mobile drawer).
-//   2. Wires the prompt bar to the spec-generation verification stream.
+//   2. Wires the prompt bar to the build-job stream.
 
 /**
  * The shell's presentation state.
@@ -63,12 +63,11 @@ function sseData(event) {
   return /** @type {MessageEvent<string>} */ (event).data;
 }
 
-// ── Build demo stream (Module 2 §2.5) ──────────────────────────────────────
-// The prompt bar sends its text to /demo/spec-build (src/app.ts), where the whole
-// build pipeline runs against the AI provider — spec → migration → units → gate →
-// commit. Product-voice narration renders into the content area; the raw streamed
-// stages stay visible as a developer preview surface (spec/migration/units/gate/
-// commit) until the production build stream replaces this demo in Epic 2.6.
+// ── Build-job stream (Module 2) ─────────────────────────────────────────────
+// The prompt bar submits to POST /prompt. That POST only admits the job and returns
+// the per-build stream address; classification and any builder work happen on
+// GET /build/:id/stream. Product-voice narration renders into the content area;
+// raw streamed stage previews stay visible as a developer surface.
 
 function initSpecBuildDemo() {
   const form = document.getElementById("spec-build-form");
@@ -80,6 +79,7 @@ function initSpecBuildDemo() {
   const unitsPreview = document.getElementById("spec-units-preview");
   const gatePreview = document.getElementById("spec-gate-preview");
   const commitPreview = document.getElementById("spec-commit-preview");
+  const notice = document.getElementById("prompt-notice");
   if (
     !(form instanceof HTMLFormElement) ||
     !(trigger instanceof HTMLButtonElement) ||
@@ -89,16 +89,20 @@ function initSpecBuildDemo() {
     migrationPreview === null ||
     unitsPreview === null ||
     gatePreview === null ||
-    commitPreview === null
+    commitPreview === null ||
+    notice === null
   ) {
     return;
   }
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const idleLabel = trigger.textContent;
+    /** @type {EventSource | undefined} */
+    let source;
     output.replaceChildren(); // clear any prior run
+    notice.replaceChildren();
     preview.textContent = "";
     migrationPreview.textContent = "";
     unitsPreview.textContent = "";
@@ -108,19 +112,40 @@ function initSpecBuildDemo() {
     input.disabled = true;
     trigger.textContent = "Making";
 
-    // EventSource is GET-only, so the typed prompt rides a query param. An empty
-    // field lets the server fall back to its default demo prompt.
-    const prompt = input.value.trim();
-    const query = prompt.length > 0 ? `?prompt=${encodeURIComponent(prompt)}` : "";
-    const source = new EventSource(`/demo/spec-build${query}`);
-
     const finish = () => {
-      source.close();
+      source?.close();
       trigger.disabled = false;
       input.disabled = false;
       trigger.textContent = idleLabel;
       input.focus();
     };
+
+    const prompt = input.value.trim();
+    try {
+      const response = await fetch("/prompt", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ prompt }),
+      });
+      const fragment = await response.text();
+      const template = document.createElement("template");
+      template.innerHTML = fragment;
+      const subscriber = template.content.querySelector("[data-build-job-id]");
+      const streamPath = subscriber?.getAttribute("sse-connect");
+
+      if (!streamPath) {
+        notice.replaceChildren();
+        notice.textContent = template.content.textContent ?? fragment;
+        finish();
+        return;
+      }
+
+      source = new EventSource(streamPath);
+    } catch {
+      output.append(document.createTextNode("Hmm, that didn't work. Mind trying again?"));
+      finish();
+      return;
+    }
 
     source.addEventListener("narration", (event) => {
       output.append(document.createTextNode(sseData(event)));

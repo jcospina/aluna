@@ -7,8 +7,12 @@
 export {
   buildIntentPrompt,
   type ClassifyIntentInput,
+  type ClassifyIntentResult,
   classifyIntent,
+  classifyIntentWithUsage,
+  INTENT_RESOLUTION_NARRATION,
   type IntentPromptContext,
+  type IntentResolverSend,
 } from "./resolver.ts";
 export {
   INTENT_TYPES,

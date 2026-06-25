@@ -4,10 +4,9 @@
 // now wired — Epic 2.3), and file serving (/files/:key).
 //
 // At this stage it serves the fixed shell page at `/`, static assets under
-// /static/*, the Module 1 `/stream` provider-liveness endpoint, and the Module 2
-// spec-generation demo stream. The home page now uses the real prompt bar to
-// drive that spec-generation demo while later builder slices assemble the full
-// prompt → built capability pipeline.
+// /static/*, the Module 1 `/stream` provider-liveness endpoint, the production
+// `/prompt` → `/build/:id/stream` build-job flow, and the remaining
+// `/demo/spec-build` verification route.
 
 import type { Database } from "bun:sqlite";
 import { type Context, Hono } from "hono";
@@ -16,7 +15,7 @@ import type { SSEStreamingApi } from "hono/streaming";
 import { streamSSE } from "hono/streaming";
 import { type ZodType, z } from "zod";
 
-import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
+import { type BuildJobQueue, type BuildPipeline, createBuildJobQueue } from "./build-jobs.ts";
 import {
   type BehavioralGateResult,
   CapabilityGateError,
@@ -38,7 +37,7 @@ import {
   withCapabilityMigrationTransaction,
 } from "./builder/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "./db.ts";
-import type { IntentClassification } from "./intent-resolver/index.ts";
+import { classifyIntentWithUsage, type IntentClassification } from "./intent-resolver/index.ts";
 import {
   type GenerationFailure,
   type GenerationMetrics,
@@ -54,7 +53,7 @@ import {
   resolveModel,
   type TokenUsage,
 } from "./provider/index.ts";
-import type { CapabilitySpec } from "./registry/index.ts";
+import { type CapabilityRow, type CapabilitySpec, listCapabilities } from "./registry/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
 
 // ── The greeting round-trip (Module-1 liveness content; zero domain logic) ────
@@ -478,7 +477,7 @@ function hasDiagnostic(error: unknown): error is { readonly diagnostic: unknown 
 // the build accumulator got — spec-gen, migration, and commit all throw before
 // producing a dedicated error type. A failure once the gate's rungs are recorded
 // (gate passed) can only be the commit stage that follows it.
-function classifyDemoFailure(error: unknown, acc: DemoBuildAccumulator): GenerationFailure {
+function classifyBuildFailure(error: unknown, acc: DemoBuildAccumulator): GenerationFailure {
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof CapabilityGateError) {
     return { stage: "gate", rung: error.failedRung, message };
@@ -555,8 +554,9 @@ interface DemoBuildAccumulator {
 // Write the build's one metrics row through the injected recorder (the real
 // read-write connection by default). Guarded so a metrics-write hiccup never flips
 // a genuine outcome or masks the original build error.
-function writeDemoBuildMetrics(
+function writeBuildMetrics(
   recordMetrics: RecordMetrics,
+  generationId: string,
   intent: IntentClassification,
   acc: DemoBuildAccumulator,
   builtAt: number,
@@ -565,7 +565,7 @@ function writeDemoBuildMetrics(
 ): void {
   try {
     recordMetrics({
-      id: `demo-${crypto.randomUUID()}`,
+      id: generationId,
       outcome,
       model: resolveModel(),
       intent: {
@@ -583,6 +583,32 @@ function writeDemoBuildMetrics(
   } catch (metricsError) {
     console.error(
       "Aluna spec-build demo: metrics write failed:",
+      metricsError instanceof Error ? metricsError.message : metricsError,
+    );
+  }
+}
+
+function writeDeflectionMetrics(
+  recordMetrics: RecordMetrics,
+  generationId: string,
+  intent: IntentClassification,
+  usage: TokenUsage,
+): void {
+  try {
+    recordMetrics({
+      id: generationId,
+      outcome: "deflected",
+      model: resolveModel(),
+      intent: {
+        type: intent.type,
+        confidence: intent.confidence,
+        targetCapability: intent.target_capability,
+      },
+      usage,
+    });
+  } catch (metricsError) {
+    console.error(
+      "Aluna build job: metrics write failed:",
       metricsError instanceof Error ? metricsError.message : metricsError,
     );
   }
@@ -629,13 +655,14 @@ async function streamSpecBuildDemo(
     // An aborted stream is not a build failure — and the transaction already rolled
     // back, so nothing committed. Don't record a failure row for it.
     if (!isAborted()) {
-      writeDemoBuildMetrics(
+      writeBuildMetrics(
         recordMetrics,
+        `demo-${crypto.randomUUID()}`,
         intent,
         acc,
         builtAt,
         "failure",
-        classifyDemoFailure(error, acc),
+        classifyBuildFailure(error, acc),
       );
     }
     throw error;
@@ -648,13 +675,296 @@ async function streamSpecBuildDemo(
   // The row lands before the build's `done` — PLAN flow step 8 ("written before the
   // job ends"). The build genuinely committed (registry row + artifacts + cap_<id>
   // table), so this records a success.
-  writeDemoBuildMetrics(recordMetrics, intent, acc, builtAt, "success");
+  writeBuildMetrics(recordMetrics, `demo-${crypto.randomUUID()}`, intent, acc, builtAt, "success");
   // Announce the committed capability: the developer-facing commit preview, then the
   // warm product-voice confirmation. The client-side content/toolbar swap is Epic
   // 2.6's; this issue produces the committed capability and the events announcing it.
   await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
   await send("fragment", renderSpecBuiltConfirmation(commit.row.label));
   await send("done", "ok");
+}
+
+function deflectionNarration(intent: IntentClassification): string {
+  switch (intent.type) {
+    case "extend_capability":
+      return "I can tell this belongs with something you've already started here. I can't change that place yet, but I'll be able to soon.";
+    case "ui_change":
+      return "I hear how you'd like this to feel. I can't reshape the space yet, but I'll be able to soon.";
+    case "data_query":
+      return "I can see you're asking about what you've saved. I can't answer across your things yet, but I'll be able to soon.";
+    case "reject":
+      return "I'm not quite sure what to make from that yet. Try telling me one thing you'd like to keep track of.";
+    case "new_capability":
+      return intent.user_facing_label;
+  }
+}
+
+const DUPLICATE_PROMPT_STOP_WORDS = new Set([
+  "add",
+  "and",
+  "for",
+  "keep",
+  "let",
+  "make",
+  "me",
+  "my",
+  "of",
+  "save",
+  "set",
+  "store",
+  "the",
+  "to",
+  "track",
+  "want",
+  "with",
+]);
+const NO_TOKEN_USAGE: TokenUsage = {
+  inputTokens: undefined,
+  outputTokens: undefined,
+  totalTokens: undefined,
+};
+
+function normalizeDuplicateToken(token: string): string {
+  if (token.length > 4 && token.endsWith("ies")) {
+    return `${token.slice(0, -3)}y`;
+  }
+  if (token.length > 3 && token.endsWith("s")) {
+    return token.slice(0, -1);
+  }
+  return token;
+}
+
+function duplicateMatchTokens(value: string, applyStopWords: boolean): Set<string> {
+  const tokens = value
+    .toLowerCase()
+    .match(/[a-z0-9]+/g)
+    ?.map(normalizeDuplicateToken)
+    .filter(
+      (token) => token.length >= 3 && (!applyStopWords || !DUPLICATE_PROMPT_STOP_WORDS.has(token)),
+    );
+
+  return new Set(tokens ?? []);
+}
+
+function duplicateCapabilityIdentityTokens(capability: CapabilityRow): Set<string> {
+  return duplicateMatchTokens([capability.id, capability.label].join(" "), false);
+}
+
+function duplicateCapabilityContextTokens(capability: CapabilityRow): Set<string> {
+  return duplicateMatchTokens(capability.prompt_context, true);
+}
+
+function duplicateScore(promptTokens: Set<string>, capabilityTokens: Set<string>): number {
+  let score = 0;
+  for (const token of promptTokens) {
+    if (capabilityTokens.has(token)) score += 1;
+  }
+  return score;
+}
+
+function findPromptOverlapCapability(
+  prompt: string,
+  capabilities: readonly CapabilityRow[],
+): CapabilityRow | undefined {
+  const promptTokens = duplicateMatchTokens(prompt, true);
+  if (promptTokens.size === 0) return undefined;
+
+  let best: { readonly capability: CapabilityRow; readonly score: number } | undefined;
+  for (const capability of capabilities) {
+    const identityScore = duplicateScore(
+      promptTokens,
+      duplicateCapabilityIdentityTokens(capability),
+    );
+    const contextScore = duplicateScore(promptTokens, duplicateCapabilityContextTokens(capability));
+    const score = identityScore > 0 || contextScore >= 2 ? identityScore + contextScore : 0;
+    if (score > 0 && (!best || score > best.score)) {
+      best = { capability, score };
+    }
+  }
+
+  return best?.capability;
+}
+
+function duplicateIntentForCapability(capability: CapabilityRow): IntentClassification {
+  return {
+    type: "extend_capability",
+    confidence: 1,
+    target_capability: capability.id,
+    proposed_action: "Add this to an existing place.",
+    user_facing_label: "This belongs with something you've already started.",
+    requires_confirmation: false,
+  };
+}
+
+function duplicateIntentForPrompt(
+  prompt: string,
+  capabilities: readonly CapabilityRow[],
+): IntentClassification | undefined {
+  const overlap = findPromptOverlapCapability(prompt, capabilities);
+  return overlap ? duplicateIntentForCapability(overlap) : undefined;
+}
+
+function deflectDuplicateNewCapability(
+  intent: IntentClassification,
+  prompt: string,
+  capabilities: readonly CapabilityRow[],
+): IntentClassification {
+  if (intent.type !== "new_capability") return intent;
+
+  const duplicate = duplicateIntentForPrompt(prompt, capabilities);
+  return duplicate ? { ...duplicate, confidence: Math.max(intent.confidence, 0.99) } : intent;
+}
+
+interface PromptBuildPipelineDeps {
+  readonly getProvider: () => Provider;
+  readonly recordMetrics: RecordMetrics;
+  readonly buildDatabases: PlatformDatabase;
+  readonly artifactsRoot: string;
+}
+
+interface DeflectionPipelineInput {
+  readonly generationId: string;
+  readonly intent: IntentClassification;
+  readonly usage: TokenUsage;
+  readonly recordMetrics: RecordMetrics;
+  readonly send: Send;
+  readonly isAborted: () => boolean;
+}
+
+async function streamDeflection({
+  generationId,
+  intent,
+  usage,
+  recordMetrics,
+  send,
+  isAborted,
+}: DeflectionPipelineInput): Promise<void> {
+  writeDeflectionMetrics(recordMetrics, generationId, intent, usage);
+  if (!isAborted()) {
+    await send("narration", deflectionNarration(intent));
+  }
+}
+
+interface NewCapabilityPipelineInput {
+  readonly generationId: string;
+  readonly prompt: string;
+  readonly provider: Provider;
+  readonly intent: IntentClassification;
+  readonly usage: TokenUsage;
+  readonly builtAt: number;
+  readonly recordMetrics: RecordMetrics;
+  readonly buildDatabases: PlatformDatabase;
+  readonly artifactsRoot: string;
+  readonly send: Send;
+  readonly isAborted: () => boolean;
+}
+
+async function streamNewCapabilityBuild({
+  generationId,
+  prompt,
+  provider,
+  intent,
+  usage,
+  builtAt,
+  recordMetrics,
+  buildDatabases,
+  artifactsRoot,
+  send,
+  isAborted,
+}: NewCapabilityPipelineInput): Promise<void> {
+  const acc: DemoBuildAccumulator = { usages: [usage], timings: {} };
+  let commit: CommitCapabilityResult | undefined;
+  try {
+    commit = await runSpecBuildStages(
+      send,
+      isAborted,
+      provider,
+      prompt,
+      intent,
+      acc,
+      buildDatabases,
+      artifactsRoot,
+    );
+  } catch (error) {
+    if (!isAborted()) {
+      writeBuildMetrics(
+        recordMetrics,
+        generationId,
+        intent,
+        acc,
+        builtAt,
+        "failure",
+        classifyBuildFailure(error, acc),
+      );
+    }
+    throw error;
+  }
+
+  if (commit === undefined) return;
+
+  writeBuildMetrics(recordMetrics, generationId, intent, acc, builtAt, "success");
+  await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
+  await send("fragment", renderSpecBuiltConfirmation(commit.row.label));
+}
+
+function createPromptBuildPipeline({
+  getProvider,
+  recordMetrics,
+  buildDatabases,
+  artifactsRoot,
+}: PromptBuildPipelineDeps): BuildPipeline {
+  return async ({ job, send, isAborted }) => {
+    const builtAt = performance.now();
+    const capabilities = listCapabilities(buildDatabases.readonly);
+    const duplicateIntent = duplicateIntentForPrompt(job.prompt, capabilities);
+    if (duplicateIntent) {
+      await streamDeflection({
+        generationId: job.id,
+        intent: duplicateIntent,
+        usage: NO_TOKEN_USAGE,
+        recordMetrics,
+        send,
+        isAborted,
+      });
+      return;
+    }
+
+    const provider = getProvider();
+    const classification = await classifyIntentWithUsage({
+      provider,
+      prompt: job.prompt,
+      database: buildDatabases.readonly,
+      send,
+    });
+    const intent = deflectDuplicateNewCapability(classification.intent, job.prompt, capabilities);
+    const { usage } = classification;
+
+    if (intent.type !== "new_capability") {
+      await streamDeflection({
+        generationId: job.id,
+        intent,
+        usage,
+        recordMetrics,
+        send,
+        isAborted,
+      });
+      return;
+    }
+
+    await streamNewCapabilityBuild({
+      generationId: job.id,
+      prompt: job.prompt,
+      provider,
+      intent,
+      usage,
+      builtAt,
+      recordMetrics,
+      buildDatabases,
+      artifactsRoot,
+      send,
+      isAborted,
+    });
+  };
 }
 
 // Run the builder stages, streaming the developer previews and filling `acc` with
@@ -891,8 +1201,9 @@ export interface AppDeps {
   // the real file loader; tests inject a scratch db pair (and, where they assert
   // load ordering, a spy loader).
   readonly capabilityRouter?: CapabilityRouterDeps;
-  // Build-job queue (Epic 2.5). Defaults to an in-memory single-flight queue with a
-  // placeholder pipeline; tests inject deterministic ids and paused pipelines.
+  // Build-job queue (Epic 2.5). Defaults to the real prompt pipeline: classify on
+  // the job stream, deflect unsupported intents, or build a new capability. Tests
+  // can still inject deterministic ids and paused pipelines.
   readonly buildJobs?: BuildJobQueue;
   // SSE transport heartbeat interval. Defaults below Bun's server idle timeout;
   // tests lower it to prove silent long-running stages keep the connection open.
@@ -914,12 +1225,21 @@ export interface AppDeps {
 
 export function createApp(deps: AppDeps = {}): Hono {
   const getProvider = deps.getProvider ?? (() => createProvider());
-  const buildJobs = deps.buildJobs ?? createBuildJobQueue();
   const sseHeartbeatMs = deps.sseHeartbeatMs ?? DEFAULT_SSE_HEARTBEAT_MS;
   const recordMetrics: RecordMetrics =
     deps.recordMetrics ?? ((metrics) => void writeGenerationMetrics(metrics, db));
   const buildDatabases = deps.buildDatabases ?? { readwrite: db, readonly: dbReadonly };
   const artifactsRoot = deps.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
+  const buildJobs =
+    deps.buildJobs ??
+    createBuildJobQueue({
+      pipeline: createPromptBuildPipeline({
+        getProvider,
+        recordMetrics,
+        buildDatabases,
+        artifactsRoot,
+      }),
+    });
   const app = new Hono();
 
   // Root route — the fixed shell (ARCH §6.1). Returns the authored static page
