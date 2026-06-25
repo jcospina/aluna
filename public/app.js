@@ -63,11 +63,12 @@ function sseData(event) {
   return /** @type {MessageEvent<string>} */ (event).data;
 }
 
-// ── Spec-generation verification stream (Module 2 §2.5b+) ───────────────────
-// The real prompt bar now sends its text to /demo/spec-build (src/app.ts), where
-// the current builder stage runs against the AI provider. Product-voice narration
-// renders into the content area, while the raw streamed spec remains visible as a
-// developer verification surface until the production build stream replaces it.
+// ── Build demo stream (Module 2 §2.5) ──────────────────────────────────────
+// The prompt bar sends its text to /demo/spec-build (src/app.ts), where the whole
+// build pipeline runs against the AI provider — spec → migration → units → gate →
+// commit. Product-voice narration renders into the content area; the raw streamed
+// stages stay visible as a developer preview surface (spec/migration/units/gate/
+// commit) until the production build stream replaces this demo in Epic 2.6.
 
 function initSpecBuildDemo() {
   const form = document.getElementById("spec-build-form");
@@ -78,6 +79,7 @@ function initSpecBuildDemo() {
   const migrationPreview = document.getElementById("spec-migration-preview");
   const unitsPreview = document.getElementById("spec-units-preview");
   const gatePreview = document.getElementById("spec-gate-preview");
+  const commitPreview = document.getElementById("spec-commit-preview");
   if (
     !(form instanceof HTMLFormElement) ||
     !(trigger instanceof HTMLButtonElement) ||
@@ -86,7 +88,8 @@ function initSpecBuildDemo() {
     preview === null ||
     migrationPreview === null ||
     unitsPreview === null ||
-    gatePreview === null
+    gatePreview === null ||
+    commitPreview === null
   ) {
     return;
   }
@@ -100,6 +103,7 @@ function initSpecBuildDemo() {
     migrationPreview.textContent = "";
     unitsPreview.textContent = "";
     gatePreview.textContent = "";
+    commitPreview.textContent = "";
     trigger.disabled = true;
     input.disabled = true;
     trigger.textContent = "Making";
@@ -161,6 +165,17 @@ function initSpecBuildDemo() {
         gatePreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
       } catch {
         gatePreview.textContent = raw;
+      }
+    });
+    // Demo-only: the terminal commit stage (issue 07) — the committed capability,
+    // its version, the artifacts pointer, and the files written. The client-side
+    // content/toolbar swap is Epic 2.6; here we just surface that it committed.
+    source.addEventListener("commit-preview", (event) => {
+      const raw = sseData(event);
+      try {
+        commitPreview.textContent = JSON.stringify(JSON.parse(raw), null, 2);
+      } catch {
+        commitPreview.textContent = raw;
       }
     });
     source.addEventListener("fragment", (event) => {

@@ -9,14 +9,25 @@
 // reassembled narration equals the greeting), not via wall-clock timing, to stay
 // non-flaky. app.request() drives app.fetch without binding a port.
 
-import { describe, expect, setDefaultTimeout, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import type { ZodType } from "zod";
 
 import { createApp } from "./app.ts";
 import { type BuildPipeline, createBuildJobQueue } from "./build-jobs.ts";
+import { openDatabase, type PlatformDatabase } from "./db.ts";
 import type { GenerationMetrics } from "./metrics/index.ts";
+import { runMigrations } from "./migrations.ts";
 import type { DeepPartial, GenerateResult, Provider } from "./provider/index.ts";
-import { BEHAVIORAL_ERROR_MARKERS, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "./registry/index.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilityRow,
+  getCapability,
+  insertCapability,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "./registry/index.ts";
 
 // A capturing metrics recorder: the demo path writes its generation-metrics row
 // (Epic 2.7) through AppDeps.recordMetrics, so the demo tests inject this to assert
@@ -170,6 +181,7 @@ describe("GET / (shell)", () => {
     expect(html).toContain('id="spec-migration-preview"');
     expect(html).toContain('id="spec-units-preview"');
     expect(html).toContain('id="spec-gate-preview"');
+    expect(html).toContain('id="spec-commit-preview"');
     expect(html).toContain('id="spec-build-output"');
     expect(html).not.toContain("Meet Aluna");
     expect(html).not.toContain('id="intro-trigger"');
@@ -463,10 +475,44 @@ const VALIDATION_ERROR_SUITE = {
 };
 
 describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
+  // The demo now commits for real (Epic 2.5g): the migration, gate, and registry
+  // insert ride a scratch db pair, and committed artifacts land in a throwaway
+  // directory — never the real data file or the tracked capabilities/ tree. The
+  // same scratch pair is handed to the capability router so a committed build is
+  // immediately routable in the same test.
+  let dir: string;
+  let conns: PlatformDatabase;
+  let artifactsRoot: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "omni-crud-spec-build-"));
+    conns = openDatabase(join(dir, "test.db"));
+    runMigrations(conns.readwrite);
+    artifactsRoot = join(dir, "artifacts");
+  });
+
+  afterEach(() => {
+    conns.readwrite.close();
+    conns.readonly.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // Build the demo app wired to commit against the scratch db + temp artifacts root,
+  // sharing the scratch pair with the router so a committed capability is routable.
+  function committingApp(provider: Provider, recordMetrics: (m: GenerationMetrics) => void) {
+    return createApp({
+      getProvider: () => provider,
+      recordMetrics,
+      buildDatabases: conns,
+      artifactsRoot,
+      capabilityRouter: { databases: conns },
+    });
+  }
+
   test("narrates, previews spec/migration/units, confirms with the label, and closes", async () => {
     const { provider, prompts } = makeSpecProvider(NOTES_SPEC);
     const { rows, recordMetrics } = makeMetricsRecorder();
-    const app = createApp({ getProvider: () => provider, recordMetrics });
+    const app = committingApp(provider, recordMetrics);
 
     const events = collectSseEvents(
       await readSse(await app.request("/demo/spec-build?prompt=track%20my%20notes")),
@@ -483,6 +529,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(eventNames).toContain("migration-preview");
     expect(eventNames).toContain("units-preview");
     expect(eventNames).toContain("gate-preview");
+    expect(eventNames).toContain("commit-preview");
     expect(eventNames.at(-2)).toBe("fragment");
     expect(eventNames.at(-1)).toBe("done");
     expect(eventNames.indexOf("units-preview")).toBeGreaterThan(
@@ -491,7 +538,12 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(eventNames.indexOf("gate-preview")).toBeGreaterThan(
       eventNames.lastIndexOf("units-preview"),
     );
-    expect(eventNames.indexOf("gate-preview")).toBeLessThan(eventNames.indexOf("fragment"));
+    // Commit is the terminal stage: it lands strictly after the gate passes and just
+    // before the user-facing confirmation.
+    expect(eventNames.indexOf("commit-preview")).toBeGreaterThan(
+      eventNames.indexOf("gate-preview"),
+    );
+    expect(eventNames.indexOf("commit-preview")).toBeLessThan(eventNames.indexOf("fragment"));
 
     // The demo preview deliberately carries the raw spec (the developer's liveness
     // view) — internals here are the point.
@@ -504,7 +556,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       sql: string;
       columns: Array<{ name: string; type: string; required: boolean; primaryKey: boolean }>;
     };
-    expect(migrationPreview.kind).toBe("scratch-migration-preview");
+    expect(migrationPreview.kind).toBe("migration-preview");
     expect(migrationPreview.tableName).toBe("cap_notes");
     expect(migrationPreview.sql).toContain('CREATE TABLE "cap_notes"');
     expect(migrationPreview.columns.slice(0, 3)).toMatchObject([
@@ -658,12 +710,76 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       "view:list",
       "view:create",
     ]);
+
+    // Commit is real: the developer commit-preview reports the committed capability,
+    // its version, the pointer, and the files written to the version directory.
+    const commitPreview = JSON.parse(dataFor("commit-preview")) as {
+      kind: string;
+      status: string;
+      capabilityId: string;
+      version: number;
+      artifactsPath: string;
+      files: string[];
+    };
+    expect(commitPreview.kind).toBe("commit-preview");
+    expect(commitPreview.status).toBe("committed");
+    expect(commitPreview.capabilityId).toBe("notes");
+    expect(commitPreview.version).toBe(1);
+    expect(commitPreview.artifactsPath).toBe(`${artifactsRoot}/notes/v1/`);
+    expect(commitPreview.files).toEqual(["create.ts", "read.ts", "list.html", "create.html"]);
+
+    // The registry row landed at v1 with the artifacts pointer (the pointer flip)…
+    const committed = getCapability("notes", conns.readonly);
+    expect(committed?.version).toBe(1);
+    expect(committed?.artifacts_path).toBe(`${artifactsRoot}/notes/v1/`);
+    expect(committed?.label).toBe("Notes");
+
+    // …and the four artifacts are on disk in that version directory.
+    for (const file of commitPreview.files) {
+      expect(existsSync(resolve(artifactsRoot, "notes/v1", file))).toBe(true);
+    }
+  });
+
+  test("commits a capability that immediately creates and reads through the router", async () => {
+    // The headline end-to-end proof (issue 07): prompt → committed capability →
+    // create/read through the deterministic router, all on a fake provider, no real
+    // calls. The router shares the build's scratch db pair and resolves the committed
+    // handler files from the temp artifacts directory.
+    const { provider } = makeSpecProvider(NOTES_SPEC);
+    const { rows, recordMetrics } = makeMetricsRecorder();
+    const app = committingApp(provider, recordMetrics);
+
+    const buildPayload = await readSse(
+      await app.request("/demo/spec-build?prompt=track%20my%20notes"),
+    );
+    expect(buildPayload).toContain("event: commit-preview");
+    expect(collectSseEvents(buildPayload).at(-1)).toEqual({
+      id: expect.any(String),
+      event: "done",
+      data: "ok",
+    });
+    expect(rows[0]?.outcome).toBe("success");
+
+    // create through the router: the committed handler persists the note and returns
+    // a fragment carrying it.
+    const created = await app.request("/capability/notes/create", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ text: "Buy milk" }).toString(),
+    });
+    expect(created.status).toBe(200);
+    expect(await created.text()).toContain("Buy milk");
+
+    // read through the router: a fragment carrying the persisted note.
+    const read = await app.request("/capability/notes/read");
+    expect(read.status).toBe(200);
+    expect(await read.text()).toContain("Buy milk");
   });
 
   test("falls back to the default prompt when the field is empty", async () => {
     const { provider, prompts } = makeSpecProvider(NOTES_SPEC);
     const { rows, recordMetrics } = makeMetricsRecorder();
-    const app = createApp({ getProvider: () => provider, recordMetrics });
+    const app = committingApp(provider, recordMetrics);
 
     const payload = await readSse(await app.request("/demo/spec-build"));
 
@@ -719,7 +835,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     };
     const { provider } = makeSpecProvider(NOTES_SPEC, failingSuite);
     const { rows, recordMetrics } = makeMetricsRecorder();
-    const app = createApp({ getProvider: () => provider, recordMetrics });
+    const app = committingApp(provider, recordMetrics);
 
     const events = collectSseEvents(
       await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
@@ -757,6 +873,66 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(rows[0]?.failure).toMatchObject({ stage: "gate", rung: "behavioral" });
     expect(rows[0]?.capabilityId).toBe("notes");
     expect(rows[0]?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
+
+    // Commit is unreachable when a gate rung fails: the transaction rolled back, so
+    // nothing committed — no registry row, no cap_<id> table, no artifacts on disk —
+    // and no commit-preview or confirmation was streamed.
+    expect(events.map((event) => event.event)).not.toContain("commit-preview");
+    expect(events.map((event) => event.event)).not.toContain("fragment");
+    expect(getCapability("notes", conns.readonly)).toBeNull();
+    expect(
+      conns.readwrite
+        .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'cap_notes'")
+        .get(),
+    ).toBeNull();
+    expect(existsSync(resolve(artifactsRoot, "notes/v1"))).toBe(false);
+  });
+
+  test("a commit-stage failure rolls back and records it, leaving the prior capability intact", async () => {
+    // A capability is already registered at this id, so commit's registry insert
+    // collides — the gate passes but the build fails at the terminal commit step.
+    // (The resolver normally prevents id collisions; this forces the commit-stage
+    // failure path directly.)
+    insertCapability(
+      { ...NOTES_SPEC, version: 1, artifacts_path: "capabilities/notes/v1/" } as CapabilityRow,
+      conns.readwrite,
+    );
+    const { provider } = makeSpecProvider(NOTES_SPEC);
+    const { rows, recordMetrics } = makeMetricsRecorder();
+    const app = committingApp(provider, recordMetrics);
+
+    const events = collectSseEvents(
+      await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
+    );
+    const eventNames = events.map((event) => event.event);
+    const dataFor = (name: string) =>
+      events
+        .filter((event) => event.event === name)
+        .map((event) => event.data)
+        .join("\n");
+
+    // The gate was reached and passed, but commit failed: no committed capability is
+    // announced, just the warm apology and a `done` error.
+    expect(eventNames).toContain("gate-preview");
+    expect(eventNames).not.toContain("commit-preview");
+    expect(eventNames).not.toContain("fragment");
+    expect(dataFor("narration")).toMatch(/mind trying again/i);
+    expect(dataFor("done")).toBe("error");
+
+    // Failure is data: recorded as a commit-stage failure, carrying the full
+    // pre-commit measurements (every gate rung passed).
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.outcome).toBe("failure");
+    expect(rows[0]?.failure).toMatchObject({ stage: "commit" });
+    expect(rows[0]?.gateRungs?.map((rung) => rung.rung)).toEqual([
+      "structural",
+      "smoke",
+      "behavioral",
+    ]);
+
+    // The transaction rolled back: the prior capability is untouched (still its
+    // original pointer), and the build committed nothing new.
+    expect(getCapability("notes", conns.readonly)?.artifacts_path).toBe("capabilities/notes/v1/");
   });
 
   test("a behavioral test-generation provider error is captured in the developer preview", async () => {
@@ -765,7 +941,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       new Error("Invalid schema for response_format 'response': Missing required expectedError."),
     );
     const { rows, recordMetrics } = makeMetricsRecorder();
-    const app = createApp({ getProvider: () => provider, recordMetrics });
+    const app = committingApp(provider, recordMetrics);
 
     const events = collectSseEvents(
       await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
@@ -796,7 +972,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       create: MISSING_MARKER_CREATE_HANDLER,
     });
     const { rows, recordMetrics } = makeMetricsRecorder();
-    const app = createApp({ getProvider: () => provider, recordMetrics });
+    const app = committingApp(provider, recordMetrics);
 
     const events = collectSseEvents(
       await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),

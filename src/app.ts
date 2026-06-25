@@ -9,7 +9,7 @@
 // drive that spec-generation demo while later builder slices assemble the full
 // prompt → built capability pipeline.
 
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { type Context, Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import type { SSEStreamingApi } from "hono/streaming";
@@ -20,6 +20,10 @@ import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
 import {
   type BehavioralGateResult,
   CapabilityGateError,
+  type CapabilityMigrationResult,
+  type CommitCapabilityResult,
+  commitCapability,
+  DEFAULT_ARTIFACTS_ROOT,
   type GateRungOutcome,
   type GeneratedUnit,
   generateCapabilityUnits,
@@ -33,8 +37,7 @@ import {
   type UnitGenerationObserver,
   withCapabilityMigrationTransaction,
 } from "./builder/index.ts";
-import type { CapabilityTableDdl } from "./capability-data/index.ts";
-import { db } from "./db.ts";
+import { db, dbReadonly, type PlatformDatabase } from "./db.ts";
 import type { IntentClassification } from "./intent-resolver/index.ts";
 import {
   type GenerationFailure,
@@ -239,19 +242,23 @@ async function handleStreamError(send: Send, isAborted: () => boolean, err: unkn
   await send("done", "error");
 }
 
-// ── Spec-generation liveness demo (Module 2 §2.5b; demo scaffolding) ───────────
-// A sibling to the greeting round-trip above, this one for the spec-generation
-// stage (src/builder/spec-gen.ts). It runs that real stage against the configured
-// provider from a hardcoded `new_capability` intent, streams the product-voice
-// narration to the shell, and logs the resulting *validated* spec to the SERVER
-// console — the spec is engineering data, never user-visible (ARCH §9.7).
+// ── The build demo (Module 2 §2.5; the running build surface) ──────────────────
+// This is where Module 2's whole build pipeline runs against the configured
+// provider, end to end: from a hardcoded `new_capability` intent it generates the
+// spec, derives + applies the migration, generates the units, runs the fail-closed
+// gate, and — as of issue 07 — **commits** the result to the real registry + disk
+// (or rolls the whole build back on any failure). Product-voice narration streams
+// to the shell; developer previews (spec/migration/units/gate/commit) surface the
+// internals as a liveness view (ARCH §9.7 keeps internals out of the *product*
+// copy, not the dev previews).
 //
-// It is deliberately NOT the real build pipeline: the POST /prompt build lifecycle
-// is what issues 03–07 grow, and Epic 2.6 wires the prompt bar to it. This route
-// exists only so the spec-gen wiring is verifiable in the running app today — the
-// way "Meet Aluna" proves the provider round-trip live — and is removed when 2.6
-// lands the real flow. Keeping it separate means none of that later work has to
-// unwind a demo.
+// It is still demo-shaped in two ways, both owned by Epic 2.6: (1) the intent is
+// hardcoded `new_capability` rather than resolved (so re-building an existing
+// capability id collides — the resolver's extend/dedup is 2.4/2.6), and (2) it
+// drives the GET `/demo/spec-build` EventSource directly instead of the production
+// POST `/prompt` → build-queue → `/build/:id/stream` flow, and announces the commit
+// with a developer preview + confirmation rather than the content/toolbar oob swap.
+// Everything *upstream* of that swap is the real thing now.
 const DEMO_SPEC_PROMPT = "I want to keep track of my notes";
 
 // The one user-visible line confirming the round-trip produced a usable capability.
@@ -270,16 +277,11 @@ interface DemoMigrationColumnPreview {
 }
 
 interface DemoMigrationPreview {
-  readonly kind: "scratch-migration-preview";
+  readonly kind: "migration-preview";
   readonly tableName: string;
   readonly durationMs: number;
   readonly sql: string;
   readonly columns: readonly DemoMigrationColumnPreview[];
-}
-
-interface DemoMigrationBuild {
-  readonly preview: DemoMigrationPreview;
-  readonly ddl: CapabilityTableDdl;
 }
 
 interface DemoUnitPreview {
@@ -319,6 +321,21 @@ interface DemoBuildErrorPreview {
   readonly diagnostic?: unknown;
 }
 
+// The developer's liveness view of the terminal commit stage (issue 07): the
+// capability that just became real — its id, the version it committed at, the
+// pointer the registry row now carries, and the files written to the version
+// directory. Sent only after the migration transaction commits, so it always
+// describes a committed capability. The user-facing confirmation (the `fragment`
+// event) rides alongside it; the client-side content/toolbar swap is Epic 2.6.
+interface DemoCommitPreview {
+  readonly kind: "commit-preview";
+  readonly status: "committed";
+  readonly capabilityId: string;
+  readonly version: number;
+  readonly artifactsPath: string;
+  readonly files: readonly string[];
+}
+
 interface SqliteColumnInfo {
   readonly name: string;
   readonly type: string;
@@ -353,23 +370,33 @@ function tableColumns(database: Database, tableName: string): DemoMigrationColum
   }));
 }
 
-async function buildScratchMigrationPreview(spec: CapabilitySpec): Promise<DemoMigrationBuild> {
-  const database = new Database(":memory:");
-  try {
-    const result = await withCapabilityMigrationTransaction({ database, spec }, (migration) => ({
-      ddl: migration.ddl,
-      preview: {
-        kind: "scratch-migration-preview" as const,
-        tableName: migration.tableName,
-        durationMs: migration.durationMs,
-        sql: tableCreateSql(database, migration.tableName),
-        columns: tableColumns(database, migration.tableName),
-      },
-    }));
-    return result.value;
-  } finally {
-    database.close();
-  }
+// Build the migration-stage preview by reading the just-applied table back off the
+// build connection. The migration runs on the real read-write connection inside the
+// build's open transaction (the commit path below), so the `cap_<id>` table exists —
+// uncommitted — and is visible to this same connection; a build failure rolls it
+// back. This is the developer's liveness view, never user-facing (ARCH §9.7).
+function buildMigrationPreview(
+  database: Database,
+  migration: CapabilityMigrationResult,
+): DemoMigrationPreview {
+  return {
+    kind: "migration-preview",
+    tableName: migration.tableName,
+    durationMs: migration.durationMs,
+    sql: tableCreateSql(database, migration.tableName),
+    columns: tableColumns(database, migration.tableName),
+  };
+}
+
+function buildCommitPreview(commit: CommitCapabilityResult): DemoCommitPreview {
+  return {
+    kind: "commit-preview",
+    status: "committed",
+    capabilityId: commit.row.id,
+    version: commit.version,
+    artifactsPath: commit.artifactsPath,
+    files: commit.files,
+  };
 }
 
 function unitPreviewKey(unit: UnitDescriptor): string {
@@ -448,9 +475,10 @@ function hasDiagnostic(error: unknown): error is { readonly diagnostic: unknown 
 // Name the stage (and, for the gate, the rung) a failed build stopped at, for the
 // metrics row's "failure is data" record (Epic 2.7). The two structured build
 // errors carry the precise location; otherwise the failure is inferred from how far
-// the timing accumulator got — spec-gen and migration both throw before producing a
-// dedicated error type.
-function classifyDemoFailure(error: unknown, timings: GenerationTimings): GenerationFailure {
+// the build accumulator got — spec-gen, migration, and commit all throw before
+// producing a dedicated error type. A failure once the gate's rungs are recorded
+// (gate passed) can only be the commit stage that follows it.
+function classifyDemoFailure(error: unknown, acc: DemoBuildAccumulator): GenerationFailure {
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof CapabilityGateError) {
     return { stage: "gate", rung: error.failedRung, message };
@@ -458,12 +486,14 @@ function classifyDemoFailure(error: unknown, timings: GenerationTimings): Genera
   if (error instanceof UnitGenerationError) {
     return { stage: "unit_generation", message };
   }
+  const { timings } = acc;
   if (timings.specGenMs === undefined) return { stage: "spec_gen", message };
   if (timings.migrationMs === undefined) return { stage: "migration", message };
   if (timings.codeGenMs === undefined || timings.htmlGenMs === undefined) {
     return { stage: "unit_generation", message };
   }
-  return { stage: "gate", message };
+  if (acc.gateRungs === undefined) return { stage: "gate", message };
+  return { stage: "commit", message };
 }
 
 // Demo-only provider decorator: as the spec streams in, it forwards each partial
@@ -558,22 +588,46 @@ function writeDemoBuildMetrics(
   }
 }
 
+// An aborted stream mid-build, thrown from inside the build's open transaction so
+// it rolls back (a half-built capability must never commit). Distinct from a build
+// failure: the caller suppresses it — no failure metrics, no apology — because the
+// client is already gone (the abort guards key off `isAborted()`, not this type).
+class AbortedBuildError extends Error {
+  override readonly name = "AbortedBuildError";
+}
+
+function throwIfAborted(isAborted: () => boolean): void {
+  if (isAborted()) throw new AbortedBuildError();
+}
+
 async function streamSpecBuildDemo(
   send: Send,
   isAborted: () => boolean,
   provider: Provider,
   prompt: string,
   recordMetrics: RecordMetrics,
+  buildDatabases: PlatformDatabase,
+  artifactsRoot: string,
 ) {
   const intent = hardcodedNewCapabilityIntent(prompt);
   const builtAt = performance.now();
   const acc: DemoBuildAccumulator = { usages: [], timings: {} };
 
-  let label: string | undefined;
+  let commit: CommitCapabilityResult | undefined;
   try {
-    label = await runSpecBuildStages(send, isAborted, provider, prompt, intent, acc);
+    commit = await runSpecBuildStages(
+      send,
+      isAborted,
+      provider,
+      prompt,
+      intent,
+      acc,
+      buildDatabases,
+      artifactsRoot,
+    );
   } catch (error) {
-    // An aborted stream is not a build failure — don't record one.
+    // An aborted stream is not a build failure — and the transaction already rolled
+    // back, so nothing committed. Don't record a failure row for it.
     if (!isAborted()) {
       writeDemoBuildMetrics(
         recordMetrics,
@@ -581,27 +635,42 @@ async function streamSpecBuildDemo(
         acc,
         builtAt,
         "failure",
-        classifyDemoFailure(error, acc.timings),
+        classifyDemoFailure(error, acc),
       );
     }
     throw error;
   }
 
-  // Aborted mid-build (label undefined): nothing committed, nothing recorded.
-  if (label === undefined) return;
+  // Aborted mid-build (commit undefined): the transaction rolled back, nothing
+  // committed, nothing recorded.
+  if (commit === undefined) return;
 
   // The row lands before the build's `done` — PLAN flow step 8 ("written before the
-  // job ends"). On the demo path the migration ran on a throwaway db, so nothing was
-  // committed; the metrics row still records the full generation.
+  // job ends"). The build genuinely committed (registry row + artifacts + cap_<id>
+  // table), so this records a success.
   writeDemoBuildMetrics(recordMetrics, intent, acc, builtAt, "success");
-  await send("fragment", renderSpecBuiltConfirmation(label));
+  // Announce the committed capability: the developer-facing commit preview, then the
+  // warm product-voice confirmation. The client-side content/toolbar swap is Epic
+  // 2.6's; this issue produces the committed capability and the events announcing it.
+  await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
+  await send("fragment", renderSpecBuiltConfirmation(commit.row.label));
   await send("done", "ok");
 }
 
 // Run the builder stages, streaming the developer previews and filling `acc` with
-// the metrics measurements. Returns the capability's user-facing label on success,
-// or undefined when the stream was aborted mid-build. Throws on a build failure;
-// the caller records the failure metrics row and surfaces the warm apology.
+// the metrics measurements. Returns the commit result on success, or undefined when
+// the stream was aborted mid-build (the transaction having rolled back). Throws on a
+// build failure; the caller records the failure metrics row and surfaces the warm
+// apology.
+//
+// The terminal stages — migration, unit generation, the fail-closed gate, and
+// commit — run inside ONE write transaction on the real connection (ARCH §6.2,
+// db.ts `withWriteTransaction`). The migration creates the `cap_<id>` table; commit
+// writes the artifacts and inserts the registry row; the transaction's COMMIT makes
+// them real together. Any throw — a failed gate rung, a commit error, an abort —
+// rolls the whole thing back, so a failed build leaves no `cap_<id>` table and no
+// registry row, with any written files orphaned for GC. Commit is sequenced strictly
+// after the gate, so it is unreachable unless every active rung passed.
 async function runSpecBuildStages(
   send: Send,
   isAborted: () => boolean,
@@ -609,12 +678,15 @@ async function runSpecBuildStages(
   prompt: string,
   intent: IntentClassification,
   acc: DemoBuildAccumulator,
-): Promise<string | undefined> {
+  buildDatabases: PlatformDatabase,
+  artifactsRoot: string,
+): Promise<CommitCapabilityResult | undefined> {
   // Wrap the provider so the spec streams to the shell as it builds (demo preview),
   // while the stage itself runs unchanged.
   const { provider: observed, settled } = previewingProvider(provider, send);
   // `generateSpec` narrates the intent's `user_facing_label` over `send` and returns
-  // the validated spec plus the build's measurements.
+  // the validated spec plus the build's measurements. Spec generation runs before the
+  // transaction opens — a spec failure has nothing to roll back.
   const { spec, durationMs, usage } = await generateSpec({
     provider: observed,
     prompt,
@@ -627,12 +699,86 @@ async function runSpecBuildStages(
   await settled; // every spec-preview is on the wire before the confirmation
   if (isAborted()) return;
 
-  const migrationBuild = await buildScratchMigrationPreview(spec);
-  acc.timings.migrationMs = migrationBuild.preview.durationMs;
-  if (isAborted()) return;
-  await send("migration-preview", JSON.stringify(migrationBuild.preview));
+  // Migration → unit-gen → gate → commit, all inside the one rollbackable write
+  // transaction on the real connection. `afterApply` runs after the migration is
+  // applied; its return value (the commit result) is what makes the build real when
+  // the transaction commits.
+  const database = buildDatabases.readwrite;
+  const { value: commit } = await withCapabilityMigrationTransaction(
+    { database, spec },
+    async (migration) => {
+      acc.timings.migrationMs = migration.durationMs;
+      throwIfAborted(isAborted);
+      await send("migration-preview", JSON.stringify(buildMigrationPreview(database, migration)));
 
-  await send("narration", " I'm shaping it into something you can use.");
+      await send("narration", " I'm shaping it into something you can use.");
+      const unitResult = await generateUnitsWithPreview(send, isAborted, provider, spec);
+      throwIfAborted(isAborted);
+      recordUnitMetrics(acc, unitResult.units);
+      const finalUnits = unitResult.units.map(finalUnitPreview);
+      await send("units-preview", JSON.stringify(buildUnitsPreview(finalUnits, "complete")));
+
+      await send("narration", " I'm checking the first version now.");
+      const gateResult = await runCapabilityGate({
+        spec,
+        ddl: migration.ddl,
+        handlers: unitResult.handlers,
+        provider,
+        realDatabase: database,
+      });
+      throwIfAborted(isAborted);
+      recordGateMetrics(acc, gateResult);
+      await send(
+        "gate-preview",
+        JSON.stringify(
+          buildGatePreview(
+            gateResult.durationMs,
+            gateResult.outcomes,
+            gateResult.smoke,
+            gateResult.behavioral,
+          ),
+        ),
+      );
+
+      // The developer's verification surface: the full validated spec and the
+      // duration + token usage the metrics row records (Epic 2.7). Console only.
+      console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
+        usage,
+        spec,
+        units: unitResult.units.map((unit) => ({
+          kind: unit.kind,
+          name: unit.name,
+          attempts: unit.attempts.length,
+          durationMs: Math.round(unit.durationMs),
+          usage: unit.usage,
+        })),
+        gate: {
+          durationMs: Math.round(gateResult.durationMs),
+          rungs: gateResult.outcomes,
+          smoke: gateResult.smoke,
+          behavioral: gateResult.behavioral,
+        },
+      });
+
+      // Commit: write the version-1 artifacts and insert the registry row pointing at
+      // them, inside this transaction (the pointer flip). Unreachable unless the gate
+      // above passed every active rung.
+      return commitCapability({ spec, units: unitResult.units, database, artifactsRoot });
+    },
+  );
+
+  return commit;
+}
+
+// Run unit generation with the demo's live preview observer. The observer streams a
+// `units-preview` snapshot as each unit starts, streams partials, fixes, and lands —
+// the developer watches the handlers and views assemble.
+async function generateUnitsWithPreview(
+  send: Send,
+  isAborted: () => boolean,
+  provider: Provider,
+  spec: CapabilitySpec,
+): Promise<Awaited<ReturnType<typeof generateCapabilityUnits>>> {
   const liveUnits = new Map<string, DemoUnitPreview>();
   let lastPreviewAt = 0;
   const sendUnitsPreview = async (status: DemoUnitsPreview["status"], force = false) => {
@@ -685,55 +831,7 @@ async function runSpecBuildStages(
       await sendUnitsPreview("running", true);
     },
   };
-  const unitResult = await generateCapabilityUnits({ provider, spec, observer });
-  if (isAborted()) return;
-  recordUnitMetrics(acc, unitResult.units);
-  const finalUnits = unitResult.units.map(finalUnitPreview);
-  await send("units-preview", JSON.stringify(buildUnitsPreview(finalUnits, "complete")));
-
-  await send("narration", " I'm checking the first version now.");
-  const gateResult = await runCapabilityGate({
-    spec,
-    ddl: migrationBuild.ddl,
-    handlers: unitResult.handlers,
-    provider,
-    realDatabase: db,
-  });
-  if (isAborted()) return;
-  recordGateMetrics(acc, gateResult);
-  await send(
-    "gate-preview",
-    JSON.stringify(
-      buildGatePreview(
-        gateResult.durationMs,
-        gateResult.outcomes,
-        gateResult.smoke,
-        gateResult.behavioral,
-      ),
-    ),
-  );
-
-  // The developer's verification surface: the full validated spec and the duration +
-  // token usage the metrics row records (Epic 2.7). Console only.
-  console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
-    usage,
-    spec,
-    units: unitResult.units.map((unit) => ({
-      kind: unit.kind,
-      name: unit.name,
-      attempts: unit.attempts.length,
-      durationMs: Math.round(unit.durationMs),
-      usage: unit.usage,
-    })),
-    gate: {
-      durationMs: Math.round(gateResult.durationMs),
-      rungs: gateResult.outcomes,
-      smoke: gateResult.smoke,
-      behavioral: gateResult.behavioral,
-    },
-  });
-
-  return spec.label;
+  return generateCapabilityUnits({ provider, spec, observer });
 }
 
 // Record the unit-generation legs of the metrics row: code-gen (handlers) and
@@ -803,6 +901,15 @@ export interface AppDeps {
   // platform read-write connection; tests inject a capturing stub so the demo's
   // metrics wiring is assertable without writing to the real data file.
   readonly recordMetrics?: RecordMetrics;
+  // The read-write/read-only pair the build's migration, gate, and commit ride
+  // (Epic 2.5g). Defaults to the platform singletons; tests inject the same scratch
+  // pair they hand the router, so a committed capability is immediately routable
+  // without touching the real data file.
+  readonly buildDatabases?: PlatformDatabase;
+  // Where commit writes a capability's version directory (Epic 2.5g). Defaults to
+  // the tracked `capabilities/` root; tests point it at a throwaway directory so a
+  // committed build's artifacts never land in the repo tree.
+  readonly artifactsRoot?: string;
 }
 
 export function createApp(deps: AppDeps = {}): Hono {
@@ -811,6 +918,8 @@ export function createApp(deps: AppDeps = {}): Hono {
   const sseHeartbeatMs = deps.sseHeartbeatMs ?? DEFAULT_SSE_HEARTBEAT_MS;
   const recordMetrics: RecordMetrics =
     deps.recordMetrics ?? ((metrics) => void writeGenerationMetrics(metrics, db));
+  const buildDatabases = deps.buildDatabases ?? { readwrite: db, readonly: dbReadonly };
+  const artifactsRoot = deps.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   const app = new Hono();
 
   // Root route — the fixed shell (ARCH §6.1). Returns the authored static page
@@ -851,10 +960,11 @@ export function createApp(deps: AppDeps = {}): Hono {
     }),
   );
 
-  // Spec-generation liveness demo (Module 2 §2.5b; demo scaffolding, removed when
-  // Epic 2.6 wires the real prompt bar). User-initiated like /stream, so the
-  // provider is never called on page load. The typed prompt rides a query param
-  // (EventSource is GET-only), with a default so the bare button still works.
+  // The build demo (Module 2 §2.5; superseded by the production POST /prompt flow
+  // in Epic 2.6). Runs the full pipeline through commit against the configured
+  // provider and the real db/disk. User-initiated like /stream, so the provider is
+  // never called on page load. The typed prompt rides a query param (EventSource is
+  // GET-only), with a default so the bare button still works.
   app.get("/demo/spec-build", (c) =>
     streamSSE(c, async (stream) => {
       const transport = sseTransport(stream);
@@ -874,6 +984,8 @@ export function createApp(deps: AppDeps = {}): Hono {
             getProvider(),
             prompt,
             recordMetrics,
+            buildDatabases,
+            artifactsRoot,
           );
         } catch (err) {
           await handleSpecBuildError(transport.send, isAborted, err);

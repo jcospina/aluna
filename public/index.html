@@ -108,11 +108,12 @@
           <div class="cold-start">
             <h1 class="wordmark">Aluna<span class="wordmark__dot" aria-hidden="true">.</span></h1>
 
-            <!-- Module 2 §2.5b+: the prompt bar below drives the real
-                 spec-generation stage (src/builder/spec-gen.ts) through
-                 /demo/spec-build. This is still verification scaffolding, not
-                 the full build pipeline; issues 03-07 assemble the remaining
-                 builder stages before Epic 2.6 swaps to the final stream. -->
+            <!-- Module 2 §2.5: the prompt bar below drives the full build
+                 pipeline (src/app.ts /demo/spec-build) — spec → migration →
+                 units → gate → commit — against the AI provider and the real
+                 db/disk. Epic 2.6 swaps this developer-preview demo for the
+                 production POST /prompt → build-queue stream and the committed
+                 capability's content/toolbar render. -->
             <div class="intro">
               <!-- Demo-only: the spec streams in here as it builds (raw,
                    internals visible on purpose — this is the developer's
@@ -122,14 +123,16 @@
               <pre class="spec-build__preview" id="spec-migration-preview" aria-hidden="true"></pre>
               <pre class="spec-build__preview" id="spec-units-preview" aria-hidden="true"></pre>
               <pre class="spec-build__preview" id="spec-gate-preview" aria-hidden="true"></pre>
+              <pre class="spec-build__preview" id="spec-commit-preview" aria-hidden="true"></pre>
               <div class="intro__output" id="spec-build-output" aria-live="polite"></div>
             </div>
           </div>
         </main>
 
-        <!-- Prompt bar — currently wired to the spec-generation verification
-             stream. The full build-job prompt flow lands when Epic 2.6 replaces
-             this demo route with the production per-build stream. -->
+        <!-- Prompt bar — currently wired to the build demo stream
+             (/demo/spec-build), which runs the whole pipeline through commit. The
+             production per-build prompt flow lands when Epic 2.6 replaces this
+             demo route. -->
         <form class="prompt" id="spec-build-form">
           <div class="prompt__composer">
             <input
