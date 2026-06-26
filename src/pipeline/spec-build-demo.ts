@@ -10,15 +10,14 @@
 //
 // It is still demo-shaped vs. the production POST `/prompt` → queue → `/build/:id/stream`
 // flow: the intent is hardcoded `new_capability` rather than resolved, and it drives a
-// GET EventSource directly, announcing the commit with a developer preview +
-// confirmation rather than the content/toolbar oob swap (Epic 2.6). Everything
-// *upstream* of that swap is the real thing.
+// GET EventSource directly. The terminal commit event is shared with the production
+// prompt flow so the homepage demo exercises the real content/toolbar swap.
 
 import { type CommitCapabilityResult, hardcodedNewCapabilityIntent } from "../builder/index.ts";
 import type { PlatformDatabase } from "../db.ts";
 import type { Provider } from "../provider/index.ts";
 import type { Send } from "../sse/index.ts";
-import { renderSpecBuiltConfirmation } from "../web/index.ts";
+import { renderCachedCapabilityCommitSwap } from "../web/index.ts";
 import { runSpecBuildStages } from "./build-run.ts";
 import {
   classifyBuildFailure,
@@ -34,9 +33,10 @@ export const DEMO_SPEC_PROMPT = "I want to keep track of my notes";
 /**
  * Run the full build demo for `prompt`: build the capability through commit, record
  * the one metrics row (success, failure, or — on abort — nothing), then announce the
- * committed capability with a developer commit preview and a warm confirmation. A
- * build failure records the failure row and rethrows for {@link handleSpecBuildError};
- * an abort mid-build rolls the transaction back and records nothing.
+ * committed capability with a developer commit preview and the product commit swap.
+ * A build failure records the failure row and rethrows for
+ * {@link handleSpecBuildError}; an abort mid-build rolls the transaction back and
+ * records nothing.
  */
 export async function streamSpecBuildDemo(
   send: Send,
@@ -89,10 +89,10 @@ export async function streamSpecBuildDemo(
   // table), so this records a success.
   writeBuildMetrics(recordMetrics, `demo-${crypto.randomUUID()}`, intent, acc, builtAt, "success");
   // Announce the committed capability: the developer-facing commit preview, then the
-  // warm product-voice confirmation. The client-side content/toolbar swap is Epic
-  // 2.6's; this issue produces the committed capability and the events announcing it.
+  // product `commit` swap that replaces the content view and updates the toolbar
+  // out-of-band from the same SSE response.
   await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
-  await send("fragment", renderSpecBuiltConfirmation(commit.row.label));
+  await send("commit", renderCachedCapabilityCommitSwap(commit.row));
   await send("done", "ok");
 }
 

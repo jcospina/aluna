@@ -5,10 +5,15 @@
 // return or stream. Everything here is transport/markup glue with no build logic.
 
 export {
+  renderCachedCapabilityCommitSwap,
+  renderCachedCapabilityShell,
+  renderCachedCapabilitySurface,
+} from "./cached-view.ts";
+export {
   PROMPT_NOTICE_TARGET,
   renderBuildSubscriber,
   renderBusyNotice,
-  renderSpecBuiltConfirmation,
+  renderCapabilityToolbarEntry,
 } from "./fragments.ts";
 export { escapeHtml } from "./html.ts";
 export { readPrompt } from "./prompt-request.ts";

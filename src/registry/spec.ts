@@ -25,6 +25,7 @@
 //     making the trio platform-owned removes the `auto` concept from M2 entirely.
 
 import { z } from "zod";
+import { isCapabilityNameLabel } from "./labels.ts";
 
 // Columns every capability data table gets from the platform, never from the
 // spec (PLAN decision 8): `id` (PK), `created_at` (uniform — pre-pays M4's
@@ -44,6 +45,10 @@ const nonBlankText = z
   .string()
   .min(1)
   .refine((text) => text.trim().length > 0, "must not be blank");
+const capabilityNameText = nonBlankText.refine(
+  isCapabilityNameLabel,
+  "must be a short capability name, not a sentence",
+);
 
 // The complete M2 field type enum. Anything else — `string[]`, `file`, a
 // relation — is not a parse error to recover from but a spec the platform must
@@ -114,12 +119,10 @@ function allUnique(values: readonly string[]): boolean {
 // behavior, plus the identity and resolver context the registry row carries,
 // §6.3). `version` and `artifacts_path` are deliberately absent: the platform
 // assigns those at commit, the AI never does.
-const specShape = {
+const commonSpecShape = {
   // Engineering identity — becomes the `cap_<id>` table name and the artifacts
   // directory; never user-facing (CONTEXT.md "Engineering language").
   id: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
-  // User-facing name, shown in the capability toolbar.
-  label: nonBlankText,
   schema: z.strictObject({
     fields: z
       .array(specFieldSchema)
@@ -144,7 +147,14 @@ const specShape = {
   prompt_context: nonBlankText,
 };
 
-export const capabilitySpecSchema = z.strictObject(specShape).superRefine(validateBehavioralErrors);
+export const capabilitySpecSchema = z
+  .strictObject({
+    ...commonSpecShape,
+    // User-facing capability name, shown in the capability toolbar. This is a name,
+    // not the intent resolver's product-voice narration sentence.
+    label: capabilityNameText,
+  })
+  .superRefine(validateBehavioralErrors);
 export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 
 // One registry row (ARCH §6.3): the spec plus the two platform-assigned values —
@@ -154,7 +164,10 @@ export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 // every row on every classification; nothing bulky lives here.
 export const capabilityRowSchema = z
   .strictObject({
-    ...specShape,
+    ...commonSpecShape,
+    // Existing rows may contain older narration-like labels; display paths
+    // canonicalize them while generated specs are stricter going forward.
+    label: nonBlankText,
     version: z.number().int().min(1),
     artifacts_path: nonBlankText,
   })

@@ -4,10 +4,12 @@
 // The shell is dumb on purpose (CONTEXT.md "Shell"): the server sends fragments and
 // the client places them. These renderers are the server side of that contract.
 
+import { type CapabilityRow, canonicalCapabilityLabel } from "../registry/index.ts";
 import { escapeHtml } from "./html.ts";
 
 /** The shell region a busy-notice retargets, via htmx `HX-Retarget` (see `/prompt`). */
 export const PROMPT_NOTICE_TARGET = "#prompt-notice";
+const CAPABILITY_TOOLBAR_TARGET = "#capability-toolbar";
 
 const BUSY_NOTICE =
   "I'm already putting something together. Give me a moment and I'll be ready for the next one.";
@@ -41,8 +43,8 @@ const CLEAR_ON_ACCEPT_TARGETS = [
  * `source.close()` on `done` (ADR-0002): the extension wraps a native EventSource,
  * which auto-reconnects with backoff whenever the server closes the stream. Without
  * closing on `done` the browser would reconnect after the server-closed stream and
- * re-run the build. The `commit` swap region (content + toolbar oob) is added when
- * Epic 2.6c wires the commit swap.
+ * re-run the build. The `commit` region receives the terminal success swap:
+ * committed content in the content area plus the toolbar entry as an OOB sidecar.
  */
 export function renderBuildSubscriber(jobId: string): string {
   const streamPath = `/build/${encodeURIComponent(jobId)}/stream`;
@@ -50,6 +52,7 @@ export function renderBuildSubscriber(jobId: string): string {
     `<section class="build-stream" data-build-job-id="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}" sse-close="done">`,
     '  <div class="build-stream__narration" aria-live="polite" sse-swap="narration" hx-swap="beforeend"></div>',
     '  <div class="build-stream__fragment" sse-swap="fragment" hx-swap="beforeend"></div>',
+    '  <div class="build-stream__commit" aria-live="polite" sse-swap="commit" hx-swap="innerHTML"></div>',
     ...PREVIEW_TARGETS.map(
       ([event, target]) =>
         `  <span hidden aria-hidden="true" sse-swap="${event}" data-preview-target="${target}"></span>`,
@@ -71,10 +74,111 @@ export function renderBusyNotice(): string {
 }
 
 /**
- * The one user-visible line confirming a build produced a usable capability. Only
- * the user-facing `label` crosses into the UI (escaped); everything else about the
- * spec stays in the console (ARCH §9.7).
+ * The canonical capability-toolbar entry. Commit-time OOB insertion and later
+ * load-time rehydration both use this renderer so the two paths cannot drift.
  */
-export function renderSpecBuiltConfirmation(label: string): string {
-  return `<p class="intro__invitation">All set — I've made a place for your ${escapeHtml(label)}.</p>`;
+export function renderCapabilityToolbarEntry(row: Pick<CapabilityRow, "id" | "label">): string {
+  const id = escapeHtml(row.id);
+  const label = canonicalCapabilityLabel(row);
+  return [
+    "<button",
+    '  type="button"',
+    '  class="toolbar__entry"',
+    "  data-capability-entry",
+    `  data-capability-id="${id}"`,
+    `  hx-get="/capability/${id}"`,
+    '  hx-target="#spec-build-output"',
+    '  hx-swap="innerHTML"',
+    ">",
+    `  ${escapeHtml(label)}`,
+    "</button>",
+  ].join("\n");
+}
+
+function renderCapabilityToolbarOobEntry(row: Pick<CapabilityRow, "id" | "label">): string {
+  const entry = renderCapabilityToolbarEntry(row);
+  return [
+    `<div data-capability-toolbar-oob hx-swap-oob="beforeend:${CAPABILITY_TOOLBAR_TARGET}">`,
+    indent(entry, 2),
+    "</div>",
+  ].join("\n");
+}
+
+/**
+ * The content-area surface for an active capability. The view HTML is generated and
+ * gate-validated elsewhere; this wrapper only composes the cached data-free list
+ * view with the cached create form so the first committed capability is usable
+ * immediately.
+ */
+export function renderCapabilitySurface(
+  row: Pick<CapabilityRow, "id" | "label">,
+  listView: string,
+  createView: string,
+): string {
+  const label = canonicalCapabilityLabel(row);
+  return [
+    `<section class="capability-surface" data-active-capability-id="${escapeHtml(row.id)}" aria-label="${escapeHtml(label)}">`,
+    listView,
+    createView,
+    "</section>",
+  ].join("\n");
+}
+
+/**
+ * Direct browser navigation to `/capability/:id` needs the fixed shell around the
+ * cached surface so authored CSS, HTMX, Alpine, the prompt bar, and both sidebars
+ * are present. HTMX toolbar clicks still receive only the fragment.
+ */
+export function renderCapabilityShell(
+  row: Pick<CapabilityRow, "id" | "label">,
+  listView: string,
+  createView: string,
+  shellHtml: string,
+): string {
+  const surface = renderCapabilitySurface(row, listView, createView);
+  const toolbarEntry = renderCapabilityToolbarEntry(row);
+  const contentPlaceholder =
+    '<div class="intro__output" id="spec-build-output" aria-live="polite"></div>';
+  const toolbarPlaceholder = "        <!-- Capability entries render here later. -->";
+
+  const withContent = shellHtml.replace(
+    contentPlaceholder,
+    `<div class="intro__output" id="spec-build-output" aria-live="polite">${surface}</div>`,
+  );
+  if (withContent === shellHtml) {
+    throw new Error("The shell content target placeholder is missing.");
+  }
+
+  const withToolbar = withContent.replace(
+    toolbarPlaceholder,
+    `${toolbarPlaceholder}\n${indent(toolbarEntry, 8)}`,
+  );
+  if (withToolbar === withContent) {
+    throw new Error("The shell toolbar placeholder is missing.");
+  }
+
+  return withToolbar.replace('class="shell"', 'class="shell has-capabilities"');
+}
+
+/**
+ * The terminal commit event payload: one SSE event swaps the active content view
+ * while the `hx-swap-oob` sidecar appends the same canonical toolbar entry.
+ */
+export function renderCapabilityCommitSwap(
+  row: Pick<CapabilityRow, "id" | "label">,
+  listView: string,
+  createView: string,
+): string {
+  return [
+    renderCapabilitySurface(row, listView, createView),
+    renderCapabilityToolbarOobEntry(row),
+  ].join("\n");
+}
+
+function indent(value: string, spaces: number): string {
+  const padding = " ".repeat(spaces);
+  return value
+    .split("\n")
+    .map((line) => `${padding}${line}`)
+    .join("\n");
 }

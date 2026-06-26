@@ -84,7 +84,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "",
     "Identity:",
     "- id is the engineering identity (it becomes a table and folder name). Short, lowercase, never shown to the user.",
-    "- label is the user-facing name shown in the capability toolbar. Warm and human, in the user's own words — never an engineering name.",
+    '- label is the short user-facing capability name shown in the toolbar, like "Notes" or "Reading list". It must be a name, not a sentence, narration, promise, or confirmation.',
     "",
     "Other fields:",
     "- behavior: one or two plain sentences describing how this capability behaves (what is required, default ordering). Aluna generates tests from this, so state intent, not implementation.",

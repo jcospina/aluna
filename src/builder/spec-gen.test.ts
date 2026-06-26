@@ -143,7 +143,8 @@ describe("spec generation stage", () => {
     expect(prompt).toContain("id, created_at, extra are platform-owned");
     // Identity: engineering id vs user-facing label, kept distinct.
     expect(prompt).toContain("id is the engineering identity");
-    expect(prompt).toContain("label is the user-facing name shown in the capability toolbar");
+    expect(prompt).toContain("label is the short user-facing capability name");
+    expect(prompt).toContain("not a sentence, narration, promise, or confirmation");
     expect(prompt).toContain("behavioral_errors: structured validation-error cases");
     expect(prompt).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
     expect(prompt).toContain('"data-error-fields"');

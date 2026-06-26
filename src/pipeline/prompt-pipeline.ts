@@ -12,7 +12,7 @@ import { classifyIntentWithUsage, type IntentClassification } from "../intent-re
 import type { Provider, TokenUsage } from "../provider/index.ts";
 import { listCapabilities } from "../registry/index.ts";
 import type { Send } from "../sse/index.ts";
-import { renderSpecBuiltConfirmation } from "../web/index.ts";
+import { renderCachedCapabilityCommitSwap } from "../web/index.ts";
 import { runSpecBuildStages } from "./build-run.ts";
 import {
   deflectDuplicateNewCapability,
@@ -77,7 +77,7 @@ interface NewCapabilityPipelineInput {
 
 /**
  * Run the full build for a `new_capability` intent, then announce the committed
- * capability (developer commit preview + warm confirmation). On failure it records
+ * capability (developer commit preview + product commit swap). On failure it records
  * the failure metrics row and rethrows for the queue's apology; an abort mid-build
  * (commit `undefined`) records nothing — the transaction rolled back.
  */
@@ -126,7 +126,7 @@ async function streamNewCapabilityBuild({
 
   writeBuildMetrics(recordMetrics, generationId, intent, acc, builtAt, "success");
   await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
-  await send("fragment", renderSpecBuiltConfirmation(commit.row.label));
+  await send("commit", renderCachedCapabilityCommitSwap(commit.row));
 }
 
 /**

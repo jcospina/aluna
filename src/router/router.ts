@@ -28,6 +28,7 @@ import type { Context, Hono } from "hono";
 import { createCapabilityDataTool } from "../capability-data/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
 import { type CapabilityRow, type CapabilitySpec, getCapability } from "../registry/index.ts";
+import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
 import type { CapabilityHandler, CapabilityInput } from "./contract.ts";
 
 // How the router turns a row's `artifacts_path` + an action into a runnable
@@ -46,6 +47,7 @@ export interface CapabilityRouterDeps {
 // The fixed route. Registered for the methods M2's two actions use (read = GET,
 // create = POST); update/delete arrive with their own methods in later modules.
 const CAPABILITY_ROUTE = "/capability/:id/:action";
+const CAPABILITY_VIEW_ROUTE = "/capability/:id";
 
 // Product-voice failures (CONTEXT.md). The not-found copy is deliberately the same
 // for an unknown capability and an undeclared action — the user need not, and must
@@ -62,9 +64,32 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
   const databases = deps.databases ?? { readwrite: db, readonly: dbReadonly };
   const loadHandler = deps.loadHandler ?? defaultLoadHandler;
 
+  app.get(CAPABILITY_VIEW_ROUTE, (c) => handleCapabilityViewRequest(c, databases));
   app.on(["GET", "POST"], CAPABILITY_ROUTE, (c) =>
     handleCapabilityRequest(c, databases, loadHandler),
   );
+}
+
+function handleCapabilityViewRequest(c: Context, databases: PlatformDatabase): Response {
+  const id = c.req.param("id");
+  if (!id) {
+    return c.html(NOT_FOUND_FRAGMENT, 404);
+  }
+
+  const row = getCapability(id, databases.readonly);
+  if (!row) {
+    return c.html(NOT_FOUND_FRAGMENT, 404);
+  }
+
+  try {
+    const html =
+      c.req.header("HX-Request") === "true"
+        ? renderCachedCapabilitySurface(row)
+        : renderCachedCapabilityShell(row);
+    return c.html(html);
+  } catch (error) {
+    return internalFailure(c, id, "view", error);
+  }
 }
 
 async function handleCapabilityRequest(

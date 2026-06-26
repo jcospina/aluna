@@ -142,6 +142,11 @@
              current builder-stage verification output (hidden once
              capabilities exist). -->
         <main class="content">
+          <div class="content__active">
+            <div class="intro">
+              <div class="intro__output" id="spec-build-output" aria-live="polite"></div>
+            </div>
+          </div>
           <div class="cold-start">
             <!-- Module 2: the prompt bar below drives the production build-job
                  flow — POST /prompt admits a job immediately, then the per-build
@@ -150,9 +155,6 @@
                  output box here; the raw generation internals (spec, migration,
                  units, gate, commit JSON) now live in the developer panel on the
                  right, toggled by the </> icon. -->
-            <div class="intro">
-              <div class="intro__output" id="spec-build-output" aria-live="polite"></div>
-            </div>
           </div>
         </main>
 
