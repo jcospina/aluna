@@ -28,7 +28,7 @@ everything M2 doesn't act on with warmth instead of failure.
   exists classifies as `extend_capability` → deflected. No collision logic, no
   auto-suffixed ids.
 - **Every classification is logged to metrics** — acted on or deflected — so
-  intent-distribution data accrues from day one and M3/M4 inherit a contract
+  intent-distribution data accrues from day one and M4/M5 inherit a contract
   that never changes shape, only which intents proceed.
 
 ## Acceptance criteria

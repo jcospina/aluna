@@ -32,6 +32,7 @@ import {
   readPrompt,
   renderBuildSubscriber,
   renderBusyNotice,
+  renderRehydratedShellPage,
 } from "./web/index.ts";
 
 /**
@@ -105,19 +106,27 @@ export function createApp(deps: AppDeps = {}): Hono {
         artifactsRoot,
       }),
     });
+  // The capability router and the on-load shell rehydration read the same registry:
+  // a `GET /` toolbar entry click hits `/capability/:id` on this very connection, so
+  // resolving it once keeps the two views of the registry consistent. Tests inject a
+  // scratch pair here and a committed build shows up in the rehydrated toolbar.
+  const capabilityRouter = deps.capabilityRouter ?? {};
+  const registryReadonly = capabilityRouter.databases?.readonly ?? dbReadonly;
   const app = new Hono();
 
-  // Root route — the fixed shell (ARCH §6.1). Returns the authored static page
-  // public/index.html via Bun.file, read per request (Bun file I/O is
-  // microsecond-fast and stays live under `bun --watch`). Content-Type is set
-  // explicitly: Bun infers it from the file, but that lazily-computed header is
-  // dropped when the Response passes through Hono's router. Kept as an explicit
-  // route — rather than a serveStatic fall-through — so `/` stays greppable for
-  // later epics and `app.request("/")`-testable.
+  // Root route — the fixed shell (ARCH §6.1), with its capability toolbar rehydrated
+  // from the registry on load (Epic 2.1): one canonical entry per row, and the shell
+  // flips to `has-capabilities` when at least one exists, so a refresh restores
+  // "Aluna remembers you". A fresh user (empty registry) gets the untouched
+  // cold-start page. The shell file is read per request (Bun file I/O is
+  // microsecond-fast and stays live under `bun --watch`); content-type is set
+  // explicitly because Hono's router drops Bun's lazily-inferred header. Kept as an
+  // explicit route — not a serveStatic fall-through — so `/` stays greppable and
+  // `app.request("/")`-testable.
   app.get(
     "/",
     () =>
-      new Response(Bun.file("./public/index.html"), {
+      new Response(renderRehydratedShellPage(registryReadonly), {
         headers: { "content-type": "text/html; charset=utf-8" },
       }),
   );
@@ -224,7 +233,7 @@ export function createApp(deps: AppDeps = {}): Hono {
   // the scoped context, and wraps the returned fragment — routing is never an AI
   // concern. Registered as its own subsystem (src/router) so this file stays the
   // thin wiring sheet.
-  registerCapabilityRoutes(app, deps.capabilityRouter ?? {});
+  registerCapabilityRoutes(app, capabilityRouter);
 
   // Static assets live in ./public and are served under the /static/* prefix
   // (e.g. the shell's CSS/JS will be referenced as /static/<file>). A dedicated

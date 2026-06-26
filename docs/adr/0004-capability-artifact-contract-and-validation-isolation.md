@@ -33,7 +33,7 @@ remain implementation detail.
    in-memory SQLite database**, created on the spot by applying the build's own
    generated DDL, and discarded after the run. The handler can't tell the
    difference (same SQLite, same schema, same SQL); the user's real data is
-   **physically unreachable** during validation. This is decisive for Module 3:
+   **physically unreachable** during validation. This is decisive for Module 4:
    rebuild-time smoke runs happen when the real table holds real user data.
 
 ## Context / why
@@ -67,7 +67,7 @@ handler scope and to validation.
 - **Handlers returning raw `Response`** — power nothing in M2 needs; every
   header/status decision is new surface for subtle generation bugs.
 - **Smoke against the real table with cleanup** — ghost records on crashed
-  gates; come M3, synthetic writes interleave with real user data mid-build.
+  gates; come M4, synthetic writes interleave with real user data mid-build.
 - **Mocked toolbox (no db)** — proves the handler *calls* things, not that the
   SQL and schema actually round-trip; defeats the smoke rung's purpose.
 

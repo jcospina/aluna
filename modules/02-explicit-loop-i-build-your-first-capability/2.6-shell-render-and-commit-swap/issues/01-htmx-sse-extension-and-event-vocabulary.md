@@ -111,7 +111,7 @@ deliberate:
 
 - **One new event name: `commit`** — the terminal success swap (targeted content
   swap + `hx-swap-oob` toolbar update, one response). The seed names `narration`
-  and `fragment` are kept; `fragment` is reserved for M3's per-unit diff
+  and `fragment` are kept; `fragment` is reserved for M4's per-unit diff
   streaming. Considered and rejected: overloading `fragment` for the commit —
   rejected because the view region (`innerHTML`) and the narration region
   (`beforeend`) need distinct `sse-swap` names anyway, so a dedicated `commit` is

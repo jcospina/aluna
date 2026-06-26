@@ -3,7 +3,7 @@
 //
 // The single public entry point for the metrics subsystem: the validated row
 // shape a generation assembles, the writer that persists one row per generation
-// (build, failed build, or deflection), and the read surface M7 queries the
+// (build, failed build, or deflection), and the read surface M8 queries the
 // dataset through. Later modules import from here and depend on nothing inside.
 
 export {

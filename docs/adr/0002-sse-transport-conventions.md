@@ -31,7 +31,7 @@ deletion of the throwaway demo that established it.
 **Deliberately open — owned by the module that first needs it, not locked here:**
 
 - **The production event vocabulary.** The three names above are a *seed*, not a
-  contract. Module 2's narration (§2.5/§2.6) and Module 3's diff engine (§3.3,
+  contract. Module 2's narration (§2.5/§2.6) and Module 4's diff engine (§4.3,
   "stream only changed fragments with targeted `hx-swap`") are the real
   consumers and own finalizing the names.
 - **The client consumption mechanism.** The demo proved raw `EventSource` +
@@ -43,7 +43,7 @@ deletion of the throwaway demo that established it.
   (opened on a click, closed on `done`). The implicit loop needs the server to
   push proposals *unprompted* (ARCH §8), which implies a *persistent shell
   channel*. Which topology — or both — is deferred to whichever module first
-  needs server-initiated push (M2 narration / M6 proposals).
+  needs server-initiated push (M2 narration / M7 proposals).
 
 ## Context / why
 
@@ -53,7 +53,7 @@ deletion of the throwaway demo that established it.
   decisions* the demo embodied from vanishing when the demo is deleted.
 - **Event-typed over a single stream** so narration, HTML fragments, and
   lifecycle signals are separable on the client by event name alone — directly
-  enabling M3's "stream only the changed fragments with targeted `hx-swap`."
+  enabling M4's "stream only the changed fragments with targeted `hx-swap`."
 - **Server-closed `done`** avoids `EventSource`'s default auto-reconnect, giving
   a clean, no-console-error end to each stream.
 - **Heartbeat as transport, not product state.** A build stage may be silent for
@@ -64,7 +64,7 @@ deletion of the throwaway demo that established it.
 
 ## Consequences
 
-- M2/M3 may rename or extend the event vocabulary; when they do, **update or
+- M2/M4 may rename or extend the event vocabulary; when they do, **update or
   supersede this ADR**. The names here are a starting convention, not a frozen
   contract.
 - Deleting the 1.3 demo (`/demo/stream` in `src/app.ts`; `initSseDemo`/`sseData`
@@ -128,7 +128,7 @@ Starting from the 1.3 seed plus what the commit swap needs:
 | Event | Role | Client wire |
 |---|---|---|
 | `narration` | Product-voice text chunk to append (the "watch it build" copy). | `sse-swap="narration"`, `hx-swap="beforeend"` on the narration region. *(seed, kept)* |
-| `fragment` | A discrete HTML fragment placed into a targeted region. M1's invitation; M3's diff engine streams changed units this way (targeted `hx-swap`). | `sse-swap="fragment"` (or a dedicated region) with that region's `hx-swap`. *(seed, kept)* |
+| `fragment` | A discrete HTML fragment placed into a targeted region. M1's invitation; M4's diff engine streams changed units this way (targeted `hx-swap`). | `sse-swap="fragment"` (or a dedicated region) with that region's `hx-swap`. *(seed, kept)* |
 | **`commit`** | **New.** The terminal *success* swap: one event carrying the committed capability's view (targeted swap into the content/view region) **plus** the new toolbar entry as an `hx-swap-oob` sidecar — content area + capability toolbar in one response. | `sse-swap="commit"`, `hx-swap="innerHTML"` on the view region; the payload's `hx-swap-oob` element lands in `#capability-toolbar`. |
 | `done` | Terminal lifecycle signal; the server sends it (data is a short outcome: `ok` / `error` / `missing`), then closes the stream. | The subscriber element carries **`sse-close="done"`** (see finding below). *(seed; client contract sharpened)* |
 | `heartbeat` | Transport keepalive — id-less, ignored by clients. **Not** product vocabulary. | none *(transport, unchanged)* |
@@ -157,7 +157,7 @@ EventSource client that closes its own source; the htmx client must be told to.
   path, channel topology) are now both closed for the explicit loop: topology by
   the M2-planning update above, client mechanism here.
 - The vocabulary is now a **contract**, not a seed: `commit` and the
-  `done`/`sse-close` pairing are what 2.6c (commit swap) and M3 (diff engine,
+  `done`/`sse-close` pairing are what 2.6c (commit swap) and M4 (diff engine,
   which adds no names — it reuses `fragment`) build on. A future rename still
   follows this ADR's own rule: update or supersede.
 - The proving scaffold (`/demo/swap-proof/*`, `renderSwapProof*` in `src/app.ts`,

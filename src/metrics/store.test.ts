@@ -87,7 +87,7 @@ describe("generation-metrics store", () => {
     const metrics = buildMetrics();
     writeGenerationMetrics(metrics, conns.readwrite);
 
-    // Read back through the *read-only* connection — the M7 query surface — proving
+    // Read back through the *read-only* connection — the M8 query surface — proving
     // the write landed in the shared file (ARCH §7).
     const fetched = getGenerationMetrics("build-notes-1", conns.readonly);
     expect(fetched).toEqual({ ...metrics, createdAt: fetched?.createdAt ?? "" });
@@ -157,7 +157,7 @@ describe("generation-metrics store", () => {
       rung: "smoke",
       message: "create handler threw",
     });
-    // The per-rung detail survives so M7 can see exactly where it stopped.
+    // The per-rung detail survives so M8 can see exactly where it stopped.
     expect(fetched?.gateRungs).toEqual([
       { rung: "structural", status: "passed", durationMs: 10 },
       { rung: "smoke", status: "failed", durationMs: 6, error: "create handler threw" },

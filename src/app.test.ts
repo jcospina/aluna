@@ -247,6 +247,121 @@ describe("GET / (shell)", () => {
   });
 });
 
+// The registry's read-side payoff (Epic 2.1): on load the capability toolbar
+// rehydrates from the registry — Aluna remembers you across a refresh. These run
+// against a scratch db shared with the router, so an injected (or freshly committed)
+// capability shows up in the rehydrated toolbar and a click serves its cached view.
+describe("GET / (toolbar rehydration, Epic 2.1)", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+  let artifactsRoot: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "omni-crud-rehydrate-"));
+    conns = openDatabase(join(dir, "test.db"));
+    runMigrations(conns.readwrite);
+    artifactsRoot = join(dir, "artifacts");
+  });
+
+  afterEach(() => {
+    conns.readwrite.close();
+    conns.readonly.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function countMatches(haystack: string, needle: string): number {
+    return haystack.split(needle).length - 1;
+  }
+
+  test("a fresh user (empty registry) gets the untouched cold-start shell", async () => {
+    const app = createApp({ capabilityRouter: { databases: conns } });
+    const html = await responseText(await app.request("/"));
+
+    // No entries, and the shell root never flips into has-capabilities — the sidebar
+    // stays hidden. (The static page carries the `'has-capabilities'` Alpine binding
+    // string regardless, so the check is on the root element's class.) The cold-start
+    // prompt surface is intact.
+    expect(html).not.toContain("data-capability-entry");
+    expect(html).toContain('class="shell"');
+    expect(html).not.toContain('class="shell has-capabilities"');
+    expect(html).toContain('id="spec-build-output"');
+    expect(html).toContain('hx-post="/prompt"');
+  });
+
+  test("registry rows rehydrate the toolbar on load and flip has-capabilities", async () => {
+    insertCapability(notesCapabilityRow(), conns.readwrite);
+    insertCapability(
+      notesCapabilityRow({
+        id: "recipes",
+        label: "Recipes",
+        artifacts_path: "capabilities/recipes/v1/",
+        prompt_context: "Stores the user's recipes.",
+      }),
+      conns.readwrite,
+    );
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const html = await responseText(await app.request("/"));
+
+    // The shell flips so the sidebar shows, and every registry row renders one
+    // canonical toolbar entry pointing at the cached-view route a click serves.
+    expect(html).toContain('class="shell has-capabilities"');
+    expect(countMatches(html, "data-capability-entry")).toBe(2);
+    expect(html).toContain('hx-get="/capability/notes"');
+    expect(html).toContain('hx-get="/capability/recipes"');
+    // Ordered by id (the registry's stable order): notes before recipes.
+    expect(html.indexOf("/capability/notes")).toBeLessThan(html.indexOf("/capability/recipes"));
+    // The load path restores chrome only — no capability view is pre-served into the
+    // content area (a toolbar click serves it).
+    expect(html).not.toContain("capability-surface");
+  });
+
+  test("the M2 closing beat: build, refresh rehydrates the toolbar, and the note is still there", async () => {
+    const { provider } = makeSpecProvider(NOTES_SPEC);
+    const { recordMetrics } = makeMetricsRecorder();
+    const app = createApp({
+      getProvider: () => provider,
+      recordMetrics,
+      buildDatabases: conns,
+      artifactsRoot,
+      capabilityRouter: { databases: conns },
+    });
+
+    // Build the Notes capability through the real commit path (fake provider).
+    const buildPayload = await readSse(
+      await app.request("/demo/spec-build?prompt=track%20my%20notes"),
+    );
+    expect(buildPayload).toContain("event: commit");
+
+    // Persist a note through the committed capability's create action.
+    const created = await app.request("/capability/notes/create", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ text: "Buy milk" }).toString(),
+    });
+    expect(created.status).toBe(200);
+
+    // Refresh the page (GET /): the toolbar rehydrates with the Notes entry and the
+    // shell shows the sidebar — no AI call, no regeneration.
+    const refreshed = await responseText(await app.request("/"));
+    expect(refreshed).toContain('class="shell has-capabilities"');
+    expect(refreshed).toContain("data-capability-entry");
+    expect(refreshed).toContain('hx-get="/capability/notes"');
+
+    // Clicking the rehydrated entry serves the cached, data-free list view as-is…
+    const clicked = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
+    const clickedBody = await clicked.text();
+    expect(clicked.status).toBe(200);
+    expect(clickedBody).toContain('class="capability-surface"');
+    expect(clickedBody).toContain('hx-get="/capability/notes/read"');
+
+    // …and its dynamic region loads the live record through the read action: the note
+    // survived the refresh.
+    const read = await app.request("/capability/notes/read");
+    expect(await read.text()).toContain("Buy milk");
+  });
+});
+
 describe("GET /stream (provider liveness, fake provider)", () => {
   const greeting = "Hi — I'm so glad you're here.";
   const invitation = "Tell me what you'd like to keep <3";

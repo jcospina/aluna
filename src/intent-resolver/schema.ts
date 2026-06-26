@@ -29,8 +29,8 @@ export const intentClassificationSchema = z.strictObject({
   target_capability: nonBlankText.nullable(),
   proposed_action: nonBlankText,
   user_facing_label: nonBlankText,
-  // Confirmations are reserved for later modules: capability delete in M3 and
-  // implicit-loop proposals in M6. In M2 the schema carries the field, but only
+  // Confirmations are reserved for later modules: capability delete in M4 and
+  // implicit-loop proposals in M7. In M2 the schema carries the field, but only
   // the literal value `false` validates.
   requires_confirmation: z.literal(false),
 });

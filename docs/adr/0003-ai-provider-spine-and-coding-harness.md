@@ -116,14 +116,14 @@ and no SDK ships it.
   updated to name the spine and the provider-registry mechanism, and to point at
   this ADR. The abstract "`generate(prompt, schema)` contract, not a specific
   SDK" line now has a concrete, swappable implementation behind it.
-- **The bounded per-unit loop is a Capability Builder concern (M2–M3), not M1.**
+- **The bounded per-unit loop is a Capability Builder concern (M2–M4), not M1.**
   Epic 1.5 proves the streamed structured round-trip and the one-line provider
   swap; the write→type-check→fix loop lands with epic 2.5 and tightens (behavioral
-  retries) in epic 3.5. A forward-pointer note is added to 1.5, in the style of
+  retries) in epic 4.5. A forward-pointer note is added to 1.5, in the style of
   the 2.6 note.
 - **The Chinese coding models are first-class provider options, not an
   afterthought** — the registry treats them identically to Claude/GPT/Gemini.
-  Selecting the global default is an experiment output (M7), recorded in metrics.
+  Selecting the global default is an experiment output (M8), recorded in metrics.
 - **No sandbox dependency is taken on now.** If a future module hands the loop
   arbitrary-code execution with isolation needs, E2B (Firecracker, TS SDK) or
   Daytona (fast cold start) are the pre-vetted options to reopen this with.
@@ -164,4 +164,4 @@ keying off the endpoint host:
   with credits/key on hand. This exercises (not contradicts) the "which model is the
   configured default … is deliberately open" clause above: a one-env swap of the
   trio (`OMNI_MODEL` + `OMNI_BASE_URL` + `OMNI_API_KEY`) moves it to any `claude-*`
-  or other model. Selecting the *empirical* default remains M7 experiment work.
+  or other model. Selecting the *empirical* default remains M8 experiment work.

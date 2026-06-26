@@ -28,8 +28,8 @@ Two deliverables:
    authors and the platform derives everything from (ARCH §2 "The generated
    artifacts"). Per PLAN decision 8, the M2 pantry is deliberately tiny:
    - Field type enum: `string | number | boolean | datetime`, each with
-     `required`. Nothing else validates — no list types (M3), no `file`/`file[]`
-     (M5), no relations (never — no foreign keys).
+     `required`. Nothing else validates — no list types (M4), no `file`/`file[]`
+     (M6), no relations (never — no foreign keys).
    - `ui_intent` covers M2's two views (`list`, `create`); `behavior` is free
      text (the behavioral tier generates tests from it); `tools` in M2 is
      `create` + `read`.

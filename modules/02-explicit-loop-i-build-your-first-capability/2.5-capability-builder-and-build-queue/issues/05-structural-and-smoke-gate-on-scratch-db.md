@@ -26,7 +26,7 @@ live until every active rung passes; any rung failing fails the whole build.
   the real one — and run a synthetic `create` → `read` round-trip. Assert the
   fragment comes back and the row landed. The user's real data is **physically
   unreachable** during validation (ADR-0004: isolation by construction, not
-  cleanup) — the property M3's rebuilds over real data will lean on.
+  cleanup) — the property M4's rebuilds over real data will lean on.
 - **Ordering + measurement.** Rungs run in order, fail-closed; per-rung outcomes
   and durations are captured for the metrics row.
 

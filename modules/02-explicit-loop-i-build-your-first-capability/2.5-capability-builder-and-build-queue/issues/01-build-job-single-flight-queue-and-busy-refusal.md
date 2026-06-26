@@ -24,13 +24,13 @@ is live from day one.
   fragments, the commit swap, the terminal `done` — rides
   `GET /build/:id/stream`, event-typed with monotonic ids per ADR-0002, and the
   server closes it on `done`. The persistent shell channel is deliberately
-  **not** built — that is M6's, designed with its UX.
+  **not** built — that is M7's, designed with its UX.
 - **Single-flight, enforced server-side.** One build at a time, system-wide
   (ARCH §8). While a job is active, `POST /prompt` returns a friendly
   product-voice "one moment" notice (no AI call, no job created) targeted at a
   transient notice spot — never the content area, so the running build's
   narration stays intact (PLAN decision 7). True queueing is deliberately
-  deferred to M6's pending proposals.
+  deferred to M7's pending proposals.
 - **Clean edges.** Unknown or already-finished job ids end the stream cleanly —
   no hang, no reconnect loop (server-closed `done` semantics, ADR-0002).
 

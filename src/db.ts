@@ -10,7 +10,7 @@
 //                    is the *deterministic* guarantee that a write is impossible
 //                    on the read path regardless of what SQL is issued (ARCH §7):
 //                    the kernel rejects it, so safety doesn't depend on the model
-//                    emitting only SELECTs. Later epics (M4 `data_query`) lean on
+//                    emitting only SELECTs. Later epics (M5 `data_query`) lean on
 //                    exactly this.
 //
 // Both open against the one documented db file (Epic 1.1: `data/omni-crud.db`).

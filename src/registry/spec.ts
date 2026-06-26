@@ -12,7 +12,7 @@
 // The M2 pantry is deliberately tiny (PLAN decision 8):
 //
 //   - Field types: `string | number | boolean | datetime`, each with `required`.
-//     No list types (M3), no `file`/`file[]` (M5), no relations (never — no
+//     No list types (M4), no `file`/`file[]` (M6), no relations (never — no
 //     foreign keys). Every object is strict, so any extra key — `auto`,
 //     `references`, `added_in_version` — fails validation instead of slipping by.
 //   - `ui_intent` speaks M2's two views (`list`, `create`); `tools` speaks M2's
@@ -28,7 +28,7 @@ import { z } from "zod";
 import { isCapabilityNameLabel } from "./labels.ts";
 
 // Columns every capability data table gets from the platform, never from the
-// spec (PLAN decision 8): `id` (PK), `created_at` (uniform — pre-pays M4's
+// spec (PLAN decision 8): `id` (PK), `created_at` (uniform — pre-pays M5's
 // NL→SQL catalog), `extra` (the JSON escape-hatch column, present from birth).
 // Exported for the 2.2 spec→DDL mapper, which emits them on every table.
 export const PLATFORM_COLUMNS = ["id", "created_at", "extra"] as const;
@@ -52,7 +52,7 @@ const capabilityNameText = nonBlankText.refine(
 
 // The complete M2 field type enum. Anything else — `string[]`, `file`, a
 // relation — is not a parse error to recover from but a spec the platform must
-// refuse (PLAN decision 8 reserves list types for M3 and files for M5).
+// refuse (PLAN decision 8 reserves list types for M4 and files for M6).
 export const fieldTypeSchema = z.enum(["string", "number", "boolean", "datetime"]);
 export type FieldType = z.infer<typeof fieldTypeSchema>;
 

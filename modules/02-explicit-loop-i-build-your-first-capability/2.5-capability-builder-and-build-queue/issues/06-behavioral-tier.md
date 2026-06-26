@@ -23,12 +23,12 @@ The third gate rung — the one that lifts "validated" from *compiles and runs* 
   database through the practice toolbox — same isolation as the smoke rung;
   user data physically unreachable.
 - **Failure fails the build** in M2: friendly product-voice message, nothing
-  committed. The retry-the-affected-unit loop is deliberately M3 (epic 3.5) —
+  committed. The retry-the-affected-unit loop is deliberately M4 (epic 4.5) —
   do not build it here.
 - **The tier is a global toggle, default ON** (PLAN decision 5). OFF exists
   *only* to measure the no-test baseline — "how much worse it got" — never as a
   working mode. When OFF, generation and execution are skipped and the metrics
-  row records the tier as off, so M7 can compare the two runs.
+  row records the tier as off, so M8 can compare the two runs.
 - **Measure**: test-gen and test-run durations, tokens, and outcomes captured
   for the metrics row — these columns are the entire point of the tier being a
   toggle (ARCH §6.2).

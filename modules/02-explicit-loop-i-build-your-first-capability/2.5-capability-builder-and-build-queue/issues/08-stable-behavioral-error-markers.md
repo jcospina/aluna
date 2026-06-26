@@ -88,7 +88,7 @@ observable behavior.
 - Do not make generated tests read handler code or derive assertions from handler
   output.
 - Do not freeze product-voice error copy to satisfy tests.
-- Do not build the M3 retry-the-affected-unit loop.
+- Do not build the M4 retry-the-affected-unit loop.
 
 ## Completion notes expected
 

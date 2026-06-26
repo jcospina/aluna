@@ -11,7 +11,7 @@ step 8: `modules/02-explicit-loop-i-build-your-first-capability/PLAN.md`)
 ## What to build
 
 The store the PoC exists to fill: one row per generation, recording what the
-*system* did to build itself (distinct from the event log, which is M6's record
+*system* did to build itself (distinct from the event log, which is M7's record
 of what the *user* did). Latency and capability conclusions come from querying
 this, not guessing.
 
@@ -22,7 +22,7 @@ this, not guessing.
   HTML-gen, test-gen, migration, test-run, total wall-clock), per-rung gate
   outcomes, fix-loop attempts, model, token counts, outcome (success / failure —
   including *which rung* failed; failure is data), and intent classification.
-  The test-gen/test-run columns are what let M7 quantify the behavioral tier
+  The test-gen/test-run columns are what let M8 quantify the behavioral tier
   against the no-test baseline.
 - **A writer module** producing one complete row per generation, callable with
   partial knowledge: a deflection (classification-only generation, PLAN decision
@@ -37,7 +37,7 @@ this, not guessing.
 - [x] Writer writes one row per generation; deflection rows (intent only, no
       build timings) are supported
 - [x] Failure rows record which rung failed
-- [x] Writes go through the read-write connection; querying (M7's future surface)
+- [x] Writes go through the read-write connection; querying (M8's future surface)
       works through the read-only connection
 
 ## Blocked by

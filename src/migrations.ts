@@ -4,7 +4,7 @@
 // runs on boot (src/index.ts).
 //
 // This is *platform* schema only: the ledger (M1) and the capability registry
-// (M2), with metrics (M2) and the event log (M6) to follow. Capability *data*
+// (M2), with metrics (M2) and the event log (M7) to follow. Capability *data*
 // tables (`cap_<id>`) never appear here — those are derived from specs and
 // created at runtime by the builder. The mechanism's guarantee holds for every
 // entry: a migration runs once, is recorded, and a second boot is a clean no-op.
@@ -96,7 +96,7 @@ export const MIGRATIONS: readonly Migration[] = [
   },
   // 0004 creates the generation-metrics store (M2, Epic 2.7) — the experiment's
   // measurements, one row per generation, recording what the *system* did to build
-  // itself (ARCH §6.3, distinct from M6's event log of what the *user* did). The
+  // itself (ARCH §6.3, distinct from M7's event log of what the *user* did). The
   // PLAN step-8 fields: identity + intent classification, model + token counts, the
   // timing breakdown (spec-gen, migration, code-gen, HTML-gen, test-gen, test-run,
   // total wall-clock), the per-rung gate outcomes and per-unit fix-loop attempts as

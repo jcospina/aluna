@@ -117,3 +117,16 @@ export function listCapabilities(database: Database = dbReadonly): CapabilityRow
 
   return stored.map(parseStoredRow);
 }
+
+// Whether the registry table exists yet. False on a brand-new platform db that has
+// not run the platform migrations (Epic 1.4). The shell's on-load rehydration
+// consults this so `GET /` renders the cold-start shell *before* the first migration
+// instead of failing on a missing table; every other reader runs post-migration and
+// need not ask.
+export function isRegistryInitialized(database: Database = dbReadonly): boolean {
+  const found = database
+    .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(REGISTRY_TABLE);
+
+  return found !== null;
+}

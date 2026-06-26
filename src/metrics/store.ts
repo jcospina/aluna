@@ -2,7 +2,7 @@
 // "Generation Metrics", §6.2, PLAN flow step 8).
 //
 // One row per generation, recording what the *system* did to build itself —
-// distinct from the event log (M6's record of what the *user* did). This is the
+// distinct from the event log (M7's record of what the *user* did). This is the
 // store the PoC exists to fill (ARCH §6.3): latency and capability conclusions
 // come from querying it, not guessing. Every build, every failed build, and every
 // deflection writes exactly one row here.
@@ -16,7 +16,7 @@
 //
 // Access follows the platform's data access model (ARCH §3, §7): the insert rides
 // `db`, the single constrained write path; reads default to `dbReadonly`, the read
-// path on which a write is physically impossible — M7's future query surface. Both
+// path on which a write is physically impossible — M8's future query surface. Both
 // sides of the round-trip validate against the Zod row shape (the registry's
 // discipline): a malformed metrics row can neither enter nor come back out unnoticed.
 
@@ -72,7 +72,7 @@ const gateRungStatusSchema = z.enum(GATE_RUNG_STATUSES);
 // One rung's verdict, mirroring the gate's GateRungOutcome. Stored inside the
 // `gate_rungs` JSON column: the per-rung structural/smoke/behavioral durations and
 // any failure detail live here, while the headline test-gen/test-run timings get
-// their own columns (PLAN step 8) for M7 to query directly.
+// their own columns (PLAN step 8) for M8 to query directly.
 const gateRungOutcomeSchema = z.strictObject({
   rung: gateRungNameSchema,
   status: gateRungStatusSchema,
@@ -104,7 +104,7 @@ export type GenerationIntent = z.infer<typeof generationIntentSchema>;
 // group entirely, a failed build fills only the legs it reached. `codeGenMs` is the
 // handler (.ts) generation, `htmlGenMs` the view (.html) generation; `testGenMs`
 // and `testRunMs` are the behavioral tier's generation and execution — the two
-// columns that let M7 weigh the behavioral tier against the no-test baseline.
+// columns that let M8 weigh the behavioral tier against the no-test baseline.
 const generationTimingsSchema = z.strictObject({
   specGenMs: z.number().nonnegative().optional(),
   migrationMs: z.number().nonnegative().optional(),
@@ -282,7 +282,7 @@ export function writeGenerationMetrics(
 }
 
 // Fetch one metrics row by generation id, or null when it doesn't exist. Reads
-// ride the read-only connection by convention (ARCH §7) — the M7 query surface.
+// ride the read-only connection by convention (ARCH §7) — the M8 query surface.
 export function getGenerationMetrics(
   id: string,
   database: Database = dbReadonly,
@@ -295,7 +295,7 @@ export function getGenerationMetrics(
 }
 
 // List every metrics row, newest first then by id — the experiment's dataset
-// (ARCH §6.3). Ordered deterministically so M7's queries see a stable order.
+// (ARCH §6.3). Ordered deterministically so M8's queries see a stable order.
 export function listGenerationMetrics(database: Database = dbReadonly): StoredGenerationMetrics[] {
   const rows = database
     .query(`SELECT ${ROW_COLUMNS} FROM ${GENERATION_METRICS_TABLE} ORDER BY created_at DESC, id`)

@@ -19,7 +19,7 @@ writes SQL** (ARCH §1 schema ownership, PLAN decision 8).
 - **Naming.** Capability tables are prefixed (`cap_<id>`) so they can never
   collide with platform tables.
 - **The platform trio on every table**: `id` (primary key), `created_at`
-  (uniform across all capability tables — pre-pays M4's NL→SQL catalog), and
+  (uniform across all capability tables — pre-pays M5's NL→SQL catalog), and
   `extra` (the JSON escape-hatch column, present from birth). These are
   platform-owned, never spec fields.
 - **Field mapping.** The M2 enum (`string | number | boolean | datetime`) maps

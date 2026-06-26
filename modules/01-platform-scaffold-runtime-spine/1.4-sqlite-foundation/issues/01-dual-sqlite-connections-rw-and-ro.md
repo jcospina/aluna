@@ -42,7 +42,7 @@ this only stands up the two access points the later epics reuse.
 - **Read-only** (`dbReadonly`): `new Database(path, { readonly: true })` —
   Bun's mapping for `SQLITE_OPEN_READONLY`. SQLite itself rejects any write here
   ("attempt to write a readonly database"), which is the *deterministic* boundary
-  the read path (M4) relies on — safety doesn't depend on the model emitting only
+  the read path (M5) relies on — safety doesn't depend on the model emitting only
   `SELECT`s (ARCH §3, §7).
 - Exposed as the platform's single shared access points: module-level singletons
   `db` / `dbReadonly`, plus an `openDatabase(path)` factory the tests drive against
