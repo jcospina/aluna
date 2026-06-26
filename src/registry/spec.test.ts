@@ -66,7 +66,7 @@ describe("capability spec shape", () => {
     }
   });
 
-  test("rejects list types (M3) and file types (M5) loudly", () => {
+  test("rejects list types (M4) and file types (M6) loudly", () => {
     for (const type of ["string[]", "number[]", "file", "file[]"]) {
       const spec = validSpec({
         // @ts-expect-error — the type system already excludes these; the runtime gate must too.

@@ -8,12 +8,14 @@ export {
   renderCachedCapabilityCommitSwap,
   renderCachedCapabilityShell,
   renderCachedCapabilitySurface,
+  renderRehydratedShellPage,
 } from "./cached-view.ts";
 export {
   PROMPT_NOTICE_TARGET,
   renderBuildSubscriber,
   renderBusyNotice,
   renderCapabilityToolbarEntry,
+  renderRehydratedShell,
 } from "./fragments.ts";
 export { escapeHtml } from "./html.ts";
 export { readPrompt } from "./prompt-request.ts";

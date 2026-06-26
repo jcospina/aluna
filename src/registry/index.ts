@@ -28,4 +28,10 @@ export {
   specFieldSchema,
   specViewSchema,
 } from "./spec.ts";
-export { getCapability, insertCapability, listCapabilities, REGISTRY_TABLE } from "./store.ts";
+export {
+  getCapability,
+  insertCapability,
+  isRegistryInitialized,
+  listCapabilities,
+  REGISTRY_TABLE,
+} from "./store.ts";

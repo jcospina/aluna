@@ -11,6 +11,10 @@ import { escapeHtml } from "./html.ts";
 export const PROMPT_NOTICE_TARGET = "#prompt-notice";
 const CAPABILITY_TOOLBAR_TARGET = "#capability-toolbar";
 
+// The shell's toolbar placeholder comment (public/index.html) — where the on-load
+// rehydration and direct `/capability/:id` navigation inject capability entries.
+const SHELL_TOOLBAR_PLACEHOLDER = "        <!-- Capability entries render here later. -->";
+
 const BUSY_NOTICE =
   "I'm already putting something together. Give me a moment and I'll be ready for the next one.";
 
@@ -136,10 +140,8 @@ export function renderCapabilityShell(
   shellHtml: string,
 ): string {
   const surface = renderCapabilitySurface(row, listView, createView);
-  const toolbarEntry = renderCapabilityToolbarEntry(row);
   const contentPlaceholder =
     '<div class="intro__output" id="spec-build-output" aria-live="polite"></div>';
-  const toolbarPlaceholder = "        <!-- Capability entries render here later. -->";
 
   const withContent = shellHtml.replace(
     contentPlaceholder,
@@ -149,11 +151,39 @@ export function renderCapabilityShell(
     throw new Error("The shell content target placeholder is missing.");
   }
 
-  const withToolbar = withContent.replace(
-    toolbarPlaceholder,
-    `${toolbarPlaceholder}\n${indent(toolbarEntry, 8)}`,
+  return injectToolbarEntries(withContent, indent(renderCapabilityToolbarEntry(row), 8));
+}
+
+/**
+ * The on-load shell with its capability toolbar rehydrated from the registry: one
+ * canonical entry per row (the same renderer the commit-time out-of-band path uses,
+ * so the load path and the OOB path can never drift). With at least one row the shell
+ * flips to `has-capabilities` and the sidebar shows; an empty registry returns the
+ * shell untouched, so a fresh user keeps the cold-start state. The content area is
+ * left empty by design — the load path only restores chrome; a toolbar click serves
+ * the cached, data-free view (ADR-0004).
+ */
+export function renderRehydratedShell(
+  rows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>,
+  shellHtml: string,
+): string {
+  if (rows.length === 0) {
+    return shellHtml;
+  }
+
+  const entries = rows.map((row) => indent(renderCapabilityToolbarEntry(row), 8)).join("\n");
+  return injectToolbarEntries(shellHtml, entries);
+}
+
+// Insert already-rendered toolbar entries at the shell's placeholder and flip the
+// shell into its has-capabilities presentation state. Shared by the on-load
+// rehydration path and direct `/capability/:id` navigation so the two cannot drift.
+function injectToolbarEntries(shellHtml: string, entriesHtml: string): string {
+  const withToolbar = shellHtml.replace(
+    SHELL_TOOLBAR_PLACEHOLDER,
+    `${SHELL_TOOLBAR_PLACEHOLDER}\n${entriesHtml}`,
   );
-  if (withToolbar === withContent) {
+  if (withToolbar === shellHtml) {
     throw new Error("The shell toolbar placeholder is missing.");
   }
 
