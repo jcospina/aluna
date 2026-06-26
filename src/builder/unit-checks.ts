@@ -143,13 +143,26 @@ function checkViewUnit(
   if (/\bdata-id\s*=|\bcreated_at\b/.test(content)) {
     return "Generated views must not contain user record data.";
   }
+  if (/\b(?:action|method|href)\s*=/i.test(content)) {
+    return "Generated views must not use native form navigation or links.";
+  }
 
   return view === "list" ? checkListView(spec, content) : checkCreateView(spec, content);
 }
 
 function checkListView(spec: CapabilitySpec, content: string): string | undefined {
+  if (/<form\b/i.test(content) || /\bhx-post\s*=/i.test(content)) {
+    return "The list view must not contain create controls; create controls belong only in create.html.";
+  }
   if (!content.includes(`hx-get="/capability/${spec.id}/read"`)) {
     return `The list view must load live data with hx-get="/capability/${spec.id}/read".`;
+  }
+  const recordsTag = tagWithId(content, `${spec.id}-records`);
+  if (!recordsTag) {
+    return `The list view live region must use id="${spec.id}-records".`;
+  }
+  if (!recordsTag.includes(`hx-get="/capability/${spec.id}/read"`)) {
+    return `The list view live region must load through hx-get="/capability/${spec.id}/read".`;
   }
   if (/<(li|article|tbody|tr)\b/i.test(content)) {
     return "The list view must not bake row markup into the cached view.";
@@ -158,9 +171,18 @@ function checkListView(spec: CapabilitySpec, content: string): string | undefine
 }
 
 function checkCreateView(spec: CapabilitySpec, content: string): string | undefined {
-  if (!/<form\b/i.test(content)) return "The create view must contain a form.";
-  if (!content.includes(`hx-post="/capability/${spec.id}/create"`)) {
+  const forms = content.match(/<form\b[^>]*>/gi) ?? [];
+  if (forms.length !== 1) return "The create view must contain exactly one form.";
+
+  const [form] = forms;
+  if (!form?.includes(`hx-post="/capability/${spec.id}/create"`)) {
     return `The create view form must submit with hx-post="/capability/${spec.id}/create".`;
+  }
+  if (!form.includes(`hx-target="#${spec.id}-records"`)) {
+    return `The create view form must target the live list region with hx-target="#${spec.id}-records".`;
+  }
+  if (!form.includes('hx-swap="afterbegin"')) {
+    return 'The create view form must use hx-swap="afterbegin".';
   }
 
   for (const field of spec.schema.fields) {
@@ -169,6 +191,11 @@ function checkCreateView(spec: CapabilitySpec, content: string): string | undefi
     }
   }
   return undefined;
+}
+
+function tagWithId(content: string, id: string): string | undefined {
+  const escapedId = escapeRegExp(id);
+  return content.match(new RegExp(`<[^>]+\\bid=["']${escapedId}["'][^>]*>`, "i"))?.[0];
 }
 
 function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {

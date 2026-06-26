@@ -120,6 +120,73 @@ function formBody(fields: Record<string, string>): RequestInit {
   };
 }
 
+async function inspectCapabilitySurfacePlacement(html: string): Promise<{
+  insideColdStart: boolean;
+  insideActiveContent: boolean;
+}> {
+  let surfaceAncestors: string[][] | undefined;
+  const stack: string[][] = [];
+  const rewriter = new HTMLRewriter().on("*", {
+    element(element) {
+      const classList = classNames(element.getAttribute("class"));
+      stack.push(classList);
+
+      if (classList.includes("capability-surface")) {
+        surfaceAncestors = stack.map((classes) => [...classes]);
+      }
+
+      if (element.canHaveContent) {
+        element.onEndTag(() => {
+          stack.pop();
+        });
+      } else {
+        stack.pop();
+      }
+    },
+  });
+
+  await new Response(rewriter.transform(new Response(html)).body).text();
+
+  if (!surfaceAncestors) {
+    throw new Error("missing .capability-surface in direct capability shell");
+  }
+
+  return {
+    insideColdStart: surfaceAncestors.some((classes) => classes.includes("cold-start")),
+    insideActiveContent: surfaceAncestors.some((classes) => classes.includes("content__active")),
+  };
+}
+
+async function collectToolbarEntryText(html: string): Promise<string[]> {
+  const entries: string[] = [];
+  let currentEntry: string | undefined;
+  const rewriter = new HTMLRewriter().on("[data-capability-entry]", {
+    element(element) {
+      currentEntry = "";
+      element.onEndTag(() => {
+        entries.push(normalizeSpace(currentEntry ?? ""));
+        currentEntry = undefined;
+      });
+    },
+    text(text) {
+      if (currentEntry !== undefined) {
+        currentEntry += text.text;
+      }
+    },
+  });
+
+  await new Response(rewriter.transform(new Response(html)).body).text();
+  return entries;
+}
+
+function classNames(value: string | null): string[] {
+  return value?.split(/\s+/).filter(Boolean) ?? [];
+}
+
+function normalizeSpace(value: string): string {
+  return value.trim().replaceAll(/\s+/g, " ");
+}
+
 describe("deterministic capability router", () => {
   let dir: string;
   let conns: PlatformDatabase;
@@ -161,6 +228,66 @@ describe("deterministic capability router", () => {
     const readBody = await read.text();
     expect(readBody).toContain("Buy milk");
     expect(readBody).toContain("pinned");
+  });
+
+  test("serves the cached data-free view with its live read region and create form", async () => {
+    install(conns, notesRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(body).toContain('class="capability-surface"');
+    expect(body).toContain('data-active-capability-id="notes"');
+    expect(body).toContain('hx-get="/capability/notes/read"');
+    expect(body).toContain('hx-trigger="load"');
+    expect(body).toContain('hx-post="/capability/notes/create"');
+    expect(body).toContain('hx-target="#notes-records"');
+    expect(body).not.toContain("<!doctype html>");
+    expect(body).not.toContain("/static/app.css");
+  });
+
+  test("direct capability navigation returns the styled shell with the cached view active", async () => {
+    install(conns, notesRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes");
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(body).toContain("<!doctype html>");
+    expect(body).toContain('href="/static/app.css"');
+    expect(body).toContain('src="/static/vendor/htmx.min.js"');
+    expect(body).toContain('class="shell has-capabilities"');
+    expect(body).toContain('id="spec-build-output"');
+    expect(body).toContain('class="capability-surface"');
+    expect(body).toContain('data-active-capability-id="notes"');
+    expect(body).toContain('hx-get="/capability/notes/read"');
+    expect(body).toContain('hx-post="/capability/notes/create"');
+    expect(body).toContain('hx-target="#notes-records"');
+    expect(body).toContain("data-capability-entry");
+    expect(body).toContain('hx-get="/capability/notes"');
+    expect(await inspectCapabilitySurfacePlacement(body)).toEqual({
+      insideColdStart: false,
+      insideActiveContent: true,
+    });
+    expect(await collectToolbarEntryText(body)).toEqual(["Notes"]);
+  });
+
+  test("direct capability navigation uses a canonical short toolbar label for legacy sentence labels", async () => {
+    const sentenceLabel = "We'll set up a space to capture and organize all your notes.";
+    insertCapability(notesRow({ label: sentenceLabel }), conns.readwrite);
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes");
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(await collectToolbarEntryText(body)).toEqual(["Notes"]);
+    expect(body).not.toContain(sentenceLabel);
   });
 
   test("an unknown capability fails cleanly, in product voice, before any handler loads", async () => {

@@ -68,6 +68,7 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "- No table names or SQL. Use only the injected `data` tool.",
     "- Exactly one export: `export default async function ...`.",
     "- The function receives one `CapabilityContext` parameter and returns `Promise<string>`.",
+    "- The isolated checker rejects unused parameters and locals.",
     "- It returns an HTML fragment string.",
     "- Include any escaping helper locally in the file.",
     "",
@@ -80,7 +81,10 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "Action behavior:",
     action === "create"
       ? "- Coerce form strings into the spec field types, call `data.insert`, and return a fragment for the new row."
-      : "- Call `data.select()` and return a fragment for the current rows, including a helpful empty state.",
+      : [
+          "- Call `data.select()` and return a fragment for the current rows, including a helpful empty state.",
+          "- For `read`, destructure only `{ data }`: `export default async function read({ data }: CapabilityContext): Promise<string>`.",
+        ].join("\n"),
     "",
     "Validation error contract:",
     validationErrorContract,
@@ -124,8 +128,15 @@ function buildViewPrompt(spec: CapabilitySpec, view: ViewUnitName): string {
     "- No scripts and no template/interpolation placeholders.",
     "- Use the fixed router convention; generated views never invent routes.",
     view === "list"
-      ? `- Include one dynamic region that loads through hx-get="/capability/${spec.id}/read".`
-      : `- Include one form that submits through hx-post="/capability/${spec.id}/create".`,
+      ? [
+          `- Include one dynamic region with id="${spec.id}-records" that loads through hx-get="/capability/${spec.id}/read".`,
+          "- Do not include any create/edit form, submit button, or hx-post in the list view.",
+        ].join("\n")
+      : [
+          `- Include exactly one form that submits through hx-post="/capability/${spec.id}/create".`,
+          `- The form must target the live list region with hx-target="#${spec.id}-records" and hx-swap="afterbegin".`,
+        ].join("\n"),
+    "- Do not include native form action/method attributes or links to capability URLs; generated views use only fixed HTMX attributes.",
     "",
     "Fields for create controls:",
     fieldControls,

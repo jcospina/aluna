@@ -20,6 +20,13 @@
  * @property {() => void} init - Alpine lifecycle hook; sets the responsive defaults.
  */
 
+/**
+ * The tiny slice of Alpine's runtime API this authored file uses outside the
+ * component registration path.
+ * @typedef {Object} AlpineGlobal
+ * @property {(el: Element) => unknown} $data
+ */
+
 // Register on `alpine:init` (dispatched at the start of Alpine.start()). This
 // file is loaded before alpine.min.js precisely so this listener is in place
 // when Alpine starts. `Alpine` is a global from the vendored build.
@@ -54,6 +61,8 @@ function shell() {
     promptBusy: false,
 
     init() {
+      this.hasCapabilities = document.querySelector("[data-capability-entry]") !== null;
+
       // Desktop opens the capability toolbar expanded; mobile starts with its
       // drawer closed. Re-sync on breakpoint crossings so a resized window lands
       // on the sensible default for its size (collapse chrome only — no product
@@ -115,3 +124,29 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
   const message = /** @type {CustomEvent<MessageEvent<string>>} */ (event).detail;
   previewTarget.textContent = formatPreviewPayload(message.data);
 });
+
+/**
+ * Find the shell component's Alpine state. This is presentation-only glue: HTMX
+ * swaps the toolbar entry, and Alpine mirrors whether the sidebar chrome should be
+ * visible.
+ * @returns {ShellState | null}
+ */
+function getShellPresentationState() {
+  const root = document.querySelector(".shell");
+  const alpine = /** @type {Window & { Alpine?: AlpineGlobal }} */ (window).Alpine;
+  if (!(root instanceof Element) || typeof alpine?.$data !== "function") return null;
+
+  const state = alpine.$data(root);
+  if (typeof state !== "object" || state === null) return null;
+  return /** @type {ShellState} */ (state);
+}
+
+function syncCapabilityPresentationState() {
+  const state = getShellPresentationState();
+  if (state === null) return;
+
+  state.hasCapabilities = document.querySelector("[data-capability-entry]") !== null;
+}
+
+document.addEventListener("htmx:oobAfterSwap", syncCapabilityPresentationState);
+document.addEventListener("htmx:afterSwap", syncCapabilityPresentationState);

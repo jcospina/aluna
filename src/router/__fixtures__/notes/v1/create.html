@@ -1,0 +1,12 @@
+<form
+  class="capability-form"
+  hx-post="/capability/notes/create"
+  hx-target="#notes-records"
+  hx-swap="afterbegin"
+>
+  <label>
+    <span>Text</span>
+    <textarea name="text" required></textarea>
+  </label>
+  <button type="submit">Add note</button>
+</form>

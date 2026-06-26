@@ -134,10 +134,10 @@ const LIST_VIEW = `<section class="capability-view" aria-labelledby="notes-headi
   <header>
     <h2 id="notes-heading">Notes</h2>
   </header>
-  <div id="notes-list" hx-get="/capability/notes/read" hx-trigger="load" hx-swap="innerHTML"></div>
+  <div id="notes-records" hx-get="/capability/notes/read" hx-trigger="load" hx-swap="innerHTML"></div>
 </section>`;
 
-const CREATE_VIEW = `<form class="capability-form" hx-post="/capability/notes/create" hx-target="#notes-list" hx-swap="afterbegin">
+const CREATE_VIEW = `<form class="capability-form" hx-post="/capability/notes/create" hx-target="#notes-records" hx-swap="afterbegin">
   <label>
     <span>Text</span>
     <textarea name="text" required></textarea>
@@ -190,6 +190,7 @@ describe("unit generation with bounded fix loop", () => {
     );
     expect(result.views.list).toContain('hx-get="/capability/notes/read"');
     expect(result.views.create).toContain('hx-post="/capability/notes/create"');
+    expect(result.views.create).toContain('hx-target="#notes-records"');
     expect(result.views.list).not.toMatch(/\bdata-id=|\bcreated_at\b|<li\b/i);
   });
 
@@ -254,6 +255,37 @@ describe("unit generation with bounded fix loop", () => {
     );
   });
 
+  test("rejects list views that include create forms or native capability navigation", async () => {
+    const badListView = `<section class="capability-view">
+  <form method="post" action="/capability/notes/create">
+    <textarea name="text"></textarea>
+    <button type="submit">Create</button>
+  </form>
+  <div id="notes-records" hx-get="/capability/notes/read" hx-trigger="load"></div>
+</section>`;
+    const provider = makeQueuedProvider([CREATE_HANDLER, READ_HANDLER, badListView, badListView]);
+
+    await expect(generateCapabilityUnits({ provider, spec: notesSpec() })).rejects.toThrow(
+      UnitGenerationError,
+    );
+
+    expect(provider.calls[3]?.prompt).toContain("Previous attempt failed");
+    expect(provider.calls[3]?.prompt).toContain("native form navigation");
+  });
+
+  test("rejects create views that do not target the live list region", async () => {
+    const badCreateView = `<form class="capability-form" hx-post="/capability/notes/create">
+  <textarea name="text" required></textarea>
+  <input type="checkbox" name="pinned" value="on" />
+  <button type="submit">Add</button>
+</form>`;
+    const provider = makeQueuedProvider([CREATE_HANDLER, READ_HANDLER, LIST_VIEW, badCreateView]);
+
+    await expect(
+      generateCapabilityUnits({ provider, spec: notesSpec(), maxAttempts: 1 }),
+    ).rejects.toThrow(UnitGenerationError);
+  });
+
   test("builds retry prompts from the unit contract and prior failure", () => {
     const prompt = buildUnitPrompt(
       notesSpec(),
@@ -269,6 +301,26 @@ describe("unit generation with bounded fix loop", () => {
     expect(prompt).toContain("No imports.");
     expect(prompt).toContain("Previous attempt failed");
     expect(prompt).toContain("Generated handlers must not import anything.");
+  });
+
+  test("read handler prompts tell the model not to bind unused input", () => {
+    const prompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "read" });
+
+    expect(prompt).toContain(
+      "For `read`, destructure only `{ data }`: `export default async function read({ data }: CapabilityContext): Promise<string>`.",
+    );
+    expect(prompt).toContain("The isolated checker rejects unused parameters and locals.");
+  });
+
+  test("view prompts keep list and create surfaces separated", () => {
+    const listPrompt = buildUnitPrompt(notesSpec(), { kind: "view", name: "list" });
+    const createPrompt = buildUnitPrompt(notesSpec(), { kind: "view", name: "create" });
+
+    expect(listPrompt).toContain('id="notes-records"');
+    expect(listPrompt).toContain("Do not include any create/edit form");
+    expect(createPrompt).toContain('hx-target="#notes-records"');
+    expect(createPrompt).toContain('hx-swap="afterbegin"');
+    expect(createPrompt).toContain("Do not include native form action/method attributes");
   });
 
   test("handler prompts include the stable validation error marker contract", () => {

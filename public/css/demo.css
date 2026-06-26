@@ -18,7 +18,20 @@
   padding: var(--space-4);
   text-align: center;
 }
+.content__active {
+  display: flex;
+  min-height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+.content__active:has(#spec-build-output:empty) {
+  display: none;
+}
 .shell.has-capabilities .cold-start {
+  display: none;
+}
+.content:has(#spec-build-output:not(:empty)) .cold-start {
   display: none;
 }
 .cold-start .wordmark {
@@ -82,4 +95,50 @@
 .intro__output .intro__invitation {
   margin: var(--space-1) 0 0;
   color: var(--color-text-subtle);
+}
+
+/* Commit swap: once the capability surface lands, the build narration is no
+   longer the visible state; the content area should read as the active capability. */
+.build-stream:has(.build-stream__commit:not(:empty)) .build-stream__narration,
+.build-stream:has(.build-stream__commit:not(:empty)) .build-stream__fragment {
+  display: none;
+}
+
+.capability-surface {
+  display: grid;
+  gap: var(--space-2);
+  width: min(52rem, 100%);
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-2);
+  text-align: left;
+}
+.capability-surface :is(h1, h2, h3, p) {
+  margin-block: 0 var(--space-1);
+}
+.capability-surface :is(form, fieldset) {
+  display: grid;
+  gap: var(--space-1);
+}
+.capability-surface :is(input, textarea, select) {
+  width: 100%;
+  padding: var(--space-1);
+  font: var(--body);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.capability-surface textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+.capability-surface button {
+  justify-self: start;
+  padding: var(--space-0_5) var(--space-1);
+  font: var(--body);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
 }

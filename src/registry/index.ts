@@ -5,6 +5,7 @@
 // behavioral tier) and the lean read/write access to the registry table. Callers
 // import from here and depend on nothing inside.
 
+export { canonicalCapabilityLabel, isCapabilityNameLabel } from "./labels.ts";
 export {
   BEHAVIORAL_ERROR_MARKERS,
   type BehavioralErrorCase,

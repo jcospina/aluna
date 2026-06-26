@@ -186,6 +186,15 @@ describe("capability spec shape", () => {
     expect(capabilitySpecSchema.safeParse(validSpec({ behavior: "   " })).success).toBe(false);
     expect(capabilitySpecSchema.safeParse(validSpec({ label: "" })).success).toBe(false);
   });
+
+  test("generated labels must be short names, not product-voice sentences", () => {
+    expect(capabilitySpecSchema.safeParse(validSpec({ label: "Reading list" })).success).toBe(true);
+    expect(
+      capabilitySpecSchema.safeParse(
+        validSpec({ label: "We'll set up a space to capture and organize all your notes." }),
+      ).success,
+    ).toBe(false);
+  });
 });
 
 describe("capability row shape", () => {
@@ -210,5 +219,16 @@ describe("capability row shape", () => {
 
   test("a bare spec without version/artifacts_path is not a row", () => {
     expect(capabilityRowSchema.safeParse(validSpec()).success).toBe(false);
+  });
+
+  test("legacy rows with sentence labels still parse for display fallback", () => {
+    const row = {
+      ...validSpec(),
+      label: "We'll set up a space to capture and organize all your notes.",
+      version: 1,
+      artifacts_path: "capabilities/notes/v1/",
+    };
+
+    expect(capabilityRowSchema.safeParse(row).success).toBe(true);
   });
 });

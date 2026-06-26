@@ -23,6 +23,22 @@
   font-size: var(--type-lg);
   padding-block: var(--space-0_5) var(--space-2);
 }
+.toolbar__entry {
+  display: block;
+  width: 100%;
+  padding: var(--space-1);
+  font: var(--body);
+  text-align: left;
+  color: var(--color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.toolbar__entry:hover,
+.toolbar__entry:focus-visible {
+  background: color-mix(in oklch, var(--color-text), transparent 92%);
+}
 
 /* ── Responsive — desktop full-collapse vs mobile off-canvas drawer ────────── */
 

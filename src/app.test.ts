@@ -214,6 +214,8 @@ describe("GET / (shell)", () => {
     expect(js).toContain('document.addEventListener("htmx:sseOpen"');
     expect(js).toContain('document.addEventListener("htmx:sseClose"');
     expect(js).toContain('document.addEventListener("htmx:sseError"');
+    expect(js).toContain('document.addEventListener("htmx:oobAfterSwap"');
+    expect(js).toContain("syncCapabilityPresentationState");
     expect(js).toContain("dataset.previewTarget");
     expect(js).not.toContain("new EventSource");
     expect(js).not.toContain('fetch("/prompt"');
@@ -515,10 +517,10 @@ const READ_HANDLER = [
 
 const LIST_VIEW = `<section class="capability-view" aria-labelledby="notes-heading">
   <h2 id="notes-heading">Notes</h2>
-  <div id="notes-list" hx-get="/capability/notes/read" hx-trigger="load" hx-swap="innerHTML"></div>
+  <div id="notes-records" hx-get="/capability/notes/read" hx-trigger="load" hx-swap="innerHTML"></div>
 </section>`;
 
-const CREATE_VIEW = `<form class="capability-form" hx-post="/capability/notes/create" hx-target="#notes-list" hx-swap="afterbegin">
+const CREATE_VIEW = `<form class="capability-form" hx-post="/capability/notes/create" hx-target="#notes-records" hx-swap="afterbegin">
   <label>
     <span>Text</span>
     <textarea name="text" required></textarea>
@@ -599,7 +601,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     });
   }
 
-  test("narrates, previews spec/migration/units, confirms with the label, and closes", async () => {
+  test("narrates, previews stages, commit-swaps content and toolbar, and closes", async () => {
     const { provider, prompts } = makeSpecProvider(NOTES_SPEC);
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
@@ -620,7 +622,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(eventNames).toContain("units-preview");
     expect(eventNames).toContain("gate-preview");
     expect(eventNames).toContain("commit-preview");
-    expect(eventNames.at(-2)).toBe("fragment");
+    expect(eventNames.at(-2)).toBe("commit");
     expect(eventNames.at(-1)).toBe("done");
     expect(eventNames.indexOf("units-preview")).toBeGreaterThan(
       eventNames.indexOf("migration-preview"),
@@ -629,11 +631,11 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       eventNames.lastIndexOf("units-preview"),
     );
     // Commit is the terminal stage: it lands strictly after the gate passes and just
-    // before the user-facing confirmation.
+    // before the stream closes.
     expect(eventNames.indexOf("commit-preview")).toBeGreaterThan(
       eventNames.indexOf("gate-preview"),
     );
-    expect(eventNames.indexOf("commit-preview")).toBeLessThan(eventNames.indexOf("fragment"));
+    expect(eventNames.indexOf("commit-preview")).toBeLessThan(eventNames.indexOf("commit"));
 
     // The demo preview deliberately carries the raw spec (the developer's liveness
     // view) — internals here are the point.
@@ -751,12 +753,20 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       },
     });
 
-    // The product-voice events — narration + confirmation — must NOT leak internals
-    // (ARCH §9.7). Only the user-facing label crosses into the confirmation.
-    const userVisible = `${dataFor("narration")}\n${dataFor("fragment")}`;
-    expect(dataFor("fragment")).toContain("All set");
-    expect(dataFor("fragment")).toContain("Notes");
-    expect(userVisible).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
+    // The product-voice narration must NOT leak internals (ARCH §9.7). The commit
+    // event carries generated HTML, including classes and HTMX attributes, so the
+    // internals check stays scoped to visible narration copy.
+    expect(dataFor("narration")).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
+    const commitSwap = dataFor("commit");
+    expect(commitSwap).toContain('class="capability-surface"');
+    expect(commitSwap).toContain('data-active-capability-id="notes"');
+    expect(commitSwap).toContain('hx-get="/capability/notes/read"');
+    expect(commitSwap).toContain('hx-post="/capability/notes/create"');
+    expect(commitSwap).toContain('hx-target="#notes-records"');
+    expect(commitSwap).toContain('hx-swap-oob="beforeend:#capability-toolbar"');
+    expect(commitSwap).toContain("data-capability-entry");
+    expect(commitSwap).toContain('hx-get="/capability/notes"');
+    expect(commitSwap).toContain("Notes");
     expect(dataFor("done")).toBe("ok");
 
     // The typed prompt reached the provider, then the four unit-generation prompts
@@ -843,6 +853,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       await app.request("/demo/spec-build?prompt=track%20my%20notes"),
     );
     expect(buildPayload).toContain("event: commit-preview");
+    expect(buildPayload).toContain("event: commit");
     expect(collectSseEvents(buildPayload).at(-1)).toEqual({
       id: expect.any(String),
       event: "done",
@@ -899,8 +910,10 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(dataFor("done")).toBe("error");
     expect(dataFor("build-error-preview")).toContain("Missing OMNI_API_KEY");
     expect(dataFor("build-error-preview")).toContain("Error");
-    // No fragment on the failure path, and no internals leak through product copy.
+    // No product commit/fragment on the failure path, and no internals leak through
+    // product copy.
     expect(payload).not.toContain("event: fragment");
+    expect(payload).not.toContain("event: commit");
     expect(dataFor("narration")).not.toMatch(/OMNI_API_KEY|api key|provider/i);
     // The build never started (the provider threw before any stage), so no metrics
     // row is written — the demo records generations, not failed admissions.
@@ -966,9 +979,10 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
 
     // Commit is unreachable when a gate rung fails: the transaction rolled back, so
     // nothing committed — no registry row, no cap_<id> table, no artifacts on disk —
-    // and no commit-preview or confirmation was streamed.
+    // and no commit-preview or commit swap was streamed.
     expect(events.map((event) => event.event)).not.toContain("commit-preview");
     expect(events.map((event) => event.event)).not.toContain("fragment");
+    expect(events.map((event) => event.event)).not.toContain("commit");
     expect(getCapability("notes", conns.readonly)).toBeNull();
     expect(
       conns.readwrite
@@ -1006,6 +1020,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(eventNames).toContain("gate-preview");
     expect(eventNames).not.toContain("commit-preview");
     expect(eventNames).not.toContain("fragment");
+    expect(eventNames).not.toContain("commit");
     expect(dataFor("narration")).toMatch(/mind trying again/i);
     expect(dataFor("done")).toBe("error");
 
@@ -1166,7 +1181,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(eventNames).toContain("units-preview");
     expect(eventNames).toContain("gate-preview");
     expect(eventNames).toContain("commit-preview");
-    expect(eventNames.at(-2)).toBe("fragment");
+    expect(eventNames.at(-2)).toBe("commit");
     expect(eventNames.at(-1)).toBe("done");
     expect(dataFor("done")).toBe("ok");
     expect(events[0]?.data).toContain("new place");
@@ -1180,9 +1195,13 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(prompts[1]).toContain("Aluna's Capability Builder");
     expect(prompts[1]).toContain("Create a notes capability.");
 
-    const userVisible = `${dataFor("narration")}\n${dataFor("fragment")}`;
-    expect(userVisible).toContain("All set");
-    expect(userVisible).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
+    expect(dataFor("narration")).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
+    const commitSwap = dataFor("commit");
+    expect(commitSwap).toContain('class="capability-surface"');
+    expect(commitSwap).toContain('hx-get="/capability/notes/read"');
+    expect(commitSwap).toContain('hx-post="/capability/notes/create"');
+    expect(commitSwap).toContain('hx-swap-oob="beforeend:#capability-toolbar"');
+    expect(commitSwap).toContain("data-capability-entry");
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -1405,6 +1424,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs)", () => {
     expect(fragment).toContain('sse-connect="/build/job-one/stream"');
     expect(fragment).toContain('sse-swap="narration"');
     expect(fragment).toContain('sse-swap="fragment"');
+    expect(fragment).toContain('sse-swap="commit"');
     expect(fragment).toContain('sse-swap="spec-preview"');
     expect(fragment).toContain('data-preview-target="spec-build-preview"');
     expect(fragment).toContain('sse-swap="build-error-preview"');
