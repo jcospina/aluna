@@ -6,6 +6,16 @@ language and product voice live in [CONTEXT.md](../CONTEXT.md). **The source of
 truth for token values is `public/app.css`** — this table mirrors it; if they
 ever disagree, the CSS wins.
 
+This file currently describes the authored shell. Module 3 promotes the same
+tokens into the closed generated-presentation contract from
+[ADR-0005](adr/0005-opinionated-capability-ui-design-contract-and-gate.md):
+generated item markup may use only allow-listed semantic/primitive classes,
+whose implementations consume these tokens. The platform modal, list container
+(with its closed `feed | grid` collection-layout modes, selected per capability
+via `ui_intent.collection.layout`), form, field renderers, and accessible item
+wrapper are added here when Module 3 is implemented; their exact interfaces are
+intentionally left to that Plan.
+
 The style is **subtler neobrutalism on a Paper & Ink palette**, derived from
 [`momo`](https://github.com/jcospina/momo) and turned *down* for a quieter, PostHog-like register.
 

@@ -2,6 +2,12 @@
 
 Status: accepted
 
+> Module 2 contract. [ADR-0005](0005-opinionated-capability-ui-design-contract-and-gate.md)
+> amends the View and injected-toolbox parts in Module 3: structural View chrome
+> becomes platform-rendered, and one generated item renderer is supplied to
+> handlers through a capability-scoped presentation adapter. Scratch-database
+> isolation remains unchanged.
+
 ## Decision
 
 Settled in the Module 2 grilling session (2026-06-12). Three interlocking choices
