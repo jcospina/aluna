@@ -38,7 +38,7 @@ through the read-write connection (`db`) from Epic 1.4.01.
   mid-migration rolls back both and the next boot retries cleanly (ARCH §9.5).
 - **The ledger is migration `0001`.** Module 1 ships no domain tables and the
   registry/event-log/metrics stores belong to later modules (ARCH §6.3; `docs/modules.md`
-  §2.1, §2.7, §6.3), so the only platform schema today is the bookkeeping table
+  §2.1, §2.7, §7.3), so the only platform schema today is the bookkeeping table
   itself. Making its creation the first ordered migration is the minimal honest way
   to prove the mechanism without inventing a table: `0001_platform_migrations_ledger`
   creates `schema_migrations` (`id` PK + `applied_at`) and records itself. The

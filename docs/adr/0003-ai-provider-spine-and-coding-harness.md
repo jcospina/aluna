@@ -69,7 +69,7 @@ and no SDK ships it.
   quality claims are unverified marketing until measured on Aluna's own task.
 - **The bounded-loop's exact shape** — step cap, which tools the loop gets
   (filesystem write + type-check at minimum), retry budget on a failing
-  behavioral assertion — is **Capability Builder** work (modules.md §2.5, §3.5),
+  behavioral assertion — is **Capability Builder** work (modules.md §2.5, §4.5),
   not 1.5. Epic 1.5 only stands up the provider contract + streamed structured
   round-trip; the loop arrives with the first real build.
 - **Whether to layer Mastra** (deterministic Workflows + Agents, *built on the AI

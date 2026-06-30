@@ -90,7 +90,7 @@ The **channel topology** question above is now decided for the explicit loop
   POST never blocks on an AI call, so the prompt bar gets instant feedback.
 - **The persistent shell channel is deliberately not built in M2.** Unprompted
   server push is exactly the implicit loop's need, and its UX is still open
-  design work (modules.md §6.1) — M6 adds its own persistent proposal channel
+  design work (modules.md §7.1) — M7 adds its own persistent proposal channel
   *alongside* the ephemeral build streams if its design wants one. The two
   topologies coexist; nothing in M2 is throwaway.
 

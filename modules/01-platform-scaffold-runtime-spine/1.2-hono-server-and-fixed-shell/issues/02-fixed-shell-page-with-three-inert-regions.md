@@ -23,7 +23,7 @@ Nothing is interactive yet — the prompt bar does not submit, the toolbar has n
 
 This issue owns **structure, the static shell layout, and asset plumbing.** Build the actual layout now — the Claude/ChatGPT shell shape: the toolbar as a **left sidebar**, the **prompt bar pinned to the bottom**, and the **content area filling the rest**. What belongs to issue 03 is the *visual styling* of that shell (colors, fonts, theme, spacing polish), its **collapse/responsive behavior**, and the cold-start orb. Keep styling here to the bare minimum the layout needs — structural rules plus placeholder delineation. Do not add colors or any opinionated styling you think looks good. It is barebones and minimal, **only layout**.
 
-> **Note on "three regions."** ARCH §6.1 decomposes the shell into three *functional parts* — prompt bar, toolbar, and **Event Tracker** — with the content area as the implicit surface the toolbar swaps into. This issue uses the *visual-region* lens instead — prompt bar, toolbar, content area — under which the **Event Tracker drops out**: it is an invisible dumb recorder with no UI and does not arrive until Module 6. Both decompositions are consistent; don't go looking for a fourth region.
+> **Note on "three regions."** ARCH §6.1 decomposes the shell into three *functional parts* — prompt bar, toolbar, and **Event Tracker** — with the content area as the implicit surface the toolbar swaps into. This issue uses the *visual-region* lens instead — prompt bar, toolbar, content area — under which the **Event Tracker drops out**: it is an invisible dumb recorder with no UI and does not arrive until Module 7. Both decompositions are consistent; don't go looking for a fourth region.
 
 ## Acceptance criteria
 

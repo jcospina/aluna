@@ -94,19 +94,35 @@ _Avoid_: endpoint, route, operation
 **Handler**:
 The generated logic unit behind one capability action. Written fresh by the
 builder each version; runs when the action is called; receives its inputs and
-capability-scoped tools, and returns the HTML the user sees (ADR-0004).
+capability-scoped tools, including the capability's presentation adapter, and
+returns the HTML the user sees (ADR-0004, amended by ADR-0005).
 _Avoid_: controller, service, route handler
 
+**Item renderer**:
+The single generated presentation unit for one capability. It turns one record
+into the capability-specific inner markup used by create, read, and later search
+results. Platform-owned list-item chrome supplies the accessible trigger,
+escaped record payload, and modal behavior; handlers receive the renderer
+through their injected presentation adapter rather than importing it
+(ADR-0005). How the records are *arranged* as a collection (feed vs. grid) is
+not the renderer's concern: that is the platform list container reading the
+capability's `ui_intent.collection.layout`. The renderer is generated knowing
+that layout, but it only ever emits one record's markup.
+_Avoid_: row helper, card component, template
+
 **View**:
-A capability's generated, data-free HTML scaffolding, cached per version. Live
-data always arrives through the capability's `read` action — never baked into
-the view (ADR-0004).
+A capability's data-free content-area surface. Module 2 generates and caches the
+initial `list`/`create` scaffolding; Module 3 moves that structural chrome into
+platform rendering while live data continues to arrive through capability
+handlers. A View never contains cached user data (ADR-0004, amended by
+ADR-0005).
 _Avoid_: template, page, screen
 
 **Gate**:
 The layered, fail-closed validation every build must clear before commit —
 type-check, signature assertion, smoke run, and (when the tier is on) behavioral
-tests. Runs against a scratch database, never user data (ADR-0004).
+tests; Module 3 adds design lint for generated item markup. Runs against a
+scratch database, never user data (ADR-0004, ADR-0005).
 _Avoid_: CI, checks, test suite
 
 ## Product voice

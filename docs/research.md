@@ -1,6 +1,12 @@
 # Omni-CRUD: Research Grounding & Draft Architecture
 
 > **Purpose**: Ground the omni-crud concept in existing research and prior art before architectural decisions are made. This is a PoC exploring new UI/UX patterns in the AI era — not a production app.
+>
+> **Status**: historical research snapshot and draft. The accepted current
+> architecture is [architecture.md](architecture.md), refined by
+> [docs/adr/](adr/). Those decisions intentionally supersede several options
+> explored below, including React/Next.js, fully declarative UI rendering, and a
+> process sandbox for the local single-user PoC.
 
 ---
 
