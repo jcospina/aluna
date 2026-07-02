@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Aluna — primitive vocabulary preview</title>
+
+    <!-- The same authored token + primitive layer the running app serves. This
+         is a DEV PREVIEW for the human visual sign-off in issue 3.1/01 — it is
+         not product UI and is not the platform item wrapper (that is 3.2). The
+         sample items below are composed ONLY from the capability primitive
+         vocabulary (public/css/primitives.css); the page chrome and the wrapper
+         stand-in are preview-only, and themselves consume the tokens. -->
+    <link rel="stylesheet" href="/static/app.css">
+
+    <style>
+    body {
+      max-width: 42rem;
+      margin-inline: auto;
+      padding: var(--space-4) var(--space-3);
+    }
+    .preview-banner {
+      margin: 0 0 var(--space-4);
+      padding: var(--space-1) var(--space-2);
+      font: var(--meta);
+      color: var(--color-text-muted);
+      background: color-mix(in oklch, var(--color-accent), transparent 90%);
+      border-radius: var(--radius-sm);
+    }
+    .preview-section {
+      margin-block: var(--space-6);
+    }
+    .preview-title {
+      margin: 0 0 var(--space-1);
+      font: var(--h3);
+    }
+    .preview-note {
+      margin: 0 0 var(--space-2);
+      font: var(--meta);
+      color: var(--color-text-subtle);
+    }
+    /* Stand-in for the 3.2 platform item wrapper: a surface with a thin-border
+                       card and the item type baseline. Item CONTENT inside uses only the
+                       vocabulary classes; nothing here anticipates 3.2's real wrapper. */
+    .preview-item {
+      padding: var(--space-2);
+      font: var(--body);
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+    }
+    .preview-item + .preview-item {
+      margin-top: var(--space-2);
+    }
+    .preview-item p {
+      margin: 0;
+    }
+    /* Border-weight swatches — eyeball the thin / regular / thick scale. */
+    .swatches {
+      display: flex;
+      gap: var(--space-2);
+    }
+    .swatch {
+      flex: 1;
+      padding: var(--space-2);
+      font: var(--meta);
+      text-align: center;
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-text);
+      border-radius: var(--radius-md);
+    }
+    .swatch--regular {
+      border-width: var(--border-regular);
+    }
+    .swatch--thick {
+      border-width: var(--border-thick);
+    }
+    </style>
+  </head>
+
+  <body>
+    <p class="preview-banner">
+      Dev preview · capability primitive vocabulary (issue 3.1/01) · not product UI
+    </p>
+
+    <!-- ── Button variants (platform chrome — the palette, activated) ──────── -->
+    <section class="preview-section">
+      <p class="preview-title">Button variants</p>
+      <p class="preview-note">
+        Platform chrome, not item vocabulary — the palette's accent roles with AA-verified text.
+        Generated items never contain buttons (the contract forbids interactive descendants).
+      </p>
+      <div class="cluster gap-1">
+        <button type="button" class="btn btn--primary">Primary</button>
+        <button type="button" class="btn btn--secondary">Secondary</button>
+        <button type="button" class="btn btn--info">Info</button>
+        <button type="button" class="btn btn--feature">Feature</button>
+        <button type="button" class="btn btn--warm">Warm</button>
+        <button type="button" class="btn btn--neutral">Neutral</button>
+        <button type="button" class="btn btn--ghost">Ghost</button>
+      </div>
+    </section>
+
+    <!-- ── Border-weight scale ─────────────────────────────────────────────── -->
+    <section class="preview-section">
+      <p class="preview-title">Border weights</p>
+      <p class="preview-note">
+        Turned down from the heavier 2/4px typical of neobrutalism — thin is the shell's hairline
+        default, thick stays under the loud 4px.
+      </p>
+      <div class="swatches">
+        <div class="swatch">thin · 1px</div>
+        <div class="swatch swatch--regular">regular · 2px</div>
+        <div class="swatch swatch--thick">thick · 3px</div>
+      </div>
+    </section>
+
+    <!-- ── Sample items (vocabulary classes only) ──────────────────────────── -->
+    <section class="preview-section">
+      <p class="preview-title">Sample items</p>
+      <p class="preview-note">
+        Each item's inner markup is composed only from the primitive vocabulary — stack / cluster,
+        layout utilities, truncation, media frame, type scale.
+      </p>
+
+      <!-- A saved link: media banner on top, then a stack of title / url / meta. -->
+      <article class="preview-item stack gap-2">
+        <div class="media-frame media-frame--wide w-full"></div>
+        <div class="stack gap-0_5">
+          <p class="text-lg text-bold truncate">
+            Designing Data-Intensive Applications — the big ideas, distilled
+          </p>
+          <p class="text-sm text-subtle truncate">
+            https://dataintensive.example.com/chapter/replication-and-partitioning
+          </p>
+          <div class="cluster gap-1 text-xs text-muted">
+            <span>Added Jul 1</span>
+            <span aria-hidden="true">·</span>
+            <span>reading</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- A note: title row with a right-aligned timestamp, clamped body, tags. -->
+      <article class="preview-item stack gap-1">
+        <div class="cluster justify-between">
+          <p class="text-lg text-bold truncate grow">Groceries for the week</p>
+          <span class="text-xs text-subtle">2h ago</span>
+        </div>
+        <p class="text-sm text-muted line-clamp-2">
+          Oat milk, sourdough, the good olive oil, tomatoes for the sauce, basil if it looks fresh,
+          and something green. Skip the checkout snacks this time.
+        </p>
+        <div class="cluster gap-1 text-xs text-muted">
+          <span>shopping</span>
+          <span aria-hidden="true">·</span>
+          <span>not done</span>
+        </div>
+      </article>
+
+      <!-- A stat record: an intra-item two-up grid. -->
+      <article class="preview-item stack gap-2">
+        <p class="text-lg text-bold truncate">March run log</p>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="stack gap-0_5">
+            <span class="text-xs text-subtle">Distance</span>
+            <span class="text-xl text-bold">42.2 km</span>
+          </div>
+          <div class="stack gap-0_5">
+            <span class="text-xs text-subtle">Pace</span>
+            <span class="text-xl text-bold">5:38 /km</span>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ── Escape hatch (token-disciplined) ────────────────────────────────── -->
+    <section class="preview-section">
+      <p class="preview-title">Escape hatch (token-disciplined)</p>
+      <p class="preview-note">
+        When the vocabulary doesn't suffice, inline <code>style</code> is allowed — but the five
+        owned axes stay on-token. Here: an accent flag via
+        <code>border-inline-start: var(--border-thick) solid var(--color-accent)</code>.
+      </p>
+      <article
+        class="preview-item stack gap-1"
+        style="border-inline-start: var(--border-thick) solid var(--color-accent)"
+      >
+        <p class="text-bold truncate">Renew passport</p>
+        <p class="text-sm text-muted">Flagged — border weight and color both come from tokens.</p>
+      </article>
+    </section>
+  </body>
+</html>

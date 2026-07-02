@@ -15,17 +15,18 @@ implementation now.
 
 ## Context / why
 
-- **Derived from [`momo`](https://github.com/jcospina/momo): The token source is momo's **Paper & Ink
-  theme** (`themes.config.ts`, the `paper` entry) — *not* the loud Sunbeam
-  default. Paper & Ink is already quiet: warm cream page, warm near-black ink,
-  terracotta primary. Its full role set (text/surface/background, primary,
-  secondary, info, feature, warm) is carried over, re-homed under `--color-*`
-  names; some roles are reserved for capabilities to use later.
+- **An existing Paper & Ink palette.** The token source is a **Paper & Ink
+  theme** — *not* a loud, high-chroma default. Paper & Ink is already quiet: warm
+  cream page, warm near-black ink, terracotta primary. Its full role set
+  (text/surface/background, primary, secondary, info, feature, warm) is carried
+  over, re-homed under `--color-*` names; some roles are reserved for capabilities
+  to use later.
 - **"Subtler" is achieved through shadows and borders, not color** — a quieter,
-  PostHog-like register. We turn momo's dial *down*: 1px softened-ink borders on
-  structural surfaces only (momo uses 2–4px), two-step **down-right** hard shadows
-  `2px/4px` (momo uses left-down `-2/-6/-12/-16px`), gentle 1–2px press (momo
-  moves 3–6px), 10px radius retained.
+  PostHog-like register. We turn the neobrutalist dial *down*: 1px softened-ink
+  borders on structural surfaces only (loud neobrutalism uses 2–4px), two-step
+  **down-right** hard shadows `2px/4px` (loud neobrutalism piles up left-down
+  `-2/-6/-12/-16px`), gentle 1–2px press (versus a 3–6px slam), 10px radius
+  retained.
 - **Single `:root`, no theming machinery.** The owner is locking Paper & Ink, so
   no `data-schema`, theme registry, or dark stylesheet. Using *semantic* tokens
   still leaves a dark theme as a purely additive future override — we satisfy the
@@ -33,9 +34,9 @@ implementation now.
   machinery.
 - **Outfit, vendored locally.** Typography is the highest-leverage warmth lever
   and "look how friendly" is part of the thesis (ARCH §2, §9.7). Vendoring the
-  OFL-licensed variable woff2 keeps it build-free and offline (no CDN). momo's
-  Bungee Shade logo face is **not** carried over — the wordmark is typographic in
-  Outfit, no separate display face.
+  OFL-licensed variable woff2 keeps it build-free and offline (no CDN). No
+  separate shaded display/logo face is carried over — the wordmark is typographic
+  in Outfit.
 - **Product voice** = warm / encouraging / gently curious, first person, zero
   internals jargon (ARCH §9.7). Authored as durable guidance (in `CONTEXT.md`)
   because it steers every future coding agent's copy.

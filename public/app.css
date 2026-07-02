@@ -20,4 +20,6 @@
 @import "css/devbar.css"; /* developer panel (right sidebar) + responsive     */
 @import "css/demo.css"; /* cold-start, intro stream, raw stage previews       */
 @import "css/prompt.css"; /* bottom-pinned prompt composer                    */
+@import "css/components.css"; /* platform button variants (design-system color)*/
+@import "css/primitives.css"; /* capability item vocabulary (Module 3 §3.1)   */
 @import "css/a11y.css"; /* focus ring + reduced-motion (loaded last)          */

@@ -7,6 +7,30 @@ Settled in the Module 3 grilling session (2026-06-26). Exact class names, token
 names, module interfaces, and the exemplar set remain implementation detail, decided
 inside Module 3.
 
+**Amended 2026-06-30.** Two changes: (a) **collection layout** is added as a
+closed `ui_intent.collection.layout` value (`feed | grid`) the platform list
+container reads (§2, §6). (b) **§7's preservation cutover is deferred.** The
+project is greenfield and under development, so the M2→M3 artifact-*shape* change
+is handled by `bun run reset` + rebuild; M3 introduces no persisted
+`artifact_contract` marker and no migrate-without-reset machinery. The
+preservation path is deferred until the platform is feature-complete (post-M8) —
+it remains the architecture's end-state vision (ARCH §2, §9.1). Backwards
+compatibility does not drive design while the project is under development.
+
+**Amended 2026-07-01.** §4's blanket inline-style ban is relaxed. A closed class
+list cannot anticipate every composition a capability needs — the vocabulary is
+**sensible defaults, not an all-purpose CSS framework** (even Tailwind doesn't
+cover every case with ease; rebuilding it is a non-goal) — so inline `style`
+becomes a **token-disciplined escape hatch**: allowed when the primitive
+vocabulary doesn't suffice, but the five design axes the platform already owns —
+**color** (theme tokens), **font family** (Outfit is the default and is never
+declared), **type scale** (the t-shirt-size tokens), **spacing** (the base
+spacing unit's tokens), and **border weight** (the thin | regular | thick
+scale) — are never redeclared with raw values. The
+executable-markup bans are untouched. *Closed values, open composition* now
+reads literally: the closed thing is the design-**value** space (the tokens),
+not the CSS property space.
+
 ## Problem
 
 A capability is born usable but **ugly**. The unit-generation prompts hand the
@@ -64,7 +88,8 @@ presentational platform code is allowed.
    never bytes — ARCH §7), and attaches the click-to-open behavior. The model
    owns composition, not serialization, escaping the payload, accessibility
    mechanics, safe insertion of record content, or modal wiring. The adapter
-   enforces the allowed HTML/class surface on every rendered item, so dynamic
+   enforces the allowed HTML/class/style surface on every rendered item —
+   sanitizing style declarations along with elements and classes — so dynamic
    record values cannot turn into executable markup even after build-time
    validation. The modal opens **prefilled** with full content even when the item
    visually truncates, so the fixed `create + read` route convention is
@@ -73,18 +98,33 @@ presentational platform code is allowed.
    the per-item action; the item payload shrinks to an id without changing
    committed item composition.
 
-4. **A closed-value design contract, enforced by a new gate rung.** Generated
-   item markup uses an allow-list of semantic/primitive classes whose
-   implementations consume the design tokens. Inline styles, raw design values,
-   fabricated or unknown classes, interactive descendants, scripts/event
-   handlers, and unsafe interpolation of user fields are forbidden. A new
-   **fail-closed design-lint rung** renders hostile synthetic values — within the
+4. **A closed-value design contract, enforced by a new gate rung.** (Amended
+   2026-07-01.) Generated item markup reaches first for an allow-list of
+   semantic/primitive classes whose implementations consume the design tokens —
+   the sensible defaults, including Tailwind-style **layout utilities** (flex,
+   grid, alignment, gap) so common arrangement never needs `style` at all. The
+   vocabulary is deliberately **not** an all-purpose CSS framework. When it
+   doesn't suffice, inline `style`
+   is allowed as a **token-disciplined escape hatch**: the five design axes the
+   platform owns are never redeclared with raw values — **color** (only
+   `var(--color-*)`), **font family** (never declared; Outfit inherits from the
+   shell), **type scale** (only the t-shirt tokens `var(--type-*)`),
+   **spacing** (only `var(--space-*)`), and **border weight** (only the
+   thin | regular | thick border tokens). Properties outside those axes
+   (arrangement, alignment, aspect ratio, …) are free; radius/shadow/motion
+   tokens exist and are preferred where they fit. The security bans are
+   absolute and unrelaxed: fabricated or unknown classes, interactive
+   descendants, scripts/event handlers, unsafe interpolation of user fields —
+   and, inside styles, `url(...)` values, position values that escape the
+   item's bounds, and field values interpolated into a `style` attribute
+   (styles are literal in the renderer source). A new **fail-closed
+   design-lint rung** renders hostile synthetic values — within the
    capability's declared collection layout — and feeds violations through the
    same bounded fix loop as the existing checks.
    Platform-owned payload, wrapper, and modal invariants are ordinary platform
    tests; they are not requirements the model can get wrong. *Closed values,
-   open composition*: the gate constrains the value vocabulary and executable
-   surface, never the arrangement.
+   open composition*: the contract closes the design-**value** space (the
+   tokens) and the executable surface, never the arrangement.
 
 5. **The builder is steered by injection, not a runtime tool.** Unit generation is
    one-shot structured output — agentic only *within* a unit's write→check→fix
@@ -116,15 +156,19 @@ presentational platform code is allowed.
    platform invariant, not a choice for the model to make. Module 3 ships detail
    read-only; M4's `update` adds editing to the same platform module.
 
-7. **The artifact-contract cutover is atomic and preserves existing
-   capabilities.** M3 adds platform-owned artifact-contract metadata. Existing M2
-   rows remain serveable through their committed `list.html`/`create.html` while
-   each capability is re-derived through the serial build queue. The old pointer
-   stays live until the new handlers + item renderer clear every active gate rung;
-   then one pointer flip activates the new contract. This is a cache/compiler
-   upgrade, not a user-intent change: it does not bump or rewrite the authored
-   spec, run a capability-data migration, or lose records. M3 is not complete
-   while an existing capability requires a reset or manual rebuild.
+7. **The artifact *shape* changes; preservation of existing capabilities is
+   deferred.** M3 re-cuts what a capability's generated artifacts *are* (views
+   give way to one item renderer, §1–§2). Because the project is **greenfield and
+   under development**, that shape change is applied the simplest way: change the
+   generators, `bun run reset`, and rebuild capabilities fresh under the new
+   shape. M3 introduces **no** persisted `artifact_contract` marker, **no**
+   dual-serving of old and new artifacts, and **no** atomic migrate-without-reset
+   cutover. The original preservation design — keeping committed capabilities live
+   and re-deriving them across a contract change without a reset — is **deferred
+   until the platform is feature-complete (post-M8)**, when real user data exists
+   to preserve; it remains the platform artifact-contract upgrade the architecture
+   still describes as the end state (ARCH §2, §9.1). Until then, backwards
+   compatibility does not drive design.
 
 ## Consequences
 
@@ -145,13 +189,17 @@ presentational platform code is allowed.
   intent + detail fields/order. The M2 field-type pantry is untouched (`file`
   remains M6).
 - **Metrics retain semantic continuity.** Item-renderer generation replaces M2
-  view generation as the presentation-generation stage. Metrics record the
-  artifact contract, and M8 compares that stage across contract versions rather
-  than assuming generated `.html`.
-- **Existing capabilities get a real upgrade path.** Compatibility is temporary
-  and explicit; no reset, hidden data loss, or permanent dual contract.
+  view generation as the presentation-generation stage, so M8 compares the
+  presentation-gen stage across module versions rather than assuming generated
+  `.html`. M3 records no `artifact_contract` marker; if M8 needs to distinguish
+  contract versions it introduces that marker when it gets there (§7).
+- **No in-place upgrade path in M3 (by choice).** During development the
+  artifact-shape change is a `bun run reset` + rebuild, not a preserving
+  migration; no dual contract or migration machinery is built now. The
+  preservation cutover is deferred post-M8 (§7).
 - **`design-system.md` gains a section** for the platform modules, the primitive
-  vocabulary, and the closed-value contract — authored during Module 3.
+  vocabulary, and the closed-value contract — including the inline-style
+  token-discipline rules — authored during Module 3.
 
 ## Rejected, with reasons
 
@@ -165,6 +213,13 @@ presentational platform code is allowed.
 - **A tight, fixed primitive menu (close the composition too).** Maximal
   consistency, but every capability converges on the same layout — the boredom the
   module exists to kill. Hence *closed values, open composition*.
+- **A blanket inline-style ban (§4 as originally accepted).** Relaxed by the
+  2026-07-01 amendment: no closed class list can anticipate every per-capability
+  composition need — we are not building an alternative to Tailwind — so a hard
+  ban forces either endless vocabulary bloat or
+  bland output. Token discipline on the platform-owned axes (color, font, type
+  scale, spacing, border weight) keeps the consistency the ban was buying; the
+  executable-surface bans were never the part being relaxed.
 - **Duplicate an identical row helper into every handler.** It asks independent
   generated units to maintain one presentation contract and makes M4's Diff
   Engine coordinate copies. One injected item renderer gives handlers the same

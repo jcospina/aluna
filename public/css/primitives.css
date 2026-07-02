@@ -1,0 +1,190 @@
+/* =============================================================================
+   Capability primitive vocabulary — the closed-value design contract (Module 3,
+   epic 3.1). This is the allow-list of semantic/primitive classes generated
+   *item renderer* markup reaches for first: sensible defaults for arranging one
+   record's own fields, on-brand by construction because every class consumes the
+   design tokens (public/css/tokens.css) — no raw color/spacing/size literals.
+
+   *Closed values, open composition.* The closed thing is the design-VALUE space
+   (the tokens), never how an item arranges a record. This is deliberately NOT an
+   all-purpose CSS framework — rebuilding Tailwind is a non-goal. When the
+   vocabulary doesn't suffice, item markup may carry inline `style` under the
+   token-discipline rules in docs/design-system.md (the escape hatch).
+
+   The single source of truth for the allow-list is docs/design-system.md; the
+   runtime enforcer (3.1/02) and the design-lint gate rung (3.6) both key on the
+   vocabulary authored here. Loaded late in app.css (after the shell chrome,
+   before a11y) so these utilities win where they apply and reduced-motion still
+   overrides last.
+   ========================================================================== */
+
+/* ── Intra-item composition primitives ───────────────────────────────────────
+   The two everyday arrangements, each with an on-token default gap so common
+   markup needs no gap utility at all. `.stack` flows a record's fields top to
+   bottom; `.cluster` lays inline bits (chips, meta, avatar + label) in a row that
+   wraps. Both are distinct from the platform's *collection* layout (feed | grid),
+   which the list container owns — these arrange one record's OWN fields. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* ── Layout utilities (Tailwind-style) ───────────────────────────────────────
+   Low-level knobs for the long tail of arrangement. Display + direction, then
+   alignment/justification, then gap (consumes the spacing tokens), then a couple
+   of intra-item grid tracks and sizing helpers. Arrangement values (flex, grid,
+   1fr tracks, 100%, min-width:0) are structure, not design values — the token-
+   owned axes are color/type/spacing/border, governed above and in the tokens. */
+.flex {
+  display: flex;
+}
+.grid {
+  display: grid;
+}
+.flex-col {
+  flex-direction: column;
+}
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+.items-start {
+  align-items: flex-start;
+}
+.items-center {
+  align-items: center;
+}
+.items-end {
+  align-items: flex-end;
+}
+.items-baseline {
+  align-items: baseline;
+}
+
+.justify-start {
+  justify-content: flex-start;
+}
+.justify-center {
+  justify-content: center;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.justify-end {
+  justify-content: flex-end;
+}
+
+/* Gaps map 1:1 onto the spacing tokens — `.gap-2` is `--space-2`, and so on. */
+.gap-0_5 {
+  gap: var(--space-0_5);
+}
+.gap-1 {
+  gap: var(--space-1);
+}
+.gap-2 {
+  gap: var(--space-2);
+}
+.gap-3 {
+  gap: var(--space-3);
+}
+
+/* Equal-width intra-item columns (e.g. a two-up stat pair inside one card).
+   `minmax(0, 1fr)` lets truncating children shrink instead of overflowing. */
+.grid-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.grid-cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grow {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+.w-full {
+  width: 100%;
+}
+
+/* ── Type scale + emphasis ───────────────────────────────────────────────────
+   Setting type on-token via a class instead of reaching for the escape hatch.
+   The body size (`--type-md`) is the inherited default, so it needs no utility;
+   these cover the steps a record label or caption typically wants. */
+.text-xs {
+  font-size: var(--type-xs);
+}
+.text-sm {
+  font-size: var(--type-sm);
+}
+.text-lg {
+  font-size: var(--type-lg);
+}
+.text-xl {
+  font-size: var(--type-xl);
+}
+.text-bold {
+  font-weight: var(--weight-bold);
+}
+.text-muted {
+  color: var(--color-text-muted);
+}
+.text-subtle {
+  color: var(--color-text-subtle);
+}
+
+/* ── Truncation ──────────────────────────────────────────────────────────────
+   Keep long field values from breaking the layout. `.truncate` is the single
+   ellipsised line (with `min-width:0` so it behaves inside flex rows);
+   `.line-clamp-*` caps a wrapping block at N lines. */
+.truncate {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-clamp-2,
+.line-clamp-3 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+}
+.line-clamp-2 {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.line-clamp-3 {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+/* ── Media frame ─────────────────────────────────────────────────────────────
+   A ratio-locked, clipped box for an image or video field, with a quiet on-token
+   placeholder tint behind it while media loads or when absent. The direct child
+   media fills and covers. Default is 4:3; `--square` and `--wide` cover the two
+   other common shapes (avatars/thumbnails, hero imagery). */
+.media-frame {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--color-text), transparent 92%);
+}
+.media-frame > img,
+.media-frame > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media-frame--square {
+  aspect-ratio: 1 / 1;
+}
+.media-frame--wide {
+  aspect-ratio: 16 / 9;
+}

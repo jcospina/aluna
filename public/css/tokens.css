@@ -19,7 +19,7 @@
 }
 
 :root {
-  /* ── Color — Paper & Ink (momo themes.config.ts, the `paper` theme) ──────── */
+  /* ── Color — Paper & Ink ───────────────────────────────────────────────── */
   --color-bg: oklch(95% 0.025 85); /* warm cream page          */
   --color-surface: oklch(98% 0.012 85); /* warm near-white surface  */
   --color-text: oklch(18% 0.02 60); /* warm near-black ink      */
@@ -28,9 +28,10 @@
   --color-border: color-mix(in oklch, var(--color-text), var(--color-surface) 25%);
   --color-shadow: color-mix(in oklch, var(--color-text), transparent 82%);
   --color-accent: oklch(63% 0.16 38); /* terracotta (primary) — focus, wordmark accent */
-  /* Reserved roles — defined now, capabilities use them later (additive). */
+  /* Accent roles — activated by the platform button variants (Module 3 §3.1,
+     components.css); text on each fill is WCAG-AA verified. */
   --color-accent-secondary: oklch(40% 0.06 250); /* deep blue                */
-  --color-text-on-secondary: oklch(98% 0.012 85);
+  --color-text-on-secondary: oklch(98% 0.012 85); /* near-white ink-on-secondary */
   --color-info: oklch(75% 0.1 195);
   --color-feature: oklch(82% 0.13 90);
   --color-warm: oklch(82% 0.12 75);
@@ -67,7 +68,17 @@
   --space-8: 64px;
 
   /* ── Borders / radius ────────────────────────────────────────────────────── */
-  --border-width: 1px;
+  /* Border-weight scale (Module 3, epic 3.1) — the closed set the capability
+     primitive vocabulary and the inline-style escape hatch may reach for. Turned
+     down from the heavier 2/4px weights typical of neobrutalism: thin (1px) is the
+     shell's hairline default and the structural end of the scale; thick (3px)
+     stays deliberately under the loud 4px. `--border-width` is kept as the
+     authored chrome's existing alias of the thin end, so nothing in the shell
+     needs to change. */
+  --border-thin: 1px;
+  --border-regular: 2px;
+  --border-thick: 3px;
+  --border-width: var(--border-thin);
   --radius-sm: 5px;
   --radius-md: 10px;
   --radius-pill: 999px;
