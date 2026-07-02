@@ -32,6 +32,8 @@
   .sidebar-toggle:active,
   .prompt__submit:hover,
   .prompt__submit:active,
+  .btn:hover,
+  .btn:active,
   .prompt__field:hover {
     transform: none;
   }
