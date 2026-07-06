@@ -1,0 +1,103 @@
+/* =============================================================================
+   Collection layout + item wrapper — platform CHROME (Module 3 · epic 3.2/02).
+   The list scaffolding a capability's records land in (src/presentation/
+   list-container.ts): the "New X" disclosure, the records region in one of the
+   closed `feed | grid` collection layouts, the empty state, and the standardized
+   accessible item wrapper each record is framed in.
+
+   Platform chrome, NOT the generated item vocabulary (public/css/primitives.css):
+   these style platform-owned surfaces (the wrapper, the container), while the
+   *inner* markup an item renderer emits composes with the primitives inside the
+   wrapper. Treatment follows the established Aluna card/press language — surface
+   fill, a 1px ink-tinted border, 10px radius, the gentle down-right press, and the
+   accent focus ring shared with the prompt field and buttons. Tokens only.
+   ========================================================================== */
+
+/* ── List scaffolding ─────────────────────────────────────────────────────────
+   A calm vertical stack: the New X header, the disclosed create form, the records
+   region, and the empty state — separated by the standard section rhythm. */
+.capability-collection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.capability-collection__header {
+  display: flex;
+  justify-content: flex-start;
+}
+/* The create form the "New X" button discloses (x-show). A surface panel so the
+   platform form sits on its own quiet card above the list. */
+.capability-collection__create {
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: var(--border-thin) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+/* ── Records region — the two closed collection layouts ───────────────────────
+   The live area records load into (its id is `<capability>-records`). `feed` is a
+   single vertical column; `grid` is a responsive auto-fill grid for visually
+   dominant items. Arrangement values (flex/grid, `auto-fill`, the `16rem` track
+   floor, `1fr`) are structure, not design values — the token-owned axes are the
+   gap (spacing tokens) and everything the item wrapper draws. */
+.capability-records--feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.capability-records--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--space-3);
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────────────
+   Shown only while the records region has no children. Declared before its hiding
+   rule so specificity ascends (biome noDescendingSpecificity). */
+.capability-empty {
+  margin: 0;
+  padding: var(--space-6) var(--space-3);
+  font: var(--body);
+  color: var(--color-text-subtle);
+  text-align: center;
+}
+/* The `:empty` selector fires when the region is truly childless (the renderer emits
+   no whitespace inside it), and stops firing the moment a record is server-rendered or
+   prepended — so the empty state hides itself with no JS. */
+.capability-records:not(:empty) ~ .capability-empty {
+  display: none;
+}
+
+/* ── Item wrapper — the standardized accessible trigger ───────────────────────
+   The consistent, clickable card frame every record is wrapped in (role="button",
+   opens the detail modal). The platform owns this frame; the generated inner markup
+   composes the record's fields within it. Gentle press + accent focus ring, the
+   same tactile-but-quiet language as the buttons and the prompt field. */
+.capability-item {
+  display: block;
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: var(--border-thin) solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-pop),
+    box-shadow var(--duration-fast) var(--ease-pop);
+}
+.capability-item:hover {
+  transform: translate(1px, 1px);
+  box-shadow: var(--shadow-sm);
+}
+.capability-item:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-none);
+}
+/* The wrapper owns its accent ring on keyboard focus; the global :focus-visible
+   ring (a11y.css) would otherwise double it up on this rounded card. */
+.capability-item:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-accent), transparent 70%);
+}

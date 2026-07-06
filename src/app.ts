@@ -25,6 +25,7 @@ import {
   streamSpecBuildDemo,
 } from "./pipeline/index.ts";
 import { renderFieldRendererPreviewPage } from "./presentation/field-renderer-preview.ts";
+import { renderListContainerPreviewPage } from "./presentation/list-container-preview.ts";
 import { createProvider, type Provider } from "./provider/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "./sse/index.ts";
@@ -198,6 +199,18 @@ export function createApp(deps: AppDeps = {}): Hono {
     "/demo/field-renderer",
     () =>
       new Response(renderFieldRendererPreviewPage(), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }),
+  );
+
+  // Dev preview for the list scaffolding container + accessible item wrapper (epic
+  // 3.2/02) — the HITL visual sign-off surface. Renders the live platform list in both
+  // `feed` and `grid` from a hand-written item renderer round-tripped through the
+  // wrapper, plus the empty state. Deterministic, no provider, no db — safe on page load.
+  app.get(
+    "/demo/list-container",
+    () =>
+      new Response(renderListContainerPreviewPage(), {
         headers: { "content-type": "text/html; charset=utf-8" },
       }),
   );
