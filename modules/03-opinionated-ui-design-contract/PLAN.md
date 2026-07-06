@@ -115,8 +115,9 @@ fix loop). Terms per [CONTEXT.md](../../CONTEXT.md) ("Engineering language"):
    **not** stored — the shared modal is a platform invariant, not model-authored
    state. The spec Zod schema in [`src/registry/spec.ts`](../../src/registry/spec.ts)
    changes shape accordingly; the M2 field-type pantry
-   (`string | number | boolean | datetime`, each `required`) is **untouched**
-   (`file` stays M6). Clicking the item wrapper opens the modal **prefilled and
+   (`string | number | boolean | datetime`, each `required`) gains a **`date`** type
+   (2026-07-06, ADR-0005 amendment) but is otherwise unchanged (`file` stays M6).
+   Clicking the item wrapper opens the modal **prefilled and
    read-only** from the escaped payload; M4 adds the Save button to the same
    platform module.
 

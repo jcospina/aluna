@@ -1,0 +1,122 @@
+/* =============================================================================
+   Capability field chrome — the create form's controls and the read-only detail
+   display, rendered deterministically from a spec by the centralized field
+   renderer (src/presentation/field-renderer.ts, Module 3 · epic 3.2/01).
+
+   Platform CHROME, not the generated item vocabulary (public/css/primitives.css):
+   these style the platform-owned create/detail surfaces the "New X" button and the
+   shared modal open, never markup the item renderer emits. Treatment follows the
+   established Aluna field (.prompt__field, prompt.css) — surface fill, a 1px
+   ink-tinted border, 10px radius, an accent focus ring and no press travel so a
+   control stays put while it's being filled. Tokens only; no raw values.
+   ========================================================================== */
+
+/* ── Create form ──────────────────────────────────────────────────────────────
+   A calm vertical stack of fields with a trailing actions row. The submit button
+   is the platform `.btn--primary` (components.css), so only layout lives here. */
+.capability-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.capability-create-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.capability-create-form__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* One field: label stacked above its control (the everyday case). */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0_5);
+}
+.field__label {
+  font: var(--weight-bold) var(--type-sm) / 1.4 var(--font-sans);
+  color: var(--color-text);
+}
+
+/* The text / number / datetime control — same visual language as the prompt field. */
+.field__control {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  font: var(--body);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-thin) solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    box-shadow var(--duration-fast) var(--ease-pop),
+    border-color var(--duration-fast) var(--ease-pop);
+}
+.field__control::placeholder {
+  color: var(--color-text-subtle);
+}
+/* Focus: accent border + accent ring, no translate — the control stays put while
+   the user types (mirrors .prompt__field). */
+.field__control:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-accent), transparent 70%);
+}
+/* The control owns its accent ring on :focus; don't double it with the global one. */
+.field__control:focus-visible {
+  outline: none;
+}
+
+/* Boolean: the checkbox sits inline before its label. */
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-1);
+}
+.field__checkbox {
+  width: var(--space-2);
+  height: var(--space-2);
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+.field__label--inline {
+  cursor: pointer;
+}
+
+/* ── Read-only detail ─────────────────────────────────────────────────────────
+   A definition list of label/value pairs the shared modal (3.2/04) fills from a
+   record payload. Quiet muted labels; values wrap and preserve their own line
+   breaks so a multi-line field reads faithfully. */
+.detail-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+.detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0_5);
+}
+.detail-field__label {
+  margin: 0;
+  font: var(--weight-bold) var(--type-xs) / 1.4 var(--font-sans);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.detail-field__value {
+  /* Reset the UA `<dd>` indent (margin-inline-start: 40px) so the value sits under
+     its label rather than shoved to the right. */
+  margin: 0;
+  font: var(--body);
+  color: var(--color-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.detail-field__value--empty {
+  color: var(--color-text-subtle);
+}

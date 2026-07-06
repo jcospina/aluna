@@ -16,9 +16,10 @@ PLAN decision 1: `modules/03-opinionated-ui-design-contract/PLAN.md`)
 
 The single platform module that renders a capability's fields deterministically
 from its spec — used by both the create form and the read-only detail surface.
-Centralized and **exhaustive over the M2 field-type pantry**
-(`string | number | boolean | datetime`, each `required`) so Module 4's list
-types and Module 6's file types extend exactly one place (ADR-0005 §1).
+Centralized and **exhaustive over the field-type pantry**
+(`string | number | boolean | datetime | date` — a `date` type was added here per
+the 2026-07-06 ADR-0005 amendment) so Module 4's list types and Module 6's file
+types extend exactly one place (ADR-0005 §1).
 Presentation only — no capability rule, no canonical state.
 
 - Dispatch on field type to the right control (create) and the right display
@@ -31,16 +32,37 @@ Presentation only — no capability rule, no canonical state.
 
 ## Acceptance criteria
 
-- [ ] Field rendering is centralized in one platform module and is exhaustive over
-      the M2 pantry (string/number/boolean/datetime, each required); adding a type
+- [x] Field rendering is centralized in one platform module and is exhaustive over
+      the pantry (string/number/boolean/datetime/date, each required); adding a type
       is a single-location change
-- [ ] The same module renders both create controls and read-only detail display
+- [x] The same module renders both create controls and read-only detail display
       from the spec
-- [ ] Create-form HTMX wiring + close-on-success is platform-owned
-- [ ] Unit tests cover every pantry type in both create and detail modes from a
+- [x] Create-form HTMX wiring + close-on-success is platform-owned
+- [x] Unit tests cover every pantry type in both create and detail modes from a
       spec fixture
 - [ ] Demo: a dev preview renders create + detail fields for a sample spec; human
       visually confirms the fields are on-brand and complete before done
+      <!-- Preview built + live at /demo/field-renderer (port 3030); awaiting the
+           human visual sign-off. -->
+
+## Delivered
+
+- `src/presentation/field-renderer.ts` — `renderCreateForm` (platform form + HTMX
+  wiring + close-on-success) and `renderDetailFields` (read-only `<dl>`), both
+  dispatching on `FieldType` through **total switches** (`assertNever` fails the
+  build on an unhandled type — fail-closed, no text fallback, per ARCH §6.3).
+- `public/css/fields.css` — on-brand control + detail chrome (prompt-field
+  treatment; tokens only), wired into `public/app.css`.
+- `src/presentation/field-renderer.test.ts` — 20 tests: every pantry type in both
+  modes, wiring, escaping/hostile values, and a schema-driven exhaustiveness sweep.
+- `src/presentation/field-renderer-preview.ts` + route `GET /demo/field-renderer`
+  — the HITL preview, rendering the **live** module output for a sample spec.
+- `docs/design-system.md` — new "Capability field chrome (Module 3 · epic 3.2)"
+  section (type → control/display table, close-on-success contract).
+
+Verified: `bun run typecheck` clean · `bun run lint` clean · `bun test` 255 pass /
+0 fail · route returns HTTP 200 with the live create form + detail on the running
+server.
 
 ## Blocked by
 

@@ -13,7 +13,8 @@ ADR-0005 §6, PLAN decisions 5 & 7:
 
 Reshape the capability spec's `ui_intent` to record only the capability-specific
 presentation choices that survive Module 3, and update spec generation to author
-the new shape. The M2 field-type pantry is untouched (`file` stays M6).
+the new shape. The field-type pantry gained a `date` type (2026-07-06, ADR-0005
+amendment) but is otherwise unchanged here (`file` stays M6).
 
 - Retire `ui_intent.views: ["list", "create"]`.
 - Add: `item` (free-text design direction), `collection.layout` (closed enum

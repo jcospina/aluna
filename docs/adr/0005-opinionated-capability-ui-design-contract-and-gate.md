@@ -31,6 +31,13 @@ executable-markup bans are untouched. *Closed values, open composition* now
 reads literally: the closed thing is the design-**value** space (the tokens),
 not the CSS property space.
 
+**Amended 2026-07-06.** The field-type pantry gains a **`date`** type (a calendar
+day) alongside `datetime` (an instant), so a "due date" asks for a day rather than a
+timestamp. It is an additive extension applied through the centralized field renderer
+(epic 3.2/01) and its compile-enforced consumers — the spec enum, the DDL mapper
+(`date` → `TEXT`), the data tool, and the gate's sample generator — and supersedes the
+"pantry untouched" note in §Consequences below. `file` still remains M6.
+
 ## Problem
 
 A capability is born usable but **ugly**. The unit-generation prompts hand the
@@ -186,8 +193,8 @@ presentational platform code is allowed.
   `list.html`/`create.html`; a presentation-only intent change regenerates the
   item renderer without rewriting unrelated handlers.
 - **The spec schema changes shape.** `ui_intent.views` retires in favor of item
-  intent + detail fields/order. The M2 field-type pantry is untouched (`file`
-  remains M6).
+  intent + detail fields/order. The field-type pantry gains a `date` type (2026-07-06
+  amendment, above) but is otherwise unchanged; `file` remains M6.
 - **Metrics retain semantic continuity.** Item-renderer generation replaces M2
   view generation as the presentation-generation stage, so M8 compares the
   presentation-gen stage across module versions rather than assuming generated

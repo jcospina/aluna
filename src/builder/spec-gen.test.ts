@@ -139,7 +139,7 @@ describe("spec generation stage", () => {
     // The pantry, stated to the model (the schema is the hard wall behind it).
     expect(prompt).toContain("tools: only create, read.");
     expect(prompt).toContain("ui_intent.views: only list, create.");
-    expect(prompt).toContain("string | number | boolean | datetime");
+    expect(prompt).toContain("string | number | boolean | datetime | date");
     expect(prompt).toContain("id, created_at, extra are platform-owned");
     // Identity: engineering id vs user-facing label, kept distinct.
     expect(prompt).toContain("id is the engineering identity");
@@ -198,7 +198,7 @@ describe("spec generation stage", () => {
         raw: { ...notesSpec(), ui_intent: { views: ["list", "detail"] } },
       },
       {
-        why: "a field type outside the four",
+        why: "a field type outside the pantry",
         raw: {
           ...notesSpec(),
           schema: { fields: [{ name: "tags", type: "string[]", required: false }] },

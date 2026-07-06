@@ -17,7 +17,7 @@
 // spine's, so even a lax provider cannot smuggle a bad spec past it.
 //
 // The M2 pantry is enforced twice over: the prompt steers the model inside it
-// (create+read tools, list+create views, the four field types, platform-owned
+// (create+read tools, list+create views, the field types, platform-owned
 // columns excluded) and `capabilitySpecSchema` is the hard wall that rejects
 // anything outside it.
 

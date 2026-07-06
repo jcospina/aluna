@@ -22,6 +22,7 @@ export const SQLITE_TYPE_BY_FIELD_TYPE = {
   number: "REAL",
   boolean: "INTEGER",
   datetime: "TEXT",
+  date: "TEXT",
 } as const satisfies Record<FieldType, "TEXT" | "REAL" | "INTEGER">;
 
 export interface CapabilityTableDdl {

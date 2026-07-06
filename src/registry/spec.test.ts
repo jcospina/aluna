@@ -1,5 +1,6 @@
 // Tests for the capability spec shape (Epic 2.1, PLAN decision 8). The headline
-// guarantees: the M2 pantry is exactly four field types each with `required`,
+// guarantees: the pantry is exactly five field types (the M2 four plus M3's date)
+// each with `required`,
 // and anything outside it — list types, files, relations, the `auto` concept,
 // platform-owned column names — fails validation loudly instead of flowing
 // downstream into DDL or generation.
@@ -53,8 +54,8 @@ describe("capability spec shape", () => {
     expect(capabilitySpecSchema.parse(spec)).toEqual(spec);
   });
 
-  test("accepts exactly the four M2 field types, each with required", () => {
-    expect(fieldTypeSchema.options).toEqual(["string", "number", "boolean", "datetime"]);
+  test("accepts exactly the five field types (the M2 four plus date), each with required", () => {
+    expect(fieldTypeSchema.options).toEqual(["string", "number", "boolean", "datetime", "date"]);
 
     for (const type of fieldTypeSchema.options) {
       for (const required of [true, false]) {

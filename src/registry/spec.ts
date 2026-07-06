@@ -11,10 +11,12 @@
 //
 // The M2 pantry is deliberately tiny (PLAN decision 8):
 //
-//   - Field types: `string | number | boolean | datetime`, each with `required`.
-//     No list types (M4), no `file`/`file[]` (M6), no relations (never — no
-//     foreign keys). Every object is strict, so any extra key — `auto`,
-//     `references`, `added_in_version` — fails validation instead of slipping by.
+//   - Field types: `string | number | boolean | datetime | date`, each with
+//     `required`. (`date` — a calendar day, distinct from the `datetime` instant —
+//     was added in M3 alongside the centralized field renderer, so a "due date"
+//     asks for a day, not a timestamp.) No list types (M4), no `file`/`file[]`
+//     (M6), no relations (never — no foreign keys). Every object is strict, so any
+//     extra key — `auto`, `references`, `added_in_version` — fails validation.
 //   - `ui_intent` speaks M2's two views (`list`, `create`); `tools` speaks M2's
 //     two actions (`create`, `read`); `behavior` is free text the behavioral
 //     tier generates tests from; `behavioral_errors` is the stable validation
@@ -53,7 +55,7 @@ const capabilityNameText = nonBlankText.refine(
 // The complete M2 field type enum. Anything else — `string[]`, `file`, a
 // relation — is not a parse error to recover from but a spec the platform must
 // refuse (PLAN decision 8 reserves list types for M4 and files for M6).
-export const fieldTypeSchema = z.enum(["string", "number", "boolean", "datetime"]);
+export const fieldTypeSchema = z.enum(["string", "number", "boolean", "datetime", "date"]);
 export type FieldType = z.infer<typeof fieldTypeSchema>;
 
 // One user field: name, type, required — nothing else validates. Strictness is

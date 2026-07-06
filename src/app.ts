@@ -24,6 +24,7 @@ import {
   type RecordMetrics,
   streamSpecBuildDemo,
 } from "./pipeline/index.ts";
+import { renderFieldRendererPreviewPage } from "./presentation/field-renderer-preview.ts";
 import { createProvider, type Provider } from "./provider/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "./sse/index.ts";
@@ -186,6 +187,19 @@ export function createApp(deps: AppDeps = {}): Hono {
         }
       });
     }),
+  );
+
+  // Dev preview for the centralized field renderer (epic 3.2/01) — the HITL visual
+  // sign-off surface. Renders the live create form + read-only detail for a sample
+  // spec so a reviewer confirms the controls are on-brand and complete on the running
+  // app. No provider, no db: a deterministic render of the platform module, so it is
+  // safe on page load (unlike the provider-driven demos above).
+  app.get(
+    "/demo/field-renderer",
+    () =>
+      new Response(renderFieldRendererPreviewPage(), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }),
   );
 
   // Prompt submission enters the build-job lifecycle (Epic 2.5). The POST does
