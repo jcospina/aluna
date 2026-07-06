@@ -268,3 +268,52 @@ not generated: on a successful create the form resets and dispatches a bubbling
 container (3.2/02) and shared modal (3.2/04) act on. The new record prepends into the
 capability's live region (`<id>-records`, via `capabilityRecordsRegionId`), so no user
 data enters the platform-rendered chrome (ADR-0004 "never-stale cache").
+
+## Collection layout + item wrapper (Module 3 · epic 3.2/02)
+
+Platform-owned list scaffolding and the accessible item wrapper, rendered
+deterministically by [`src/presentation/list-container.ts`](../src/presentation/list-container.ts)
+and styled in [`public/css/collection.css`](../public/css/collection.css). Platform
+**chrome** again — distinct from the generated item vocabulary above: the container owns
+the *collection* arrangement and the wrapper owns the per-record *frame + trigger*, while
+the generated inner markup composes one record's fields **inside** the wrapper using the
+primitives. Eyeball it on the running app at
+[`/demo/list-container`](../src/presentation/list-container-preview.ts).
+
+### Closed collection layouts (`feed | grid`)
+
+`ui_intent.collection.layout` is a closed enum the list container maps to a
+token-consuming platform class through a total switch — an unknown layout is
+unrepresentable (fails the build closed, symmetric with an unknown field type). `table`
+and `masonry` are deferred (ADR-0005 §6). Until 3.3/01 authors the intent, the layout
+defaults to `feed` (PLAN decision 5).
+
+| `collection.layout` | Class | Arrangement |
+| --- | --- | --- |
+| `feed` (default) | `.capability-records--feed` | single vertical column, `--space-3` gap |
+| `grid` | `.capability-records--grid` | responsive `auto-fill` grid (`minmax(16rem, 1fr)`), `--space-3` gap |
+
+The container also renders the **“New X” disclosure** (an Alpine toggle opening the live
+create form from 3.2/01, closing itself on this capability's `aluna:record-created`), and
+the **empty state** — shown purely by CSS while the records region is `:empty`, so a
+server-rendered or prepended record clears it with no JS. The records region carries
+`id="<id>-records"` (`capabilityRecordsRegionId`), the same target the create form posts
+into, and stays **data-free**: live records arrive through the `read` action (wired in
+3.2/03), never baked into the chrome.
+
+### The accessible item wrapper
+
+Every record is framed in one standardized trigger: a `role="button"` card with
+`aria-haspopup="dialog"`, an on-brand surface/border/radius and the shared gentle
+press + accent focus ring. It carries the full record as an **escaped `data-item`
+payload** (`JSON.stringify`, HTML-escaped for the attribute) so the detail modal (3.2/04)
+prefills from it — no read-single route (ADR-0005 §3). `file` fields ride as references,
+**never bytes**: raw `Uint8Array`/`ArrayBuffer` values are neutralized to `null` rather
+than serialized. Click/keyboard activation is wired in 3.3/02.
+
+The wrapper is **platform chrome, so the runtime enforcer never runs on it** — its
+`role`/`tabindex`/`data-item` are platform-authored and trusted. The enforcer
+(3.1/02) runs on the **inner** generated markup, applied by the presentation adapter
+(3.4/01) *before* it reaches the wrapper; `renderItemWrapper` frames already-safe markup
+and does not re-sanitize. The wrapper's card surface + press/focus live in the
+reduced-motion reset (a11y.css) alongside the other pressables.
