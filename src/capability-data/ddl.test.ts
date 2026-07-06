@@ -136,6 +136,29 @@ describe("capability table DDL mapper", () => {
     }
   });
 
+  test("maps a date field to a TEXT column, like datetime but a distinct pantry type", () => {
+    const database = new Database(":memory:");
+    try {
+      const spec = notesSpec({
+        schema: {
+          fields: [
+            { name: "title", type: "string", required: true },
+            { name: "done", type: "boolean", required: true },
+            { name: "scheduled_on", type: "date", required: false },
+          ],
+        },
+      });
+      const ddl = applyCapabilityTableDdl(spec, database);
+      const scheduledOn = tableColumns(database, ddl.tableName).find(
+        (column) => column.name === "scheduled_on",
+      );
+      expect(SQLITE_TYPE_BY_FIELD_TYPE.date).toBe("TEXT");
+      expect(scheduledOn?.type).toBe(SQLITE_TYPE_BY_FIELD_TYPE.date);
+    } finally {
+      database.close();
+    }
+  });
+
   test("emits only additive statements", () => {
     const ddl = deriveCapabilityTableDdl(notesSpec());
     expect(ddl.statements).toHaveLength(1);

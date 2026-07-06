@@ -105,6 +105,8 @@ function sampleValue(field: SpecField): { input: string; expected: string | numb
       return { input: "on", expected: true };
     case "datetime":
       return { input: "2026-06-23T00:00:00.000Z", expected: "2026-06-23T00:00:00.000Z" };
+    case "date":
+      return { input: "2026-06-23", expected: "2026-06-23" };
   }
 }
 

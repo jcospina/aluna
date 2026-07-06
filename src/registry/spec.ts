@@ -11,10 +11,12 @@
 //
 // The pantry is deliberately tiny:
 //
-//   - Field types: `string | number | boolean | datetime`, each with `required`.
-//     No list types, no `file`/`file[]`, no relations (never — no
-//     foreign keys). Every object is strict, so any extra key — `auto`,
-//     `references`, `added_in_version` — fails validation instead of slipping by.
+//   - Field types: `string | number | boolean | datetime | date`, each with
+//     `required`. (`date` — a calendar day, distinct from the `datetime` instant —
+//     was added alongside the centralized field renderer, so a "due date"
+//     asks for a day, not a timestamp.) No list types, no `file`/`file[]`,
+//     no relations (never — no foreign keys). Every object is strict, so any
+//     extra key — `auto`, `references`, `added_in_version` — fails validation.
 //   - `ui_intent` speaks the two views (`list`, `create`); `tools` speaks the
 //     two actions (`create`, `read`); `behavior` is free text the behavioral
 //     tier generates tests from; `behavioral_errors` is the stable validation
@@ -53,7 +55,7 @@ const capabilityNameText = nonBlankText.refine(
 // The complete field type enum. Anything else — `string[]`, `file`, a
 // relation — is not a parse error to recover from but a spec the platform must
 // refuse (list types and files are reserved for later).
-export const fieldTypeSchema = z.enum(["string", "number", "boolean", "datetime"]);
+export const fieldTypeSchema = z.enum(["string", "number", "boolean", "datetime", "date"]);
 export type FieldType = z.infer<typeof fieldTypeSchema>;
 
 // One user field: name, type, required — nothing else validates. Strictness is

@@ -21,5 +21,6 @@
 @import "css/demo.css"; /* cold-start, intro stream, raw stage previews       */
 @import "css/prompt.css"; /* bottom-pinned prompt composer                    */
 @import "css/components.css"; /* platform button variants (design-system color)*/
+@import "css/fields.css"; /* capability create/detail field chrome             */
 @import "css/primitives.css"; /* capability item vocabulary                   */
 @import "css/a11y.css"; /* focus ring + reduced-motion (loaded last)          */

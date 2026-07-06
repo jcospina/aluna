@@ -105,6 +105,15 @@ field inside it carries treatment (`--color-surface` fill, 1px border, 10px
 radius, accent focus ring) so it lifts off the page and reads as a composer placed
 inside the content area.
 
+**Vertical rhythm & a bottom gutter.** Stacked sections are separated by a
+consistent vertical gap, and **every scrollable surface ends on a gutter** — the
+last section never sits flush against the bottom edge. Give a page trailing space
+below its final section (a bottom padding on the scroll container, plus the section
+spacing) so content always has room to breathe; a card, panel, or list butting
+against the viewport edge reads as truncated. (Watch percentage-height containers:
+`height: 100%` on a scrolling document strands the bottom padding at the fold — use
+`min-height` so the box grows with content.)
+
 ## Component treatments
 
 - **Wordmark.** Typographic Outfit, heavier weight, ink-colored (always
@@ -143,12 +152,16 @@ inside the content area.
 - Honor `prefers-reduced-motion`: no press translate, instant collapse/drawer.
 - Keep ink-on-paper at AA; if terracotta is used for text, verify contrast or
   restrict it to borders / fills / rings.
+- Leave trailing space after every section, and end every scrollable surface on a
+  bottom gutter — content never sits flush against the viewport edge.
 
 **Don't**
 - Don't frame every region — no box around the content area or the prompt.
 - Don't use heavy 4px borders or big `-8/-12/-16px` shadows (too loud here).
 - Don't use soft/blur shadows, glassmorphism, gradient text, or glow.
 - Don't use pure black or pure white — use `--color-text` / `--color-surface`.
+- Don't let the last section (card, panel, list) butt against the bottom edge —
+  always leave breathing room below it.
 - Don't surface engineering jargon anywhere (ARCH §9.7); see CONTEXT.md voice.
 
 ## Capability primitive vocabulary + closed-value contract (Module 3 · epic 3.1)
@@ -218,3 +231,40 @@ synthetic + hostile values within the declared collection layout) and at **rende
 time** by the allow-list enforcer the presentation adapter applies to every record
 (3.1/02) — so a dynamic field value can never become executable markup even after
 build-time validation passes.
+
+## Capability field chrome (Module 3 · epic 3.2)
+
+Platform-owned create and detail surfaces, rendered deterministically from a spec by
+the centralized field renderer ([`src/presentation/field-renderer.ts`](../src/presentation/field-renderer.ts))
+and styled in [`public/css/fields.css`](../public/css/fields.css). This is platform
+**chrome**, distinct from the generated item vocabulary above: the *same* module
+renders both the create form the "New X" button opens and the read-only detail the
+shared modal shows, so the two can never drift, and it is **exhaustive over the
+field-type pantry** through a total switch — Module 4's list types and Module 6's `file` type
+extend exactly one place (adding a `FieldType` without a case fails the type-check).
+Eyeball it on the running app at
+[`/demo/field-renderer`](../src/presentation/field-renderer-preview.ts).
+
+### Field type → control (create) / display (detail)
+
+| Pantry type | Create control | Detail display |
+| --- | --- | --- |
+| `string` | `<input type="text">` | escaped text |
+| `number` | `<input type="number" step="any">` | the number verbatim (`step="any"` matches REAL storage) |
+| `boolean` | inline `<input type="checkbox">` | `Yes` / `No` |
+| `datetime` | `<input type="datetime-local">` | a semantic `<time>`, tidied timezone-free (`2026-06-23T09:30…` → `2026-06-23 09:30`) |
+| `date` | `<input type="date">` | a semantic `<time>`, date-only (`2026-06-23`) |
+
+Absent (null / empty-string) detail values show a muted “—”. Field labels humanize the
+SQL name (`due_date` → “Due date”). A **`boolean` never carries the HTML `required`
+attribute** — a checkbox always yields a definite value, so a *required* boolean is
+satisfied by `false` and is never forced-checked at create (only emptyable controls —
+text/number/datetime — carry `required`). Controls follow the prompt field's treatment —
+`--color-surface` fill, a 1px border, `--radius-md`, an accent focus ring, no press
+travel so a control stays put while it's filled; the submit is the platform
+`.btn--primary`. Create-form HTMX wiring and **close-on-success** are platform-owned,
+not generated: on a successful create the form resets and dispatches a bubbling
+`aluna:record-created` event (exported as `RECORD_CREATED_EVENT`) that the list
+container (3.2/02) and shared modal (3.2/04) act on. The new record prepends into the
+capability's live region (`<id>-records`, via `capabilityRecordsRegionId`), so no user
+data enters the platform-rendered chrome (ADR-0004 "never-stale cache").

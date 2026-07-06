@@ -160,6 +160,7 @@ function normalizeFieldValue(name: string, type: FieldType, value: unknown): Sql
   switch (type) {
     case "string":
     case "datetime":
+    case "date":
       if (typeof value !== "string") {
         throw new CapabilityDataValidationError(`Field "${name}" must be a string.`);
       }
@@ -224,6 +225,7 @@ function normalizeStoredFieldValue(
   switch (type) {
     case "string":
     case "datetime":
+    case "date":
       return readStringColumn(name, value);
     case "number":
       if (typeof value !== "number") {
