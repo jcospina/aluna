@@ -320,3 +320,44 @@ The wrapper is **platform chrome, so the runtime enforcer never runs on it** —
 (3.4/01) *before* it reaches the wrapper; `renderItemWrapper` frames already-safe markup
 and does not re-sanitize. The wrapper's card surface + press/focus live in the
 reduced-motion reset (a11y.css) alongside the other pressables.
+
+## Shared read-only detail modal (Module 3 · epic 3.2/04)
+
+The one shared modal every capability opens to show a single record in full, rendered by
+[`src/presentation/detail-modal.ts`](../src/presentation/detail-modal.ts) and styled in
+[`public/css/detail-modal.css`](../public/css/detail-modal.css). Platform **chrome** and a
+platform **invariant** — a single instance the whole app reuses, never one per capability
+and never model-authored (`modal: true` is not stored, ADR-0005 §6). Eyeball it on the
+running app at [`/demo/detail-modal`](../src/presentation/detail-modal-preview.ts).
+
+### Native `<dialog>`, so the browser owns the hard parts
+
+The modal is a native modal `<dialog>` opened with `showModal()`. That single choice buys
+the **focus trap**, **focus restore to the trigger** on close, **Escape-to-close**, and the
+**`::backdrop`** — all native, nothing hand-rolled. The shell stays dumb (ARCH §6.1): the
+controller ([`public/detail-modal.js`](../public/detail-modal.js)) only **prefills and
+opens**, never infers intent or mutates state. Three close paths, in descending robustness:
+the native `<form method="dialog">` ✕ button and Escape work even if the controller never
+loads; a **backdrop click** is the controller's light-dismiss enhancement (the `<dialog>`
+is chrome-less and a padded `__panel` holds the card, so a click on the dialog element is a
+click on the backdrop). Treatment is the established Aluna card — surface fill, a 1px
+ink-tinted border, `--radius-md`, a quiet `--shadow-md` — with a bounded height so a long
+record's body scrolls while keeping its bottom gutter. **Width is explicit and
+responsive** (a native `<dialog>` otherwise shrinks to its content, rendering short
+records cramped): almost full width `<480px`, ~80vw on small tablets, and a fixed ≥600px
+on desktop (breakpoints mirror the shell's 768px line). No entrance animation (calm, and
+nothing to reset for reduced motion).
+
+### Prefill without a read-single route
+
+The read-only body is rendered by the **centralized field renderer** (3.2/01, via
+`renderDetailContent`) — the same one place the create form uses, so the two never drift and
+every value is escaped once. Each record's detail is materialized into an **inert
+`<template>`** at list-render time and **cloned** into the one modal on open — never
+`innerHTML` from a string, never a server round-trip. So the full record shows even when the
+item visually truncates and **no read-single route is added** (ADR-0005 §3); if large-text
+lists later make this expensive, prefill moves behind the adapter to read-single-on-open and
+the payload shrinks to an id (ADR-0005 §3, post-M4). Field selection/order is **spec order**
+today and defers to `ui_intent.detail.shows` once 3.3/01 lands; M4 adds the Save affordance to
+this same module. Opening is driven by the `aluna:open-detail` event (`OPEN_DETAIL_EVENT`),
+the seam a dev trigger fires now and 3.3/02's item click-to-open fires later.
