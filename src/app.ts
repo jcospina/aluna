@@ -24,6 +24,7 @@ import {
   type RecordMetrics,
   streamSpecBuildDemo,
 } from "./pipeline/index.ts";
+import { renderDetailModalPreviewPage } from "./presentation/detail-modal-preview.ts";
 import { renderFieldRendererPreviewPage } from "./presentation/field-renderer-preview.ts";
 import { renderListContainerPreviewPage } from "./presentation/list-container-preview.ts";
 import { createProvider, type Provider } from "./provider/index.ts";
@@ -211,6 +212,18 @@ export function createApp(deps: AppDeps = {}): Hono {
     "/demo/list-container",
     () =>
       new Response(renderListContainerPreviewPage(), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }),
+  );
+
+  // Dev preview for the shared read-only detail modal (epic 3.2/04) — the HITL visual
+  // sign-off surface. Renders the one shared <dialog> plus dev triggers that open it
+  // prefilled read-only (via the real controller), exercising focus trap/restore, Escape,
+  // and backdrop dismiss. Deterministic, no provider, no db — safe on page load.
+  app.get(
+    "/demo/detail-modal",
+    () =>
+      new Response(renderDetailModalPreviewPage(), {
         headers: { "content-type": "text/html; charset=utf-8" },
       }),
   );

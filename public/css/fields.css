@@ -87,30 +87,37 @@
 }
 
 /* ── Read-only detail ─────────────────────────────────────────────────────────
-   A definition list of label/value pairs the shared modal (3.2/04) fills from a
-   record payload. Quiet muted labels; values wrap and preserve their own line
-   breaks so a multi-line field reads faithfully. */
+   The shared modal (3.2/04) fills this from a record payload. A two-column
+   key/value list: a quiet sentence-case label sits in a fixed left column so
+   labels and values line up down the whole record, scannable without ruling every
+   row off — tone + spacing do the separating (docs/design-system.md "clean, not
+   boxed"). Values carry the reading weight, wrap, and keep their own line breaks so
+   a multi-line field reads faithfully. Below the modal's narrow width the pair
+   stacks so neither column is crushed. */
 .detail-fields {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   margin: 0;
 }
+/* One field: a fixed label column + a flexible value column, aligned on the first
+   baseline so a short label sits level with the top line of a long, wrapping value.
+   The label column is a fixed width (not a shared grid) because each pair is wrapped
+   in its own element — a fixed width still lines the columns up across every row. */
 .detail-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0_5);
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: baseline;
 }
 .detail-field__label {
   margin: 0;
-  font: var(--weight-bold) var(--type-xs) / 1.4 var(--font-sans);
+  font: var(--meta);
   color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .detail-field__value {
-  /* Reset the UA `<dd>` indent (margin-inline-start: 40px) so the value sits under
-     its label rather than shoved to the right. */
+  /* Reset the UA `<dd>` indent (margin-inline-start: 40px); the grid places the
+     value now, not the browser default. */
   margin: 0;
   font: var(--body);
   color: var(--color-text);
@@ -119,4 +126,11 @@
 }
 .detail-field__value--empty {
   color: var(--color-text-subtle);
+}
+/* Narrow (matches the modal's own <480px width): stack the label over its value. */
+@media (max-width: 479px) {
+  .detail-field {
+    grid-template-columns: 1fr;
+    row-gap: var(--space-0_5);
+  }
 }

@@ -1,0 +1,105 @@
+/* =============================================================================
+   Shared read-only detail modal — platform CHROME (Module 3 · epic 3.2/04).
+   The one shared <dialog> every capability opens to show a single record in full
+   (src/presentation/detail-modal.ts, renderDetailModal). Platform-owned, presentational
+   only — distinct from the generated item vocabulary (public/css/primitives.css).
+
+   A native modal <dialog>: the browser supplies the focus trap, focus restore, Escape,
+   and the ::backdrop, so there is nothing to script for those. Treatment is the
+   established Aluna card — surface fill, a 1px ink-tinted border, 10px radius, a quiet
+   down-right hard shadow — matching the item wrapper and create panel. The record's
+   fields inside are the read-only detail list styled in fields.css. Tokens only.
+   ========================================================================== */
+
+/* The <dialog> is stripped to a transparent, chrome-less box: the padded __panel is the
+   visible card, so a click on the dialog itself lands on the ::backdrop (outside the
+   card) and the controller can use it to dismiss. UA modal centering (margin: auto) is
+   kept.
+
+   Width is set explicitly and responsively — a native <dialog> otherwise shrinks to fit
+   its content, so a short record renders cramped. Mobile-first: almost the full viewport
+   on phones, ~80% on small tablets, and a comfortable fixed floor on desktop (the panel
+   caps height separately). The breakpoints mirror the shell's 768px desktop line. */
+.detail-modal {
+  /* <480px: almost full width, a thin gutter each side. */
+  width: calc(100vw - var(--space-3));
+  padding: 0;
+  color: var(--color-text);
+  background: transparent;
+  border: 0;
+}
+@media (min-width: 480px) {
+  /* 480–767px: roughly four-fifths of the viewport. */
+  .detail-modal {
+    width: 80vw;
+  }
+}
+@media (min-width: 768px) {
+  /* Desktop: a fixed, comfortable width (≥600px), guarded so a narrow desktop window
+     can never overflow the viewport. */
+  .detail-modal {
+    width: 600px;
+    max-width: calc(100vw - var(--space-4));
+  }
+}
+/* Dim the page behind the modal — ink at low opacity, matching the app's paper-and-ink
+   register (no blur, no glassmorphism; docs/design-system.md "Don't"). */
+.detail-modal::backdrop {
+  background: color-mix(in oklch, var(--color-text), transparent 55%);
+}
+
+/* The visible card. A bounded-height column: the header stays put while a tall record's
+   body scrolls, and the panel's own padding is the bottom gutter so content never butts
+   the edge (design-system.md "bottom gutter"). */
+.detail-modal__panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 85dvh;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: var(--border-thin) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+/* Title row. A single hairline under it separates "what this is" from the record
+   below — one functional divider between two regions, the one place the quiet
+   register earns a border (design-system.md "clean, not boxed"). It stays put above
+   the scrolling body, so a tall record scrolls under a fixed title. */
+.detail-modal__header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-2);
+  border-bottom: var(--border-thin) solid var(--color-border);
+}
+.detail-modal__title {
+  margin: 0;
+  font: var(--h3);
+}
+/* The native close form is layout-only; the button inside carries the ghost treatment. */
+.detail-modal__dismiss {
+  flex: 0 0 auto;
+  margin: 0;
+}
+/* Compact icon-only close (overrides the .btn text padding), sized like the shell's
+   sidebar toggles. */
+.detail-modal__close {
+  padding: var(--space-0_5);
+}
+.detail-modal__close svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+/* The scrollable record body. `min-height: 0` lets the flex child actually shrink so its
+   own overflow scrolls (the canonical flexbox-scroll fix) rather than growing the card. */
+.detail-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
