@@ -230,10 +230,12 @@ describe("deterministic capability router", () => {
     expect(readBody).toContain("pinned");
   });
 
-  test("serves the cached data-free view with its live read region and create form", async () => {
+  test("serves the spec-rendered data-free list scaffolding with its live read region and create form", async () => {
     install(conns, notesRow());
     const app = createApp({ capabilityRouter: { databases: conns } });
 
+    // A toolbar click serves the platform list scaffolding rendered live from the spec
+    // (3.2/03) — no served list.html/create.html — as a bare content fragment.
     const res = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
     const body = await res.text();
 
@@ -249,7 +251,36 @@ describe("deterministic capability router", () => {
     expect(body).not.toContain("/static/app.css");
   });
 
-  test("direct capability navigation returns the styled shell with the cached view active", async () => {
+  test("the spec-rendered View is data-free: a committed record never enters the chrome", async () => {
+    install(conns, notesRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    // Persist a record through the real create action, so live user data exists.
+    await app.request(
+      "/capability/notes/create",
+      formBody({ text: "Secret memo", pinned: "true" }),
+    );
+
+    const fragment = await (
+      await app.request("/capability/notes", { headers: { "HX-Request": "true" } })
+    ).text();
+    const shell = await (await app.request("/capability/notes")).text();
+
+    // Both serving paths render the read-wired region but bake in NO record — the data
+    // never enters the platform chrome (ADR-0004's never-stale cache is preserved
+    // because the chrome is deterministic from the spec, not from the data).
+    for (const body of [fragment, shell]) {
+      expect(body).toContain('id="notes-records"');
+      expect(body).toContain('hx-get="/capability/notes/read"');
+      expect(body).toContain('hx-trigger="load"');
+      expect(body).not.toContain("Secret memo");
+    }
+
+    // The record really is there — it just arrives only through the read action.
+    expect(await (await app.request("/capability/notes/read")).text()).toContain("Secret memo");
+  });
+
+  test("direct capability navigation returns the styled shell with the spec-rendered list scaffolding active", async () => {
     install(conns, notesRow());
     const app = createApp({ capabilityRouter: { databases: conns } });
 

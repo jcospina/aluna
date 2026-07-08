@@ -348,7 +348,7 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     expect(refreshed).toContain("data-capability-entry");
     expect(refreshed).toContain('hx-get="/capability/notes"');
 
-    // Clicking the rehydrated entry serves the cached, data-free list view as-is…
+    // Clicking the rehydrated entry serves the spec-rendered, data-free list scaffolding…
     const clicked = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
     const clickedBody = await clicked.text();
     expect(clicked.status).toBe(200);

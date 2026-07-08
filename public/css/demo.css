@@ -104,6 +104,12 @@
   display: none;
 }
 
+/* The centered content column a committed capability's View lands in. Since epic
+   3.2/03 it holds the platform list scaffolding (list-container.ts), which is fully
+   self-styled via collection.css / fields.css / components.css. The old generic child
+   rules (raw input/textarea/button/heading styling) were a Module-2 stopgap for the
+   unstyled generated `list.html`/`create.html` views — retired with them, so they can
+   no longer bleed onto (and override) the platform's own field/button chrome. */
 .capability-surface {
   display: grid;
   gap: var(--space-2);
@@ -111,34 +117,4 @@
   margin: 0 auto;
   padding: var(--space-4) var(--space-2);
   text-align: left;
-}
-.capability-surface :is(h1, h2, h3, p) {
-  margin-block: 0 var(--space-1);
-}
-.capability-surface :is(form, fieldset) {
-  display: grid;
-  gap: var(--space-1);
-}
-.capability-surface :is(input, textarea, select) {
-  width: 100%;
-  padding: var(--space-1);
-  font: var(--body);
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-.capability-surface textarea {
-  min-height: 6rem;
-  resize: vertical;
-}
-.capability-surface button {
-  justify-self: start;
-  padding: var(--space-0_5) var(--space-1);
-  font: var(--body);
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
 }

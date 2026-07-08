@@ -69,8 +69,7 @@ describe("web fragments", () => {
   test("commit-time toolbar OOB wraps the canonical entry for htmx beforeend insertion", async () => {
     const fragment = renderCapabilityCommitSwap(
       { id: "notes", label: "Notes" },
-      '<section id="notes-records" hx-get="/capability/notes/read"></section>',
-      '<form hx-post="/capability/notes/create"></form>',
+      '<section class="capability-collection"><div id="notes-records" hx-get="/capability/notes/read"></div></section>',
     );
 
     expect(await inspectToolbarOob(fragment)).toEqual({

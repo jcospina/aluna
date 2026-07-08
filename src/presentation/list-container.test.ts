@@ -160,6 +160,43 @@ describe("container scaffolding", () => {
   });
 });
 
+// The serving mode (epic 3.2/03): the records region lazy-loads live records through
+// the capability's `read` action so the platform View stays data-free (ADR-0004).
+describe("container scaffolding — serving mode (loadThroughRead)", () => {
+  const serving = renderCollection({ capability: SAMPLE, loadThroughRead: true });
+
+  test("wires the records region to load through the read action on load", () => {
+    expect(serving).toContain(
+      `<div id="${capabilityRecordsRegionId("tasks")}" class="capability-records capability-records--feed"` +
+        ' hx-get="/capability/tasks/read" hx-trigger="load" hx-swap="innerHTML"></div>',
+    );
+  });
+
+  test("keeps the region truly empty — data-free chrome, empty state fires until read fills it", () => {
+    // The region carries the read wiring but no child, so `:empty` still matches and no
+    // user record is baked into the chrome; htmx fills it after this scaffolding renders.
+    expect(serving).toContain('hx-swap="innerHTML"></div>');
+    expect(serving).not.toContain(ITEM_PAYLOAD_ATTR);
+    expect(serving).toContain('class="capability-empty"');
+  });
+
+  test("ignores seeded items when loading through read — the two modes are mutually exclusive", () => {
+    const both = renderCollection({
+      capability: SAMPLE,
+      loadThroughRead: true,
+      items: "<article>SHOULD_NOT_APPEAR</article>",
+    });
+    expect(both).not.toContain("SHOULD_NOT_APPEAR");
+    expect(both).toContain('hx-get="/capability/tasks/read"');
+  });
+
+  test("still renders the create disclosure and its form (the create path is untouched)", () => {
+    expect(serving).toContain("New Tasks");
+    expect(serving).toContain('hx-post="/capability/tasks/create"');
+    expect(serving).toContain(`hx-target="#${capabilityRecordsRegionId("tasks")}"`);
+  });
+});
+
 describe("item wrapper — accessible trigger", () => {
   const wrapper = renderItemWrapper('<div class="stack">inner</div>', { title: "Buy oat milk" });
 

@@ -90,10 +90,19 @@ export interface CollectionOptions {
   /**
    * Pre-rendered wrapped items to seed the records region with (a server-rendered or
    * demo pass). Empty (the default) leaves the region childless, so the empty state
-   * shows via CSS `:empty`. In production the serving path (3.2/03) loads this region
-   * from the `read` action instead of seeding it here — no user data in the chrome.
+   * shows via CSS `:empty`. Ignored when {@link loadThroughRead} is set — the two are
+   * mutually exclusive: seed the region, or wire it to load through `read`, never both.
    */
   readonly items?: string;
+  /**
+   * The serving mode (3.2/03): wire the records region to lazy-load its records
+   * through the capability's `read` action (`hx-get="/capability/<id>/read"` on
+   * `load`) instead of seeding {@link items}. This is what keeps the platform View
+   * data-free (ADR-0004): the chrome renders deterministically from the spec and htmx
+   * fetches the live records afterward, so no user record is ever baked into the
+   * chrome. Off by default (the server-rendered / demo pass seeds `items`).
+   */
+  readonly loadThroughRead?: boolean;
 }
 
 /**
@@ -113,6 +122,16 @@ export function renderCollection(options: CollectionOptions): string {
   const layoutClass = collectionLayoutClass(layout);
   const label = escapeHtml(capability.label);
   const items = options.items ?? "";
+  // The records region either lazy-loads live records through the capability's `read`
+  // action (the serving path, 3.2/03) or is seeded with pre-rendered `items` (a
+  // server-rendered / demo pass) — never both. Loading through `read` keeps the chrome
+  // data-free (ADR-0004): htmx fetches the records after this deterministic scaffolding
+  // renders, so no user record is baked in here. `capability.id` is spec-validated
+  // `[a-z][a-z0-9_]*`, so it is a safe attribute value (exactly as in the create form).
+  const recordsLoad = options.loadThroughRead
+    ? ` hx-get="/capability/${capability.id}/read" hx-trigger="load" hx-swap="innerHTML"`
+    : "";
+  const recordsContent = options.loadThroughRead ? "" : items;
 
   // Local presentation state only (the shell "may open/prefill/focus… never infers
   // intent or mutates canonical state", ARCH §6.1). The create disclosure is an Alpine
@@ -131,9 +150,10 @@ export function renderCollection(options: CollectionOptions): string {
     `New ${label}</button>` +
     `</header>` +
     `<div class="capability-collection__create" x-show="createOpen" x-cloak>${renderCreateForm(capability)}</div>` +
-    // No whitespace inside the region: an empty items string must leave it truly
-    // `:empty` so the empty-state CSS fires (and so a prepended record clears it).
-    `<div id="${regionId}" class="capability-records ${layoutClass}">${items}</div>` +
+    // No whitespace inside the region: an empty region must stay truly `:empty` so the
+    // empty-state CSS fires (and so the first loaded/prepended record clears it). In the
+    // serving mode the region starts empty and htmx fills it from `read`.
+    `<div id="${regionId}" class="capability-records ${layoutClass}"${recordsLoad}>${recordsContent}</div>` +
     `<p class="capability-empty">Nothing here yet — add your first ${label} above.</p>` +
     `</section>`
   );

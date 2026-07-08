@@ -109,37 +109,35 @@ function renderCapabilityToolbarOobEntry(row: Pick<CapabilityRow, "id" | "label"
 }
 
 /**
- * The content-area surface for an active capability. The view HTML is generated and
- * gate-validated elsewhere; this wrapper only composes the cached data-free list
- * view with the cached create form so the first committed capability is usable
- * immediately.
+ * The content-area surface for an active capability: the platform list scaffolding
+ * (rendered live from the spec by the list container, 3.2/02–03) wrapped in the marker
+ * the shell keys the active capability on. The scaffolding is data-free — records
+ * arrive through the `read` action into its live region (ADR-0004, as amended by
+ * ADR-0005), never baked in here. The wrapped `<section>` already labels the region,
+ * so this marker carries no redundant landmark name of its own.
  */
 export function renderCapabilitySurface(
-  row: Pick<CapabilityRow, "id" | "label">,
-  listView: string,
-  createView: string,
+  row: Pick<CapabilityRow, "id">,
+  collectionHtml: string,
 ): string {
-  const label = canonicalCapabilityLabel(row);
   return [
-    `<section class="capability-surface" data-active-capability-id="${escapeHtml(row.id)}" aria-label="${escapeHtml(label)}">`,
-    listView,
-    createView,
+    `<section class="capability-surface" data-active-capability-id="${escapeHtml(row.id)}">`,
+    collectionHtml,
     "</section>",
   ].join("\n");
 }
 
 /**
  * Direct browser navigation to `/capability/:id` needs the fixed shell around the
- * cached surface so authored CSS, HTMX, Alpine, the prompt bar, and both sidebars
+ * capability surface so authored CSS, HTMX, Alpine, the prompt bar, and both sidebars
  * are present. HTMX toolbar clicks still receive only the fragment.
  */
 export function renderCapabilityShell(
   row: Pick<CapabilityRow, "id" | "label">,
-  listView: string,
-  createView: string,
+  collectionHtml: string,
   shellHtml: string,
 ): string {
-  const surface = renderCapabilitySurface(row, listView, createView);
+  const surface = renderCapabilitySurface(row, collectionHtml);
   const contentPlaceholder =
     '<div class="intro__output" id="spec-build-output" aria-live="polite"></div>';
 
@@ -196,13 +194,11 @@ function injectToolbarEntries(shellHtml: string, entriesHtml: string): string {
  */
 export function renderCapabilityCommitSwap(
   row: Pick<CapabilityRow, "id" | "label">,
-  listView: string,
-  createView: string,
+  collectionHtml: string,
 ): string {
-  return [
-    renderCapabilitySurface(row, listView, createView),
-    renderCapabilityToolbarOobEntry(row),
-  ].join("\n");
+  return [renderCapabilitySurface(row, collectionHtml), renderCapabilityToolbarOobEntry(row)].join(
+    "\n",
+  );
 }
 
 function indent(value: string, spaces: number): string {

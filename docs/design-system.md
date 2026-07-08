@@ -298,8 +298,11 @@ create form from 3.2/01, closing itself on this capability's `aluna:record-creat
 the **empty state** — shown purely by CSS while the records region is `:empty`, so a
 server-rendered or prepended record clears it with no JS. The records region carries
 `id="<id>-records"` (`capabilityRecordsRegionId`), the same target the create form posts
-into, and stays **data-free**: live records arrive through the `read` action (wired in
-3.2/03), never baked into the chrome.
+into, and stays **data-free**: live records arrive through the `read` action, never baked
+into the chrome. In the serving path (`renderCollection({ loadThroughRead: true })`, epic
+3.2/03) the region is emitted empty and carries `hx-get="/capability/<id>/read"
+hx-trigger="load"`, so htmx fills it after the deterministic chrome renders — preserving
+ADR-0004's never-stale cache because the cached surface holds no user data.
 
 ### The accessible item wrapper
 
