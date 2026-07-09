@@ -13,5 +13,7 @@ export type {
 export {
   type CapabilityRouterDeps,
   type HandlerLoader,
+  ITEM_RENDERER_FILE,
+  type ItemRendererLoader,
   registerCapabilityRoutes,
 } from "./router.ts";
