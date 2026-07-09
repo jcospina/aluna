@@ -94,7 +94,7 @@ describe("renderDetailContent — read-only body via the centralized field rende
     expect(renderDetailContent(SAMPLE, RECORD)).toBe(renderDetailFields(SAMPLE, RECORD));
   });
 
-  test("renders every spec field, in spec order (detail.shows defers to 3.3/01)", () => {
+  test("renders every spec field, in spec order (detail.shows defers to 3.3/02)", () => {
     const body = renderDetailContent(SAMPLE, RECORD);
     const order = ["Title", "Priority", "Urgent", "Due on", "Remind at", "Note"];
     const positions = order.map((label) => body.indexOf(label));

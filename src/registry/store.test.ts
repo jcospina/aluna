@@ -32,7 +32,11 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
         { name: "pinned", type: "boolean", required: false },
       ],
     },
-    ui_intent: { views: ["list", "create"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the note text.",
+      collection: { layout: "feed" },
+      detail: { shows: ["text"] },
+    },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
       {

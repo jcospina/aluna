@@ -82,7 +82,11 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     id: "notes",
     label: "Notes",
     schema: { fields: [{ name: "text", type: "string", required: true }] },
-    ui_intent: { views: ["list", "create"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the note text.",
+      collection: { layout: "feed" },
+      detail: { shows: ["text"] },
+    },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
       {
@@ -114,13 +118,20 @@ describe("spec generation stage", () => {
     });
 
     expect(result.spec).toEqual(spec);
+    expect(result.spec.ui_intent).toEqual({
+      item: "A text-forward card that emphasizes the note text.",
+      collection: { layout: "feed" },
+      detail: { shows: ["text"] },
+    });
+    expect(result.spec.ui_intent).not.toHaveProperty("views");
+    expect(result.spec.ui_intent).not.toHaveProperty("modal");
     // Measurement is captured for the build's metrics row (ARCH §6.2).
     expect(Number.isFinite(result.durationMs)).toBe(true);
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(result.usage).toEqual(usage);
   });
 
-  test("asks the model for the spec inside the Module 2 pantry, with identity and intent context", async () => {
+  test("asks the model for the spec inside the field/action pantry, with reshaped ui_intent", async () => {
     const provider = makeSpecProvider(notesSpec());
     const { send } = recordingSend();
     const intent = notesIntent();
@@ -138,7 +149,11 @@ describe("spec generation stage", () => {
     expect(prompt).toBe(buildSpecPrompt({ provider, prompt: "track my notes", intent, send }));
     // The pantry, stated to the model (the schema is the hard wall behind it).
     expect(prompt).toContain("tools: only create, read.");
-    expect(prompt).toContain("ui_intent.views: only list, create.");
+    expect(prompt).toContain("ui_intent.item");
+    expect(prompt).toContain("ui_intent.collection.layout is one of: feed | grid");
+    expect(prompt).toContain("ui_intent.detail.shows");
+    expect(prompt).toContain("Do not include ui_intent.views");
+    expect(prompt).toContain("Do not include modal: true");
     expect(prompt).toContain("string | number | boolean | datetime | date");
     expect(prompt).toContain("id, created_at, extra are platform-owned");
     // Identity: engineering id vs user-facing label, kept distinct.
@@ -194,8 +209,42 @@ describe("spec generation stage", () => {
         raw: { ...notesSpec(), tools: ["create", "read", "update"] },
       },
       {
-        why: "a view outside list+create",
-        raw: { ...notesSpec(), ui_intent: { views: ["list", "detail"] } },
+        why: "the retired views shape",
+        raw: { ...notesSpec(), ui_intent: { views: ["list", "create"] } },
+      },
+      {
+        why: "a collection layout outside feed+grid",
+        raw: {
+          ...notesSpec(),
+          ui_intent: {
+            item: "A visual tile.",
+            collection: { layout: "masonry" },
+            detail: { shows: ["text"] },
+          },
+        },
+      },
+      {
+        why: "a stored modal flag",
+        raw: {
+          ...notesSpec(),
+          ui_intent: {
+            item: "A visual tile.",
+            collection: { layout: "grid" },
+            detail: { shows: ["text"] },
+            modal: true,
+          },
+        },
+      },
+      {
+        why: "a detail field not present in schema",
+        raw: {
+          ...notesSpec(),
+          ui_intent: {
+            item: "A text-forward card.",
+            collection: { layout: "feed" },
+            detail: { shows: ["missing"] },
+          },
+        },
       },
       {
         why: "a field type outside the pantry",

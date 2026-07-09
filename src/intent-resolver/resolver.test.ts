@@ -43,7 +43,11 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     label: "Notes",
     version: 1,
     schema: { fields: [{ name: "text", type: "string", required: true }] },
-    ui_intent: { views: ["list", "create"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the note text.",
+      collection: { layout: "feed" },
+      detail: { shows: ["text"] },
+    },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
       {
@@ -67,7 +71,11 @@ function recipesRow(): CapabilityRow {
     label: "Recipes",
     version: 2,
     schema: { fields: [{ name: "title", type: "string", required: true }] },
-    ui_intent: { views: ["list", "create"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the recipe name.",
+      collection: { layout: "feed" },
+      detail: { shows: ["title"] },
+    },
     behavior: "Recipes have titles and cooking notes.",
     behavioral_errors: [
       {

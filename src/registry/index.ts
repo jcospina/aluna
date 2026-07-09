@@ -24,9 +24,11 @@ export {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
   type SpecField,
-  type SpecView,
   specFieldSchema,
-  specViewSchema,
+  type UiCollectionLayout,
+  type UiIntent,
+  uiCollectionLayoutSchema,
+  uiIntentSchema,
 } from "./spec.ts";
 export {
   getCapability,

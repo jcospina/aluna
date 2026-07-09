@@ -20,6 +20,7 @@ import {
   generateCapabilityUnits,
   UnitGenerationError,
 } from "./index.ts";
+import { checkGeneratedUnit } from "./unit-checks.ts";
 
 const STUB_USAGE: TokenUsage = { inputTokens: 3, outputTokens: 5, totalTokens: 8 };
 
@@ -39,7 +40,11 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         { name: "pinned", type: "boolean", required: false },
       ],
     },
-    ui_intent: { views: ["list", "create"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes text and pinned status.",
+      collection: { layout: "feed" },
+      detail: { shows: ["text", "pinned"] },
+    },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
       {
@@ -309,7 +314,35 @@ describe("unit generation with bounded fix loop", () => {
     expect(prompt).toContain(
       "For `read`, destructure only `{ data }`: `export default async function read({ data }: CapabilityContext): Promise<string>`.",
     );
-    expect(prompt).toContain("The isolated checker rejects unused parameters and locals.");
+    expect(prompt).toContain(
+      "The isolated checker uses strict TypeScript, noUncheckedIndexedAccess, and rejects unused parameters and locals.",
+    );
+  });
+
+  test("handler prompts and retry feedback call out strict unchecked-index failures", () => {
+    const prompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "read" });
+    expect(prompt).toContain("noUncheckedIndexedAccess");
+    expect(prompt).toContain("Do not use unchecked array indexes or regex captures");
+
+    const unsafeRegexCapture = [
+      "export default async function read({ data }: CapabilityContext): Promise<string> {",
+      "  const rows = data.select();",
+      '  const match = String(rows[0]?.created_at ?? "").match(/^(\\d{4}-\\d{2}-\\d{2})/);',
+      "  if (match) return match[1];",
+      '  return "";',
+      "}",
+    ].join("\n");
+
+    const failure = checkGeneratedUnit(
+      notesSpec(),
+      { kind: "handler", name: "read" },
+      unsafeRegexCapture,
+    );
+    expect(failure?.message).toContain("noUncheckedIndexedAccess");
+    expect(failure?.message).toContain("regex captures");
+    expect(failure?.message).toContain(
+      "Type 'string | undefined' is not assignable to type 'string'",
+    );
   });
 
   test("view prompts keep list and create surfaces separated", () => {
