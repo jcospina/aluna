@@ -23,7 +23,7 @@
 // there is no client-side re-implementation of field formatting and no server round-trip.
 //
 // Field selection/order renders in **spec order** here; it defers to
-// `ui_intent.detail.shows` once 3.3/01 lands, and the click-to-open wiring that reads a
+// `ui_intent.detail.shows` in 3.3/02, and the click-to-open wiring that reads a
 // clicked item's payload into this modal is 3.3/02. Both hook the seams below
 // (renderDetailContent for the body, OPEN_DETAIL_EVENT for the open call) without
 // changing this module.
@@ -98,7 +98,7 @@ export function renderDetailModal(): string {
  * can never drift and every record value is escaped exactly once, in one place.
  *
  * This is the modal module's body seam: today it renders every spec field in spec order;
- * 3.3/01 narrows/orders it by `ui_intent.detail.shows`, and M4 adds the edit affordance —
+ * 3.3/02 narrows/orders it by `ui_intent.detail.shows`, and M4 adds the edit affordance —
  * both extend here, not at the call sites. `record` is untrusted live data the renderer
  * escapes; this function caches nothing between renders (ADR-0004 data-free View).
  */

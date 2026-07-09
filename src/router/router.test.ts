@@ -41,7 +41,11 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         { name: "pinned", type: "boolean", required: false },
       ],
     },
-    ui_intent: { views: ["list", "create"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the note text.",
+      collection: { layout: "feed" },
+      detail: { shows: ["text"] },
+    },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
       {
@@ -69,7 +73,11 @@ function boomRow(): CapabilityRow {
     label: "Boom",
     version: 1,
     schema: { fields: [{ name: "note", type: "string", required: false }] },
-    ui_intent: { views: ["list"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the note text.",
+      collection: { layout: "feed" },
+      detail: { shows: ["note"] },
+    },
     behavior: "Always fails, to prove failures stay friendly.",
     behavioral_errors: [],
     tools: ["read"],

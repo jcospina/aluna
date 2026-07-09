@@ -14,11 +14,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { RenderableCapability } from "../presentation/field-renderer.ts";
-import {
-  type CollectionLayout,
-  DEFAULT_COLLECTION_LAYOUT,
-  renderCollection,
-} from "../presentation/list-container.ts";
+import { type CollectionLayout, renderCollection } from "../presentation/list-container.ts";
 import {
   type CapabilityRow,
   canonicalCapabilityLabel,
@@ -33,13 +29,13 @@ import {
 } from "./fragments.ts";
 
 /**
- * The collection layout the container arranges a capability's records in. 3.3/01
- * authors `ui_intent.collection.layout`; until it lands every capability defaults to
- * `feed` (PLAN decision 5). Kept as the single seam that reads the spec value once it
- * exists, so that change touches exactly one line here.
+ * The collection layout the container arranges a capability's records in. The
+ * registry spec already validated this as the closed `feed | grid` enum, so the
+ * platform container can read it directly and still fail closed at spec-generation
+ * time if the model invents another value.
  */
-function collectionLayoutForRow(_row: CapabilityRow): CollectionLayout {
-  return DEFAULT_COLLECTION_LAYOUT;
+function collectionLayoutForRow(row: CapabilityRow): CollectionLayout {
+  return row.ui_intent.collection.layout;
 }
 
 /**

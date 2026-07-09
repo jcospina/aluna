@@ -11,7 +11,7 @@
 
 import { z } from "zod";
 import type { DeepPartial, Provider, TokenUsage } from "../provider/index.ts";
-import type { CapabilitySpec, CapabilityTool, SpecView } from "../registry/index.ts";
+import type { CapabilitySpec, CapabilityTool } from "../registry/index.ts";
 
 import { checkGeneratedUnit } from "./unit-checks.ts";
 import { buildUnitPrompt } from "./unit-prompts.ts";
@@ -19,7 +19,7 @@ import { buildUnitPrompt } from "./unit-prompts.ts";
 export const DEFAULT_UNIT_FIX_ATTEMPTS = 2;
 
 const HANDLER_UNITS = ["create", "read"] as const satisfies readonly CapabilityTool[];
-const VIEW_UNITS = ["list", "create"] as const satisfies readonly SpecView[];
+const VIEW_UNITS = ["list", "create"] as const;
 const generatedUnitSchema = z.strictObject({ content: z.string().min(1) });
 type GeneratedUnitObject = z.infer<typeof generatedUnitSchema>;
 
@@ -117,9 +117,12 @@ export class UnitGenerationError extends Error {
 export { buildUnitPrompt } from "./unit-prompts.ts";
 
 /**
- * Generate all four M2 units for `spec`, in fixed order (handlers then views), each
- * through its bounded write→check→fix loop. Returns the generated units plus the
- * handler/view content maps the gate and commit consume. Throws
+ * Generate all four temporary M2 units for `spec`, in fixed order (handlers then
+ * views), each through its bounded write→check→fix loop. Module 3.3 reshaped
+ * `ui_intent`, so the views are no longer model-authored spec state; they remain
+ * generated unconditionally until the later M3 artifact recut replaces them with
+ * the single item renderer. Returns the generated units plus the handler/view
+ * content maps the gate and commit consume. Throws
  * {@link UnitGenerationError} if any unit never passes its checks.
  */
 export async function generateCapabilityUnits(
@@ -276,11 +279,6 @@ function assertM2UnitSpec(spec: CapabilitySpec): void {
   for (const action of HANDLER_UNITS) {
     if (!(spec.tools as readonly string[]).includes(action)) {
       throw new Error(`M2 unit generation requires the "${action}" handler in spec.tools.`);
-    }
-  }
-  for (const view of VIEW_UNITS) {
-    if (!(spec.ui_intent.views as readonly string[]).includes(view)) {
-      throw new Error(`M2 unit generation requires the "${view}" view in spec.ui_intent.views.`);
     }
   }
 }

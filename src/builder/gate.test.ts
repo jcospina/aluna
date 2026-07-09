@@ -39,7 +39,11 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         { name: "pinned", type: "boolean", required: false },
       ],
     },
-    ui_intent: { views: ["list", "create"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the note text.",
+      collection: { layout: "feed" },
+      detail: { shows: ["text"] },
+    },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
       {
@@ -109,6 +113,11 @@ function articlesSpec(): CapabilitySpec {
         { name: "title", type: "string", required: true },
         { name: "body", type: "string", required: true },
       ],
+    },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the article title.",
+      collection: { layout: "feed" },
+      detail: { shows: ["title", "body"] },
     },
     behavior: "Title and body are required. Newest articles appear first.",
     behavioral_errors: [
@@ -607,6 +616,11 @@ describe("capability gate", () => {
           { name: "title", type: "string", required: true },
           { name: "happens_at", type: "datetime", required: true },
         ],
+      },
+      ui_intent: {
+        item: "A timeline-style card that emphasizes event title and date.",
+        collection: { layout: "feed" },
+        detail: { shows: ["title", "happens_at"] },
       },
       behavior: "Title and happens_at are required. Newest events appear first.",
       behavioral_errors: [

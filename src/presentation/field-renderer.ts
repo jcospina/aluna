@@ -94,7 +94,7 @@ export function renderCreateForm(capability: RenderableCapability): string {
 
 /**
  * Render the read-only detail display for one record: a `<dl>` of humanized field
- * labels and formatted values, in spec order (3.3/01 later honors `detail.shows`).
+ * labels and formatted values, in spec order (3.3/02 later honors `detail.shows`).
  * The record is untrusted live data — every value is escaped and an absent one
  * shows the placeholder — so the module holds no state between renders (ADR-0004).
  */

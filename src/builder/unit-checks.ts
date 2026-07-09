@@ -124,7 +124,11 @@ function typeCheckHandler(content: string): string | undefined {
     const diagnostics = ts.getPreEmitDiagnostics(program);
     if (diagnostics.length === 0) return undefined;
 
-    return formatDiagnostics(diagnostics);
+    return [
+      "Generated handlers are type-checked with strict TypeScript and noUncheckedIndexedAccess.",
+      "Do not return array indexes, regex captures, or string match groups without first narrowing or providing a fallback.",
+      formatDiagnostics(diagnostics),
+    ].join("\n");
   } finally {
     rmSync(dir, { force: true, recursive: true });
   }

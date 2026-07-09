@@ -316,6 +316,26 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     expect(html).not.toContain("capability-surface");
   });
 
+  test("serving a committed capability reads the collection layout from ui_intent", async () => {
+    insertCapability(
+      notesCapabilityRow({
+        ui_intent: {
+          ...NOTES_SPEC.ui_intent,
+          collection: { layout: "grid" },
+        },
+      }),
+      conns.readwrite,
+    );
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
+    const body = await responseText(res);
+
+    expect(res.status).toBe(200);
+    expect(body).toContain('class="capability-records capability-records--grid"');
+    expect(body).not.toContain('class="capability-records capability-records--feed"');
+  });
+
   test("the M2 closing beat: build, refresh rehydrates the toolbar, and the note is still there", async () => {
     const { provider } = makeSpecProvider(NOTES_SPEC);
     const { recordMetrics } = makeMetricsRecorder();
@@ -543,7 +563,11 @@ const NOTES_SPEC = {
   id: "notes",
   label: "Notes",
   schema: { fields: [{ name: "text", type: "string", required: true }] },
-  ui_intent: { views: ["list", "create"] },
+  ui_intent: {
+    item: "A text-forward card that emphasizes the note text.",
+    collection: { layout: "feed" },
+    detail: { shows: ["text"] },
+  },
   behavior: "Text is required. Newest notes appear first.",
   behavioral_errors: [
     {
@@ -755,6 +779,12 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     // The demo preview deliberately carries the raw spec (the developer's liveness
     // view) — internals here are the point.
     expect(dataFor("spec-preview")).toContain("schema");
+    expect(dataFor("spec-preview")).toContain("ui_intent");
+    expect(dataFor("spec-preview")).toContain("collection");
+    expect(dataFor("spec-preview")).toContain("feed");
+    expect(dataFor("spec-preview")).toContain("detail");
+    expect(dataFor("spec-preview")).not.toContain("views");
+    expect(dataFor("spec-preview")).not.toContain("modal");
     expect(dataFor("spec-preview")).toContain("notes");
 
     const migrationPreview = JSON.parse(dataFor("migration-preview")) as {
@@ -890,6 +920,8 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(prompts).toHaveLength(6);
     expect(prompts[0]).toContain("track my notes");
     expect(prompts[0]).toContain("tools: only create, read.");
+    expect(prompts[0]).toContain("ui_intent.collection.layout is one of: feed | grid");
+    expect(prompts[0]).toContain("Do not include ui_intent.views");
     expect(prompts[1]).toContain("Generate the create.ts handler");
     expect(prompts[4]).toContain("Generate the create.html view");
     expect(prompts[5]).toContain("Text is required. Newest notes appear first.");

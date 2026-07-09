@@ -28,7 +28,11 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         { name: "pinned", type: "boolean", required: false },
       ],
     },
-    ui_intent: { views: ["list", "create"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the note text.",
+      collection: { layout: "feed" },
+      detail: { shows: ["text"] },
+    },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
       {
@@ -50,6 +54,11 @@ function recipesSpec(): CapabilitySpec {
     id: "recipes",
     label: "Recipes",
     schema: { fields: [{ name: "title", type: "string", required: true }] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the recipe title.",
+      collection: { layout: "feed" },
+      detail: { shows: ["title"] },
+    },
     behavioral_errors: [
       {
         action: "create",

@@ -32,7 +32,7 @@ interface TableColumn {
 }
 
 function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
-  return {
+  const spec: CapabilitySpec = {
     id: "notes",
     label: "Notes",
     schema: {
@@ -43,7 +43,11 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         { name: "logged_at", type: "datetime", required: false },
       ],
     },
-    ui_intent: { views: ["list", "create"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the note text.",
+      collection: { layout: "feed" },
+      detail: { shows: ["title", "amount", "done", "logged_at"] },
+    },
     behavior: "Required title, optional amount and log time, newest records first.",
     behavioral_errors: [
       {
@@ -58,6 +62,18 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     prompt_context: "Stores notes with optional amount metadata.",
     ...overrides,
   };
+
+  if (overrides.schema && !overrides.ui_intent) {
+    return {
+      ...spec,
+      ui_intent: {
+        ...spec.ui_intent,
+        detail: { shows: spec.schema.fields.map((field) => field.name) },
+      },
+    };
+  }
+
+  return spec;
 }
 
 function tableColumns(database: Database, tableName: string): TableColumn[] {

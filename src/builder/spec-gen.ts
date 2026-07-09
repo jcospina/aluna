@@ -16,10 +16,10 @@
 // on `.object`; re-parsing here makes the gate this stage's own, not merely the
 // spine's, so even a lax provider cannot smuggle a bad spec past it.
 //
-// The M2 pantry is enforced twice over: the prompt steers the model inside it
-// (create+read tools, list+create views, the field types, platform-owned
-// columns excluded) and `capabilitySpecSchema` is the hard wall that rejects
-// anything outside it.
+// The field/action pantry and M3 presentation intent contract are enforced twice
+// over: the prompt steers the model inside them (create+read tools, the field
+// types, reshaped `ui_intent`, platform-owned columns excluded) and
+// `capabilitySpecSchema` is the hard wall that rejects anything outside it.
 
 import type { SendBuildEvent } from "../build-jobs.ts";
 import type { IntentClassification } from "../intent-resolver/index.ts";
@@ -32,7 +32,7 @@ import {
   fieldTypeSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
-  specViewSchema,
+  uiCollectionLayoutSchema,
 } from "../registry/index.ts";
 
 export interface GenerateSpecInput {
@@ -64,23 +64,28 @@ export interface SpecGenResult {
 // drift from the schema that ultimately gates the output.
 export function buildSpecPrompt(input: GenerateSpecInput): string {
   const fieldTypes = fieldTypeSchema.options.join(" | ");
-  const views = specViewSchema.options.join(", ");
+  const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
   const tools = capabilityToolSchema.options.join(", ");
   const platformColumns = PLATFORM_COLUMNS.join(", ");
 
   return [
     "You are Aluna's Capability Builder. Author the capability spec for what the user wants to keep track of.",
     "",
-    "The spec is one structured object. Everything else Aluna builds — the data table, the handlers, the views, the tests — is derived from it, so it must be complete and exact.",
+    "The spec is one structured object. Everything else Aluna builds — the data table, the handlers, the presentation surface, the tests — is derived from it, so it must be complete and exact.",
     "",
-    "Module 2 pantry — stay strictly inside it:",
+    "Spec pantry — stay strictly inside it:",
     `- tools: only ${tools}.`,
-    `- ui_intent.views: only ${views}.`,
     "- schema.fields: at least one field; each field has a name, a type, and required (a boolean).",
     `- a field's type is one of: ${fieldTypes}. No list types, no files, no relations.`,
     "- field names and the capability id are lowercase letters, digits, and underscores, starting with a letter.",
     `- ${platformColumns} are platform-owned columns Aluna adds automatically. Never include them as fields.`,
-    "- field names must be unique; views must be unique; tools must be unique.",
+    "- field names must be unique; tools must be unique.",
+    "",
+    "Presentation intent:",
+    "- ui_intent.item is one concise sentence of capability-specific item design direction.",
+    `- ui_intent.collection.layout is one of: ${collectionLayouts}. Use feed for text-forward lists and grid for visually dominant collections.`,
+    "- ui_intent.detail.shows is the ordered list of schema field names the read-only detail surface should show.",
+    "- Do not include ui_intent.views. Do not include modal: true; the shared modal is a platform invariant, not authored state.",
     "",
     "Identity:",
     "- id is the engineering identity (it becomes a table and folder name). Short, lowercase, never shown to the user.",

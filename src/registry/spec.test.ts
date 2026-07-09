@@ -1,9 +1,10 @@
-// Tests for the capability spec shape (Epic 2.1, PLAN decision 8). The headline
-// guarantees: the pantry is exactly five field types (the M2 four plus M3's date)
-// each with `required`,
-// and anything outside it — list types, files, relations, the `auto` concept,
-// platform-owned column names — fails validation loudly instead of flowing
-// downstream into DDL or generation.
+// Tests for the capability spec shape (Epic 2.1 plus Module 3.3's presentation
+// intent reshape). The headline guarantees: the pantry is exactly five field types
+// (the M2 four plus M3's date) each with `required`; `ui_intent` records only item,
+// closed collection layout, and detail order; and anything outside the contract —
+// list types, files, relations, the `auto` concept, old `views`, platform-owned
+// column names — fails validation loudly instead of flowing downstream into DDL or
+// generation.
 
 import { describe, expect, test } from "bun:test";
 
@@ -25,7 +26,11 @@ function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     id: "notes",
     label: "Notes",
     schema: { fields: [{ name: "text", type: "string", required: true }] },
-    ui_intent: { views: ["list", "create"] },
+    ui_intent: {
+      item: "A text-forward card that emphasizes the note text.",
+      collection: { layout: "feed" },
+      detail: { shows: ["text"] },
+    },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
       {
@@ -41,15 +46,30 @@ function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     ...overrides,
   };
 
-  if (overrides.schema && !("behavioral_errors" in overrides)) {
-    return { ...spec, behavioral_errors: defaultBehavioralErrorsForSchema(spec.schema) };
+  const normalizedSpec = {
+    ...spec,
+    ...(overrides.schema && !("ui_intent" in overrides)
+      ? {
+          ui_intent: {
+            ...spec.ui_intent,
+            detail: { shows: spec.schema.fields.map((field) => field.name) },
+          },
+        }
+      : {}),
+    ...(overrides.schema && !("behavioral_errors" in overrides)
+      ? { behavioral_errors: defaultBehavioralErrorsForSchema(spec.schema) }
+      : {}),
+  };
+
+  if (overrides.schema || !("behavioral_errors" in overrides)) {
+    return normalizedSpec;
   }
 
   return spec;
 }
 
 describe("capability spec shape", () => {
-  test("accepts a valid M2 spec", () => {
+  test("accepts a valid reshaped spec", () => {
     const spec = validSpec();
     expect(capabilitySpecSchema.parse(spec)).toEqual(spec);
   });
@@ -139,17 +159,64 @@ describe("capability spec shape", () => {
     }
   });
 
-  test("ui_intent speaks only M2's two views; tools only M2's two actions", () => {
-    // @ts-expect-error — `detail` is a later module's view.
-    const detailView = validSpec({ ui_intent: { views: ["list", "detail"] } });
-    expect(capabilitySpecSchema.safeParse(detailView).success).toBe(false);
+  test("ui_intent records item, closed collection layout, and real detail fields only", () => {
+    const grid = validSpec({
+      ui_intent: {
+        item: "A visual tile that foregrounds the primary field.",
+        collection: { layout: "grid" },
+        detail: { shows: ["text"] },
+      },
+    });
+    expect(capabilitySpecSchema.safeParse(grid).success).toBe(true);
 
+    // @ts-expect-error — M2's generated-view state is retired from ui_intent.
+    const oldViews = validSpec({ ui_intent: { views: ["list", "create"] } });
+    expect(capabilitySpecSchema.safeParse(oldViews).success).toBe(false);
+
+    const unknownLayout = validSpec({
+      ui_intent: {
+        item: "A visual tile that foregrounds the primary field.",
+        // @ts-expect-error — unknown collection layouts must fail closed.
+        collection: { layout: "masonry" },
+        detail: { shows: ["text"] },
+      },
+    });
+    expect(capabilitySpecSchema.safeParse(unknownLayout).success).toBe(false);
+
+    const unknownDetailField = validSpec({
+      ui_intent: {
+        item: "A text-forward card that emphasizes the note text.",
+        collection: { layout: "feed" },
+        detail: { shows: ["missing"] },
+      },
+    });
+    expect(capabilitySpecSchema.safeParse(unknownDetailField).success).toBe(false);
+
+    const duplicateDetailField = validSpec({
+      ui_intent: {
+        item: "A text-forward card that emphasizes the note text.",
+        collection: { layout: "feed" },
+        detail: { shows: ["text", "text"] },
+      },
+    });
+    expect(capabilitySpecSchema.safeParse(duplicateDetailField).success).toBe(false);
+
+    const modalFlag = validSpec({
+      ui_intent: {
+        item: "A text-forward card that emphasizes the note text.",
+        collection: { layout: "feed" },
+        detail: { shows: ["text"] },
+        // @ts-expect-error — the shared modal is a platform invariant, not stored state.
+        modal: true,
+      },
+    });
+    expect(capabilitySpecSchema.safeParse(modalFlag).success).toBe(false);
+  });
+
+  test("tools still speak only M2's two actions", () => {
     // @ts-expect-error — `delete` is a later module's tool.
     const deleteTool = validSpec({ tools: ["create", "read", "delete"] });
     expect(capabilitySpecSchema.safeParse(deleteTool).success).toBe(false);
-
-    const dupView = validSpec({ ui_intent: { views: ["list", "list"] } });
-    expect(capabilitySpecSchema.safeParse(dupView).success).toBe(false);
 
     const noTools = validSpec({ tools: [] });
     expect(capabilitySpecSchema.safeParse(noTools).success).toBe(false);
