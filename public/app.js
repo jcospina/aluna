@@ -148,5 +148,21 @@ function syncCapabilityPresentationState() {
   state.hasCapabilities = document.querySelector("[data-capability-entry]") !== null;
 }
 
+function syncActiveCapabilityUrl() {
+  const surface = document.querySelector("[data-active-capability-id]");
+  if (!(surface instanceof HTMLElement)) return;
+
+  const capabilityId = surface.dataset.activeCapabilityId;
+  if (!capabilityId) return;
+
+  const capabilityUrl = `/capability/${encodeURIComponent(capabilityId)}`;
+  if (window.location.pathname === capabilityUrl && window.location.search === "") return;
+
+  window.history.replaceState(window.history.state, "", capabilityUrl);
+}
+
 document.addEventListener("htmx:oobAfterSwap", syncCapabilityPresentationState);
-document.addEventListener("htmx:afterSwap", syncCapabilityPresentationState);
+document.addEventListener("htmx:afterSwap", () => {
+  syncCapabilityPresentationState();
+  syncActiveCapabilityUrl();
+});

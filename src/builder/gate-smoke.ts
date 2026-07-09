@@ -14,8 +14,8 @@ import type { CapabilityGateInput, SmokeGateResult } from "./gate.ts";
 import {
   applyDdl,
   assertFragment,
+  buildGatePresent,
   fieldValueMatches,
-  GATE_PRACTICE_PRESENT,
   loadHandlers,
   openScratchDatabasePair,
   sameSnapshot,
@@ -34,19 +34,23 @@ export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGat
     applyDdl(input.ddl, scratch.readwrite);
     const data = createCapabilityDataTool(input.spec, scratch);
     const handlers = await loadHandlers(input.handlers);
+    // The real adapter the router injects at runtime, built from this build's item
+    // renderer. Create and read render records through it, so their item markup cannot
+    // drift (ADR-0005 §2).
+    const present = buildGatePresent(input.spec, input.itemRenderer);
     const smokeInput = buildSmokeInput(input.spec);
 
     const createFragment = await handlers.create({
       input: smokeInput.input,
       data,
-      present: GATE_PRACTICE_PRESENT,
+      present,
     });
     assertFragment("create", createFragment);
 
     const rows = data.select();
     assertSmokeRows(input.spec, rows, smokeInput.expectedValues);
 
-    const readFragment = await handlers.read({ input: {}, data, present: GATE_PRACTICE_PRESENT });
+    const readFragment = await handlers.read({ input: {}, data, present });
     assertFragment("read", readFragment);
 
     const insertedRow = rows[0];

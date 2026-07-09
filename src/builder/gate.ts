@@ -87,6 +87,10 @@ export interface CapabilityGateInput {
   // scratch so smoke proves the build's own schema, not a separately-derived one.
   readonly ddl: CapabilityTableDdl;
   readonly handlers: Readonly<Record<HandlerUnitName, string>>;
+  // The build's generated item renderer (ADR-0005 §2). The structural rung type-checks
+  // it and the smoke/behavioral rungs bind it into the real `present` adapter the
+  // handlers render records through — so create and read cannot drift.
+  readonly itemRenderer: string;
   // The behavioral tier generates tests from spec behavior + schema only. The
   // provider is required when the tier is enabled, and unused when it is off.
   readonly provider?: Provider;

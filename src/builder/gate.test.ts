@@ -60,42 +60,38 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   };
 }
 
+// The handlers render records through the injected `present` adapter (ADR-0005 §2), so
+// the smoke and behavioral rungs exercise the real adapter path — create and read cannot
+// drift. `text: input.text,` is kept verbatim so the trim test can patch it.
 const CREATE_HANDLER = [
-  "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
+  "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
   "  const note = data.insert({",
   "    text: input.text,",
   '    pinned: input.pinned === "on" || input.pinned === "true",',
   "  });",
-  '  return `<article class="note"><p>$' + "{escapeHtml(note.text)}</p></article>`;",
-  "}",
-  "",
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
+  "  return present(note);",
   "}",
 ].join("\n");
 
 const READ_HANDLER = [
-  "export default async function read({ data }: CapabilityContext): Promise<string> {",
+  "export default async function read({ data, present }: CapabilityContext): Promise<string> {",
   "  const notes = data.select();",
-  '  if (notes.length === 0) return \'<ul class="notes" data-empty="true"></ul>\';',
-  "  const items = notes",
-  '    .map((note) => `<li class="note">$' + "{escapeHtml(note.text)}</li>`)",
-  '    .join("");',
-  '  return `<ul class="notes">$' + "{items}</ul>`;",
+  "  if (notes.length === 0) return '<p class=\"capability-empty-hint\">No notes yet.</p>';",
+  '  return notes.map((note) => present(note)).join("");',
+  "}",
+].join("\n");
+
+// A generic item renderer: one record → its field values arranged with the primitive
+// vocabulary, escaped. Reused across specs (it reads no field by name), so the gate can
+// build the real `present` adapter for any capability under test.
+const ITEM_RENDERER = [
+  "export default function renderItem(record: Record<string, unknown>): string {",
+  "  const parts = Object.values(record).map((value) => escapeHtml(value));",
+  '  return `<div class="stack">$' + '{parts.join(" ")}</div>`;',
   "}",
   "",
   "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
+  '  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");',
   "}",
 ].join("\n");
 
@@ -259,6 +255,7 @@ function gateInput(
     spec,
     ddl: deriveCapabilityTableDdl(spec),
     handlers: GOOD_HANDLERS,
+    itemRenderer: ITEM_RENDERER,
     provider,
     ...overrides,
   };
@@ -385,6 +382,50 @@ describe("capability gate", () => {
     expect(error.failedRung).toBe("structural");
     expect(error.outcomes.map((outcome) => outcome.rung)).toEqual(["structural"]);
     expect(error.outcomes[0]?.error).toContain("Type 'number' is not assignable");
+  });
+
+  test("structural rung type-checks the generated item renderer", async () => {
+    // A renderer that returns the raw `unknown` record value fails the item-renderer
+    // type-check — the gate asserts the renderer contract alongside the handlers.
+    const badRenderer = [
+      "export default function renderItem(record: Record<string, unknown>): string {",
+      "  return record.text;",
+      "}",
+    ].join("\n");
+
+    const error = await expectGateFailure(gateInput({ itemRenderer: badRenderer }));
+
+    expect(error.failedRung).toBe("structural");
+    expect(error.outcomes.map((outcome) => outcome.rung)).toEqual(["structural"]);
+    expect(error.outcomes[0]?.error).toContain("is not assignable to type 'string'");
+  });
+
+  test("structural rung rejects an async (non-synchronous) item renderer", async () => {
+    const asyncRenderer = [
+      "export default async function renderItem(record: Record<string, unknown>): Promise<string> {",
+      "  return String(record.text);",
+      "}",
+    ].join("\n");
+
+    const error = await expectGateFailure(gateInput({ itemRenderer: asyncRenderer }));
+
+    expect(error.failedRung).toBe("structural");
+    expect(error.outcomes[0]?.error).toMatch(/synchronous/);
+  });
+
+  test("smoke renders create and read through the real presentation adapter", async () => {
+    // With present-calling handlers and a real renderer, both rungs run records through
+    // the same `present` adapter the router injects — the item wrapper appears in the
+    // rendered output (create + read cannot drift, ADR-0005 §2).
+    const result = await runCapabilityGate(gateInput());
+
+    expect(result.outcomes.map((outcome) => `${outcome.rung}:${outcome.status}`)).toEqual([
+      "structural:passed",
+      "smoke:passed",
+      "behavioral:passed",
+    ]);
+    expect(result.smoke.createFragmentLength).toBeGreaterThan(0);
+    expect(result.smoke.readFragmentLength).toBeGreaterThan(0);
   });
 
   test("smoke runs the real handlers against scratch and fails when no row lands", async () => {

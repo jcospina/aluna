@@ -162,6 +162,7 @@ export async function runSpecBuildStages(
         spec,
         ddl: migration.ddl,
         handlers: unitResult.handlers,
+        itemRenderer: unitResult.itemRenderer,
         provider,
         realDatabase: database,
       });
