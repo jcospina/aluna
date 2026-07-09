@@ -66,6 +66,38 @@ export const ITEM_TRIGGER_CLASS = "capability-item";
 export const ITEM_PAYLOAD_ATTR = "data-item";
 
 /**
+ * The attribute pointing at the record's inert detail `<template>` (the modal clones its
+ * content on open — {@link import("./detail-modal.ts").renderDetailContentTemplate}). The
+ * click controller (public/item-detail.js) reads it as the open event's `sourceId`, so the
+ * modal shows the full record via the centralized field renderer even when the item
+ * visually truncates — no client-side field formatting, no read-single route (ADR-0005 §3).
+ */
+export const ITEM_DETAIL_TEMPLATE_ATTR = "data-detail-template";
+
+/**
+ * The attribute carrying the modal title the trigger opens with — the capability label, so
+ * the dialog announces the capability it is showing (ARCH §6.1; the shared modal's
+ * `aria-labelledby` heading). Read by the click controller as the open event's `title`
+ * (set via `textContent`, so it can never inject markup).
+ */
+export const ITEM_DETAIL_TITLE_ATTR = "data-detail-title";
+
+/**
+ * What the wrapper needs to open one record's detail: the id of its inert detail
+ * `<template>` (cloned into the shared modal) and the title the modal shows. The item
+ * renderer's inner markup composes the record's own fields; this is the platform-owned
+ * open target the click controller (public/item-detail.js) reads — the model never
+ * authors modal wiring (ADR-0005 §3).
+ */
+export interface ItemDetailRef {
+  /** The `<template>` id to clone on open — the open event's `sourceId`. The caller owns
+   *  making it unique + DOM-safe (in practice `detail-<capabilityId>-<recordId>`). */
+  readonly templateId: string;
+  /** The modal title — the capability label. */
+  readonly title: string;
+}
+
+/**
  * Map a closed {@link CollectionLayout} to its platform layout class through a total
  * switch. Reaching `default` means a layout member has no case — `assertNever` fails
  * the type-check, so an unrepresented layout can never render (fail-closed, ADR-0005 §6).
@@ -161,10 +193,24 @@ export function renderCollection(options: CollectionOptions): string {
 
 /**
  * Wrap one record's already-safe inner markup in the standardized accessible trigger.
- * The wrapper is a `role="button"` control with `aria-haspopup="dialog"` (it opens the
- * detail modal, 3.2/04) carrying the full record as an escaped `data-item` payload, so
- * the modal shows the whole record even when the item visually truncates — no
- * read-single route (ADR-0005 §3). Keyboard/click activation is wired in 3.3/02.
+ * The wrapper is a `role="button"` control with `aria-haspopup="dialog"` that carries the
+ * full record as an escaped `data-item` payload (ADR-0005 §3) — so the record is in-page
+ * and no read-single route is needed (today the whole record; the escape hatch later
+ * shrinks it to an id).
+ *
+ * Given a {@link ItemDetailRef} it also carries the two hooks the click controller
+ * (public/item-detail.js) reads to open the shared read-only detail modal (3.2/04)
+ * prefilled with this record — the click-to-open wiring (3.3/02):
+ *
+ *   • `data-detail-template` — the id of this record's inert detail `<template>`, which
+ *     the modal clones on open (the full record via the centralized field renderer, even
+ *     when the item truncates — no client-side field formatting).
+ *   • `data-detail-title` — the modal title (the capability label).
+ *
+ * `detail` is optional so the frame alone (record payload + accessible chrome) can render
+ * without click-to-open — the shape the 3.2/02 stand-in demo exercises before the modal
+ * wiring. The real read path (3.4 adapter) always passes it. The model authors none of
+ * this wiring (ADR-0005 §3).
  *
  * `innerHtml` is trusted: the presentation adapter (3.4/01) has already run it through
  * the runtime enforcer. This function only frames it — it does not sanitize.
@@ -172,11 +218,16 @@ export function renderCollection(options: CollectionOptions): string {
 export function renderItemWrapper(
   innerHtml: string,
   record: Readonly<Record<string, unknown>>,
+  detail?: ItemDetailRef,
 ): string {
   const payload = escapeHtml(serializeItemPayload(record));
+  const detailHooks = detail
+    ? ` ${ITEM_DETAIL_TEMPLATE_ATTR}="${escapeHtml(detail.templateId)}"` +
+      ` ${ITEM_DETAIL_TITLE_ATTR}="${escapeHtml(detail.title)}"`
+    : "";
   return (
     `<article class="${ITEM_TRIGGER_CLASS}" role="button" tabindex="0"` +
-    ` aria-haspopup="dialog" ${ITEM_PAYLOAD_ATTR}="${payload}">${innerHtml}</article>`
+    ` aria-haspopup="dialog" ${ITEM_PAYLOAD_ATTR}="${payload}"${detailHooks}>${innerHtml}</article>`
   );
 }
 

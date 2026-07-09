@@ -4,6 +4,7 @@
 // The shell is dumb on purpose (CONTEXT.md "Shell"): the server sends fragments and
 // the client places them. These renderers are the server side of that contract.
 
+import { renderDetailModal } from "../presentation/detail-modal.ts";
 import { type CapabilityRow, canonicalCapabilityLabel } from "../registry/index.ts";
 import { escapeHtml } from "./html.ts";
 
@@ -14,6 +15,11 @@ const CAPABILITY_TOOLBAR_TARGET = "#capability-toolbar";
 // The shell's toolbar placeholder comment (public/index.html) — where the on-load
 // rehydration and direct `/capability/:id` navigation inject capability entries.
 const SHELL_TOOLBAR_PLACEHOLDER = "        <!-- Capability entries render here later. -->";
+
+// The shell's detail-modal placeholder comment (public/index.html) — where every
+// server-rendered shell mounts the one shared read-only detail modal instance (epic
+// 3.2/04), so a clicked capability item (epic 3.3/02) always has the modal to open.
+const SHELL_DETAIL_MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here. -->";
 
 const BUSY_NOTICE =
   "I'm already putting something together. Give me a moment and I'll be ready for the next one.";
@@ -141,11 +147,12 @@ export function renderCapabilityShell(
   const contentPlaceholder =
     '<div class="intro__output" id="spec-build-output" aria-live="polite"></div>';
 
-  const withContent = shellHtml.replace(
+  const withModal = injectDetailModal(shellHtml);
+  const withContent = withModal.replace(
     contentPlaceholder,
     `<div class="intro__output" id="spec-build-output" aria-live="polite">${surface}</div>`,
   );
-  if (withContent === shellHtml) {
+  if (withContent === withModal) {
     throw new Error("The shell content target placeholder is missing.");
   }
 
@@ -165,12 +172,17 @@ export function renderRehydratedShell(
   rows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>,
   shellHtml: string,
 ): string {
+  // The shared detail modal mounts on every rendered shell — cold-start included — so
+  // the first capability a fresh user builds can open it without a page refresh (the
+  // commit swap adds content + a toolbar entry, not the modal). "Cold-start" means no
+  // capabilities, never no modal: the modal is data-free platform chrome (ADR-0004).
+  const withModal = injectDetailModal(shellHtml);
   if (rows.length === 0) {
-    return shellHtml;
+    return withModal;
   }
 
   const entries = rows.map((row) => indent(renderCapabilityToolbarEntry(row), 8)).join("\n");
-  return injectToolbarEntries(shellHtml, entries);
+  return injectToolbarEntries(withModal, entries);
 }
 
 // Insert already-rendered toolbar entries at the shell's placeholder and flip the
@@ -186,6 +198,19 @@ function injectToolbarEntries(shellHtml: string, entriesHtml: string): string {
   }
 
   return withToolbar.replace('class="shell"', 'class="shell has-capabilities"');
+}
+
+// Mount the one shared read-only detail modal instance at the shell's placeholder
+// (public/index.html), rendered from the single renderDetailModal() source so the served
+// markup can never drift from the module + its tests. Loud on a missing placeholder — same
+// fail-fast contract as the toolbar injection — so a shell that silently dropped the modal
+// (and with it every item's click-to-open, epic 3.3/02) is caught in tests, not in the UI.
+function injectDetailModal(shellHtml: string): string {
+  const withModal = shellHtml.replace(SHELL_DETAIL_MODAL_PLACEHOLDER, renderDetailModal());
+  if (withModal === shellHtml) {
+    throw new Error("The shell detail-modal placeholder is missing.");
+  }
+  return withModal;
 }
 
 /**

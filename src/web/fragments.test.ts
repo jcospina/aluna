@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
 
+import { renderDetailModal } from "../presentation/detail-modal.ts";
 import { renderCapabilityCommitSwap, renderRehydratedShell } from "./fragments.ts";
 
-// A minimal stand-in for the shell file: the two anchors the rehydration keys off —
-// the toolbar placeholder comment (with its 8-space indent) and the `class="shell"`
-// root — wrapped in just enough markup to be inspectable.
+// The shell's detail-modal mount placeholder (public/index.html) — where every rendered
+// shell mounts the one shared read-only detail modal. Kept in sync with fragments.ts.
+const MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here. -->";
+
+// A minimal stand-in for the shell file: the anchors the shell composition keys off —
+// the toolbar placeholder comment (with its 8-space indent), the detail-modal placeholder,
+// and the `class="shell"` root — wrapped in just enough markup to be inspectable.
 const SHELL_FIXTURE = [
   '<div class="shell" x-data="shell">',
   '  <nav class="toolbar" id="capability-toolbar">',
@@ -12,6 +17,7 @@ const SHELL_FIXTURE = [
   "  </nav>",
   '  <div class="intro__output" id="spec-build-output"></div>',
   "</div>",
+  MODAL_PLACEHOLDER,
 ].join("\n");
 
 function countMatches(haystack: string, needle: string): number {
@@ -85,12 +91,16 @@ describe("web fragments", () => {
 });
 
 describe("on-load toolbar rehydration", () => {
-  test("an empty registry returns the shell untouched — cold-start preserved", () => {
+  test("an empty registry adds no entries and keeps cold-start — but still mounts the modal", () => {
     const html = renderRehydratedShell([], SHELL_FIXTURE);
 
-    // Byte-for-byte the cold-start shell: no entries, and the shell does not flip into
-    // its has-capabilities state, so a fresh user sees the untouched page.
-    expect(html).toBe(SHELL_FIXTURE);
+    // Cold-start means no capabilities, never no modal: the shared detail modal is
+    // data-free platform chrome (ADR-0004) and mounts even here, so the FIRST capability a
+    // fresh user builds can open it without a page refresh (the commit swap adds content +
+    // a toolbar entry, not the modal). Otherwise the page stays cold-start: no toolbar
+    // entries, and the shell does not flip into its has-capabilities state.
+    expect(html).toContain(renderDetailModal());
+    expect(html).not.toContain(MODAL_PLACEHOLDER); // placeholder consumed by the injection
     expect(html).not.toContain("data-capability-entry");
     expect(html).not.toContain("has-capabilities");
   });
@@ -124,11 +134,31 @@ describe("on-load toolbar rehydration", () => {
     // The load path restores chrome only: the content area is never pre-populated with
     // a capability view (a click serves it, ADR-0004).
     expect(html).not.toContain("capability-surface");
+
+    // The one shared detail modal mounts here too, so a rehydrated capability list is
+    // clickable-into once the read path emits wrapper items (3.4).
+    expect(html).toContain(renderDetailModal());
   });
 
   test("throws when the shell is missing its toolbar placeholder", () => {
+    // The fixture carries the modal placeholder (so modal injection passes) but not the
+    // toolbar one, isolating the toolbar-placeholder guard.
     expect(() =>
-      renderRehydratedShell([{ id: "notes", label: "Notes" }], '<div class="shell"></div>'),
+      renderRehydratedShell(
+        [{ id: "notes", label: "Notes" }],
+        `<div class="shell"></div>\n${MODAL_PLACEHOLDER}`,
+      ),
     ).toThrow(/toolbar placeholder/i);
+  });
+
+  test("throws when the shell is missing its detail-modal placeholder", () => {
+    // Symmetric fail-fast: a shell that silently dropped the modal (and with it every
+    // item's click-to-open) is caught here, not in the UI.
+    expect(() =>
+      renderRehydratedShell(
+        [{ id: "notes", label: "Notes" }],
+        '<div class="shell"><!-- Capability entries render here later. --></div>',
+      ),
+    ).toThrow(/detail-modal placeholder/i);
   });
 });

@@ -2,12 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { OPEN_DETAIL_EVENT } from "./detail-modal.ts";
 import { capabilityRecordsRegionId, type RenderableCapability } from "./field-renderer.ts";
 import {
   COLLECTION_LAYOUTS,
   type CollectionLayout,
   collectionLayoutClass,
   DEFAULT_COLLECTION_LAYOUT,
+  ITEM_DETAIL_TEMPLATE_ATTR,
+  ITEM_DETAIL_TITLE_ATTR,
   ITEM_PAYLOAD_ATTR,
   ITEM_TRIGGER_CLASS,
   renderCollection,
@@ -245,5 +248,80 @@ describe("item wrapper — payload escaping + safety invariants", () => {
     const ref = { key: "abc123", mime: "image/png", size: 2048, name: "photo.png" };
     const wrapper = renderItemWrapper("<span>x</span>", { photo: ref });
     expect(readBackPayload(wrapper)).toEqual({ photo: ref });
+  });
+});
+
+// The click-to-open wiring (3.3/02): the wrapper carries the two hooks the shared modal's
+// click controller reads to open one record's detail. Optional so the frame-only shape (the
+// 3.2/02 stand-in demo) still renders without them; the real read path always passes them.
+describe("item wrapper — detail open ref (click-to-open hooks)", () => {
+  const wrapper = renderItemWrapper(
+    "<span>x</span>",
+    { title: "Buy oat milk" },
+    { templateId: "detail-tasks-7", title: "Tasks" },
+  );
+
+  test("carries the detail template id + title the click controller opens with", () => {
+    expect(wrapper).toContain(`${ITEM_DETAIL_TEMPLATE_ATTR}="detail-tasks-7"`);
+    expect(wrapper).toContain(`${ITEM_DETAIL_TITLE_ATTR}="Tasks"`);
+  });
+
+  test("still carries the record payload alongside the detail hooks", () => {
+    expect(readBackPayload(wrapper)).toEqual({ title: "Buy oat milk" });
+  });
+
+  test("omits the detail hooks when no ref is given (frame-only, the 3.2/02 shape)", () => {
+    const frameOnly = renderItemWrapper("<span>x</span>", { title: "x" });
+    expect(frameOnly).not.toContain(ITEM_DETAIL_TEMPLATE_ATTR);
+    expect(frameOnly).not.toContain(ITEM_DETAIL_TITLE_ATTR);
+  });
+
+  test("escapes a hostile title and template id so neither breaks out of its attribute", () => {
+    const hostile = renderItemWrapper(
+      "<span>x</span>",
+      {},
+      { templateId: 't"><script>', title: '"><img src=x onerror=alert(1)>' },
+    );
+    expect(hostile).not.toContain('"><script>');
+    expect(hostile).not.toContain('"><img');
+    expect(hostile).toContain("&quot;&gt;&lt;script&gt;");
+    expect(hostile).toContain("&quot;&gt;&lt;img src=x onerror=alert(1)&gt;");
+  });
+});
+
+// No DOM in Bun, so the click-to-open mechanics live in a browser file this test can only
+// read. It pins that the client agrees with the server on the trigger class + the detail
+// hooks (attr ↔ dataset) + the shared open event, and that it activates like a real button
+// (click + Enter + Space) — the item-side analogue of the modal's controller-parity test.
+describe("item click-to-open — controller contract parity (server ⇄ client)", () => {
+  const controller = readFileSync(join(import.meta.dir, "../../public/item-detail.js"), "utf8");
+
+  // `data-detail-template` → `detailTemplate`: the DOM's dataset camel-casing, so the
+  // server attribute name and the client dataset access are proven to agree by construction.
+  function datasetKeyOf(attr: string): string {
+    return attr
+      .replace(/^data-/, "")
+      .replace(/-([a-z])/g, (_match, char: string) => char.toUpperCase());
+  }
+
+  test("selects the platform item trigger the wrapper renders", () => {
+    expect(controller).toContain(`.${ITEM_TRIGGER_CLASS}`);
+  });
+
+  test("reads the same detail hooks the wrapper writes (attr ↔ dataset agree)", () => {
+    expect(controller).toContain(`dataset.${datasetKeyOf(ITEM_DETAIL_TEMPLATE_ATTR)}`);
+    expect(controller).toContain(`dataset.${datasetKeyOf(ITEM_DETAIL_TITLE_ATTR)}`);
+  });
+
+  test("dispatches the shared open event the modal controller listens for", () => {
+    expect(controller).toContain(`"${OPEN_DETAIL_EVENT}"`);
+  });
+
+  test("activates on click and on keyboard (Enter + Space), like a real button", () => {
+    expect(controller).toContain('addEventListener("click"');
+    expect(controller).toContain('addEventListener("keydown"');
+    expect(controller).toContain('"Enter"');
+    expect(controller).toContain('" "');
+    expect(controller).toContain("preventDefault");
   });
 });

@@ -24,6 +24,7 @@ import {
   type RecordMetrics,
   streamSpecBuildDemo,
 } from "./pipeline/index.ts";
+import { renderDetailInteractionPreviewPage } from "./presentation/detail-interaction-preview.ts";
 import { renderDetailModalPreviewPage } from "./presentation/detail-modal-preview.ts";
 import { renderFieldRendererPreviewPage } from "./presentation/field-renderer-preview.ts";
 import { renderListContainerPreviewPage } from "./presentation/list-container-preview.ts";
@@ -224,6 +225,19 @@ export function createApp(deps: AppDeps = {}): Hono {
     "/demo/detail-modal",
     () =>
       new Response(renderDetailModalPreviewPage(), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }),
+  );
+
+  // Dev preview for the item click-to-open → read-only detail modal (epic 3.3/02) — the
+  // HITL visual sign-off surface. Renders a hand-written capability list through the real
+  // wrapper + real modal + real controllers (detail-modal.js + item-detail.js): clicking or
+  // key-activating an item opens the shared modal prefilled read-only, honoring the
+  // capability's `detail.shows`. Deterministic, no provider, no db — safe on page load.
+  app.get(
+    "/demo/detail-interaction",
+    () =>
+      new Response(renderDetailInteractionPreviewPage(), {
         headers: { "content-type": "text/html; charset=utf-8" },
       }),
   );

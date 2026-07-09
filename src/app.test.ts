@@ -245,6 +245,75 @@ describe("GET / (shell)", () => {
     // It is the htmx SSE extension: it registers itself on htmx at load.
     expect(body).toContain('defineExtension("sse"');
   });
+
+  test("mounts the one shared detail modal and loads its click-to-open controllers", async () => {
+    const app = createApp();
+    const html = await responseText(await app.request("/"));
+
+    // The shared read-only detail modal (epic 3.2/04) mounts on every shell — cold-start
+    // included — so a clicked capability item (epic 3.3/02) always has the modal to open.
+    // Exactly one shared instance: a platform invariant, not one-per-capability.
+    expect(html).toContain('<dialog id="aluna-detail-modal"');
+    expect(html).toContain('id="aluna-detail-modal-body"');
+    expect(html.split('<dialog id="aluna-detail-modal"').length - 1).toBe(1);
+    // Both dumb glue files load: the modal mechanics and the item click-to-open (ARCH §6.1).
+    expect(html).toContain('src="/static/detail-modal.js"');
+    expect(html).toContain('src="/static/item-detail.js"');
+  });
+
+  test("serves the item click-to-open controller as JavaScript at its static path", async () => {
+    const app = createApp();
+    const res = await app.request("/static/item-detail.js");
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") ?? "").toContain("javascript");
+    // It fires the shared modal's open event when an item is activated.
+    expect(body).toContain("aluna:open-detail");
+    expect(body).toContain(".capability-item");
+  });
+});
+
+// The item click-to-open → read-only detail modal HITL surface (epic 3.3/02). Runs the whole
+// real path (wrapper + modal + controllers) on a hand-written list, since the live read path
+// does not emit wrapper items until 3.4 — so a human signs off the interaction here.
+describe("GET /demo/detail-interaction (click-to-open detail, epic 3.3/02)", () => {
+  test("renders live wrapped items + their detail templates + the shared modal + controllers", async () => {
+    const app = createApp();
+    const res = await app.request("/demo/detail-interaction");
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") ?? "").toContain("text/html");
+
+    // Live wrapper output: accessible item triggers carrying the click-to-open hooks.
+    expect(html).toContain('class="capability-item"');
+    expect(html).toContain('data-detail-template="detail-reading-0"');
+    expect(html).toContain("data-detail-title=");
+    // Each record's inert detail template, the one shared modal, and both real controllers.
+    expect(html).toContain('<template id="detail-reading-0">');
+    expect(html).toContain('<dialog id="aluna-detail-modal"');
+    expect(html).toContain('src="/static/detail-modal.js"');
+    expect(html).toContain('src="/static/item-detail.js"');
+
+    // The detail body honors detail.shows [title, rating, note, author]: it drops the
+    // schema's "finished" field, so no detail surface shows a "Finished" label — proof the
+    // modal follows the intent, not spec order. (The card still shows a Finished/Reading
+    // status as plain text, which is not a <dt> label.)
+    expect(html).not.toContain(">Finished</dt>");
+  });
+
+  test("escapes a hostile record so nothing executes in the list or the detail template", async () => {
+    const app = createApp();
+    const html = await responseText(await app.request("/demo/detail-interaction"));
+
+    // The raw element forms never appear (they are entity-escaped to inert text); the
+    // `onerror=alert(2)` chars survive only inside the escaped `&lt;img …&gt;`, so we
+    // assert on the element openings, which are what would execute.
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;script&gt;");
+  });
 });
 
 // The registry's read-side payoff (Epic 2.1): on load the capability toolbar
@@ -273,7 +342,7 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     return haystack.split(needle).length - 1;
   }
 
-  test("a fresh user (empty registry) gets the untouched cold-start shell", async () => {
+  test("a fresh user (empty registry) stays cold-start — no entries, but the modal still mounts", async () => {
     const app = createApp({ capabilityRouter: { databases: conns } });
     const html = await responseText(await app.request("/"));
 
@@ -286,6 +355,11 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     expect(html).not.toContain('class="shell has-capabilities"');
     expect(html).toContain('id="spec-build-output"');
     expect(html).toContain('hx-post="/prompt"');
+
+    // Cold-start means no capabilities, never no modal: the shared detail modal mounts
+    // even here, so the FIRST capability this user builds can open it without a refresh.
+    expect(html).toContain('<dialog id="aluna-detail-modal"');
+    expect(html).not.toContain("Shared detail modal mounts here"); // placeholder consumed
   });
 
   test("registry rows rehydrate the toolbar on load and flip has-capabilities", async () => {

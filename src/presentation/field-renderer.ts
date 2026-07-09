@@ -36,6 +36,15 @@ export interface RenderableCapability {
   readonly id: string;
   readonly label: string;
   readonly schema: { readonly fields: readonly SpecField[] };
+  /**
+   * Which fields the read-only DETAIL surface shows, and in what order —
+   * `ui_intent.detail.shows` (ADR-0005 §6). The CREATE form ignores this (it always
+   * renders every field, so a record can be fully entered); only the detail body honors
+   * it. Absent (a demo/test that omits it, or a pre-reshape row) → the detail falls back
+   * to every field in spec order, so it still renders. Spec validation guarantees each
+   * name is a real, unique `schema.fields` entry (`src/registry/spec.ts`).
+   */
+  readonly detail?: { readonly shows: readonly string[] };
 }
 
 /**
@@ -94,18 +103,43 @@ export function renderCreateForm(capability: RenderableCapability): string {
 
 /**
  * Render the read-only detail display for one record: a `<dl>` of humanized field
- * labels and formatted values, in spec order (3.3/02 later honors `detail.shows`).
- * The record is untrusted live data — every value is escaped and an absent one
- * shows the placeholder — so the module holds no state between renders (ADR-0004).
+ * labels and formatted values, in the fields/order the capability's
+ * `detail.shows` names (3.3/02; falls back to every field in spec order when
+ * absent — see {@link detailFieldOrder}). The record is untrusted live data — every
+ * value is escaped and an absent one shows the placeholder — so the module holds no
+ * state between renders (ADR-0004).
  */
 export function renderDetailFields(
   capability: RenderableCapability,
   record: Readonly<Record<string, unknown>>,
 ): string {
-  const rows = capability.schema.fields
+  const rows = detailFieldOrder(capability)
     .map((field) => renderDetailField(field, record[field.name]))
     .join("");
   return `<dl class="detail-fields">${rows}</dl>`;
+}
+
+/**
+ * The fields the detail body renders, in order. When the capability carries
+ * `detail.shows` (ADR-0005 §6, the reshaped `ui_intent`), the detail surface shows
+ * exactly those fields in that order — the model's per-capability presentation
+ * choice. Otherwise it renders every field in spec order, so a demo/test that omits
+ * the intent (or a pre-reshape row) still shows the whole record rather than nothing.
+ *
+ * Spec validation already guarantees every `shows` name is a real, unique field
+ * (`src/registry/spec.ts`), so the name miss is only reachable from a hand-built
+ * capability; it is skipped, and an all-miss list falls back to spec order rather
+ * than rendering an empty `<dl>`.
+ */
+function detailFieldOrder(capability: RenderableCapability): readonly SpecField[] {
+  const shows = capability.detail?.shows;
+  if (!shows || shows.length === 0) return capability.schema.fields;
+
+  const fieldsByName = new Map(capability.schema.fields.map((field) => [field.name, field]));
+  const selected = shows
+    .map((name) => fieldsByName.get(name))
+    .filter((field): field is SpecField => field !== undefined);
+  return selected.length > 0 ? selected : capability.schema.fields;
 }
 
 // ── Create controls ─────────────────────────────────────────────────────────
