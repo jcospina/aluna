@@ -67,11 +67,11 @@ function handlerUnit(name: "create" | "read", content: string): GeneratedUnit {
   };
 }
 
-function viewUnit(name: "list" | "create", content: string): GeneratedUnit {
+function itemRendererUnit(content: string): GeneratedUnit {
   return {
-    kind: "view",
-    name,
-    filename: `${name}.html`,
+    kind: "item-renderer",
+    name: "item",
+    filename: "item.ts",
     content,
     attempts: [],
     durationMs: 0,
@@ -79,16 +79,18 @@ function viewUnit(name: "list" | "create", content: string): GeneratedUnit {
   };
 }
 
-// The four M2 artifacts, with just enough content to assert they were written.
+// The three M3 artifacts, with just enough content to assert they were written, in the
+// order unit generation produces them (item renderer first, then the handlers).
 function notesUnits(): GeneratedUnit[] {
   return [
+    itemRendererUnit(
+      "export default function renderItem(record: Record<string, unknown>): string { return String(record.text); }",
+    ),
     handlerUnit(
       "create",
       "export default async function create() { return '<article></article>'; }",
     ),
     handlerUnit("read", "export default async function read() { return '<ul></ul>'; }"),
-    viewUnit("list", '<section class="capability-view"></section>'),
-    viewUnit("create", '<form class="capability-form"></form>'),
   ];
 }
 
@@ -128,16 +130,18 @@ describe("commitCapability", () => {
     // Version 1, with the artifacts pointer the registry row will carry.
     expect(result.version).toBe(FIRST_CAPABILITY_VERSION);
     expect(result.artifactsPath).toBe(`${root}/notes/v1/`);
-    expect(result.files).toEqual(["create.ts", "read.ts", "list.html", "create.html"]);
+    expect(result.files).toEqual(["item.ts", "create.ts", "read.ts"]);
 
-    // The four artifacts really landed in the version directory, with their content.
+    // The three artifacts really landed in the version directory, with their content.
     for (const file of result.files) {
       expect(existsSync(resolve(root, "notes/v1", file))).toBe(true);
     }
     expect(readFileSync(resolve(root, "notes/v1/create.ts"), "utf8")).toContain(
       "export default async function create",
     );
-    expect(readFileSync(resolve(root, "notes/v1/list.html"), "utf8")).toContain("capability-view");
+    expect(readFileSync(resolve(root, "notes/v1/item.ts"), "utf8")).toContain(
+      "export default function renderItem",
+    );
 
     // The registry row is present at v1 with the pointer — a capability the router
     // can now resolve. Read back through the read-only connection (post-autocommit).
@@ -175,7 +179,7 @@ describe("commitCapability", () => {
     // The files written before the rollback are left orphaned for GC — never deleted
     // here, never half-registered.
     expect(existsSync(resolve(root, "notes/v1/create.ts"))).toBe(true);
-    expect(existsSync(resolve(root, "notes/v1/list.html"))).toBe(true);
+    expect(existsSync(resolve(root, "notes/v1/item.ts"))).toBe(true);
   });
 
   test("a duplicate id throws the primary-key violation and adds no second row", () => {

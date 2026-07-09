@@ -3,9 +3,12 @@
 //
 // Handlers are checked for the ADR-0004 artifact contract (one default async export,
 // no imports, no raw HTTP, no table names) and type-checked in isolation against the
-// platform-authored handler contract; views are checked for data-free scaffolding
-// and the fixed router convention. A returned message becomes the failure fed back
-// into the next attempt's prompt.
+// platform-authored handler contract — which, since ADR-0005 §2, carries the injected
+// `present` adapter. The item renderer is checked for its own contract (one default,
+// synchronous function export, no imports) and type-checked against the `ItemRenderer`
+// shape the presentation adapter binds. A returned message becomes the failure fed back
+// into the next attempt's prompt. (Off-token styling / unknown classes / executable
+// markup are the design-lint gate rung's job in 3.6, not this type-check loop.)
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,12 +16,7 @@ import { join } from "node:path";
 import ts from "typescript";
 
 import type { CapabilitySpec } from "../registry/index.ts";
-import type {
-  HandlerUnitName,
-  UnitDescriptor,
-  UnitGenerationFailure,
-  ViewUnitName,
-} from "./units.ts";
+import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
 
 /**
  * Check a generated unit's content against its kind's contract. Returns a
@@ -33,18 +31,18 @@ export function checkGeneratedUnit(
   const message =
     unit.kind === "handler"
       ? checkHandlerUnit(spec, unit.name, content)
-      : checkViewUnit(spec, unit.name, content);
+      : checkItemRendererUnit(content);
 
   return message ? { ...unit, message } : undefined;
 }
 
 function checkHandlerUnit(
   spec: CapabilitySpec,
-  action: HandlerUnitName | ViewUnitName,
+  action: HandlerUnitName,
   content: string,
 ): string | undefined {
   const source = ts.createSourceFile(`${action}.ts`, content, ts.ScriptTarget.Latest, true);
-  const exportMessage = validateHandlerExports(source);
+  const exportMessage = validateDefaultFunctionExport(source, { async: true });
   if (exportMessage) return exportMessage;
   if (source.statements.some((statement) => ts.isImportDeclaration(statement))) {
     return "Generated handlers must not import anything.";
@@ -56,29 +54,71 @@ function checkHandlerUnit(
     return "Generated handlers must not name capability tables.";
   }
 
-  return typeCheckHandler(content);
+  return typeCheckUnit(content, handlerContractDeclarations, HANDLER_ASSERT);
 }
 
-function validateHandlerExports(source: ts.SourceFile): string | undefined {
+function checkItemRendererUnit(content: string): string | undefined {
+  const source = ts.createSourceFile("item.ts", content, ts.ScriptTarget.Latest, true);
+  const exportMessage = validateDefaultFunctionExport(source, { async: false });
+  if (exportMessage) return exportMessage;
+  if (source.statements.some((statement) => ts.isImportDeclaration(statement))) {
+    return "The item renderer must not import anything — it composes one record into markup and nothing else.";
+  }
+
+  return typeCheckUnit(content, itemRendererContractDeclarations, ITEM_RENDERER_ASSERT);
+}
+
+interface ExportShapeRules {
+  /** Whether the default function must be `async` (handlers) or must not be (item renderer). */
+  readonly async: boolean;
+}
+
+/**
+ * Validate that a unit default-exports a single function of the required async-ness with
+ * exactly one parameter — the shape both the handler contract and the item renderer share
+ * (the item renderer is synchronous, the handler async). Returns a fix message or
+ * `undefined`.
+ */
+function validateDefaultFunctionExport(
+  source: ts.SourceFile,
+  rules: ExportShapeRules,
+): string | undefined {
+  const subject = rules.async ? "handlers" : "the item renderer";
   const exported = source.statements.filter(hasExportSurface);
   if (exported.length !== 1) {
-    return "Generated handlers must have exactly one export: the default async function.";
+    return `Generated ${subject} must have exactly one export: the default function.`;
   }
 
   const [statement] = exported;
   if (!statement || !ts.isFunctionDeclaration(statement)) {
-    return "Generated handlers must default-export an async function declaration.";
+    return `Generated ${subject} must default-export a function declaration.`;
   }
+  const modifierMessage = validateFunctionModifiers(statement, rules);
+  if (modifierMessage) return modifierMessage;
+  if (statement.parameters.length !== 1) {
+    return `Generated ${subject} must receive exactly one parameter.`;
+  }
+
+  return undefined;
+}
+
+/** Assert the default/async modifiers on the exported function match the unit's rules. */
+function validateFunctionModifiers(
+  statement: ts.FunctionDeclaration,
+  rules: ExportShapeRules,
+): string | undefined {
   const modifiers = ts.getModifiers(statement) ?? [];
   const hasDefault = modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword);
   const hasAsync = modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword);
-  if (!hasDefault || !hasAsync) {
+  if (!hasDefault) {
+    return `Generated ${rules.async ? "handlers" : "the item renderer"} must use \`export default function\`.`;
+  }
+  if (rules.async && !hasAsync) {
     return "Generated handlers must use `export default async function`.";
   }
-  if (statement.parameters.length !== 1) {
-    return "Generated handlers must receive one platform-built context parameter.";
+  if (!rules.async && hasAsync) {
+    return "The item renderer must be synchronous: use `export default function`, not `async function`.";
   }
-
   return undefined;
 }
 
@@ -90,15 +130,22 @@ function hasExportSurface(statement: ts.Statement): boolean {
   );
 }
 
-function typeCheckHandler(content: string): string | undefined {
-  const dir = mkdtempSync(join(tmpdir(), "aluna-handler-check-"));
+/**
+ * Type-check one generated unit in isolation: write the platform contract declarations,
+ * the unit, and an assertion that binds the unit's default export to the contract type,
+ * then run the strict compiler over the three. Returns a formatted diagnostic message or
+ * `undefined` when it type-checks clean.
+ */
+function typeCheckUnit(
+  content: string,
+  contractDeclarations: string,
+  assertSource: string,
+): string | undefined {
+  const dir = mkdtempSync(join(tmpdir(), "aluna-unit-check-"));
   try {
-    writeFileSync(join(dir, "contract.d.ts"), handlerContractDeclarations);
+    writeFileSync(join(dir, "contract.d.ts"), contractDeclarations);
     writeFileSync(join(dir, "unit.ts"), content);
-    writeFileSync(
-      join(dir, "assert.ts"),
-      'import handler from "./unit";\nconst assertHandler: CapabilityHandler = handler;\nvoid assertHandler;\n',
-    );
+    writeFileSync(join(dir, "assert.ts"), assertSource);
 
     const program = ts.createProgram(
       [join(dir, "contract.d.ts"), join(dir, "unit.ts"), join(dir, "assert.ts")],
@@ -125,81 +172,13 @@ function typeCheckHandler(content: string): string | undefined {
     if (diagnostics.length === 0) return undefined;
 
     return [
-      "Generated handlers are type-checked with strict TypeScript and noUncheckedIndexedAccess.",
+      "Generated code is type-checked with strict TypeScript and noUncheckedIndexedAccess.",
       "Do not return array indexes, regex captures, or string match groups without first narrowing or providing a fallback.",
       formatDiagnostics(diagnostics),
     ].join("\n");
   } finally {
     rmSync(dir, { force: true, recursive: true });
   }
-}
-
-function checkViewUnit(
-  spec: CapabilitySpec,
-  view: HandlerUnitName | ViewUnitName,
-  content: string,
-): string | undefined {
-  const lower = content.toLowerCase();
-  if (lower.includes("<script")) return "Generated views must not contain scripts.";
-  if (content.includes("{{") || content.includes("${")) {
-    return "Generated views must not contain template or interpolation placeholders.";
-  }
-  if (/\bdata-id\s*=|\bcreated_at\b/.test(content)) {
-    return "Generated views must not contain user record data.";
-  }
-  if (/\b(?:action|method|href)\s*=/i.test(content)) {
-    return "Generated views must not use native form navigation or links.";
-  }
-
-  return view === "list" ? checkListView(spec, content) : checkCreateView(spec, content);
-}
-
-function checkListView(spec: CapabilitySpec, content: string): string | undefined {
-  if (/<form\b/i.test(content) || /\bhx-post\s*=/i.test(content)) {
-    return "The list view must not contain create controls; create controls belong only in create.html.";
-  }
-  if (!content.includes(`hx-get="/capability/${spec.id}/read"`)) {
-    return `The list view must load live data with hx-get="/capability/${spec.id}/read".`;
-  }
-  const recordsTag = tagWithId(content, `${spec.id}-records`);
-  if (!recordsTag) {
-    return `The list view live region must use id="${spec.id}-records".`;
-  }
-  if (!recordsTag.includes(`hx-get="/capability/${spec.id}/read"`)) {
-    return `The list view live region must load through hx-get="/capability/${spec.id}/read".`;
-  }
-  if (/<(li|article|tbody|tr)\b/i.test(content)) {
-    return "The list view must not bake row markup into the cached view.";
-  }
-  return undefined;
-}
-
-function checkCreateView(spec: CapabilitySpec, content: string): string | undefined {
-  const forms = content.match(/<form\b[^>]*>/gi) ?? [];
-  if (forms.length !== 1) return "The create view must contain exactly one form.";
-
-  const [form] = forms;
-  if (!form?.includes(`hx-post="/capability/${spec.id}/create"`)) {
-    return `The create view form must submit with hx-post="/capability/${spec.id}/create".`;
-  }
-  if (!form.includes(`hx-target="#${spec.id}-records"`)) {
-    return `The create view form must target the live list region with hx-target="#${spec.id}-records".`;
-  }
-  if (!form.includes('hx-swap="afterbegin"')) {
-    return 'The create view form must use hx-swap="afterbegin".';
-  }
-
-  for (const field of spec.schema.fields) {
-    if (!new RegExp(`\\bname=["']${escapeRegExp(field.name)}["']`).test(content)) {
-      return `The create view must include a control named "${field.name}".`;
-    }
-  }
-  return undefined;
-}
-
-function tagWithId(content: string, id: string): string | undefined {
-  const escapedId = escapeRegExp(id);
-  return content.match(new RegExp(`<[^>]+\\bid=["']${escapedId}["'][^>]*>`, "i"))?.[0];
 }
 
 function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
@@ -218,7 +197,9 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const handlerContractDeclarations = `
+// The shared record shape both contracts speak — the capability data row seen
+// structurally (spec fields plus the platform-populated `id`/`created_at`).
+const RECORD_CONTRACT = `
 type JsonPrimitive = string | number | boolean | null;
 interface JsonObject {
   readonly [key: string]: JsonValue;
@@ -231,6 +212,14 @@ interface CapabilityDataRow {
   readonly extra: JsonObject;
   readonly [field: string]: CapabilityDataColumnValue;
 }
+type PresentableRecord = Readonly<Record<string, unknown>>;
+type PresentationAdapter = (record: PresentableRecord) => string;
+`;
+
+// The handler contract, including ADR-0005 §2's injected `present` adapter — the same
+// shape src/router/contract.ts declares (CapabilityContext) and the gate's structural
+// rung re-checks against.
+const handlerContractDeclarations = `${RECORD_CONTRACT}
 type CapabilityInput = Readonly<Record<string, string>>;
 interface CapabilityDataTool {
   insert(values: Record<string, unknown>): CapabilityDataRow;
@@ -239,6 +228,19 @@ interface CapabilityDataTool {
 interface CapabilityContext {
   readonly input: CapabilityInput;
   readonly data: CapabilityDataTool;
+  readonly present: PresentationAdapter;
 }
 type CapabilityHandler = (context: CapabilityContext) => Promise<string>;
 `;
+
+const HANDLER_ASSERT =
+  'import handler from "./unit";\nconst assertHandler: CapabilityHandler = handler;\nvoid assertHandler;\n';
+
+// The item-renderer contract: one record → its inner markup string (the composition
+// input the presentation adapter binds, src/presentation/adapter.ts `ItemRenderer`).
+const itemRendererContractDeclarations = `${RECORD_CONTRACT}
+type ItemRenderer = (record: PresentableRecord) => string;
+`;
+
+const ITEM_RENDERER_ASSERT =
+  'import renderItem from "./unit";\nconst assertRenderer: ItemRenderer = renderItem;\nvoid assertRenderer;\n';

@@ -102,9 +102,12 @@ export type GenerationIntent = z.infer<typeof generationIntentSchema>;
 
 // The PLAN step-8 timing breakdown. Every leg is optional: a deflection omits the
 // group entirely, a failed build fills only the legs it reached. `codeGenMs` is the
-// handler (.ts) generation, `htmlGenMs` the view (.html) generation; `testGenMs`
-// and `testRunMs` are the behavioral tier's generation and execution — the two
-// columns that let M8 weigh the behavioral tier against the no-test baseline.
+// handler (.ts) generation; `htmlGenMs` is the presentation-gen leg — M2's view (.html)
+// generation, since M3 the item-renderer generation (the `html_gen_ms` column is kept as
+// the presentation-gen slot so M8 compares the semantic stage across artifact contracts,
+// ADR-0005). `testGenMs` and `testRunMs` are the behavioral tier's generation and
+// execution — the two columns that let M8 weigh the behavioral tier against the no-test
+// baseline.
 const generationTimingsSchema = z.strictObject({
   specGenMs: z.number().nonnegative().optional(),
   migrationMs: z.number().nonnegative().optional(),
@@ -121,7 +124,7 @@ export type GenerationTimings = z.infer<typeof generationTimingsSchema>;
 // means the bounded type-check fix loop kicked in. Stored as the `unit_attempts`
 // JSON column.
 const unitAttemptSummarySchema = z.strictObject({
-  kind: z.enum(["handler", "view"]),
+  kind: z.enum(["handler", "item-renderer"]),
   name: z.string().min(1),
   attempts: z.number().int().positive(),
   durationMs: z.number().nonnegative(),

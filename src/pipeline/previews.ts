@@ -160,12 +160,13 @@ export function unitPreviewKey(unit: UnitDescriptor): string {
 
 /** The on-disk filename a unit will commit to, derived from its kind. */
 export function unitPreviewFilename(unit: UnitDescriptor): GeneratedUnit["filename"] {
-  return unit.kind === "handler" ? `${unit.name}.ts` : `${unit.name}.html`;
+  return unit.kind === "handler" ? `${unit.name}.ts` : "item.ts";
 }
 
 /**
  * Aggregate the per-unit previews into a units snapshot, summing code-gen (handlers)
- * and HTML-gen (views) wall time across the units captured so far.
+ * and presentation-gen (the item renderer — the semantic successor to M2's html-gen)
+ * wall time across the units captured so far.
  */
 export function buildUnitsPreview(
   units: readonly DemoUnitPreview[],
@@ -178,7 +179,7 @@ export function buildUnitsPreview(
       .filter((unit) => unit.kind === "handler")
       .reduce((sum, unit) => sum + (unit.durationMs ?? 0), 0),
     htmlGenDurationMs: units
-      .filter((unit) => unit.kind === "view")
+      .filter((unit) => unit.kind === "item-renderer")
       .reduce((sum, unit) => sum + (unit.durationMs ?? 0), 0),
     units,
   };

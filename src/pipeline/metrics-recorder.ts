@@ -141,15 +141,16 @@ export function classifyBuildFailure(error: unknown, acc: DemoBuildAccumulator):
 
 /**
  * Record the unit-generation legs of the metrics row: code-gen (handlers) and
- * HTML-gen (views) wall time, the per-unit fix-loop attempts (PLAN decision 5), and
- * each unit's token usage.
+ * presentation-gen (the item renderer — the semantic successor to M2's html-gen,
+ * ADR-0005 "metrics retain semantic continuity") wall time, the per-unit fix-loop
+ * attempts (PLAN decision 5), and each unit's token usage.
  */
 export function recordUnitMetrics(
   acc: DemoBuildAccumulator,
   units: readonly GeneratedUnit[],
 ): void {
   acc.timings.codeGenMs = sumUnitDuration(units, "handler");
-  acc.timings.htmlGenMs = sumUnitDuration(units, "view");
+  acc.timings.htmlGenMs = sumUnitDuration(units, "item-renderer");
   acc.unitAttempts = units.map((unit) => ({
     kind: unit.kind,
     name: unit.name,

@@ -53,6 +53,8 @@ export {
   type GeneratedUnit,
   generateCapabilityUnits,
   type HandlerUnitName,
+  ITEM_RENDERER_UNIT_NAME,
+  type ItemRendererUnitName,
   type UnitDescriptor,
   type UnitGenerationAttempt,
   type UnitGenerationAttemptEvent,
@@ -60,5 +62,4 @@ export {
   type UnitGenerationObserver,
   type UnitGenerationPartialEvent,
   type UnitGenerationStartEvent,
-  type ViewUnitName,
 } from "./units.ts";

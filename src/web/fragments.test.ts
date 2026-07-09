@@ -87,6 +87,7 @@ describe("web fragments", () => {
     });
     expect(fragment).toContain("data-capability-toolbar-oob");
     expect(fragment).toContain("data-capability-entry");
+    expect(fragment).toContain('hx-push-url="/capability/notes"');
   });
 });
 
@@ -121,7 +122,9 @@ describe("on-load toolbar rehydration", () => {
     // uses — each pointing at the cached-view route a click serves.
     expect(countMatches(html, "data-capability-entry")).toBe(2);
     expect(html).toContain('hx-get="/capability/notes"');
+    expect(html).toContain('hx-push-url="/capability/notes"');
     expect(html).toContain('hx-get="/capability/recipes"');
+    expect(html).toContain('hx-push-url="/capability/recipes"');
     expect(html).toContain("Notes");
     expect(html).toContain("Recipes");
 

@@ -12,8 +12,13 @@ import { randomUUID } from "node:crypto";
 import ts from "typescript";
 
 import type { CapabilityTableDdl } from "../capability-data/index.ts";
-import { type PresentationAdapter, unavailablePresentationAdapter } from "../presentation/index.ts";
-import type { FieldType } from "../registry/index.ts";
+import {
+  createPresentationAdapter,
+  type ItemRenderer,
+  type PresentationAdapter,
+  type RenderableCapability,
+} from "../presentation/index.ts";
+import type { CapabilitySpec, FieldType } from "../registry/index.ts";
 import type { CapabilityHandler } from "../router/index.ts";
 import type { HandlerUnitName } from "./units.ts";
 
@@ -21,17 +26,23 @@ import type { HandlerUnitName } from "./units.ts";
 export const HANDLER_NAMES = ["create", "read"] as const satisfies readonly HandlerUnitName[];
 
 /**
- * The practice presentation adapter the gate hands handlers alongside the scratch data
- * tool — the `present` half of ADR-0004's practice toolbox, extended by ADR-0005 §2. Until
- * 3.4/02 generates an item renderer to feed it, it throws the moment a handler calls
- * `present`: an M2 handler (own markup, never presents) runs green, while a handler that
- * presents without a renderer fails the rung loudly instead of rendering blank. 3.4/02
- * swaps this for a real adapter built from the generated renderer, so the smoke rung proves
- * create and read render identical item markup by construction.
+ * Build the real `present` adapter the gate hands handlers alongside the scratch data
+ * tool — the `present` half of ADR-0004's practice toolbox, extended by ADR-0005 §2. It
+ * loads the build's generated item renderer and binds it to the capability, so the smoke
+ * and behavioral rungs exercise handlers through the *exact same* adapter the router
+ * injects at runtime. Because create and read both render records through this one adapter,
+ * the smoke rung proves their item markup is identical by construction (3.4/02). A renderer
+ * that fails to load throws here and fails the rung loudly rather than rendering blank.
  */
-export const GATE_PRACTICE_PRESENT: PresentationAdapter = unavailablePresentationAdapter(
-  "The design gate has no item renderer to present records with yet (epic 3.4/02).",
-);
+export function buildGatePresent(spec: CapabilitySpec, itemRenderer: string): PresentationAdapter {
+  const capability: RenderableCapability = {
+    id: spec.id,
+    label: spec.label,
+    schema: spec.schema,
+    detail: spec.ui_intent.detail,
+  };
+  return createPresentationAdapter({ capability, renderItem: loadItemRenderer(itemRenderer) });
+}
 
 export interface ScratchDatabasePair {
   readonly readwrite: Database;
@@ -59,22 +70,35 @@ export async function loadHandlers(
   handlers: Readonly<Record<HandlerUnitName, string>>,
 ): Promise<Readonly<Record<HandlerUnitName, CapabilityHandler>>> {
   const loaded = HANDLER_NAMES.map(
-    (name) => [name, loadHandlerFromSource(name, handlers[name])] as const,
+    (name) =>
+      [
+        name,
+        loadDefaultExport(`handler "${name}"`, name, handlers[name]) as CapabilityHandler,
+      ] as const,
   );
 
   return Object.fromEntries(loaded) as Readonly<Record<HandlerUnitName, CapabilityHandler>>;
 }
 
-function loadHandlerFromSource(name: HandlerUnitName, content: string): CapabilityHandler {
-  // Do not dynamic-import a temporary .ts file here. In `bun --watch`, imported
-  // temp files join the watch set; deleting them restarts the dev server mid-SSE.
+/** Transpile + load the generated item renderer string into a live callable function. */
+export function loadItemRenderer(content: string): ItemRenderer {
+  return loadDefaultExport("item renderer", "item", content) as ItemRenderer;
+}
+
+// Prepare a generated unit's default-exported function for in-process execution. The
+// default export (async for handlers, synchronous for the item renderer) is rewritten to
+// a locally-named function the factory returns.
+//
+// Do not dynamic-import a temporary .ts file here. In `bun --watch`, imported temp files
+// join the watch set; deleting them restarts the dev server mid-SSE.
+function loadDefaultExport(label: string, fileStem: string, content: string): unknown {
   const transpiled = ts.transpileModule(content, {
     compilerOptions: {
       module: ts.ModuleKind.ESNext,
       target: ts.ScriptTarget.ESNext,
       verbatimModuleSyntax: true,
     },
-    fileName: `${name}.ts`,
+    fileName: `${fileStem}.ts`,
     reportDiagnostics: true,
   });
   if (transpiled.diagnostics && transpiled.diagnostics.length > 0) {
@@ -82,19 +106,20 @@ function loadHandlerFromSource(name: HandlerUnitName, content: string): Capabili
   }
 
   const runnable = transpiled.outputText.replace(
-    /\bexport\s+default\s+async\s+function(?:\s+[A-Za-z_$][\w$]*)?/,
-    "async function __alunaDefaultHandler",
+    /\bexport\s+default\s+(async\s+)?function(?:\s+[A-Za-z_$][\w$]*)?/,
+    (_match, asyncKeyword: string | undefined) =>
+      `${asyncKeyword ?? ""}function __alunaDefaultExport`,
   );
   if (runnable === transpiled.outputText) {
-    throw new Error(`Generated handler "${name}" could not be prepared for smoke execution.`);
+    throw new Error(`Generated ${label} could not be prepared for gate execution.`);
   }
 
-  const factory = new Function(`${runnable}\nreturn __alunaDefaultHandler;`);
-  const handler = factory() as unknown;
-  if (typeof handler !== "function") {
-    throw new TypeError(`Generated handler "${name}" has no default function export.`);
+  const factory = new Function(`${runnable}\nreturn __alunaDefaultExport;`);
+  const loaded = factory() as unknown;
+  if (typeof loaded !== "function") {
+    throw new TypeError(`Generated ${label} has no default function export.`);
   }
-  return handler as CapabilityHandler;
+  return loaded;
 }
 
 export interface CapabilityTableSnapshot {

@@ -13,6 +13,7 @@ import type { Database } from "bun:sqlite";
 import { z } from "zod";
 
 import { type CapabilityTableDdl, createCapabilityDataTool } from "../capability-data/index.ts";
+import type { PresentationAdapter } from "../presentation/index.ts";
 import type { Provider, TokenUsage } from "../provider/index.ts";
 import {
   type BehavioralErrorCase,
@@ -30,9 +31,9 @@ import type {
 import {
   applyDdl,
   assertFragment,
+  buildGatePresent,
   errorMessage,
   fieldValueMatches,
-  GATE_PRACTICE_PRESENT,
   loadHandlers,
   openScratchDatabasePair,
   sameSnapshot,
@@ -120,6 +121,7 @@ export async function runBehavioralRung(input: CapabilityGateInput): Promise<Beh
     spec: input.spec,
     ddl: input.ddl,
     handlers: input.handlers,
+    itemRenderer: input.itemRenderer,
     suite: generated.suite,
     realDatabase: input.realDatabase,
   });
@@ -181,6 +183,7 @@ interface RunBehavioralTestsInput {
   readonly spec: CapabilitySpec;
   readonly ddl: CapabilityTableDdl;
   readonly handlers: Readonly<Record<HandlerUnitName, string>>;
+  readonly itemRenderer: string;
   readonly suite: BehavioralTestSuite;
   readonly realDatabase?: Database;
 }
@@ -191,13 +194,16 @@ async function runBehavioralTests(
   const startedAt = performance.now();
   const beforeReal = input.realDatabase ? snapshotCapabilityTables(input.realDatabase) : undefined;
   const handlers = await loadHandlers(input.handlers);
+  // The real adapter the router injects at runtime, built from this build's item
+  // renderer — the same one every case renders records through (ADR-0005 §2).
+  const present = buildGatePresent(input.spec, input.itemRenderer);
   const cases: BehavioralTestCaseOutcome[] = [];
   let runError: unknown;
 
   try {
     for (const testCase of input.suite.cases) {
       const caseStartedAt = performance.now();
-      await runBehavioralCase(input.spec, input.ddl, handlers, testCase);
+      await runBehavioralCase(input.spec, input.ddl, handlers, present, testCase);
       cases.push({
         name: testCase.name,
         status: "passed",
@@ -229,6 +235,7 @@ async function runBehavioralCase(
   spec: CapabilitySpec,
   ddl: CapabilityTableDdl,
   handlers: Readonly<Record<HandlerUnitName, CapabilityHandler>>,
+  present: PresentationAdapter,
   testCase: BehavioralTestCase,
 ): Promise<void> {
   assertBehavioralCaseReferencesSpecFields(spec, testCase);
@@ -252,7 +259,7 @@ async function runBehavioralCase(
     createFragment = await handlers.create({
       input: createInput,
       data,
-      present: GATE_PRACTICE_PRESENT,
+      present,
     });
     assertFragment("create", createFragment);
 
@@ -278,7 +285,7 @@ async function runBehavioralCase(
       throw new Error(`did not find a scratch row matching ${JSON.stringify(expectedCreatedRow)}.`);
     }
 
-    readFragment = await handlers.read({ input: {}, data, present: GATE_PRACTICE_PRESENT });
+    readFragment = await handlers.read({ input: {}, data, present });
     assertFragment("read", readFragment);
     assertFragmentIncludes("read", readFragment, testCase.expectReadFragmentIncludes);
     assertFragmentIncludesInOrder(readFragment, testCase.expectReadFragmentIncludesInOrder);

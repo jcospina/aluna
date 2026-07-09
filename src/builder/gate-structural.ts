@@ -1,10 +1,13 @@
 // The structural rung — the gate's first, always-on verdict over the generated
-// handler *source*, before anything is executed.
+// *source*, before anything is executed.
 //
-// Two checks: the handlers parse to the ADR-0004 export shape (exactly one
-// `export default async function` taking one context parameter), and they
-// type-check in isolation against the platform-authored handler contract. A failure
-// here stops the gate before the smoke and behavioral rungs ever run.
+// It checks the two generated handlers and the generated item renderer: they parse to
+// the required export shape (the handlers to ADR-0004's `export default async function`
+// taking one context parameter; the item renderer to a synchronous
+// `export default function` taking one record), and they type-check in isolation against
+// the platform-authored contracts (the handler contract now carries ADR-0005 §2's
+// injected `present` adapter). A failure here stops the gate before the smoke and
+// behavioral rungs ever run.
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,61 +18,110 @@ import type { CapabilityGateInput } from "./gate.ts";
 import { formatDiagnostics, HANDLER_NAMES } from "./gate-internal.ts";
 import type { HandlerUnitName } from "./units.ts";
 
-/** Run the structural rung: assert the handler export shapes, then type-check them. */
+const STRICT_CHECK_OPTIONS: ts.CompilerOptions = {
+  allowImportingTsExtensions: true,
+  forceConsistentCasingInFileNames: true,
+  lib: ["lib.esnext.d.ts"],
+  module: ts.ModuleKind.ESNext,
+  moduleDetection: ts.ModuleDetectionKind.Force,
+  moduleResolution: ts.ModuleResolutionKind.Bundler,
+  noEmit: true,
+  noFallthroughCasesInSwitch: true,
+  noImplicitOverride: true,
+  noUncheckedIndexedAccess: true,
+  noUnusedLocals: true,
+  noUnusedParameters: true,
+  skipLibCheck: true,
+  strict: true,
+  target: ts.ScriptTarget.ESNext,
+  verbatimModuleSyntax: true,
+};
+
+/** Run the structural rung: assert the export shapes, then type-check handlers + item renderer. */
 export function runStructuralRung(input: CapabilityGateInput): void {
   assertHandlerExportShapes(input.handlers);
-  const typeFailure = typeCheckHandlers(input.handlers);
-  if (typeFailure) throw new Error(typeFailure);
+  assertItemRendererExportShape(input.itemRenderer);
+
+  const handlerFailure = typeCheckHandlers(input.handlers);
+  if (handlerFailure) throw new Error(handlerFailure);
+
+  const rendererFailure = typeCheckItemRenderer(input.itemRenderer);
+  if (rendererFailure) throw new Error(rendererFailure);
 }
 
 function assertHandlerExportShapes(handlers: Readonly<Record<HandlerUnitName, string>>): void {
   for (const name of HANDLER_NAMES) {
-    assertHandlerExportShape(name, handlers[name]);
+    assertDefaultFunctionSource(`handler "${name}"`, handlers[name], { async: true });
   }
 }
 
-function assertHandlerExportShape(name: HandlerUnitName, content: string): void {
+function assertItemRendererExportShape(itemRenderer: string): void {
+  assertDefaultFunctionSource("item renderer", itemRenderer, { async: false });
+}
+
+interface ExportShapeRules {
+  /** The handlers are async; the item renderer is synchronous. */
+  readonly async: boolean;
+}
+
+function assertDefaultFunctionSource(
+  label: string,
+  content: string,
+  rules: ExportShapeRules,
+): void {
   if (typeof content !== "string" || content.trim().length === 0) {
-    throw new Error(`Generated handler "${name}" is missing.`);
+    throw new Error(`Generated ${label} is missing.`);
   }
 
-  const source = ts.createSourceFile(`${name}.ts`, content, ts.ScriptTarget.Latest, true);
-  const statement = exactlyOneExportedStatement(name, source);
-  assertDefaultAsyncFunction(name, statement);
+  const source = ts.createSourceFile(`${label}.ts`, content, ts.ScriptTarget.Latest, true);
+  const statement = exactlyOneExportedStatement(label, source);
+  assertDefaultFunction(label, statement, rules);
 }
 
-function exactlyOneExportedStatement(name: HandlerUnitName, source: ts.SourceFile): ts.Statement {
+function exactlyOneExportedStatement(label: string, source: ts.SourceFile): ts.Statement {
   const exported = source.statements.filter(hasExportSurface);
   if (exported.length !== 1) {
-    throw new Error(
-      `Generated handler "${name}" must have exactly one export: the default async function.`,
-    );
+    throw new Error(`Generated ${label} must have exactly one export: the default function.`);
   }
 
   const [statement] = exported;
   if (!statement) {
-    throw new Error(`Generated handler "${name}" must export the default async function.`);
+    throw new Error(`Generated ${label} must export the default function.`);
   }
   return statement;
 }
 
-function assertDefaultAsyncFunction(name: HandlerUnitName, statement: ts.Statement): void {
+function assertDefaultFunction(
+  label: string,
+  statement: ts.Statement,
+  rules: ExportShapeRules,
+): void {
   if (!ts.isFunctionDeclaration(statement)) {
     throw new Error(
-      `Generated handler "${name}" must default-export an async function declaration.`,
+      `Generated ${label} must default-export ${rules.async ? "an async" : "a"} function declaration.`,
     );
   }
+  assertDefaultFunctionModifiers(label, statement, rules);
+  if (statement.parameters.length !== 1) {
+    throw new Error(`Generated ${label} must receive one parameter.`);
+  }
+}
 
+function assertDefaultFunctionModifiers(
+  label: string,
+  statement: ts.FunctionDeclaration,
+  rules: ExportShapeRules,
+): void {
   const modifiers = ts.getModifiers(statement) ?? [];
   const hasDefault = modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword);
   const hasAsync = modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword);
-  if (!hasDefault || !hasAsync) {
-    throw new Error(`Generated handler "${name}" must use \`export default async function\`.`);
-  }
-  if (statement.parameters.length !== 1) {
+  if (!hasDefault || (rules.async && !hasAsync)) {
     throw new Error(
-      `Generated handler "${name}" must receive one platform-built context parameter.`,
+      `Generated ${label} must use \`export default ${rules.async ? "async " : ""}function\`.`,
     );
+  }
+  if (!rules.async && hasAsync) {
+    throw new Error(`Generated ${label} must be synchronous, not \`async\`.`);
   }
 }
 
@@ -109,24 +161,7 @@ function typeCheckHandlers(
         join(dir, "read.ts"),
         join(dir, "assert.ts"),
       ],
-      {
-        allowImportingTsExtensions: true,
-        forceConsistentCasingInFileNames: true,
-        lib: ["lib.esnext.d.ts"],
-        module: ts.ModuleKind.ESNext,
-        moduleDetection: ts.ModuleDetectionKind.Force,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        noEmit: true,
-        noFallthroughCasesInSwitch: true,
-        noImplicitOverride: true,
-        noUncheckedIndexedAccess: true,
-        noUnusedLocals: true,
-        noUnusedParameters: true,
-        skipLibCheck: true,
-        strict: true,
-        target: ts.ScriptTarget.ESNext,
-        verbatimModuleSyntax: true,
-      },
+      STRICT_CHECK_OPTIONS,
     );
     const diagnostics = ts.getPreEmitDiagnostics(program);
     return diagnostics.length === 0 ? undefined : formatDiagnostics(diagnostics);
@@ -135,7 +170,33 @@ function typeCheckHandlers(
   }
 }
 
-const handlerContractDeclarations = `
+function typeCheckItemRenderer(itemRenderer: string): string | undefined {
+  const dir = mkdtempSync(join(tmpdir(), "aluna-gate-renderer-"));
+  try {
+    writeFileSync(join(dir, "contract.d.ts"), itemRendererContractDeclarations);
+    writeFileSync(join(dir, "item.ts"), itemRenderer);
+    writeFileSync(
+      join(dir, "assert.ts"),
+      [
+        'import renderItem from "./item.ts";',
+        "const assertRenderer: ItemRenderer = renderItem;",
+        "void assertRenderer;",
+      ].join("\n"),
+    );
+
+    const program = ts.createProgram(
+      [join(dir, "contract.d.ts"), join(dir, "item.ts"), join(dir, "assert.ts")],
+      STRICT_CHECK_OPTIONS,
+    );
+    const diagnostics = ts.getPreEmitDiagnostics(program);
+    return diagnostics.length === 0 ? undefined : formatDiagnostics(diagnostics);
+  } finally {
+    rmSync(dir, { force: true, recursive: true });
+  }
+}
+
+// The record shape both contracts speak — the capability data row seen structurally.
+const recordContractDeclarations = `
 type JsonPrimitive = string | number | boolean | null;
 interface JsonObject {
   readonly [key: string]: JsonValue;
@@ -148,6 +209,13 @@ interface CapabilityDataRow {
   readonly extra: JsonObject;
   readonly [field: string]: CapabilityDataColumnValue;
 }
+type PresentableRecord = Readonly<Record<string, unknown>>;
+type PresentationAdapter = (record: PresentableRecord) => string;
+`;
+
+// The handler contract — including ADR-0005 §2's injected `present` adapter (mirrors
+// src/router/contract.ts and src/builder/unit-checks.ts).
+const handlerContractDeclarations = `${recordContractDeclarations}
 type CapabilityInput = Readonly<Record<string, string>>;
 interface CapabilityDataTool {
   insert(values: Record<string, unknown>): CapabilityDataRow;
@@ -156,6 +224,13 @@ interface CapabilityDataTool {
 interface CapabilityContext {
   readonly input: CapabilityInput;
   readonly data: CapabilityDataTool;
+  readonly present: PresentationAdapter;
 }
 type CapabilityHandler = (context: CapabilityContext) => Promise<string>;
+`;
+
+// The item-renderer contract — one record → its inner markup string (mirrors the
+// presentation adapter's `ItemRenderer`).
+const itemRendererContractDeclarations = `${recordContractDeclarations}
+type ItemRenderer = (record: PresentableRecord) => string;
 `;

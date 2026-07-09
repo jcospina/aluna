@@ -1,21 +1,23 @@
 // Unit-generation prompts — the instructions handed to the provider per unit.
 //
-// Each of the four M2 units (the `create`/`read` handlers and `list`/`create`
-// views) is generated from a prompt assembled here: the hard authoring contract for
-// that unit kind, the spec's fields, and — on a retry — the previous attempt's
-// failure fed back so the model returns a corrected unit rather than a patch.
+// Module 3 (epic 3.4/02) generates three units: the **item renderer** and the
+// `create`/`read` **Handlers**. Each is generated from a prompt assembled here: the
+// hard authoring contract for that unit kind, the spec's fields, and — on a retry —
+// the previous attempt's failure fed back so the model returns a corrected unit
+// rather than a patch. The item-renderer prompt injects the closed design vocabulary
+// and the capability's chosen `collection.layout` so the item is composed *knowing*
+// how the collection arranges it (ADR-0005 §4 & §6); the Handler prompt tells the
+// model to render every record through the injected `present` adapter instead of
+// emitting its own row markup (ADR-0005 §2 — kills create/read drift by construction).
 
+import { ALLOWED_CLASSES } from "../presentation/vocabulary.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type BehavioralErrorCase,
   type CapabilitySpec,
+  type UiCollectionLayout,
 } from "../registry/index.ts";
-import type {
-  HandlerUnitName,
-  UnitDescriptor,
-  UnitGenerationFailure,
-  ViewUnitName,
-} from "./units.ts";
+import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
 
 /**
  * The prompt for one unit: the kind-specific authoring contract plus the spec, with
@@ -28,9 +30,7 @@ export function buildUnitPrompt(
   previousFailure?: UnitGenerationFailure,
 ): string {
   const base =
-    unit.kind === "handler"
-      ? buildHandlerPrompt(spec, unit.name)
-      : buildViewPrompt(spec, unit.name);
+    unit.kind === "handler" ? buildHandlerPrompt(spec, unit.name) : buildItemRendererPrompt(spec);
 
   if (!previousFailure) return base;
 
@@ -44,11 +44,7 @@ export function buildUnitPrompt(
 }
 
 function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): string {
-  const fields = spec.schema.fields
-    .map(
-      (field) => `- ${field.name}: ${field.type}${field.required ? " (required)" : " (optional)"}`,
-    )
-    .join("\n");
+  const fields = specFieldList(spec);
   const validationErrors = spec.behavioral_errors.filter(
     (errorCase) => errorCase.action === action,
   );
@@ -71,20 +67,28 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "- The isolated checker uses strict TypeScript, noUncheckedIndexedAccess, and rejects unused parameters and locals.",
     "- Do not use unchecked array indexes or regex captures. Guard them first or provide a fallback before returning/assigning them as strings.",
     "- It returns an HTML fragment string.",
-    "- Include any escaping helper locally in the file.",
+    "",
+    "Rendering records — the presentation adapter:",
+    "- Render every record by calling the injected `present(record)` adapter. It returns that record wrapped as safe item HTML (the accessible trigger, the escaped payload, click-to-open, and the enforced item markup).",
+    "- Do NOT emit your own row/card/item markup, and do NOT build the item wrapper, a `data-item` attribute, or any click handling — the platform's adapter owns all of that.",
+    "- You may include a small escaping helper locally for any non-record text you emit (an empty state, validation error copy); records themselves go through `present`.",
     "",
     "Available global types in the isolated type-check:",
-    "- `CapabilityContext` has `{ input, data }`.",
+    "- `CapabilityContext` has `{ input, data, present }`.",
     "- `input` is a flat record of form/query strings.",
     "- `data.insert(values)` returns the inserted row.",
     "- `data.select()` returns rows ordered newest first.",
+    "- `present(record)` returns that record as a safe item HTML string.",
     "",
     "Action behavior:",
     action === "create"
-      ? "- Coerce form strings into the spec field types, call `data.insert`, and return a fragment for the new row."
+      ? [
+          "- Coerce form strings into the spec field types, call `data.insert`, and return `present(row)` for the inserted row.",
+          "- Destructure `{ input, data, present }`: `export default async function create({ input, data, present }: CapabilityContext): Promise<string>`.",
+        ].join("\n")
       : [
-          "- Call `data.select()` and return a fragment for the current rows, including a helpful empty state.",
-          "- For `read`, destructure only `{ data }`: `export default async function read({ data }: CapabilityContext): Promise<string>`.",
+          "- Call `data.select()`, map each row through `present`, and join the results; include a helpful empty state when there are no rows.",
+          "- Destructure only `{ data, present }`: `export default async function read({ data, present }: CapabilityContext): Promise<string>`.",
         ].join("\n"),
     "",
     "Validation error contract:",
@@ -112,37 +116,63 @@ function buildValidationErrorContract(errorCases: readonly BehavioralErrorCase[]
   ].join("\n");
 }
 
-function buildViewPrompt(spec: CapabilitySpec, view: ViewUnitName): string {
-  const fieldControls = spec.schema.fields
-    .map(
-      (field) => `- ${field.name}: ${field.type}${field.required ? " (required)" : " (optional)"}`,
-    )
-    .join("\n");
+function buildItemRendererPrompt(spec: CapabilitySpec): string {
+  const layout = spec.ui_intent.collection.layout;
 
   return [
-    `Generate the ${view}.html view for this Aluna capability.`,
+    "Generate the item.ts item renderer for this Aluna capability.",
     "",
-    "Return one structured object with a single `content` string containing the complete HTML fragment.",
+    "Return one structured object with a single `content` string containing the complete TypeScript file.",
+    "",
+    "The item renderer turns ONE record into the capability-specific inner markup for it — the creative surface of this capability's list. The platform wraps whatever you return in the accessible item trigger, embeds the record payload, wires click-to-open, and runs a runtime allow-list enforcer over your markup; you compose one record's own fields, nothing else.",
     "",
     "Hard contract:",
-    "- Data-free scaffolding only. Do not include sample rows, record ids, created_at values, or user data.",
-    "- No scripts and no template/interpolation placeholders.",
-    "- Use the fixed router convention; generated views never invent routes.",
-    view === "list"
-      ? [
-          `- Include one dynamic region with id="${spec.id}-records" that loads through hx-get="/capability/${spec.id}/read".`,
-          "- Do not include any create/edit form, submit button, or hx-post in the list view.",
-        ].join("\n")
-      : [
-          `- Include exactly one form that submits through hx-post="/capability/${spec.id}/create".`,
-          `- The form must target the live list region with hx-target="#${spec.id}-records" and hx-swap="afterbegin".`,
-        ].join("\n"),
-    "- Do not include native form action/method attributes or links to capability URLs; generated views use only fixed HTMX attributes.",
+    "- No imports.",
+    "- Exactly one export: `export default function ...`.",
+    "- The function takes one parameter — the record — and returns a plain HTML `string`. It is synchronous: do NOT make it async.",
+    "- Signature: `export default function renderItem(record: Record<string, unknown>): string`.",
+    "- The isolated checker uses strict TypeScript, noUncheckedIndexedAccess, and rejects unused parameters and locals. A record value is typed `unknown` — coerce and narrow it (e.g. `String(value)`) before use.",
+    "- Return ONLY the inner markup for one record. Do NOT emit the list container, an item wrapper/card frame, a `data-item` attribute, links, buttons, inputs, other interactive controls, `<script>`, or any event-handler attribute (`on*=`) — the platform owns all of that.",
+    "- Escape every record value before placing it in markup (include a small escaping helper locally). Never interpolate a record value into a `style` attribute.",
     "",
-    "Fields for create controls:",
-    fieldControls,
+    "Design vocabulary — closed values, open composition:",
+    "- Arrange the record's fields using only these primitive classes; any other class is dropped at render time:",
+    `  ${allowedClassList()}`,
+    "- When the classes don't suffice, inline `style` is a token-disciplined escape hatch: the five platform-owned axes are set only through tokens — color `var(--color-*)`, type scale `var(--type-*)`, spacing `var(--space-*)`, border weight `var(--border-thin | --border-regular | --border-thick)`; font family is never declared (the shell's font inherits). Properties outside those axes (arrangement, alignment, aspect-ratio, width) are free.",
+    "",
+    `Collection layout: this capability's records are arranged in a "${layout}" collection. ${layoutGuidance(layout)}`,
+    "",
+    `Design direction (ui_intent.item): ${spec.ui_intent.item}`,
+    "",
+    "Spec fields:",
+    specFieldList(spec),
     "",
     "Capability spec JSON:",
     JSON.stringify(spec, null, 2),
   ].join("\n");
+}
+
+/** One-line-per-field summary of the spec's user fields, shared by both prompts. */
+function specFieldList(spec: CapabilitySpec): string {
+  return spec.schema.fields
+    .map(
+      (field) => `- ${field.name}: ${field.type}${field.required ? " (required)" : " (optional)"}`,
+    )
+    .join("\n");
+}
+
+/** The closed primitive class allow-list, sorted for a stable prompt (single source of
+ *  truth: presentation/vocabulary.ts, which the runtime enforcer keys on). */
+function allowedClassList(): string {
+  return [...ALLOWED_CLASSES].sort().join(", ");
+}
+
+/** How to compose an item for its collection layout (ADR-0005 §6). */
+function layoutGuidance(layout: UiCollectionLayout): string {
+  switch (layout) {
+    case "feed":
+      return "Compose a full-width row that reads comfortably in a single vertical column.";
+    case "grid":
+      return "Compose a compact, self-contained card that stands on its own in a responsive grid cell.";
+  }
 }

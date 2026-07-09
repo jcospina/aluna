@@ -90,15 +90,17 @@ export function renderBusyNotice(): string {
 export function renderCapabilityToolbarEntry(row: Pick<CapabilityRow, "id" | "label">): string {
   const id = escapeHtml(row.id);
   const label = canonicalCapabilityLabel(row);
+  const url = `/capability/${id}`;
   return [
     "<button",
     '  type="button"',
     '  class="toolbar__entry"',
     "  data-capability-entry",
     `  data-capability-id="${id}"`,
-    `  hx-get="/capability/${id}"`,
+    `  hx-get="${url}"`,
     '  hx-target="#spec-build-output"',
     '  hx-swap="innerHTML"',
+    `  hx-push-url="${url}"`,
     ">",
     `  ${escapeHtml(label)}`,
     "</button>",

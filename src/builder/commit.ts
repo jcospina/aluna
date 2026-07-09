@@ -7,7 +7,7 @@
 // that transaction's purpose:
 //
 //   1. Write the version-1 artifacts — the generated handler `.ts` files and the
-//      `.html` views — to the capability's version directory
+//      item renderer (`item.ts`) — to the capability's version directory
 //      (`capabilities/<id>/v1/`).
 //   2. Insert the registry row pointing at that directory (`artifacts_path`), at
 //      version 1, *inside the same transaction*. For a brand-new capability that
@@ -42,9 +42,9 @@ export const DEFAULT_ARTIFACTS_ROOT = "capabilities";
 
 export interface CommitCapabilityInput {
   readonly spec: CapabilitySpec;
-  // The generated handler + view units to write to disk. M2 always produces the
-  // create/read handlers and the list/create views; commit writes whatever the
-  // unit stage produced, keyed by each unit's own filename.
+  // The generated units to write to disk. M3 produces the item renderer (`item.ts`)
+  // and the create/read handlers; commit writes whatever the unit stage produced,
+  // keyed by each unit's own filename.
   readonly units: readonly GeneratedUnit[];
   // The read-write connection carrying the migration's open transaction. The
   // registry insert rides this so the row and the `cap_<id>` table commit together
@@ -60,8 +60,8 @@ export interface CommitCapabilityResult {
   // The pointer the registry row stores and the router resolves handlers against.
   readonly artifactsPath: string;
   readonly version: number;
-  // The filenames written into the version directory (e.g. `create.ts`,
-  // `list.html`) — the developer-facing record of what landed on disk.
+  // The filenames written into the version directory (e.g. `item.ts`, `create.ts`) —
+  // the developer-facing record of what landed on disk.
   readonly files: readonly string[];
 }
 

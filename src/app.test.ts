@@ -216,6 +216,9 @@ describe("GET / (shell)", () => {
     expect(js).toContain('document.addEventListener("htmx:sseError"');
     expect(js).toContain('document.addEventListener("htmx:oobAfterSwap"');
     expect(js).toContain("syncCapabilityPresentationState");
+    expect(js).toContain("syncActiveCapabilityUrl");
+    expect(js).toContain("window.history.replaceState");
+    expect(js).toContain("[data-active-capability-id]");
     expect(js).toContain("dataset.previewTarget");
     expect(js).not.toContain("new EventSource");
     expect(js).not.toContain('fetch("/prompt"');
@@ -383,7 +386,9 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     expect(html).toContain('class="shell has-capabilities"');
     expect(countMatches(html, "data-capability-entry")).toBe(2);
     expect(html).toContain('hx-get="/capability/notes"');
+    expect(html).toContain('hx-push-url="/capability/notes"');
     expect(html).toContain('hx-get="/capability/recipes"');
+    expect(html).toContain('hx-push-url="/capability/recipes"');
     // Ordered by id (the registry's stable order): notes before recipes.
     expect(html.indexOf("/capability/notes")).toBeLessThan(html.indexOf("/capability/recipes"));
     // The load path restores chrome only — no capability view is pre-served into the
@@ -442,6 +447,7 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     expect(refreshed).toContain('class="shell has-capabilities"');
     expect(refreshed).toContain("data-capability-entry");
     expect(refreshed).toContain('hx-get="/capability/notes"');
+    expect(refreshed).toContain('hx-push-url="/capability/notes"');
 
     // Clicking the rehydrated entry serves the spec-rendered, data-free list scaffolding…
     const clicked = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
@@ -512,26 +518,24 @@ describe("GET /stream (failure surfaces clearly, not silently)", () => {
   });
 });
 
-// A fake provider that returns a valid capability spec and then the four generated
-// units, recording each prompt — so the builder-stage demo route is driven
-// end-to-end without a real call.
+// A fake provider that returns a valid capability spec and then the three generated
+// units (item renderer, then the create/read handlers), recording each prompt — so the
+// builder-stage demo route is driven end-to-end without a real call.
 function makeSpecProvider(
   spec: unknown,
   behavioralSuite: unknown = BEHAVIORAL_SUITE,
   units: {
+    readonly item?: string;
     readonly create?: string;
     readonly read?: string;
-    readonly list?: string;
-    readonly createView?: string;
   } = {},
 ): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];
   const responses = [
     spec,
+    { content: units.item ?? ITEM_RENDERER },
     { content: units.create ?? CREATE_HANDLER },
     { content: units.read ?? READ_HANDLER },
-    { content: units.list ?? LIST_VIEW },
-    { content: units.createView ?? CREATE_VIEW },
     behavioralSuite,
   ];
   const provider: Provider = {
@@ -559,20 +563,18 @@ function makePromptBuildProvider(
   spec: unknown = NOTES_SPEC,
   behavioralSuite: unknown = BEHAVIORAL_SUITE,
   units: {
+    readonly item?: string;
     readonly create?: string;
     readonly read?: string;
-    readonly list?: string;
-    readonly createView?: string;
   } = {},
 ): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];
   const responses = [
     intent,
     spec,
+    { content: units.item ?? ITEM_RENDERER },
     { content: units.create ?? CREATE_HANDLER },
     { content: units.read ?? READ_HANDLER },
-    { content: units.list ?? LIST_VIEW },
-    { content: units.createView ?? CREATE_VIEW },
     behavioralSuite,
   ];
   const provider: Provider = {
@@ -602,10 +604,9 @@ function makeSpecProviderWithBehavioralError(
   const prompts: string[] = [];
   const responses = [
     spec,
+    { content: ITEM_RENDERER },
     { content: CREATE_HANDLER },
     { content: READ_HANDLER },
-    { content: LIST_VIEW },
-    { content: CREATE_VIEW },
   ];
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
@@ -674,10 +675,13 @@ function notesCapabilityRow(overrides: Partial<CapabilityRow> = {}): CapabilityR
   } as CapabilityRow;
 }
 
-const CREATE_HANDLER = [
-  "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
-  "  const note = data.insert({ text: input.text });",
-  '  return `<article class="note"><p>$' + "{escapeHtml(note.text)}</p></article>`;",
+// The one generated presentation surface — record → inner markup, composed from the
+// closed primitive vocabulary and escaping the field value.
+const ITEM_RENDERER = [
+  "export default function renderItem(record: Record<string, unknown>): string {",
+  "  const text = escapeHtml(record.text);",
+  '  return `<div class="stack"><span class="text-lg text-bold truncate">$' +
+    "{text}</span></div>`;",
   "}",
   "",
   "function escapeHtml(value: unknown): string {",
@@ -687,60 +691,35 @@ const CREATE_HANDLER = [
   '    .replaceAll(">", "&gt;")',
   '    .replaceAll(\'"\', "&quot;")',
   '    .replaceAll("\'", "&#39;");',
+  "}",
+].join("\n");
+
+// The handlers render records through the injected `present` adapter — no row markup of
+// their own (ADR-0005 §2), so create and read cannot drift.
+const CREATE_HANDLER = [
+  "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
+  "  const note = data.insert({ text: input.text });",
+  "  return present(note);",
   "}",
 ].join("\n");
 
 const MISSING_MARKER_CREATE_HANDLER = [
-  "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
+  "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
   '  if (String(input.text ?? "").trim().length === 0) {',
   "    return '<div class=\"error\">Any friendly copy can go here.</div>';",
   "  }",
   "  const note = data.insert({ text: input.text });",
-  '  return `<article class="note"><p>$' + "{escapeHtml(note.text)}</p></article>`;",
-  "}",
-  "",
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
+  "  return present(note);",
   "}",
 ].join("\n");
 
 const READ_HANDLER = [
-  "export default async function read({ data }: CapabilityContext): Promise<string> {",
+  "export default async function read({ data, present }: CapabilityContext): Promise<string> {",
   "  const notes = data.select();",
-  '  if (notes.length === 0) return \'<ul class="notes" data-empty="true"></ul>\';',
-  "  const items = notes",
-  '    .map((note) => `<li class="note">$' + "{escapeHtml(note.text)}</li>`)",
-  '    .join("");',
-  '  return `<ul class="notes">$' + "{items}</ul>`;",
-  "}",
-  "",
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
+  "  if (notes.length === 0) return '<p class=\"capability-empty-hint\">No notes yet.</p>';",
+  '  return notes.map((note) => present(note)).join("");',
   "}",
 ].join("\n");
-
-const LIST_VIEW = `<section class="capability-view" aria-labelledby="notes-heading">
-  <h2 id="notes-heading">Notes</h2>
-  <div id="notes-records" hx-get="/capability/notes/read" hx-trigger="load" hx-swap="innerHTML"></div>
-</section>`;
-
-const CREATE_VIEW = `<form class="capability-form" hx-post="/capability/notes/create" hx-target="#notes-records" hx-swap="afterbegin">
-  <label>
-    <span>Text</span>
-    <textarea name="text" required></textarea>
-  </label>
-  <button type="submit">Add</button>
-</form>`;
 
 const BEHAVIORAL_SUITE = {
   cases: [
@@ -892,8 +871,8 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     };
     expect(firstUnitsPreview.status).toBe("running");
     expect(firstUnitsPreview.units[0]).toMatchObject({
-      kind: "handler",
-      name: "create",
+      kind: "item-renderer",
+      name: "item",
       status: "generating",
     });
 
@@ -915,17 +894,19 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(unitsPreview.codeGenDurationMs).toBeGreaterThanOrEqual(0);
     expect(unitsPreview.htmlGenDurationMs).toBeGreaterThanOrEqual(0);
     expect(unitsPreview.units.map((unit) => `${unit.kind}:${unit.name}:${unit.filename}`)).toEqual([
+      "item-renderer:item:item.ts",
       "handler:create:create.ts",
       "handler:read:read.ts",
-      "view:list:list.html",
-      "view:create:create.html",
     ]);
     expect(unitsPreview.units.every((unit) => unit.attempts === 1)).toBe(true);
     expect(unitsPreview.units.find((unit) => unit.filename === "create.ts")?.content).toContain(
       "export default async function create",
     );
-    expect(unitsPreview.units.find((unit) => unit.filename === "list.html")?.content).toContain(
-      'hx-get="/capability/notes/read"',
+    expect(unitsPreview.units.find((unit) => unit.filename === "create.ts")?.content).toContain(
+      "present(note)",
+    );
+    expect(unitsPreview.units.find((unit) => unit.filename === "item.ts")?.content).toContain(
+      "export default function renderItem",
     );
 
     const gatePreview = JSON.parse(dataFor("gate-preview")) as {
@@ -989,21 +970,22 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(commitSwap).toContain("Notes");
     expect(dataFor("done")).toBe("ok");
 
-    // The typed prompt reached the provider, then the four unit-generation prompts
-    // and the behavioral test-generation prompt followed — proof the demo runs the
-    // current builder stages, not a canned string.
-    expect(prompts).toHaveLength(6);
+    // The typed prompt reached the provider, then the three unit-generation prompts
+    // (item renderer, then the create/read handlers) and the behavioral test-generation
+    // prompt followed — proof the demo runs the current builder stages, not a canned string.
+    expect(prompts).toHaveLength(5);
     expect(prompts[0]).toContain("track my notes");
     expect(prompts[0]).toContain("tools: only create, read.");
     expect(prompts[0]).toContain("ui_intent.collection.layout is one of: feed | grid");
     expect(prompts[0]).toContain("Do not include ui_intent.views");
-    expect(prompts[1]).toContain("Generate the create.ts handler");
-    expect(prompts[4]).toContain("Generate the create.html view");
-    expect(prompts[5]).toContain("Text is required. Newest notes appear first.");
-    expect(prompts[5]).toContain('"schema"');
-    expect(prompts[5]).toContain('"behavioral_errors"');
-    expect(prompts[5]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
-    expect(prompts[5]).not.toContain("export default async function");
+    expect(prompts[1]).toContain("Generate the item.ts item renderer");
+    expect(prompts[2]).toContain("Generate the create.ts handler");
+    expect(prompts[3]).toContain("Generate the read.ts handler");
+    expect(prompts[4]).toContain("Text is required. Newest notes appear first.");
+    expect(prompts[4]).toContain('"schema"');
+    expect(prompts[4]).toContain('"behavioral_errors"');
+    expect(prompts[4]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
+    expect(prompts[4]).not.toContain("export default async function");
 
     // A successful build writes exactly one metrics row (Epic 2.7), before `done`,
     // carrying the PLAN step-8 fields: intent, the built capability, the full timing
@@ -1027,10 +1009,9 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       "behavioral",
     ]);
     expect(metrics?.unitAttempts?.map((unit) => `${unit.kind}:${unit.name}`)).toEqual([
+      "item-renderer:item",
       "handler:create",
       "handler:read",
-      "view:list",
-      "view:create",
     ]);
 
     // Commit is real: the developer commit-preview reports the committed capability,
@@ -1048,7 +1029,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(commitPreview.capabilityId).toBe("notes");
     expect(commitPreview.version).toBe(1);
     expect(commitPreview.artifactsPath).toBe(`${artifactsRoot}/notes/v1/`);
-    expect(commitPreview.files).toEqual(["create.ts", "read.ts", "list.html", "create.html"]);
+    expect(commitPreview.files).toEqual(["item.ts", "create.ts", "read.ts"]);
 
     // The registry row landed at v1 with the artifacts pointer (the pointer flip)…
     const committed = getCapability("notes", conns.readonly);
@@ -1411,7 +1392,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(events[1]?.event).toBe("narration");
     expect(events[1]?.data).toBe(newCapabilityIntent.user_facing_label);
 
-    expect(prompts).toHaveLength(7);
+    // intent + spec + 3 units (item renderer, create, read) + behavioral test-gen.
+    expect(prompts).toHaveLength(6);
     expect(prompts[0]).toContain("Aluna's Intent Resolver");
     expect(prompts[0]).toContain("track my notes");
     expect(prompts[1]).toContain("Aluna's Capability Builder");
@@ -1432,7 +1414,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       capabilityId: "notes",
       intent: { type: "new_capability", confidence: 0.97, targetCapability: null },
     });
-    expect(rows[0]?.usage?.totalTokens).toBe(371);
+    // 6 provider calls × 53 tokens each: intent + spec + 3 units + behavioral test-gen.
+    expect(rows[0]?.usage?.totalTokens).toBe(318);
     expect(rows[0]?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
     expect(rows[0]?.gateRungs?.map((rung) => rung.rung)).toEqual([
       "structural",

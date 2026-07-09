@@ -1,13 +1,20 @@
-// Unit generation — Module 2, Epic 2.5 (ARCH §6.2 "Capability Builder" step 3,
-// ADR-0003 bounded tool-loop, ADR-0004 generated artifact contract).
+// Unit generation — Module 2 Epic 2.5, re-cut by Module 3 Epic 3.4/02 (ARCH §6.2
+// "Capability Builder" step 3, ADR-0003 bounded tool-loop, ADR-0004 generated
+// artifact contract as amended by ADR-0005 §2).
 //
-// This stage derives the four M2 artifacts from the validated capability spec:
-// `create` + `read` handlers and `list` + `create` views. Generation is agentic
-// only inside one unit at a time: write -> check -> feed back the failure -> fix,
-// capped by a small config knob. Across units the order and scope are fixed.
+// Module 3 replaces M2's four artifacts (`handler:create`, `handler:read`,
+// `view:list`, `view:create`) with **one item renderer + `create` + `read`
+// Handlers**. The item renderer turns one record into the capability-specific inner
+// markup, generated **knowing** the chosen `collection.layout`; the Handlers receive
+// the presentation adapter (3.4/01) through their injected toolbox and call it instead
+// of emitting their own row markup — so create and read render identical item markup by
+// construction, and the list/create Views are gone (the platform renders them
+// deterministically from the spec). Generation is agentic only inside one unit at a
+// time: write -> check -> feed back the failure -> fix, capped by a small config knob.
+// Across units the order and scope are fixed.
 //
-// This file owns the public contract and the orchestration; the per-unit prompts
-// live in `unit-prompts.ts` and the static checks in `unit-checks.ts`.
+// This file owns the public contract and the orchestration; the per-unit prompts live
+// in `unit-prompts.ts` and the static checks in `unit-checks.ts`.
 
 import { z } from "zod";
 import type { DeepPartial, Provider, TokenUsage } from "../provider/index.ts";
@@ -19,12 +26,16 @@ import { buildUnitPrompt } from "./unit-prompts.ts";
 export const DEFAULT_UNIT_FIX_ATTEMPTS = 2;
 
 const HANDLER_UNITS = ["create", "read"] as const satisfies readonly CapabilityTool[];
-const VIEW_UNITS = ["list", "create"] as const;
+
+// The single generated presentation unit's name — the stem of the version-keyed file
+// the router loads it from (`item.ts`, `ITEM_RENDERER_FILE` in src/router/router.ts).
+export const ITEM_RENDERER_UNIT_NAME = "item";
+
 const generatedUnitSchema = z.strictObject({ content: z.string().min(1) });
 type GeneratedUnitObject = z.infer<typeof generatedUnitSchema>;
 
 export type HandlerUnitName = (typeof HANDLER_UNITS)[number];
-export type ViewUnitName = (typeof VIEW_UNITS)[number];
+export type ItemRendererUnitName = typeof ITEM_RENDERER_UNIT_NAME;
 
 export type GeneratedUnit =
   | {
@@ -37,9 +48,9 @@ export type GeneratedUnit =
       readonly usage: TokenUsage;
     }
   | {
-      readonly kind: "view";
-      readonly name: ViewUnitName;
-      readonly filename: `${ViewUnitName}.html`;
+      readonly kind: "item-renderer";
+      readonly name: ItemRendererUnitName;
+      readonly filename: `${ItemRendererUnitName}.ts`;
       readonly content: string;
       readonly attempts: readonly UnitGenerationAttempt[];
       readonly durationMs: number;
@@ -57,7 +68,7 @@ export interface GenerateCapabilityUnitsInput {
   readonly provider: Provider;
   readonly spec: CapabilitySpec;
   // Config knob from PLAN decision 5. Defaults to two attempts: the initial write
-  // plus one fix pass.
+  // plus one fix pass. Reused (not new) for the item renderer (ADR-0005 decision 6).
   readonly maxAttempts?: number;
   readonly observer?: UnitGenerationObserver;
 }
@@ -65,12 +76,15 @@ export interface GenerateCapabilityUnitsInput {
 export interface GenerateCapabilityUnitsResult {
   readonly units: readonly GeneratedUnit[];
   readonly handlers: Readonly<Record<HandlerUnitName, string>>;
-  readonly views: Readonly<Record<ViewUnitName, string>>;
+  // The one generated presentation surface — the composition input the router binds
+  // into each Handler's presentation adapter (3.4/01), and the content the commit
+  // stage writes to `item.ts`.
+  readonly itemRenderer: string;
 }
 
 export type UnitDescriptor =
   | { readonly kind: "handler"; readonly name: HandlerUnitName }
-  | { readonly kind: "view"; readonly name: ViewUnitName };
+  | { readonly kind: "item-renderer"; readonly name: ItemRendererUnitName };
 
 /** A failed unit check: the unit being generated, plus the message fed back to fix it. */
 export type UnitGenerationFailure = UnitDescriptor & { readonly message: string };
@@ -117,20 +131,29 @@ export class UnitGenerationError extends Error {
 export { buildUnitPrompt } from "./unit-prompts.ts";
 
 /**
- * Generate all four temporary M2 units for `spec`, in fixed order (handlers then
- * views), each through its bounded write→check→fix loop. Module 3.3 reshaped
- * `ui_intent`, so the views are no longer model-authored spec state; they remain
- * generated unconditionally until the later M3 artifact recut replaces them with
- * the single item renderer. Returns the generated units plus the handler/view
- * content maps the gate and commit consume. Throws
- * {@link UnitGenerationError} if any unit never passes its checks.
+ * Generate the capability's three M3 units for `spec`, in fixed order — the item
+ * renderer first (the creative surface, generated knowing `collection.layout`), then
+ * the `create` and `read` Handlers that render records through the injected
+ * presentation adapter — each through its bounded write→check→fix loop. Returns the
+ * generated units plus the handler map and item-renderer content the gate and commit
+ * consume. Throws {@link UnitGenerationError} if any unit never passes its checks.
  */
 export async function generateCapabilityUnits(
   input: GenerateCapabilityUnitsInput,
 ): Promise<GenerateCapabilityUnitsResult> {
-  assertM2UnitSpec(input.spec);
+  assertHandlerSpec(input.spec);
   const maxAttempts = normalizeMaxAttempts(input.maxAttempts);
   const units: GeneratedUnit[] = [];
+
+  units.push(
+    await generateUnit(
+      input.provider,
+      input.spec,
+      { kind: "item-renderer", name: ITEM_RENDERER_UNIT_NAME },
+      maxAttempts,
+      input.observer,
+    ),
+  );
 
   for (const action of HANDLER_UNITS) {
     units.push(
@@ -144,28 +167,13 @@ export async function generateCapabilityUnits(
     );
   }
 
-  for (const view of VIEW_UNITS) {
-    units.push(
-      await generateUnit(
-        input.provider,
-        input.spec,
-        { kind: "view", name: view },
-        maxAttempts,
-        input.observer,
-      ),
-    );
-  }
-
   return {
     units,
     handlers: {
       create: contentFor(units, "handler", "create"),
       read: contentFor(units, "handler", "read"),
     },
-    views: {
-      list: contentFor(units, "view", "list"),
-      create: contentFor(units, "view", "create"),
-    },
+    itemRenderer: itemRendererContent(units),
   };
 }
 
@@ -241,7 +249,7 @@ function toGeneratedUnit(
   };
 
   if (unit.kind === "handler") {
-    const name = unit.name as HandlerUnitName;
+    const name = unit.name;
     return {
       kind: "handler",
       name,
@@ -250,11 +258,10 @@ function toGeneratedUnit(
     };
   }
 
-  const name = unit.name as ViewUnitName;
   return {
-    kind: "view",
-    name,
-    filename: `${name}.html`,
+    kind: "item-renderer",
+    name: ITEM_RENDERER_UNIT_NAME,
+    filename: `${ITEM_RENDERER_UNIT_NAME}.ts`,
     ...base,
   };
 }
@@ -263,22 +270,22 @@ function contentFor(
   units: readonly GeneratedUnit[],
   kind: "handler",
   name: HandlerUnitName,
-): string;
-function contentFor(units: readonly GeneratedUnit[], kind: "view", name: ViewUnitName): string;
-function contentFor(
-  units: readonly GeneratedUnit[],
-  kind: GeneratedUnit["kind"],
-  name: HandlerUnitName | ViewUnitName,
 ): string {
   const unit = units.find((candidate) => candidate.kind === kind && candidate.name === name);
   if (!unit) throw new Error(`missing generated ${kind} ${name}`);
   return unit.content;
 }
 
-function assertM2UnitSpec(spec: CapabilitySpec): void {
+function itemRendererContent(units: readonly GeneratedUnit[]): string {
+  const unit = units.find((candidate) => candidate.kind === "item-renderer");
+  if (!unit) throw new Error("missing generated item renderer");
+  return unit.content;
+}
+
+function assertHandlerSpec(spec: CapabilitySpec): void {
   for (const action of HANDLER_UNITS) {
     if (!(spec.tools as readonly string[]).includes(action)) {
-      throw new Error(`M2 unit generation requires the "${action}" handler in spec.tools.`);
+      throw new Error(`Unit generation requires the "${action}" handler in spec.tools.`);
     }
   }
 }
