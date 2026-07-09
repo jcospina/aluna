@@ -32,6 +32,7 @@ import {
   assertFragment,
   errorMessage,
   fieldValueMatches,
+  GATE_PRACTICE_PRESENT,
   loadHandlers,
   openScratchDatabasePair,
   sameSnapshot,
@@ -251,6 +252,7 @@ async function runBehavioralCase(
     createFragment = await handlers.create({
       input: createInput,
       data,
+      present: GATE_PRACTICE_PRESENT,
     });
     assertFragment("create", createFragment);
 
@@ -276,7 +278,7 @@ async function runBehavioralCase(
       throw new Error(`did not find a scratch row matching ${JSON.stringify(expectedCreatedRow)}.`);
     }
 
-    readFragment = await handlers.read({ input: {}, data });
+    readFragment = await handlers.read({ input: {}, data, present: GATE_PRACTICE_PRESENT });
     assertFragment("read", readFragment);
     assertFragmentIncludes("read", readFragment, testCase.expectReadFragmentIncludes);
     assertFragmentIncludesInOrder(readFragment, testCase.expectReadFragmentIncludesInOrder);

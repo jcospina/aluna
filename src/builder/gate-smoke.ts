@@ -15,6 +15,7 @@ import {
   applyDdl,
   assertFragment,
   fieldValueMatches,
+  GATE_PRACTICE_PRESENT,
   loadHandlers,
   openScratchDatabasePair,
   sameSnapshot,
@@ -35,13 +36,17 @@ export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGat
     const handlers = await loadHandlers(input.handlers);
     const smokeInput = buildSmokeInput(input.spec);
 
-    const createFragment = await handlers.create({ input: smokeInput.input, data });
+    const createFragment = await handlers.create({
+      input: smokeInput.input,
+      data,
+      present: GATE_PRACTICE_PRESENT,
+    });
     assertFragment("create", createFragment);
 
     const rows = data.select();
     assertSmokeRows(input.spec, rows, smokeInput.expectedValues);
 
-    const readFragment = await handlers.read({ input: {}, data });
+    const readFragment = await handlers.read({ input: {}, data, present: GATE_PRACTICE_PRESENT });
     assertFragment("read", readFragment);
 
     const insertedRow = rows[0];

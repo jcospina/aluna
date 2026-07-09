@@ -27,6 +27,13 @@ import type { Context, Hono } from "hono";
 
 import { createCapabilityDataTool } from "../capability-data/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
+import {
+  createPresentationAdapter,
+  type ItemRenderer,
+  type PresentationAdapter,
+  type RenderableCapability,
+  unavailablePresentationAdapter,
+} from "../presentation/index.ts";
 import { type CapabilityRow, type CapabilitySpec, getCapability } from "../registry/index.ts";
 import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
 import type { CapabilityHandler, CapabilityInput } from "./contract.ts";
@@ -36,18 +43,32 @@ import type { CapabilityHandler, CapabilityInput } from "./contract.ts";
 // touching disk; the default loads the real version-keyed file.
 export type HandlerLoader = (artifactsPath: string, action: string) => Promise<CapabilityHandler>;
 
+// How the router turns a row's `artifacts_path` into that capability's item renderer —
+// the composition input for its presentation adapter (epic 3.4/01, ADR-0005 §2). One
+// renderer per capability, so this takes no action. Injectable for the same reasons as
+// {@link HandlerLoader}; the default loads the version-keyed file 3.4/02 generates.
+export type ItemRendererLoader = (artifactsPath: string) => Promise<ItemRenderer>;
+
 export interface CapabilityRouterDeps {
   // The read-write / read-only pair the lookup and the scoped data tool ride.
   // Defaults to the platform singletons; tests inject a scratch pair.
   readonly databases?: PlatformDatabase;
   // Defaults to {@link defaultLoadHandler}.
   readonly loadHandler?: HandlerLoader;
+  // Defaults to {@link defaultLoadItemRenderer}.
+  readonly loadItemRenderer?: ItemRendererLoader;
 }
 
 // The fixed route. Registered for the methods M2's two actions use (read = GET,
 // create = POST); update/delete arrive with their own methods in later modules.
 const CAPABILITY_ROUTE = "/capability/:id/:action";
 const CAPABILITY_VIEW_ROUTE = "/capability/:id";
+
+// The version-directory filename the item renderer is generated to (epic 3.4/02) and
+// loaded from here — the seam that lets the router build a capability's presentation
+// adapter without knowing how the renderer was written. A sibling of the handler files
+// under the same `artifacts_path`.
+export const ITEM_RENDERER_FILE = "item.ts";
 
 // Product-voice failures (CONTEXT.md). The not-found copy is deliberately the same
 // for an unknown capability and an undeclared action — the user need not, and must
@@ -63,10 +84,11 @@ const INTERNAL_ERROR_FRAGMENT =
 export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps = {}): void {
   const databases = deps.databases ?? { readwrite: db, readonly: dbReadonly };
   const loadHandler = deps.loadHandler ?? defaultLoadHandler;
+  const loadItemRenderer = deps.loadItemRenderer ?? defaultLoadItemRenderer;
 
   app.get(CAPABILITY_VIEW_ROUTE, (c) => handleCapabilityViewRequest(c, databases));
   app.on(["GET", "POST"], CAPABILITY_ROUTE, (c) =>
-    handleCapabilityRequest(c, databases, loadHandler),
+    handleCapabilityRequest(c, databases, loadHandler, loadItemRenderer),
   );
 }
 
@@ -96,6 +118,7 @@ async function handleCapabilityRequest(
   c: Context,
   databases: PlatformDatabase,
   loadHandler: HandlerLoader,
+  loadItemRenderer: ItemRendererLoader,
 ): Promise<Response> {
   const id = c.req.param("id");
   const action = c.req.param("action");
@@ -118,9 +141,10 @@ async function handleCapabilityRequest(
   try {
     const input = await parseInput(c);
     const data = createCapabilityDataTool(specFromRow(row), databases);
+    const present = await buildPresentationAdapter(row, loadItemRenderer);
     const handler = await loadHandler(row.artifacts_path, action);
 
-    const fragment = await handler({ input, data });
+    const fragment = await handler({ input, data, present });
     if (typeof fragment !== "string") {
       throw new TypeError(
         `Handler ${id}/${action} returned ${typeof fragment}; the contract requires an HTML string.`,
@@ -175,6 +199,45 @@ function specFromRow(row: CapabilityRow): CapabilitySpec {
   };
 }
 
+// Build the capability's presentation adapter for the injected toolbox (epic 3.4/01):
+// load its item renderer, then bind it with the capability so `present` turns one record
+// into safe wrapped item HTML. `present` stays synchronous (record → string) because the
+// renderer is resolved here, once, before the handler runs.
+//
+// A capability with no item renderer on disk — a pre-3.4/02 M2 capability, whose handlers
+// emit their own markup and never call `present` — must not break: the load failure is
+// caught and `present` becomes an adapter that throws only if a handler actually calls it
+// ({@link unavailablePresentationAdapter}). Those handlers don't, so they keep working;
+// once 3.4/02 generates the renderer beside the handlers, this fallback is dead for
+// committed capabilities.
+async function buildPresentationAdapter(
+  row: CapabilityRow,
+  loadItemRenderer: ItemRendererLoader,
+): Promise<PresentationAdapter> {
+  let renderItem: ItemRenderer;
+  try {
+    renderItem = await loadItemRenderer(row.artifacts_path);
+  } catch (error) {
+    return unavailablePresentationAdapter(
+      `Capability at ${row.artifacts_path} has no item renderer.`,
+      error,
+    );
+  }
+  return createPresentationAdapter({ capability: renderableFromRow(row), renderItem });
+}
+
+// The slice of a row the presentation adapter needs: the id (namespaces the detail
+// templates), the user-facing label (the modal title), the fields (the detail body), and
+// `ui_intent.detail` (which fields the detail surface shows, and in what order).
+function renderableFromRow(row: CapabilityRow): RenderableCapability {
+  return {
+    id: row.id,
+    label: row.label,
+    schema: row.schema,
+    detail: row.ui_intent.detail,
+  };
+}
+
 // The default loader: import the version-keyed handler file and confirm it honors
 // the export half of the contract — a single default-exported function. A file URL
 // keeps the absolute path importable across platforms; dynamic import caches by
@@ -186,6 +249,20 @@ const defaultLoadHandler: HandlerLoader = async (artifactsPath, action) => {
     throw new TypeError(`Handler file ${file} has no default-exported function.`);
   }
   return loaded.default as CapabilityHandler;
+};
+
+// The default item-renderer loader: import the version-keyed {@link ITEM_RENDERER_FILE}
+// and confirm it default-exports a function (the record → inner-markup renderer). Mirrors
+// {@link defaultLoadHandler} — same file-URL import, same cache-by-path behavior, which is
+// right when `artifacts_path` is version-namespaced. Rejects when the file is absent or
+// malformed; {@link buildPresentationAdapter} tolerates that for capabilities without one.
+const defaultLoadItemRenderer: ItemRendererLoader = async (artifactsPath) => {
+  const file = resolve(process.cwd(), artifactsPath, ITEM_RENDERER_FILE);
+  const loaded = (await import(pathToFileURL(file).href)) as { default?: unknown };
+  if (typeof loaded.default !== "function") {
+    throw new TypeError(`Item renderer file ${file} has no default-exported function.`);
+  }
+  return loaded.default as ItemRenderer;
 };
 
 // Surface a handler/internal failure: precise in the server log for the developer,

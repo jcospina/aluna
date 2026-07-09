@@ -2,12 +2,22 @@
 // presentation surface: the runtime allow-list enforcer (epic 3.1/02), the
 // centralized create/detail field renderer (epic 3.2/01, deterministic from the
 // spec), the list container/item wrapper (epic 3.2/02), the shared read-only detail
-// modal (epic 3.2/04), and later the presentation adapter (epic 3.4).
+// modal (epic 3.2/04), and the presentation adapter (epic 3.4/01) that composes them
+// into the record → safe wrapped item HTML the router injects into every Handler.
 //
 // The enforcer is the render-time safety half of the closed-value design contract; the
 // vocabulary it keys on is exported too, so the design-lint gate rung (3.6) can share the
 // one source of truth rather than re-list it.
 
+export {
+  createPresentationAdapter,
+  DETAIL_TEMPLATE_ID_PREFIX,
+  type ItemRenderer,
+  type PresentableRecord,
+  type PresentationAdapter,
+  type PresentationAdapterOptions,
+  unavailablePresentationAdapter,
+} from "./adapter.ts";
 export {
   DETAIL_MODAL_BODY_ID,
   DETAIL_MODAL_ID,

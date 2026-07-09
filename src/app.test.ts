@@ -286,12 +286,13 @@ describe("GET /demo/detail-interaction (click-to-open detail, epic 3.3/02)", () 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type") ?? "").toContain("text/html");
 
-    // Live wrapper output: accessible item triggers carrying the click-to-open hooks.
+    // Live wrapper output: accessible item triggers carrying the click-to-open hooks. The
+    // adapter keys each template to the record id, so the first record's is detail-reading-<id>.
     expect(html).toContain('class="capability-item"');
-    expect(html).toContain('data-detail-template="detail-reading-0"');
+    expect(html).toContain('data-detail-template="detail-reading-left-hand"');
     expect(html).toContain("data-detail-title=");
     // Each record's inert detail template, the one shared modal, and both real controllers.
-    expect(html).toContain('<template id="detail-reading-0">');
+    expect(html).toContain('<template id="detail-reading-left-hand">');
     expect(html).toContain('<dialog id="aluna-detail-modal"');
     expect(html).toContain('src="/static/detail-modal.js"');
     expect(html).toContain('src="/static/item-detail.js"');

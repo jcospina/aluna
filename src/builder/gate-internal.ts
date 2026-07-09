@@ -12,12 +12,26 @@ import { randomUUID } from "node:crypto";
 import ts from "typescript";
 
 import type { CapabilityTableDdl } from "../capability-data/index.ts";
+import { type PresentationAdapter, unavailablePresentationAdapter } from "../presentation/index.ts";
 import type { FieldType } from "../registry/index.ts";
 import type { CapabilityHandler } from "../router/index.ts";
 import type { HandlerUnitName } from "./units.ts";
 
 /** The two generated handlers the gate loads and exercises. */
 export const HANDLER_NAMES = ["create", "read"] as const satisfies readonly HandlerUnitName[];
+
+/**
+ * The practice presentation adapter the gate hands handlers alongside the scratch data
+ * tool — the `present` half of ADR-0004's practice toolbox, extended by ADR-0005 §2. Until
+ * 3.4/02 generates an item renderer to feed it, it throws the moment a handler calls
+ * `present`: an M2 handler (own markup, never presents) runs green, while a handler that
+ * presents without a renderer fails the rung loudly instead of rendering blank. 3.4/02
+ * swaps this for a real adapter built from the generated renderer, so the smoke rung proves
+ * create and read render identical item markup by construction.
+ */
+export const GATE_PRACTICE_PRESENT: PresentationAdapter = unavailablePresentationAdapter(
+  "The design gate has no item renderer to present records with yet (epic 3.4/02).",
+);
 
 export interface ScratchDatabasePair {
   readonly readwrite: Database;

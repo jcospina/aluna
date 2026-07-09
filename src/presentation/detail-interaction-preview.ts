@@ -1,12 +1,13 @@
 // Dev preview for the item click-to-open → read-only detail modal (epic 3.3/02) — the
-// human visual sign-off surface this issue's HITL gate requires. Served at
-// `/demo/detail-interaction` (src/app.ts), it runs the WHOLE real path end to end, no
-// stand-in: a hand-written item renderer composes each record's inner markup → the runtime
-// enforcer runs on it (as the 3.4 adapter will) → renderItemWrapper frames it with the
-// platform trigger + escaped `data-item` + its detail hooks → renderCollection arranges the
-// items → each record also emits its inert detail <template> (renderDetailContentTemplate,
-// honoring `detail.shows`) → the REAL controllers (detail-modal.js + item-detail.js) turn a
-// click or keypress into the shared modal opening prefilled read-only.
+// human visual sign-off surface this issue's HITL gate requires, now driven by the real
+// presentation adapter (epic 3.4/01). Served at `/demo/detail-interaction` (src/app.ts), it
+// runs the WHOLE real path end to end, no stand-in: a hand-written item renderer composes
+// each record's inner markup → the capability-scoped `present` adapter runs the runtime
+// enforcer on it, frames it in the platform trigger with its escaped `data-item` + detail
+// hooks, and emits the record's inert detail <template> (honoring `detail.shows`) → the
+// same adapter every generated Handler will call in 3.4/02 → renderCollection arranges the
+// wrapped items → the REAL controllers (detail-modal.js + item-detail.js) turn a click or
+// keypress into the shared modal opening prefilled read-only.
 //
 // This is the detail interaction the user performs. Clicking (or Tab + Enter/Space on) any
 // item opens the one shared <dialog> showing the full record via the centralized field
@@ -21,10 +22,10 @@
 // consumes the design tokens; everything inside the list + modal is live module output.
 
 import { escapeHtml } from "../web/html.ts";
-import { renderDetailContentTemplate, renderDetailModal } from "./detail-modal.ts";
-import { enforceItemMarkup } from "./enforcer.ts";
+import { createPresentationAdapter } from "./adapter.ts";
+import { renderDetailModal } from "./detail-modal.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
-import { renderCollection, renderItemWrapper } from "./list-container.ts";
+import { renderCollection } from "./list-container.ts";
 
 /**
  * A friendly sample capability. Its `detail.shows` reorders and subsets the schema —
@@ -47,9 +48,12 @@ const PREVIEW_CAPABILITY: RenderableCapability = {
   detail: { shows: ["title", "rating", "note", "author"] },
 };
 
-// A `type` (not `interface`) so it carries an implicit index signature and passes to both
-// renderItemWrapper's and renderDetailContentTemplate's `Record<string, unknown>`.
+// A `type` (not `interface`) so it carries an implicit index signature and passes to the
+// adapter's `PresentableRecord` (`Record<string, unknown>`). `id` is the platform-populated
+// key a real data-tool row always carries; the adapter derives each record's detail
+// <template> id from it (`detail-<capability>-<id>`).
 type ReadingRecord = {
+  readonly id: string;
   readonly title: string;
   readonly author: string;
   readonly rating: number;
@@ -59,6 +63,7 @@ type ReadingRecord = {
 
 const PREVIEW_RECORDS: readonly ReadingRecord[] = [
   {
+    id: "left-hand",
     title: "The Left Hand of Darkness",
     author: "Ursula K. Le Guin",
     rating: 5,
@@ -66,6 +71,7 @@ const PREVIEW_RECORDS: readonly ReadingRecord[] = [
     note: "Winter, envoys, and the slow thaw of understanding. The one I reread — and the card only shows the first couple of lines, but the modal shows the whole note.",
   },
   {
+    id: "memory-empire",
     title: "A Memory Called Empire",
     author: "Arkady Martine",
     rating: 4,
@@ -74,6 +80,7 @@ const PREVIEW_RECORDS: readonly ReadingRecord[] = [
     note: null,
   },
   {
+    id: "hostile",
     // A hostile record: script / tags / quotes must show as visible TEXT in both the card
     // and the modal — never execute. Nothing should pop.
     title: '"><script>alert(1)</script> & <img src=x onerror=alert(2)>',
@@ -116,23 +123,19 @@ function renderReadingItem(record: ReadingRecord): string {
 }
 
 /**
- * Every record wrapped the real way: hand-written render → enforce → wrap with the detail
- * hooks, each immediately followed by its inert detail <template> (the emission shape the
- * 3.4 read adapter produces, so a created/loaded record carries its detail with it). The
- * template id is derived per record and passed on the wrapper so the click controller can
- * open the matching detail.
+ * Every record presented the real way: through the capability-scoped presentation adapter
+ * (epic 3.4/01). `present` runs the hand-written renderer's markup through the enforcer,
+ * frames it in the accessible trigger with its escaped `data-item` + detail hooks, and emits
+ * the record's inert detail <template> keyed by its id — the exact output every generated
+ * Handler produces in 3.4/02. The demo composes only the item renderer; the adapter owns
+ * everything else.
  */
 function itemsWithDetail(): string {
-  return PREVIEW_RECORDS.map((record, index) => {
-    const templateId = `detail-${PREVIEW_CAPABILITY.id}-${index}`;
-    const inner = enforceItemMarkup(renderReadingItem(record));
-    const item = renderItemWrapper(inner, record, {
-      templateId,
-      title: PREVIEW_CAPABILITY.label,
-    });
-    const template = renderDetailContentTemplate(templateId, PREVIEW_CAPABILITY, record);
-    return item + template;
-  }).join("");
+  const present = createPresentationAdapter({
+    capability: PREVIEW_CAPABILITY,
+    renderItem: (record) => renderReadingItem(record as ReadingRecord),
+  });
+  return PREVIEW_RECORDS.map((record) => present(record)).join("");
 }
 
 /**
@@ -194,9 +197,10 @@ export function renderDetailInteractionPreviewPage(): string {
   </head>
   <body>
     <p class="preview-banner">
-      Dev preview · epic 3.3/02 item click-to-open → read-only detail modal. The list below is
-      live <code>renderCollection</code> / <code>renderItemWrapper</code> output; each record
-      also carries its inert detail <code>&lt;template&gt;</code>. <strong>Click</strong> any
+      Dev preview · epic 3.3/02 item click-to-open, now through the real epic 3.4/01
+      <code>present</code> adapter. The list below is live <code>renderCollection</code> output
+      whose items the capability's presentation adapter produced — wrapping each record and
+      emitting its inert detail <code>&lt;template&gt;</code>. <strong>Click</strong> any
       item (or Tab to it and press <strong>Enter</strong>/<strong>Space</strong>) to open the
       one shared read-only modal, prefilled from that record — no round-trip, no read-single
       route. This capability's <code>detail.shows</code> is

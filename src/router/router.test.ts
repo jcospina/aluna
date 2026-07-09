@@ -25,7 +25,7 @@ import {
   insertCapability,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
-import type { HandlerLoader } from "./router.ts";
+import type { HandlerLoader, ItemRendererLoader } from "./router.ts";
 
 const NOTES_ARTIFACTS = "src/router/__fixtures__/notes/v1/";
 const BOOM_ARTIFACTS = "src/router/__fixtures__/boom/v1/";
@@ -236,6 +236,64 @@ describe("deterministic capability router", () => {
     const readBody = await read.text();
     expect(readBody).toContain("Buy milk");
     expect(readBody).toContain("pinned");
+  });
+
+  test("injects the presentation adapter into the toolbox; a handler renders records through it", async () => {
+    install(conns, notesRow());
+    // Seed a record so `read` has something to present.
+    createCapabilityDataTool(notesSpec(), conns).insert({ text: "Buy milk", pinned: true });
+
+    // A hand-written item renderer (the composition input 3.4/02 generates) and a read
+    // handler shaped like 3.4/02's: it maps records through the injected `present` and emits
+    // no markup of its own — proving the adapter reaches the toolbox and does the wrapping.
+    const renderItem = (rec: Record<string, unknown>) =>
+      `<div class="stack"><span class="text-lg truncate">${rec.text}</span></div>`;
+    const loadItemRenderer: ItemRendererLoader = async () => renderItem;
+    const loadHandler: HandlerLoader =
+      async () =>
+      async ({ data, present }) =>
+        data
+          .select()
+          .map((row) => present(row))
+          .join("");
+
+    const app = createApp({
+      capabilityRouter: { databases: conns, loadHandler, loadItemRenderer },
+    });
+
+    const res = await app.request("/capability/notes/read");
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    // The record came back through the adapter: the accessible wrapper, the escaped payload,
+    // the record-keyed detail hook, and the renderer's inner markup — none authored by the
+    // handler itself.
+    expect(body).toContain('class="capability-item"');
+    expect(body).toContain("data-item=");
+    expect(body).toContain('data-detail-template="detail-notes-');
+    expect(body).toContain('<span class="text-lg truncate">Buy milk</span>');
+  });
+
+  test("a handler that presents without an item renderer fails cleanly, never blank or leaking internals", async () => {
+    install(conns, notesRow());
+    createCapabilityDataTool(notesSpec(), conns).insert({ text: "Buy milk" });
+
+    // No loadItemRenderer injected: the default loader finds no `item.ts` for the fixture, so
+    // `present` throws the moment the handler calls it. The router turns that into the same
+    // warm, internals-free failure as any handler slip — not a blank render.
+    const loadHandler: HandlerLoader =
+      async () =>
+      async ({ data, present }) =>
+        data
+          .select()
+          .map((row) => present(row))
+          .join("");
+    const app = createApp({ capabilityRouter: { databases: conns, loadHandler } });
+
+    const res = await app.request("/capability/notes/read");
+    expect(res.status).toBe(500);
+    const body = await res.text();
+    expect(body).toMatch(/something went sideways/i);
+    expect(body).not.toMatch(/item renderer|handler|artifacts|Error/i);
   });
 
   test("serves the spec-rendered data-free list scaffolding with its live read region and create form", async () => {
