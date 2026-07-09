@@ -220,6 +220,59 @@ describe("detail display — hostile record data cannot become markup", () => {
   });
 });
 
+describe("detail display — honors ui_intent.detail.shows (fields + order)", () => {
+  const RECORD = {
+    title: "Buy oat milk",
+    priority: 2,
+    done: true,
+    due_date: "2026-07-05T09:30:00.000Z",
+    note: "later",
+  };
+
+  test("without detail.shows, renders every field in spec order (the fallback)", () => {
+    const detail = renderDetailFields(SAMPLE, RECORD);
+    const order = ["Title", "Priority", "Done", "Due date", "Note"];
+    const positions = order.map((label) => detail.indexOf(`>${label}</dt>`));
+    expect(positions.every((p) => p >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  test("shows exactly the named fields, in the named order — dropping the rest", () => {
+    const scoped: RenderableCapability = {
+      ...SAMPLE,
+      detail: { shows: ["note", "title", "done"] },
+    };
+    const detail = renderDetailFields(scoped, RECORD);
+
+    const shown = ["Note", "Title", "Done"].map((label) => detail.indexOf(`>${label}</dt>`));
+    expect(shown.every((p) => p >= 0)).toBe(true);
+    expect(shown).toEqual([...shown].sort((a, b) => a - b));
+
+    for (const dropped of ["Priority", "Due date"]) {
+      expect(detail).not.toContain(`>${dropped}</dt>`);
+    }
+    expect([...detail.matchAll(/<dt class="detail-field__label">/g)]).toHaveLength(3);
+  });
+
+  test("an empty detail.shows falls back to spec order rather than an empty <dl>", () => {
+    // Spec validation forbids an empty shows, so this only guards a hand-built capability;
+    // it renders the whole record rather than nothing.
+    const empty: RenderableCapability = { ...SAMPLE, detail: { shows: [] } };
+    expect(renderDetailFields(empty, RECORD)).toBe(renderDetailFields(SAMPLE, RECORD));
+  });
+
+  test("a detail.shows naming an unknown field skips it (defensive), keeps the known ones", () => {
+    const scoped: RenderableCapability = {
+      ...SAMPLE,
+      detail: { shows: ["title", "ghost", "done"] },
+    };
+    const detail = renderDetailFields(scoped, RECORD);
+    expect(detail).toContain(">Title</dt>");
+    expect(detail).toContain(">Done</dt>");
+    expect([...detail.matchAll(/<dt class="detail-field__label">/g)]).toHaveLength(2);
+  });
+});
+
 describe("centralization — exhaustive over the M2 pantry", () => {
   // Drives straight off the registry enum: if the pantry gains a type, this sweep
   // renders it in both modes and fails loudly unless the renderer's two total

@@ -312,7 +312,12 @@ press + accent focus ring. It carries the full record as an **escaped `data-item
 payload** (`JSON.stringify`, HTML-escaped for the attribute) so the detail modal (3.2/04)
 prefills from it — no read-single route (ADR-0005 §3). `file` fields ride as references,
 **never bytes**: raw `Uint8Array`/`ArrayBuffer` values are neutralized to `null` rather
-than serialized. Click/keyboard activation is wired in 3.3/02.
+than serialized. Given an `ItemDetailRef` the wrapper also carries **`data-detail-template`**
+(the id of the record's inert detail `<template>`, cloned into the modal on open) and
+**`data-detail-title`** (the modal title — the capability label); the generic click
+controller ([`public/item-detail.js`](../public/item-detail.js)) reads them to fire the
+modal's open event on click or keyboard (Enter/Space) activation — the click-to-open wiring
+(3.3/02). The ref is optional, so the frame alone renders without it.
 
 The wrapper is **platform chrome, so the runtime enforcer never runs on it** — its
 `role`/`tabindex`/`data-item` are platform-authored and trusted. The enforcer
@@ -357,7 +362,10 @@ every value is escaped once. Each record's detail is materialized into an **iner
 `innerHTML` from a string, never a server round-trip. So the full record shows even when the
 item visually truncates and **no read-single route is added** (ADR-0005 §3); if large-text
 lists later make this expensive, prefill moves behind the adapter to read-single-on-open and
-the payload shrinks to an id (ADR-0005 §3, post-M4). Field selection/order is **spec order**
-today and defers to `ui_intent.detail.shows` once 3.3/01 lands; M4 adds the Save affordance to
-this same module. Opening is driven by the `aluna:open-detail` event (`OPEN_DETAIL_EVENT`),
-the seam a dev trigger fires now and 3.3/02's item click-to-open fires later.
+the payload shrinks to an id (ADR-0005 §3, post-M4). Field selection/order **honors
+`ui_intent.detail.shows`** (3.3/02): the body renders exactly those fields, in that order,
+falling back to every field in spec order when a capability carries no intent; M4 adds the
+Save affordance to this same module. Opening is driven by the `aluna:open-detail` event
+(`OPEN_DETAIL_EVENT`) — the seam a dev trigger fires at [`/demo/detail-modal`](../src/presentation/detail-modal-preview.ts)
+and the item click-to-open fires from a clicked/activated record. See the whole interaction
+end to end at [`/demo/detail-interaction`](../src/presentation/detail-interaction-preview.ts).

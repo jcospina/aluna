@@ -94,12 +94,35 @@ describe("renderDetailContent — read-only body via the centralized field rende
     expect(renderDetailContent(SAMPLE, RECORD)).toBe(renderDetailFields(SAMPLE, RECORD));
   });
 
-  test("renders every spec field, in spec order (detail.shows defers to 3.3/02)", () => {
+  test("without detail.shows, falls back to every spec field in spec order", () => {
+    // SAMPLE carries no detail.shows, so the body shows the whole record in spec order —
+    // the fallback that keeps a demo/test (or a pre-reshape row) rendering everything.
     const body = renderDetailContent(SAMPLE, RECORD);
     const order = ["Title", "Priority", "Urgent", "Due on", "Remind at", "Note"];
     const positions = order.map((label) => body.indexOf(label));
     expect(positions.every((p) => p >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  test("honors detail.shows — exactly those fields, in that order (3.3/02)", () => {
+    // The reshaped ui_intent's detail.shows drives the read-only surface: a reordered
+    // subset must show exactly its fields, in its order, dropping the rest.
+    const scoped: RenderableCapability = {
+      ...SAMPLE,
+      detail: { shows: ["note", "title", "urgent"] },
+    };
+    const body = renderDetailContent(scoped, RECORD);
+
+    // The three named fields show, in the named order.
+    const shown = ["Note", "Title", "Urgent"].map((label) => body.indexOf(label));
+    expect(shown.every((p) => p >= 0)).toBe(true);
+    expect(shown).toEqual([...shown].sort((a, b) => a - b));
+
+    // The dropped fields do not appear at all, and the <dl> holds exactly three rows.
+    for (const dropped of ["Priority", "Due on", "Remind at"]) {
+      expect(body).not.toContain(`>${dropped}</dt>`);
+    }
+    expect([...body.matchAll(/<dt class="detail-field__label">/g)]).toHaveLength(3);
   });
 
   test("formats by type and shows the placeholder for an absent value", () => {
