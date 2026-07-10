@@ -10,13 +10,12 @@
 // model to render every record through the injected `present` adapter instead of
 // emitting its own row markup (ADR-0005 §2 — kills create/read drift by construction).
 
-import { ALLOWED_CLASSES } from "../presentation/vocabulary.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type BehavioralErrorCase,
   type CapabilitySpec,
-  type UiCollectionLayout,
 } from "../registry/index.ts";
+import { buildItemRendererDesignInjection } from "./few-shot-gallery.ts";
 import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
 
 /**
@@ -135,12 +134,7 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
     "- Return ONLY the inner markup for one record. Do NOT emit the list container, an item wrapper/card frame, a `data-item` attribute, links, buttons, inputs, other interactive controls, `<script>`, or any event-handler attribute (`on*=`) — the platform owns all of that.",
     "- Escape every record value before placing it in markup (include a small escaping helper locally). Never interpolate a record value into a `style` attribute.",
     "",
-    "Design vocabulary — closed values, open composition:",
-    "- Arrange the record's fields using only these primitive classes; any other class is dropped at render time:",
-    `  ${allowedClassList()}`,
-    "- When the classes don't suffice, inline `style` is a token-disciplined escape hatch: the five platform-owned axes are set only through tokens — color `var(--color-*)`, type scale `var(--type-*)`, spacing `var(--space-*)`, border weight `var(--border-thin | --border-regular | --border-thick)`; font family is never declared (the shell's font inherits). Properties outside those axes (arrangement, alignment, aspect-ratio, width) are free.",
-    "",
-    `Collection layout: this capability's records are arranged in a "${layout}" collection. ${layoutGuidance(layout)}`,
+    buildItemRendererDesignInjection(layout),
     "",
     `Design direction (ui_intent.item): ${spec.ui_intent.item}`,
     "",
@@ -159,20 +153,4 @@ function specFieldList(spec: CapabilitySpec): string {
       (field) => `- ${field.name}: ${field.type}${field.required ? " (required)" : " (optional)"}`,
     )
     .join("\n");
-}
-
-/** The closed primitive class allow-list, sorted for a stable prompt (single source of
- *  truth: presentation/vocabulary.ts, which the runtime enforcer keys on). */
-function allowedClassList(): string {
-  return [...ALLOWED_CLASSES].sort().join(", ");
-}
-
-/** How to compose an item for its collection layout (ADR-0005 §6). */
-function layoutGuidance(layout: UiCollectionLayout): string {
-  switch (layout) {
-    case "feed":
-      return "Compose a full-width row that reads comfortably in a single vertical column.";
-    case "grid":
-      return "Compose a compact, self-contained card that stands on its own in a responsive grid cell.";
-  }
 }

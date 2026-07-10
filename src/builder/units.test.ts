@@ -16,6 +16,7 @@ import {
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
+import { FEW_SHOT_DESIGN_EXAMPLES } from "./few-shot-gallery.ts";
 import {
   buildUnitPrompt,
   DEFAULT_UNIT_FIX_ATTEMPTS,
@@ -299,19 +300,49 @@ describe("unit generation with bounded fix loop", () => {
     expect(feedPrompt).toContain(
       "export default function renderItem(record: Record<string, unknown>): string",
     );
-    expect(feedPrompt).toContain('arranged in a "feed" collection');
-    expect(feedPrompt).toContain("full-width row");
+    expect(feedPrompt).toContain('Chosen collection layout for this capability: "feed"');
+    expect(feedPrompt).toContain("full-width record");
     expect(feedPrompt).toContain("A text-forward card that emphasizes text and pinned status.");
     // The closed primitive vocabulary is injected (single source of truth).
+    expect(feedPrompt).toContain("Injected design contract and few-shot gallery");
     expect(feedPrompt).toContain("line-clamp-2");
     expect(feedPrompt).toContain("var(--space-*)");
+    expect(feedPrompt).toContain("Few-shot gallery. Vary, don't copy");
+    expect(feedPrompt).toContain("Text-forward note card");
+    expect(feedPrompt).toContain("Media-forward grid tile");
+    expect(feedPrompt).toContain("Compact metadata row");
+    expect(feedPrompt).toContain('style="grid-template-columns');
+    expect(feedPrompt).toContain("border: var(--border-thin) solid var(--color-border)");
 
     const gridPrompt = buildUnitPrompt(
       notesSpec({ ui_intent: { ...notesSpec().ui_intent, collection: { layout: "grid" } } }),
       { kind: "item-renderer", name: "item" },
     );
-    expect(gridPrompt).toContain('arranged in a "grid" collection');
-    expect(gridPrompt).toContain("compact, self-contained card");
+    expect(gridPrompt).toContain('Chosen collection layout for this capability: "grid"');
+    expect(gridPrompt).toContain("compact record");
+  });
+
+  test("curates diverse repo-only few-shot exemplars, including a token-disciplined style hatch", () => {
+    expect(FEW_SHOT_DESIGN_EXAMPLES).toHaveLength(3);
+    expect(new Set(FEW_SHOT_DESIGN_EXAMPLES.map((example) => example.layout))).toEqual(
+      new Set(["feed", "grid"]),
+    );
+    expect(FEW_SHOT_DESIGN_EXAMPLES.every((example) => example.previewSamples.length === 2)).toBe(
+      true,
+    );
+    expect(
+      FEW_SHOT_DESIGN_EXAMPLES.some((example) => example.rendererSource.includes("style=")),
+    ).toBe(true);
+    expect(
+      FEW_SHOT_DESIGN_EXAMPLES.some((example) =>
+        example.rendererSource.includes("var(--border-thin)"),
+      ),
+    ).toBe(true);
+    expect(
+      FEW_SHOT_DESIGN_EXAMPLES.every((example) =>
+        example.rendererSource.includes("export default function renderItem"),
+      ),
+    ).toBe(true);
   });
 
   test("handler prompts tell the model to render records through the present adapter", () => {
