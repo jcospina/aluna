@@ -12,6 +12,8 @@ import type { ZodType } from "zod";
 import {
   type CommitCapabilityResult,
   commitCapability,
+  type DesignLintGateResult,
+  type GeneratedUnit,
   generateCapabilityUnits,
   generateSpec,
   runCapabilityGate,
@@ -202,8 +204,10 @@ export async function runSpecBuildStages(
 
       // Commit: write the version-1 artifacts and insert the registry row pointing at
       // them, inside this transaction (the pointer flip). Unreachable unless the gate
-      // above passed every active rung.
-      return commitCapability({ spec, units: unitResult.units, database, artifactsRoot });
+      // above passed every active rung. When the design-lint rung regenerated the item
+      // renderer to clear a violation, `item.ts` must carry that fixed content.
+      const commitUnits = applyDesignLintFix(unitResult.units, gateResult.designLint);
+      return commitCapability({ spec, units: commitUnits, database, artifactsRoot });
     },
   );
 
@@ -274,4 +278,20 @@ async function generateUnitsWithPreview(
     },
   };
   return generateCapabilityUnits({ provider, spec, observer });
+}
+
+/**
+ * Fold a design-lint fix back into the units the pipeline commits. When the design-lint
+ * rung regenerated the item renderer to clear a violation, the committed `item.ts` must
+ * carry the fixed content — not the original the gate was first handed. A clean pass
+ * returns the units untouched.
+ */
+function applyDesignLintFix(
+  units: readonly GeneratedUnit[],
+  designLint: DesignLintGateResult,
+): readonly GeneratedUnit[] {
+  if (!designLint.fixed) return units;
+  return units.map((unit) =>
+    unit.kind === "item-renderer" ? { ...unit, content: designLint.itemRenderer } : unit,
+  );
 }

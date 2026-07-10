@@ -292,6 +292,7 @@ describe("capability gate", () => {
         "structural",
         "smoke",
         "behavioral",
+        "design-lint",
       ]);
       expect(result.outcomes.every((outcome) => outcome.status === "passed")).toBe(true);
       expect(result.outcomes.every((outcome) => outcome.durationMs >= 0)).toBe(true);
@@ -423,6 +424,7 @@ describe("capability gate", () => {
       "structural:passed",
       "smoke:passed",
       "behavioral:passed",
+      "design-lint:passed",
     ]);
     expect(result.smoke.createFragmentLength).toBeGreaterThan(0);
     expect(result.smoke.readFragmentLength).toBeGreaterThan(0);
@@ -524,6 +526,7 @@ describe("capability gate", () => {
       "structural:passed",
       "smoke:passed",
       "behavioral:passed",
+      "design-lint:passed",
     ]);
 
     const error = await expectGateFailure(
@@ -579,6 +582,7 @@ describe("capability gate", () => {
       "structural:passed",
       "smoke:passed",
       "behavioral:passed",
+      "design-lint:passed",
     ]);
   });
 
@@ -617,6 +621,7 @@ describe("capability gate", () => {
       "structural:passed",
       "smoke:passed",
       "behavioral:passed",
+      "design-lint:passed",
     ]);
   });
 
@@ -635,6 +640,7 @@ describe("capability gate", () => {
       "structural:passed",
       "smoke:passed",
       "behavioral:passed",
+      "design-lint:passed",
     ]);
     expect(result.behavioral.tier === "on" ? result.behavioral.testRun.cases : []).toEqual([
       expect.objectContaining({
@@ -737,6 +743,7 @@ describe("capability gate", () => {
       "structural:passed",
       "smoke:passed",
       "behavioral:passed",
+      "design-lint:passed",
     ]);
   });
 
@@ -800,6 +807,7 @@ describe("capability gate", () => {
       "structural:passed",
       "smoke:passed",
       "behavioral:skipped",
+      "design-lint:passed",
     ]);
     expect(result.behavioral).toMatchObject({
       tier: "off",
