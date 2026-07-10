@@ -16,7 +16,6 @@ export {
   type PresentableRecord,
   type PresentationAdapter,
   type PresentationAdapterOptions,
-  unavailablePresentationAdapter,
 } from "./adapter.ts";
 export {
   DETAIL_MODAL_BODY_ID,

@@ -32,7 +32,6 @@ import {
   type ItemRenderer,
   type PresentationAdapter,
   type RenderableCapability,
-  unavailablePresentationAdapter,
 } from "../presentation/index.ts";
 import { type CapabilityRow, type CapabilitySpec, getCapability } from "../registry/index.ts";
 import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
@@ -204,25 +203,15 @@ function specFromRow(row: CapabilityRow): CapabilitySpec {
 // into safe wrapped item HTML. `present` stays synchronous (record → string) because the
 // renderer is resolved here, once, before the handler runs.
 //
-// A capability with no item renderer on disk — a pre-3.4/02 M2 capability, whose handlers
-// emit their own markup and never call `present` — must not break: the load failure is
-// caught and `present` becomes an adapter that throws only if a handler actually calls it
-// ({@link unavailablePresentationAdapter}). Those handlers don't, so they keep working;
-// once 3.4/02 generates the renderer beside the handlers, this fallback is dead for
-// committed capabilities.
+// The M3 artifact shape is mandatory: every committed capability has one item renderer
+// beside its handlers. A missing or malformed renderer fails the request through the
+// router's normal product-voice error boundary; there is no M2 compatibility adapter or
+// dual-serving path (epic 3.7, ADR-0005 §7).
 async function buildPresentationAdapter(
   row: CapabilityRow,
   loadItemRenderer: ItemRendererLoader,
 ): Promise<PresentationAdapter> {
-  let renderItem: ItemRenderer;
-  try {
-    renderItem = await loadItemRenderer(row.artifacts_path);
-  } catch (error) {
-    return unavailablePresentationAdapter(
-      `Capability at ${row.artifacts_path} has no item renderer.`,
-      error,
-    );
-  }
+  const renderItem = await loadItemRenderer(row.artifacts_path);
   return createPresentationAdapter({ capability: renderableFromRow(row), renderItem });
 }
 
@@ -255,7 +244,7 @@ const defaultLoadHandler: HandlerLoader = async (artifactsPath, action) => {
 // and confirm it default-exports a function (the record → inner-markup renderer). Mirrors
 // {@link defaultLoadHandler} — same file-URL import, same cache-by-path behavior, which is
 // right when `artifacts_path` is version-namespaced. Rejects when the file is absent or
-// malformed; {@link buildPresentationAdapter} tolerates that for capabilities without one.
+// malformed. M3 requires this file for every committed capability.
 const defaultLoadItemRenderer: ItemRendererLoader = async (artifactsPath) => {
   const file = resolve(process.cwd(), artifactsPath, ITEM_RENDERER_FILE);
   const loaded = (await import(pathToFileURL(file).href)) as { default?: unknown };

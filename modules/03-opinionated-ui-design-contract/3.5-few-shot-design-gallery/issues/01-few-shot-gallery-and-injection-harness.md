@@ -1,6 +1,6 @@
 # Few-shot design gallery + injection harness
 
-Status: ready-for-agent
+Status: done
 
 > **HITL — human visual sign-off required.** The exemplars steer every generated
 > UI; their taste and the resulting variety must be judged by a human eye. A
@@ -41,9 +41,9 @@ rendered to the user.** No runtime "read the design system" tool (ADR-0005 §5).
       `collection.layout` into the item-renderer prompt with "vary, don't copy"
       framing
 - [x] Exemplars are LLM-facing only and never rendered to the user
-- [ ] Building two different capabilities yields visibly different item
+- [x] Building two different capabilities yields visibly different item
       compositions (variety, not copying)
-- [ ] Demo: the injected prompt is dev-previewable and generated capabilities show
+- [x] Demo: the injected prompt is dev-previewable and generated capabilities show
       varied on-brand output; human visually confirms variety/quality before done
 
 ## Blocked by
@@ -53,8 +53,8 @@ rendered to the user.** No runtime "read the design system" tool (ADR-0005 §5).
 
 ## Implementation notes
 
-Code complete 2026-07-09. Automated verification is green; human visual sign-off
-is still pending.
+Completed 2026-07-10. Automated verification is green, and the human completed
+the fresh multi-capability visual sign-off as part of epic 3.7's full acceptance.
 
 - `src/builder/few-shot-gallery.ts` adds three repo-only item-renderer exemplars:
   a text-forward `feed`, a media-forward `grid`, and a compact metadata `feed`.
@@ -133,5 +133,5 @@ is still pending.
 5. For final visual sign-off, run `bun run reset`, build two different
    capabilities from `/` (for example notes/links and a visual collection), add
    records to each, and confirm the generated item compositions are visibly
-   different while staying on-brand. Leave this issue pending until that human
-   sign-off is complete.
+   different while staying on-brand. This sign-off was completed on 2026-07-10 as
+   part of epic 3.7's end-to-end verification.

@@ -12,7 +12,7 @@
 // real data file is never touched, mirroring the registry and data-tool tests.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createApp } from "../app.ts";
@@ -291,27 +291,30 @@ describe("deterministic capability router", () => {
     expect(body).toContain('<span class="text-lg truncate">Buy milk</span>');
   });
 
-  test("a handler that presents without an item renderer fails cleanly, never blank or leaking internals", async () => {
+  test("a missing required item renderer fails cleanly before the handler loads", async () => {
     install(conns, notesRow());
-    createCapabilityDataTool(notesSpec(), conns).insert({ text: "Buy milk" });
 
-    // No loadItemRenderer injected: the default loader finds no `item.ts` for the fixture, so
-    // `present` throws the moment the handler calls it. The router turns that into the same
-    // warm, internals-free failure as any handler slip — not a blank render.
-    const loadHandler: HandlerLoader =
-      async () =>
-      async ({ data, present }) =>
-        data
-          .select()
-          .map((row) => present(row))
-          .join("");
-    const app = createApp({ capabilityRouter: { databases: conns, loadHandler } });
+    // The M3 shape has no compatibility path for a version directory without `item.ts`.
+    // Loading the renderer fails before handler code is reached, and the router keeps the
+    // exact artifact error developer-only.
+    let handlerLoads = 0;
+    const loadHandler: HandlerLoader = async () => {
+      handlerLoads += 1;
+      return async () => "<p>should never run</p>";
+    };
+    const loadItemRenderer: ItemRendererLoader = async () => {
+      throw new Error("ENOENT item.ts");
+    };
+    const app = createApp({
+      capabilityRouter: { databases: conns, loadHandler, loadItemRenderer },
+    });
 
     const res = await app.request("/capability/notes/read");
     expect(res.status).toBe(500);
     const body = await res.text();
     expect(body).toMatch(/something went sideways/i);
     expect(body).not.toMatch(/item renderer|handler|artifacts|Error/i);
+    expect(handlerLoads).toBe(0);
   });
 
   test("serves the spec-rendered data-free list scaffolding with its live read region and create form", async () => {
@@ -466,8 +469,14 @@ describe("deterministic capability router", () => {
     expect(body).not.toMatch(/internal|stack|\bError\b/);
   });
 
-  test("the hand-written handlers honor the contract: no imports, no raw HTTP, no table names", () => {
-    for (const file of ["create.ts", "read.ts"]) {
+  test("the hand-written fixture is exactly the M3 artifact shape and every unit honors its boundary", () => {
+    expect(readdirSync(resolve(NOTES_ARTIFACTS)).sort()).toEqual([
+      "create.ts",
+      "item.ts",
+      "read.ts",
+    ]);
+
+    for (const file of ["item.ts", "create.ts", "read.ts"]) {
       const source = readFileSync(resolve(NOTES_ARTIFACTS, file), "utf8");
       expect(source).not.toMatch(/^\s*import\b/m); // no module imports
       expect(source).not.toContain("cap_"); // no table names
@@ -477,5 +486,10 @@ describe("deterministic capability router", () => {
       expect(source).not.toContain("Request");
       expect(source).not.toContain("Response");
     }
+
+    expect(readFileSync(resolve(NOTES_ARTIFACTS, "create.ts"), "utf8")).toContain(
+      "return present(note)",
+    );
+    expect(readFileSync(resolve(NOTES_ARTIFACTS, "read.ts"), "utf8")).toContain("present(note)");
   });
 });

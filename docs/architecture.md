@@ -57,11 +57,12 @@ For each capability, the AI generates the following, all derived from the spec:
 **The spec is authored; handlers, the item renderer, and tests are derived,
 version-keyed caches.** Spec evolution regenerates them only when the spec
 version bumps, so model nondeterminism cannot silently drift the UI, logic, or
-checks. The one separate trigger is an explicit platform artifact-contract
-upgrade: it re-derives caches under a new platform-owned contract marker and
-flips the pointer atomically without pretending user intent changed. The arrow
-still only points spec → {handlers, item renderer, tests}. Platform presentation
-is ordinary versioned application code, not a per-capability cache.
+checks. The arrow only points spec → {handlers, item renderer, tests}. Platform
+presentation is ordinary versioned application code, not a per-capability cache.
+An explicit platform artifact-contract upgrade mechanism may eventually re-derive
+caches without pretending user intent changed, but that preservation machinery and
+its marker are deferred until after M8; the greenfield M2→M3 shape change uses
+`bun run reset` + rebuild instead (ADR-0005 §7).
 
 ### What is deliberately *not* locked in
 
@@ -232,13 +233,13 @@ Takes a confirmed intent and produces the actual changes through a **global seri
 
 1. Generate/update the capability **spec** (`schema + ui_intent + behavior`) — the diffable source of truth.
 2. Derive and run an **additive-only migration** (new tables/columns, or soft-hide; never `DROP`/destructive `RENAME`).
-3. Regenerate only the **affected units** (see Diff Engine): handler `.ts` files and the capability's single item renderer, written to a path namespaced by spec version and artifact contract. The platform injects the same capability-scoped presentation adapter into every handler, so create, read, and later search results cannot drift. When the behavioral tier is on, each affected handler's **behavioral test** is regenerated alongside it — from the spec's `behavior`, not from the handler — and travels with that unit.
+3. Regenerate only the **affected units** (see Diff Engine): handler `.ts` files and the capability's single item renderer, written to a path namespaced by spec version. The platform injects the same capability-scoped presentation adapter into every handler, so create, read, and later search results cannot drift. When the behavioral tier is on, each affected handler's **behavioral test** is regenerated alongside it — from the spec's `behavior`, not from the handler — and travels with that unit.
 4. **Validate before commit — a layered, fail-closed gate.** Any active rung failing fails the whole build:
    - **Structural** (always): type-check the generated handlers and item renderer and assert they export the required interfaces.
    - **Smoke** (always): run a smoke invocation against the capability API with a synthetic record — proves the handler executes and round-trips.
    - **Behavioral** *(tiered)*: execute the step-3 tests against the capability API, asserting the spec's `behavior` actually holds (e.g. *"title is trimmed and required"*, *"search ranks by recency"*). This is the rung that lifts the gate from *"compiles and runs"* to *"behaves as specified"* — SelfEvolve's TDD checkpoint, adapted to the CRUD domain. On a behavioral failure the Builder may **retry the affected unit** a bounded number of times — feeding the failing assertion back into generation — before declaring the build failed.
    - **Design lint** *(from Module 3, always)*: render the item with synthetic and hostile field values; reject unknown presentation primitives, off-token styling (raw values on the token-owned color/font/type-scale/spacing/border axes — inline `style` is otherwise a permitted, token-disciplined escape hatch), interactive/executable markup, or unsafe field interpolation. Platform-owned item payload and modal hooks are tested as platform code rather than regenerated and re-gated per capability.
-5. **Commit = one pointer flip**: for spec evolution, bump the registry version; point the row at the new files, render the committed View, and swap View + toolbar (oob) in a single SSE response. An artifact-contract upgrade changes the contract marker and pointer without bumping the authored spec version.
+5. **Commit = one pointer flip**: for spec evolution, bump the registry version; point the row at the new files, render the committed View, and swap View + toolbar (oob) in a single SSE response.
 
 Throughout, it **narrates progress in product voice** (`user_facing_label`-driven) over SSE — the user watches it build, but nothing is live until commit. On any failure: roll back the migration transaction, leave the previous version live, orphan the new files for GC, and **log the failure to metrics** (failure is data).
 
@@ -247,10 +248,11 @@ Throughout, it **narrates progress in product voice** (`user_facing_label`-drive
 Every generation writes a metrics record (spec-gen, code-gen, presentation-gen,
 test-gen, migration, total wall-clock, per-rung gate outcomes including design
 lint, test-run time and any retries, model, tokens, outcome, overlap resolution)
-before returning. The row also records the artifact contract. Module 2's
-historical `html-gen` measurement is the first presentation-gen shape; Module 8
-compares the semantic stage across artifact-contract versions rather than
-assuming every version writes `.html` files.
+before returning. Module 2's historical `html-gen` measurement is the first
+presentation-gen shape; Module 3+ records item-renderer generation under the
+presentation-gen name. Module 8 compares the semantic stage without assuming
+every version writes `.html` files and may introduce an artifact-contract marker
+then if the comparison actually needs one.
 
 #### Diff Engine
 
@@ -274,9 +276,9 @@ Four stores in `bun:sqlite`, plus generated code files and an object store on di
 #### Capability Registry — the source of truth
 
 One row per capability. The structured spec is canonical; a pointer to the
-current versioned generated artifacts lives alongside it. The platform also
-records which artifact contract produced that pointer so an application upgrade
-can distinguish Module 2's generated views from Module 3's item-renderer shape.
+current versioned generated artifacts lives alongside it. Through M8 the row has
+no artifact-contract marker: shape changes use reset + rebuild while the project
+is greenfield (ADR-0005 §7).
 
 ```json
 {
@@ -296,8 +298,7 @@ can distinguish Module 2's generated views from Module 3's item-renderer shape.
   },
   "behavior": "Title is trimmed and required. Search ranks by recency. Tagging 'urgent' is allowed but not special.",
   "tools": ["create", "read", "update", "delete", "search"],
-  "artifact_contract": 2,
-  "artifacts_path": "capabilities/notes/v3/contract-2/",
+  "artifacts_path": "capabilities/notes/v3/",
   "prompt_context": "Stores text notes. Users tag and search them."
 }
 ```
@@ -309,8 +310,8 @@ container reads), and the fields/order shown in detail. Fixed platform choices
 such as "detail uses
 the shared modal" do not belong in the AI-authored spec. `artifacts_path` points
 to the version directory holding handlers, the item renderer, and generated
-tests. `artifact_contract` is platform-owned compatibility metadata, not AI
-intent. The registry row stays lean (spec + version + contract + pointer), which
+tests. There is no persisted artifact-contract marker through M8 (ADR-0005 §7).
+The registry row stays lean (spec + version + pointer), which
 matters because the Intent Resolver scans every row on every classification.
 `prompt_context` is what the Intent Resolver reads to understand existing
 capabilities.
@@ -332,7 +333,7 @@ The user's actual content. One **isolated** table per capability — **no foreig
 
 #### Generation Metrics — the experiment's measurements
 
-One row per generation: timing breakdown, artifact contract, model, token counts,
+One row per generation: timing breakdown, model, token counts,
 success/failure, and the overlap resolution chosen. This store is *why the PoC
 exists* — latency and capability conclusions come from querying it, not guessing.
 Distinct from the Event Log (what the *user* did); this records what the *system*
@@ -437,7 +438,7 @@ When a new intent overlaps an existing capability, the Intent Resolver (which se
 
 ## 9. Operating Principles
 
-1. **Spec is the source of truth; handlers, the item renderer, and tests always follow.** All are version-keyed derived caches, regenerated only on a spec bump, never otherwise — so AI nondeterminism can't cause drift. The arrow only ever points spec → {handlers, item renderer, tests}. A platform artifact-contract upgrade may re-derive caches without changing user intent, but it uses a separate contract marker and atomic pointer flip; it never masquerades as a spec evolution.
+1. **Spec is the source of truth; handlers, the item renderer, and tests always follow.** All are version-keyed derived caches, regenerated only on a spec bump, never otherwise — so AI nondeterminism can't cause drift. The arrow only ever points spec → {handlers, item renderer, tests}. Through M8, an artifact-shape change resets and rebuilds these caches; a preserving artifact-contract upgrade and marker are explicitly deferred until the platform is feature-complete (ADR-0005 §7).
 
 2. **Mutation constrained, reads free.** Writes go through the constrained tool against platform-owned, additive-only schema; reads run unconstrained read-only SQL behind a read-only connection. (See §3.)
 

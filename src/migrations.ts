@@ -138,6 +138,19 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
+  // 0005 gives Module 3's current presentation-generation stage its own accurately
+  // named column. The M2 `html_gen_ms` column remains historical data; migrations are
+  // additive-only, so current item-renderer timings write to `presentation_gen_ms`
+  // instead of overloading an HTML-specific name after the artifact-shape reset.
+  {
+    id: "0005_generation_metrics_presentation_gen",
+    up: (database) => {
+      database.exec(
+        `ALTER TABLE ${GENERATION_METRICS_TABLE}
+         ADD COLUMN presentation_gen_ms REAL;`,
+      );
+    },
+  },
 ];
 
 // The set of migration ids already recorded in the ledger. Returns empty when the

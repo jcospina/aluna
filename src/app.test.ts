@@ -972,7 +972,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       kind: string;
       status: string;
       codeGenDurationMs: number;
-      htmlGenDurationMs: number;
+      presentationGenDurationMs: number;
       units: Array<{
         kind: string;
         name: string;
@@ -984,7 +984,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(unitsPreview.kind).toBe("unit-generation-preview");
     expect(unitsPreview.status).toBe("complete");
     expect(unitsPreview.codeGenDurationMs).toBeGreaterThanOrEqual(0);
-    expect(unitsPreview.htmlGenDurationMs).toBeGreaterThanOrEqual(0);
+    expect(unitsPreview.presentationGenDurationMs).toBeGreaterThanOrEqual(0);
     expect(unitsPreview.units.map((unit) => `${unit.kind}:${unit.name}:${unit.filename}`)).toEqual([
       "item-renderer:item:item.ts",
       "handler:create:create.ts",
@@ -1092,7 +1092,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(metrics?.failure).toBeUndefined();
     expect(metrics?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
     expect(metrics?.timings?.codeGenMs).toBeGreaterThanOrEqual(0);
-    expect(metrics?.timings?.htmlGenMs).toBeGreaterThanOrEqual(0);
+    expect(metrics?.timings?.presentationGenMs).toBeGreaterThanOrEqual(0);
     expect(metrics?.timings?.testGenMs).toBeGreaterThanOrEqual(0);
     expect(metrics?.timings?.testRunMs).toBeGreaterThanOrEqual(0);
     expect(metrics?.timings?.totalMs).toBeGreaterThanOrEqual(0);
@@ -1131,7 +1131,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(committed?.artifacts_path).toBe(`${artifactsRoot}/notes/v1/`);
     expect(committed?.label).toBe("Notes");
 
-    // …and the four artifacts are on disk in that version directory.
+    // …and the three M3 artifacts are on disk in that version directory.
     for (const file of commitPreview.files) {
       expect(existsSync(resolve(artifactsRoot, "notes/v1", file))).toBe(true);
     }

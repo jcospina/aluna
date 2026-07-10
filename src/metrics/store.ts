@@ -111,18 +111,18 @@ const generationIntentSchema = z.strictObject({
 export type GenerationIntent = z.infer<typeof generationIntentSchema>;
 
 // The PLAN step-8 timing breakdown. Every leg is optional: a deflection omits the
-// group entirely, a failed build fills only the legs it reached. `codeGenMs` is the
-// handler (.ts) generation; `htmlGenMs` is the presentation-gen leg — M2's view (.html)
-// generation, since M3 the item-renderer generation (the `html_gen_ms` column is kept as
-// the presentation-gen slot so M8 compares the semantic stage across artifact contracts,
-// ADR-0005). `testGenMs` and `testRunMs` are the behavioral tier's generation and
-// execution — the two columns that let M8 weigh the behavioral tier against the no-test
-// baseline.
+// group entirely, a failed build fills only the legs it reached. `codeGenMs` is handler
+// generation and `presentationGenMs` is the current item-renderer generation leg. M2's
+// historical view-generation measurement remains in the legacy `html_gen_ms` database
+// column, while M3+ writes the semantically continuous measurement to
+// `presentation_gen_ms` (ADR-0005). `testGenMs` and `testRunMs` are the behavioral tier's
+// generation and execution — the two columns that let M8 weigh the behavioral tier
+// against the no-test baseline.
 const generationTimingsSchema = z.strictObject({
   specGenMs: z.number().nonnegative().optional(),
   migrationMs: z.number().nonnegative().optional(),
   codeGenMs: z.number().nonnegative().optional(),
-  htmlGenMs: z.number().nonnegative().optional(),
+  presentationGenMs: z.number().nonnegative().optional(),
   testGenMs: z.number().nonnegative().optional(),
   testRunMs: z.number().nonnegative().optional(),
   totalMs: z.number().nonnegative().optional(),
@@ -201,7 +201,7 @@ interface StoredRow {
   spec_gen_ms: number | null;
   migration_ms: number | null;
   code_gen_ms: number | null;
-  html_gen_ms: number | null;
+  presentation_gen_ms: number | null;
   test_gen_ms: number | null;
   test_run_ms: number | null;
   total_ms: number | null;
@@ -227,7 +227,7 @@ const ROW_COLUMNS = [
   "spec_gen_ms",
   "migration_ms",
   "code_gen_ms",
-  "html_gen_ms",
+  "presentation_gen_ms",
   "test_gen_ms",
   "test_run_ms",
   "total_ms",
@@ -279,7 +279,7 @@ export function writeGenerationMetrics(
       nullish(timings?.specGenMs),
       nullish(timings?.migrationMs),
       nullish(timings?.codeGenMs),
-      nullish(timings?.htmlGenMs),
+      nullish(timings?.presentationGenMs),
       nullish(timings?.testGenMs),
       nullish(timings?.testRunMs),
       nullish(timings?.totalMs),
@@ -365,7 +365,9 @@ function buildTimings(stored: StoredRow): GenerationTimings | undefined {
     ...(stored.spec_gen_ms !== null ? { specGenMs: stored.spec_gen_ms } : {}),
     ...(stored.migration_ms !== null ? { migrationMs: stored.migration_ms } : {}),
     ...(stored.code_gen_ms !== null ? { codeGenMs: stored.code_gen_ms } : {}),
-    ...(stored.html_gen_ms !== null ? { htmlGenMs: stored.html_gen_ms } : {}),
+    ...(stored.presentation_gen_ms !== null
+      ? { presentationGenMs: stored.presentation_gen_ms }
+      : {}),
     ...(stored.test_gen_ms !== null ? { testGenMs: stored.test_gen_ms } : {}),
     ...(stored.test_run_ms !== null ? { testRunMs: stored.test_run_ms } : {}),
     ...(stored.total_ms !== null ? { totalMs: stored.total_ms } : {}),

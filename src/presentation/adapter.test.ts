@@ -11,8 +11,6 @@
 //     hostile field value (even one a renderer forgot to escape) cannot escape as
 //     executable markup through the adapter. This is the safety half of the contract.
 //   • PAYLOAD — raw bytes are neutralized to null (`file` fields are references, ADR-0005 §3).
-//   • UNAVAILABLE — a capability with no renderer yet fails loudly only when a handler
-//     actually presents, never as a blank render.
 
 import { describe, expect, test } from "bun:test";
 
@@ -22,7 +20,6 @@ import {
   DETAIL_TEMPLATE_ID_PREFIX,
   type ItemRenderer,
   type PresentableRecord,
-  unavailablePresentationAdapter,
 } from "./adapter.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
 import { ITEM_PAYLOAD_ATTR, ITEM_TRIGGER_CLASS } from "./list-container.ts";
@@ -240,26 +237,5 @@ describe("createPresentationAdapter — payload byte safety", () => {
     });
     const html = present(record({ cover: new Uint8Array([1, 2, 3]) }));
     expect(readBackPayload(html)).toMatchObject({ cover: null });
-  });
-});
-
-describe("unavailablePresentationAdapter", () => {
-  test("throws only when a handler actually calls it", () => {
-    const reason = "no renderer yet";
-    const present = unavailablePresentationAdapter(reason);
-    // Constructing it does not throw — an M2 handler that never presents is unaffected.
-    expect(() => present(record())).toThrow(reason);
-  });
-
-  test("carries the underlying cause for the developer log", () => {
-    const cause = new Error("ENOENT item.ts");
-    const present = unavailablePresentationAdapter("no renderer", cause);
-    try {
-      present(record());
-      throw new Error("expected present() to throw");
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error);
-      expect((error as Error).cause).toBe(cause);
-    }
   });
 });

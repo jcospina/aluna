@@ -77,25 +77,6 @@ export interface PresentationAdapterOptions {
 export const DETAIL_TEMPLATE_ID_PREFIX = "detail";
 
 /**
- * A presentation adapter for a capability whose item renderer is not available yet — it
- * throws the moment a handler calls it, so the caller's failure handling turns it into a
- * clean error instead of a blank render. Two callers use it while the item renderer is a
- * transitional gap (before 3.4/02 generates one beside the handlers): the router, for a
- * committed capability with no renderer on disk (a pre-3.4/02 M2 capability, whose handlers
- * emit their own markup and never call `present`), and the gate's practice toolbox. A
- * handler that never presents is unaffected; one that does presents without a renderer
- * fails loudly rather than silently rendering nothing.
- */
-export function unavailablePresentationAdapter(
-  reason: string,
-  cause?: unknown,
-): PresentationAdapter {
-  return () => {
-    throw new Error(reason, cause === undefined ? undefined : { cause });
-  };
-}
-
-/**
  * Build the capability-scoped presentation adapter. Bind it once per capability (the
  * router does this per request from the registry row + the loaded item renderer) and hand
  * the returned `present` to Handlers through the injected toolbox. Pure: it captures the

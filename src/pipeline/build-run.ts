@@ -217,7 +217,7 @@ export async function runSpecBuildStages(
 /**
  * Run unit generation with the demo's live preview observer. The observer streams a
  * `units-preview` snapshot as each unit starts, streams partials, fixes, and lands —
- * the developer watches the handlers and views assemble.
+ * the developer watches the item renderer and handlers assemble.
  */
 async function generateUnitsWithPreview(
   send: Send,

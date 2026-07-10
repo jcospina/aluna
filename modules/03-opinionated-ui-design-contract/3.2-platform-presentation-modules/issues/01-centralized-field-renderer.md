@@ -1,6 +1,6 @@
 # Centralized create/detail field renderer
 
-Status: ready-for-agent
+Status: done
 
 > **HITL — human visual sign-off required.** The rendered create controls and
 > detail display are visible product surface; a human confirms they are on-brand

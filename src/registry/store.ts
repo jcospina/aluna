@@ -2,8 +2,8 @@
 // "Capability Registry", §7, PLAN decision 8).
 //
 // The registry is the source of truth for everything Aluna has become: one lean
-// row per capability — spec + version + artifacts pointer. Handlers, views, and
-// tests are version-keyed caches derived from the spec; this table is the thing
+// row per capability — spec + version + artifacts pointer. Handlers, the item renderer,
+// and tests are version-keyed caches derived from the spec; this table is the thing
 // they are derived *from* (ARCH §2).
 //
 // Access follows the platform's data access model (ARCH §3, §7): the insert

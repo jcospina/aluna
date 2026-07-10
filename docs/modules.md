@@ -232,7 +232,7 @@ Behavioral patterns produce confirmation-gated proposals that, when accepted, bu
 
 ### Epics
 
-- **8.1 — Metrics querying.** Latency breakdowns (spec-gen, code-gen, presentation-gen — including M2's historical HTML-gen and M3+'s item-renderer generation — test-gen, migration, test-run, total wall-clock), model, token counts, success/failure and per-rung gate outcomes per generation. Includes behavioral-tier and artifact-contract comparisons. (ARCH §6.3 "Generation Metrics", §9.6, §6.2)
+- **8.1 — Metrics querying.** Latency breakdowns (spec-gen, code-gen, presentation-gen — including M2's historical HTML-gen and M3+'s item-renderer generation — test-gen, migration, test-run, total wall-clock), model, token counts, success/failure and per-rung gate outcomes per generation. Includes behavioral-tier and presentation-generation comparisons; introduce an artifact-contract marker here only if those comparisons actually need one. (ARCH §6.3 "Generation Metrics", §9.6, §6.2)
 - **8.2 — Outcome & overlap analysis.** Extend-vs-namespace decisions, build success/failure rates, intent-classification distribution — the conclusions about capability quality. (ARCH §6.2, §8 "Overlap resolution")
 - **8.3 — Experimenter surface.** An internal view/report to read the dataset, clearly **not** part of the user-facing product voice (the friendly app shows no internals). (ARCH §9.7)
 - **8.4 — Gate tuning loop.** Adjust the implicit gate's thresholds against the event-log dataset and observe the effect on proposal behavior — without redeploying the shell. (ARCH §8 "Loop 2")
@@ -252,7 +252,7 @@ These are not modules — they are disciplines every module from its introductio
 | Concern | Introduced in | Rule | ARCH ref |
 |---|---|---|---|
 | **Global serial build queue** | M2 | One build at a time, system-wide; both loops enqueue into it | §8 "Concurrency" |
-| **Spec → derived artifacts discipline** | M2 | The arrow only ever points spec → handlers/item renderer/tests; spec evolution regenerates only affected units. Platform artifact-contract upgrades are separately marked and atomically re-derive caches without pretending user intent changed | §2, §9.1 |
+| **Spec → derived artifacts discipline** | M2 | The arrow only ever points spec → handlers/item renderer/tests; spec evolution regenerates only affected units. Through M8, artifact-shape changes reset and rebuild; preserving upgrades and their marker are deferred until the platform is feature-complete | §2, §9.1 |
 | **Validate-before-commit / atomic pointer flip** | M2 | Nothing goes live until it clears every active gate rung — type-check, signatures, smoke run, (behavioral tier on) tests, and (from M3) the design-lint rung — then an atomic pointer flip | §6.2, §9.5 |
 | **Additive-only structure** | M2 (DDL), M4 (evolution) | Add or soft-hide; never `DROP`/destructive rename — structurally incapable of AI data loss | §3, §9.3 |
 | **Closed-value design contract + design gate** | M3 | Generated item markup targets allow-listed semantic/primitive classes first (incl. layout utilities), with token-disciplined inline `style` as the escape hatch — the token layer owns color/font/type-scale/spacing/border values, never redeclared raw; a fail-closed design-lint rung enforces it; structural mechanics — including the closed `feed | grid` collection layout the container reads from `ui_intent` — are platform-owned presentation | §6.2, §6.3, §7, §9.7 |

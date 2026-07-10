@@ -178,7 +178,7 @@ export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 
 // One registry row (ARCH §6.3): the spec plus the two platform-assigned values —
 // `version` (bumped per regeneration; keys the derived-artifact caches) and
-// `artifacts_path` (the version directory holding handlers and views). The row
+// `artifacts_path` (the version directory holding the item renderer and handlers). The row
 // stays lean — spec + version + pointer — because the intent resolver scans
 // every row on every classification; nothing bulky lives here.
 export const capabilityRowSchema = z

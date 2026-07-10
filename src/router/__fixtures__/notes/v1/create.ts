@@ -4,11 +4,12 @@
 // any AI exists, to pin the whole runtime contract: registry -> router -> injected
 // toolbox -> data table -> HTML fragment back. It honors the contract literally —
 // no module imports, no raw HTTP, no table names. It receives only the platform-
-// built context ({ input, data }), persists through the scoped data tool, and
-// returns an HTML fragment string. (Untyped on purpose: generated artifacts live
+// built context ({ input, data, present }), persists through the scoped data tool,
+// and renders the inserted record through the capability's one item renderer.
+// (Untyped on purpose: generated artifacts live
 // outside the platform's type-check, exactly as the real builder's output will.)
 
-export default async function create({ input, data }) {
+export default async function create({ input, data, present }) {
   // Form values arrive as strings; the handler — which knows the spec — coerces
   // them. `text` is required; `pinned` is an optional boolean from a checkbox.
   const values = { text: input.text };
@@ -17,19 +18,5 @@ export default async function create({ input, data }) {
   }
 
   const note = data.insert(values);
-
-  return `<article class="note" data-id="${escapeHtml(note.id)}">
-  <p class="note__text">${escapeHtml(note.text)}</p>
-</article>`;
-}
-
-// The handler escapes its own dynamic data — the contract hands it no render
-// helper, so a real handler inlines exactly what it needs.
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  return present(note);
 }

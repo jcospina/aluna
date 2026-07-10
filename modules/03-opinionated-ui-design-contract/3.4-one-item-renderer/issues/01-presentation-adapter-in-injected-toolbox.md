@@ -56,24 +56,19 @@ carry their own row markup (ADR-0004 unchanged — Handlers still import nothing
   - The detail `<template>` id is `detail-<capabilityId>-<recordId>` — namespaced by
     capability, keyed by the record's platform-populated `id`, so the click controller
     (`public/item-detail.js`) opens the matching detail and two capabilities never collide.
-  - `unavailablePresentationAdapter(reason, cause?)` — a `present` that throws only when a
-    handler actually calls it, for a capability whose renderer isn't on disk yet (see below).
 - `src/router/contract.ts` — `CapabilityContext` gains `readonly present: PresentationAdapter`
   (amends ADR-0004's injected-toolbox contract; ADR-0005 §2). Handlers still import nothing.
 - `src/router/router.ts` — the router builds the adapter per request and injects it:
   - a new injectable `ItemRendererLoader` seam (`loadItemRenderer`), default loading the
     version-keyed `item.ts` (`ITEM_RENDERER_FILE`) beside the handlers — the shape 3.4/02
     generates — mirroring `defaultLoadHandler`.
-  - `buildPresentationAdapter` **tolerates a missing renderer**: a pre-3.4/02 capability
-    (M2 handlers emit their own markup and never call `present`) gets
-    `unavailablePresentationAdapter`, so those handlers keep working while a handler that
-    *does* present without a renderer surfaces the router's warm, internals-free failure —
-    never a blank render.
+  - Epic 3.7 removed the temporary missing-renderer compatibility adapter: `item.ts` is now
+    mandatory, and a missing or malformed renderer fails through the router's warm,
+    internals-free error boundary before any Handler runs. There is no M2 dual-serving path.
 - `src/builder/gate-internal.ts` + `gate-smoke.ts` + `gate-behavioral.ts` — the gate's
-  practice toolbox (ADR-0004 "the smoke test runs it") now carries `GATE_PRACTICE_PRESENT`,
-  the same throw-on-call adapter, so the rungs compile and M2 handlers run green. 3.4/02
-  swaps it for a real adapter built from the generated renderer, so the smoke rung proves
-  create and read render identical item markup.
+  practice toolbox (ADR-0004 "the smoke test runs it") builds the real presentation adapter
+  from the generated item renderer, so the smoke rung proves create and read render identical
+  item markup.
 - `src/presentation/detail-interaction-preview.ts` (`/demo/detail-interaction`) — **dogfooded**:
   the preview's hand-rolled enforce→wrap→template composition is replaced by the real
   `createPresentationAdapter`, so the live demo now proves the actual adapter (not a copy).

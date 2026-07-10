@@ -1,7 +1,6 @@
 # Re-cut unit generation: one item renderer + adapter-receiving handlers
 
-Status: ready-for-agent — code complete + automated verification green; **pending
-human visual sign-off** (the HITL gate below).
+Status: done
 
 > **HITL — human visual sign-off required.** The generated item renderer is the
 > builder's creative surface — the whole point of the module. A human must
@@ -82,8 +81,8 @@ create/read drift by construction.
   rung proves create + read render identical item markup by construction.
 - `src/pipeline/build-run.ts` passes `itemRenderer` into the gate;
   `metrics-recorder.ts` + `metrics/store.ts` measure item-renderer generation as the
-  **presentation-gen** leg (`htmlGenMs`/`html_gen_ms` kept as the presentation-gen
-  slot for semantic continuity; `unitAttempts.kind` enum is now
+  **presentation-gen** leg (`presentationGenMs`/`presentation_gen_ms`; M2's
+  `html_gen_ms` remains a historical database column); `unitAttempts.kind` is
   `handler | item-renderer`); `previews.ts` maps the item-renderer preview to
   `item.ts`; `commit.ts` writes `item.ts` beside the handlers. No `artifact_contract`
   marker (decision 8).
