@@ -107,7 +107,7 @@ function handleCapabilityViewRequest(c: Context, databases: PlatformDatabase): R
     const html =
       c.req.header("HX-Request") === "true"
         ? renderCachedCapabilitySurface(row)
-        : renderCachedCapabilityShell(row);
+        : renderCachedCapabilityShell(row, databases.readonly);
     return c.html(html);
   } catch (error) {
     return internalFailure(c, id, "view", error);

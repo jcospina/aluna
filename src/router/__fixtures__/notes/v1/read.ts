@@ -9,7 +9,11 @@
 export default async function read({ data }) {
   const notes = data.select();
   if (notes.length === 0) {
-    return '<ul class="notes" data-empty="true"></ul>';
+    // No records: return nothing so the platform region stays truly `:empty` and the
+    // platform-owned empty state shows (ADR-0005 §1). A handler that emits its own
+    // empty-state markup would fill the region — defeating that empty state and
+    // lingering below the first record once create prepends it.
+    return "";
   }
 
   const items = notes

@@ -10,7 +10,7 @@
 // non-flaky. app.request() drives app.fetch without binding a port.
 
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ZodType } from "zod";
@@ -223,6 +223,61 @@ describe("GET / (shell)", () => {
     expect(js).not.toContain("new EventSource");
     expect(js).not.toContain('fetch("/prompt"');
     expect(js).not.toContain('addEventListener("submit"');
+  });
+
+  test("clears and refocuses the prompt when the build stream closes", () => {
+    const listeners = new Map<string, () => void>();
+    class InputStub {
+      value = "track my notes";
+      focused = false;
+
+      focus() {
+        this.focused = true;
+      }
+    }
+    const promptField = new InputStub();
+    let shellFactory: (() => { init(): void; promptBusy: boolean }) | undefined;
+    const documentStub = {
+      addEventListener(name: string, listener: () => void) {
+        listeners.set(name, listener);
+      },
+      querySelector() {
+        return null;
+      },
+      getElementById(id: string) {
+        return id === "spec-build-prompt" ? promptField : null;
+      },
+    };
+    const windowStub = {
+      Alpine: {
+        data(_name: string, factory: typeof shellFactory) {
+          shellFactory = factory;
+        },
+      },
+      matchMedia() {
+        return { matches: true, addEventListener() {} };
+      },
+    };
+    const appScript = readFileSync(resolve("public/app.js"), "utf8");
+    Function(
+      "document",
+      "window",
+      "requestAnimationFrame",
+      "HTMLInputElement",
+      appScript,
+    )(documentStub, windowStub, (callback: () => void) => callback(), InputStub);
+
+    listeners.get("alpine:init")?.();
+    const state = shellFactory?.();
+    if (state === undefined) throw new Error("shell factory was not registered");
+    state.init();
+    state.promptBusy = true;
+
+    listeners.get("htmx:sseClose")?.();
+
+    expect(state.promptBusy).toBe(false);
+    expect(promptField.value).toBe("");
+    expect(promptField.focused).toBe(true);
   });
 
   test("loads the vendored htmx SSE extension after htmx", async () => {
@@ -754,7 +809,6 @@ const MISSING_MARKER_CREATE_HANDLER = [
 const READ_HANDLER = [
   "export default async function read({ data, present }: CapabilityContext): Promise<string> {",
   "  const notes = data.select();",
-  "  if (notes.length === 0) return '<p class=\"capability-empty-hint\">No notes yet.</p>';",
   '  return notes.map((note) => present(note)).join("");',
   "}",
 ].join("\n");

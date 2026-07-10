@@ -76,7 +76,6 @@ const CREATE_HANDLER = [
 const READ_HANDLER = [
   "export default async function read({ data, present }: CapabilityContext): Promise<string> {",
   "  const notes = data.select();",
-  "  if (notes.length === 0) return '<p class=\"capability-empty-hint\">No notes yet.</p>';",
   '  return notes.map((note) => present(note)).join("");',
   "}",
 ].join("\n");

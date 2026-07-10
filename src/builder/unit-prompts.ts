@@ -70,7 +70,7 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "Rendering records — the presentation adapter:",
     "- Render every record by calling the injected `present(record)` adapter. It returns that record wrapped as safe item HTML (the accessible trigger, the escaped payload, click-to-open, and the enforced item markup).",
     "- Do NOT emit your own row/card/item markup, and do NOT build the item wrapper, a `data-item` attribute, or any click handling — the platform's adapter owns all of that.",
-    "- You may include a small escaping helper locally for any non-record text you emit (an empty state, validation error copy); records themselves go through `present`.",
+    "- You may include a small escaping helper locally for any non-record text you emit (validation error copy); records themselves go through `present`.",
     "",
     "Available global types in the isolated type-check:",
     "- `CapabilityContext` has `{ input, data, present }`.",
@@ -86,7 +86,8 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
           "- Destructure `{ input, data, present }`: `export default async function create({ input, data, present }: CapabilityContext): Promise<string>`.",
         ].join("\n")
       : [
-          "- Call `data.select()`, map each row through `present`, and join the results; include a helpful empty state when there are no rows.",
+          "- Call `data.select()`, map each row through `present`, join the results, and return that joined string.",
+          "- When there are no rows, return an empty string. Do not render your own empty state or placeholder text — the platform owns the list's empty state, and returning nothing lets it show (and lets the first created record replace it cleanly).",
           "- Destructure only `{ data, present }`: `export default async function read({ data, present }: CapabilityContext): Promise<string>`.",
         ].join("\n"),
     "",
