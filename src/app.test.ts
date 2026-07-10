@@ -973,6 +973,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       "structural:passed",
       "smoke:passed",
       "behavioral:passed",
+      "design-lint:passed",
     ]);
     expect(gatePreview.rungs.every((rung) => rung.durationMs >= 0)).toBe(true);
     expect(gatePreview.smoke).toMatchObject({
@@ -1045,6 +1046,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       "structural",
       "smoke",
       "behavioral",
+      "design-lint",
     ]);
     expect(metrics?.unitAttempts?.map((unit) => `${unit.kind}:${unit.name}`)).toEqual([
       "item-renderer:item",
@@ -1274,6 +1276,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       "structural",
       "smoke",
       "behavioral",
+      "design-lint",
     ]);
 
     // The transaction rolled back: the prior capability is untouched (still its
@@ -1459,6 +1462,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       "structural",
       "smoke",
       "behavioral",
+      "design-lint",
     ]);
 
     expect(getCapability("notes", conns.readonly)?.version).toBe(1);

@@ -14,6 +14,7 @@ import type { CapabilityTableDdl } from "../capability-data/index.ts";
 import type { Provider, TokenUsage } from "../provider/index.ts";
 import type { CapabilitySpec } from "../registry/index.ts";
 import { runBehavioralRung } from "./gate-behavioral.ts";
+import { runDesignLintRung } from "./gate-design-lint.ts";
 import { diagnosticForError, errorMessage } from "./gate-internal.ts";
 import { runSmokeRung } from "./gate-smoke.ts";
 import { runStructuralRung } from "./gate-structural.ts";
@@ -21,7 +22,7 @@ import type { HandlerUnitName } from "./units.ts";
 
 export const BEHAVIORAL_TIER_ENV_VAR = "OMNI_BEHAVIORAL_TIER";
 
-const GATE_RUNG_ORDER = ["structural", "smoke", "behavioral"] as const;
+const GATE_RUNG_ORDER = ["structural", "smoke", "behavioral", "design-lint"] as const;
 const BEHAVIORAL_TIER_ON_VALUES = new Set(["1", "true", "on", "yes"]);
 const BEHAVIORAL_TIER_OFF_VALUES = new Set(["0", "false", "off", "no"]);
 
@@ -81,6 +82,33 @@ export type BehavioralGateResult =
       readonly reason: string;
     };
 
+// The design-lint knob. The bounded fix loop reuses M2's `DEFAULT_UNIT_FIX_ATTEMPTS`
+// (default 2) unless overridden here — the same reused knob, not a new one.
+export interface DesignLintTierInput {
+  readonly maxAttempts?: number;
+}
+
+// One turn of the design-lint fix loop: the review (attempt 1) or a regeneration + review.
+// `usage` is present only on a regeneration turn; `error` is the failure fed into the next
+// attempt (absent on the turn that passed).
+export interface DesignLintAttempt {
+  readonly attempt: number;
+  readonly durationMs: number;
+  readonly usage?: TokenUsage;
+  readonly error?: string;
+}
+
+// The design-lint rung's result: the final item renderer (the original, or the one the fix
+// loop regenerated clean), whether a fix was needed, the per-attempt record, and the token
+// usage any regeneration cost. The pipeline commits `itemRenderer`, so a fix reaches disk.
+export interface DesignLintGateResult {
+  readonly status: "passed";
+  readonly itemRenderer: string;
+  readonly fixed: boolean;
+  readonly attempts: readonly DesignLintAttempt[];
+  readonly usage: TokenUsage;
+}
+
 export interface CapabilityGateInput {
   readonly spec: CapabilitySpec;
   // The migration stage owns DDL derivation. The gate applies that exact output to
@@ -91,12 +119,18 @@ export interface CapabilityGateInput {
   // it and the smoke/behavioral rungs bind it into the real `present` adapter the
   // handlers render records through — so create and read cannot drift.
   readonly itemRenderer: string;
-  // The behavioral tier generates tests from spec behavior + schema only. The
-  // provider is required when the tier is enabled, and unused when it is off.
+  // The behavioral tier generates tests from spec behavior + schema only; the
+  // design-lint rung regenerates the item renderer through the provider when it rejects a
+  // composition (its bounded fix loop). Required when the behavioral tier is on, and when
+  // design-lint needs to fix a violation; unused when the tier is off and the renderer is
+  // already clean.
   readonly provider?: Provider;
   // Global default comes from OMNI_BEHAVIORAL_TIER (default ON); tests and future
   // orchestration can override explicitly without mutating process.env.
   readonly behavioralTier?: BehavioralTierInput;
+  // Optional override for the design-lint rung's bounded fix loop (default
+  // DEFAULT_UNIT_FIX_ATTEMPTS); tests set it to exercise fix-then-pass and cap exhaustion.
+  readonly designLint?: DesignLintTierInput;
   // Optional assertion hook for the real db: the gate snapshots capability tables
   // before and after smoke and fails if they changed.
   readonly realDatabase?: Database;
@@ -107,6 +141,7 @@ export interface CapabilityGateResult {
   readonly durationMs: number;
   readonly smoke: SmokeGateResult;
   readonly behavioral: BehavioralGateResult;
+  readonly designLint: DesignLintGateResult;
 }
 
 export class CapabilityGateError extends Error {
@@ -131,10 +166,11 @@ export class CapabilityGateError extends Error {
 export { buildBehavioralTestPrompt } from "./gate-behavioral.ts";
 
 /**
- * Run the gate's rungs in order — structural, smoke, then the behavioral tier (when
- * enabled, else skipped) — accumulating each rung's outcome. The first failing rung
- * throws {@link CapabilityGateError}; a full pass returns the smoke + behavioral
- * results and the per-rung outcomes.
+ * Run the gate's rungs in order — structural, smoke, the behavioral tier (when enabled,
+ * else skipped), then the always-on design-lint rung — accumulating each rung's outcome.
+ * The first failing rung throws {@link CapabilityGateError}; a full pass returns the smoke,
+ * behavioral, and design-lint results (the last carrying the final, possibly-fixed item
+ * renderer the pipeline commits) alongside the per-rung outcomes.
  */
 export async function runCapabilityGate(input: CapabilityGateInput): Promise<CapabilityGateResult> {
   const startedAt = performance.now();
@@ -145,12 +181,14 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   const behavioral = resolveBehavioralTierEnabledForInput(input)
     ? await runGateRung(outcomes, "behavioral", () => runBehavioralRung(input))
     : skipGateRung(outcomes, "behavioral", "Behavioral tier is off for this run.");
+  const designLint = await runGateRung(outcomes, "design-lint", () => runDesignLintRung(input));
 
   return {
     outcomes,
     durationMs: performance.now() - startedAt,
     smoke,
     behavioral,
+    designLint,
   };
 }
 

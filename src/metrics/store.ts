@@ -55,12 +55,22 @@ export type FailureStage = z.infer<typeof failureStageSchema>;
 
 // Rung name/status enums kept faithful to the gate's own vocabulary. The
 // `satisfies` guards turn a future rename in the gate into a compile error here,
-// so the metrics schema can never silently drift from what it records.
+// so the metrics schema can never silently drift from what it records. A new rung
+// (like M3's `design-lint`) must be added here too, or its outcome fails validation
+// on write; `assertAllRungNames` below makes that a compile error, not a runtime one.
 const GATE_RUNG_NAMES = [
   "structural",
   "smoke",
   "behavioral",
+  "design-lint",
 ] as const satisfies readonly GateRungName[];
+
+// Exhaustiveness guard: every GateRungName must appear in GATE_RUNG_NAMES above, so adding
+// a rung to the gate without recording it here is a compile error rather than a metrics
+// write that throws at runtime.
+type ListedRungName = (typeof GATE_RUNG_NAMES)[number];
+const assertAllRungNames: (name: GateRungName) => ListedRungName = (name) => name;
+void assertAllRungNames;
 const GATE_RUNG_STATUSES = [
   "passed",
   "failed",

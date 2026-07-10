@@ -221,6 +221,40 @@ async function generateUnit(
   throw new UnitGenerationError(unit, attempts);
 }
 
+/** One unit's worth: the parsed content of a single generation pass, plus its cost. */
+export interface UnitGenerationPass {
+  readonly content: string;
+  readonly usage: TokenUsage;
+  readonly durationMs: number;
+}
+
+/**
+ * Run one generation pass for a unit — build its prompt (feeding a prior failure back
+ * when present, exactly as {@link generateUnit} does), stream a structured object, and
+ * return the parsed `content` with its usage and wall time. This is the write step of the
+ * bounded fix loop factored out for callers that drive their own loop rather than the
+ * observer-driven `generateUnit`: the design-lint gate rung (3.6) reuses it to regenerate
+ * the item renderer when it rejects the composition, so a design violation re-enters the
+ * *same* mechanism the type-check rung uses. Awaits `object` (and `usage`) without draining
+ * the partial stream — the spine self-drives, the established pattern for the non-preview
+ * call sites (`generateBehavioralTests`).
+ */
+export async function generateUnitContent(
+  provider: Provider,
+  spec: CapabilitySpec,
+  unit: UnitDescriptor,
+  previousFailure?: UnitGenerationFailure,
+): Promise<UnitGenerationPass> {
+  const startedAt = performance.now();
+  const result = provider.generate(
+    buildUnitPrompt(spec, unit, previousFailure),
+    generatedUnitSchema,
+  );
+  const { content } = generatedUnitSchema.parse(await result.object);
+  const usage = await result.usage;
+  return { content, usage, durationMs: performance.now() - startedAt };
+}
+
 async function observeUnitPartials(
   unit: UnitDescriptor,
   attempt: number,
