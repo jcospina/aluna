@@ -139,13 +139,20 @@ export function renderCapabilitySurface(
  * Direct browser navigation to `/capability/:id` needs the fixed shell around the
  * capability surface so authored CSS, HTMX, Alpine, the prompt bar, and both sidebars
  * are present. HTMX toolbar clicks still receive only the fragment.
+ *
+ * The toolbar is rehydrated from the *whole* registry (`allRows`), not just the opened
+ * capability — a full-page load of `/capability/:id` must show every sibling entry, the
+ * same set `GET /` restores. `activeRow` drives only the content surface. Passing just
+ * the one row here was the toolbar-hydration bug: opening or refreshing a capability by
+ * URL dropped every other entry, so the toolbar looked like the registry had lost them.
  */
 export function renderCapabilityShell(
-  row: Pick<CapabilityRow, "id" | "label">,
+  activeRow: Pick<CapabilityRow, "id" | "label">,
+  allRows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>,
   collectionHtml: string,
   shellHtml: string,
 ): string {
-  const surface = renderCapabilitySurface(row, collectionHtml);
+  const surface = renderCapabilitySurface(activeRow, collectionHtml);
   const contentPlaceholder =
     '<div class="intro__output" id="spec-build-output" aria-live="polite"></div>';
 
@@ -158,7 +165,7 @@ export function renderCapabilityShell(
     throw new Error("The shell content target placeholder is missing.");
   }
 
-  return injectToolbarEntries(withContent, indent(renderCapabilityToolbarEntry(row), 8));
+  return injectToolbarEntries(withContent, renderToolbarEntries(allRows));
 }
 
 /**
@@ -183,8 +190,15 @@ export function renderRehydratedShell(
     return withModal;
   }
 
-  const entries = rows.map((row) => indent(renderCapabilityToolbarEntry(row), 8)).join("\n");
-  return injectToolbarEntries(withModal, entries);
+  return injectToolbarEntries(withModal, renderToolbarEntries(rows));
+}
+
+// Render one canonical toolbar entry per registry row, shell-indented and joined.
+// The single source of the toolbar's entry set, shared by every full-shell path
+// (on-load rehydration and direct `/capability/:id` navigation) so a full-page load
+// always shows the same complete toolbar the registry holds — never a subset.
+function renderToolbarEntries(rows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>): string {
+  return rows.map((row) => indent(renderCapabilityToolbarEntry(row), 8)).join("\n");
 }
 
 // Insert already-rendered toolbar entries at the shell's placeholder and flip the

@@ -62,10 +62,20 @@ export function renderCachedCapabilitySurface(row: CapabilityRow): string {
   return renderCapabilitySurface(row, renderCapabilityCollection(row));
 }
 
-/** Render the fixed shell with the committed capability already active. */
-export function renderCachedCapabilityShell(row: CapabilityRow): string {
+/**
+ * Render the fixed shell with the committed capability already active, its toolbar
+ * rehydrated from the *whole* registry (read through the given read-only connection) —
+ * the same entry set `GET /` restores — so opening or refreshing a capability by URL
+ * never drops its siblings from the toolbar.
+ */
+export function renderCachedCapabilityShell(row: CapabilityRow, database: Database): string {
   const shellHtml = readFileSync(resolve(process.cwd(), "public/index.html"), "utf8");
-  return renderCapabilityShell(row, renderCapabilityCollection(row), shellHtml);
+  return renderCapabilityShell(
+    row,
+    listCapabilities(database),
+    renderCapabilityCollection(row),
+    shellHtml,
+  );
 }
 
 /**

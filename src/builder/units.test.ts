@@ -126,11 +126,12 @@ const CREATE_HANDLER = [
 ].join("\n");
 
 // The read handler maps every row through `present` and joins them — identical item
-// markup to create, by construction.
+// markup to create, by construction. No rows joins to an empty string, leaving the
+// region truly `:empty` so the platform-owned empty state shows (ADR-0005 §1); the
+// handler never emits its own empty state.
 const READ_HANDLER = [
   "export default async function read({ data, present }: CapabilityContext): Promise<string> {",
   "  const notes = data.select();",
-  "  if (notes.length === 0) return '<p class=\"capability-empty-hint\">No notes yet.</p>';",
   '  return notes.map((note) => present(note)).join("");',
   "}",
 ].join("\n");
@@ -320,6 +321,32 @@ describe("unit generation with bounded fix loop", () => {
     );
     expect(gridPrompt).toContain('Chosen collection layout for this capability: "grid"');
     expect(gridPrompt).toContain("compact record");
+  });
+
+  test("the read handler prompt defers the empty state to the platform, never emitting its own", () => {
+    // Regression: the read prompt used to tell the model to "include a helpful empty
+    // state when there are no rows". That contradicts ADR-0005 §1 + ARCH §"Platform
+    // presentation" — the list scaffolding's empty state is platform-owned. A handler
+    // that returns its own empty-state markup fills `#<id>-records` on the read `load`,
+    // which (1) defeats the platform's `:empty` empty state and (2) lingers below the
+    // first record once `create` prepends it (hx-swap="afterbegin"). The contract must
+    // instead have `read` return only presented records — an empty string when none.
+    const readPrompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "read" });
+
+    // Records-only, empty string when there are none — the platform shows the empty state.
+    expect(readPrompt).toContain("return an empty string");
+    expect(readPrompt).toMatch(/platform (owns|renders).*empty state/i);
+    // The stale instruction is gone: the handler must NOT author its own empty state.
+    expect(readPrompt).not.toMatch(/empty state when there are no rows/i);
+    expect(readPrompt).toMatch(/do not (render|emit) your own empty state/i);
+
+    // The shared "non-record text" note no longer offers an empty state as an example
+    // of text a handler may emit — only genuinely handler-owned copy (validation errors).
+    expect(readPrompt).not.toMatch(/non-record text you emit \([^)]*empty state/i);
+
+    // The create prompt is unchanged: it still returns the inserted row through `present`.
+    const createPrompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "create" });
+    expect(createPrompt).toContain("return `present(row)`");
   });
 
   test("curates diverse repo-only few-shot exemplars, including a token-disciplined style hatch", () => {

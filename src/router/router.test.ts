@@ -238,6 +238,24 @@ describe("deterministic capability router", () => {
     expect(readBody).toContain("pinned");
   });
 
+  test("read leaves the region truly empty when there are no records, so the platform empty state shows", async () => {
+    // Regression (empty-state bug): a read handler must not author its own empty state.
+    // If it returns empty-state markup for zero rows, that lands in `#notes-records` on
+    // the read `load` swap, which (1) defeats the platform's `:empty` empty state
+    // (ADR-0005 §1 — the list scaffolding owns it) and (2) lingers below the first
+    // record once create prepends it (hx-swap="afterbegin"). With no records, read must
+    // return nothing so the region stays childless and the platform empty state shows.
+    install(conns, notesRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes/read");
+    expect(res.status).toBe(200);
+    // Nothing rendered into the region — no element, no placeholder text — so `:empty`
+    // still matches and `.capability-empty` (rendered by the scaffolding) is the sole
+    // empty state, which the first created record then clears on its own.
+    expect((await res.text()).trim()).toBe("");
+  });
+
   test("injects the presentation adapter into the toolbox; a handler renders records through it", async () => {
     install(conns, notesRow());
     // Seed a record so `read` has something to present.
@@ -372,6 +390,25 @@ describe("deterministic capability router", () => {
       insideActiveContent: true,
     });
     expect(await collectToolbarEntryText(body)).toEqual(["Notes"]);
+  });
+
+  test("direct capability navigation rehydrates the whole toolbar, not just the opened capability", async () => {
+    // The reported bug: opening or refreshing one capability by URL showed only that
+    // capability in the toolbar, so every sibling looked lost — even though the registry
+    // still held them (`GET /` proved it by showing them all again). A full-page load of
+    // `/capability/:id` must restore the same complete toolbar `GET /` does.
+    install(conns, notesRow());
+    install(conns, boomRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const body = await (await app.request("/capability/notes")).text();
+
+    // Both entries present (ordered by id, the registry's stable order), and the opened
+    // capability is still the active content surface.
+    expect(await collectToolbarEntryText(body)).toEqual(["Boom", "Notes"]);
+    expect(body).toContain('data-active-capability-id="notes"');
+    expect(body).toContain('hx-get="/capability/notes"');
+    expect(body).toContain('hx-get="/capability/boom"');
   });
 
   test("direct capability navigation uses a canonical short toolbar label for legacy sentence labels", async () => {

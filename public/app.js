@@ -74,18 +74,21 @@ function shell() {
         this.open = event.matches;
       });
 
-      const wakePrompt = () => {
+      /** @param {boolean} clear */
+      const wakePrompt = (clear) => {
         this.promptBusy = false;
         requestAnimationFrame(() => {
-          document.getElementById("spec-build-prompt")?.focus();
+          const promptField = document.getElementById("spec-build-prompt");
+          if (clear && promptField instanceof HTMLInputElement) promptField.value = "";
+          promptField?.focus();
         });
       };
 
       document.addEventListener("htmx:sseOpen", () => {
         this.promptBusy = true;
       });
-      document.addEventListener("htmx:sseClose", wakePrompt);
-      document.addEventListener("htmx:sseError", wakePrompt);
+      document.addEventListener("htmx:sseClose", () => wakePrompt(true));
+      document.addEventListener("htmx:sseError", () => wakePrompt(false));
     },
   };
 }
