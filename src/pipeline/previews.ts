@@ -51,7 +51,7 @@ export interface DemoUnitsPreview {
   readonly kind: "unit-generation-preview";
   readonly status: "running" | "complete";
   readonly codeGenDurationMs: number;
-  readonly htmlGenDurationMs: number;
+  readonly presentationGenDurationMs: number;
   readonly units: readonly DemoUnitPreview[];
 }
 
@@ -178,7 +178,7 @@ export function buildUnitsPreview(
     codeGenDurationMs: units
       .filter((unit) => unit.kind === "handler")
       .reduce((sum, unit) => sum + (unit.durationMs ?? 0), 0),
-    htmlGenDurationMs: units
+    presentationGenDurationMs: units
       .filter((unit) => unit.kind === "item-renderer")
       .reduce((sum, unit) => sum + (unit.durationMs ?? 0), 0),
     units,

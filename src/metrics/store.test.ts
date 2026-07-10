@@ -37,7 +37,7 @@ function buildMetrics(overrides: Partial<GenerationMetrics> = {}): GenerationMet
       specGenMs: 1500.5,
       migrationMs: 3.2,
       codeGenMs: 2200,
-      htmlGenMs: 900,
+      presentationGenMs: 900,
       testGenMs: 1100,
       testRunMs: 40.7,
       totalMs: 5800,
@@ -137,7 +137,7 @@ describe("generation-metrics store", () => {
           specGenMs: 1400,
           migrationMs: 3,
           codeGenMs: 1800,
-          htmlGenMs: 700,
+          presentationGenMs: 700,
           testGenMs: 1000,
           testRunMs: 30,
         },
@@ -166,7 +166,7 @@ describe("generation-metrics store", () => {
 
   test("a build that fails before the gate writes everything up to the failing stage", () => {
     // Unit generation exhausted the bounded fix loop: spec + migration + code-gen are
-    // recorded, but the build never reached html-gen, the behavioral tier, or the gate.
+    // recorded, but the build never reached presentation-gen, the behavioral tier, or the gate.
     writeGenerationMetrics(
       {
         id: "build-units-fail",
@@ -315,6 +315,7 @@ describe("generation-metrics store", () => {
       "failed_stage",
       "failed_rung",
       "failed_message",
+      "presentation_gen_ms",
     ]);
   });
 });

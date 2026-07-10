@@ -132,7 +132,7 @@ export function classifyBuildFailure(error: unknown, acc: DemoBuildAccumulator):
   const { timings } = acc;
   if (timings.specGenMs === undefined) return { stage: "spec_gen", message };
   if (timings.migrationMs === undefined) return { stage: "migration", message };
-  if (timings.codeGenMs === undefined || timings.htmlGenMs === undefined) {
+  if (timings.codeGenMs === undefined || timings.presentationGenMs === undefined) {
     return { stage: "unit_generation", message };
   }
   if (acc.gateRungs === undefined) return { stage: "gate", message };
@@ -150,7 +150,7 @@ export function recordUnitMetrics(
   units: readonly GeneratedUnit[],
 ): void {
   acc.timings.codeGenMs = sumUnitDuration(units, "handler");
-  acc.timings.htmlGenMs = sumUnitDuration(units, "item-renderer");
+  acc.timings.presentationGenMs = sumUnitDuration(units, "item-renderer");
   acc.unitAttempts = units.map((unit) => ({
     kind: unit.kind,
     name: unit.name,
