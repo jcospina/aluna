@@ -320,6 +320,44 @@ describe("GET /demo/detail-interaction (click-to-open detail, epic 3.3/02)", () 
   });
 });
 
+// The few-shot gallery + injection harness HITL surface (epic 3.5). The route is
+// deterministic and provider-free: it previews repo-owned exemplars and the exact
+// prompt section the item-renderer generator receives.
+describe("GET /demo/few-shot-gallery (few-shot gallery, epic 3.5)", () => {
+  test("renders the repo-only examples through the live presentation path", async () => {
+    const app = createApp();
+    const res = await app.request("/demo/few-shot-gallery");
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") ?? "").toContain("text/html");
+    expect(html).toContain("Text-forward note card");
+    expect(html).toContain("Media-forward grid tile");
+    expect(html).toContain("Compact metadata row");
+    expect(html.match(/class="capability-item"/g)?.length).toBe(6);
+    expect(html).toContain('class="capability-records capability-records--feed"');
+    expect(html).toContain('class="capability-records capability-records--grid"');
+    expect(html).toContain("Workshop wall before launch");
+    expect(html).toContain("Token discipline for generated interfaces");
+    expect(html).toContain("data-detail-template=");
+    expect(html).toContain('<dialog id="aluna-detail-modal"');
+    expect(html).toContain('src="/static/detail-modal.js"');
+    expect(html).toContain('src="/static/item-detail.js"');
+  });
+
+  test("previews the injected prompt section with vary-dont-copy framing and layout context", async () => {
+    const app = createApp();
+    const html = await responseText(await app.request("/demo/few-shot-gallery"));
+
+    expect(html).toContain("Injected prompt preview");
+    expect(html).toContain("Few-shot gallery. Vary, don&#39;t copy");
+    expect(html).toContain("Chosen collection layout for this capability: &quot;feed&quot;");
+    expect(html).toContain("Chosen collection layout for this capability: &quot;grid&quot;");
+    expect(html).toContain("style=&quot;grid-template-columns");
+    expect(html).toContain("var(--border-thin) solid var(--color-border)");
+  });
+});
+
 // The registry's read-side payoff (Epic 2.1): on load the capability toolbar
 // rehydrates from the registry — Aluna remembers you across a refresh. These run
 // against a scratch db shared with the router, so an injected (or freshly committed)

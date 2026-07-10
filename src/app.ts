@@ -13,6 +13,7 @@ import { serveStatic } from "hono/bun";
 import { streamSSE } from "hono/streaming";
 
 import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
+import { renderFewShotGalleryPreviewPage } from "./builder/few-shot-gallery-preview.ts";
 import { DEFAULT_ARTIFACTS_ROOT } from "./builder/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "./db.ts";
 import { handleStreamError, streamGreeting } from "./greeting.ts";
@@ -238,6 +239,17 @@ export function createApp(deps: AppDeps = {}): Hono {
     "/demo/detail-interaction",
     () =>
       new Response(renderDetailInteractionPreviewPage(), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }),
+  );
+
+  // Dev preview for the few-shot design gallery + item-renderer prompt injection
+  // (epic 3.5) — the HITL surface for inspecting the repo-only exemplars and the exact
+  // "vary, don't copy" prompt section. Deterministic, no provider, no db.
+  app.get(
+    "/demo/few-shot-gallery",
+    () =>
+      new Response(renderFewShotGalleryPreviewPage(), {
         headers: { "content-type": "text/html; charset=utf-8" },
       }),
   );
