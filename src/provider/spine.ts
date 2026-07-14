@@ -10,8 +10,8 @@
 //
 // Three wires (ADR-0003), each a baseURL-configurable SDK provider:
 //   - `openai`            — first-party `@ai-sdk/openai` for OpenAI's own endpoint
-//                           (Responses API, native structured outputs, reasoning
-//                           effort = "fast mode").
+//                           (Responses API, native structured outputs, tunable
+//                           reasoning effort).
 //   - `openai-compatible` — `@ai-sdk/openai-compatible` (Chat Completions) for every
 //                           *other* OpenAI-compatible endpoint — this is the path the
 //                           open Chinese coding models take (Qwen, GLM/Zhipu,
@@ -21,7 +21,7 @@
 //
 // The SDK types live *only* in this file. Everything upstream imports the `Provider`
 // contract, never the SDK — swapping the spine (or the whole provider) is invisible
-// to every caller. The default is `gpt-5` in "fast mode" (reasoning effort minimal);
+// to every caller. The default is `gpt-5.6-terra` at medium reasoning effort;
 // the configured trio (key + model + endpoint, ./config.ts) makes any provider a
 // one-env swap (ADR-0003).
 
@@ -49,15 +49,15 @@ type StreamObjectInput = Parameters<typeof streamObject>[0];
 export type Wire = "openai" | "openai-compatible" | "anthropic";
 
 // A registry entry: how to build the SDK model for a wire, plus that wire's
-// "fast mode" provider options. Every factory is baseURL-configurable, so a single
-// `OMNI_BASE_URL` reaches any compatible endpoint without an adapter we own.
+// provider options (reasoning tuning). Every factory is baseURL-configurable, so a
+// single `OMNI_BASE_URL` reaches any compatible endpoint without an adapter we own.
 interface WireAdapter {
   // The AI SDK language model for `config`, fed straight to `streamObject`.
   readonly model: (config: ProviderConfig) => StreamObjectInput["model"];
-  // Per-wire request tuning ("fast mode"), forwarded to `streamObject`. Undefined
-  // for wires with no universal knob (the compatible wire spans many vendors) or
-  // whose default serving is already the fast path.
-  readonly fastModeOptions?: StreamObjectInput["providerOptions"];
+  // Per-wire request tuning (reasoning effort), forwarded to `streamObject`.
+  // Undefined for wires with no universal knob (the compatible wire spans many
+  // vendors) or whose default serving already fits.
+  readonly providerOptions?: StreamObjectInput["providerOptions"];
 }
 
 // The registry, keyed by wire shape. Adding a provider is adding an endpoint, not
@@ -66,17 +66,17 @@ interface WireAdapter {
 const REGISTRY: Record<Wire, WireAdapter> = {
   openai: {
     model: ({ apiKey, baseURL, model }) => createOpenAI({ apiKey, baseURL })(model),
-    // "Fast mode" for the OpenAI wire (ARCH §4): reasoning effort `minimal` keeps
-    // gpt-5 on its low-latency path rather than spending reasoning tokens — the
-    // serving-tier knob the config comment defers to the call site. OpenAI-specific
-    // (keyed `openai`), which is exactly why it lives only on the first-party wire.
-    fastModeOptions: { openai: { reasoningEffort: "minimal" } },
+    // Reasoning effort for the OpenAI wire (ARCH §4): `medium` trades some latency
+    // for reasoning quality on gpt-5.6-terra — the serving-tier knob the config
+    // comment defers to the call site. OpenAI-specific (keyed `openai`), which is
+    // exactly why it lives only on the first-party wire.
+    providerOptions: { openai: { reasoningEffort: "medium" } },
   },
   "openai-compatible": {
     // Chat Completions, the wire the open Chinese models (and most other
     // OpenAI-compatible endpoints) actually implement. `name` only labels the
     // provider in error/telemetry; `baseURL` + key + model are the swap trio. No
-    // fast-mode option: there is no knob common across these vendors, and assuming
+    // reasoning option: there is no knob common across these vendors, and assuming
     // an OpenAI-only one would be presumptuous — per-endpoint tuning lands if needed.
     model: ({ apiKey, baseURL, model }) =>
       createOpenAICompatible({ name: "openai-compatible", apiKey, baseURL })(model),
@@ -180,7 +180,7 @@ export function createProvider(env: NodeJS.ProcessEnv = process.env): Provider {
         model,
         schema,
         prompt,
-        providerOptions: adapter.fastModeOptions,
+        providerOptions: adapter.providerOptions,
       });
 
       // The SDK's partial-object stream, final-object promise, and usage promise *are*
