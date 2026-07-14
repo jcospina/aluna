@@ -155,24 +155,38 @@ export type GenerationFailure = z.infer<typeof generationFailureSchema>;
 // The metrics row as a caller assembles it — the writer's input. Everything past
 // the always-known identity/intent/model block is optional so the writer is
 // callable with partial knowledge (deflection, failed build).
-export const generationMetricsSchema = z.strictObject({
-  // A stable generation id. The build job's id in the real pipeline; any unique
-  // string in tests. One row per generation, so this is the primary key.
-  id: z.string().min(1),
-  outcome: generationOutcomeSchema,
-  // The single globally configured model the generation ran against (provider
-  // config, ARCH §4). Always known — it is config, available even on early failure.
-  model: z.string().min(1),
-  intent: generationIntentSchema,
-  // The capability this generation built or targeted, when known. Null on a
-  // deflection or a build that failed before a spec named one.
-  capabilityId: z.string().min(1).nullish(),
-  usage: tokenUsageSchema.optional(),
-  timings: generationTimingsSchema.optional(),
-  gateRungs: z.array(gateRungOutcomeSchema).readonly().optional(),
-  unitAttempts: z.array(unitAttemptSummarySchema).readonly().optional(),
-  failure: generationFailureSchema.optional(),
-});
+export const generationMetricsSchema = z
+  .strictObject({
+    // A stable generation id. The build job's id in the real pipeline; any unique
+    // string in tests. One row per generation, so this is the primary key.
+    id: z.string().min(1),
+    outcome: generationOutcomeSchema,
+    // The single globally configured model the generation ran against (provider
+    // config, ARCH §4). Always known — it is config, available even on early failure.
+    model: z.string().min(1),
+    intent: generationIntentSchema,
+    // The capability this generation built or targeted, when known. Null on a
+    // deflection or a build that failed before a spec named one.
+    capabilityId: z.string().min(1).nullish(),
+    // Capability generations are identified by build id + incarnation. This stays
+    // absent only when no capability lifetime exists (for example a deflection or
+    // failure before a generated spec can be accepted).
+    incarnationId: z.string().uuid().nullish(),
+    usage: tokenUsageSchema.optional(),
+    timings: generationTimingsSchema.optional(),
+    gateRungs: z.array(gateRungOutcomeSchema).readonly().optional(),
+    unitAttempts: z.array(unitAttemptSummarySchema).readonly().optional(),
+    failure: generationFailureSchema.optional(),
+  })
+  .superRefine((metrics, ctx) => {
+    if ((metrics.capabilityId == null) !== (metrics.incarnationId == null)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "capabilityId and incarnationId must be present together",
+        path: [metrics.capabilityId == null ? "capabilityId" : "incarnationId"],
+      });
+    }
+  });
 export type GenerationMetrics = z.infer<typeof generationMetricsSchema>;
 
 // What a stored row reads back as: the written shape plus the platform-stamped
@@ -191,6 +205,7 @@ interface StoredRow {
   created_at: string;
   outcome: string;
   capability_id: string | null;
+  incarnation_id: string | null;
   intent_type: string;
   intent_confidence: number;
   intent_target_capability: string | null;
@@ -217,6 +232,7 @@ const ROW_COLUMNS = [
   "created_at",
   "outcome",
   "capability_id",
+  "incarnation_id",
   "intent_type",
   "intent_confidence",
   "intent_target_capability",
@@ -269,6 +285,7 @@ export function writeGenerationMetrics(
       valid.id,
       valid.outcome,
       nullish(valid.capabilityId),
+      nullish(valid.incarnationId),
       valid.intent.type,
       valid.intent.confidence,
       valid.intent.targetCapability,
@@ -337,6 +354,7 @@ function parseStoredRow(stored: StoredRow): StoredGenerationMetrics {
       targetCapability: stored.intent_target_capability,
     },
     ...(stored.capability_id !== null ? { capabilityId: stored.capability_id } : {}),
+    ...(stored.incarnation_id !== null ? { incarnationId: stored.incarnation_id } : {}),
     ...(usage ? { usage } : {}),
     ...(timings ? { timings } : {}),
     ...(stored.gate_rungs !== null ? { gateRungs: JSON.parse(stored.gate_rungs) } : {}),

@@ -12,6 +12,7 @@ import type { ZodType } from "zod";
 import {
   type CommitCapabilityResult,
   commitCapability,
+  createCapabilityIncarnationId,
   type DesignLintGateResult,
   type GeneratedUnit,
   generateCapabilityUnits,
@@ -135,6 +136,10 @@ export async function runSpecBuildStages(
     send,
   });
   acc.capabilityId = spec.id;
+  // Incarnation is assigned by platform code only after the model-authored spec
+  // validates. It then stays stable across migration, Gate, commit, and metrics.
+  const incarnationId = createCapabilityIncarnationId();
+  acc.incarnationId = incarnationId;
   acc.timings.specGenMs = durationMs;
   acc.usages.push(usage);
   await settled; // every spec-preview is on the wire before the confirmation
@@ -207,7 +212,13 @@ export async function runSpecBuildStages(
       // above passed every active rung. When the design-lint rung regenerated the item
       // renderer to clear a violation, `item.ts` must carry that fixed content.
       const commitUnits = applyDesignLintFix(unitResult.units, gateResult.designLint);
-      return commitCapability({ spec, units: commitUnits, database, artifactsRoot });
+      return commitCapability({
+        spec,
+        incarnationId,
+        units: commitUnits,
+        database,
+        artifactsRoot,
+      });
     },
   );
 

@@ -227,10 +227,10 @@ function renderableFromRow(row: CapabilityRow): RenderableCapability {
   };
 }
 
-// The default loader: import the version-keyed handler file and confirm it honors
+// The default loader: import the incarnation/version-keyed handler file and confirm it honors
 // the export half of the contract — a single default-exported function. A file URL
 // keeps the absolute path importable across platforms; dynamic import caches by
-// path, which is exactly right when `artifacts_path` is version-namespaced.
+// path, which is exactly right when `artifacts_path` is incarnation/version-namespaced.
 const defaultLoadHandler: HandlerLoader = async (artifactsPath, action) => {
   const file = resolve(process.cwd(), artifactsPath, `${action}.ts`);
   const loaded = (await import(pathToFileURL(file).href)) as { default?: unknown };
@@ -243,7 +243,7 @@ const defaultLoadHandler: HandlerLoader = async (artifactsPath, action) => {
 // The default item-renderer loader: import the version-keyed {@link ITEM_RENDERER_FILE}
 // and confirm it default-exports a function (the record → inner-markup renderer). Mirrors
 // {@link defaultLoadHandler} — same file-URL import, same cache-by-path behavior, which is
-// right when `artifacts_path` is version-namespaced. Rejects when the file is absent or
+// right when `artifacts_path` is incarnation/version-namespaced. Rejects when the file is absent or
 // malformed. M3 requires this file for every committed capability.
 const defaultLoadItemRenderer: ItemRendererLoader = async (artifactsPath) => {
   const file = resolve(process.cwd(), artifactsPath, ITEM_RENDERER_FILE);

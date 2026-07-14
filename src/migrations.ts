@@ -151,6 +151,25 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
+  // 0006 begins Module 4's greenfield incarnation cutover. Runtime reset removes
+  // every M3 row before this migration lands, so every subsequently registered
+  // capability has one platform-owned lifetime identity. The registry column is
+  // physically non-null (the temporary empty default only makes SQLite's additive
+  // ALTER legal; row validation rejects it), while metrics keep the column nullable
+  // for deflections and failures that happen before a capability identity exists.
+  {
+    id: "0006_incarnation_keyed_capabilities",
+    up: (database) => {
+      database.exec(
+        `ALTER TABLE ${REGISTRY_TABLE}
+         ADD COLUMN incarnation_id TEXT NOT NULL DEFAULT '';`,
+      );
+      database.exec(
+        `ALTER TABLE ${GENERATION_METRICS_TABLE}
+         ADD COLUMN incarnation_id TEXT;`,
+      );
+    },
+  },
 ];
 
 // The set of migration ids already recorded in the ledger. Returns empty when the

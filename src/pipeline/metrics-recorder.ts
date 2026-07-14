@@ -40,6 +40,7 @@ export interface DemoBuildAccumulator {
   readonly usages: TokenUsage[];
   readonly timings: GenerationTimings;
   capabilityId?: string;
+  incarnationId?: string;
   gateRungs?: readonly GateRungOutcome[];
   unitAttempts?: UnitAttemptSummary[];
 }
@@ -71,6 +72,7 @@ export function writeBuildMetrics(
       usage: sumTokenUsage(acc.usages),
       timings: { ...acc.timings, totalMs: performance.now() - builtAt },
       ...(acc.capabilityId ? { capabilityId: acc.capabilityId } : {}),
+      ...(acc.incarnationId ? { incarnationId: acc.incarnationId } : {}),
       ...(acc.gateRungs ? { gateRungs: acc.gateRungs } : {}),
       ...(acc.unitAttempts ? { unitAttempts: acc.unitAttempts } : {}),
       ...(failure ? { failure } : {}),

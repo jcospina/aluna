@@ -266,8 +266,15 @@ describe("capability spec shape", () => {
 });
 
 describe("capability row shape", () => {
-  test("a row is the spec plus platform-assigned version and artifacts_path", () => {
-    const row = { ...validSpec(), version: 1, artifacts_path: "capabilities/notes/v1/" };
+  const incarnation_id = "11111111-1111-4111-8111-111111111111";
+
+  test("a row is the spec plus platform-assigned incarnation, version, and artifacts_path", () => {
+    const row = {
+      ...validSpec(),
+      incarnation_id,
+      version: 1,
+      artifacts_path: `capabilities/notes/${incarnation_id}/v1/`,
+    };
     expect(capabilityRowSchema.parse(row)).toEqual(row);
 
     // The spec shape itself must NOT accept the platform-assigned values — the
@@ -275,12 +282,21 @@ describe("capability row shape", () => {
     expect(capabilitySpecSchema.safeParse(row).success).toBe(false);
   });
 
+  test("the AI-authored spec cannot include a capability incarnation", () => {
+    expect(capabilitySpecSchema.safeParse({ ...validSpec(), incarnation_id }).success).toBe(false);
+  });
+
   test("version must be a positive integer", () => {
     const spec = validSpec();
-    const artifacts_path = "capabilities/notes/v1/";
+    const artifacts_path = `capabilities/notes/${incarnation_id}/v1/`;
 
     for (const version of [0, -1, 1.5]) {
-      const result = capabilityRowSchema.safeParse({ ...spec, version, artifacts_path });
+      const result = capabilityRowSchema.safeParse({
+        ...spec,
+        incarnation_id,
+        version,
+        artifacts_path,
+      });
       expect(result.success).toBe(false);
     }
   });
@@ -293,8 +309,9 @@ describe("capability row shape", () => {
     const row = {
       ...validSpec(),
       label: "We'll set up a space to capture and organize all your notes.",
+      incarnation_id,
       version: 1,
-      artifacts_path: "capabilities/notes/v1/",
+      artifacts_path: `capabilities/notes/${incarnation_id}/v1/`,
     };
 
     expect(capabilityRowSchema.safeParse(row).success).toBe(true);

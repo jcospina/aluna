@@ -12,7 +12,7 @@
 // real data file is never touched, mirroring the registry and data-tool tests.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createApp } from "../app.ts";
@@ -29,6 +29,7 @@ import type { HandlerLoader, ItemRendererLoader } from "./router.ts";
 
 const NOTES_ARTIFACTS = "src/router/__fixtures__/notes/v1/";
 const BOOM_ARTIFACTS = "src/router/__fixtures__/boom/v1/";
+const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
 
 // The notes fixture's spec — matches the hand-written handler files.
 function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
@@ -63,7 +64,13 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
 }
 
 function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
-  return { ...notesSpec(), version: 1, artifacts_path: NOTES_ARTIFACTS, ...overrides };
+  return {
+    ...notesSpec(),
+    incarnation_id: NOTES_INCARNATION_ID,
+    version: 1,
+    artifacts_path: NOTES_ARTIFACTS,
+    ...overrides,
+  };
 }
 
 // A fixture whose handler throws — proves a handler failure stays friendly.
@@ -71,6 +78,7 @@ function boomRow(): CapabilityRow {
   return {
     id: "boom",
     label: "Boom",
+    incarnation_id: "22222222-2222-4222-8222-222222222222",
     version: 1,
     schema: { fields: [{ name: "note", type: "string", required: false }] },
     ui_intent: {
@@ -236,6 +244,45 @@ describe("deterministic capability router", () => {
     const readBody = await read.text();
     expect(readBody).toContain("Buy milk");
     expect(readBody).toContain("pinned");
+  });
+
+  test("the default loader keys Bun imports by incarnation path for a recreated semantic id", async () => {
+    const firstIncarnation = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const secondIncarnation = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const artifactsRoot = join(dir, "capabilities", "notes");
+
+    const writeIncarnation = (incarnationId: string, marker: string) => {
+      const versionDir = join(artifactsRoot, incarnationId, "v1");
+      mkdirSync(versionDir, { recursive: true });
+      writeFileSync(
+        join(versionDir, "item.ts"),
+        `export default function renderItem() { return "<span>${marker} item</span>"; }`,
+      );
+      writeFileSync(
+        join(versionDir, "read.ts"),
+        `export default async function read() { return "<p>${marker} handler</p>"; }`,
+      );
+      return `${versionDir}/`;
+    };
+
+    const firstPath = writeIncarnation(firstIncarnation, "first");
+    const secondPath = writeIncarnation(secondIncarnation, "second");
+    install(conns, notesRow({ incarnation_id: firstIncarnation, artifacts_path: firstPath }));
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    expect(await (await app.request("/capability/notes/read")).text()).toContain("first handler");
+
+    // Simulate the registry boundary of delete/recreate. The semantic id is the same,
+    // but its lifetime and therefore the full module URL are different.
+    conns.readwrite.run("DELETE FROM capability_registry WHERE id = ?", ["notes"]);
+    insertCapability(
+      notesRow({ incarnation_id: secondIncarnation, artifacts_path: secondPath }),
+      conns.readwrite,
+    );
+
+    const recreated = await (await app.request("/capability/notes/read")).text();
+    expect(recreated).toContain("second handler");
+    expect(recreated).not.toContain("first handler");
   });
 
   test("read leaves the region truly empty when there are no records, so the platform empty state shows", async () => {

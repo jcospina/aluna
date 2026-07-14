@@ -2,7 +2,7 @@
 // "Capability Registry", §7, PLAN decision 8).
 //
 // The registry is the source of truth for everything Aluna has become: one lean
-// row per capability — spec + version + artifacts pointer. Handlers, the item renderer,
+// row per capability — spec + incarnation + version + artifacts pointer. Handlers, the item renderer,
 // and tests are version-keyed caches derived from the spec; this table is the thing
 // they are derived *from* (ARCH §2).
 //
@@ -30,6 +30,7 @@ export const REGISTRY_TABLE = "capability_registry";
 interface StoredRow {
   id: string;
   label: string;
+  incarnation_id: string;
   version: number;
   schema: string;
   ui_intent: string;
@@ -41,7 +42,7 @@ interface StoredRow {
 }
 
 const ROW_COLUMNS =
-  "id, label, version, schema, ui_intent, behavior, behavioral_errors, tools, artifacts_path, prompt_context";
+  "id, label, incarnation_id, version, schema, ui_intent, behavior, behavioral_errors, tools, artifacts_path, prompt_context";
 
 // Rehydrate a stored row and re-validate it. Validating on the way out too is
 // deliberate: the registry drives DDL, routing, and generation, so a row that
@@ -56,6 +57,7 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
   return capabilityRowSchema.parse({
     id: stored.id,
     label: stored.label,
+    incarnation_id: stored.incarnation_id,
     version: stored.version,
     schema,
     ui_intent: JSON.parse(stored.ui_intent),
@@ -77,10 +79,11 @@ export function insertCapability(row: CapabilityRow, database: Database = db): C
   const valid = capabilityRowSchema.parse(row);
 
   database.run(
-    `INSERT INTO ${REGISTRY_TABLE} (${ROW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ${REGISTRY_TABLE} (${ROW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       valid.id,
       valid.label,
+      valid.incarnation_id,
       valid.version,
       JSON.stringify(valid.schema),
       JSON.stringify(valid.ui_intent),

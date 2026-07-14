@@ -51,6 +51,7 @@ const nonBlankText = z
   .string()
   .min(1)
   .refine((text) => text.trim().length > 0, "must not be blank");
+export const incarnationIdSchema = z.string().uuid();
 const capabilityNameText = nonBlankText.refine(
   isCapabilityNameLabel,
   "must be a short capability name, not a sentence",
@@ -176,10 +177,12 @@ export const capabilitySpecSchema = z
   .superRefine(validateSpecSemantics);
 export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 
-// One registry row (ARCH §6.3): the spec plus the two platform-assigned values —
+// One registry row (ARCH §6.3): the spec plus the platform-assigned incarnation,
+// version, and artifact pointer. The opaque incarnation identifies one complete
+// capability lifetime and is deliberately absent from the AI-authored spec.
 // `version` (bumped per regeneration; keys the derived-artifact caches) and
 // `artifacts_path` (the version directory holding the item renderer and handlers). The row
-// stays lean — spec + version + pointer — because the intent resolver scans
+// stays lean — spec + incarnation + version + pointer — because the intent resolver scans
 // every row on every classification; nothing bulky lives here.
 export const capabilityRowSchema = z
   .strictObject({
@@ -187,6 +190,7 @@ export const capabilityRowSchema = z
     // Existing rows may contain older narration-like labels; display paths
     // canonicalize them while generated specs are stricter going forward.
     label: nonBlankText,
+    incarnation_id: incarnationIdSchema,
     version: z.number().int().min(1),
     artifacts_path: nonBlankText,
   })

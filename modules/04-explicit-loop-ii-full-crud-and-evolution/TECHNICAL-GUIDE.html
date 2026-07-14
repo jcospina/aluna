@@ -1532,6 +1532,198 @@
       color: var(--green);
     }
 
+    .epic-cumulative {
+      margin: 3rem 0 0;
+    }
+
+    .epic-cumulative__caption {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      margin-bottom: 2.5rem;
+      padding: 1.1rem 1.25rem;
+      background: var(--blue-pale);
+      border: 1px solid color-mix(in oklch, var(--blue), transparent 58%);
+      border-radius: var(--radius-md);
+      color: color-mix(in oklch, var(--blue), var(--ink) 32%);
+      font-size: 0.94rem;
+    }
+
+    .epic-cumulative__caption::before {
+      content: "↓";
+      flex: 0 0 auto;
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: 1.3rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .epic-cumulative__caption strong {
+      display: block;
+      margin-bottom: 0.2rem;
+      color: var(--blue);
+    }
+
+    .epic-cumulative__list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .epic-cumulative__step {
+      --step-color: var(--blue);
+      --step-pale: var(--blue-pale);
+      position: relative;
+      display: grid;
+      grid-template-columns: 4.8rem minmax(0, 1fr);
+      gap: 0 1.25rem;
+      padding-bottom: 2.8rem;
+    }
+
+    .epic-cumulative__step:nth-child(2),
+    .epic-cumulative__step:nth-child(3),
+    .epic-cumulative__step:nth-child(4) {
+      --step-color: var(--coral-deep);
+      --step-pale: var(--coral-pale);
+    }
+
+    .epic-cumulative__step:nth-child(5),
+    .epic-cumulative__step:nth-child(6),
+    .epic-cumulative__step:nth-child(7) {
+      --step-color: var(--green);
+      --step-pale: var(--green-pale);
+    }
+
+    .epic-cumulative__step:nth-child(8) {
+      --step-color: var(--blue);
+      --step-pale: var(--blue-pale);
+    }
+
+    .epic-cumulative__step:nth-child(9) {
+      --step-color: var(--red);
+      --step-pale: var(--red-pale);
+      padding-bottom: 1.3rem;
+    }
+
+    .epic-cumulative__step::before {
+      content: "";
+      position: absolute;
+      top: 4.7rem;
+      bottom: 0;
+      left: 2.35rem;
+      width: 2px;
+      background: color-mix(in oklch, var(--step-color), var(--line) 62%);
+    }
+
+    .epic-cumulative__step:last-child::before {
+      display: none;
+    }
+
+    .epic-cumulative__marker {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      width: 4.8rem;
+      height: 4.8rem;
+      background: var(--step-color);
+      border: 0.42rem solid var(--paper);
+      border-radius: 50%;
+      color: var(--white-tint);
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      font-weight: 800;
+      box-shadow: 0 0 0 1px var(--step-color);
+    }
+
+    .epic-cumulative__body {
+      display: grid;
+      grid-template-columns: minmax(13rem, 0.72fr) minmax(0, 1fr);
+      gap: 1.25rem 2rem;
+      padding: 1.35rem 1.5rem 1.45rem;
+      background: color-mix(in oklch, var(--step-pale), var(--white-tint) 62%);
+      border: 1px solid color-mix(in oklch, var(--step-color), var(--line) 62%);
+      border-radius: var(--radius-lg);
+    }
+
+    .epic-cumulative__carry {
+      margin-bottom: 0.7rem;
+      color: var(--step-color);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      font-weight: 750;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .epic-cumulative__body h3 {
+      max-width: 24ch;
+      margin-bottom: 0;
+      font-size: clamp(1.3rem, 2.4vw, 1.75rem);
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+    }
+
+    .epic-cumulative__outcome {
+      align-self: center;
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.96rem;
+    }
+
+    .epic-cumulative__outcome strong {
+      display: block;
+      margin-bottom: 0.32rem;
+      color: var(--ink);
+    }
+
+    .epic-cumulative__bridge {
+      grid-column: 2;
+      margin: 0.75rem 0 0;
+      padding-left: 1.05rem;
+      color: var(--ink-soft);
+      font-size: 0.84rem;
+    }
+
+    .epic-cumulative__bridge strong {
+      color: var(--step-color);
+    }
+
+    .epic-cumulative__finish {
+      margin-left: 6.05rem;
+      padding: clamp(1.5rem, 4vw, 2.3rem);
+      background: var(--ink);
+      border-radius: var(--radius-lg);
+      color: var(--paper);
+    }
+
+    .epic-cumulative__finish span {
+      display: block;
+      margin-bottom: 0.7rem;
+      color: color-mix(in oklch, var(--paper), transparent 38%);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 750;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .epic-cumulative__finish strong {
+      display: block;
+      max-width: 28ch;
+      margin-bottom: 0.65rem;
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+
+    .epic-cumulative__finish p {
+      max-width: 62ch;
+      margin-bottom: 0;
+      color: color-mix(in oklch, var(--paper), transparent 18%);
+    }
+
     .walkthrough {
       margin: 3rem 0;
       overflow: hidden;
@@ -1754,6 +1946,7 @@
       .failure-split,
       .coordinator,
       .epic-explorer,
+      .epic-cumulative__body,
       .walkthrough__steps,
       .glossary {
         grid-template-columns: 1fr;
@@ -1866,6 +2059,10 @@
       .epic-stage {
         min-height: 25rem;
       }
+
+      .epic-cumulative__body h3 {
+        max-width: 30ch;
+      }
     }
 
     @media (max-width: 520px) {
@@ -1896,6 +2093,45 @@
         display: table;
         width: 46rem;
         table-layout: fixed;
+      }
+
+      .epic-cumulative__caption {
+        display: block;
+      }
+
+      .epic-cumulative__caption::before {
+        display: block;
+        margin-bottom: 0.65rem;
+      }
+
+      .epic-cumulative__step {
+        grid-template-columns: 3.5rem minmax(0, 1fr);
+        gap: 0 0.8rem;
+      }
+
+      .epic-cumulative__step::before {
+        top: 3.5rem;
+        left: 1.7rem;
+      }
+
+      .epic-cumulative__marker {
+        width: 3.5rem;
+        height: 3.5rem;
+        border-width: 0.32rem;
+        font-size: 0.76rem;
+      }
+
+      .epic-cumulative__body {
+        padding: 1.1rem;
+      }
+
+      .epic-cumulative__bridge {
+        margin-top: 0.6rem;
+        padding-left: 0.7rem;
+      }
+
+      .epic-cumulative__finish {
+        margin-left: 4.3rem;
       }
     }
 
@@ -1936,7 +2172,8 @@
       }
 
       .stepper,
-      .epic-explorer {
+      .epic-explorer,
+      .epic-cumulative__body {
         display: block;
       }
 
@@ -1949,6 +2186,10 @@
       .epic-stage {
         min-height: auto;
         box-shadow: none;
+      }
+
+      .epic-cumulative__step {
+        break-inside: avoid;
       }
     }
     </style>
@@ -2012,13 +2253,14 @@
             <li><a href="#epics">Build order</a></li>
             <li><a href="#walkthrough">Worked example</a></li>
             <li><a href="#glossary">Glossary</a></li>
+            <li><a href="#epic-outcomes">After each epic</a></li>
           </ol>
         </nav>
 
         <article class="article">
           <section class="chapter" id="leap" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">01 / 12</span>
+              <span class="chapter__number">01 / 13</span>
               <div>
                 <h2>What changes in Module 4.</h2>
                 <p class="chapter__intro">
@@ -2097,7 +2339,7 @@
 
           <section class="chapter" id="identity" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">02 / 12</span>
+              <span class="chapter__number">02 / 13</span>
               <div>
                 <h2>One capability needs three identifiers.</h2>
                 <p class="chapter__intro">
@@ -2193,7 +2435,7 @@
 
           <section class="chapter" id="crud" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">03 / 12</span>
+              <span class="chapter__number">03 / 13</span>
               <div>
                 <h2>Five consistent ways to work with records.</h2>
                 <p class="chapter__intro">
@@ -2390,7 +2632,7 @@
 
           <section class="chapter" id="fields" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">04 / 12</span>
+              <span class="chapter__number">04 / 13</span>
               <div>
                 <h2>Fields can change without erasing old data.</h2>
                 <p class="chapter__intro">
@@ -2548,7 +2790,7 @@
 
           <section class="chapter" id="evolution" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">05 / 12</span>
+              <span class="chapter__number">05 / 13</span>
               <div>
                 <h2>How one request becomes a safe change.</h2>
                 <p class="chapter__intro">
@@ -2598,7 +2840,7 @@
 
           <section class="chapter" id="diff" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">06 / 12</span>
+              <span class="chapter__number">06 / 13</span>
               <div>
                 <h2>Aluna works out what must be rebuilt.</h2>
                 <p class="chapter__intro">
@@ -2682,7 +2924,7 @@
 
           <section class="chapter" id="gate" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">07 / 12</span>
+              <span class="chapter__number">07 / 13</span>
               <div>
                 <h2>The complete version must pass every check.</h2>
                 <p class="chapter__intro">
@@ -2829,7 +3071,7 @@
 
           <section class="chapter" id="activation" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">08 / 12</span>
+              <span class="chapter__number">08 / 13</span>
               <div>
                 <h2>Saving a version is different from making it live.</h2>
                 <p class="chapter__intro">
@@ -2938,7 +3180,7 @@
 
           <section class="chapter" id="coordination" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">09 / 12</span>
+              <span class="chapter__number">09 / 13</span>
               <div>
                 <h2>Writes take turns so they cannot interfere.</h2>
                 <p class="chapter__intro">
@@ -3029,7 +3271,7 @@
 
           <section class="chapter" id="deletion" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">10 / 12</span>
+              <span class="chapter__number">10 / 13</span>
               <div>
                 <h2>Permanent deletion follows its own safe process.</h2>
                 <p class="chapter__intro">
@@ -3147,7 +3389,7 @@
 
           <section class="chapter" id="epics" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">11 / 12</span>
+              <span class="chapter__number">11 / 13</span>
               <div>
                 <h2>Why M4 is built in nine stages.</h2>
                 <p class="chapter__intro">
@@ -3190,7 +3432,7 @@
 
           <section class="chapter" id="walkthrough" data-section>
             <header class="chapter__head">
-              <span class="chapter__number">12 / 12</span>
+              <span class="chapter__number">12 / 13</span>
               <div>
                 <h2>Follow one change from request to result.</h2>
                 <p class="chapter__intro">
@@ -3635,6 +3877,234 @@
               </ul>
             </div>
           </section>
+
+          <section class="chapter" id="epic-outcomes" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">13 / 13</span>
+              <div>
+                <h2>What should be true after each epic lands.</h2>
+                <p class="chapter__intro">
+                  The nine epics are not separate projects. They form one runnable path. At every
+                  checkpoint, the homepage must show an honest, testable result that gives the next
+                  epic a safe place to start.
+                </p>
+              </div>
+            </header>
+
+            <figure class="epic-cumulative" aria-labelledby="epic-cumulative-caption">
+              <figcaption class="epic-cumulative__caption" id="epic-cumulative-caption">
+                <span>
+                  <strong>Read from top to bottom.</strong>
+                  Each checkpoint keeps the behavior proven above it. A later reset can replace
+                  temporary example code, but it must preserve the earlier guarantee.
+                </span>
+              </figcaption>
+
+              <ol class="epic-cumulative__list">
+                <li class="epic-cumulative__step">
+                  <span class="epic-cumulative__marker">4.1</span>
+                  <div class="epic-cumulative__body">
+                    <div>
+                      <p class="epic-cumulative__carry">Starts from M3</p>
+                      <h3>Identity and changing fields have a safe base.</h3>
+                    </div>
+                    <p class="epic-cumulative__outcome">
+                      <strong>After 4.1 lands</strong>
+                      Prompt-built capabilities still create and show records. Each capability now
+                      has a unique lifetime and version path. Labels, hidden fields, lists, required
+                      values, and submitted input all follow rules that later changes can trust.
+                    </p>
+                  </div>
+                  <p class="epic-cumulative__bridge">
+                    <strong>Why 4.2 can follow:</strong>
+                    all five Actions can use the same checked identity, field, and input shape.
+                  </p>
+                </li>
+
+                <li class="epic-cumulative__step">
+                  <span class="epic-cumulative__marker">4.2</span>
+                  <div class="epic-cumulative__body">
+                    <div>
+                      <p class="epic-cumulative__carry">Keeps 4.1</p>
+                      <h3>All five Actions work through safe runtime paths.</h3>
+                    </div>
+                    <p class="epic-cumulative__outcome">
+                      <strong>After 4.2 lands</strong>
+                      A hand-written example can Create, Read, Edit, Delete, and Search. Writes take
+                      safe turns, reads cannot write, cross-capability reads must be declared, and
+                      an edit preserves values that were not changed.
+                    </p>
+                  </div>
+                  <p class="epic-cumulative__bridge">
+                    <strong>Why 4.3 can follow:</strong>
+                    the shared interface can expose every Action without inventing its own safety
+                    rules.
+                  </p>
+                </li>
+
+                <li class="epic-cumulative__step">
+                  <span class="epic-cumulative__marker">4.3</span>
+                  <div class="epic-cumulative__body">
+                    <div>
+                      <p class="epic-cumulative__carry">Keeps 4.1 + 4.2</p>
+                      <h3>People can use full CRUD and Search from the homepage.</h3>
+                    </div>
+                    <p class="epic-cumulative__outcome">
+                      <strong>After 4.3 lands</strong>
+                      The example capability has a clear edit mode, a confirmation before record
+                      deletion, search that waits while the person types, and a list that refreshes
+                      after every saved change.
+                    </p>
+                  </div>
+                  <p class="epic-cumulative__bridge">
+                    <strong>Why 4.4 can follow:</strong>
+                    generated capabilities now have a finished interface and runtime behavior to
+                    match.
+                  </p>
+                </li>
+
+                <li class="epic-cumulative__step">
+                  <span class="epic-cumulative__marker">4.4</span>
+                  <div class="epic-cumulative__body">
+                    <div>
+                      <p class="epic-cumulative__carry">Keeps the 4.1 to 4.3 guarantees</p>
+                      <h3>AI-built capabilities start with all five Actions.</h3>
+                    </div>
+                    <p class="epic-cumulative__outcome">
+                      <strong>After 4.4 lands</strong>
+                      A fresh prompt build produces Create, Read, Edit, Delete, Search, and its list
+                      item. The complete result passes file checks, a full record cycle, difficult
+                      search cases, and optional behavior checks before it can be used.
+                    </p>
+                  </div>
+                  <p class="epic-cumulative__bridge">
+                    <strong>Why 4.5 can follow:</strong>
+                    there is now one complete v1 that can be saved and switched as a whole.
+                  </p>
+                </li>
+
+                <li class="epic-cumulative__step">
+                  <span class="epic-cumulative__marker">4.5</span>
+                  <div class="epic-cumulative__body">
+                    <div>
+                      <p class="epic-cumulative__carry">Keeps 4.1 through 4.4</p>
+                      <h3>Complete versions are saved and activated safely.</h3>
+                    </div>
+                    <p class="epic-cumulative__outcome">
+                      <strong>After 4.5 lands</strong>
+                      Aluna assembles a whole version away from the live one, checks every file,
+                      saves it without overwriting history, then makes the files and database point
+                      to it together. A failure leaves the correct older version live and
+                      recoverable.
+                    </p>
+                  </div>
+                  <p class="epic-cumulative__bridge">
+                    <strong>Why 4.6 can follow:</strong>
+                    evolution can prepare a proposed v2 while the complete, working v1 remains safe.
+                  </p>
+                </li>
+
+                <li class="epic-cumulative__step">
+                  <span class="epic-cumulative__marker">4.6</span>
+                  <div class="epic-cumulative__body">
+                    <div>
+                      <p class="epic-cumulative__carry">Keeps 4.1 through 4.5</p>
+                      <h3>Aluna changes only what the request truly affects.</h3>
+                    </div>
+                    <p class="epic-cumulative__outcome">
+                      <strong>After 4.6 lands</strong>
+                      Aluna compares the whole proposed capability with the live one, adds safe
+                      database changes, rebuilds every affected generated file, and copies an old
+                      file only when a fixed rule proves it is still valid. No real change means no
+                      new version.
+                    </p>
+                  </div>
+                  <p class="epic-cumulative__bridge">
+                    <strong>Why 4.7 can follow:</strong>
+                    the changed Actions are now known, so their expected behavior can be checked
+                    without letting generated code define success.
+                  </p>
+                </li>
+
+                <li class="epic-cumulative__step">
+                  <span class="epic-cumulative__marker">4.7</span>
+                  <div class="epic-cumulative__body">
+                    <div>
+                      <p class="epic-cumulative__carry">Keeps 4.1 through 4.6</p>
+                      <h3>Repairs cannot weaken the requested behavior.</h3>
+                    </div>
+                    <p class="epic-cumulative__outcome">
+                      <strong>After 4.7 lands</strong>
+                      Behavior checks are written from the requested result and frozen before repair
+                      begins. Repair may change only failing Action code, never the checks. If the
+                      new version still fails, the old live version and its records remain
+                      untouched.
+                    </p>
+                  </div>
+                  <p class="epic-cumulative__bridge">
+                    <strong>Why 4.8 can follow:</strong>
+                    the Builder is now safe enough to receive a clear, current request instead of
+                    deciding what the prompt means while building.
+                  </p>
+                </li>
+
+                <li class="epic-cumulative__step">
+                  <span class="epic-cumulative__marker">4.8</span>
+                  <div class="epic-cumulative__body">
+                    <div>
+                      <p class="epic-cumulative__carry">Keeps 4.1 through 4.7</p>
+                      <h3>Only a clear and current build request enters the Builder.</h3>
+                    </div>
+                    <p class="epic-cumulative__outcome">
+                      <strong>After 4.8 lands</strong>
+                      Aluna understands the prompt before waiting for a write turn. Data questions
+                      never start a build. A request that became outdated while waiting stops
+                      safely. Real builds still tell one friendly foreground story and activate one
+                      complete View.
+                    </p>
+                  </div>
+                  <p class="epic-cumulative__bridge">
+                    <strong>Why 4.9 can follow:</strong>
+                    reads, builds, and capability lifetimes now have clear boundaries, so deletion
+                    can close one lifetime without racing them.
+                  </p>
+                </li>
+
+                <li class="epic-cumulative__step">
+                  <span class="epic-cumulative__marker">4.9</span>
+                  <div class="epic-cumulative__body">
+                    <div>
+                      <p class="epic-cumulative__carry">Keeps every earlier guarantee</p>
+                      <h3>Permanent deletion is complete, dependency-safe, and recoverable.</h3>
+                    </div>
+                    <p class="epic-cumulative__outcome">
+                      <strong>After 4.9 lands</strong>
+                      Aluna asks for direct confirmation, refuses deletion when another capability
+                      depends on the target, waits for current readers, removes database state at
+                      one clear point of no return, and retries leftover cleanup after a crash.
+                      Reusing the same name creates a new lifetime that cannot load old code.
+                    </p>
+                  </div>
+                  <p class="epic-cumulative__bridge">
+                    <strong>M4 is complete:</strong>
+                    a capability can be built, used, changed, recovered, and permanently deleted
+                    without skipping the safety learned earlier.
+                  </p>
+                </li>
+              </ol>
+
+              <div class="epic-cumulative__finish">
+                <span>Module 4 complete</span>
+                <strong>Build it. Use it. Change it. Recover it. Delete it safely.</strong>
+                <p>
+                  The final promise is cumulative. Full CRUD depends on the field and runtime
+                  contracts. Evolution depends on complete version saving. Safe repair depends on
+                  the Diff Engine. Request handling and deletion depend on all of those boundaries
+                  already being real.
+                </p>
+              </div>
+            </figure>
+          </section>
         </article>
       </div>
     </main>
@@ -3645,12 +4115,12 @@
     const fieldStates = {
       new: {
         spec: `{
-      "name": "due_date",
-      "label": "Due date",
-      "type": "date",
-      "required": false,
-      "lifecycle": "active"
-    }`,
+          "name": "due_date",
+          "label": "Due date",
+          "type": "date",
+          "required": false,
+          "lifecycle": "active"
+        }`,
         title: "Add the field without breaking old records.",
         copy: "A new field starts visible. Its database column allows empty values so records created before the field existed remain readable.",
         effects: [
@@ -3662,12 +4132,12 @@
       },
       hidden: {
         spec: `{
-      "name": "due_date",
-      "label": "Due date",
-      "type": "date",
-      "required": false,
-      "lifecycle": "inactive"
-    }`,
+          "name": "due_date",
+          "label": "Due date",
+          "type": "date",
+          "required": false,
+          "lifecycle": "inactive"
+        }`,
         title: "Stop showing it, keep the column and values.",
         copy: "Aluna marks the field hidden instead of removing it from the capability definition. The original column and saved values remain.",
         effects: [
@@ -3679,12 +4149,12 @@
       },
       reactivated: {
         spec: `{
-      "name": "due_date",
-      "label": "Target day",
-      "type": "date",
-      "required": true,
-      "lifecycle": "active"
-    }`,
+          "name": "due_date",
+          "label": "Target day",
+          "type": "date",
+          "required": true,
+          "lifecycle": "active"
+        }`,
         title: "Reveal the original field and stored values.",
         copy: "Aluna shows the same field again. The proposal may also change its visible label or make it required, and Aluna combines all work those changes need.",
         effects: [

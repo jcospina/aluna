@@ -19,12 +19,15 @@ import {
 } from "./spec.ts";
 import { getCapability, insertCapability, listCapabilities, REGISTRY_TABLE } from "./store.ts";
 
+const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
+
 // A complete, valid registry row — the M2 demo's notes capability. Fresh per
 // call so tests can tweak copies without sharing state.
 function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
   return {
     id: "notes",
     label: "Notes",
+    incarnation_id: NOTES_INCARNATION_ID,
     version: 1,
     schema: {
       fields: [
@@ -48,7 +51,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
       },
     ],
     tools: ["create", "read"],
-    artifacts_path: "capabilities/notes/v1/",
+    artifacts_path: `capabilities/notes/${NOTES_INCARNATION_ID}/v1/`,
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -79,7 +82,8 @@ describe("capability registry store", () => {
     const fetched = getCapability("notes", conns.readonly);
     expect(fetched).toEqual(row);
     expect(fetched?.version).toBe(1);
-    expect(fetched?.artifacts_path).toBe("capabilities/notes/v1/");
+    expect(fetched?.incarnation_id).toBe(NOTES_INCARNATION_ID);
+    expect(fetched?.artifacts_path).toBe(`capabilities/notes/${NOTES_INCARNATION_ID}/v1/`);
   });
 
   test("get-by-id returns null for an unknown capability", () => {
@@ -91,7 +95,8 @@ describe("capability registry store", () => {
     const recipes = notesRow({
       id: "recipes",
       label: "Recipes",
-      artifacts_path: "capabilities/recipes/v1/",
+      incarnation_id: "22222222-2222-4222-8222-222222222222",
+      artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v1/",
       prompt_context: "Stores the user's recipes.",
     });
 
@@ -123,7 +128,7 @@ describe("capability registry store", () => {
     expect(() => insertCapability(notesRow(), conns.readwrite)).toThrow();
   });
 
-  test("the registry row stays lean — exactly the ten spec'd columns", () => {
+  test("the registry row stays lean and carries the capability incarnation", () => {
     const columns = conns.readonly
       .query(`SELECT name FROM pragma_table_info('${REGISTRY_TABLE}') ORDER BY cid`)
       .all() as { name: string }[];
@@ -139,6 +144,7 @@ describe("capability registry store", () => {
       "artifacts_path",
       "prompt_context",
       "behavioral_errors",
+      "incarnation_id",
     ]);
   });
 });

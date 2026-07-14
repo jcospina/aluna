@@ -8,7 +8,7 @@
 //
 //   1. Write the version-1 artifacts — the generated handler `.ts` files and the
 //      item renderer (`item.ts`) — to the capability's version directory
-//      (`capabilities/<id>/v1/`).
+//      (`capabilities/<id>/<incarnation_id>/v1/`).
 //   2. Insert the registry row pointing at that directory (`artifacts_path`), at
 //      version 1, *inside the same transaction*. For a brand-new capability that
 //      insert **is** the pointer flip: the row's existence is what makes the
@@ -35,13 +35,17 @@ import type { GeneratedUnit } from "./units.ts";
 // Diff Engine, a later module); M2 only ever commits a brand-new v1.
 export const FIRST_CAPABILITY_VERSION = 1;
 
-// The on-disk root the version directories live under (`capabilities/<id>/v<n>/`,
+// The on-disk root the version directories live under
+// (`capabilities/<id>/<incarnation_id>/v<n>/`,
 // capabilities/README.md). A fixed convention rather than config; tests override it
 // to write into a throwaway directory.
 export const DEFAULT_ARTIFACTS_ROOT = "capabilities";
 
 export interface CommitCapabilityInput {
   readonly spec: CapabilitySpec;
+  // Opaque lifetime identity assigned by platform code before commit. It is never
+  // part of the generated spec and therefore never model-authored.
+  readonly incarnationId: string;
   // The generated units to write to disk. M3 produces the item renderer (`item.ts`)
   // and the create/read handlers; commit writes whatever the unit stage produced,
   // keyed by each unit's own filename.
@@ -59,6 +63,7 @@ export interface CommitCapabilityResult {
   readonly row: CapabilityRow;
   // The pointer the registry row stores and the router resolves handlers against.
   readonly artifactsPath: string;
+  readonly incarnationId: string;
   readonly version: number;
   // The filenames written into the version directory (e.g. `item.ts`, `create.ts`) —
   // the developer-facing record of what landed on disk.
@@ -73,7 +78,7 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   const root = input.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   // The pointer stored on the row and resolved by the router. The trailing slash
   // matches the convention recorded in ARCH §6.3 and capabilities/README.md.
-  const artifactsPath = `${root}/${input.spec.id}/v${version}/`;
+  const artifactsPath = `${root}/${input.spec.id}/${input.incarnationId}/v${version}/`;
   const directory = resolve(process.cwd(), artifactsPath);
 
   // 1. Write the artifacts first, so the row — once inserted — points at files that
@@ -90,14 +95,22 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   //    re-validates the row (a malformed row throws and writes nothing); a duplicate
   //    id throws the primary-key violation. Either way the transaction rolls back,
   //    so a failed commit leaves no row — the files above become orphans.
-  const row = insertCapability(rowFromSpec(input.spec, version, artifactsPath), input.database);
+  const row = insertCapability(
+    rowFromSpec(input.spec, input.incarnationId, version, artifactsPath),
+    input.database,
+  );
 
-  return { row, artifactsPath, version, files };
+  return { row, artifactsPath, incarnationId: input.incarnationId, version, files };
 }
 
 // The registry row the platform assigns at commit: the AI-authored spec plus the
-// two platform-owned values — `version` and the `artifacts_path` pointer. The AI
-// never authors these (registry/spec.ts).
-function rowFromSpec(spec: CapabilitySpec, version: number, artifactsPath: string): CapabilityRow {
-  return { ...spec, version, artifacts_path: artifactsPath };
+// platform-owned incarnation, version, and `artifacts_path` pointer. The AI never
+// authors these (registry/spec.ts).
+function rowFromSpec(
+  spec: CapabilitySpec,
+  incarnationId: string,
+  version: number,
+  artifactsPath: string,
+): CapabilityRow {
+  return { ...spec, incarnation_id: incarnationId, version, artifacts_path: artifactsPath };
 }

@@ -465,7 +465,8 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
       notesCapabilityRow({
         id: "recipes",
         label: "Recipes",
-        artifacts_path: "capabilities/recipes/v1/",
+        incarnation_id: "22222222-2222-4222-8222-222222222222",
+        artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v1/",
         prompt_context: "Stores the user's recipes.",
       }),
       conns.readwrite,
@@ -759,11 +760,14 @@ const PERSONAL_NOTES_SPEC = {
     "Stores personal notes with titles, content, optional tags, pinned status, and an optional note date for easy retrieval.",
 };
 
+const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
+
 function notesCapabilityRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
   return {
     ...NOTES_SPEC,
+    incarnation_id: NOTES_INCARNATION_ID,
     version: 1,
-    artifacts_path: "capabilities/notes/v1/",
+    artifacts_path: `capabilities/notes/${NOTES_INCARNATION_ID}/v1/`,
     ...overrides,
   } as CapabilityRow;
 }
@@ -1088,6 +1092,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     const metrics = rows[0];
     expect(metrics?.outcome).toBe("success");
     expect(metrics?.capabilityId).toBe("notes");
+    expect(metrics?.incarnationId).toMatch(/^[0-9a-f-]{36}$/);
     expect(metrics?.intent.type).toBe("new_capability");
     expect(metrics?.failure).toBeUndefined();
     expect(metrics?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
@@ -1114,6 +1119,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
       kind: string;
       status: string;
       capabilityId: string;
+      incarnationId: string;
       version: number;
       artifactsPath: string;
       files: string[];
@@ -1121,19 +1127,24 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(commitPreview.kind).toBe("commit-preview");
     expect(commitPreview.status).toBe("committed");
     expect(commitPreview.capabilityId).toBe("notes");
+    expect(commitPreview.incarnationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(metrics?.incarnationId).toBe(commitPreview.incarnationId);
     expect(commitPreview.version).toBe(1);
-    expect(commitPreview.artifactsPath).toBe(`${artifactsRoot}/notes/v1/`);
+    expect(commitPreview.artifactsPath).toBe(
+      `${artifactsRoot}/notes/${commitPreview.incarnationId}/v1/`,
+    );
     expect(commitPreview.files).toEqual(["item.ts", "create.ts", "read.ts"]);
 
     // The registry row landed at v1 with the artifacts pointer (the pointer flip)…
     const committed = getCapability("notes", conns.readonly);
+    expect(committed?.incarnation_id).toBe(commitPreview.incarnationId);
     expect(committed?.version).toBe(1);
-    expect(committed?.artifacts_path).toBe(`${artifactsRoot}/notes/v1/`);
+    expect(committed?.artifacts_path).toBe(commitPreview.artifactsPath);
     expect(committed?.label).toBe("Notes");
 
     // …and the three M3 artifacts are on disk in that version directory.
     for (const file of commitPreview.files) {
-      expect(existsSync(resolve(artifactsRoot, "notes/v1", file))).toBe(true);
+      expect(existsSync(resolve(commitPreview.artifactsPath, file))).toBe(true);
     }
   });
 
@@ -1286,7 +1297,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
         .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'cap_notes'")
         .get(),
     ).toBeNull();
-    expect(existsSync(resolve(artifactsRoot, "notes/v1"))).toBe(false);
+    expect(existsSync(resolve(artifactsRoot, "notes"))).toBe(false);
   });
 
   test("a commit-stage failure rolls back and records it, leaving the prior capability intact", async () => {
@@ -1294,10 +1305,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     // collides — the gate passes but the build fails at the terminal commit step.
     // (The resolver normally prevents id collisions; this forces the commit-stage
     // failure path directly.)
-    insertCapability(
-      { ...NOTES_SPEC, version: 1, artifacts_path: "capabilities/notes/v1/" } as CapabilityRow,
-      conns.readwrite,
-    );
+    insertCapability(notesCapabilityRow(), conns.readwrite);
     const { provider } = makeSpecProvider(NOTES_SPEC);
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
@@ -1335,7 +1343,9 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
 
     // The transaction rolled back: the prior capability is untouched (still its
     // original pointer), and the build committed nothing new.
-    expect(getCapability("notes", conns.readonly)?.artifacts_path).toBe("capabilities/notes/v1/");
+    expect(getCapability("notes", conns.readonly)?.artifacts_path).toBe(
+      `capabilities/notes/${NOTES_INCARNATION_ID}/v1/`,
+    );
   });
 
   test("a behavioral test-generation provider error is captured in the developer preview", async () => {
@@ -1520,7 +1530,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     ]);
 
     expect(getCapability("notes", conns.readonly)?.version).toBe(1);
-    expect(existsSync(resolve(artifactsRoot, "notes/v1/create.ts"))).toBe(true);
+    const committed = getCapability("notes", conns.readonly);
+    expect(existsSync(resolve(committed?.artifacts_path ?? "", "create.ts"))).toBe(true);
   });
 
   test("non-new-capability intents stream a warm deflection, write metrics, and build nothing", async () => {
@@ -1619,7 +1630,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
         id: "personal_notes",
         label:
           "We’ll set you up to capture and organize your notes so you can quickly find them later.",
-        artifacts_path: "capabilities/personal_notes/v1/",
+        incarnation_id: "22222222-2222-4222-8222-222222222222",
+        artifacts_path: "capabilities/personal_notes/22222222-2222-4222-8222-222222222222/v1/",
         prompt_context: PERSONAL_NOTES_SPEC.prompt_context,
       }),
       conns.readwrite,
@@ -1667,7 +1679,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
         id: "personal_notes",
         label:
           "We’ll set you up to capture and organize your notes so you can quickly find them later.",
-        artifacts_path: "capabilities/personal_notes/v1/",
+        incarnation_id: "22222222-2222-4222-8222-222222222222",
+        artifacts_path: "capabilities/personal_notes/22222222-2222-4222-8222-222222222222/v1/",
         prompt_context: PERSONAL_NOTES_SPEC.prompt_context,
       }),
       conns.readwrite,
