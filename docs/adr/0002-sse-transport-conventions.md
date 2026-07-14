@@ -28,17 +28,17 @@ deletion of the throwaway demo that established it.
   and `/files/:key` are reserved real routes (see `src/app.ts`). The demo must
   never colonize a reserved path.
 
-**Deliberately open — owned by the module that first needs it, not locked here:**
+**Historical questions from the Module 1 seed (all resolved by the updates below):**
 
 - **The production event vocabulary.** The three names above are a *seed*, not a
-  contract. Module 2's narration (§2.5/§2.6) and Module 4's diff engine (§4.3,
-  "stream only changed fragments with targeted `hx-swap`") are the real
-  consumers and own finalizing the names.
+  contract. Module 2's narration (§2.5/§2.6) and Module 4's foreground evolution
+  flow are the real consumers and own finalizing the names. Module 4 later chose
+  one complete terminal `commit` View swap rather than per-unit DOM patches.
 - **The client consumption mechanism.** The demo proved raw `EventSource` +
   manual DOM writes. The product instead drives the UI via **HTMX swaps**
   (`hx-swap-oob` for content+toolbar in one response, targeted `hx-swap` for
-  fragments — ARCH §6.1, §6.2). The htmx SSE extension is **not yet vendored**;
-  proving that path is Module 2 work (flagged in `docs/modules.md`, epic 2.6).
+  fragments — ARCH §6.1, §6.2). At this point in the chronology the HTMX SSE
+  extension was not yet vendored; Epic 2.6a later proved and finalized the path.
 - **Channel topology.** The demo modeled a *per-request ephemeral* stream
   (opened on a click, closed on `done`). The implicit loop needs the server to
   push proposals *unprompted* (ARCH §8), which implies a *persistent shell
@@ -52,8 +52,9 @@ deletion of the throwaway demo that established it.
   one durable artifact of an otherwise throwaway epic — it keeps the *design
   decisions* the demo embodied from vanishing when the demo is deleted.
 - **Event-typed over a single stream** so narration, HTML fragments, and
-  lifecycle signals are separable on the client by event name alone — directly
-  enabling M4's "stream only the changed fragments with targeted `hx-swap`."
+  lifecycle signals are separable on the client by event name alone. This keeps
+  targeted non-terminal fragments available where useful while allowing M4 to
+  finish evolution with one complete terminal `commit` View swap.
 - **Server-closed `done`** avoids `EventSource`'s default auto-reconnect, giving
   a clean, no-console-error end to each stream.
 - **Heartbeat as transport, not product state.** A build stage may be silent for
@@ -70,9 +71,9 @@ deletion of the throwaway demo that established it.
 - Deleting the 1.3 demo (`/demo/stream` in `src/app.ts`; `initSseDemo`/`sseData`
   in `public/app.js`; the demo trigger/output in `public/index.html`; the
   `.sse-demo` block in `public/app.css`) removes **no** decision recorded here.
-- Two questions remain explicitly open — the **HTMX-driven client path** and the
-  **channel topology** — and must be settled by the consuming module, not
-  assumed from the demo.
+- At the Module 1 seed point, the **HTMX-driven client path** and **channel
+  topology** remained open. The Module 2 updates below close both; this historical
+  paragraph does not reopen them.
 
 ## Update (Module 2 planning — channel topology settled)
 
@@ -128,8 +129,8 @@ Starting from the 1.3 seed plus what the commit swap needs:
 | Event | Role | Client wire |
 |---|---|---|
 | `narration` | Product-voice text chunk to append (the "watch it build" copy). | `sse-swap="narration"`, `hx-swap="beforeend"` on the narration region. *(seed, kept)* |
-| `fragment` | A discrete HTML fragment placed into a targeted region. M1's invitation; M4's diff engine streams changed units this way (targeted `hx-swap`). | `sse-swap="fragment"` (or a dedicated region) with that region's `hx-swap`. *(seed, kept)* |
-| **`commit`** | **New.** The terminal *success* swap: one event carrying the committed capability's view (targeted swap into the content/view region) **plus** the new toolbar entry as an `hx-swap-oob` sidecar — content area + capability toolbar in one response. | `sse-swap="commit"`, `hx-swap="innerHTML"` on the view region; the payload's `hx-swap-oob` element lands in `#capability-toolbar`. |
+| `fragment` | A non-terminal HTML fragment placed into a targeted region. M1's invitation and any future incremental surface may use it. M4 does not patch per-unit DOM, but it uses `fragment` to restore the then-current canonical committed View + `read` state (or neutral surface) after `no_change`, stale/collision, cancellation, or failure; restoration clears search/modal/edit state and has no toolbar sidecar. | `sse-swap="fragment"` (or a dedicated region) with that region's `hx-swap`. *(seed, kept)* |
+| **`commit`** | **New.** The terminal *success* swap: one event carrying the committed capability's complete View. A newly committed separate capability includes an append OOB toolbar sidecar; evolution includes a replacement sidecar only when its label changed; otherwise there is no toolbar sidecar. | `sse-swap="commit"`, `hx-swap="innerHTML"` on the View region; any conditional `hx-swap-oob` sidecar targets `#capability-toolbar`. |
 | `done` | Terminal lifecycle signal; the server sends it (data is a short outcome: `ok` / `error` / `missing`), then closes the stream. | The subscriber element carries **`sse-close="done"`** (see finding below). *(seed; client contract sharpened)* |
 | `heartbeat` | Transport keepalive — id-less, ignored by clients. **Not** product vocabulary. | none *(transport, unchanged)* |
 
@@ -157,9 +158,16 @@ EventSource client that closes its own source; the htmx client must be told to.
   path, channel topology) are now both closed for the explicit loop: topology by
   the M2-planning update above, client mechanism here.
 - The vocabulary is now a **contract**, not a seed: `commit` and the
-  `done`/`sse-close` pairing are what 2.6c (commit swap) and M4 (diff engine,
-  which adds no names — it reuses `fragment`) build on. A future rename still
+  `done`/`sse-close` pairing are what 2.6c and M4 build on. M4 reuses `commit`
+  only for a complete newly activated capability View. It uses `fragment` for
+  non-activating restoration, never per-unit DOM patches. A future rename still
   follows this ADR's own rule: update or supersede.
+- **Transport delivery is not activation.** M4's SQLite pointer +
+  `success/activated` commit is the point of no return before the presenter emits
+  `commit`. A disconnect, render failure, timeout, or lost `done` afterward cannot
+  roll back or relabel the build; terminal presenter work is bounded, ownership
+  releases in `finally`, and normal shell/toolbar registry rehydration recovers the
+  activated View.
 - The proving scaffold (`/demo/swap-proof/*`, `renderSwapProof*` in `src/app.ts`,
   the `.swap-proof` block in `public/app.css`, the shell `<section>`, and its
   tests) was **disposable** and has been **removed** now that the wire is proven
@@ -167,15 +175,16 @@ EventSource client that closes its own source; the htmx client must be told to.
   pattern). What stays in the codebase from 2.6a is durable: the vendored
   extension + its `<script>`, and `sse-close="done"` on `renderBuildSubscriber`.
 
-## Update (Epic 1.5 — Module 1 finalized)
+## Historical update (Epic 1.5 — predates Module 2 finalization)
+
+This paragraph records the state at the end of Module 1. Its open-question
+language is superseded by the Module 2 planning and Epic 2.6a updates above.
 
 The throwaway `/demo/stream` was **replaced, not just deleted**, by the real
 provider-backed `/stream` (`src/app.ts`): the shell's `Meet Aluna` trigger streams a
 live AI-provider greeting into the content area (`narration` for the greeting,
-`fragment` for the invitation, `done` to close). This **reuses the seed vocabulary
-above unchanged** and keeps the **raw `EventSource` + manual DOM** client path — it
-does **not** settle either open question. The HTMX-driven swap path (`hx-swap-oob`)
-and the channel topology remain Module 2's to prove and finalize (epic 2.6); the
-event names here are still a seed M2 may rename or extend. The route is user-
+`fragment` for the invitation, `done` to close). It reused the seed vocabulary and
+kept the **raw `EventSource` + manual DOM** client path; at that historical point
+it did not settle the HTMX path or topology. Epic 2.6 later did so. The route is user-
 initiated (never hit on load) and carries zero domain logic — it proves the spine
 end-to-end, nothing more.

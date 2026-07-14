@@ -12,8 +12,10 @@ This is the one convention later epics build on — there is exactly one path. S
 may create sidecar files next to it at runtime (`-wal`, `-shm`, `-journal`); those
 live here too.
 
-All four platform stores — capability registry, event log, data tables, and
-generation metrics (ARCH §6.3) — live inside this single database file.
+All four domain stores—capability registry, Event Log, data tables, and generation
+metrics—plus small platform lifecycle metadata for mutation ownership, reader
+gates, file ownership/cleanup, and deletion tombstones (ARCH §6.3) live inside
+this single database file.
 
 ## Tracking
 

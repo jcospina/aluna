@@ -1,0 +1,59 @@
+# Durable generation-metrics lifecycle
+
+Status: ready-for-agent
+
+## Epic
+
+Module 4 — Explicit Loop II: Full CRUD & Evolution · Epic 4.5 — Incarnated
+snapshots, publication, metrics, and atomic activation
+(PLAN decision 28 (core lifecycle):
+`modules/04-explicit-loop-ii-full-crud-and-evolution/PLAN.md`)
+
+## What to build
+
+The durable generation-metrics row lifecycle around every admitted build.
+(Resolution-side admission and the stale-refusal wiring arrive in 4.8; this
+issue builds the row lifecycle they finalize into.)
+
+- When a build reservation reaches the head and the coordinator grants the
+  active lease, it assigns or confirms the incarnation and creates a durable
+  `running` generation row **before the first Builder provider call**. If that
+  write fails, Builder work does not start.
+- The row is keyed by build id and incarnation, embeds the carried resolver
+  measurement (field exists now; populated for real in 4.8), and records
+  generated/copied/executed/skipped/absent stage states. It does not duplicate
+  a resolution row.
+- `lifecycle_status` is the transport/recovery state
+  (`running | success | failed | interrupted`); `outcome` is the typed
+  terminal reason (`activated`, `no_change`, `stale`, or a typed failure).
+- `success/activated` finalizes in the same transaction as pointer activation
+  (built in 4.5/03). `success/no_change` finalizes durably under the active
+  lease before `done=ok` (the comparison that produces it arrives in 4.6).
+  Failure rolls back product changes, then finalizes the row as failed in a
+  short independent transaction.
+- Startup reconciliation marks stale `running` rows `interrupted`. No metrics
+  write occurs after a success commit that could strand a live version without
+  its measurement.
+
+## Acceptance criteria
+
+- [ ] Ordering pinned by test: no provider call before the durable `running`
+      row exists; a failed row write aborts the build before provider work
+- [ ] Failure path: product changes roll back, row finalizes
+      `failed` + typed outcome in its own short transaction
+- [ ] Kill the process mid-build; boot reconciliation marks the row
+      `interrupted` (plan acceptance: recovery of interrupted `running`
+      metrics)
+- [ ] Row keyed by build id + incarnation with stage states
+      generated/copied/executed/skipped/absent
+- [ ] `bun test`, `bun run typecheck`, `bun run lint` clean
+
+## Living demo
+
+The existing metrics dev preview shows the row moving `running` →
+`success`/`failed` across a live homepage build, including an interrupted row
+after a forced restart.
+
+## Blocked by
+
+- modules/04-explicit-loop-ii-full-crud-and-evolution/4.5-snapshots-publication-metrics-atomic-activation/issues/01-staging-manifest-and-atomic-publication.md

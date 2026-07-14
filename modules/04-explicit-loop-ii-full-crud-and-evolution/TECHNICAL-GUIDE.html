@@ -1,0 +1,4076 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="A plain-language technical field guide to Aluna Module 4: full CRUD, capability evolution, immutable snapshots, safe activation, and deletion."
+    >
+    <title>Module 4 technical field guide · Aluna</title>
+    <link rel="icon" href="data:,">
+    <style>
+    @font-face {
+      font-family: "Outfit";
+      src: url("../../public/fonts/outfit-variable.woff2") format("woff2-variations");
+      font-weight: 100 900;
+      font-display: swap;
+    }
+
+    :root {
+      color-scheme: light;
+      --paper: oklch(97% 0.018 82);
+      --paper-deep: oklch(93% 0.03 82);
+      --ink: oklch(20% 0.025 58);
+      --ink-soft: oklch(42% 0.03 58);
+      --ink-faint: oklch(58% 0.025 58);
+      --line: oklch(78% 0.035 72);
+      --line-strong: oklch(58% 0.045 64);
+      --coral: oklch(62% 0.16 38);
+      --coral-deep: oklch(48% 0.14 35);
+      --coral-pale: oklch(91% 0.055 45);
+      --blue: oklch(46% 0.075 245);
+      --blue-pale: oklch(92% 0.035 240);
+      --green: oklch(48% 0.085 150);
+      --green-pale: oklch(92% 0.045 145);
+      --amber: oklch(62% 0.12 78);
+      --amber-pale: oklch(92% 0.07 83);
+      --red: oklch(50% 0.14 25);
+      --red-pale: oklch(92% 0.055 25);
+      --white-tint: oklch(99% 0.006 82);
+      --shadow: 0 1rem 3rem color-mix(in oklch, var(--ink), transparent 90%);
+      --font:
+        "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --radius-sm: 0.35rem;
+      --radius-md: 0.75rem;
+      --radius-lg: 1.25rem;
+      --page: min(7vw, 6rem);
+      --content: 76rem;
+      --measure: 70ch;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 5rem;
+    }
+
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px), var(--paper);
+      background-size: 2rem 2rem;
+      color: var(--ink);
+      font-family: var(--font);
+      font-size: 1rem;
+      line-height: 1.62;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: color-mix(in oklch, var(--paper), transparent 12%);
+      pointer-events: none;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      color: inherit;
+    }
+
+    a {
+      color: inherit;
+      text-decoration-color: color-mix(in oklch, currentColor, transparent 58%);
+      text-underline-offset: 0.18em;
+    }
+
+    a:hover {
+      text-decoration-color: currentColor;
+    }
+
+    img,
+    svg {
+      display: block;
+      max-width: 100%;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    p {
+      margin-top: 0;
+    }
+
+    code {
+      padding: 0.08em 0.3em;
+      background: color-mix(in oklch, var(--blue-pale), var(--paper) 35%);
+      border: 1px solid color-mix(in oklch, var(--blue), transparent 72%);
+      border-radius: 0.25rem;
+      font-family: var(--mono);
+      font-size: 0.88em;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 0;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+
+    pre code {
+      padding: 0;
+      background: none;
+      border: 0;
+      border-radius: 0;
+      color: inherit;
+      font-size: inherit;
+    }
+
+    :focus-visible {
+      outline: 3px solid var(--coral);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 0.75rem;
+      left: 0.75rem;
+      z-index: 100;
+      padding: 0.65rem 0.9rem;
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: var(--radius-sm);
+      transform: translateY(-160%);
+      transition: transform 160ms var(--ease);
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .masthead {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      min-height: 4.25rem;
+      padding: 0.65rem var(--page);
+      background: color-mix(in oklch, var(--paper), transparent 5%);
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.65rem;
+      font-weight: 780;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .brand__name {
+      font-size: 1.3rem;
+      letter-spacing: -0.03em;
+    }
+
+    .brand__name span {
+      color: var(--coral);
+    }
+
+    .brand__meta {
+      color: var(--ink-soft);
+      font-size: 0.78rem;
+      font-weight: 650;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .progress {
+      width: min(17rem, 30vw);
+      height: 0.28rem;
+      overflow: hidden;
+      background: var(--paper-deep);
+      border-radius: 999px;
+    }
+
+    .progress__bar {
+      width: 0;
+      height: 100%;
+      background: var(--coral);
+      transform-origin: left;
+    }
+
+    .page {
+      width: min(100%, 98rem);
+      margin-inline: auto;
+      padding-inline: var(--page);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(17rem, 0.65fr);
+      gap: clamp(3rem, 8vw, 8rem);
+      align-items: end;
+      min-height: calc(100svh - 4.25rem);
+      padding-block: clamp(5rem, 10vw, 9rem) clamp(4rem, 8vw, 7rem);
+    }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-bottom: 1.5rem;
+      color: var(--coral-deep);
+      font-size: 0.79rem;
+      font-weight: 760;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .kicker::before {
+      content: "M4";
+      display: grid;
+      place-items: center;
+      width: 2.2rem;
+      height: 2.2rem;
+      background: var(--coral);
+      color: var(--white-tint);
+      border-radius: 50%;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 13ch;
+      margin-bottom: 1.6rem;
+      font-size: clamp(3.5rem, 8vw, 7.6rem);
+      font-weight: 820;
+      line-height: 0.9;
+      letter-spacing: -0.06em;
+    }
+
+    .hero__lede {
+      max-width: 62ch;
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: clamp(1.12rem, 2vw, 1.38rem);
+      line-height: 1.55;
+    }
+
+    .hero__brief {
+      padding: 1.5rem;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      transform: rotate(1deg);
+    }
+
+    .hero__brief-label {
+      margin-bottom: 1rem;
+      color: var(--blue);
+      font-size: 0.76rem;
+      font-weight: 760;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .hero__brief h2 {
+      margin-bottom: 0.9rem;
+      font-size: 1.55rem;
+      line-height: 1.1;
+      letter-spacing: -0.025em;
+    }
+
+    .hero__brief p {
+      margin-bottom: 1.15rem;
+      color: var(--ink-soft);
+      font-size: 0.95rem;
+    }
+
+    .hero__brief ul {
+      display: grid;
+      gap: 0.7rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .hero__brief li {
+      display: grid;
+      grid-template-columns: 1.35rem 1fr;
+      gap: 0.65rem;
+      align-items: start;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .hero__brief li::before {
+      content: counter(brief, decimal-leading-zero);
+      color: var(--coral-deep);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .hero__brief ul {
+      counter-reset: brief;
+    }
+
+    .hero__brief li {
+      counter-increment: brief;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 13rem minmax(0, var(--content));
+      gap: clamp(2.5rem, 7vw, 7rem);
+      justify-content: center;
+      align-items: start;
+    }
+
+    .contents {
+      position: sticky;
+      top: 6.2rem;
+      padding-block: 1rem 2rem;
+    }
+
+    .contents__label {
+      margin-bottom: 1rem;
+      color: var(--ink-faint);
+      font-size: 0.72rem;
+      font-weight: 760;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .contents ol {
+      display: grid;
+      gap: 0.2rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: toc;
+    }
+
+    .contents li {
+      counter-increment: toc;
+    }
+
+    .contents a {
+      display: grid;
+      grid-template-columns: 1.6rem 1fr;
+      gap: 0.45rem;
+      padding: 0.5rem 0.35rem;
+      color: var(--ink-soft);
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-weight: 600;
+      line-height: 1.25;
+      text-decoration: none;
+    }
+
+    .contents a::before {
+      content: counter(toc, decimal-leading-zero);
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.7rem;
+    }
+
+    .contents a:hover,
+    .contents a[aria-current="true"] {
+      background: var(--white-tint);
+      color: var(--ink);
+    }
+
+    .contents a[aria-current="true"]::before {
+      color: var(--coral-deep);
+    }
+
+    .article {
+      min-width: 0;
+    }
+
+    .chapter {
+      padding-block: clamp(5rem, 10vw, 9rem);
+      border-top: 1px solid var(--line-strong);
+    }
+
+    .chapter:first-child {
+      border-top: 0;
+    }
+
+    .chapter__head {
+      display: grid;
+      grid-template-columns: 5rem minmax(0, 1fr);
+      gap: 1.5rem;
+      align-items: start;
+      margin-bottom: clamp(2.5rem, 6vw, 5rem);
+    }
+
+    .chapter__number {
+      padding-top: 0.35rem;
+      color: var(--coral-deep);
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .chapter h2 {
+      max-width: 15ch;
+      margin-bottom: 1rem;
+      font-size: clamp(2.25rem, 5vw, 4.5rem);
+      font-weight: 800;
+      line-height: 0.96;
+      letter-spacing: -0.045em;
+    }
+
+    .chapter__intro {
+      max-width: var(--measure);
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 1.12rem;
+    }
+
+    .prose {
+      max-width: var(--measure);
+    }
+
+    .prose p {
+      margin-bottom: 1.3rem;
+    }
+
+    .prose h3,
+    .subhead {
+      margin: 3.2rem 0 1rem;
+      font-size: 1.65rem;
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+    }
+
+    .plain-definition {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      margin: 2.5rem 0;
+      overflow: hidden;
+      background: var(--line-strong);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+    }
+
+    .plain-definition > div {
+      padding: clamp(1.4rem, 3vw, 2.2rem);
+      background: var(--white-tint);
+    }
+
+    .plain-definition__label {
+      margin-bottom: 0.75rem;
+      color: var(--ink-faint);
+      font-size: 0.75rem;
+      font-weight: 760;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .plain-definition h3 {
+      margin-bottom: 0.75rem;
+      font-size: 1.35rem;
+      line-height: 1.15;
+    }
+
+    .plain-definition p {
+      margin-bottom: 0;
+      color: var(--ink-soft);
+    }
+
+    .callout {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 1rem;
+      align-items: start;
+      margin: 2.5rem 0;
+      padding: 1.35rem 1.45rem;
+      background: var(--amber-pale);
+      border: 1px solid color-mix(in oklch, var(--amber), var(--ink) 18%);
+      border-radius: var(--radius-md);
+    }
+
+    .callout__mark {
+      display: grid;
+      place-items: center;
+      width: 1.8rem;
+      height: 1.8rem;
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: 50%;
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .callout h3 {
+      margin-bottom: 0.35rem;
+      font-size: 1.05rem;
+    }
+
+    .callout p {
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.95rem;
+    }
+
+    .concept-bridge {
+      display: grid;
+      grid-template-columns: 8.5rem minmax(0, 1fr);
+      gap: 1.25rem;
+      align-items: start;
+      max-width: var(--measure);
+      margin: 2.5rem 0;
+      padding: 1.35rem 1.45rem;
+      background: var(--blue-pale);
+      border: 1px solid color-mix(in oklch, var(--blue), var(--line) 56%);
+      border-radius: var(--radius-md);
+    }
+
+    .concept-bridge__label {
+      margin: 0;
+      color: var(--blue);
+      font-size: 0.74rem;
+      font-weight: 780;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .concept-bridge p:last-child {
+      margin: 0;
+      color: var(--ink-soft);
+    }
+
+    .before-after {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 1.2rem;
+      align-items: stretch;
+      margin: 2.8rem 0;
+    }
+
+    .before-after__panel {
+      padding: 1.6rem;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-md);
+    }
+
+    .before-after__panel.is-after {
+      background: var(--green-pale);
+      border-color: color-mix(in oklch, var(--green), var(--line) 35%);
+    }
+
+    .before-after__arrow {
+      align-self: center;
+      color: var(--coral-deep);
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+
+    .micro-label {
+      margin-bottom: 0.65rem;
+      color: var(--ink-faint);
+      font-size: 0.72rem;
+      font-weight: 760;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .before-after h3 {
+      margin-bottom: 0.65rem;
+      font-size: 1.35rem;
+    }
+
+    .before-after p {
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.94rem;
+    }
+
+    .identity-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      margin: 2.7rem 0;
+      overflow: hidden;
+      background: var(--line-strong);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+    }
+
+    .identity-strip > article {
+      padding: 1.7rem;
+      background: var(--white-tint);
+    }
+
+    .identity-strip__value {
+      margin-bottom: 0.7rem;
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: 1.05rem;
+      font-weight: 750;
+    }
+
+    .identity-strip h3 {
+      margin-bottom: 0.55rem;
+      font-size: 1.08rem;
+    }
+
+    .identity-strip p {
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+    }
+
+    .action-table,
+    .technical-table {
+      width: 100%;
+      margin: 2.5rem 0;
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      border-collapse: separate;
+      border-spacing: 0;
+      border-radius: var(--radius-lg);
+      background: var(--white-tint);
+    }
+
+    .action-table th,
+    .action-table td,
+    .technical-table th,
+    .technical-table td {
+      padding: 1rem 1.1rem;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .action-table tr:last-child td,
+    .technical-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .action-table th,
+    .technical-table th {
+      background: var(--paper-deep);
+      color: var(--ink-soft);
+      font-size: 0.72rem;
+      font-weight: 760;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .action-table td:first-child {
+      width: 7rem;
+      color: var(--coral-deep);
+      font-family: var(--mono);
+      font-weight: 700;
+    }
+
+    .action-table td,
+    .technical-table td {
+      font-size: 0.93rem;
+    }
+
+    .data-lanes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin: 2.8rem 0;
+    }
+
+    .lane {
+      position: relative;
+      overflow: hidden;
+      padding: 2rem;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+    }
+
+    .lane::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 5rem;
+      height: 5rem;
+      background: var(--lane-color);
+      border-radius: 0 0 0 100%;
+      opacity: 0.35;
+    }
+
+    .lane.is-read {
+      --lane-color: var(--blue-pale);
+    }
+
+    .lane.is-write {
+      --lane-color: var(--coral-pale);
+    }
+
+    .lane__label {
+      margin-bottom: 1rem;
+      color: var(--ink-faint);
+      font-size: 0.74rem;
+      font-weight: 760;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .lane h3 {
+      margin-bottom: 0.75rem;
+      font-size: 1.7rem;
+      letter-spacing: -0.025em;
+    }
+
+    .lane > p {
+      color: var(--ink-soft);
+    }
+
+    .lane ol {
+      display: grid;
+      gap: 0.6rem;
+      margin: 1.3rem 0 0;
+      padding-left: 1.35rem;
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+    }
+
+    .protocol {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0;
+      margin: 3rem 0;
+    }
+
+    .protocol__step {
+      position: relative;
+      min-height: 11rem;
+      padding: 1.4rem 1rem 1.2rem;
+      background: var(--white-tint);
+      border-top: 1px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
+      border-left: 1px solid var(--line-strong);
+    }
+
+    .protocol__step:first-child {
+      border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    }
+
+    .protocol__step:last-child {
+      border-right: 1px solid var(--line-strong);
+      border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    }
+
+    .protocol__step:not(:last-child)::after {
+      content: "›";
+      position: absolute;
+      top: 50%;
+      right: -0.68rem;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: 1.35rem;
+      height: 1.35rem;
+      background: var(--paper);
+      color: var(--coral-deep);
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      font-weight: 800;
+      transform: translateY(-50%);
+    }
+
+    .protocol__index {
+      display: block;
+      margin-bottom: 1.2rem;
+      color: var(--coral-deep);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .protocol__step h3 {
+      margin-bottom: 0.55rem;
+      font-size: 1rem;
+      line-height: 1.15;
+    }
+
+    .protocol__step p {
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+
+    .field-lab {
+      margin: 3rem 0;
+      overflow: hidden;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .field-lab__bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      background: var(--paper-deep);
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .field-lab__bar h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .field-lab__controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .segmented-button,
+    .fact-toggle,
+    .step-button,
+    .epic-button {
+      cursor: pointer;
+    }
+
+    .segmented-button {
+      padding: 0.48rem 0.75rem;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      font-weight: 680;
+    }
+
+    .segmented-button[aria-pressed="true"] {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .field-lab__body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.72fr);
+      gap: 1px;
+      background: var(--line-strong);
+    }
+
+    .field-lab__body > div {
+      padding: clamp(1.4rem, 3vw, 2rem);
+      background: var(--white-tint);
+    }
+
+    .field-spec {
+      display: grid;
+      gap: 0.75rem;
+      margin: 0;
+      padding: 1rem;
+      background: color-mix(in oklch, var(--blue-pale), var(--paper) 25%);
+      border: 1px solid color-mix(in oklch, var(--blue), transparent 68%);
+      border-radius: var(--radius-md);
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.55;
+    }
+
+    .field-outcome h4 {
+      margin-bottom: 0.65rem;
+      font-size: 1.2rem;
+    }
+
+    .field-outcome p {
+      margin-bottom: 1.1rem;
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+    }
+
+    .field-outcome ul {
+      display: grid;
+      gap: 0.5rem;
+      margin: 0;
+      padding-left: 1.15rem;
+      color: var(--ink-soft);
+      font-size: 0.88rem;
+    }
+
+    .stepper {
+      display: grid;
+      grid-template-columns: minmax(13rem, 0.38fr) minmax(0, 1fr);
+      gap: 1.5rem;
+      margin: 3rem 0;
+    }
+
+    .stepper__rail {
+      display: grid;
+      align-content: start;
+      gap: 0.35rem;
+    }
+
+    .step-button {
+      display: grid;
+      grid-template-columns: 2rem minmax(0, 1fr);
+      gap: 0.7rem;
+      align-items: center;
+      width: 100%;
+      padding: 0.78rem;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius-md);
+      text-align: left;
+    }
+
+    .step-button:hover {
+      background: color-mix(in oklch, var(--white-tint), transparent 20%);
+      border-color: var(--line);
+    }
+
+    .step-button[aria-current="step"] {
+      background: var(--white-tint);
+      border-color: var(--line-strong);
+      box-shadow: 0 0.45rem 1.2rem color-mix(in oklch, var(--ink), transparent 92%);
+    }
+
+    .step-button__index {
+      display: grid;
+      place-items: center;
+      width: 2rem;
+      height: 2rem;
+      color: var(--ink-faint);
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .step-button[aria-current="step"] .step-button__index {
+      background: var(--coral);
+      color: var(--white-tint);
+      border-color: var(--coral);
+    }
+
+    .step-button__text {
+      font-size: 0.85rem;
+      font-weight: 680;
+      line-height: 1.2;
+    }
+
+    .stepper__stage {
+      position: sticky;
+      top: 6.1rem;
+      min-height: 28rem;
+      padding: clamp(2rem, 5vw, 3.6rem);
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .stepper__stage-label {
+      margin-bottom: 2rem;
+      color: color-mix(in oklch, var(--paper), transparent 35%);
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .stepper__stage h3 {
+      max-width: 18ch;
+      margin-bottom: 1rem;
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      line-height: 0.98;
+      letter-spacing: -0.04em;
+    }
+
+    .stepper__stage-copy {
+      max-width: 55ch;
+      margin-bottom: 1.6rem;
+      color: color-mix(in oklch, var(--paper), transparent 18%);
+      font-size: 1.05rem;
+    }
+
+    .stepper__stage-rule {
+      max-width: 58ch;
+      margin: 0;
+      padding: 1rem;
+      background: color-mix(in oklch, var(--paper), transparent 90%);
+      border: 1px solid color-mix(in oklch, var(--paper), transparent 73%);
+      border-radius: var(--radius-md);
+      color: color-mix(in oklch, var(--paper), transparent 8%);
+      font-size: 0.9rem;
+    }
+
+    .stepper__stage-rule strong {
+      color: var(--coral-pale);
+    }
+
+    .diff-lab {
+      margin: 3rem 0;
+      overflow: hidden;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .diff-lab__head {
+      padding: 1.6rem;
+      background: var(--paper-deep);
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .diff-lab__head h3 {
+      margin-bottom: 0.45rem;
+      font-size: 1.35rem;
+    }
+
+    .diff-lab__head p {
+      max-width: 65ch;
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+    }
+
+    .diff-lab__workspace {
+      display: grid;
+      grid-template-columns: minmax(15rem, 0.42fr) minmax(0, 1fr);
+      gap: 1px;
+      background: var(--line-strong);
+    }
+
+    .diff-lab__facts,
+    .diff-lab__result {
+      padding: 1.5rem;
+      background: var(--white-tint);
+    }
+
+    .diff-lab__facts h4,
+    .diff-lab__result h4 {
+      margin-bottom: 1rem;
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .fact-list {
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .fact-toggle {
+      display: grid;
+      grid-template-columns: 1rem minmax(0, 1fr);
+      gap: 0.7rem;
+      align-items: start;
+      width: 100%;
+      padding: 0.8rem;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      text-align: left;
+    }
+
+    .fact-toggle:hover {
+      border-color: var(--line-strong);
+    }
+
+    .fact-toggle[aria-pressed="true"] {
+      background: var(--coral-pale);
+      border-color: color-mix(in oklch, var(--coral), var(--line) 35%);
+    }
+
+    .fact-toggle__box {
+      display: grid;
+      place-items: center;
+      width: 1rem;
+      height: 1rem;
+      margin-top: 0.15rem;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: 0.2rem;
+      color: transparent;
+      font-size: 0.68rem;
+      line-height: 1;
+    }
+
+    .fact-toggle[aria-pressed="true"] .fact-toggle__box {
+      background: var(--coral-deep);
+      color: var(--white-tint);
+      border-color: var(--coral-deep);
+    }
+
+    .fact-toggle__label {
+      font-size: 0.84rem;
+      font-weight: 660;
+      line-height: 1.25;
+    }
+
+    .effect-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      overflow: hidden;
+      background: var(--line-strong);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-md);
+    }
+
+    .effect-grid > article {
+      min-height: 13rem;
+      padding: 1.25rem;
+      background: var(--paper);
+    }
+
+    .effect-grid h5 {
+      margin: 0 0 0.75rem;
+      color: var(--ink-faint);
+      font-size: 0.72rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .effect-grid ul {
+      display: grid;
+      gap: 0.5rem;
+      margin: 0;
+      padding-left: 1rem;
+      color: var(--ink-soft);
+      font-size: 0.87rem;
+    }
+
+    .effect-grid .is-empty {
+      padding: 0;
+      color: var(--ink-faint);
+      list-style: none;
+    }
+
+    .diff-lab__rule {
+      margin: 1rem 0 0;
+      padding: 0.8rem 0.9rem;
+      background: var(--blue-pale);
+      border: 1px solid color-mix(in oklch, var(--blue), transparent 65%);
+      border-radius: var(--radius-sm);
+      color: var(--blue);
+      font-size: 0.86rem;
+    }
+
+    .activation {
+      margin: 3rem 0;
+      overflow: hidden;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+    }
+
+    .activation__stores {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--line-strong);
+    }
+
+    .activation__store {
+      padding: 1.7rem;
+      background: var(--white-tint);
+    }
+
+    .activation__store h3 {
+      margin-bottom: 0.55rem;
+      font-size: 1.25rem;
+    }
+
+    .activation__store p {
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+    }
+
+    .activation__timeline {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0;
+      padding: 1.8rem;
+      background: var(--paper-deep);
+    }
+
+    .activation__event {
+      position: relative;
+      padding: 2rem 0.7rem 0;
+      text-align: center;
+    }
+
+    .activation__event::before {
+      content: "";
+      position: absolute;
+      top: 0.52rem;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--line-strong);
+    }
+
+    .activation__event:first-child::before {
+      left: 50%;
+    }
+
+    .activation__event:last-child::before {
+      right: 50%;
+    }
+
+    .activation__dot {
+      position: absolute;
+      top: 0;
+      left: calc(50% - 0.55rem);
+      z-index: 2;
+      width: 1.1rem;
+      height: 1.1rem;
+      background: var(--paper);
+      border: 2px solid var(--line-strong);
+      border-radius: 50%;
+    }
+
+    .activation__event.is-point .activation__dot {
+      background: var(--coral);
+      border-color: var(--coral-deep);
+      box-shadow: 0 0 0 0.35rem var(--coral-pale);
+    }
+
+    .activation__event h4 {
+      margin-bottom: 0.4rem;
+      font-size: 0.9rem;
+      line-height: 1.15;
+    }
+
+    .activation__event p {
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.76rem;
+      line-height: 1.35;
+    }
+
+    .failure-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--line-strong);
+      border-top: 1px solid var(--line-strong);
+    }
+
+    .failure-split > article {
+      padding: 1.6rem;
+      background: var(--white-tint);
+    }
+
+    .failure-split > article:first-child {
+      background: var(--green-pale);
+    }
+
+    .failure-split > article:last-child {
+      background: var(--amber-pale);
+    }
+
+    .failure-split h3 {
+      margin-bottom: 0.55rem;
+      font-size: 1.1rem;
+    }
+
+    .failure-split p {
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+    }
+
+    .tier-table td:first-child {
+      white-space: nowrap;
+      font-family: var(--mono);
+      font-weight: 700;
+    }
+
+    .coordinator {
+      display: grid;
+      grid-template-columns: minmax(0, 0.72fr) minmax(0, 1fr);
+      gap: 1.5rem;
+      margin: 3rem 0;
+    }
+
+    .coordinator__queue,
+    .coordinator__rules {
+      padding: 1.6rem;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+    }
+
+    .coordinator__queue h3,
+    .coordinator__rules h3 {
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+    }
+
+    .queue-stack {
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .queue-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.85rem 1rem;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 650;
+    }
+
+    .queue-item.is-active {
+      background: var(--coral-pale);
+      border-color: color-mix(in oklch, var(--coral), var(--line) 35%);
+    }
+
+    .queue-item.is-refused {
+      color: var(--ink-faint);
+      text-decoration: line-through;
+    }
+
+    .queue-status {
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.69rem;
+      font-weight: 700;
+      text-decoration: none;
+      text-transform: uppercase;
+    }
+
+    .coordinator__rules dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.8rem 1rem;
+      margin: 0;
+    }
+
+    .coordinator__rules dt {
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .coordinator__rules dd {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+    }
+
+    .deletion-flow {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0.65rem;
+      margin: 3rem 0;
+    }
+
+    .deletion-flow__step {
+      min-height: 10.5rem;
+      padding: 1rem;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-md);
+    }
+
+    .deletion-flow__step.is-point {
+      background: var(--red-pale);
+      border-color: color-mix(in oklch, var(--red), var(--line) 42%);
+    }
+
+    .deletion-flow__step span {
+      display: block;
+      margin-bottom: 1rem;
+      color: var(--red);
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    .deletion-flow__step h3 {
+      margin-bottom: 0.45rem;
+      font-size: 0.95rem;
+      line-height: 1.15;
+    }
+
+    .deletion-flow__step p {
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.77rem;
+      line-height: 1.35;
+    }
+
+    .epic-explorer {
+      display: grid;
+      grid-template-columns: minmax(16rem, 0.42fr) minmax(0, 1fr);
+      gap: 1.5rem;
+      margin: 3rem 0;
+    }
+
+    .epic-rail {
+      display: grid;
+      gap: 0.4rem;
+      align-content: start;
+    }
+
+    .epic-button {
+      display: grid;
+      grid-template-columns: 3rem minmax(0, 1fr);
+      gap: 0.75rem;
+      align-items: center;
+      width: 100%;
+      padding: 0.8rem;
+      background: var(--white-tint);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      text-align: left;
+    }
+
+    .epic-button[aria-selected="true"] {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+
+    .epic-button__number {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .epic-button__name {
+      font-size: 0.82rem;
+      font-weight: 650;
+      line-height: 1.25;
+    }
+
+    .epic-stage {
+      position: sticky;
+      top: 6.1rem;
+      min-height: 27rem;
+      padding: clamp(2rem, 4vw, 3rem);
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .epic-stage__phase {
+      margin-bottom: 1.4rem;
+      color: var(--coral-deep);
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .epic-stage h3 {
+      max-width: 21ch;
+      margin-bottom: 1rem;
+      font-size: clamp(2rem, 4vw, 3.25rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .epic-stage__copy {
+      max-width: 60ch;
+      color: var(--ink-soft);
+    }
+
+    .epic-stage__proof {
+      margin: 1.7rem 0 0;
+      padding: 1rem;
+      background: var(--green-pale);
+      border: 1px solid color-mix(in oklch, var(--green), transparent 60%);
+      border-radius: var(--radius-md);
+      color: color-mix(in oklch, var(--green), var(--ink) 25%);
+      font-size: 0.9rem;
+    }
+
+    .epic-stage__proof strong {
+      display: block;
+      margin-bottom: 0.25rem;
+      color: var(--green);
+    }
+
+    .walkthrough {
+      margin: 3rem 0;
+      overflow: hidden;
+      background: var(--white-tint);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+    }
+
+    .walkthrough__prompt {
+      padding: clamp(2rem, 5vw, 3.5rem);
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .walkthrough__prompt .micro-label {
+      color: color-mix(in oklch, var(--paper), transparent 42%);
+    }
+
+    .walkthrough__prompt blockquote {
+      max-width: 24ch;
+      margin: 0;
+      font-size: clamp(1.8rem, 4vw, 3.3rem);
+      font-weight: 740;
+      line-height: 1.08;
+      letter-spacing: -0.035em;
+    }
+
+    .walkthrough__steps {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1px;
+      background: var(--line-strong);
+    }
+
+    .walkthrough__step {
+      display: grid;
+      grid-template-columns: 2.4rem minmax(0, 1fr);
+      gap: 1rem;
+      padding: 1.5rem;
+      background: var(--white-tint);
+    }
+
+    .walkthrough__step span {
+      color: var(--coral-deep);
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .walkthrough__step h3 {
+      margin-bottom: 0.45rem;
+      font-size: 1rem;
+    }
+
+    .walkthrough__step p {
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 0.88rem;
+    }
+
+    .glossary {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1px;
+      margin: 3rem 0;
+      overflow: hidden;
+      background: var(--line-strong);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+    }
+
+    .glossary > div {
+      padding: 1.35rem;
+      background: var(--white-tint);
+    }
+
+    .glossary dt {
+      margin-bottom: 0.45rem;
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: 0.86rem;
+      font-weight: 720;
+    }
+
+    .glossary dd {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+    }
+
+    .glossary dd strong {
+      color: var(--ink);
+      font-weight: 720;
+    }
+
+    .takeaway {
+      margin-top: 3rem;
+      padding: clamp(2rem, 5vw, 4rem);
+      background: var(--coral);
+      color: var(--white-tint);
+      border: 1px solid var(--coral-deep);
+      border-radius: var(--radius-lg);
+    }
+
+    .takeaway h3 {
+      max-width: 18ch;
+      margin-bottom: 1rem;
+      font-size: clamp(2rem, 5vw, 4rem);
+      line-height: 0.98;
+      letter-spacing: -0.045em;
+    }
+
+    .takeaway p {
+      max-width: 60ch;
+      margin-bottom: 0;
+      color: color-mix(in oklch, var(--white-tint), transparent 8%);
+      font-size: 1.05rem;
+    }
+
+    .sources {
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--line-strong);
+    }
+
+    .sources h3 {
+      margin-bottom: 1rem;
+      font-size: 1.2rem;
+    }
+
+    .sources ul {
+      display: grid;
+      gap: 0.65rem;
+      margin: 0;
+      padding-left: 1.2rem;
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+    }
+
+    footer {
+      padding: 3rem var(--page) 5rem;
+      color: var(--ink-faint);
+      font-size: 0.82rem;
+      text-align: center;
+    }
+
+    @media (max-width: 1060px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .contents {
+        position: static;
+        padding: 1rem 0 0;
+        border-top: 1px solid var(--line-strong);
+      }
+
+      .contents ol {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .stepper__stage,
+      .epic-stage {
+        position: static;
+      }
+
+      .deletion-flow {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 780px) {
+      :root {
+        --page: 1.15rem;
+      }
+
+      html {
+        scroll-padding-top: 4.25rem;
+      }
+
+      .masthead {
+        min-height: 3.75rem;
+      }
+
+      .brand__meta,
+      .progress {
+        display: none;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding-block: 5rem 4rem;
+      }
+
+      .hero__brief {
+        transform: none;
+      }
+
+      h1 {
+        font-size: clamp(3.2rem, 16vw, 5rem);
+      }
+
+      .contents ol {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .chapter__head {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+      }
+
+      .plain-definition,
+      .concept-bridge,
+      .identity-strip,
+      .data-lanes,
+      .field-lab__body,
+      .diff-lab__workspace,
+      .activation__stores,
+      .failure-split,
+      .coordinator,
+      .epic-explorer,
+      .walkthrough__steps,
+      .glossary {
+        grid-template-columns: 1fr;
+      }
+
+      .before-after {
+        grid-template-columns: 1fr;
+      }
+
+      .before-after__arrow {
+        justify-self: center;
+        transform: rotate(90deg);
+      }
+
+      .protocol {
+        grid-template-columns: 1fr;
+      }
+
+      .protocol__step {
+        min-height: auto;
+        border-right: 1px solid var(--line-strong);
+        border-bottom: 0;
+      }
+
+      .protocol__step:first-child {
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      }
+
+      .protocol__step:last-child {
+        border-bottom: 1px solid var(--line-strong);
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      }
+
+      .protocol__step:not(:last-child)::after {
+        top: auto;
+        bottom: -0.68rem;
+        right: calc(50% - 0.68rem);
+        transform: rotate(90deg);
+      }
+
+      .stepper {
+        grid-template-columns: 1fr;
+      }
+
+      .stepper__rail {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stepper__stage {
+        min-height: 25rem;
+      }
+
+      .effect-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .effect-grid > article {
+        min-height: auto;
+      }
+
+      .activation__timeline {
+        grid-template-columns: 1fr;
+        gap: 0.7rem;
+      }
+
+      .activation__event {
+        display: grid;
+        grid-template-columns: 1.3rem 1fr;
+        gap: 0.7rem;
+        padding: 0;
+        text-align: left;
+      }
+
+      .activation__event::before {
+        top: 0;
+        bottom: -0.7rem;
+        left: 0.52rem;
+        right: auto;
+        width: 2px;
+        height: auto;
+      }
+
+      .activation__event:first-child::before {
+        left: 0.52rem;
+      }
+
+      .activation__event:last-child::before {
+        display: none;
+      }
+
+      .activation__dot {
+        position: relative;
+        top: 0.12rem;
+        left: 0;
+      }
+
+      .activation__event h4,
+      .activation__event p {
+        grid-column: 2;
+      }
+
+      .activation__event h4 {
+        margin-top: -1.35rem;
+      }
+
+      .deletion-flow {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .epic-stage {
+        min-height: 25rem;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .contents ol,
+      .stepper__rail,
+      .deletion-flow {
+        grid-template-columns: 1fr;
+      }
+
+      .field-lab__bar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .action-table,
+      .technical-table {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .action-table thead,
+      .action-table tbody,
+      .technical-table thead,
+      .technical-table tbody {
+        display: table;
+        width: 46rem;
+        table-layout: fixed;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      .skip-link {
+        transition: none;
+      }
+    }
+
+    @media print {
+      body {
+        background: var(--paper);
+      }
+
+      .masthead,
+      .contents {
+        display: none;
+      }
+
+      .page,
+      .layout {
+        display: block;
+        width: 100%;
+        max-width: none;
+        padding: 0;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      .chapter {
+        break-before: page;
+      }
+
+      .stepper,
+      .epic-explorer {
+        display: block;
+      }
+
+      .stepper__rail,
+      .epic-rail {
+        display: none;
+      }
+
+      .stepper__stage,
+      .epic-stage {
+        min-height: auto;
+        box-shadow: none;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to the guide</a>
+
+    <header class="masthead">
+      <a class="brand" href="#start" aria-label="Aluna Module 4 technical field guide">
+        <span class="brand__name">Aluna<span>.</span></span>
+        <span class="brand__meta">Module 4 field guide</span>
+      </a>
+      <div class="progress" aria-hidden="true">
+        <div class="progress__bar" id="progress-bar"></div>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero page" id="start">
+        <div>
+          <p class="kicker">Technical field guide</p>
+          <h1>How a capability changes without losing itself.</h1>
+          <p class="hero__lede">
+            Module 4 lets people edit, search, extend, and permanently delete what Aluna has built
+            for them. It also protects saved data when a capability changes and keeps the previous
+            version working if a new version fails. This guide explains how, one idea at a time.
+          </p>
+        </div>
+
+        <aside class="hero__brief" aria-label="What this guide answers">
+          <p class="hero__brief-label">Questions this page answers</p>
+          <h2>Read this when the plan feels too dense.</h2>
+          <p>
+            The implementation has many safety rules. This page explains the reason for each one.
+          </p>
+          <ul>
+            <li>What exactly changes from M3?</li>
+            <li>How does an edit preserve hidden data?</li>
+            <li>How does Aluna decide what to rebuild?</li>
+            <li>When does a new version become live?</li>
+            <li>What survives a crash or deletion?</li>
+            <li>What do the technical terms mean?</li>
+          </ul>
+        </aside>
+      </section>
+
+      <div class="page layout">
+        <nav class="contents" aria-label="Guide contents">
+          <p class="contents__label">On this page</p>
+          <ol>
+            <li><a href="#leap">What Module 4 adds</a></li>
+            <li><a href="#identity">Identity and versions</a></li>
+            <li><a href="#crud">Five record Actions</a></li>
+            <li><a href="#fields">Changing fields safely</a></li>
+            <li><a href="#evolution">How changes happen</a></li>
+            <li><a href="#diff">What gets rebuilt</a></li>
+            <li><a href="#gate">Testing the complete version</a></li>
+            <li><a href="#activation">Making a version live</a></li>
+            <li><a href="#coordination">Safe write order</a></li>
+            <li><a href="#deletion">Permanent deletion</a></li>
+            <li><a href="#epics">Build order</a></li>
+            <li><a href="#walkthrough">Worked example</a></li>
+            <li><a href="#glossary">Glossary</a></li>
+          </ol>
+        </nav>
+
+        <article class="article">
+          <section class="chapter" id="leap" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">01 / 12</span>
+              <div>
+                <h2>What changes in Module 4.</h2>
+                <p class="chapter__intro">
+                  Earlier modules taught Aluna to build and display a capability. Module 4 makes
+                  that capability safe to edit, extend, recover, and permanently delete.
+                </p>
+              </div>
+            </header>
+
+            <div class="before-after">
+              <article class="before-after__panel">
+                <p class="micro-label">At the end of M3</p>
+                <h3>Create and view records</h3>
+                <p>
+                  A capability can save new records and show them in its own visual style. Changing
+                  what it tracks still requires rebuilding it from scratch.
+                </p>
+              </article>
+              <div class="before-after__arrow" aria-hidden="true">→</div>
+              <article class="before-after__panel is-after">
+                <p class="micro-label">At the end of M4</p>
+                <h3>Use and safely change records</h3>
+                <p>
+                  A capability can create, view, edit, search, and delete records. It can also gain
+                  new fields or presentation changes without losing existing data.
+                </p>
+              </article>
+            </div>
+
+            <div class="prose">
+              <p>
+                The important change is larger than adding Edit and Delete buttons. Aluna must know
+                which version is currently live, keep older completed versions intact, and move to a
+                new version only after that version has passed every check.
+              </p>
+              <p>
+                Capability data lives in SQLite, while generated files live on disk. Those two
+                places cannot be updated as one all-or-nothing operation. Module 4 therefore sets a
+                safe order: prepare and verify the files first, then switch the database to the new
+                version. If anything fails early, the old version remains live.
+              </p>
+            </div>
+
+            <div class="plain-definition">
+              <div>
+                <p class="plain-definition__label">What the user experiences</p>
+                <h3>“Add a due date to my notes.”</h3>
+                <p>
+                  One prompt, a clear progress explanation, preserved notes, and then a refreshed
+                  Notes view with the new field.
+                </p>
+              </div>
+              <div>
+                <p class="plain-definition__label">What Aluna does behind the scenes</p>
+                <h3>Prepare, check, and switch versions.</h3>
+                <p>
+                  Understand the request, prepare a complete new version, determine what must be
+                  rebuilt, test everything together, save the version, and only then make it live.
+                </p>
+              </div>
+            </div>
+
+            <div class="callout">
+              <span class="callout__mark">!</span>
+              <div>
+                <h3>M4 does not turn Aluna into a coding platform.</h3>
+                <p>
+                  Users describe outcomes. They do not select types, edit migrations, tune CSS, or
+                  steer repair steps. The developer panel remains read-only. AI authors capability
+                  meaning. Fixed Aluna rules protect data, version history, and the safe order of
+                  each change.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="chapter" id="identity" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">02 / 12</span>
+              <div>
+                <h2>One capability needs three identifiers.</h2>
+                <p class="chapter__intro">
+                  “Notes” tells us what the capability means, but Aluna also needs to distinguish
+                  one lifetime of Notes from another and one saved version from the next.
+                </p>
+              </div>
+            </header>
+
+            <div class="identity-strip">
+              <article>
+                <p class="identity-strip__value">id = notes</p>
+                <h3>Capability name</h3>
+                <p>The stable meaning. It remains <code>notes</code> while Notes changes.</p>
+              </article>
+              <article>
+                <p class="identity-strip__value">incarnation = 4a80…</p>
+                <h3>Lifetime identifier</h3>
+                <p>Unique to this Notes. Delete and later rebuild Notes, and this value changes.</p>
+              </article>
+              <article>
+                <p class="identity-strip__value">version = 3</p>
+                <h3>Version number</h3>
+                <p>Counts completed versions within this lifetime: v1, v2, v3, and so on.</p>
+              </article>
+            </div>
+
+            <div class="prose">
+              <h3>Why each lifetime gets a new identifier</h3>
+              <p>
+                The runtime can remember generated code by its file path. If a deleted Notes
+                capability later reused the same path, Aluna might accidentally load old code or let
+                unfinished cleanup touch the new Notes. A new lifetime identifier gives the rebuilt
+                capability a new path and keeps old cleanup separate.
+              </p>
+            </div>
+
+            <pre class="field-spec" aria-label="Capability snapshot path"><code>capabilities/
+└── notes/
+    └── 4a80b52d…/          ← incarnation
+        ├── v1/
+        ├── v2/
+        └── v3/             ← active registry pointer
+            ├── spec.json
+            ├── snapshot.json
+            ├── create.ts
+            ├── read.ts
+            ├── update.ts
+            ├── delete.ts
+            ├── search.ts
+            ├── item.ts
+            └── behavioral tests, only when behavior testing is enabled</code></pre>
+
+            <div class="callout">
+              <span class="callout__mark">i</span>
+              <div>
+                <h3>Every saved version is complete.</h3>
+                <p>
+                  Each version folder contains the complete capability description and every
+                  generated file needed to run it. Aluna never creates a live version by mixing
+                  files from several versions.
+                </p>
+              </div>
+            </div>
+
+            <div class="prose">
+              <h3>The manifest is a receipt for what was built</h3>
+              <p>
+                <code>snapshot.json</code>
+                lists every file in the version and records a digital fingerprint for its contents.
+                For each generated file, it also records which exact versions of other capabilities
+                and which approved context were used to create it. If a file is safely copied
+                forward, that original evidence is copied too.
+              </p>
+              <p>
+                This information helps developers verify and investigate a build. It does not decide
+                which version runs or automatically force another capability to rebuild. The
+                manifest lists itself, but it cannot fingerprint itself because that fingerprint
+                would change the file it is trying to fingerprint.
+              </p>
+            </div>
+
+            <aside class="concept-bridge" aria-label="Plain-language explanation">
+              <p class="concept-bridge__label">In plain language</p>
+              <p>
+                Think of a snapshot as a sealed release folder, the manifest as its packing list
+                with digital fingerprints, and the registry as the bookmark that tells Aluna which
+                sealed folder to run. The packing list proves what was built; the bookmark decides
+                what is live.
+              </p>
+            </aside>
+          </section>
+
+          <section class="chapter" id="crud" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">03 / 12</span>
+              <div>
+                <h2>Five consistent ways to work with records.</h2>
+                <p class="chapter__intro">
+                  Each capability can behave differently, but every capability uses the same five
+                  Actions and the same safe request paths. Generated code never invents a new route
+                  or chooses which record it is allowed to change.
+                </p>
+              </div>
+            </header>
+
+            <aside class="concept-bridge" aria-label="Meaning of CRUD">
+              <p class="concept-bridge__label">First, the acronym</p>
+              <p>
+                CRUD means create, read, update, and delete: the four basic ways to manage saved
+                records. M4 completes that set and treats search as a fifth fixed Action.
+              </p>
+            </aside>
+
+            <table class="action-table">
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>HTTP</th>
+                  <th>What generated code decides</th>
+                  <th>What Aluna always protects</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>create</td>
+                  <td><code>POST</code></td>
+                  <td>Interpret the submitted values and apply capability-specific behavior.</td>
+                  <td>
+                    Only visible, allowed fields are saved, and every required value is present.
+                  </td>
+                </tr>
+                <tr>
+                  <td>read</td>
+                  <td><code>GET</code></td>
+                  <td>Choose and order the capability’s records.</td>
+                  <td>The database connection cannot write or delete data.</td>
+                </tr>
+                <tr>
+                  <td>update</td>
+                  <td><code>POST</code></td>
+                  <td>Apply capability-specific rules to the submitted changes.</td>
+                  <td>Aluna has already chosen and checked the exact record that may change.</td>
+                </tr>
+                <tr>
+                  <td>delete</td>
+                  <td><code>POST</code></td>
+                  <td>Apply capability-specific deletion rules and wording.</td>
+                  <td>
+                    The exact record is fixed, and a missing record always fails consistently.
+                  </td>
+                </tr>
+                <tr>
+                  <td>search</td>
+                  <td><code>GET</code></td>
+                  <td>May reorder the records that already match the shared search rules.</td>
+                  <td>
+                    Text and list matching, character normalization, exclusions, and default order
+                    stay consistent across capabilities.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="data-lanes">
+              <article class="lane is-read">
+                <p class="lane__label">Reading data</p>
+                <h3>Generated code may choose and combine records.</h3>
+                <p>
+                  A capability may read its own records and records from other capabilities it has
+                  explicitly named as dependencies.
+                </p>
+                <ol>
+                  <li>The database connection is unable to write.</li>
+                  <li>Every result column has a declared name and type.</li>
+                  <li>Reading another capability requires naming its exact lifetime.</li>
+                  <li>Record lists return unique record identifiers in the chosen order.</li>
+                </ol>
+              </article>
+              <article class="lane is-write">
+                <p class="lane__label">Changing data</p>
+                <h3>Generated code receives only the change it may make.</h3>
+                <p>
+                  Aluna gives generated code a limited tool for one capability. For Edit and Delete,
+                  that tool is already tied to one checked record.
+                </p>
+                <ol>
+                  <li>Generated code cannot choose another table, capability, or record.</li>
+                  <li>Unknown, hidden, and Aluna-owned fields are rejected.</li>
+                  <li>Aluna combines changes and checks required values.</li>
+                  <li>One shared coordinator prevents writes from overlapping unsafely.</li>
+                </ol>
+              </article>
+            </div>
+
+            <div class="callout">
+              <span class="callout__mark">≠</span>
+              <div>
+                <h3>These safeguards prevent mistakes, not hostile code.</h3>
+                <p>
+                  Generated code still runs inside the Aluna server. Limited tools and code checks
+                  block ordinary generation mistakes and known unsafe patterns. They are not a
+                  security boundary designed to contain deliberately malicious code.
+                </p>
+              </div>
+            </div>
+
+            <h3 class="subhead">Every capability follows the same minimum search rules</h3>
+            <table class="technical-table">
+              <thead>
+                <tr>
+                  <th>Search behavior</th>
+                  <th>What the user can expect</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Terms</td>
+                  <td>
+                    A search is split into words wherever Unicode defines whitespace. Every word
+                    must match somewhere, even when different words match different fields or list
+                    entries.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Normalization</td>
+                  <td>
+                    Aluna cleans up both the query and stored text in the same way and compares them
+                    without case differences. This lets visually equivalent character forms match
+                    consistently. The exact JavaScript rule is
+                    <code>normalize("NFKC").toLocaleLowerCase("und")</code>
+                    for the exact rule.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Eligible values</td>
+                  <td>
+                    Search checks visible text fields and every entry in visible text lists. It does
+                    not search hidden fields, Aluna-owned data, or non-text values.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Literal input</td>
+                  <td>
+                    Percent signs, underscores, quotes, and other database punctuation are searched
+                    as ordinary text. They never become database commands or wildcard instructions.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Empty query</td>
+                  <td>
+                    An empty search shows the same records and order as the normal list. Clear
+                    returns directly to that normal list.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Set and order</td>
+                  <td>
+                    Results never repeat. By default, newer records appear first, with record id as
+                    a consistent tie-breaker. A capability may reorder those same matches, but it
+                    may not add or remove matches.
+                  </td>
+                </tr>
+                <tr>
+                  <td>After Create, Edit, or Delete</td>
+                  <td>
+                    After Create, Edit, or Delete, Aluna repeats the current search. If there is no
+                    search, it reloads the normal list. The whole records area refreshes together.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="prose">
+              <h3>Why generated reads return record identifiers first</h3>
+              <p>
+                Generated Read and Search code chooses which records match and in what order, then
+                returns only their unique identifiers. Aluna immediately loads the complete current
+                record for each identifier. This prevents older copied code from leaving out a field
+                that was added in a newer version.
+              </p>
+              <p>
+                The complete database row stays inside trusted Aluna code. Generated behavior sees
+                only the visible fields allowed for its Action, and the item display sees only the
+                fields it was told to show. Hidden and internal values never need to reach the
+                browser.
+              </p>
+            </div>
+          </section>
+
+          <section class="chapter" id="fields" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">04 / 12</span>
+              <div>
+                <h2>Fields can change without erasing old data.</h2>
+                <p class="chapter__intro">
+                  A field can be added, hidden, or shown again. Aluna keeps its original internal
+                  name, data type, database column, and saved values throughout those changes.
+                </p>
+              </div>
+            </header>
+
+            <div class="field-lab">
+              <div class="field-lab__bar">
+                <h3>See what happens when <code>due_date</code> changes</h3>
+                <div class="field-lab__controls" role="group" aria-label="Field lifecycle states">
+                  <button
+                    class="segmented-button"
+                    type="button"
+                    data-field-state="new"
+                    aria-pressed="true"
+                  >
+                    Add
+                  </button>
+                  <button
+                    class="segmented-button"
+                    type="button"
+                    data-field-state="hidden"
+                    aria-pressed="false"
+                  >
+                    Hide
+                  </button>
+                  <button
+                    class="segmented-button"
+                    type="button"
+                    data-field-state="reactivated"
+                    aria-pressed="false"
+                  >
+                    Reactivate
+                  </button>
+                </div>
+              </div>
+              <div class="field-lab__body">
+                <div>
+                  <p class="micro-label">Field definition in the proposed version</p>
+                  <pre class="field-spec"><code id="field-spec"></code></pre>
+                </div>
+                <div class="field-outcome" aria-live="polite">
+                  <p class="micro-label">What Aluna does</p>
+                  <h4 id="field-title"></h4>
+                  <p id="field-copy"></p>
+                  <ul id="field-effects"></ul>
+                </div>
+              </div>
+            </div>
+
+            <div class="prose">
+              <h3>Hiding a field does not erase it</h3>
+              <p>
+                A hidden field remains in the capability definition and is marked
+                <code>inactive</code>. Its database column and saved values remain, but new forms,
+                details, search, generated behavior, and required-value checks ignore it. Showing
+                the field again reveals its original saved values.
+              </p>
+              <p>
+                The internal field name and data type therefore never change. User-facing wording
+                can change by updating the label. If the field’s meaning truly changes, Aluna should
+                create a new field so old values keep their original meaning.
+              </p>
+
+              <h3>A new required field does not break old records</h3>
+              <p>
+                Database columns created by Module 4 are allowed to be empty. Aluna checks required
+                values when a record is created or edited. An old record may therefore remain
+                readable without a newly added required value, but the next edit cannot be saved
+                until that value is supplied.
+              </p>
+            </div>
+
+            <aside class="concept-bridge" aria-label="Nullable and required explained">
+              <p class="concept-bridge__label">Why this matters</p>
+              <p>
+                <strong>Nullable storage</strong>
+                means an older row may temporarily have no value in a newly added column.
+                <strong>Logically required</strong>
+                means Aluna will not accept the next create or update unless the completed record
+                has that value. This preserves old data without weakening the new rule.
+              </p>
+            </aside>
+
+            <div class="protocol" aria-label="How an edit is safely applied">
+              <article class="protocol__step">
+                <span class="protocol__index">01</span>
+                <h3>Remember what was submitted</h3>
+                <p>
+                  The form sends an internal <code>__aluna_present</code> marker for every visible
+                  field, even when its value is empty.
+                </p>
+              </article>
+              <article class="protocol__step">
+                <span class="protocol__index">02</span>
+                <h3>Check the request</h3>
+                <p>
+                  Aluna rejects duplicate single values or invalid internal markers before generated
+                  code sees the input.
+                </p>
+              </article>
+              <article class="protocol__step">
+                <span class="protocol__index">03</span>
+                <h3>Fix the record target</h3>
+                <p>
+                  <code>__aluna_record_id</code>
+                  identifies the one record being edited. Generated code cannot replace that target.
+                </p>
+              </article>
+              <article class="protocol__step">
+                <span class="protocol__index">04</span>
+                <h3>Keep or clear intentionally</h3>
+                <p>
+                  A field missing from the submitted form keeps its old value. A submitted empty
+                  field explicitly clears its old value.
+                </p>
+              </article>
+              <article class="protocol__step">
+                <span class="protocol__index">05</span>
+                <h3>Check the completed record</h3>
+                <p>
+                  Aluna combines old and new values, checks every required field, and then saves the
+                  complete result.
+                </p>
+              </article>
+            </div>
+
+            <div class="callout">
+              <span class="callout__mark">[]</span>
+              <div>
+                <h3>M4 supports lists of text values.</h3>
+                <p>
+                  A field such as Tags can hold several text entries in order. Empty entries are
+                  removed, a comma remains part of the value the user typed, and the list is stored
+                  as JSON. Lists of numbers, dates, or other types are intentionally deferred.
+                </p>
+              </div>
+            </div>
+
+            <div class="callout">
+              <span class="callout__mark">P</span>
+              <div>
+                <h3>Internal Aluna names cannot become user fields.</h3>
+                <p>
+                  User field names may not start with <code>__aluna_</code> because Aluna reserves
+                  that prefix for safe request handling. The built-in <code>created_at</code> value
+                  may be displayed, but it is not a user-editable or searchable field.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="chapter" id="evolution" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">05 / 12</span>
+              <div>
+                <h2>How one request becomes a safe change.</h2>
+                <p class="chapter__intro">
+                  The user asks for an outcome. Aluna first understands the request, then waits for
+                  a safe turn, prepares and tests a complete new version, makes it live, and finally
+                  refreshes the screen.
+                </p>
+              </div>
+            </header>
+
+            <div class="stepper">
+              <div
+                class="stepper__rail"
+                role="group"
+                aria-label="Evolution pipeline steps"
+                id="pipeline-rail"
+              ></div>
+              <article class="stepper__stage" aria-live="polite">
+                <p class="stepper__stage-label" id="pipeline-label"></p>
+                <h3 id="pipeline-title"></h3>
+                <p class="stepper__stage-copy" id="pipeline-copy"></p>
+                <p class="stepper__stage-rule" id="pipeline-rule"></p>
+              </article>
+            </div>
+
+            <div class="callout">
+              <span class="callout__mark">0</span>
+              <div>
+                <h3>No meaningful change means no new version.</h3>
+                <p>
+                  If the checked proposal means the same thing as the current capability, Aluna
+                  records “no change” and stops. It does not alter the database, generate code, copy
+                  files, create a version, or refresh the screen as if something changed.
+                </p>
+              </div>
+            </div>
+
+            <aside class="concept-bridge" aria-label="Semantic no-op explained">
+              <p class="concept-bridge__label">No-op, simply</p>
+              <p>
+                When a checked request leads to the same meaning and behavior the capability already
+                has, engineers call it a <strong>semantic no-op</strong>. Aluna records the outcome
+                but does not create a cosmetic new version.
+              </p>
+            </aside>
+          </section>
+
+          <section class="chapter" id="diff" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">06 / 12</span>
+              <div>
+                <h2>Aluna works out what must be rebuilt.</h2>
+                <p class="chapter__intro">
+                  Aluna lists every meaningful difference between the current and proposed versions.
+                  Fixed rules then decide which data, generated behavior, tests, and presentation
+                  must change.
+                </p>
+              </div>
+            </header>
+
+            <div class="diff-lab">
+              <div class="diff-lab__head">
+                <h3>Choose what changed</h3>
+                <p>
+                  Select one or more changes. The right side combines all the work they require. One
+                  change can never cancel work required by another.
+                </p>
+              </div>
+              <div class="diff-lab__workspace">
+                <div class="diff-lab__facts">
+                  <h4>Changes</h4>
+                  <div class="fact-list" id="fact-list"></div>
+                </div>
+                <div class="diff-lab__result" aria-live="polite">
+                  <h4>Work Aluna must do</h4>
+                  <div class="effect-grid">
+                    <article>
+                      <h5>Data and shared interface</h5>
+                      <ul id="effect-platform"></ul>
+                    </article>
+                    <article>
+                      <h5>Generated behavior</h5>
+                      <ul id="effect-units"></ul>
+                    </article>
+                    <article>
+                      <h5>Behavior checks</h5>
+                      <ul id="effect-tests"></ul>
+                    </article>
+                  </div>
+                  <p class="diff-lab__rule" id="diff-rule"></p>
+                </div>
+              </div>
+            </div>
+
+            <aside class="concept-bridge" aria-label="Diff Engine explained">
+              <p class="concept-bridge__label">Facts become effects</p>
+              <p>
+                A <strong>change fact</strong> says what is different, such as “a date field was
+                added.” An <strong>effect</strong> says what that difference requires, such as “add
+                a database column and regenerate the item renderer.” The Diff Engine is the tested
+                rulebook that maps every admitted fact to all of its required effects.
+              </p>
+            </aside>
+
+            <div class="prose">
+              <h3>Aluna copies old code only when it is known to remain valid</h3>
+              <p>
+                Fixed rules must explicitly show that a generated file is unaffected before Aluna
+                copies it into the new version. If the file must be regenerated, Aluna may show its
+                old source to the model only after checking that it uses fields, dependencies, and
+                permissions that still exist. Otherwise, generation starts without that old source.
+              </p>
+              <p>
+                Copying a known-compatible file is different from using old code as an example for
+                new generation. Old example code might mention a field that is now hidden or a
+                dependency that is no longer allowed.
+              </p>
+            </div>
+
+            <div class="callout">
+              <span class="callout__mark">?</span>
+              <div>
+                <h3>Aluna stops when it encounters a kind of change it does not understand.</h3>
+                <p>
+                  It never guesses that an unfamiliar difference is harmless. Developers must first
+                  add and test a rule explaining what work that difference requires.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="chapter" id="gate" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">07 / 12</span>
+              <div>
+                <h2>The complete version must pass every check.</h2>
+                <p class="chapter__intro">
+                  Aluna may regenerate only a few affected files, but it always tests the assembled
+                  version as one complete capability before making it live. This final set of checks
+                  is called the Gate.
+                </p>
+              </div>
+            </header>
+
+            <div class="protocol" aria-label="Gate rungs">
+              <article class="protocol__step">
+                <span class="protocol__index">01</span>
+                <h3>Files and types</h3>
+                <p>
+                  Confirm that every required file exists, all code types are valid, and the pieces
+                  connect through the expected interfaces.
+                </p>
+              </article>
+              <article class="protocol__step">
+                <span class="protocol__index">02</span>
+                <h3>Five basic Actions</h3>
+                <p>
+                  Create, read, partially edit, search, and delete temporary test records in a
+                  separate test database.
+                </p>
+              </article>
+              <article class="protocol__step">
+                <span class="protocol__index">03</span>
+                <h3>Difficult search cases</h3>
+                <p>
+                  Try accented and equivalent characters, text lists, punctuation, several search
+                  words, hidden fields, full records, and stable ordering.
+                </p>
+              </article>
+              <article class="protocol__step">
+                <span class="protocol__index">04</span>
+                <h3>Expected behavior</h3>
+                <p>
+                  When behavior testing is enabled, run every new expectation and every existing
+                  expectation affected by changed code.
+                </p>
+              </article>
+              <article class="protocol__step">
+                <span class="protocol__index">05</span>
+                <h3>Safe presentation</h3>
+                <p>
+                  When the item display changes, render difficult and potentially unsafe values and
+                  confirm that the result follows Aluna’s interface rules.
+                </p>
+              </article>
+            </div>
+
+            <div class="prose">
+              <h3>Expected behavior comes from the request, not from the generated code</h3>
+              <p>
+                Aluna creates behavior tests from what the capability is supposed to do, which
+                errors it promises, the fields each Action may use, and the other capabilities it
+                may read. It does not inspect generated code to decide what counts as correct. The
+                expected result is fixed before any repair begins.
+              </p>
+              <p>
+                If a test fails, Aluna may repair the generated Action code and then rerun the exact
+                same test. When it is unclear which file caused the failure, Aluna repairs or
+                retests a wider set. It never changes the expectation merely to make the failure
+                disappear.
+              </p>
+            </div>
+
+            <aside class="concept-bridge" aria-label="Frozen tests explained">
+              <p class="concept-bridge__label">Why freeze tests?</p>
+              <p>
+                The expected behavior is written down before repair starts, then held still. A
+                repair must satisfy that same expectation; it cannot make a failing test easier.
+                This separates “what should happen” from “how the generated code makes it happen.”
+              </p>
+            </aside>
+
+            <table class="technical-table tier-table">
+              <thead>
+                <tr>
+                  <th>Tests in current version</th>
+                  <th>Tests enabled for new version</th>
+                  <th>Expected behavior or code</th>
+                  <th>What happens</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>disabled</td>
+                  <td>disabled</td>
+                  <td>any change</td>
+                  <td>Do not create or run behavior tests.</td>
+                </tr>
+                <tr>
+                  <td>disabled</td>
+                  <td>enabled</td>
+                  <td>any change</td>
+                  <td>
+                    Create expectations for the proposed version, fix them in place, and run them.
+                  </td>
+                </tr>
+                <tr>
+                  <td>enabled</td>
+                  <td>enabled</td>
+                  <td>unchanged and its Action code is unchanged</td>
+                  <td>Copy the existing tests unchanged. They do not need to run again.</td>
+                </tr>
+                <tr>
+                  <td>enabled</td>
+                  <td>enabled</td>
+                  <td>unchanged but its Action code changed</td>
+                  <td>
+                    Copy the existing tests and rerun the affected tests, or all tests if unsure.
+                  </td>
+                </tr>
+                <tr>
+                  <td>enabled</td>
+                  <td>enabled</td>
+                  <td>changed</td>
+                  <td>Create new expectations, fix them in place, and run them.</td>
+                </tr>
+                <tr>
+                  <td>enabled</td>
+                  <td>disabled</td>
+                  <td>any change</td>
+                  <td>Do not include behavior tests in the new version.</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="callout">
+              <span class="callout__mark">T</span>
+              <div>
+                <h3>Changing the test setting alone does not create a new version.</h3>
+                <p>
+                  The new setting takes effect the next time the capability itself meaningfully
+                  changes. Aluna does not create an otherwise identical version only to record that
+                  behavior testing was turned on or off.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="chapter" id="activation" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">08 / 12</span>
+              <div>
+                <h2>Saving a version is different from making it live.</h2>
+                <p class="chapter__intro">
+                  Aluna first saves and verifies a complete version folder. It then updates the
+                  database to make that version active. Keeping those moments separate makes
+                  failures recoverable.
+                </p>
+              </div>
+            </header>
+
+            <aside class="concept-bridge" aria-label="Publication and activation explained">
+              <p class="concept-bridge__label">The key distinction</p>
+              <p>
+                <strong>Publication</strong>
+                safely places a verified version on disk.
+                <strong>Activation</strong>
+                changes the database record that says which version Aluna should run. Publishing
+                first means a crash can leave an unused version on disk, but it cannot leave the
+                live capability pointing at half-written files.
+              </p>
+            </aside>
+
+            <div class="activation">
+              <div class="activation__stores">
+                <article class="activation__store">
+                  <p class="micro-label">Files on disk</p>
+                  <h3>Store complete versions that never change.</h3>
+                  <p>
+                    Aluna builds in a unique temporary folder, checks the file list and digital
+                    fingerprints, then moves the complete folder into its final version path without
+                    overwriting an existing version.
+                  </p>
+                </article>
+                <article class="activation__store">
+                  <p class="micro-label">SQLite</p>
+                  <h3>Records which version is live.</h3>
+                  <p>
+                    One database transaction adds any needed columns, confirms that the expected
+                    previous version is still active, points to the new version, and records a
+                    successful activation.
+                  </p>
+                </article>
+              </div>
+              <div class="activation__timeline">
+                <article class="activation__event">
+                  <span class="activation__dot"></span>
+                  <h4>Prepare</h4>
+                  <p>Write every proposed file into a new temporary folder.</p>
+                </article>
+                <article class="activation__event">
+                  <span class="activation__dot"></span>
+                  <h4>Verify</h4>
+                  <p>Run all checks and confirm the exact file list and fingerprints.</p>
+                </article>
+                <article class="activation__event">
+                  <span class="activation__dot"></span>
+                  <h4>Publish</h4>
+                  <p>Move the complete folder into its final version path in one step.</p>
+                </article>
+                <article class="activation__event is-point">
+                  <span class="activation__dot"></span>
+                  <h4>Make live</h4>
+                  <p>Commit the database change that makes the new version active.</p>
+                </article>
+                <article class="activation__event">
+                  <span class="activation__dot"></span>
+                  <h4>Refresh</h4>
+                  <p>Send the browser one complete updated capability view.</p>
+                </article>
+              </div>
+              <div class="failure-split">
+                <article>
+                  <h3>Failure before the version becomes live</h3>
+                  <p>
+                    The previous version remains active. Aluna records any temporary or completed
+                    but unused folder so recovery can safely clean it later.
+                  </p>
+                </article>
+                <article>
+                  <h3>Failure after the version becomes live</h3>
+                  <p>
+                    The new version stays active. If the browser missed the final refresh or
+                    disconnected, reloading reads the database and shows the correct new version.
+                  </p>
+                </article>
+              </div>
+            </div>
+
+            <div class="prose">
+              <h3>Older completed versions remain part of history</h3>
+              <p>
+                If v3 is live, v1 and v2 are still valid completed versions. Recovery may remove
+                temporary folders and versions proven never to have been active, but it never
+                assumes that an older completed version is disposable. If completed history is
+                missing or damaged, Aluna stops instead of guessing.
+              </p>
+              <h3>The screen follows the version recorded in the database</h3>
+              <p>
+                When a new version becomes active, Aluna sends one complete refreshed view. When
+                nothing changed, the request became outdated, the user cancelled, or the build
+                failed, Aluna reloads the current view, clears search and open detail state, and
+                finishes. Rebuilding fewer files never means partially refreshing the screen.
+              </p>
+            </div>
+          </section>
+
+          <section class="chapter" id="coordination" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">09 / 12</span>
+              <div>
+                <h2>Writes take turns so they cannot interfere.</h2>
+                <p class="chapter__intro">
+                  One coordinator controls every operation that changes shared database state.
+                  Builds wait in order, shorter writes take brief turns, and reads continue without
+                  joining the queue.
+                </p>
+              </div>
+            </header>
+
+            <aside class="concept-bridge" aria-label="Write coordination explained">
+              <p class="concept-bridge__label">A controlled queue</p>
+              <p>
+                A build first receives a place in line, called a <strong>ticket</strong>. When its
+                turn arrives, it receives temporary proof that it may write, called a
+                <strong>lease</strong>. Only one owner receives that proof at a time, so unrelated
+                work cannot accidentally share one database transaction.
+              </p>
+            </aside>
+
+            <div class="coordinator">
+              <article class="coordinator__queue">
+                <h3>A moment in the queue</h3>
+                <div class="queue-stack">
+                  <div class="queue-item is-active">
+                    <span>Change Notes</span><span class="queue-status">writing now</span>
+                  </div>
+                  <div class="queue-item">
+                    <span>Build Recipes</span><span class="queue-status">next in line</span>
+                  </div>
+                  <div class="queue-item is-refused">
+                    <span>Edit note #17</span><span class="queue-status">try again later</span>
+                  </div>
+                  <div class="queue-item">
+                    <span>Save build measurement</span><span class="queue-status">waiting</span>
+                  </div>
+                  <div class="queue-item">
+                    <span>Read Photos</span><span class="queue-status">runs now</span>
+                  </div>
+                </div>
+              </article>
+              <article class="coordinator__rules">
+                <h3>Who waits and who can continue</h3>
+                <dl>
+                  <dt>build</dt>
+                  <dd>Waits in arrival order, then owns the write turn while building.</dd>
+                  <dt>record write</dt>
+                  <dd>Takes a short turn only when no build is already waiting ahead of it.</dd>
+                  <dt>platform write</dt>
+                  <dd>Waits behind build work, then takes a short write turn.</dd>
+                  <dt>capability delete</dt>
+                  <dd>Does not wait. If any write owns or awaits a turn, deletion is refused.</dd>
+                  <dt>read / search</dt>
+                  <dd>Does not enter the write queue and can run at the same time.</dd>
+                </dl>
+              </article>
+            </div>
+
+            <div class="prose">
+              <h3>Why Aluna checks the request again after it waits</h3>
+              <p>
+                Aluna understands a request before placing it in the queue. While it waits, another
+                build may change the target capability or build something new. When the request
+                reaches the front, Aluna confirms that the exact capabilities and versions it
+                originally saw are still current. If not, the request is marked outdated and stops
+                before any AI generation begins.
+              </p>
+              <p>
+                Only after this second check does Aluna record that a real build has started and
+                preserve the exact dependency information used for generation. The build record
+                therefore describes work that genuinely received permission to run.
+              </p>
+            </div>
+
+            <div class="callout">
+              <span class="callout__mark">R</span>
+              <div>
+                <h3>The build process is separate from how progress is shown.</h3>
+                <p>
+                  The Builder receives a request Aluna has already understood and reports what stage
+                  it reaches. Today, the prompt experience turns those updates into progress text. A
+                  later module can reuse the same build process for a confirmed suggestion without
+                  changing the safety rules inside the build.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="chapter" id="deletion" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">10 / 12</span>
+              <div>
+                <h2>Permanent deletion follows its own safe process.</h2>
+                <p class="chapter__intro">
+                  Changing a capability preserves its history and data. Confirmed deletion removes
+                  them permanently. Aluna must finish the irreversible database change first and be
+                  able to retry slower file cleanup afterward.
+                </p>
+              </div>
+            </header>
+
+            <aside class="concept-bridge" aria-label="Deletion recovery explained">
+              <p class="concept-bridge__label">A durable cleanup receipt</p>
+              <p>
+                After the permanent database deletion, Aluna keeps a cleanup record called a
+                <strong>tombstone</strong>. It says the capability is already gone and lists what
+                still needs removal. Each cleanup step is <strong>idempotent</strong>, meaning it is
+                safe to retry after a crash.
+              </p>
+            </aside>
+
+            <div class="deletion-flow" aria-label="Capability deletion lifecycle">
+              <article class="deletion-flow__step">
+                <span>01</span>
+                <h3>Confirm plainly</h3>
+                <p>Name the capability and every category of data that will be lost.</p>
+              </article>
+              <article class="deletion-flow__step">
+                <span>02</span>
+                <h3>Check whether deletion is safe now</h3>
+                <p>
+                  Do not wait in the write queue. Confirm the target still exists and refuse if
+                  another capability currently depends on it.
+                </p>
+              </article>
+              <article class="deletion-flow__step">
+                <span>03</span>
+                <h3>Let current readers finish</h3>
+                <p>Block new reads and wait for every operation already using the capability.</p>
+              </article>
+              <article class="deletion-flow__step">
+                <span>04</span>
+                <h3>List everything to remove</h3>
+                <p>
+                  While the database table still exists, collect its generated files and every
+                  capability-owned resource or Event Log payload.
+                </p>
+              </article>
+              <article class="deletion-flow__step is-point">
+                <span>05 · point of no return</span>
+                <h3>Make deletion permanent</h3>
+                <p>
+                  Mark the capability unavailable, remove installed payloads, and delete its
+                  database table in one committed change.
+                </p>
+              </article>
+              <article class="deletion-flow__step">
+                <span>06</span>
+                <h3>Finish cleanup, even after a restart</h3>
+                <p>
+                  Delete the remaining files and resources. Retry safely after a failure, then
+                  remove the cleanup record.
+                </p>
+              </article>
+            </div>
+
+            <div class="prose">
+              <h3>A capability cannot be deleted while another one relies on it</h3>
+              <p>
+                Suppose Recipes reads information from Notes. Deleting Notes would break Recipes, so
+                Aluna names Recipes and refuses the deletion. Hiding one Notes field does not cause
+                this problem because its stored column remains. Deleting the entire Notes table
+                would remove data that Recipes still expects.
+              </p>
+              <h3>Deletion waits for operations already reading the capability</h3>
+              <p>
+                Every operation that uses a capability receives temporary permission to read that
+                specific lifetime. Work that needs several capabilities receives all permissions
+                together or none. Deletion blocks new permissions and waits for current readers to
+                finish. If deletion fails before the permanent database change, reads can reopen. If
+                it fails afterward, the capability remains deleted.
+              </p>
+              <h3>A cleanup record lets deletion resume after a failure</h3>
+              <p>
+                After the permanent database change, the capability is gone even if a generated file
+                could not be deleted. A durable cleanup record lists what remains and temporarily
+                reserves the capability name. Startup recovery retries the list. The same capability
+                name can be built again only after cleanup finishes, and the rebuilt capability gets
+                a new lifetime identifier.
+              </p>
+              <p>
+                Deletion removes records, the live registry entry, the complete version history,
+                owned resources, and capability-owned Event Log content. Anonymous measurements
+                about past generation remain because they contain no retained user content.
+              </p>
+            </div>
+
+            <div class="plain-definition">
+              <div>
+                <p class="plain-definition__label">Before the permanent database change</p>
+                <h3>The capability still exists.</h3>
+                <p>
+                  If deletion fails, reads reopen and the capability remains visible and usable.
+                </p>
+              </div>
+              <div>
+                <p class="plain-definition__label">After the permanent database change</p>
+                <h3>The capability is gone.</h3>
+                <p>
+                  File cleanup may continue or retry, but the capability, toolbar entry, and records
+                  cannot return.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="chapter" id="epics" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">11 / 12</span>
+              <div>
+                <h2>Why M4 is built in nine stages.</h2>
+                <p class="chapter__intro">
+                  Each stage adds something that can be exercised before the next stage begins. The
+                  homepage demo grows with the implementation, so important gaps become visible
+                  early.
+                </p>
+              </div>
+            </header>
+
+            <div class="epic-explorer">
+              <div
+                class="epic-rail"
+                role="tablist"
+                aria-label="Module 4 epics"
+                id="epic-rail"
+              ></div>
+              <article class="epic-stage" id="epic-panel" role="tabpanel" aria-live="polite">
+                <p class="epic-stage__phase" id="epic-phase"></p>
+                <h3 id="epic-title"></h3>
+                <p class="epic-stage__copy" id="epic-copy"></p>
+                <p class="epic-stage__proof" id="epic-proof"></p>
+              </article>
+            </div>
+
+            <div class="callout">
+              <span class="callout__mark">↻</span>
+              <div>
+                <h3>Three stages deliberately start with fresh development data.</h3>
+                <p>
+                  Stage 4.1 changes how capability lifetimes and fields are stored. Stage 4.4
+                  replaces the temporary Create-and-Read-only implementation with all five Actions.
+                  Stage 4.5 rebuilds the first version using the final safe version-folder process.
+                  These are planned resets of local development data, not changes a user must
+                  manage.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="chapter" id="walkthrough" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">12 / 12</span>
+              <div>
+                <h2>Follow one change from request to result.</h2>
+                <p class="chapter__intro">
+                  This example shows how Aluna safely adds a due date to an existing Notes
+                  capability while preserving every saved note.
+                </p>
+              </div>
+            </header>
+
+            <div class="walkthrough">
+              <div class="walkthrough__prompt">
+                <p class="micro-label">Existing Notes v1 is active</p>
+                <blockquote>
+                  “Add a due date to my notes and make it stand out in the list.”
+                </blockquote>
+              </div>
+              <div class="walkthrough__steps">
+                <article class="walkthrough__step">
+                  <span>01</span>
+                  <div>
+                    <h3>Understand the request</h3>
+                    <p>
+                      Aluna decides that the user wants to change Notes and remembers the exact
+                      Notes lifetime and version it examined.
+                    </p>
+                  </div>
+                </article>
+                <article class="walkthrough__step">
+                  <span>02</span>
+                  <div>
+                    <h3>Wait for a safe turn</h3>
+                    <p>
+                      The request waits behind earlier builds. When its turn arrives, Aluna checks
+                      that Notes has not changed and then records that the build started.
+                    </p>
+                  </div>
+                </article>
+                <article class="walkthrough__step">
+                  <span>03</span>
+                  <div>
+                    <h3>Propose the complete next version</h3>
+                    <p>
+                      The AI returns a complete Notes description containing every existing field,
+                      the new <code>due_date</code> field, and instructions to show it in the list.
+                    </p>
+                  </div>
+                </article>
+                <article class="walkthrough__step">
+                  <span>04</span>
+                  <div>
+                    <h3>Check the proposal</h3>
+                    <p>
+                      Aluna confirms that existing fields kept their names and types, the new field
+                      is valid, and every behavior, dependency, and presentation reference is safe.
+                    </p>
+                  </div>
+                </article>
+                <article class="walkthrough__step">
+                  <span>05</span>
+                  <div>
+                    <h3>Work out what must change</h3>
+                    <p>
+                      Aluna determines that Notes needs a new optional database column and updated
+                      Create, Edit, Search, and item-display behavior. It combines all required
+                      work.
+                    </p>
+                  </div>
+                </article>
+                <article class="walkthrough__step">
+                  <span>06</span>
+                  <div>
+                    <h3>Define success before generating code</h3>
+                    <p>
+                      Aluna creates the relevant behavior expectations from the proposed Notes
+                      description and fixes them in place before generating or repairing code.
+                    </p>
+                  </div>
+                </article>
+                <article class="walkthrough__step">
+                  <span>07</span>
+                  <div>
+                    <h3>Build and test a complete version</h3>
+                    <p>
+                      Affected files are regenerated, known-safe files are copied, and the complete
+                      proposed version passes file, Action, search, behavior, and presentation
+                      checks.
+                    </p>
+                  </div>
+                </article>
+                <article class="walkthrough__step">
+                  <span>08</span>
+                  <div>
+                    <h3>Save the verified version</h3>
+                    <p>
+                      Aluna writes the complete description and file receipt, verifies the folder,
+                      and moves it into the final v2 location in one step. It is saved but not live
+                      yet.
+                    </p>
+                  </div>
+                </article>
+                <article class="walkthrough__step">
+                  <span>09</span>
+                  <div>
+                    <h3>Make v2 live</h3>
+                    <p>
+                      One database transaction adds the optional due-date column, confirms that v1
+                      is still active, switches Notes to v2, and records a successful activation.
+                    </p>
+                  </div>
+                </article>
+                <article class="walkthrough__step">
+                  <span>10</span>
+                  <div>
+                    <h3>Show the result</h3>
+                    <p>
+                      Only after v2 is live does Aluna refresh the complete Notes view. Existing
+                      notes remain visible, with an empty due date until the user edits them.
+                    </p>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div class="takeaway">
+              <h3>The whole idea in one paragraph.</h3>
+              <p>
+                The AI proposes a complete next version. Aluna determines what changed, limits what
+                generated code may do, builds and tests the entire version, saves it before making
+                it live, and handles permanent deletion through a separate recoverable process. The
+                old version remains live until one successful database change activates the new one.
+              </p>
+            </div>
+          </section>
+
+          <section class="chapter glossary-section" id="glossary" data-section>
+            <header class="chapter__head">
+              <span class="chapter__number">REFERENCE</span>
+              <div>
+                <h2>Glossary.</h2>
+                <p class="chapter__intro">
+                  Short, plain-language definitions for the engineering terms used throughout this
+                  guide. Each definition describes what the term means specifically in Aluna.
+                </p>
+              </div>
+            </header>
+
+            <dl class="glossary">
+              <div>
+                <dt>Action</dt>
+                <dd>
+                  One fixed operation a capability can perform: create, read, update, delete, or
+                  search.
+                </dd>
+              </div>
+              <div>
+                <dt>active version</dt>
+                <dd>
+                  The completed version Aluna is currently using. Older completed versions remain in
+                  history but are not shown to the user.
+                </dd>
+              </div>
+              <div>
+                <dt>additive evolution</dt>
+                <dd>
+                  A way of changing data safely by adding storage and preserving old fields and
+                  values instead of destructively rewriting them.
+                </dd>
+              </div>
+              <div>
+                <dt>atomic</dt>
+                <dd>
+                  An operation that becomes visible all at once or not at all. No observer should
+                  see a half-completed state.
+                </dd>
+              </div>
+              <div>
+                <dt>Builder</dt>
+                <dd>
+                  The process that takes a request Aluna already understands, prepares and tests a
+                  complete new version, saves it, and makes it live.
+                </dd>
+              </div>
+              <div>
+                <dt>candidate spec</dt>
+                <dd>
+                  The AI’s complete proposal for the next capability version. It describes every
+                  field, behavior, and presentation choice, including the parts that did not change.
+                </dd>
+              </div>
+              <div>
+                <dt>capability</dt>
+                <dd>
+                  One thing Aluna has built for the user to keep track of, such as Notes, Recipes,
+                  or Photos.
+                </dd>
+              </div>
+              <div>
+                <dt>canonical</dt>
+                <dd>
+                  The one standard form Aluna treats as the source of truth. Other inputs are
+                  converted to or checked against this form.
+                </dd>
+              </div>
+              <div>
+                <dt>CAS</dt>
+                <dd>
+                  <strong>Compare-and-swap.</strong>
+                  Make the new version live only if the exact previous version the build expected is
+                  still live. Otherwise stop because the capability changed while the build waited.
+                </dd>
+              </div>
+              <div>
+                <dt>change fact / effect</dt>
+                <dd>
+                  A change fact says what is different, such as “a field was added.” An effect says
+                  what work that difference requires, such as “add a column and update Create.”
+                </dd>
+              </div>
+              <div>
+                <dt>CRUD</dt>
+                <dd>
+                  <strong>Create, read, update, and delete.</strong>
+                  The four basic ways to manage saved records. Aluna also exposes search as a fifth
+                  Action.
+                </dd>
+              </div>
+              <div>
+                <dt>DDL</dt>
+                <dd>
+                  <strong>Data Definition Language.</strong>
+                  SQL that changes table structure. M4 evolution uses additive DDL, such as adding a
+                  nullable column.
+                </dd>
+              </div>
+              <div>
+                <dt>deterministic</dt>
+                <dd>
+                  Governed by fixed platform rules, so the same admitted input produces the same
+                  decision instead of relying on an AI judgment call.
+                </dd>
+              </div>
+              <div>
+                <dt>digest</dt>
+                <dd>
+                  A digital fingerprint calculated from content. If the content changes, its digest
+                  changes, which lets Aluna detect missing or altered files.
+                </dd>
+              </div>
+              <div>
+                <dt>Diff Engine</dt>
+                <dd>
+                  The fixed set of rules that compares the current and proposed capability, lists
+                  every meaningful difference, and decides all work those differences require.
+                </dd>
+              </div>
+              <div>
+                <dt>frozen behavioral test</dt>
+                <dd>
+                  An expected result written from the requested behavior and fixed before code
+                  repair begins. Repair must meet the expectation and cannot make it easier.
+                </dd>
+              </div>
+              <div>
+                <dt>FIFO</dt>
+                <dd>
+                  <strong>First in, first out.</strong>
+                  Waiting builds receive turns in arrival order, within a bounded queue.
+                </dd>
+              </div>
+              <div>
+                <dt>Gate</dt>
+                <dd>
+                  The complete set of checks a proposed version must pass before it can become live:
+                  files and types, all five Actions, difficult search cases, expected behavior, and
+                  safe presentation.
+                </dd>
+              </div>
+              <div>
+                <dt>Handler</dt>
+                <dd>
+                  The generated code behind one Action. It receives already-checked input and only
+                  the limited reading or writing tools that Action needs.
+                </dd>
+              </div>
+              <div>
+                <dt>idempotent</dt>
+                <dd>
+                  Safe to retry. Running the same cleanup step again reaches the same result without
+                  duplicating damage or corrupting state.
+                </dd>
+              </div>
+              <div>
+                <dt>incarnation</dt>
+                <dd>
+                  A unique identifier for one lifetime of a capability. Normal changes keep it.
+                  Permanent deletion followed by rebuilding the capability creates a new one.
+                </dd>
+              </div>
+              <div>
+                <dt>manifest</dt>
+                <dd>
+                  A version folder’s receipt. <code>snapshot.json</code> lists every file, its
+                  digital fingerprint, whether behavior testing is enabled, and evidence about how
+                  each generated file was created.
+                </dd>
+              </div>
+              <div>
+                <dt>mutation coordinator</dt>
+                <dd>
+                  The part of Aluna that gives database writes safe turns. Builds wait in arrival
+                  order, shorter writes take brief turns, and reads do not enter the queue.
+                </dd>
+              </div>
+              <div>
+                <dt>nullable / logically required</dt>
+                <dd>
+                  Nullable storage allows an older row to lack a new value. Logical requiredness
+                  prevents a create or update from saving a completed row without that value.
+                </dd>
+              </div>
+              <div>
+                <dt>positive proof</dt>
+                <dd>
+                  A fixed rule explicitly showing that a generated file is unaffected by the change
+                  and may be copied. The absence of a rule is not enough.
+                </dd>
+              </div>
+              <div>
+                <dt>projection</dt>
+                <dd>
+                  A deliberately limited set of fields containing only what a particular Action or
+                  generated file is allowed to see.
+                </dd>
+              </div>
+              <div>
+                <dt>provenance</dt>
+                <dd>
+                  Evidence showing which versions of other capabilities and which approved
+                  information were used to create a generated file.
+                </dd>
+              </div>
+              <div>
+                <dt>publication / activation</dt>
+                <dd>
+                  Publication saves a checked, complete version folder on disk. Activation updates
+                  the database so Aluna starts using that version.
+                </dd>
+              </div>
+              <div>
+                <dt>read token</dt>
+                <dd>
+                  Temporary permission for an operation to use one capability lifetime. Deletion
+                  blocks new permissions and waits for existing readers to finish.
+                </dd>
+              </div>
+              <div>
+                <dt>registry</dt>
+                <dd>
+                  The database directory of capabilities. For each one, it records the current
+                  lifetime, live version, complete description, and version-folder path.
+                </dd>
+              </div>
+              <div>
+                <dt>semantic no-op</dt>
+                <dd>
+                  A request whose complete validated result means the same thing as the current
+                  capability, so no new version is created.
+                </dd>
+              </div>
+              <div>
+                <dt>snapshot</dt>
+                <dd>
+                  One complete version folder containing the capability description, all generated
+                  files, the file receipt, digital fingerprints, and any behavior tests. After the
+                  version is saved, these contents never change.
+                </dd>
+              </div>
+              <div>
+                <dt>SSE</dt>
+                <dd>
+                  <strong>Server-Sent Events.</strong>
+                  The one-way stream used to narrate progress and deliver the final complete View
+                  from the server to the browser.
+                </dd>
+              </div>
+              <div>
+                <dt>staging</dt>
+                <dd>
+                  A new temporary folder where Aluna assembles and checks a proposed version before
+                  moving it to its permanent version path.
+                </dd>
+              </div>
+              <div>
+                <dt>ticket / lease</dt>
+                <dd>
+                  A ticket is a build’s place in line. A lease is temporary proof that the request
+                  currently owns the database write turn.
+                </dd>
+              </div>
+              <div>
+                <dt>tombstone</dt>
+                <dd>
+                  A durable cleanup record saying the capability is already deleted while some files
+                  or resources still need removal. It prevents rebuilding the same capability name
+                  until cleanup finishes.
+                </dd>
+              </div>
+              <div>
+                <dt>View</dt>
+                <dd>
+                  The complete capability interface shown in Aluna’s content area. Its structure is
+                  separate from the live records loaded into it.
+                </dd>
+              </div>
+            </dl>
+
+            <div class="sources">
+              <h3>Source documents</h3>
+              <ul>
+                <li>
+                  <a href="PLAN.md">Module 4 plan</a>, the detailed implementation sequence,
+                  decisions, and checks that each stage must satisfy.
+                </li>
+                <li>
+                  <a href="../../docs/adr/0006-capability-evolution-versioning-and-diff-contract.md"
+                    >ADR-0006</a
+                  >, the decision record explaining safe changes, version saving and activation,
+                  fixed behavior expectations, and permanent deletion.
+                </li>
+                <li>
+                  <a href="../../docs/architecture.md">Architecture</a>, the complete explanation of
+                  which parts of Aluna own each responsibility and how state changes safely.
+                </li>
+                <li>
+                  <a href="../../docs/modules.md">Module roadmap</a>, what Module 4 adds and what
+                  remains for later modules.
+                </li>
+                <li>
+                  <a href="../../CONTEXT.md">Domain language</a>, the project’s agreed definitions
+                  for capability, Handler, incarnation, Builder, and related terms.
+                </li>
+              </ul>
+            </div>
+          </section>
+        </article>
+      </div>
+    </main>
+
+    <footer>A plain-language companion to the Module 4 implementation plan, July 2026.</footer>
+
+    <script>
+    const fieldStates = {
+      new: {
+        spec: `{
+      "name": "due_date",
+      "label": "Due date",
+      "type": "date",
+      "required": false,
+      "lifecycle": "active"
+    }`,
+        title: "Add the field without breaking old records.",
+        copy: "A new field starts visible. Its database column allows empty values so records created before the field existed remain readable.",
+        effects: [
+          "Add one new database column. Keep every old column and value.",
+          "Create and Edit can now receive the new field.",
+          "Forms and record details can show it.",
+          "The list item changes only if the proposal also asks to show the field there.",
+        ],
+      },
+      hidden: {
+        spec: `{
+      "name": "due_date",
+      "label": "Due date",
+      "type": "date",
+      "required": false,
+      "lifecycle": "inactive"
+    }`,
+        title: "Stop showing it, keep the column and values.",
+        copy: "Aluna marks the field hidden instead of removing it from the capability definition. The original column and saved values remain.",
+        effects: [
+          "Do not delete the database column or rewrite old records.",
+          "New forms, details, search, and generated behavior ignore the field.",
+          "The field is not required while it is hidden.",
+          "Another capability that already reads the stored column can continue to do so.",
+        ],
+      },
+      reactivated: {
+        spec: `{
+      "name": "due_date",
+      "label": "Target day",
+      "type": "date",
+      "required": true,
+      "lifecycle": "active"
+    }`,
+        title: "Reveal the original field and stored values.",
+        copy: "Aluna shows the same field again. The proposal may also change its visible label or make it required, and Aluna combines all work those changes need.",
+        effects: [
+          "Reuse the original database column instead of adding another.",
+          "Old stored values become visible again.",
+          "Create and Edit include the field again and enforce its new required setting.",
+          "Old records without a value remain readable, but the next edit must supply one.",
+        ],
+      },
+    };
+
+    const pipelineSteps = [
+      {
+        label: "01 · receive the request",
+        title: "Start listening before deciding whether a build is needed.",
+        copy: "Aluna opens the progress connection and keeps a temporary request in memory. It has not started a build yet because the prompt might be a data question, an invalid request, or something that needs no capability change.",
+        rule: "Why this order matters: understanding the request should not block someone from editing a record or claim that generation started when it did not.",
+      },
+      {
+        label: "02 · understand the request",
+        title: "Decide what the user is asking Aluna to do.",
+        copy: "Aluna looks at the current capabilities and decides whether to build something new, change an existing capability, change only its presentation, answer a data question, or reject an unsupported request. It also identifies the exact target when one exists.",
+        rule: "Aluna remembers the capability list and versions it examined so it can later detect whether anything changed while the request waited.",
+      },
+      {
+        label: "03 · wait for a safe turn",
+        title: "Join the build queue, then check the request again.",
+        copy: "A real build waits in arrival order. When it reaches the front, Aluna checks that the target capability and the rest of the capability list still match what it saw earlier. If anything changed, the request stops as outdated.",
+        rule: "An outdated request never starts AI generation. This avoids building against a version that is no longer current.",
+      },
+      {
+        label: "04 · propose the next version",
+        title: "Describe the complete capability after the requested change.",
+        copy: "The AI receives the current capability, every visible and hidden field, the understood request, and the allowed information about other capabilities. It returns a complete proposed capability, including the parts that stay unchanged.",
+        rule: "The AI describes meaning and behavior. Aluna, not the AI, chooses version numbers, file locations, database changes, and the steps for saving and switching versions.",
+      },
+      {
+        label: "05 · check and compare",
+        title: "Reject unsafe changes and list the work that remains.",
+        copy: "Aluna checks that stable identities and data types were preserved and that every field, Action, connection to another capability, error, and presentation reference is allowed. It then compares the proposal with the current version and combines all required work.",
+        rule: "If the proposal means the same thing as the current capability, Aluna records no change and creates no new version.",
+      },
+      {
+        label: "06 · define expected behavior",
+        title: "Write down what success means before generating code.",
+        copy: "When behavior testing is enabled, Aluna creates new expectations for changed behavior and copies expectations that remain valid. Every expectation that will run is fixed before generated Action code is created or repaired.",
+        rule: "A failure may cause the generated code to change, but it can never weaken the expectation that exposed the failure.",
+      },
+      {
+        label: "07 · build and test",
+        title: "Assemble one complete proposed version.",
+        copy: "Aluna regenerates the files affected by the change, copies files proven safe to reuse, and combines everything in a temporary folder. The complete version then passes file, Action, search, behavior, and presentation checks.",
+        rule: "Generating fewer files saves work. It never reduces how thoroughly the complete version is tested.",
+      },
+      {
+        label: "08 · save the version",
+        title: "Verify every file, then move the complete folder into place.",
+        copy: "Aluna writes the exact capability description and a receipt listing every generated file and digital fingerprint. After verifying them, it moves the complete folder to its final version path in one step and never overwrites an existing version.",
+        rule: "The saved version is complete, but it is not live until the database is updated to point to it.",
+      },
+      {
+        label: "09 · make it live",
+        title: "Switch to the new version in one database transaction.",
+        copy: "Aluna adds any needed database columns, confirms that the expected previous version is still active, points the capability to the new version, and records a successful activation. These changes commit together.",
+        rule: "If this transaction fails, the old version stays live. Once it succeeds, the new version stays live even if the browser misses the final refresh.",
+      },
+      {
+        label: "10 · refresh the screen",
+        title: "Show the version the database says is live.",
+        copy: "After activation, Aluna sends the browser one complete updated capability view. If no new version became live, it reloads the existing view instead and finishes the request.",
+        rule: "If the browser misses the update, a normal page reload reads the database and shows the correct live version. Aluna does not roll back a successful activation.",
+      },
+    ];
+
+    const diffFacts = [
+      {
+        id: "new-text",
+        label: "Add a visible text field",
+        platform: [
+          "Add a database column that allows empty old values",
+          "Show the field in forms and details",
+        ],
+        units: ["Regenerate Create", "Regenerate Edit", "Regenerate Search"],
+        tests: ["Update Create checks", "Update Edit checks", "Update Search checks"],
+      },
+      {
+        id: "required",
+        label: "Make a field required or optional",
+        platform: ["Change completed-record validation"],
+        units: ["Regenerate Create", "Regenerate Edit"],
+        tests: ["Update Create checks", "Update Edit checks"],
+      },
+      {
+        id: "field-label",
+        label: "Change a shown field label",
+        platform: ["Update labels in forms and details"],
+        units: ["Regenerate the list item if it shows this label"],
+        tests: [],
+      },
+      {
+        id: "item-direction",
+        label: "Change the list item design or shown fields",
+        platform: [],
+        units: ["Regenerate the list item"],
+        tests: [],
+      },
+      {
+        id: "layout",
+        label: "Switch between a feed and a grid",
+        platform: ["Change the shared records layout"],
+        units: ["Regenerate the list item for the new layout"],
+        tests: [],
+      },
+      {
+        id: "dependency-read",
+        label: "Change which other capabilities Read may use",
+        platform: ["Update the dependency list and deletion protection"],
+        units: ["Regenerate Read"],
+        tests: ["Update and run Read checks"],
+      },
+      {
+        id: "behavior",
+        label: "Change the capability’s behavior rules",
+        platform: [],
+        units: ["Regenerate all five Actions"],
+        tests: ["Create and run the complete behavior checks"],
+      },
+      {
+        id: "capability-label",
+        label: "Change the capability’s visible name",
+        platform: ["Update its saved label, toolbar entry, and view text"],
+        units: [],
+        tests: [],
+      },
+    ];
+
+    const epics = [
+      {
+        number: "4.1",
+        name: "Stable fields and capability lifetimes",
+        phase: "Foundation · prepare for safe changes",
+        title: "Give each capability lifetime and field a stable identity.",
+        copy: "Move generated files into a separate path for each capability lifetime. Add visible field labels, hidden and visible states, text lists, safe edit markers, and the built-in creation date. Database columns may stay empty for old records even when future edits require a value. At this stage, prompt-built capabilities still support only Create and Read.",
+        proof:
+          "Create a record with several tags and confirm that they save and display in order. Hide a field and confirm that its definition and values remain even though the interface no longer shows it.",
+      },
+      {
+        number: "4.2",
+        name: "Safe reading and writing",
+        phase: "Runtime safety · add all five Actions",
+        title: "Make all five Actions safe before asking AI to generate them.",
+        copy: "Add one controller that gives database writes safe turns. Let generated code read only through a connection that cannot write, and give Edit and Delete tools already tied to one checked record. Add a hand-written example capability with Create, Read, Edit, Delete, and Search so every request path and safety rule can be tested first.",
+        proof:
+          "Use the example capability to run all five Actions, read from an explicitly allowed capability, prove that the read connection cannot write, and show that a build cannot overlap unsafely with a record edit.",
+      },
+      {
+        number: "4.3",
+        name: "Editing, deleting, and searching in the interface",
+        phase: "User experience · make every Action usable",
+        title: "Put the five Actions into the shared interface.",
+        copy: "Add Edit and Save to record details, show a clear confirmation before deleting a record, wait briefly while the user types before searching, and refresh the current list or search results after every saved change.",
+        proof:
+          "Use the hand-written example from the homepage to create, view, edit, search, and delete records before AI generation for all five Actions is introduced.",
+      },
+      {
+        number: "4.4",
+        name: "AI-generated capabilities with all five Actions",
+        phase: "AI generation · replace temporary examples",
+        title: "Make every new capability fully usable from its first version.",
+        copy: "Remove the temporary Create-and-Read-only format and the hand-written example. Generate separate code for Create, Read, Edit, Delete, Search, and the list item. Test the complete generated capability every time.",
+        proof:
+          "Ask Aluna to build a fresh capability, use all five Actions, and confirm that difficult search cases still follow the same shared matching rules.",
+      },
+      {
+        number: "4.5",
+        name: "Safe version saving and switching",
+        phase: "Version safety · publish before making live",
+        title: "Store complete versions and recover cleanly from failures.",
+        copy: "Rebuild v1 using temporary folders, exact file receipts, digital fingerprints, and final paths that cannot be overwritten. Add one hand-written v2 and temporarily rebuild every generated file so the save-and-activate process can be proven before selective rebuilding exists.",
+        proof:
+          "Force failures while writing files, updating the database, and refreshing the browser. After each failure, confirm that the correct version remains live and every completed older version remains intact.",
+      },
+      {
+        number: "4.6",
+        name: "Rebuild only what changed",
+        phase: "Efficient evolution · do less work safely",
+        title: "Choose the smallest set of generated files that must change.",
+        copy: "Compare the complete proposed capability with the live version. Use fixed rules to combine all required database, generated-code, test, and presentation work. Give each generated file only the context it needs, and copy an old file only when a rule explicitly proves it is unaffected.",
+        proof:
+          "Try every supported kind of change and several changes together. Confirm that an unchanged request creates no version, old source is reused only when safe, and an unknown kind of change stops instead of being guessed at.",
+      },
+      {
+        number: "4.7",
+        name: "Behavior checks that repairs cannot weaken",
+        phase: "Behavior safety · protect the expected result",
+        title: "Define what should happen independently from generated code.",
+        copy: "Create behavior expectations from the capability description, not from its generated code. Copy expectations that remain valid, rerun them when the Action code they cover changes, and allow repair to change only the failing generated Action code.",
+        proof:
+          "Test successful and failing changes over existing records, turn behavior testing on and off, limit repair attempts, preserve the old live version after failure, record the outcome, and recover builds interrupted by a restart.",
+      },
+      {
+        number: "4.8",
+        name: "Understand requests before building",
+        phase: "Request handling · separate decisions from builds",
+        title: "Start the Builder only for a clear, current build request.",
+        copy: "Understand the prompt before taking a write turn. Remember the exact target and capability list that were examined, then stop if they change while the request waits. Keep the core build stages separate from the progress text shown in the prompt experience. When similar ideas belong to different collections, build clearly named separate capabilities.",
+        proof:
+          "Change Notes, build Work Contacts beside personal Contacts, reject an outdated queued request, and answer a data question without ever starting the Builder.",
+      },
+      {
+        number: "4.9",
+        name: "Safe permanent capability deletion",
+        phase: "Permanent deletion · protect users and finish cleanup",
+        title: "Delete completely without breaking another capability.",
+        copy: "Ask for direct confirmation, refuse deletion when another capability depends on the target, block new readers and let current readers finish, list every owned resource, permanently remove the database state, and keep a retryable cleanup record for remaining files.",
+        proof:
+          "Force a failure before the permanent database change and confirm that the capability still exists. Force a failure afterward and confirm that it stays deleted while startup recovery finishes cleanup. Then rebuild a capability with the same name under a new lifetime without loading old code.",
+      },
+    ];
+
+    function renderFieldState(key) {
+      const state = fieldStates[key];
+      document.querySelector("#field-spec").textContent = state.spec;
+      document.querySelector("#field-title").textContent = state.title;
+      document.querySelector("#field-copy").textContent = state.copy;
+      const list = document.querySelector("#field-effects");
+      list.replaceChildren(
+        ...state.effects.map((effect) => {
+          const item = document.createElement("li");
+          item.textContent = effect;
+          return item;
+        }),
+      );
+      for (const button of document.querySelectorAll("[data-field-state]")) {
+        button.setAttribute("aria-pressed", String(button.dataset.fieldState === key));
+      }
+    }
+
+    function renderPipeline(index) {
+      const step = pipelineSteps[index];
+      document.querySelector("#pipeline-label").textContent = step.label;
+      document.querySelector("#pipeline-title").textContent = step.title;
+      document.querySelector("#pipeline-copy").textContent = step.copy;
+      document.querySelector("#pipeline-rule").textContent = step.rule;
+      for (const button of document.querySelectorAll("[data-pipeline-step]")) {
+        if (Number(button.dataset.pipelineStep) === index)
+          button.setAttribute("aria-current", "step");
+        else button.removeAttribute("aria-current");
+      }
+    }
+
+    function fillEffectList(selector, values) {
+      const list = document.querySelector(selector);
+      if (values.length === 0) {
+        const item = document.createElement("li");
+        item.className = "is-empty";
+        item.textContent = "No additional work";
+        list.replaceChildren(item);
+        return;
+      }
+      list.replaceChildren(
+        ...values.map((value) => {
+          const item = document.createElement("li");
+          item.textContent = value;
+          return item;
+        }),
+      );
+    }
+
+    function renderDiff() {
+      const selected = diffFacts.filter(
+        (fact) =>
+          document.querySelector(`[data-fact="${fact.id}"]`).getAttribute("aria-pressed") ===
+          "true",
+      );
+      const union = (key) => [...new Set(selected.flatMap((fact) => fact[key]))];
+      fillEffectList("#effect-platform", union("platform"));
+      fillEffectList("#effect-units", union("units"));
+      fillEffectList("#effect-tests", union("tests"));
+      const rule = document.querySelector("#diff-rule");
+      rule.textContent = selected.length
+        ? `${selected.length} change${selected.length === 1 ? "" : "s"} selected. File checks and all five basic Action and Search checks still run against the complete proposed version.`
+        : "Select a change. If comparison finds no meaningful difference, Aluna records no change and creates no new version.";
+    }
+
+    function renderEpic(index) {
+      const epic = epics[index];
+      document.querySelector("#epic-phase").textContent = `${epic.number} · ${epic.phase}`;
+      document.querySelector("#epic-title").textContent = epic.title;
+      document.querySelector("#epic-copy").textContent = epic.copy;
+      document.querySelector("#epic-proof").innerHTML =
+        `<strong>What this stage proves</strong>${epic.proof}`;
+      for (const button of document.querySelectorAll("[data-epic]")) {
+        button.setAttribute("aria-selected", String(Number(button.dataset.epic) === index));
+        button.setAttribute("tabindex", Number(button.dataset.epic) === index ? "0" : "-1");
+      }
+    }
+
+    for (const button of document.querySelectorAll("[data-field-state]")) {
+      button.addEventListener("click", () => renderFieldState(button.dataset.fieldState));
+    }
+
+    const pipelineRail = document.querySelector("#pipeline-rail");
+    pipelineRail.replaceChildren(
+      ...pipelineSteps.map((step, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "step-button";
+        button.dataset.pipelineStep = String(index);
+        button.innerHTML = `<span class="step-button__index">${String(index + 1).padStart(2, "0")}</span><span class="step-button__text">${step.title}</span>`;
+        button.addEventListener("click", () => renderPipeline(index));
+        return button;
+      }),
+    );
+
+    const factList = document.querySelector("#fact-list");
+    factList.replaceChildren(
+      ...diffFacts.map((fact, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "fact-toggle";
+        button.dataset.fact = fact.id;
+        button.setAttribute("aria-pressed", String(index === 0));
+        button.innerHTML = `<span class="fact-toggle__box" aria-hidden="true">✓</span><span class="fact-toggle__label">${fact.label}</span>`;
+        button.addEventListener("click", () => {
+          button.setAttribute(
+            "aria-pressed",
+            String(button.getAttribute("aria-pressed") !== "true"),
+          );
+          renderDiff();
+        });
+        return button;
+      }),
+    );
+
+    const epicRail = document.querySelector("#epic-rail");
+    epicRail.replaceChildren(
+      ...epics.map((epic, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "epic-button";
+        button.dataset.epic = String(index);
+        button.setAttribute("role", "tab");
+        button.setAttribute("aria-controls", "epic-panel");
+        button.innerHTML = `<span class="epic-button__number">${epic.number}</span><span class="epic-button__name">${epic.name}</span>`;
+        button.addEventListener("click", () => renderEpic(index));
+        button.addEventListener("keydown", (event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          const direction = event.key === "ArrowDown" ? 1 : -1;
+          const next = (index + direction + epics.length) % epics.length;
+          renderEpic(next);
+          document.querySelector(`[data-epic="${next}"]`).focus();
+        });
+        return button;
+      }),
+    );
+
+    const sections = [...document.querySelectorAll("[data-section]")];
+    const tocLinks = [...document.querySelectorAll(".contents a")];
+    function updateCurrentSection() {
+      const readingLine = window.scrollY + window.innerHeight * 0.3;
+      let current = sections[0];
+      for (const section of sections) {
+        if (section.offsetTop > readingLine) break;
+        current = section;
+      }
+      for (const link of tocLinks) {
+        link.setAttribute("aria-current", String(link.getAttribute("href") === `#${current.id}`));
+      }
+    }
+
+    const progressBar = document.querySelector("#progress-bar");
+    function updateProgress() {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const amount = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+      progressBar.style.width = `${amount * 100}%`;
+      updateCurrentSection();
+    }
+    window.addEventListener("scroll", updateProgress, { passive: true });
+
+    renderFieldState("new");
+    renderPipeline(0);
+    renderDiff();
+    renderEpic(0);
+    updateProgress();
+    </script>
+  </body>
+</html>

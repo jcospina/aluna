@@ -1,0 +1,2883 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="An interactive, plain-language guide to the Aluna architecture."
+    >
+    <title>How Aluna works</title>
+    <link rel="icon" href="data:,">
+    <style>
+    @font-face {
+      font-family: "Outfit";
+      src: url("../public/fonts/outfit-variable.woff2") format("woff2-variations");
+      font-weight: 100 900;
+      font-display: swap;
+    }
+
+    :root {
+      color-scheme: light;
+      --color-bg: oklch(95% 0.025 85);
+      --color-surface: oklch(98% 0.012 85);
+      --color-text: oklch(18% 0.02 60);
+      --color-text-muted: color-mix(in oklch, var(--color-text), var(--color-surface) 25%);
+      --color-text-subtle: color-mix(in oklch, var(--color-text), var(--color-surface) 45%);
+      --color-border: color-mix(in oklch, var(--color-text), var(--color-surface) 25%);
+      --color-shadow: color-mix(in oklch, var(--color-text), transparent 82%);
+      --color-accent: oklch(63% 0.16 38);
+      --color-accent-soft: color-mix(in oklch, var(--color-accent), var(--color-surface) 78%);
+      --color-accent-secondary: oklch(40% 0.06 250);
+      --color-secondary-soft: color-mix(
+        in oklch,
+        var(--color-accent-secondary),
+        var(--color-surface) 84%
+      );
+      --color-info: oklch(75% 0.1 195);
+      --color-info-soft: color-mix(in oklch, var(--color-info), var(--color-surface) 72%);
+      --color-feature: oklch(82% 0.13 90);
+      --color-warm: oklch(82% 0.12 75);
+      --font-sans:
+        "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --type-xs: 0.75rem;
+      --type-sm: 0.875rem;
+      --type-md: 1rem;
+      --type-lg: 1.25rem;
+      --type-xl: 1.5rem;
+      --type-xxl: 2rem;
+      --space-0_5: 4px;
+      --space-1: 8px;
+      --space-2: 16px;
+      --space-3: 24px;
+      --space-4: 32px;
+      --space-6: 48px;
+      --space-8: 64px;
+      --radius-sm: 5px;
+      --radius-md: 10px;
+      --radius-pill: 999px;
+      --border-thin: 1px;
+      --shadow-sm: 2px 2px 0 var(--color-shadow);
+      --shadow-md: 4px 4px 0 var(--color-shadow);
+      --ease-pop: cubic-bezier(0.2, 0.8, 0.2, 1);
+      --duration-fast: 120ms;
+      --duration-base: 160ms;
+      --duration-slow: 200ms;
+      --page-pad: clamp(1.25rem, 3vw, 3rem);
+      --content-max: 78rem;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--font-sans);
+      font-size: var(--type-md);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button,
+    a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button {
+      color: inherit;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    img,
+    svg {
+      display: block;
+    }
+
+    p,
+    h1,
+    h2,
+    h3,
+    h4 {
+      margin-top: 0;
+    }
+
+    p:last-child {
+      margin-bottom: 0;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: var(--space-1);
+      left: var(--space-1);
+      z-index: 100;
+      padding: var(--space-1) var(--space-2);
+      background: var(--color-text);
+      color: var(--color-surface);
+      border-radius: var(--radius-sm);
+      transform: translateY(-180%);
+      transition: transform var(--duration-fast) var(--ease-pop);
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    :focus-visible {
+      outline: 3px solid var(--color-accent);
+      outline-offset: 3px;
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--space-3);
+      min-height: 66px;
+      padding: var(--space-1) var(--page-pad);
+      background: color-mix(in oklch, var(--color-bg), transparent 7%);
+      border-bottom: var(--border-thin) solid var(--color-border);
+    }
+
+    .wordmark {
+      display: inline-flex;
+      align-items: baseline;
+      font-size: var(--type-xl);
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+
+    .wordmark__dot {
+      color: var(--color-accent);
+    }
+
+    .header-label {
+      color: var(--color-text-muted);
+      font-size: var(--type-sm);
+    }
+
+    .tour-nav {
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: var(--space-0_5);
+    }
+
+    .tour-nav a {
+      position: relative;
+      padding: 0.55rem 0.7rem;
+      color: var(--color-text-muted);
+      font-size: var(--type-sm);
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+    }
+
+    .tour-nav a:hover,
+    .tour-nav a[aria-current="true"] {
+      color: var(--color-text);
+      background: var(--color-surface);
+    }
+
+    .page-shell {
+      width: min(100%, var(--content-max));
+      margin-inline: auto;
+    }
+
+    .section {
+      min-height: 72vh;
+      padding: clamp(5rem, 10vw, 9rem) var(--page-pad);
+      scroll-margin-top: 66px;
+    }
+
+    .section--compact {
+      min-height: auto;
+    }
+
+    .section-heading {
+      display: grid;
+      grid-template-columns: minmax(0, 0.8fr) minmax(18rem, 1.2fr);
+      gap: clamp(2rem, 7vw, 7rem);
+      align-items: end;
+      margin-bottom: clamp(3rem, 7vw, 6rem);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      margin-bottom: var(--space-2);
+      color: var(--color-accent-secondary);
+      font-size: var(--type-sm);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 1.75rem;
+      height: 2px;
+      background: currentColor;
+    }
+
+    .section-heading h2 {
+      max-width: 14ch;
+      margin-bottom: 0;
+      font-size: clamp(2.4rem, 5.5vw, 5.25rem);
+      font-weight: 800;
+      line-height: 0.96;
+      letter-spacing: -0.045em;
+    }
+
+    .section-heading > p {
+      max-width: 58ch;
+      margin-bottom: 0.25rem;
+      color: var(--color-text-muted);
+      font-size: clamp(1.05rem, 1.5vw, 1.3rem);
+    }
+
+    .hero {
+      position: relative;
+      min-height: calc(100svh - 66px);
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(22rem, 0.88fr);
+      align-items: center;
+      gap: clamp(3rem, 8vw, 8rem);
+      padding-top: clamp(4rem, 8vw, 7rem);
+      padding-bottom: clamp(5rem, 8vw, 8rem);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: max(var(--page-pad), 3vw);
+      bottom: 2.5rem;
+      width: 5rem;
+      height: 5rem;
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 1rem var(--color-accent-soft),
+        0 0 0 2rem color-mix(in oklch, var(--color-feature), transparent 42%);
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .hero h1 {
+      max-width: 10ch;
+      margin-bottom: var(--space-3);
+      font-size: clamp(3.4rem, 8.5vw, 8rem);
+      font-weight: 850;
+      line-height: 0.87;
+      letter-spacing: -0.06em;
+    }
+
+    .hero__lead {
+      max-width: 53ch;
+      color: var(--color-text-muted);
+      font-size: clamp(1.12rem, 1.8vw, 1.45rem);
+    }
+
+    .hero__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      margin-top: var(--space-4);
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-1);
+      min-height: 44px;
+      padding: var(--space-1) var(--space-2);
+      font-weight: 700;
+      line-height: 1;
+      text-decoration: none;
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition:
+        transform var(--duration-fast) var(--ease-pop),
+        box-shadow var(--duration-fast) var(--ease-pop),
+        background var(--duration-fast) var(--ease-pop);
+    }
+
+    .button:hover {
+      transform: translate(1px, 1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .button:active {
+      transform: translate(2px, 2px);
+      box-shadow: none;
+    }
+
+    .button--primary {
+      background: var(--color-accent);
+      border-color: color-mix(in oklch, var(--color-accent), var(--color-text) 25%);
+    }
+
+    .button--quiet {
+      background: transparent;
+      border-color: transparent;
+    }
+
+    .button svg {
+      width: 1.15rem;
+      height: 1.15rem;
+    }
+
+    .idea-machine {
+      position: relative;
+      min-height: 32rem;
+    }
+
+    .idea-machine__orbit {
+      position: absolute;
+      inset: 50% auto auto 50%;
+      width: min(28rem, 88vw);
+      aspect-ratio: 1;
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .idea-machine__orbit::before,
+    .idea-machine__orbit::after {
+      content: "";
+      position: absolute;
+      inset: 14%;
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: inherit;
+    }
+
+    .idea-machine__orbit::after {
+      inset: 31%;
+      background: var(--color-feature);
+      border-color: color-mix(in oklch, var(--color-feature), var(--color-text) 25%);
+      box-shadow: var(--shadow-md);
+    }
+
+    .idea-machine__center {
+      position: absolute;
+      z-index: 2;
+      top: 50%;
+      left: 50%;
+      width: 8.25rem;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .idea-machine__center strong {
+      display: block;
+      font-size: var(--type-lg);
+      line-height: 1.1;
+    }
+
+    .idea-machine__center span {
+      color: var(--color-text-muted);
+      font-size: var(--type-sm);
+    }
+
+    .orbit-label {
+      position: absolute;
+      z-index: 3;
+      display: grid;
+      max-width: 12rem;
+      padding: 0.75rem 1rem;
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .orbit-label strong {
+      font-size: var(--type-sm);
+    }
+
+    .orbit-label span {
+      color: var(--color-text-muted);
+      font-size: var(--type-xs);
+    }
+
+    .orbit-label--one {
+      top: 4%;
+      left: 3%;
+    }
+
+    .orbit-label--two {
+      top: 39%;
+      right: -2%;
+    }
+
+    .orbit-label--three {
+      bottom: 3%;
+      left: 7%;
+    }
+
+    .orbit-dot {
+      position: absolute;
+      z-index: 4;
+      width: 1rem;
+      aspect-ratio: 1;
+      background: var(--color-accent);
+      border: var(--border-thin) solid var(--color-text);
+      border-radius: 50%;
+    }
+
+    .orbit-dot--one {
+      top: 14%;
+      right: 17%;
+    }
+
+    .orbit-dot--two {
+      right: 10%;
+      bottom: 23%;
+      background: var(--color-info);
+    }
+
+    .orbit-dot--three {
+      bottom: 14%;
+      left: 23%;
+      background: var(--color-warm);
+    }
+
+    .principle-band {
+      padding: clamp(3rem, 6vw, 6rem) var(--page-pad);
+      background: var(--color-accent-secondary);
+      color: var(--color-surface);
+    }
+
+    .principle-band__content {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+      gap: clamp(2rem, 6vw, 6rem);
+      align-items: end;
+      width: min(100%, var(--content-max));
+      margin-inline: auto;
+    }
+
+    .principle-band h2 {
+      max-width: 17ch;
+      margin-bottom: 0;
+      font-size: clamp(2rem, 4vw, 4rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .principle-band p {
+      max-width: 55ch;
+      margin-bottom: 0.25rem;
+      color: color-mix(in oklch, var(--color-surface), transparent 22%);
+      font-size: var(--type-lg);
+    }
+
+    .system-map {
+      display: grid;
+      gap: var(--space-2);
+    }
+
+    .map-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      margin-bottom: var(--space-2);
+      color: var(--color-text-muted);
+      font-size: var(--type-sm);
+    }
+
+    .map-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .legend-swatch {
+      width: 0.8rem;
+      aspect-ratio: 1;
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: 50%;
+    }
+
+    .legend-swatch--fixed {
+      background: var(--color-feature);
+    }
+
+    .legend-swatch--generated {
+      background: var(--color-accent-soft);
+    }
+
+    .legend-swatch--stored {
+      background: var(--color-info-soft);
+    }
+
+    .map-lane {
+      display: grid;
+      grid-template-columns: minmax(8rem, 0.22fr) minmax(0, 1fr);
+      min-height: 9.5rem;
+      overflow: hidden;
+      background: color-mix(in oklch, var(--color-surface), transparent 30%);
+      border-top: var(--border-thin) solid var(--color-border);
+    }
+
+    .map-lane:last-of-type {
+      border-bottom: var(--border-thin) solid var(--color-border);
+    }
+
+    .map-lane__label {
+      display: grid;
+      align-content: center;
+      padding: var(--space-3);
+      border-right: var(--border-thin) solid var(--color-border);
+    }
+
+    .map-lane__label strong {
+      font-size: var(--type-lg);
+    }
+
+    .map-lane__label span {
+      color: var(--color-text-muted);
+      font-size: var(--type-sm);
+    }
+
+    .map-lane__nodes {
+      display: flex;
+      align-items: center;
+      gap: clamp(1.25rem, 3vw, 3rem);
+      overflow-x: auto;
+      padding: var(--space-3);
+      scrollbar-width: thin;
+    }
+
+    .map-node {
+      position: relative;
+      flex: 0 0 auto;
+      min-width: 9.25rem;
+      min-height: 4.75rem;
+      display: grid;
+      place-items: center;
+      padding: var(--space-1) var(--space-2);
+      font-weight: 700;
+      text-align: center;
+      background: var(--node-fill, var(--color-surface));
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition:
+        transform var(--duration-fast) var(--ease-pop),
+        box-shadow var(--duration-fast) var(--ease-pop);
+    }
+
+    .map-node:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: clamp(-2.15rem, -2.4vw, -1.2rem);
+      width: 1.5rem;
+      height: 0.65rem;
+      background: var(--color-text-subtle);
+      clip-path: polygon(0 44%, 66% 44%, 66% 0, 100% 50%, 66% 100%, 66% 56%, 0 56%);
+      transform: translateY(-53%);
+      pointer-events: none;
+    }
+
+    .map-node:hover,
+    .map-node[aria-pressed="true"] {
+      transform: translate(1px, 1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .map-node[aria-pressed="true"] {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px var(--color-accent-soft);
+    }
+
+    .map-node--fixed {
+      --node-fill: color-mix(in oklch, var(--color-feature), var(--color-surface) 35%);
+    }
+
+    .map-node--generated {
+      --node-fill: var(--color-accent-soft);
+    }
+
+    .map-node--stored {
+      --node-fill: var(--color-info-soft);
+    }
+
+    .map-detail {
+      display: grid;
+      grid-template-columns: minmax(11rem, 0.32fr) minmax(0, 1fr);
+      gap: var(--space-3);
+      align-items: start;
+      min-height: 10.5rem;
+      margin-top: var(--space-2);
+      padding: var(--space-3);
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+    }
+
+    .map-detail__title {
+      font-size: var(--type-xl);
+      font-weight: 800;
+      line-height: 1.05;
+    }
+
+    .map-detail__kind {
+      display: inline-block;
+      margin-top: var(--space-1);
+      padding: 0.25rem 0.55rem;
+      color: var(--color-accent-secondary);
+      font-size: var(--type-xs);
+      font-weight: 700;
+      background: var(--color-secondary-soft);
+      border-radius: var(--radius-pill);
+    }
+
+    .map-detail__copy {
+      max-width: 62ch;
+      color: var(--color-text-muted);
+      font-size: var(--type-lg);
+    }
+
+    .map-detail__rule {
+      margin-top: var(--space-2);
+      font-weight: 700;
+    }
+
+    .journey {
+      display: grid;
+      grid-template-columns: minmax(15rem, 0.38fr) minmax(0, 0.62fr);
+      gap: clamp(2rem, 6vw, 6rem);
+      align-items: start;
+    }
+
+    .journey-steps {
+      position: sticky;
+      top: 100px;
+      display: grid;
+      gap: var(--space-1);
+    }
+
+    .journey-step {
+      display: grid;
+      grid-template-columns: 2.25rem 1fr;
+      gap: var(--space-1);
+      align-items: center;
+      padding: 0.7rem;
+      text-align: left;
+      background: transparent;
+      border: var(--border-thin) solid transparent;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+    }
+
+    .journey-step:hover,
+    .journey-step[aria-current="step"] {
+      background: var(--color-surface);
+      border-color: var(--color-border);
+    }
+
+    .journey-step__number {
+      display: grid;
+      place-items: center;
+      width: 2.25rem;
+      aspect-ratio: 1;
+      font-size: var(--type-sm);
+      font-weight: 800;
+      background: var(--color-bg);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: 50%;
+    }
+
+    .journey-step[aria-current="step"] .journey-step__number {
+      background: var(--color-accent);
+      border-color: var(--color-text);
+    }
+
+    .journey-step__label {
+      font-weight: 700;
+    }
+
+    .journey-stage {
+      position: relative;
+      min-height: 31rem;
+      overflow: hidden;
+      padding: clamp(2rem, 5vw, 4rem);
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+    }
+
+    .journey-stage::after {
+      content: attr(data-step);
+      position: absolute;
+      right: -0.04em;
+      bottom: -0.22em;
+      color: var(--color-accent-soft);
+      font-size: clamp(10rem, 26vw, 21rem);
+      font-weight: 900;
+      line-height: 0.8;
+      letter-spacing: -0.12em;
+      pointer-events: none;
+    }
+
+    .journey-stage__content {
+      position: relative;
+      z-index: 2;
+    }
+
+    .journey-stage__label {
+      display: inline-flex;
+      padding: 0.35rem 0.65rem;
+      color: var(--color-accent-secondary);
+      font-size: var(--type-sm);
+      font-weight: 700;
+      background: var(--color-secondary-soft);
+      border-radius: var(--radius-pill);
+    }
+
+    .journey-stage h3 {
+      max-width: 15ch;
+      margin: var(--space-2) 0;
+      font-size: clamp(2.2rem, 5vw, 4.5rem);
+      line-height: 0.98;
+      letter-spacing: -0.04em;
+    }
+
+    .journey-stage p {
+      max-width: 50ch;
+      color: var(--color-text-muted);
+      font-size: var(--type-lg);
+    }
+
+    .journey-stage__why {
+      max-width: 40rem;
+      margin-top: var(--space-4);
+      padding-top: var(--space-2);
+      border-top: var(--border-thin) solid var(--color-border);
+    }
+
+    .journey-stage__why strong {
+      display: block;
+      margin-bottom: var(--space-0_5);
+    }
+
+    .journey-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-top: var(--space-3);
+    }
+
+    .journey-progress {
+      flex: 1;
+      height: 0.45rem;
+      overflow: hidden;
+      background: var(--color-secondary-soft);
+      border-radius: var(--radius-pill);
+    }
+
+    .journey-progress__bar {
+      width: 14.285%;
+      height: 100%;
+      background: var(--color-accent);
+      border-radius: inherit;
+      transition: width var(--duration-slow) var(--ease-pop);
+    }
+
+    .split-stage {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      min-height: 32rem;
+      overflow: hidden;
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+    }
+
+    .access-lane {
+      position: relative;
+      display: grid;
+      align-content: space-between;
+      gap: var(--space-4);
+      padding: clamp(2rem, 5vw, 4rem);
+    }
+
+    .access-lane + .access-lane {
+      border-left: var(--border-thin) solid var(--color-border);
+    }
+
+    .access-lane--read {
+      background: var(--color-info-soft);
+    }
+
+    .access-lane--write {
+      background: var(--color-accent-soft);
+    }
+
+    .access-lane__icon {
+      display: grid;
+      grid-auto-flow: column;
+      justify-content: start;
+      gap: var(--space-1);
+      min-height: 3.5rem;
+    }
+
+    .read-dot {
+      width: 1.25rem;
+      aspect-ratio: 1;
+      align-self: center;
+      background: var(--color-info);
+      border: var(--border-thin) solid var(--color-text);
+      border-radius: 50%;
+    }
+
+    .read-dot:nth-child(2) {
+      align-self: start;
+    }
+
+    .read-dot:nth-child(3) {
+      align-self: end;
+    }
+
+    .write-queue {
+      display: flex;
+      align-items: center;
+      gap: var(--space-0_5);
+    }
+
+    .write-ticket {
+      width: 2.35rem;
+      height: 3rem;
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-text);
+      border-radius: var(--radius-sm);
+    }
+
+    .write-ticket:first-child {
+      background: var(--color-accent);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .access-lane h3 {
+      margin-bottom: var(--space-1);
+      font-size: clamp(2rem, 4.5vw, 4.25rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    .access-lane p {
+      max-width: 38ch;
+      color: var(--color-text-muted);
+      font-size: var(--type-lg);
+    }
+
+    .access-points {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .access-points li {
+      display: flex;
+      gap: var(--space-1);
+      align-items: baseline;
+      font-weight: 600;
+    }
+
+    .access-points li::before {
+      content: "•";
+      color: var(--color-accent-secondary);
+    }
+
+    .deletion-note {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: var(--space-3);
+      align-items: center;
+      margin-top: var(--space-3);
+      padding: var(--space-3);
+      background: var(--color-warm);
+      border: var(--border-thin) solid color-mix(in oklch, var(--color-warm), var(--color-text) 24%);
+      border-radius: var(--radius-md);
+    }
+
+    .deletion-note__mark {
+      display: grid;
+      place-items: center;
+      width: 3.25rem;
+      aspect-ratio: 1;
+      font-size: var(--type-xl);
+      font-weight: 800;
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-text);
+      border-radius: 50%;
+    }
+
+    .deletion-note strong {
+      display: block;
+      font-size: var(--type-lg);
+    }
+
+    .loop-switcher {
+      display: inline-flex;
+      gap: var(--space-0_5);
+      margin-bottom: var(--space-3);
+      padding: var(--space-0_5);
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+    }
+
+    .loop-tab {
+      padding: 0.65rem 1rem;
+      font-weight: 700;
+      background: transparent;
+      border: 0;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+
+    .loop-tab[aria-selected="true"] {
+      background: var(--color-feature);
+    }
+
+    .loop-panel {
+      display: none;
+    }
+
+    .loop-panel.is-active {
+      display: block;
+    }
+
+    .loop-canvas {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(9rem, 1fr));
+      gap: clamp(1.25rem, 3vw, 3rem);
+      overflow-x: auto;
+      padding: clamp(2rem, 5vw, 4rem);
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+    }
+
+    .loop-node {
+      position: relative;
+      min-width: 9rem;
+    }
+
+    .loop-node:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 1.3rem;
+      right: clamp(-2.15rem, -2.4vw, -1.2rem);
+      width: 1.5rem;
+      height: 0.65rem;
+      background: var(--color-text-subtle);
+      clip-path: polygon(0 44%, 66% 44%, 66% 0, 100% 50%, 66% 100%, 66% 56%, 0 56%);
+    }
+
+    .loop-node__mark {
+      display: grid;
+      place-items: center;
+      width: 3rem;
+      aspect-ratio: 1;
+      margin-bottom: var(--space-2);
+      font-weight: 800;
+      background: var(--color-feature);
+      border: var(--border-thin) solid var(--color-text);
+      border-radius: 50%;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .loop-node h3 {
+      margin-bottom: var(--space-0_5);
+      font-size: var(--type-lg);
+      line-height: 1.1;
+    }
+
+    .loop-node p {
+      color: var(--color-text-muted);
+      font-size: var(--type-sm);
+    }
+
+    .loop-note {
+      max-width: 60rem;
+      margin-top: var(--space-3);
+      color: var(--color-text-muted);
+      font-size: var(--type-lg);
+    }
+
+    .memory-explorer {
+      display: grid;
+      grid-template-columns: minmax(13rem, 0.3fr) minmax(0, 0.7fr);
+      gap: clamp(2rem, 6vw, 6rem);
+    }
+
+    .memory-tabs {
+      display: grid;
+      align-content: start;
+      gap: var(--space-1);
+    }
+
+    .memory-tab {
+      display: grid;
+      grid-template-columns: 2rem 1fr;
+      gap: var(--space-1);
+      align-items: center;
+      padding: var(--space-1);
+      text-align: left;
+      background: transparent;
+      border: var(--border-thin) solid transparent;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+    }
+
+    .memory-tab:hover,
+    .memory-tab[aria-selected="true"] {
+      background: var(--color-surface);
+      border-color: var(--color-border);
+    }
+
+    .memory-tab__mark {
+      display: grid;
+      place-items: center;
+      width: 2rem;
+      aspect-ratio: 1;
+      font-size: var(--type-sm);
+      font-weight: 800;
+      background: var(--color-info-soft);
+      border-radius: 50%;
+    }
+
+    .memory-tab__label {
+      font-weight: 700;
+    }
+
+    .memory-stage {
+      position: relative;
+      min-height: 29rem;
+    }
+
+    .memory-sheet {
+      position: absolute;
+      inset: 2rem 0 auto auto;
+      width: calc(100% - 3.5rem);
+      min-height: 24rem;
+      padding: clamp(2rem, 5vw, 4rem);
+      background: var(--sheet-fill, var(--color-surface));
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+      pointer-events: none;
+      transform-origin: center;
+      will-change: transform;
+      transition:
+        transform 360ms var(--ease-pop),
+        box-shadow var(--duration-slow) var(--ease-pop);
+    }
+
+    .memory-sheet[data-depth="0"] {
+      z-index: 10;
+      transform: translate(-1rem, 1rem);
+      box-shadow: var(--shadow-md);
+    }
+
+    .memory-sheet[data-depth="1"] {
+      z-index: 9;
+      transform: translate(-0.375rem, 0.375rem);
+    }
+
+    .memory-sheet[data-depth="2"] {
+      z-index: 8;
+      transform: translate(0.25rem, -0.25rem);
+    }
+
+    .memory-sheet[data-depth="3"] {
+      z-index: 7;
+      transform: translate(0.875rem, -0.875rem);
+    }
+
+    .memory-sheet[data-depth="4"] {
+      z-index: 6;
+      transform: translate(1.5rem, -1.5rem);
+    }
+
+    .memory-sheet.is-dealing {
+      z-index: 20;
+      transition: none;
+    }
+
+    .memory-sheet h3 {
+      max-width: 15ch;
+      margin-bottom: var(--space-2);
+      font-size: clamp(2rem, 4vw, 3.75rem);
+      line-height: 0.98;
+      letter-spacing: -0.04em;
+    }
+
+    .memory-sheet p {
+      max-width: 48ch;
+      color: var(--color-text-muted);
+      font-size: var(--type-lg);
+    }
+
+    .memory-sheet__rule {
+      display: inline-block;
+      margin-top: var(--space-3);
+      padding: 0.45rem 0.7rem;
+      font-weight: 700;
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-pill);
+    }
+
+    .memory-sheet--registry {
+      --sheet-fill: var(--color-feature);
+    }
+
+    .memory-sheet--records {
+      --sheet-fill: var(--color-info-soft);
+    }
+
+    .memory-sheet--snapshots {
+      --sheet-fill: var(--color-accent-soft);
+    }
+
+    .memory-sheet--history {
+      --sheet-fill: var(--color-secondary-soft);
+    }
+
+    .memory-sheet--files {
+      --sheet-fill: color-mix(in oklch, var(--color-warm), var(--color-surface) 28%);
+    }
+
+    .ownership {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: stretch;
+      overflow: hidden;
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+    }
+
+    .ownership__side {
+      padding: clamp(2rem, 5vw, 4rem);
+    }
+
+    .ownership__side h3 {
+      margin-bottom: var(--space-3);
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .ownership__side ul {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .ownership__side li {
+      display: grid;
+      grid-template-columns: 1.6rem 1fr;
+      gap: var(--space-1);
+      align-items: start;
+    }
+
+    .ownership__side li::before {
+      content: "✓";
+      display: grid;
+      place-items: center;
+      width: 1.5rem;
+      aspect-ratio: 1;
+      font-size: var(--type-xs);
+      font-weight: 800;
+      background: var(--color-feature);
+      border-radius: 50%;
+    }
+
+    .ownership__middle {
+      display: grid;
+      place-items: center;
+      width: 5rem;
+      padding: var(--space-2);
+      color: var(--color-surface);
+      font-size: var(--type-sm);
+      font-weight: 700;
+      text-align: center;
+      writing-mode: vertical-rl;
+      background: var(--color-accent-secondary);
+    }
+
+    .ownership__side--generated {
+      background: var(--color-accent-soft);
+    }
+
+    .roadmap {
+      display: grid;
+      grid-template-columns: minmax(16rem, 0.36fr) minmax(0, 0.64fr);
+      gap: clamp(2rem, 6vw, 6rem);
+      align-items: start;
+    }
+
+    .roadmap-rail {
+      position: relative;
+      display: grid;
+      gap: var(--space-1);
+    }
+
+    .roadmap-rail::before {
+      content: "";
+      position: absolute;
+      top: 1rem;
+      bottom: 1rem;
+      left: 1.15rem;
+      width: 1px;
+      background: var(--color-border);
+    }
+
+    .roadmap-step {
+      position: relative;
+      display: grid;
+      grid-template-columns: 2.35rem 1fr;
+      gap: var(--space-1);
+      align-items: center;
+      padding: 0.65rem;
+      text-align: left;
+      background: transparent;
+      border: var(--border-thin) solid transparent;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+    }
+
+    .roadmap-step:hover,
+    .roadmap-step[aria-selected="true"] {
+      background: var(--color-surface);
+      border-color: var(--color-border);
+    }
+
+    .roadmap-step__number {
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: 2.35rem;
+      aspect-ratio: 1;
+      font-size: var(--type-sm);
+      font-weight: 800;
+      background: var(--color-bg);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: 50%;
+    }
+
+    .roadmap-step[aria-selected="true"] .roadmap-step__number {
+      background: var(--color-feature);
+      border-color: var(--color-text);
+    }
+
+    .roadmap-step__label {
+      display: grid;
+    }
+
+    .roadmap-step__label strong {
+      font-size: var(--type-md);
+    }
+
+    .roadmap-step__label span {
+      color: var(--color-text-muted);
+      font-size: var(--type-sm);
+    }
+
+    .roadmap-detail {
+      position: sticky;
+      top: 100px;
+      min-height: 27rem;
+      padding: clamp(2rem, 5vw, 4rem);
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+    }
+
+    .roadmap-detail__module {
+      color: var(--color-accent-secondary);
+      font-size: var(--type-sm);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .roadmap-detail h3 {
+      max-width: 14ch;
+      margin: var(--space-2) 0;
+      font-size: clamp(2.25rem, 5vw, 4.75rem);
+      line-height: 0.96;
+      letter-spacing: -0.045em;
+    }
+
+    .roadmap-detail p {
+      max-width: 48ch;
+      color: var(--color-text-muted);
+      font-size: var(--type-lg);
+    }
+
+    .roadmap-detail__milestone {
+      margin-top: var(--space-4);
+      padding-top: var(--space-2);
+      border-top: var(--border-thin) solid var(--color-border);
+      font-weight: 700;
+    }
+
+    .takeaways {
+      padding: clamp(5rem, 10vw, 9rem) var(--page-pad);
+      background: var(--color-feature);
+    }
+
+    .takeaways h2 {
+      max-width: 9ch;
+      margin-bottom: clamp(3rem, 6vw, 6rem);
+      font-size: clamp(3rem, 7vw, 7rem);
+      line-height: 0.9;
+      letter-spacing: -0.055em;
+    }
+
+    .takeaway-list {
+      display: grid;
+      gap: 0;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: takeaway;
+    }
+
+    .takeaway-list li {
+      counter-increment: takeaway;
+      display: grid;
+      grid-template-columns: 3.5rem minmax(0, 1fr);
+      gap: var(--space-2);
+      align-items: baseline;
+      padding: var(--space-3) 0;
+      border-top: var(--border-thin) solid color-mix(in oklch, var(--color-text), transparent 62%);
+      font-size: clamp(1.35rem, 2.7vw, 2.5rem);
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .takeaway-list li::before {
+      content: "0" counter(takeaway);
+      color: var(--color-text-muted);
+      font-size: var(--type-sm);
+      font-weight: 700;
+    }
+
+    .source-footer {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--space-3);
+      align-items: end;
+      padding: var(--space-6) var(--page-pad) var(--space-8);
+      background: var(--color-bg);
+    }
+
+    .source-footer h2 {
+      margin-bottom: var(--space-1);
+      font-size: var(--type-xl);
+    }
+
+    .source-footer p {
+      max-width: 60ch;
+      color: var(--color-text-muted);
+    }
+
+    .source-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: var(--space-1);
+    }
+
+    .source-links a {
+      padding: 0.5rem 0.75rem;
+      font-size: var(--type-sm);
+      font-weight: 700;
+      text-decoration: none;
+      background: var(--color-surface);
+      border: var(--border-thin) solid var(--color-border);
+      border-radius: var(--radius-pill);
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition:
+        opacity 520ms var(--ease-pop),
+        transform 520ms var(--ease-pop);
+    }
+
+    .reveal.is-visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    @media (max-width: 980px) {
+      .site-header {
+        grid-template-columns: auto 1fr;
+      }
+
+      .header-label {
+        display: none;
+      }
+
+      .tour-nav {
+        overflow-x: auto;
+        justify-self: stretch;
+        justify-content: flex-end;
+        scrollbar-width: none;
+      }
+
+      .tour-nav a:nth-child(n + 5) {
+        display: none;
+      }
+
+      .hero,
+      .section-heading,
+      .principle-band__content,
+      .journey,
+      .memory-explorer,
+      .roadmap {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding-top: 5rem;
+      }
+
+      .hero h1 {
+        max-width: 9ch;
+      }
+
+      .idea-machine {
+        min-height: 29rem;
+      }
+
+      .journey-steps {
+        position: static;
+        grid-template-columns: repeat(7, minmax(7.5rem, 1fr));
+        overflow-x: auto;
+        padding-bottom: var(--space-1);
+      }
+
+      .journey-step {
+        grid-template-columns: 2.25rem 1fr;
+      }
+
+      .memory-stage {
+        min-height: 31rem;
+      }
+
+      .roadmap-detail {
+        position: static;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .site-header {
+        gap: var(--space-1);
+      }
+
+      .tour-nav a {
+        display: none;
+      }
+
+      .tour-nav a:first-child {
+        display: block;
+      }
+
+      .section {
+        min-height: auto;
+        padding-top: 5rem;
+        padding-bottom: 5rem;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      .hero::after {
+        display: none;
+      }
+
+      .idea-machine {
+        min-height: 25rem;
+      }
+
+      .idea-machine__orbit {
+        width: min(22rem, 92vw);
+      }
+
+      .orbit-label {
+        max-width: 9rem;
+        padding: 0.55rem 0.7rem;
+      }
+
+      .map-lane {
+        grid-template-columns: 1fr;
+      }
+
+      .map-lane__label {
+        padding: var(--space-2) var(--space-3);
+        border-right: 0;
+        border-bottom: var(--border-thin) solid var(--color-border);
+      }
+
+      .map-detail,
+      .deletion-note,
+      .source-footer {
+        grid-template-columns: 1fr;
+      }
+
+      .split-stage,
+      .ownership {
+        grid-template-columns: 1fr;
+      }
+
+      .access-lane + .access-lane {
+        border-left: 0;
+        border-top: var(--border-thin) solid var(--color-border);
+      }
+
+      .ownership__middle {
+        width: 100%;
+        min-height: 3.5rem;
+        writing-mode: horizontal-tb;
+      }
+
+      .memory-tabs {
+        grid-template-columns: repeat(5, minmax(8rem, 1fr));
+        overflow-x: auto;
+      }
+
+      .memory-stage {
+        min-height: 40rem;
+      }
+
+      .memory-sheet {
+        width: calc(100% - 2rem);
+        min-height: 29rem;
+      }
+
+      .roadmap-rail {
+        grid-template-columns: repeat(8, minmax(9rem, 1fr));
+        overflow-x: auto;
+      }
+
+      .roadmap-rail::before {
+        display: none;
+      }
+
+      .takeaway-list li {
+        grid-template-columns: 2.25rem minmax(0, 1fr);
+      }
+
+      .source-links {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto;
+        transition-duration: 0.01ms;
+        animation-duration: 0.01ms;
+        animation-iteration-count: 1;
+      }
+
+      .reveal {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to the architecture</a>
+
+    <header class="site-header">
+      <a class="wordmark" href="#start" aria-label="Aluna architecture home">
+        Aluna<span class="wordmark__dot" aria-hidden="true">.</span>
+      </a>
+      <span class="header-label">Architecture tour for developers</span>
+      <nav class="tour-nav" aria-label="Architecture tour">
+        <a href="#map">Map</a>
+        <a href="#journey">One request</a>
+        <a href="#guardrails">Safety</a>
+        <a href="#loops">Two loops</a>
+        <a href="#memory">Memory</a>
+        <a href="#roadmap">Roadmap</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero section page-shell" id="start">
+        <div class="hero__copy reveal">
+          <span class="eyebrow">The whole idea</span>
+          <h1>Thought becomes capability.</h1>
+          <p class="hero__lead">
+            A person says what they want to keep track of. Aluna works out the shape, builds the
+            behavior, checks it, and makes it part of one living personal app.
+          </p>
+          <div class="hero__actions">
+            <a class="button button--primary" href="#map">
+              Start the tour
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="M5 12h14M13 6l6 6-6 6"></path>
+              </svg>
+            </a>
+            <a class="button button--quiet" href="#takeaways">Give me the short version</a>
+          </div>
+        </div>
+
+        <div
+          class="idea-machine reveal"
+          aria-label="Intent becomes a capability and keeps evolving"
+        >
+          <div class="idea-machine__orbit" aria-hidden="true"></div>
+          <div class="idea-machine__center">
+            <strong>A living app</strong>
+            <span>built around you</span>
+          </div>
+          <div class="orbit-label orbit-label--one">
+            <strong>Say what you need</strong>
+            <span>Capability-level intent</span>
+          </div>
+          <div class="orbit-label orbit-label--two">
+            <strong>Use what appears</strong>
+            <span>Real records and actions</span>
+          </div>
+          <div class="orbit-label orbit-label--three">
+            <strong>Let it evolve</strong>
+            <span>New intent, safe change</span>
+          </div>
+          <span class="orbit-dot orbit-dot--one" aria-hidden="true"></span>
+          <span class="orbit-dot orbit-dot--two" aria-hidden="true"></span>
+          <span class="orbit-dot orbit-dot--three" aria-hidden="true"></span>
+        </div>
+      </section>
+
+      <section class="principle-band" id="principle">
+        <div class="principle-band__content reveal">
+          <h2>Aluna is internally a platform, but it must always feel like an app.</h2>
+          <p>
+            The machinery is real and measurable. The person using Aluna never chooses frameworks,
+            fields, migrations, routes, or generated code.
+          </p>
+        </div>
+      </section>
+
+      <section class="section page-shell" id="map">
+        <div class="section-heading reveal">
+          <div>
+            <span class="eyebrow">The system map</span>
+            <h2>Three layers, one flow.</h2>
+          </div>
+          <p>
+            The fixed shell receives intent. The server resolves and builds. Persistent stores
+            remember what Aluna has become. Select any block to see its job.
+          </p>
+        </div>
+
+        <div class="system-map reveal">
+          <div class="map-legend" aria-label="Map legend">
+            <span><i class="legend-swatch legend-swatch--fixed"></i> Platform-owned</span>
+            <span><i class="legend-swatch legend-swatch--generated"></i> AI-authored</span>
+            <span><i class="legend-swatch legend-swatch--stored"></i> Persisted</span>
+          </div>
+
+          <div class="map-lane">
+            <div class="map-lane__label">
+              <strong>Shell</strong>
+              <span>The one fixed surface</span>
+            </div>
+            <div class="map-lane__nodes">
+              <button
+                class="map-node map-node--fixed"
+                type="button"
+                data-map-key="prompt"
+                aria-pressed="true"
+              >
+                Prompt bar
+              </button>
+              <button
+                class="map-node map-node--fixed"
+                type="button"
+                data-map-key="toolbar"
+                aria-pressed="false"
+              >
+                Capability toolbar
+              </button>
+              <button
+                class="map-node map-node--fixed"
+                type="button"
+                data-map-key="presentation"
+                aria-pressed="false"
+              >
+                Platform presentation
+              </button>
+              <button
+                class="map-node map-node--fixed"
+                type="button"
+                data-map-key="tracker"
+                aria-pressed="false"
+              >
+                Event tracker
+              </button>
+            </div>
+          </div>
+
+          <div class="map-lane">
+            <div class="map-lane__label">
+              <strong>Orchestrator</strong>
+              <span>The server-side brain</span>
+            </div>
+            <div class="map-lane__nodes">
+              <button
+                class="map-node map-node--fixed"
+                type="button"
+                data-map-key="resolver"
+                aria-pressed="false"
+              >
+                Intent resolver
+              </button>
+              <button
+                class="map-node map-node--fixed"
+                type="button"
+                data-map-key="coordinator"
+                aria-pressed="false"
+              >
+                Mutation coordinator
+              </button>
+              <button
+                class="map-node map-node--fixed"
+                type="button"
+                data-map-key="builder"
+                aria-pressed="false"
+              >
+                Capability builder
+              </button>
+              <button
+                class="map-node map-node--fixed"
+                type="button"
+                data-map-key="router"
+                aria-pressed="false"
+              >
+                Router
+              </button>
+              <button
+                class="map-node map-node--generated"
+                type="button"
+                data-map-key="units"
+                aria-pressed="false"
+              >
+                Generated units
+              </button>
+            </div>
+          </div>
+
+          <div class="map-lane">
+            <div class="map-lane__label">
+              <strong>Persistence</strong>
+              <span>What survives a session</span>
+            </div>
+            <div class="map-lane__nodes">
+              <button
+                class="map-node map-node--stored"
+                type="button"
+                data-map-key="registry"
+                aria-pressed="false"
+              >
+                Capability registry
+              </button>
+              <button
+                class="map-node map-node--stored"
+                type="button"
+                data-map-key="sqlite"
+                aria-pressed="false"
+              >
+                SQLite records
+              </button>
+              <button
+                class="map-node map-node--stored"
+                type="button"
+                data-map-key="snapshots"
+                aria-pressed="false"
+              >
+                Version snapshots
+              </button>
+              <button
+                class="map-node map-node--stored"
+                type="button"
+                data-map-key="metrics"
+                aria-pressed="false"
+              >
+                Events and metrics
+              </button>
+              <button
+                class="map-node map-node--stored"
+                type="button"
+                data-map-key="objects"
+                aria-pressed="false"
+              >
+                Object store
+              </button>
+            </div>
+          </div>
+
+          <div class="map-detail" aria-live="polite">
+            <div>
+              <div class="map-detail__title" id="map-detail-title">Prompt bar</div>
+              <span class="map-detail__kind" id="map-detail-kind">Platform-owned</span>
+            </div>
+            <div>
+              <p class="map-detail__copy" id="map-detail-copy">
+                The always-visible place where a person states intent. It knows which capability is
+                active, so a short request can still have the right context.
+              </p>
+              <p class="map-detail__rule" id="map-detail-rule">
+                It sends intent. It does not decide what the intent means.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section page-shell" id="journey">
+        <div class="section-heading reveal">
+          <div>
+            <span class="eyebrow">Follow one request</span>
+            <h2>Nothing jumps straight to live.</h2>
+          </div>
+          <p>
+            “Add a due date to my notes” becomes one complete candidate, moves through a total
+            change plan, and reaches the screen only after a recoverable activation.
+          </p>
+        </div>
+
+        <div class="journey reveal">
+          <div class="journey-steps" role="group" aria-label="Build journey steps">
+            <button class="journey-step" type="button" data-journey-step="0" aria-current="step">
+              <span class="journey-step__number">1</span>
+              <span class="journey-step__label">Resolve</span>
+            </button>
+            <button class="journey-step" type="button" data-journey-step="1">
+              <span class="journey-step__number">2</span>
+              <span class="journey-step__label">Wait safely</span>
+            </button>
+            <button class="journey-step" type="button" data-journey-step="2">
+              <span class="journey-step__number">3</span>
+              <span class="journey-step__label">Author the spec</span>
+            </button>
+            <button class="journey-step" type="button" data-journey-step="3">
+              <span class="journey-step__number">4</span>
+              <span class="journey-step__label">Diff and derive</span>
+            </button>
+            <button class="journey-step" type="button" data-journey-step="4">
+              <span class="journey-step__number">5</span>
+              <span class="journey-step__label">Pass the Gate</span>
+            </button>
+            <button class="journey-step" type="button" data-journey-step="5">
+              <span class="journey-step__number">6</span>
+              <span class="journey-step__label">Publish and activate</span>
+            </button>
+            <button class="journey-step" type="button" data-journey-step="6">
+              <span class="journey-step__number">7</span>
+              <span class="journey-step__label">Show the result</span>
+            </button>
+          </div>
+
+          <div>
+            <article class="journey-stage" data-step="1" aria-live="polite">
+              <div class="journey-stage__content">
+                <span class="journey-stage__label" id="journey-label">Intent resolver</span>
+                <h3 id="journey-title">Understand the request in context.</h3>
+                <p id="journey-copy">
+                  The resolver sees the active capability and the current catalog. It decides
+                  whether this is a new capability, an evolution, a presentation change, a one-time
+                  data question, or a friendly refusal.
+                </p>
+                <div class="journey-stage__why">
+                  <strong>Why it matters</strong>
+                  <span id="journey-why"
+                    >Classification stays separate from building, so the same resolved request can
+                    be executed once and measured honestly.</span
+                  >
+                </div>
+              </div>
+            </article>
+            <div class="journey-controls">
+              <button class="button" id="journey-play" type="button" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M8 5v14l11-7z"></path>
+                </svg>
+                <span>Play the flow</span>
+              </button>
+              <div class="journey-progress" aria-hidden="true">
+                <div class="journey-progress__bar" id="journey-progress"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section page-shell" id="guardrails">
+        <div class="section-heading reveal">
+          <div>
+            <span class="eyebrow">The safety model</span>
+            <h2>Reads flow. Writes take turns.</h2>
+          </div>
+          <p>
+            This one rule explains most of Aluna’s data architecture. Reading can stay expressive
+            and concurrent. Every canonical change crosses a small, owned seam.
+          </p>
+        </div>
+
+        <div class="split-stage reveal">
+          <article class="access-lane access-lane--read">
+            <div>
+              <div class="access-lane__icon" aria-hidden="true">
+                <span class="read-dot"></span>
+                <span class="read-dot"></span>
+                <span class="read-dot"></span>
+              </div>
+              <h3>Reading is free.</h3>
+              <p>
+                Reads run together through a physically read-only SQLite connection. Persistent
+                cross-capability reads declare exactly which incarnations they need.
+              </p>
+            </div>
+            <ul class="access-points">
+              <li>Parameterized SQL and joins are allowed</li>
+              <li>Extra columns stay invisible to old code</li>
+              <li>Ad hoc questions leave no capability behind</li>
+            </ul>
+          </article>
+
+          <article class="access-lane access-lane--write">
+            <div>
+              <div class="write-queue" aria-hidden="true">
+                <span class="write-ticket"></span>
+                <span class="write-ticket"></span>
+                <span class="write-ticket"></span>
+                <span>→ one owner</span>
+              </div>
+              <h3>Mutation is constrained.</h3>
+              <p>
+                Builds receive bounded tickets. Record changes use short leases. One mutation
+                coordinator ensures that unrelated work never slips into an open transaction.
+              </p>
+            </div>
+            <ul class="access-points">
+              <li>No raw mutation SQL in generated behavior</li>
+              <li>Update and delete are bound to a validated record</li>
+              <li>Builds recheck stale context before starting</li>
+            </ul>
+          </article>
+        </div>
+
+        <aside class="deletion-note reveal">
+          <div class="deletion-note__mark" aria-hidden="true">!</div>
+          <div>
+            <strong>Evolution preserves. Confirmed deletion destroys.</strong>
+            <p>
+              Normal evolution adds or soft-hides fields. Permanent capability deletion is a
+              separate, zero-AI path with confirmation, dependency checks, a tombstone, and
+              idempotent cleanup across records, snapshots, files, and owned event payloads.
+            </p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section page-shell" id="loops">
+        <div class="section-heading reveal">
+          <div>
+            <span class="eyebrow">Two ways intent arrives</span>
+            <h2>Different entrances, same builder.</h2>
+          </div>
+          <p>
+            The explicit loop begins with words. The implicit loop begins with a pattern in
+            behavior. Both eventually hand one resolved request to the same build lifecycle.
+          </p>
+        </div>
+
+        <div class="reveal">
+          <div class="loop-switcher" role="tablist" aria-label="Intent loops">
+            <button
+              class="loop-tab"
+              type="button"
+              role="tab"
+              id="explicit-tab"
+              aria-selected="true"
+              aria-controls="explicit-panel"
+              data-loop="explicit"
+            >
+              Explicit loop
+            </button>
+            <button
+              class="loop-tab"
+              type="button"
+              role="tab"
+              id="implicit-tab"
+              aria-selected="false"
+              aria-controls="implicit-panel"
+              data-loop="implicit"
+            >
+              Implicit loop
+            </button>
+          </div>
+
+          <div
+            class="loop-panel is-active"
+            id="explicit-panel"
+            role="tabpanel"
+            aria-labelledby="explicit-tab"
+          >
+            <div class="loop-canvas">
+              <div class="loop-node">
+                <span class="loop-node__mark">1</span>
+                <h3>Type intent</h3>
+                <p>The prompt bar carries active capability context.</p>
+              </div>
+              <div class="loop-node">
+                <span class="loop-node__mark">2</span>
+                <h3>Resolve once</h3>
+                <p>Classify, settle overlap, and bind current catalog context.</p>
+              </div>
+              <div class="loop-node">
+                <span class="loop-node__mark">3</span>
+                <h3>Narrate</h3>
+                <p>The explicit presenter tells a friendly foreground story over SSE.</p>
+              </div>
+              <div class="loop-node">
+                <span class="loop-node__mark">4</span>
+                <h3>Build safely</h3>
+                <p>The shared Builder generates, checks, publishes, and activates.</p>
+              </div>
+              <div class="loop-node">
+                <span class="loop-node__mark">5</span>
+                <h3>Swap once</h3>
+                <p>Only a committed result replaces the complete capability View.</p>
+              </div>
+            </div>
+            <p class="loop-note">
+              Typed intent proceeds directly. There is no preview-and-steer coding loop, and a
+              one-time data question takes the separate ephemeral read path.
+            </p>
+          </div>
+
+          <div
+            class="loop-panel"
+            id="implicit-panel"
+            role="tabpanel"
+            aria-labelledby="implicit-tab"
+            hidden
+          >
+            <div class="loop-canvas">
+              <div class="loop-node">
+                <span class="loop-node__mark">1</span>
+                <h3>Observe use</h3>
+                <p>The dumb shell recorder batches actions with context.</p>
+              </div>
+              <div class="loop-node">
+                <span class="loop-node__mark">2</span>
+                <h3>Trip a gate</h3>
+                <p>A cheap server rule waits for a real pattern before calling AI.</p>
+              </div>
+              <div class="loop-node">
+                <span class="loop-node__mark">3</span>
+                <h3>Resolve async</h3>
+                <p>Inference happens away from the interaction path.</p>
+              </div>
+              <div class="loop-node">
+                <span class="loop-node__mark">4</span>
+                <h3>Ask first</h3>
+                <p>A friendly proposal must be explicitly confirmed.</p>
+              </div>
+              <div class="loop-node">
+                <span class="loop-node__mark">5</span>
+                <h3>Reuse the Builder</h3>
+                <p>The accepted, already-resolved request enters the same lifecycle.</p>
+              </div>
+            </div>
+            <p class="loop-note">
+              The proposal’s placement, timing, and post-confirmation presentation remain deliberate
+              Module 7 design work. The fixed rule is simpler: nothing builds without confirmation.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section page-shell" id="memory">
+        <div class="section-heading reveal">
+          <div>
+            <span class="eyebrow">What survives</span>
+            <h2>Aluna remembers in layers.</h2>
+          </div>
+          <p>
+            No single store tells the whole story. Select a layer to see what it owns and why its
+            lifecycle differs from the others.
+          </p>
+        </div>
+
+        <div class="memory-explorer reveal">
+          <div class="memory-tabs" role="tablist" aria-label="Persistence layers">
+            <button
+              class="memory-tab"
+              id="memory-tab-registry"
+              type="button"
+              role="tab"
+              data-memory="registry"
+              aria-selected="true"
+              aria-controls="memory-sheet-registry"
+            >
+              <span class="memory-tab__mark">1</span><span class="memory-tab__label">Registry</span>
+            </button>
+            <button
+              class="memory-tab"
+              id="memory-tab-records"
+              type="button"
+              role="tab"
+              data-memory="records"
+              aria-selected="false"
+              aria-controls="memory-sheet-records"
+            >
+              <span class="memory-tab__mark">2</span><span class="memory-tab__label">Records</span>
+            </button>
+            <button
+              class="memory-tab"
+              id="memory-tab-snapshots"
+              type="button"
+              role="tab"
+              data-memory="snapshots"
+              aria-selected="false"
+              aria-controls="memory-sheet-snapshots"
+            >
+              <span class="memory-tab__mark">3</span
+              ><span class="memory-tab__label">Snapshots</span>
+            </button>
+            <button
+              class="memory-tab"
+              id="memory-tab-history"
+              type="button"
+              role="tab"
+              data-memory="history"
+              aria-selected="false"
+              aria-controls="memory-sheet-history"
+            >
+              <span class="memory-tab__mark">4</span
+              ><span class="memory-tab__label">Events and metrics</span>
+            </button>
+            <button
+              class="memory-tab"
+              id="memory-tab-files"
+              type="button"
+              role="tab"
+              data-memory="files"
+              aria-selected="false"
+              aria-controls="memory-sheet-files"
+            >
+              <span class="memory-tab__mark">5</span><span class="memory-tab__label">Files</span>
+            </button>
+          </div>
+
+          <div class="memory-stage" aria-live="polite">
+            <article
+              class="memory-sheet memory-sheet--registry"
+              id="memory-sheet-registry"
+              role="tabpanel"
+              aria-labelledby="memory-tab-registry"
+              aria-hidden="false"
+              data-memory-sheet="registry"
+              data-depth="0"
+            >
+              <h3>The registry says what Aluna is now.</h3>
+              <p>
+                One active row per capability holds the authored spec, incarnation, version, and
+                pointer to a complete snapshot. The resolver reads its lean prompt context on every
+                classification.
+              </p>
+              <span class="memory-sheet__rule">The authored spec is the source of truth.</span>
+            </article>
+            <article
+              class="memory-sheet memory-sheet--records"
+              id="memory-sheet-records"
+              role="tabpanel"
+              aria-labelledby="memory-tab-records"
+              aria-hidden="true"
+              data-memory-sheet="records"
+              data-depth="1"
+            >
+              <h3>Each capability owns a table.</h3>
+              <p>
+                Canonical records live in isolated SQLite tables with no foreign keys. Fields are
+                added or soft-hidden during evolution. Cross-capability relationships happen through
+                reads.
+              </p>
+              <span class="memory-sheet__rule"
+                >Evolution is additive. Confirmed deletion is explicit.</span
+              >
+            </article>
+            <article
+              class="memory-sheet memory-sheet--snapshots"
+              id="memory-sheet-snapshots"
+              role="tabpanel"
+              aria-labelledby="memory-tab-snapshots"
+              aria-hidden="true"
+              data-memory-sheet="snapshots"
+              data-depth="2"
+            >
+              <h3>Every live version is complete.</h3>
+              <p>
+                Each immutable filesystem snapshot contains the exact spec, every Handler, the item
+                renderer, inventory and digests, plus frozen tests only when the behavioral tier is
+                on.
+              </p>
+              <span class="memory-sheet__rule">Publish first. Activate the pointer second.</span>
+            </article>
+            <article
+              class="memory-sheet memory-sheet--history"
+              id="memory-sheet-history"
+              role="tabpanel"
+              aria-labelledby="memory-tab-history"
+              aria-hidden="true"
+              data-memory-sheet="history"
+              data-depth="3"
+            >
+              <h3>Use becomes evidence.</h3>
+              <p>
+                The Event Log captures full interaction context for the implicit loop. Content-free
+                generation metrics record latency, outcomes, model use, Gate work, and overlap
+                decisions.
+              </p>
+              <span class="memory-sheet__rule"
+                >Product payloads can be purged. Experiment measurements remain.</span
+              >
+            </article>
+            <article
+              class="memory-sheet memory-sheet--files"
+              id="memory-sheet-files"
+              role="tabpanel"
+              aria-labelledby="memory-tab-files"
+              aria-hidden="true"
+              data-memory-sheet="files"
+              data-depth="4"
+            >
+              <h3>Bytes live outside SQLite.</h3>
+              <p>
+                Opaque keys point to an S3-shaped object store. Durable ownership and cleanup keep
+                failed uploads, replacements, record deletion, and capability deletion recoverable.
+              </p>
+              <span class="memory-sheet__rule">The AI uses storage. It never builds storage.</span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section page-shell" id="ownership">
+        <div class="section-heading reveal">
+          <div>
+            <span class="eyebrow">The ownership line</span>
+            <h2>Stable mechanics, generated meaning.</h2>
+          </div>
+          <p>
+            Aluna stays coherent because platform code owns the invariants shared by every
+            capability while AI authors the parts that must understand this capability.
+          </p>
+        </div>
+
+        <div class="ownership reveal">
+          <article class="ownership__side">
+            <h3>The platform owns</h3>
+            <ul>
+              <li>Shell, navigation, forms, list layout, modal, and accessible item frame</li>
+              <li>Routing, record targeting, mutation coordination, and additive DDL</li>
+              <li>Gate mechanics, publication, activation, recovery, and deletion choreography</li>
+              <li>Read-only query and file-storage infrastructure</li>
+            </ul>
+          </article>
+          <div class="ownership__middle">SPEC → DERIVED</div>
+          <article class="ownership__side ownership__side--generated">
+            <h3>The AI authors</h3>
+            <ul>
+              <li>The capability’s complete spec and user-facing intent</li>
+              <li>Five Action Handlers for create, read, update, delete, and search</li>
+              <li>One item renderer for capability-specific record composition</li>
+              <li>Behavioral tests when the experiment’s test tier is on</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section page-shell" id="roadmap">
+        <div class="section-heading reveal">
+          <div>
+            <span class="eyebrow">How it comes together</span>
+            <h2>Eight runnable slices.</h2>
+          </div>
+          <p>
+            The roadmap is vertical, not layered. Every module leaves a behavior a person can run
+            and verify, then deepens the same shared spine.
+          </p>
+        </div>
+
+        <div class="roadmap reveal">
+          <div class="roadmap-rail" role="group" aria-label="Architecture modules">
+            <button class="roadmap-step" type="button" data-module="0" aria-selected="true">
+              <span class="roadmap-step__number">1</span
+              ><span class="roadmap-step__label"
+                ><strong>Runtime spine</strong><span>Connect the fixed pieces</span></span
+              >
+            </button>
+            <button class="roadmap-step" type="button" data-module="1" aria-selected="false">
+              <span class="roadmap-step__number">2</span
+              ><span class="roadmap-step__label"
+                ><strong>First capability</strong
+                ><span>Complete the first explicit slice</span></span
+              >
+            </button>
+            <button class="roadmap-step" type="button" data-module="2" aria-selected="false">
+              <span class="roadmap-step__number">3</span
+              ><span class="roadmap-step__label"
+                ><strong>Opinionated UI</strong><span>Set the presentation contract</span></span
+              >
+            </button>
+            <button class="roadmap-step" type="button" data-module="3" aria-selected="false">
+              <span class="roadmap-step__number">4</span
+              ><span class="roadmap-step__label"
+                ><strong>Full evolution</strong><span>CRUD, diffs, immutable versions</span></span
+              >
+            </button>
+            <button class="roadmap-step" type="button" data-module="4" aria-selected="false">
+              <span class="roadmap-step__number">5</span
+              ><span class="roadmap-step__label"
+                ><strong>Ad hoc questions</strong><span>Use the free-read seam</span></span
+              >
+            </button>
+            <button class="roadmap-step" type="button" data-module="5" aria-selected="false">
+              <span class="roadmap-step__number">6</span
+              ><span class="roadmap-step__label"
+                ><strong>Files</strong><span>Complete the explicit loop</span></span
+              >
+            </button>
+            <button class="roadmap-step" type="button" data-module="6" aria-selected="false">
+              <span class="roadmap-step__number">7</span
+              ><span class="roadmap-step__label"
+                ><strong>Implicit loop</strong><span>Behavior becomes a proposal</span></span
+              >
+            </button>
+            <button class="roadmap-step" type="button" data-module="7" aria-selected="false">
+              <span class="roadmap-step__number">8</span
+              ><span class="roadmap-step__label"
+                ><strong>Experiment harness</strong><span>Make conclusions legible</span></span
+              >
+            </button>
+          </div>
+
+          <article class="roadmap-detail" aria-live="polite">
+            <span class="roadmap-detail__module" id="roadmap-module">Module 1</span>
+            <h3 id="roadmap-title">Stand up the runtime spine.</h3>
+            <p id="roadmap-copy">
+              Connect the static shell, SSE transport, dual SQLite connections, storage ports, and
+              the pluggable AI provider. There is no capability logic yet.
+            </p>
+            <p class="roadmap-detail__milestone" id="roadmap-milestone">
+              Milestone: every dependency is real and wired before generation begins.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="takeaways" id="takeaways">
+        <div class="page-shell reveal">
+          <span class="eyebrow">If you remember five things</span>
+          <h2>Carry this mental model.</h2>
+          <ol class="takeaway-list">
+            <li>The spec is authored. Code, presentation, and tests are derived.</li>
+            <li>Reading stays expressive. Every write crosses one constrained seam.</li>
+            <li>A complete candidate passes the Gate before one atomic activation.</li>
+            <li>The explicit and implicit loops share one presenter-independent Builder.</li>
+            <li>Aluna feels like a friendly app, never a tool for steering generated code.</li>
+          </ol>
+        </div>
+      </section>
+    </main>
+
+    <footer class="source-footer page-shell">
+      <div>
+        <h2>Go deeper in the source documents.</h2>
+        <p>
+          This page is the onboarding map. The architecture, ADRs, module plan, and domain language
+          remain the normative references.
+        </p>
+      </div>
+      <nav class="source-links" aria-label="Architecture source documents">
+        <a href="architecture.md">Architecture</a>
+        <a href="modules.md">Modules</a>
+        <a href="../CONTEXT.md">Domain language</a>
+        <a href="adr/0006-capability-evolution-versioning-and-diff-contract.md">Evolution ADR</a>
+        <a href="design-system.md">Design system</a>
+      </nav>
+    </footer>
+
+    <script>
+    const mapDetails = {
+      prompt: {
+        title: "Prompt bar",
+        kind: "Platform-owned",
+        copy: "The always-visible place where a person states intent. It knows which capability is active, so a short request can still have the right context.",
+        rule: "It sends intent. It does not decide what the intent means.",
+      },
+      toolbar: {
+        title: "Capability toolbar",
+        kind: "Platform-owned",
+        copy: "The only navigation. It starts empty, grows as capabilities are activated, and rehydrates from the registry when Aluna opens.",
+        rule: "A capability appears here only after its pointer is committed.",
+      },
+      presentation: {
+        title: "Platform presentation",
+        kind: "Platform-owned",
+        copy: "Shared forms, fields, list layouts, modal behavior, and accessible record frames. It reads structural spec facts but never invents capability behavior.",
+        rule: "The platform owns consistent mechanics. Generated code owns capability-specific composition.",
+      },
+      tracker: {
+        title: "Event tracker",
+        kind: "Platform-owned",
+        copy: "A deliberately dumb recorder for clicks, focus, dwell, scroll, and context. It batches evidence for the future implicit loop without making decisions in the browser.",
+        rule: "Capture in the shell. Infer on the server.",
+      },
+      resolver: {
+        title: "Intent resolver",
+        kind: "Platform-owned orchestration",
+        copy: "Classifies intent as new, extend, presentation change, one-time data question, or reject. It also resolves overlap and produces one friendly label.",
+        rule: "Resolution happens before mutation admission and is never silently redone inside the Builder.",
+      },
+      coordinator: {
+        title: "Mutation coordinator",
+        kind: "Platform-owned safety",
+        copy: "The only door to the shared read-write SQLite connection. Builds wait in a bounded queue; record and platform writes take short leases; deletion only tries when the system is clear.",
+        rule: "One write owner at a time. Reads never wait here.",
+      },
+      builder: {
+        title: "Capability builder",
+        kind: "Platform-owned orchestration",
+        copy: "Consumes an already-resolved request, produces one complete candidate, emits lifecycle events, runs the Gate, publishes, and activates. It does not own prompt routing or the foreground UI.",
+        rule: "One Builder can serve both explicit prompts and confirmed implicit proposals.",
+      },
+      router: {
+        title: "Deterministic router",
+        kind: "Platform-owned",
+        copy: "Maps the fixed Action set to generated Handlers, validates methods and target markers, and binds update or delete to the exact record before generated code runs.",
+        rule: "Routing and record selection are never AI concerns.",
+      },
+      units: {
+        title: "Generated units",
+        kind: "AI-authored, versioned",
+        copy: "Five Action Handlers implement capability behavior. One item renderer composes a record. Tier-on behavioral tests independently express intended behavior.",
+        rule: "Every unit is derived from the complete authored spec and its admitted context.",
+      },
+      registry: {
+        title: "Capability registry",
+        kind: "Persisted in SQLite",
+        copy: "One active row per capability holds the authored spec, opaque incarnation, current version, and pointer to a complete immutable snapshot.",
+        rule: "The registry is the authority for what is live now.",
+      },
+      sqlite: {
+        title: "Capability records",
+        kind: "Persisted in SQLite",
+        copy: "Each capability owns one isolated table. Additive evolution adds or soft-hides fields; relationships stay in read-time joins instead of foreign keys.",
+        rule: "Normal evolution preserves data. Only confirmed deletion removes the table.",
+      },
+      snapshots: {
+        title: "Version snapshots",
+        kind: "Persisted on the filesystem",
+        copy: "Every incarnation version is self-describing and immutable: exact spec, all generated units, inventory, digests, tier state, and frozen tests when present.",
+        rule: "A published snapshot is not live until SQLite activates its pointer.",
+      },
+      metrics: {
+        title: "Events and metrics",
+        kind: "Persisted evidence",
+        copy: "The Event Log gives the implicit loop behavioral context. Generation metrics record lifecycle, outcomes, time, models, tokens, Gate work, and overlap decisions.",
+        rule: "The experiment should be answerable from data, not intuition.",
+      },
+      objects: {
+        title: "Object store",
+        kind: "Persisted files",
+        copy: "User file bytes live behind an S3-shaped platform port. SQLite stores references and durable ownership so retries and deletion remain recoverable.",
+        rule: "Generated behavior may use files. It never implements file storage or serving.",
+      },
+    };
+
+    const journeySteps = [
+      {
+        label: "Intent resolver",
+        title: "Understand the request in context.",
+        copy: "The resolver sees the active capability and the current catalog. It decides whether this is a new capability, an evolution, a presentation change, a one-time data question, or a friendly refusal.",
+        why: "Classification stays separate from building, so the same resolved request can be executed once and measured honestly.",
+      },
+      {
+        label: "Mutation coordinator",
+        title: "Wait for an owned turn.",
+        copy: "The resolved request gets a bounded ticket. At the head of the queue it rechecks the target version and the resolver’s catalog fingerprint before any AI build work begins.",
+        why: "Queued intent cannot quietly run against a different world. A mismatch becomes a measured stale result.",
+      },
+      {
+        label: "Complete candidate",
+        title: "Author the next full truth.",
+        copy: "The AI proposes one complete capability spec: fields and lifecycle, behavior, errors, presentation intent, five Actions, read dependencies, and resolver context.",
+        why: "A complete candidate is easier to validate and recover than a pile of partial edits. Existing identities and types remain stable.",
+      },
+      {
+        label: "Total Diff Engine",
+        title: "Turn every change into work.",
+        copy: "Deterministic change facts decide additive schema work, platform View work, which generated units change, and which Gate work runs. Effects only add together.",
+        why: "Unchanged code is copied only with positive proof. Any admitted fact without a mapping fails closed.",
+      },
+      {
+        label: "Layered Gate",
+        title: "Prove the whole candidate.",
+        copy: "The complete snapshot must type-check, satisfy interfaces, pass full CRUD and search smoke, pass design lint when presentation changes, and pass frozen behavioral tests when that tier is on.",
+        why: "A failed Handler may be repaired against the same tests. The assertions are never weakened to make code pass.",
+      },
+      {
+        label: "Publication and activation",
+        title: "Publish safely, then point live.",
+        copy: "Aluna writes and verifies a unique immutable snapshot, publishes it without overwrite, then uses one SQLite transaction for additive DDL, the registry pointer, and success metrics.",
+        why: "That database commit is the point of no return. Before it, the prior version stays live. After it, transport failure cannot undo success.",
+      },
+      {
+        label: "Presenter",
+        title: "Show only committed reality.",
+        copy: "The explicit presenter swaps one complete View after activation and refreshes the toolbar only when needed. No-change, stale, cancellation, or failure restores the current canonical View instead.",
+        why: "The screen follows the registry. It never pretends an unactivated candidate became real.",
+      },
+    ];
+
+    const roadmapModules = [
+      {
+        module: "Module 1",
+        title: "Stand up the runtime spine.",
+        copy: "Connect the static shell, SSE transport, dual SQLite connections, storage ports, and the pluggable AI provider. There is no capability logic yet.",
+        milestone: "Milestone: every dependency is real and wired before generation begins.",
+      },
+      {
+        module: "Module 2",
+        title: "Build the first capability end to end.",
+        copy: "Introduce the registry, initial data seam, router, Builder, queue, metrics, streamed narration, and toolbar through one runnable create-and-read slice.",
+        milestone: "Milestone: a prompt becomes a validated, persisted, usable capability.",
+      },
+      {
+        module: "Module 3",
+        title: "Give every capability coherent presentation.",
+        copy: "Move stable forms, fields, collection layouts, item frames, and the shared detail modal into platform presentation. Keep one generated item renderer inside a closed design-value contract.",
+        milestone:
+          "Milestone: capabilities can look distinct without breaking Aluna’s shared interaction language.",
+      },
+      {
+        module: "Module 4",
+        title: "Make capabilities fully evolvable.",
+        copy: "Complete CRUD and search, split read and mutation ports, add the coordinator, total Diff Engine, frozen tests, immutable incarnated snapshots, recoverable activation, overlap resolution, and dependency-safe capability deletion.",
+        milestone:
+          "Milestone: the core Builder becomes complete, minimal, presenter-independent, and reusable by later loops.",
+      },
+      {
+        module: "Module 5",
+        title: "Answer without building.",
+        copy: "Reuse the physically read-only seam for bounded whole-catalog questions. Render the answer in a generic table and leave no registry row, version, artifact, or dependency behind.",
+        milestone:
+          "Milestone: free reads can cross the catalog without becoming permanent capability state.",
+      },
+      {
+        module: "Module 6",
+        title: "Bring files into the same safety model.",
+        copy: "Add the S3-shaped object store, file field types, constrained upload, free serving, durable ownership, and cleanup across failures, replacement, record deletion, and capability deletion.",
+        milestone: "Milestone: the explicit loop is complete, including bytes.",
+      },
+      {
+        module: "Module 7",
+        title: "Turn behavior into a confirmed proposal.",
+        copy: "Capture rich interaction context, wait for a deterministic server-side gate, resolve patterns asynchronously, and hand an accepted proposal to the existing Builder without reclassification.",
+        milestone: "Milestone: both intent loops are live, and implicit change always asks first.",
+      },
+      {
+        module: "Module 8",
+        title: "Make the experiment answerable.",
+        copy: "Query generation outcomes, latency, models, retries, overlap choices, and implicit-loop behavior. Tune the gate against the real dataset in a clearly separate experimenter surface.",
+        milestone: "Milestone: conclusions come from the accumulated evidence, not guesses.",
+      },
+    ];
+
+    const mapButtons = [...document.querySelectorAll("[data-map-key]")];
+    const mapTitle = document.querySelector("#map-detail-title");
+    const mapKind = document.querySelector("#map-detail-kind");
+    const mapCopy = document.querySelector("#map-detail-copy");
+    const mapRule = document.querySelector("#map-detail-rule");
+
+    for (const button of mapButtons) {
+      button.addEventListener("click", () => {
+        const detail = mapDetails[button.dataset.mapKey];
+        if (!detail) return;
+        for (const peer of mapButtons) peer.setAttribute("aria-pressed", String(peer === button));
+        mapTitle.textContent = detail.title;
+        mapKind.textContent = detail.kind;
+        mapCopy.textContent = detail.copy;
+        mapRule.textContent = detail.rule;
+      });
+    }
+
+    const journeyButtons = [...document.querySelectorAll("[data-journey-step]")];
+    const journeyStage = document.querySelector(".journey-stage");
+    const journeyLabel = document.querySelector("#journey-label");
+    const journeyTitle = document.querySelector("#journey-title");
+    const journeyCopy = document.querySelector("#journey-copy");
+    const journeyWhy = document.querySelector("#journey-why");
+    const journeyProgress = document.querySelector("#journey-progress");
+    const journeyPlay = document.querySelector("#journey-play");
+    let activeJourneyStep = 0;
+    let journeyTimer = null;
+
+    function showJourneyStep(index) {
+      activeJourneyStep = index;
+      const step = journeySteps[index];
+      journeyStage.dataset.step = String(index + 1);
+      journeyLabel.textContent = step.label;
+      journeyTitle.textContent = step.title;
+      journeyCopy.textContent = step.copy;
+      journeyWhy.textContent = step.why;
+      journeyProgress.style.width = `${((index + 1) / journeySteps.length) * 100}%`;
+      for (const button of journeyButtons) {
+        if (Number(button.dataset.journeyStep) === index)
+          button.setAttribute("aria-current", "step");
+        else button.removeAttribute("aria-current");
+      }
+    }
+
+    function stopJourney() {
+      window.clearInterval(journeyTimer);
+      journeyTimer = null;
+      journeyPlay.setAttribute("aria-pressed", "false");
+      journeyPlay.querySelector("span").textContent = "Play the flow";
+    }
+
+    for (const button of journeyButtons) {
+      button.addEventListener("click", () => {
+        stopJourney();
+        showJourneyStep(Number(button.dataset.journeyStep));
+      });
+    }
+
+    journeyPlay.addEventListener("click", () => {
+      if (journeyTimer) {
+        stopJourney();
+        return;
+      }
+      journeyPlay.setAttribute("aria-pressed", "true");
+      journeyPlay.querySelector("span").textContent = "Pause the flow";
+      journeyTimer = window.setInterval(() => {
+        const next = activeJourneyStep + 1;
+        if (next >= journeySteps.length) {
+          stopJourney();
+          return;
+        }
+        showJourneyStep(next);
+      }, 2800);
+    });
+
+    const loopTabs = [...document.querySelectorAll("[data-loop]")];
+    for (const tab of loopTabs) {
+      tab.addEventListener("click", () => {
+        for (const peer of loopTabs) {
+          const selected = peer === tab;
+          peer.setAttribute("aria-selected", String(selected));
+          const panel = document.querySelector(`#${peer.getAttribute("aria-controls")}`);
+          panel.classList.toggle("is-active", selected);
+          panel.hidden = !selected;
+        }
+      });
+    }
+
+    const memoryTabs = [...document.querySelectorAll("[data-memory]")];
+    const memorySheets = [...document.querySelectorAll("[data-memory-sheet]")];
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let memoryOrder = memorySheets
+      .slice()
+      .sort((left, right) => Number(left.dataset.depth) - Number(right.dataset.depth))
+      .map((sheet) => sheet.dataset.memorySheet);
+    let memoryAnimation = null;
+
+    function arrangeMemoryDeck(activeKey) {
+      memoryOrder = [activeKey, ...memoryOrder.filter((key) => key !== activeKey)];
+
+      for (const tab of memoryTabs) {
+        tab.setAttribute("aria-selected", String(tab.dataset.memory === activeKey));
+      }
+
+      for (const sheet of memorySheets) {
+        const depth = memoryOrder.indexOf(sheet.dataset.memorySheet);
+        sheet.dataset.depth = String(depth);
+        sheet.setAttribute("aria-hidden", String(depth !== 0));
+      }
+    }
+
+    for (const tab of memoryTabs) {
+      tab.addEventListener("click", () => {
+        const key = tab.dataset.memory;
+        const selectedSheet = memorySheets.find((sheet) => sheet.dataset.memorySheet === key);
+        if (!selectedSheet || memoryOrder[0] === key) return;
+
+        if (memoryAnimation) memoryAnimation.cancel();
+        for (const sheet of memorySheets) sheet.classList.remove("is-dealing");
+
+        const startingTransform = getComputedStyle(selectedSheet).transform;
+        selectedSheet.classList.add("is-dealing");
+        arrangeMemoryDeck(key);
+
+        if (prefersReducedMotion.matches) {
+          selectedSheet.classList.remove("is-dealing");
+          return;
+        }
+
+        const finishingTransform = getComputedStyle(selectedSheet).transform;
+        const dealDistance = window.innerWidth < 720 ? 24 : 56;
+        const animation = selectedSheet.animate(
+          [
+            {
+              transform: startingTransform,
+              offset: 0,
+              easing: "cubic-bezier(0.4, 0, 0.8, 0.4)",
+            },
+            {
+              transform: `translate(${dealDistance}px, 12px) rotate(1deg)`,
+              offset: 0.42,
+              easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+            },
+            { transform: finishingTransform, offset: 1 },
+          ],
+          {
+            duration: 560,
+            easing: "linear",
+          },
+        );
+        memoryAnimation = animation;
+
+        const finishDeal = () => {
+          selectedSheet.classList.remove("is-dealing");
+          if (memoryAnimation === animation) memoryAnimation = null;
+        };
+        animation.addEventListener("finish", finishDeal, { once: true });
+        animation.addEventListener("cancel", finishDeal, { once: true });
+      });
+    }
+
+    const roadmapButtons = [...document.querySelectorAll("[data-module]")];
+    const roadmapModule = document.querySelector("#roadmap-module");
+    const roadmapTitle = document.querySelector("#roadmap-title");
+    const roadmapCopy = document.querySelector("#roadmap-copy");
+    const roadmapMilestone = document.querySelector("#roadmap-milestone");
+    for (const button of roadmapButtons) {
+      button.addEventListener("click", () => {
+        const detail = roadmapModules[Number(button.dataset.module)];
+        for (const peer of roadmapButtons)
+          peer.setAttribute("aria-selected", String(peer === button));
+        roadmapModule.textContent = detail.module;
+        roadmapTitle.textContent = detail.title;
+        roadmapCopy.textContent = detail.copy;
+        roadmapMilestone.textContent = detail.milestone;
+      });
+    }
+
+    const revealElements = [...document.querySelectorAll(".reveal")];
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      for (const element of revealElements) element.classList.add("is-visible");
+    } else {
+      const revealObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            entry.target.classList.add("is-visible");
+            revealObserver.unobserve(entry.target);
+          }
+        },
+        { threshold: 0.12 },
+      );
+      for (const element of revealElements) revealObserver.observe(element);
+    }
+
+    const navLinks = [...document.querySelectorAll(".tour-nav a")];
+    const navSections = navLinks
+      .map((link) => document.querySelector(link.getAttribute("href")))
+      .filter(Boolean);
+    const navObserver = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!visible) return;
+        for (const link of navLinks) {
+          link.setAttribute(
+            "aria-current",
+            String(link.getAttribute("href") === `#${visible.target.id}`),
+          );
+        }
+      },
+      { rootMargin: "-25% 0px -55%", threshold: [0.05, 0.2, 0.5] },
+    );
+    for (const section of navSections) navObserver.observe(section);
+    </script>
+  </body>
+</html>

@@ -55,11 +55,13 @@ and no SDK ships it.
   and forfeits control of the very latency the PoC exists to measure (ARCH §6.3,
   §9.6).
 - **An execution sandbox** (E2B / Daytona) for the gate. Deferred, not adopted. A
-  single-user, local, BYO-key PoC has no multi-tenant threat model, and the real
-  write-danger surface is already closed *deterministically* by the read-only
-  SQLite connection + additive-only DDL + constrained data tool (ARCH §3, §7) —
-  stronger than process isolation. Revisit only if the harness is later allowed
-  to execute arbitrary untrusted code during its fix-loop.
+  single-user, local, BYO-key PoC has no multi-tenant threat model. The supplied
+  read-only/scratch SQLite adapters, constrained mutation interface, additive-only
+  DDL, and structural/static checks protect against accidental generated output
+  that stays within—or is caught by—the documented contract. They are not stronger
+  than process isolation: generated code still executes in-process, so deliberately
+  adversarial code or an unknown ambient Bun/OS bypass is not contained. Revisit
+  when the threat model requires executing generated code as untrusted code.
 
 **Deliberately open — owned by the module that first needs it, not locked here:**
 
@@ -69,7 +71,7 @@ and no SDK ships it.
   quality claims are unverified marketing until measured on Aluna's own task.
 - **The bounded-loop's exact shape** — step cap, which tools the loop gets
   (filesystem write + type-check at minimum), retry budget on a failing
-  behavioral assertion — is **Capability Builder** work (modules.md §2.5, §4.5),
+  behavioral assertion — is **Capability Builder** work (modules.md §2.5, §4.7),
   not 1.5. Epic 1.5 only stands up the provider contract + streamed structured
   round-trip; the loop arrives with the first real build.
 - **Whether to layer Mastra** (deterministic Workflows + Agents, *built on the AI
@@ -119,13 +121,14 @@ and no SDK ships it.
 - **The bounded per-unit loop is a Capability Builder concern (M2–M4), not M1.**
   Epic 1.5 proves the streamed structured round-trip and the one-line provider
   swap; the write→type-check→fix loop lands with epic 2.5 and tightens (behavioral
-  retries) in epic 4.5. A forward-pointer note is added to 1.5, in the style of
+  retries) in epic 4.7. A forward-pointer note is added to 1.5, in the style of
   the 2.6 note.
 - **The Chinese coding models are first-class provider options, not an
   afterthought** — the registry treats them identically to Claude/GPT/Gemini.
   Selecting the global default is an experiment output (M8), recorded in metrics.
-- **No sandbox dependency is taken on now.** If a future module hands the loop
-  arbitrary-code execution with isolation needs, E2B (Firecracker, TS SDK) or
+- **No sandbox dependency is taken on now.** The resulting guarantee is
+  contract/static-check protection against accidental model output, not hostile-
+  code containment. If the threat model expands, E2B (Firecracker, TS SDK) or
   Daytona (fast cold start) are the pre-vetted options to reopen this with.
 - **If orchestration ergonomics strain the raw SDK,** Mastra is the pre-vetted
   layer to reconsider — superseding or amending this ADR rather than bolting on

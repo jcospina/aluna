@@ -24,10 +24,20 @@ boundary, or exit criteria. Decision records: [ADR-0002 update](../../docs/adr/0
    parsing, headers, status, and routing. Generated code contains no imports,
    no raw HTTP, no table names.
 
+   > **M4 forward amendment:** this is the deliberately scoped M2 slice. Module 4
+   > keeps mutation capability-bound but replaces scoped `select` with a distinct,
+   > declared cross-capability SQL interface backed by a physically read-only
+   > connection. Every Action may use its declared query catalog, while no Handler
+   > may issue raw mutation SQL. ADR-0004's 2026-07-10 amendment is authoritative
+   > for the end-state Handler interface.
+
 3. **Gate runs on a scratch database.** (ADR-0004) The smoke and behavioral
    rungs execute handlers against a throwaway in-memory SQLite db created by
-   applying the build's own generated DDL. User data is physically unreachable
-   during validation — decisive for M4 rebuilds over real data.
+   applying the build's own generated DDL. Supplied Gate adapters expose only
+   synthetic scratch data, and structural/static checks reject known direct
+   imports/bypasses. Generated execution remains in-process, so this protects
+   against accidental model output rather than containing adversarial code; the
+   process sandbox remains deferred under ADR-0003.
 
 4. **SSE topology: per-build ephemeral streams** ("phone call"). (ADR-0002
    update) `POST /prompt` creates a job and immediately returns a subscriber
@@ -45,7 +55,7 @@ boundary, or exit criteria. Decision records: [ADR-0002 update](../../docs/adr/0
    against the capability on the scratch db. OFF exists only to measure the
    no-test baseline ("how much worse it got"), never as a working mode. In M2 a
    behavioral failure fails the build (friendly message, nothing committed);
-   the retry-the-unit loop is M4 (epic 4.5). The type-check **fix loop**
+   the behavioral repair loop is M4 (epic 4.7). The type-check **fix loop**
    (write → type-check → feed error back → fix) does land in M2, bounded by a
    config-knob step cap (default 2 attempts), every attempt recorded in
    metrics.
@@ -59,15 +69,22 @@ boundary, or exit criteria. Decision records: [ADR-0002 update](../../docs/adr/0
    Duplicates fall out free: "track my notes" when Notes exists classifies as
    `extend_capability` → deflected; no collision logic, no auto-suffixed ids.
    `requires_confirmation` exists in the shape but is always `false` in M2
-   (confirmations are reserved: capability delete in M4, proposals in M7).
+   (later confirmations cover record and capability deletion through deterministic
+   platform chrome in M4, plus proposals in M7; neither deletion confirmation is
+   an Intent Resolver concern).
 
 7. **Concurrency UX: refusal + courtesy, no queueing yet.** The single-flight
    rule is enforced **server-side**: while a job is active, `POST /prompt`
    returns a friendly "one moment" notice (no AI call) targeted at a transient notice spot
    (never the content area — the running build's narration stays intact). The
    shell adds a courtesy busy state on the prompt bar during an active stream
-   (presentation state only; the shell stays dumb). True queueing arrives with
-   M7's pending proposals.
+   (presentation state only; the shell stays dumb).
+
+   > **M4 forward amendment:** M2 itself retains single-flight refusal. Module 4
+   > supersedes the system-wide end state with bounded FIFO build reservations and
+   > one active build lease inside the mutation coordinator. Module 7 later submits
+   > confirmed proposals through that existing coordinator; it does not introduce
+   > the first real queue.
 
 8. **Spec surface: a deliberately tiny pantry.** The AI authors the **spec**
    (Zod-validated structured object); **deterministic platform code derives the

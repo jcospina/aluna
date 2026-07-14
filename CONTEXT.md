@@ -1,9 +1,10 @@
 # Aluna
 
-The single-context domain doc for this repo. **Aluna** is a platform where stated
-intent becomes a working app: the user describes what they want to keep track of,
-and the app builds — and rebuilds — itself to fit. The interface must always read
-as a friendly consumer product, never an engineering tool (ARCH §9.7).
+The single-context domain doc for this repo. **Aluna** is internally a platform
+where stated intent becomes a working app: the user describes the capability-level
+outcome they want, and the app builds — and rebuilds — itself to fit. The product
+must always read as a friendly consumer app, never a coding agent, coding platform,
+site builder, or engineering tool (ARCH §1, §9.7).
 
 > The repository name **"omni-crud" is an engineering name** (it contains "CRUD")
 > and must never appear as user-facing branding (ARCH §9.7). **Aluna** is the
@@ -16,9 +17,12 @@ column is the word to use; `_Avoid_` lists the synonyms to keep out.
 
 **Aluna**:
 The product. A Kogi word for the realm of thought/spirit from which the material
-world is born — a precise metaphor for a platform where stated intent becomes a
-working app. The user-facing brand and wordmark.
-_Avoid_: omni-crud (engineering name only), "the app", "the platform" (in UI copy)
+world is born — a precise metaphor for a platform where stated capability-level
+intent becomes a working personal app. Internally it is a self-building runtime;
+to the user it is an app, never a coding agent, coding platform, or site builder.
+The user-facing brand and wordmark.
+_Avoid_: omni-crud (engineering name only), coding agent, coding platform, site
+builder, "the app", "the platform" (in UI copy)
 
 **Shell**:
 The single static HTML page that is Aluna's one fixed UI surface. It ships once
@@ -31,6 +35,18 @@ _Avoid_: page, layout, frame
 One thing Aluna has built for the user to keep track of (e.g. their photos, their
 recipes). Each capability the app has built is an entry in the capability toolbar.
 _Avoid_: feature, module, CRUD, resource, entity, model
+
+**Separate capability**:
+A new independent capability created when an intent overlaps an existing one but
+belongs to a distinct collection or lifecycle. Its user-facing name includes the
+meaningful distinction.
+_Avoid_: duplicate capability, namespaced capability, suffixed capability
+
+**Capability deletion**:
+The explicit, user-confirmed permanent removal of one capability, all records it
+owns, its complete version history, and any capability-owned resource or Event Log
+payload. Content-free generation metrics remain as experiment data.
+_Avoid_: archive, remove, hide, deactivate
 
 **Capability toolbar** (a.k.a. **sidebar**):
 The left sidebar listing the user's capabilities. Starts empty on a fresh user and
@@ -62,8 +78,10 @@ _Avoid_: topbar, banner, masthead
 The right sidebar, mirroring the capability toolbar's look but anchored right and
 toggled by the header's `</>` icon. A developer-facing verification surface holding
 the build's raw generation internals — each stage's JSON (spec, migration, units,
-gate, commit) — shown as it streams. Not product UI; product-voice narration stays
-in the content area.
+gate, commit) — shown as it streams. It is read-only and observational: a curiosity
+surface for people who want to see how Aluna works, never a place to steer code,
+schema, framework, or styling decisions. Not product UI; product-voice narration
+stays in the content area.
 _Avoid_: console, debug drawer, inspector (the off-canvas mobile presentation is a
 "drawer", but the region is the "developer panel")
 
@@ -91,23 +109,59 @@ One operation a capability exposes — `create`, `read`, `update`, `delete`,
 convention; never an AI-invented route.
 _Avoid_: endpoint, route, operation
 
+**Capability incarnation**:
+The platform-owned, opaque identity for one lifetime of a capability. Evolution
+preserves it; permanent deletion followed by rebuilding the same semantic
+capability id creates a new incarnation. It keys artifact/cache paths, declared
+read dependencies, cleanup work, and generation metrics, and is never user-facing.
+_Avoid_: capability version, capability id, generation id
+
+**Mutation coordinator**:
+The platform module that atomically admits every write on the shared read-write
+connection. A resolved build receives a bounded FIFO ticket and only the head
+holds the long active lease; record and platform writes hold short leases;
+capability deletion uses a non-queued try-acquire. Reads never enter it. It
+replaces advisory busy flags and prevents unrelated requests from joining one open
+SQLite write transaction.
+_Avoid_: busy flag, build-only queue, mutation lock check
+
+**Field name**:
+The stable identity of one value a capability tracks. It does not change when
+the user-facing wording changes.
+_Avoid_: property name, column name, field label
+
+**Field label**:
+The user-facing name for a field. It may evolve without changing the field's
+identity.
+_Avoid_: property label, display name, field name
+
 **Handler**:
-The generated logic unit behind one capability action. Written fresh by the
-builder each version; runs when the action is called; receives its inputs and
-capability-scoped tools, including the capability's presentation adapter, and
-returns the HTML the user sees (ADR-0004, amended by ADR-0005).
+The generated logic unit behind one capability Action. Generated when first
+created or affected by a later Diff, and otherwise copied byte-for-byte into the
+next immutable snapshot. It runs when the Action is called, receives parsed input
+and injected mutation/query/presentation interfaces, and returns the HTML the user
+sees. Canonical rows stay platform-internal: it receives only Action-safe active
+projections/opaque handles, and update/delete mutation authority is already bound
+to the router-validated target (ADR-0004, amended by ADR-0005/ADR-0006).
 _Avoid_: controller, service, route handler
 
 **Item renderer**:
-The single generated presentation unit for one capability. It turns one record
-into the capability-specific inner markup used by create, read, and later search
-results. Platform-owned list-item chrome supplies the accessible trigger,
-escaped record payload, and modal behavior; handlers receive the renderer
+The single generated presentation unit for one capability. It turns one projected
+record into capability-specific inner markup used by `create`, `read`, `update`,
+and `search`; delete refreshes the collection without rendering a deleted record.
+Platform-owned list-item chrome supplies the accessible trigger, safe active-field
+client projection, and modal behavior; Handlers receive the renderer
 through their injected presentation adapter rather than importing it
 (ADR-0005). How the records are *arranged* as a collection (feed vs. grid) is
 not the renderer's concern: that is the platform list container reading the
 capability's `ui_intent.collection.layout`. The renderer is generated knowing
-that layout, but it only ever emits one record's markup.
+that layout and may read only active user fields or the closed presentational
+platform field `created_at` when declared by `ui_intent.item.shows`; `id`,
+`extra`, and inactive fields remain unavailable. It emits one record's markup;
+canonical hidden values stay out of owning-capability input/presentation and new
+model context. Because soft-hide is not erasure, a previously committed external
+Handler may still use a hidden physical column through its declared dependency
+until that Handler is regenerated (ADR-0006).
 _Avoid_: row helper, card component, template
 
 **View**:
@@ -119,10 +173,14 @@ ADR-0005).
 _Avoid_: template, page, screen
 
 **Gate**:
-The layered, fail-closed validation every build must clear before commit —
+The layered, fail-closed validation every publishable candidate must clear before
+commit —
 type-check, signature assertion, smoke run, and (when the tier is on) behavioral
 tests; Module 3 adds design lint for generated item markup. Runs against a
-scratch database, never user data (ADR-0004, ADR-0005).
+scratch database through adapters that expose only synthetic data; structural/
+static checks reject known direct bypasses. Generated execution remains
+in-process, so this is accidental-output protection rather than hostile-code
+containment (ADR-0003, ADR-0004, ADR-0005).
 _Avoid_: CI, checks, test suite
 
 ## Product voice

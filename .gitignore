@@ -8,7 +8,8 @@ artifacts/
 # Runtime-generated artifacts — keep the directory structure (READMEs) tracked,
 # ignore everything written at runtime. (ARCH §5, §6.3; Epic 1.1)
 
-# Generated capability code: capabilities/<id>/v<n>/ (.ts handlers + compiled .html)
+# Generated capability snapshots: capabilities/<id>/<incarnation_id>/v<n>/
+# (authored spec history + .ts handlers/item renderer + optional frozen tests)
 capabilities/*
 !capabilities/README.md
 
