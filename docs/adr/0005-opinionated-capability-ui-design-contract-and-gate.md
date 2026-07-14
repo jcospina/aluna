@@ -38,6 +38,16 @@ timestamp. It is an additive extension applied through the centralized field ren
 (`date` → `TEXT`), the data tool, and the gate's sample generator — and supersedes the
 "pantry untouched" note in §Consequences below. `file` still remains M6.
 
+**Amended 2026-07-10 for Module 4.** §3's “full record” means the complete
+canonical row remains available to platform code on the server; it does **not**
+mean inactive fields or `extra` are serialized into the client payload. From M4,
+record-producing queries return target ids and the platform rehydrates canonical
+rows, then projects only the record target, active detail/edit fields, and the
+closed platform presentation field `created_at` into modal/client state. The item
+renderer still receives only `ui_intent.item.shows`. Hidden values are preserved
+by the mutation interface's server-side merge, never by round-tripping them through
+the DOM.
+
 ## Problem
 
 A capability is born usable but **ugly**. The unit-generation prompts hand the
@@ -84,23 +94,30 @@ presentational platform code is allowed.
    per-record renderer can or should emit. The renderer is generated **knowing**
    the chosen collection layout, so item composition and collection arrangement
    are co-designed.
-   `create.ts`, `read.ts`, and later `search.ts` all receive the same renderer
-   through a capability-scoped presentation adapter in their injected toolbox.
+   `create.ts`, `read.ts`, `update.ts`, and `search.ts` all receive the same
+   renderer through a capability-scoped presentation adapter in their injected
+   toolbox; delete success refreshes through the platform's current read/search
+   path rather than inventing a second renderer.
    Generated handlers still import nothing (ADR-0004), while create and read can
    no longer carry duplicated row helpers that drift.
 
 3. **The platform owns item mechanics (no new route).** The presentation adapter
-   wraps generated item markup in the standardized accessible trigger, embeds the
-   full record as an escaped `data-item` payload (`file` fields as references,
-   never bytes — ARCH §7), and attaches the click-to-open behavior. The model
+   wraps generated item markup in the standardized accessible trigger, embeds an
+   escaped client projection containing the record target plus active detail/edit
+   values and the closed `created_at` platform field (`file` user fields are
+   references, never bytes — ARCH §7), and attaches click-to-open behavior.
+   `extra` remain server-only. The model
    owns composition, not serialization, escaping the payload, accessibility
    mechanics, safe insertion of record content, or modal wiring. The adapter
    enforces the allowed HTML/class/style surface on every rendered item —
    sanitizing style declarations along with elements and classes — so dynamic
    record values cannot turn into executable markup even after build-time
-   validation. The modal opens **prefilled** with full content even when the item
-   visually truncates, so the fixed `create + read` route convention is
-   unchanged. If large-text capabilities make materializing the list expensive,
+   validation. The modal opens **prefilled** with untruncated values from the
+   allowed active detail/edit projection even when the item visually truncates;
+   inactive fields and `extra` remain server-only, while the record target and
+   closed `created_at` descriptor accompany the projection only under the platform
+   contract. The fixed `create + read` route convention is unchanged. If
+   large-text capabilities make materializing the list expensive,
    prefill can move behind the same adapter to read-single-on-open after M4 adds
    the per-item action; the item payload shrinks to an id without changing
    committed item composition.
@@ -198,8 +215,9 @@ presentational platform code is allowed.
 - **Metrics retain semantic continuity.** Item-renderer generation replaces M2
   view generation as the presentation-generation stage, so M8 compares the
   presentation-gen stage across module versions rather than assuming generated
-  `.html`. M3 records no `artifact_contract` marker; if M8 needs to distinguish
-  contract versions it introduces that marker when it gets there (§7).
+  `.html`. M3 records no `artifact_contract` marker. If M8 needs to distinguish
+  historical shapes, it adds a metrics-only dimension; the registry/serving
+  upgrade marker remains deferred post-M8 (§7).
 - **No in-place upgrade path in M3 (by choice).** During development the
   artifact-shape change is a `bun run reset` + rebuild, not a preserving
   migration; no dual contract or migration machinery is built now. The
