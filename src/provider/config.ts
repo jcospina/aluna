@@ -11,11 +11,11 @@
 // they are pure and testable without mutating global state.
 
 // The configured global model, in exactly one place. The demo ships against a
-// single model by default; the default is `gpt-5` (OpenAI), with "fast mode" — the
-// platform the project currently has credits/key for. Note: "fast mode" is a
-// serving/latency concern tuned at the provider call (the spine sets reasoning
-// effort `minimal` for the OpenAI wire, issue 02), not a separate model id — the
-// API model string is the bare `gpt-5`.
+// single model by default; the default is `gpt-5.6-terra` (OpenAI) at medium
+// reasoning — the platform the project currently has credits/key for. Note:
+// reasoning effort is a serving/latency concern tuned at the provider call (the
+// spine sets effort `medium` for the OpenAI wire, issue 02), not a separate model
+// id — the API model string is the bare `gpt-5.6-terra`.
 //
 // Which model ships as the default is deliberately open (ADR-0003: "an empirical
 // call for the experiment, not an architecture decision"); this constant is the
@@ -24,7 +24,7 @@
 // OpenAI-/Anthropic-compatible wire shapes the spine targets (ADR-0003). Swapping
 // model usually means swapping the endpoint too: change `OMNI_MODEL` *and*
 // `OMNI_BASE_URL` together (e.g. to a `claude-*` id at the Anthropic endpoint).
-export const DEFAULT_MODEL = "gpt-5";
+export const DEFAULT_MODEL = "gpt-5.6-terra";
 
 // The environment variable that overrides the default global model. A single
 // config change — no code edit — to run the demo against a different model.
