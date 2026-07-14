@@ -34,6 +34,7 @@ export {
   runCapabilityGate,
   type SmokeGateResult,
 } from "./gate.ts";
+export { createCapabilityIncarnationId } from "./incarnation.ts";
 export {
   type ApplyCapabilityMigrationInput,
   applyCapabilityMigration,

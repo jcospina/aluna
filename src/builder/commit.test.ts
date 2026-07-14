@@ -28,6 +28,7 @@ import { commitCapability, FIRST_CAPABILITY_VERSION } from "./commit.ts";
 import type { GeneratedUnit } from "./units.ts";
 
 const TOKENS = { inputTokens: 1, outputTokens: 1, totalTokens: 2 } as const;
+const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
 
 function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return {
@@ -122,6 +123,7 @@ describe("commitCapability", () => {
     const root = join(dir, "artifacts");
     const result = commitCapability({
       spec: notesSpec(),
+      incarnationId: INCARNATION_ID,
       units: notesUnits(),
       database: conns.readwrite,
       artifactsRoot: root,
@@ -129,17 +131,18 @@ describe("commitCapability", () => {
 
     // Version 1, with the artifacts pointer the registry row will carry.
     expect(result.version).toBe(FIRST_CAPABILITY_VERSION);
-    expect(result.artifactsPath).toBe(`${root}/notes/v1/`);
+    expect(result.incarnationId).toBe(INCARNATION_ID);
+    expect(result.artifactsPath).toBe(`${root}/notes/${INCARNATION_ID}/v1/`);
     expect(result.files).toEqual(["item.ts", "create.ts", "read.ts"]);
 
     // The three artifacts really landed in the version directory, with their content.
     for (const file of result.files) {
-      expect(existsSync(resolve(root, "notes/v1", file))).toBe(true);
+      expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1", file))).toBe(true);
     }
-    expect(readFileSync(resolve(root, "notes/v1/create.ts"), "utf8")).toContain(
+    expect(readFileSync(resolve(root, "notes", INCARNATION_ID, "v1/create.ts"), "utf8")).toContain(
       "export default async function create",
     );
-    expect(readFileSync(resolve(root, "notes/v1/item.ts"), "utf8")).toContain(
+    expect(readFileSync(resolve(root, "notes", INCARNATION_ID, "v1/item.ts"), "utf8")).toContain(
       "export default function renderItem",
     );
 
@@ -147,6 +150,7 @@ describe("commitCapability", () => {
     // can now resolve. Read back through the read-only connection (post-autocommit).
     const row = getCapability("notes", conns.readonly);
     expect(row).not.toBeNull();
+    expect(row?.incarnation_id).toBe(INCARNATION_ID);
     expect(row?.version).toBe(1);
     expect(row?.artifacts_path).toBe(result.artifactsPath);
     expect(row?.label).toBe("Notes");
@@ -163,6 +167,7 @@ describe("commitCapability", () => {
         applyCapabilityTableDdl(notesSpec(), conns.readwrite); // the migration, in-tx
         commitCapability({
           spec: notesSpec(),
+          incarnationId: INCARNATION_ID,
           units: notesUnits(),
           database: conns.readwrite,
           artifactsRoot: root,
@@ -178,8 +183,8 @@ describe("commitCapability", () => {
 
     // The files written before the rollback are left orphaned for GC — never deleted
     // here, never half-registered.
-    expect(existsSync(resolve(root, "notes/v1/create.ts"))).toBe(true);
-    expect(existsSync(resolve(root, "notes/v1/item.ts"))).toBe(true);
+    expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1/create.ts"))).toBe(true);
+    expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1/item.ts"))).toBe(true);
   });
 
   test("a duplicate id throws the primary-key violation and adds no second row", () => {
@@ -187,13 +192,19 @@ describe("commitCapability", () => {
     // A capability already registered at this id (the resolver's job is to prevent
     // this; reaching commit with a collision is a bug — it must fail loudly).
     insertCapability(
-      { ...notesSpec(), version: 1, artifacts_path: "capabilities/notes/v1/" },
+      {
+        ...notesSpec(),
+        incarnation_id: INCARNATION_ID,
+        version: 1,
+        artifacts_path: `capabilities/notes/${INCARNATION_ID}/v1/`,
+      },
       conns.readwrite,
     );
 
     expect(() =>
       commitCapability({
         spec: notesSpec(),
+        incarnationId: "22222222-2222-4222-8222-222222222222",
         units: notesUnits(),
         database: conns.readwrite,
         artifactsRoot: root,
@@ -203,7 +214,9 @@ describe("commitCapability", () => {
     // The pre-existing row is untouched (the failed insert wrote nothing); the files
     // commit wrote before the insert are orphaned.
     const row = getCapability("notes", conns.readonly);
-    expect(row?.artifacts_path).toBe("capabilities/notes/v1/");
-    expect(existsSync(resolve(root, "notes/v1/create.ts"))).toBe(true);
+    expect(row?.artifacts_path).toBe(`capabilities/notes/${INCARNATION_ID}/v1/`);
+    expect(
+      existsSync(resolve(root, "notes", "22222222-2222-4222-8222-222222222222", "v1/create.ts")),
+    ).toBe(true);
   });
 });

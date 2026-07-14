@@ -82,6 +82,7 @@ export interface DemoCommitPreview {
   readonly kind: "commit-preview";
   readonly status: "committed";
   readonly capabilityId: string;
+  readonly incarnationId: string;
   readonly version: number;
   readonly artifactsPath: string;
   readonly files: readonly string[];
@@ -147,6 +148,7 @@ export function buildCommitPreview(commit: CommitCapabilityResult): DemoCommitPr
     kind: "commit-preview",
     status: "committed",
     capabilityId: commit.row.id,
+    incarnationId: commit.incarnationId,
     version: commit.version,
     artifactsPath: commit.artifactsPath,
     files: commit.files,

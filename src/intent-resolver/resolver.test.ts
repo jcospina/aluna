@@ -38,9 +38,11 @@ interface RecordingProvider extends Provider {
 }
 
 function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
+  const incarnationId = "11111111-1111-4111-8111-111111111111";
   return {
     id: "notes",
     label: "Notes",
+    incarnation_id: incarnationId,
     version: 1,
     schema: { fields: [{ name: "text", type: "string", required: true }] },
     ui_intent: {
@@ -59,7 +61,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
       },
     ],
     tools: ["create", "read"],
-    artifacts_path: "capabilities/notes/v1/",
+    artifacts_path: `capabilities/notes/${incarnationId}/v1/`,
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -69,6 +71,7 @@ function recipesRow(): CapabilityRow {
   return {
     id: "recipes",
     label: "Recipes",
+    incarnation_id: "22222222-2222-4222-8222-222222222222",
     version: 2,
     schema: { fields: [{ name: "title", type: "string", required: true }] },
     ui_intent: {
@@ -87,7 +90,7 @@ function recipesRow(): CapabilityRow {
       },
     ],
     tools: ["create", "read"],
-    artifacts_path: "capabilities/recipes/v2/",
+    artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v2/",
     prompt_context: "Stores recipes the user wants to cook again.",
   };
 }

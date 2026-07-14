@@ -21,6 +21,7 @@ export {
   defaultBehavioralErrorsForSchema,
   type FieldType,
   fieldTypeSchema,
+  incarnationIdSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
   type SpecField,

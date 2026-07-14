@@ -23,6 +23,8 @@ import {
   writeGenerationMetrics,
 } from "./store.ts";
 
+const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
+
 // A complete, valid success row — one full build of the notes capability. Fresh
 // per call so tests can tweak copies without sharing state.
 function buildMetrics(overrides: Partial<GenerationMetrics> = {}): GenerationMetrics {
@@ -33,6 +35,7 @@ function buildMetrics(overrides: Partial<GenerationMetrics> = {}): GenerationMet
     intent: { type: "new_capability", confidence: 1, targetCapability: null },
     usage: { inputTokens: 1200, outputTokens: 800, totalTokens: 2000 },
     capabilityId: "notes",
+    incarnationId: NOTES_INCARNATION_ID,
     timings: {
       specGenMs: 1500.5,
       migrationMs: 3.2,
@@ -132,6 +135,7 @@ describe("generation-metrics store", () => {
         model: "gpt-5",
         intent: { type: "new_capability", confidence: 1, targetCapability: null },
         capabilityId: "expenses",
+        incarnationId: "22222222-2222-4222-8222-222222222222",
         usage: { inputTokens: 900, outputTokens: 500, totalTokens: 1400 },
         timings: {
           specGenMs: 1400,
@@ -174,6 +178,7 @@ describe("generation-metrics store", () => {
         model: "gpt-5",
         intent: { type: "new_capability", confidence: 1, targetCapability: null },
         capabilityId: "todos",
+        incarnationId: "33333333-3333-4333-8333-333333333333",
         usage: { inputTokens: 700, outputTokens: 400, totalTokens: 1100 },
         timings: { specGenMs: 1300, migrationMs: 2, codeGenMs: 1900 },
         unitAttempts: [
@@ -253,7 +258,11 @@ describe("generation-metrics store", () => {
   test("list returns every row written, through the read-only connection", () => {
     writeGenerationMetrics(buildMetrics({ id: "build-a" }), conns.readwrite);
     writeGenerationMetrics(
-      buildMetrics({ id: "build-b", capabilityId: "recipes" }),
+      buildMetrics({
+        id: "build-b",
+        capabilityId: "recipes",
+        incarnationId: "22222222-2222-4222-8222-222222222222",
+      }),
       conns.readwrite,
     );
 
@@ -275,6 +284,19 @@ describe("generation-metrics store", () => {
         buildMetrics({
           intent: { type: "new_capability", confidence: 1.5, targetCapability: null },
         }),
+        conns.readwrite,
+      ),
+    ).toThrow();
+    expect(listGenerationMetrics(conns.readonly)).toEqual([]);
+  });
+
+  test("a capability metrics row requires the build id and incarnation identity together", () => {
+    expect(() =>
+      writeGenerationMetrics(buildMetrics({ incarnationId: null }), conns.readwrite),
+    ).toThrow();
+    expect(() =>
+      writeGenerationMetrics(
+        buildMetrics({ id: "build-missing-capability", capabilityId: null }),
         conns.readwrite,
       ),
     ).toThrow();
@@ -316,6 +338,7 @@ describe("generation-metrics store", () => {
       "failed_rung",
       "failed_message",
       "presentation_gen_ms",
+      "incarnation_id",
     ]);
   });
 });
