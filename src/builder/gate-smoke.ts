@@ -17,12 +17,12 @@ import { activeSpecFields, type CapabilitySpec, type SpecField } from "../regist
 import type { CapabilityInput, CapabilityInputValue } from "../router/index.ts";
 import type { CapabilityGateInput, SmokeGateResult } from "./gate.ts";
 import {
-  applyDdl,
   assertFragment,
   buildGatePresent,
   fieldValueMatches,
   loadHandlers,
   openScratchDatabasePair,
+  prepareScratchCatalog,
   sameSnapshot,
   snapshotCapabilityTables,
 } from "./gate-internal.ts";
@@ -36,7 +36,7 @@ export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGat
   let smokeError: unknown;
 
   try {
-    applyDdl(input.ddl, scratch.readwrite);
+    prepareScratchCatalog(input.spec, input.ddl, input.scratchCatalog, scratch);
     const { mutation, query } = createCapabilityDataPorts(input.spec, scratch);
     const handlers = await loadHandlers(input.handlers);
     // The real adapter the router injects at runtime, built from this build's item

@@ -1,13 +1,18 @@
 import type { Database } from "bun:sqlite";
-import { rmSync } from "node:fs";
-import { resolve } from "node:path";
 import {
   commitCapability,
   createCapabilityIncarnationId,
   DEFAULT_ARTIFACTS_ROOT,
   type GeneratedUnit,
+  runCapabilityGate,
 } from "../builder/index.ts";
-import { applyCapabilityTableDdl, CAPABILITY_TABLE_PREFIX } from "../capability-data/index.ts";
+import {
+  applyCapabilityTableDdl,
+  CAPABILITY_TABLE_PREFIX,
+  deriveCapabilityTableDdl,
+} from "../capability-data/index.ts";
+import { withWriteTransaction } from "../db.ts";
+import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { CapabilitySpec } from "../registry/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -17,9 +22,11 @@ import {
 
 export const FIELD_LIFECYCLE_DEMO_ID = "field_lifecycle_demo";
 
+// Development-only 4.2–4.3 reference fixture. Epic 4.4 removes this hand-written
+// capability when prompt builds switch to the final generated five-Action shape.
 export const FIELD_LIFECYCLE_DEMO_SPEC: CapabilitySpec = {
   id: FIELD_LIFECYCLE_DEMO_ID,
-  label: "Field lifecycle",
+  label: "Journal entry",
   schema: {
     fields: [
       {
@@ -82,9 +89,16 @@ export const FIELD_LIFECYCLE_DEMO_SPEC: CapabilitySpec = {
       fields: ["entry", "tags"],
       expected_markers: BEHAVIORAL_ERROR_MARKERS,
     },
+    {
+      action: "update",
+      trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      fields: ["entry", "tags"],
+      expected_markers: BEHAVIORAL_ERROR_MARKERS,
+    },
   ],
-  tools: ["create", "read"],
-  read_dependencies: { create: [], read: [] },
+  tools: ["create", "read", "update", "delete", "search"],
+  read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
   prompt_context:
     "Stores tagged reflections while preserving submitted tag order and one retired field invisibly.",
 };
@@ -136,9 +150,40 @@ const READ_HANDLER = `export default async function read({ query, present }: Cap
 }
 `;
 
+// Issue 4.2/05 replaces these two routable reference seams with target-bound
+// merge/delete behavior. They are intentionally real Handler files now so no
+// registry row advertises an absent Action during the 4.2 transition.
+const UPDATE_HANDLER = `export default async function update(_context: CapabilityContext): Promise<string> {
+  return '<p class="notice" data-demo-result="unavailable">I can’t save that change just yet. Please try again soon.</p>';
+}
+`;
+
+const DELETE_HANDLER = `export default async function remove(_context: CapabilityContext): Promise<string> {
+  return '<p class="notice" data-demo-result="unavailable">I can’t remove that entry just yet. Please try again soon.</p>';
+}
+`;
+
+const SEARCH_HANDLER = `export default async function search({ input, query, present }: CapabilityContext): Promise<string> {
+  const raw = input.values.q;
+  const q = typeof raw === "string" ? raw : "";
+  return query.all({
+    sql: 'SELECT * FROM "cap_field_lifecycle_demo" WHERE length(?) = 0 OR "entry" LIKE char(37) || ? || char(37) ORDER BY "created_at" DESC, "id" DESC',
+    parameters: [q, q],
+    result: [
+      { alias: "id", type: "string" },
+      { alias: "created_at", type: "datetime" },
+      { alias: "entry", type: "string" },
+      { alias: "reflection", type: "string" },
+      { alias: "tags", type: "string[]" },
+      { alias: "aliases", type: "string[]" },
+    ],
+  }).map((row) => present(row)).join("");
+}
+`;
+
 const EMPTY_USAGE = { inputTokens: 0, outputTokens: 0, totalTokens: 0 } as const;
 
-const FIELD_LIFECYCLE_DEMO_UNITS: readonly GeneratedUnit[] = [
+export const FIELD_LIFECYCLE_DEMO_UNITS: readonly GeneratedUnit[] = [
   {
     kind: "item-renderer",
     name: "item",
@@ -166,42 +211,89 @@ const FIELD_LIFECYCLE_DEMO_UNITS: readonly GeneratedUnit[] = [
     durationMs: 0,
     usage: EMPTY_USAGE,
   },
+  {
+    kind: "handler",
+    name: "update",
+    filename: "update.ts",
+    content: UPDATE_HANDLER,
+    attempts: [],
+    durationMs: 0,
+    usage: EMPTY_USAGE,
+  },
+  {
+    kind: "handler",
+    name: "delete",
+    filename: "delete.ts",
+    content: DELETE_HANDLER,
+    attempts: [],
+    durationMs: 0,
+    usage: EMPTY_USAGE,
+  },
+  {
+    kind: "handler",
+    name: "search",
+    filename: "search.ts",
+    content: SEARCH_HANDLER,
+    attempts: [],
+    durationMs: 0,
+    usage: EMPTY_USAGE,
+  },
 ];
 
 export interface InstallFieldLifecycleDemoOptions {
   readonly database: Database;
   readonly artifactsRoot?: string;
+  readonly mutationCoordinator: MutationCoordinator;
 }
 
-export function installFieldLifecycleDemo(options: InstallFieldLifecycleDemoOptions) {
+export async function installFieldLifecycleDemo(options: InstallFieldLifecycleDemoOptions) {
   const artifactsRoot = options.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   const database = options.database;
   const tableName = `${CAPABILITY_TABLE_PREFIX}${FIELD_LIFECYCLE_DEMO_ID}`;
-  rmSync(resolve(process.cwd(), artifactsRoot, FIELD_LIFECYCLE_DEMO_ID), {
-    force: true,
-    recursive: true,
-  });
+  const ddl = deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC);
+  const handlers = Object.fromEntries(
+    FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+      unit.name,
+      unit.content,
+    ]),
+  );
+  const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
+    (unit) => unit.kind === "item-renderer",
+  )?.content;
+  if (!itemRenderer) throw new Error("The five-Action reference item renderer is missing.");
 
-  database.exec("BEGIN IMMEDIATE TRANSACTION;");
+  const reservation = options.mutationCoordinator.reserveBuild();
   try {
-    database.run(`DELETE FROM "${REGISTRY_TABLE}" WHERE "id" = ?`, [FIELD_LIFECYCLE_DEMO_ID]);
-    database.run(`DROP TABLE IF EXISTS "${tableName}"`);
-    applyCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC, database);
-    const commit = commitCapability({
-      spec: FIELD_LIFECYCLE_DEMO_SPEC,
-      incarnationId: createCapabilityIncarnationId(),
-      units: FIELD_LIFECYCLE_DEMO_UNITS,
-      database,
-      artifactsRoot,
+    return await options.mutationCoordinator.withBuildLease(reservation, async () => {
+      const gate = await runCapabilityGate({
+        spec: FIELD_LIFECYCLE_DEMO_SPEC,
+        ddl,
+        handlers,
+        itemRenderer,
+        behavioralTier: { enabled: false },
+        realDatabase: database,
+      });
+      const commit = await withWriteTransaction(database, () => {
+        database.run(`DELETE FROM "${REGISTRY_TABLE}" WHERE "id" = ?`, [FIELD_LIFECYCLE_DEMO_ID]);
+        database.run(`DROP TABLE IF EXISTS "${tableName}"`);
+        applyCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC, database);
+        const committed = commitCapability({
+          spec: FIELD_LIFECYCLE_DEMO_SPEC,
+          incarnationId: createCapabilityIncarnationId(),
+          units: FIELD_LIFECYCLE_DEMO_UNITS,
+          database,
+          artifactsRoot,
+        });
+        database.run(
+          `INSERT INTO "${tableName}" ("id", "entry", "reflection", "tags", "aliases", "retired_note") VALUES (?, NULL, ?, NULL, NULL, ?)`,
+          ["historical-null", "This row predates logical requiredness.", "still stored"],
+        );
+        return committed;
+      });
+      return { ...commit, gate };
     });
-    database.run(
-      `INSERT INTO "${tableName}" ("id", "entry", "reflection", "tags", "aliases", "retired_note") VALUES (?, NULL, ?, NULL, NULL, ?)`,
-      ["historical-null", "This row predates logical requiredness.", "still stored"],
-    );
-    database.exec("COMMIT;");
-    return commit;
   } catch (error) {
-    database.exec("ROLLBACK;");
+    options.mutationCoordinator.cancelBuild(reservation);
     throw error;
   }
 }

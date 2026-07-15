@@ -32,6 +32,7 @@ export {
   type GateRungStatus,
   resolveBehavioralTierEnabled,
   runCapabilityGate,
+  type ScratchCatalogCapability,
   type SmokeGateResult,
 } from "./gate.ts";
 export { createCapabilityIncarnationId } from "./incarnation.ts";
@@ -59,6 +60,7 @@ export {
   type HandlerUnitName,
   ITEM_RENDERER_UNIT_NAME,
   type ItemRendererUnitName,
+  type TransitionalHandlerUnitName,
   type UnitDescriptor,
   type UnitGenerationAttempt,
   type UnitGenerationAttemptEvent,

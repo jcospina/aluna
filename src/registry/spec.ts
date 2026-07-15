@@ -22,9 +22,10 @@
 //     item direction, the closed collection layout (`feed | grid`), the
 //     detail fields/order, and one closed input mode for every active `string[]`.
 //     It never stores `views` or `modal: true`; the shared
-//     modal is a platform invariant (ADR-0005 §6). `tools` is the exact
-//     reset-bounded M4.1 Action tuple (`create`, `read`) and
-//     `read_dependencies` carries exactly those keys with empty arrays;
+//     modal is a platform invariant (ADR-0005 §6). `tools` is either the exact
+//     reset-bounded M4.1 Action tuple (`create`, `read`) or the development-only
+//     complete five-Action reference tuple; `read_dependencies` carries exactly
+//     the matching keys;
 //     `behavior` is free text the behavioral tier
 //     generates tests from; `behavioral_errors` is the stable validation error
 //     contract product copy must not stand in for.
@@ -156,8 +157,17 @@ export type UiIntent = z.infer<typeof uiIntentSchema>;
 // arrive through the complete five-Action reference shape in 4.2, not as
 // optional or empty keys here.
 export const TRANSITIONAL_CAPABILITY_TOOLS = ["create", "read"] as const;
-export const capabilityToolSchema = z.enum(TRANSITIONAL_CAPABILITY_TOOLS);
+export const FULL_CAPABILITY_TOOLS = ["create", "read", "update", "delete", "search"] as const;
+export const capabilityToolSchema = z.enum(FULL_CAPABILITY_TOOLS);
 export type CapabilityTool = z.infer<typeof capabilityToolSchema>;
+
+const transitionalCapabilityToolsSchema = z
+  .array(z.enum(TRANSITIONAL_CAPABILITY_TOOLS))
+  .length(TRANSITIONAL_CAPABILITY_TOOLS.length)
+  .refine(
+    (tools) => sameOrderedStrings(tools, TRANSITIONAL_CAPABILITY_TOOLS),
+    `must be exactly [${TRANSITIONAL_CAPABILITY_TOOLS.join(", ")}] in that order`,
+  );
 
 // Model this as a homogeneous fixed-length array for provider JSON Schema:
 // OpenAI rejects tuple-style positional `items: [...]`. The refinement keeps the
@@ -165,10 +175,11 @@ export type CapabilityTool = z.infer<typeof capabilityToolSchema>;
 // crosses the local hard gate — while the emitted wire schema uses one item object.
 const capabilityToolsSchema = z
   .array(capabilityToolSchema)
-  .length(TRANSITIONAL_CAPABILITY_TOOLS.length)
   .refine(
-    (tools) => tools.every((tool, index) => tool === TRANSITIONAL_CAPABILITY_TOOLS[index]),
-    `must be exactly [${TRANSITIONAL_CAPABILITY_TOOLS.join(", ")}] in that order`,
+    (tools) =>
+      sameOrderedStrings(tools, TRANSITIONAL_CAPABILITY_TOOLS) ||
+      sameOrderedStrings(tools, FULL_CAPABILITY_TOOLS),
+    `must be exactly [${TRANSITIONAL_CAPABILITY_TOOLS.join(", ")}] or [${FULL_CAPABILITY_TOOLS.join(", ")}] in canonical order`,
   );
 
 // The pair shape is defined now so 4.2 can admit validated dependency identities
@@ -180,10 +191,21 @@ export const readDependencySchema = z.strictObject({
 });
 export type ReadDependency = z.infer<typeof readDependencySchema>;
 
-export const readDependenciesSchema = z.strictObject({
+const transitionalReadDependenciesSchema = z.strictObject({
   create: z.array(readDependencySchema).length(0, "must be empty during the M4.1 transition"),
   read: z.array(readDependencySchema).length(0, "must be empty during the M4.1 transition"),
 });
+const fullReadDependenciesSchema = z.strictObject({
+  create: z.array(readDependencySchema),
+  read: z.array(readDependencySchema),
+  update: z.array(readDependencySchema),
+  delete: z.array(readDependencySchema),
+  search: z.array(readDependencySchema),
+});
+export const readDependenciesSchema = z.union([
+  transitionalReadDependenciesSchema,
+  fullReadDependenciesSchema,
+]);
 export type ReadDependencies = z.infer<typeof readDependenciesSchema>;
 
 export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
@@ -204,8 +226,7 @@ export const behavioralErrorMarkersSchema = z.strictObject({
 });
 export type BehavioralErrorMarkers = z.infer<typeof behavioralErrorMarkersSchema>;
 
-export const behavioralErrorCaseSchema = z.strictObject({
-  action: z.literal("create"),
+const behavioralErrorCaseShape = {
   trigger: z.literal(MISSING_REQUIRED_FIELDS_ERROR_CODE),
   code: z.literal(MISSING_REQUIRED_FIELDS_ERROR_CODE),
   fields: z
@@ -213,8 +234,18 @@ export const behavioralErrorCaseSchema = z.strictObject({
     .min(1)
     .refine(allUnique, "behavioral error fields must be unique"),
   expected_markers: behavioralErrorMarkersSchema,
+};
+
+export const behavioralErrorCaseSchema = z.strictObject({
+  action: capabilityToolSchema,
+  ...behavioralErrorCaseShape,
 });
 export type BehavioralErrorCase = z.infer<typeof behavioralErrorCaseSchema>;
+
+const transitionalBehavioralErrorCaseSchema = z.strictObject({
+  action: z.enum(TRANSITIONAL_CAPABILITY_TOOLS),
+  ...behavioralErrorCaseShape,
+});
 
 function allUnique(values: readonly string[]): boolean {
   return new Set(values).size === values.length;
@@ -261,6 +292,19 @@ export const capabilitySpecSchema = z
   .superRefine(validateSpecSemantics);
 export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 
+// The prompt Builder remains pinned to the exact two-Action transition even
+// while the platform also admits the hand-written five-Action reference. This
+// narrower provider schema makes that boundary hard rather than prompt-only.
+export const promptCapabilitySpecSchema = z
+  .strictObject({
+    ...commonSpecShape,
+    behavioral_errors: z.array(transitionalBehavioralErrorCaseSchema).max(8),
+    tools: transitionalCapabilityToolsSchema,
+    read_dependencies: transitionalReadDependenciesSchema,
+    label: capabilityNameText,
+  })
+  .superRefine(validateSpecSemantics);
+
 // One registry row (ARCH §6.3): the spec plus the platform-assigned incarnation,
 // version, and artifact pointer. The opaque incarnation identifies one complete
 // capability lifetime and is deliberately absent from the AI-authored spec.
@@ -283,25 +327,27 @@ export type CapabilityRow = z.infer<typeof capabilityRowSchema>;
 
 export function defaultBehavioralErrorsForSchema(
   schema: CapabilitySpec["schema"],
+  tools: readonly CapabilityTool[] = TRANSITIONAL_CAPABILITY_TOOLS,
 ): BehavioralErrorCase[] {
   const fields = schema.fields
     .filter((field) => field.lifecycle === "active" && field.required)
     .map((field) => field.name);
   if (fields.length === 0) return [];
 
-  return [
-    {
-      action: "create",
-      trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-      code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-      fields,
-      expected_markers: BEHAVIORAL_ERROR_MARKERS,
-    },
-  ];
+  const actions = sameOrderedStrings(tools, FULL_CAPABILITY_TOOLS)
+    ? (["create", "update"] as const)
+    : (["create"] as const);
+  return actions.map((action) => ({
+    action,
+    trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+    code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+    fields,
+    expected_markers: BEHAVIORAL_ERROR_MARKERS,
+  }));
 }
 
 function validateBehavioralErrors(
-  spec: Pick<CapabilitySpec, "schema" | "behavioral_errors">,
+  spec: Pick<CapabilitySpec, "schema" | "behavioral_errors" | "tools">,
   ctx: z.RefinementCtx,
 ): void {
   const fieldsByName = new Map(spec.schema.fields.map((field) => [field.name, field]));
@@ -313,20 +359,24 @@ function validateBehavioralErrors(
     validateBehavioralErrorFields(ctx, fieldsByName, errorCase, index);
   }
 
-  if (!hasExactTransitionalRequiredFieldsErrors(spec.behavioral_errors, requiredFieldNames)) {
+  if (!hasExactRequiredFieldsErrors(spec.behavioral_errors, requiredFieldNames, spec.tools)) {
     ctx.addIssue({
       code: "custom",
       message:
-        "behavioral_errors must be exactly one create missing_required_fields case covering all active required fields, or empty when none are required",
+        "behavioral_errors must contain the exact missing_required_fields cases for the admitted Action shape and active required fields",
       path: ["behavioral_errors"],
     });
   }
 }
 
 function validateSpecSemantics(
-  spec: Pick<CapabilitySpec, "schema" | "ui_intent" | "behavioral_errors">,
+  spec: Pick<
+    CapabilitySpec,
+    "schema" | "ui_intent" | "behavioral_errors" | "tools" | "read_dependencies"
+  >,
   ctx: z.RefinementCtx,
 ): void {
+  validateActionShapePair(spec, ctx);
   validateBehavioralErrors(spec, ctx);
   validatePresentationShows(spec, ctx);
   validateListInputs(spec, ctx);
@@ -458,17 +508,40 @@ function addBehavioralErrorFieldIssue(
   });
 }
 
-function hasExactTransitionalRequiredFieldsErrors(
+function validateActionShapePair(
+  spec: Pick<CapabilitySpec, "tools" | "read_dependencies">,
+  ctx: z.RefinementCtx,
+): void {
+  const dependencyKeys = Object.keys(spec.read_dependencies);
+  const expectedKeys = sameOrderedStrings(spec.tools, FULL_CAPABILITY_TOOLS)
+    ? FULL_CAPABILITY_TOOLS
+    : TRANSITIONAL_CAPABILITY_TOOLS;
+  if (!sameOrderedStrings(dependencyKeys, expectedKeys)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "tools and read_dependencies must be one complete admitted Action shape",
+      path: ["read_dependencies"],
+    });
+  }
+}
+
+function hasExactRequiredFieldsErrors(
   errorCases: readonly BehavioralErrorCase[],
   requiredFieldNames: readonly string[],
+  tools: readonly CapabilityTool[],
 ): boolean {
   if (requiredFieldNames.length === 0) return errorCases.length === 0;
-  if (errorCases.length !== 1) return false;
-  const [errorCase] = errorCases;
+  const expectedActions = sameOrderedStrings(tools, FULL_CAPABILITY_TOOLS)
+    ? (["create", "update"] as const)
+    : (["create"] as const);
   return (
-    errorCase?.action === "create" &&
-    errorCase.code === MISSING_REQUIRED_FIELDS_ERROR_CODE &&
-    sameOrderedStrings(errorCase.fields, requiredFieldNames)
+    errorCases.length === expectedActions.length &&
+    errorCases.every(
+      (errorCase, index) =>
+        errorCase.action === expectedActions[index] &&
+        errorCase.code === MISSING_REQUIRED_FIELDS_ERROR_CODE &&
+        sameOrderedStrings(errorCase.fields, requiredFieldNames),
+    )
   );
 }
 

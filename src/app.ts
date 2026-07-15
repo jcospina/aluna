@@ -16,6 +16,7 @@ import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
 import { renderFewShotGalleryPreviewPage } from "./builder/few-shot-gallery-preview.ts";
 import { DEFAULT_ARTIFACTS_ROOT } from "./builder/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "./db.ts";
+import { installFieldLifecycleDemo } from "./demo/field-lifecycle.ts";
 import { handleStreamError, streamGreeting } from "./greeting.ts";
 import { writeGenerationMetrics } from "./metrics/index.ts";
 import {
@@ -250,7 +251,7 @@ function registerShellAndLivenessRoutes(app: Hono, ctx: ResolvedAppDeps): void {
  * coordinator admission demo — no provider, and no db beyond the coordinator lease.
  */
 function registerPreviewDemoRoutes(app: Hono, ctx: ResolvedAppDeps): void {
-  const { mutationCoordinator, mutationPreviewHoldMs } = ctx;
+  const { artifactsRoot, buildDatabases, mutationCoordinator, mutationPreviewHoldMs } = ctx;
 
   // Dev preview for the centralized field renderer (epic 3.2/01) — the HITL visual
   // sign-off surface. Renders the live create form + read-only detail for a sample
@@ -335,6 +336,24 @@ function registerPreviewDemoRoutes(app: Hono, ctx: ResolvedAppDeps): void {
       return c.json({ status: "released" });
     } catch {
       return c.json({ status: "cancelled" }, 409);
+    }
+  });
+
+  app.post("/demo/five-action-reference/install", async (c) => {
+    try {
+      const result = await installFieldLifecycleDemo({
+        database: buildDatabases.readwrite,
+        artifactsRoot,
+        mutationCoordinator,
+      });
+      return c.json({
+        status: "installed",
+        artifactsPath: result.artifactsPath,
+        gate: result.gate.outcomes,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ status: "failed", error: message }, 500);
     }
   });
 }

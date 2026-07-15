@@ -94,7 +94,7 @@ const TOKEN_STYLE_RENDERER = renderer(
   '`<div class="stack" style="padding: var(--space-1); color: var(--color-text);"><span class="text-bold">${text}</span></div>`',
 );
 
-const HANDLERS: Readonly<Record<HandlerUnitName, string>> = {
+const HANDLERS: Readonly<Partial<Record<HandlerUnitName, string>>> = {
   create: [
     "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
     '    const note = mutation.create({ text: input.values.text, pinned: input.values.pinned === "on" });',

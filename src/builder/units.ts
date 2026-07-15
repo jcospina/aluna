@@ -18,14 +18,18 @@
 
 import { z } from "zod";
 import type { DeepPartial, Provider, TokenUsage } from "../provider/index.ts";
-import type { CapabilitySpec, CapabilityTool } from "../registry/index.ts";
+import {
+  type CapabilitySpec,
+  type FULL_CAPABILITY_TOOLS,
+  TRANSITIONAL_CAPABILITY_TOOLS,
+} from "../registry/index.ts";
 
 import { checkGeneratedUnit } from "./unit-checks.ts";
 import { buildUnitPrompt } from "./unit-prompts.ts";
 
 export const DEFAULT_UNIT_FIX_ATTEMPTS = 2;
 
-const HANDLER_UNITS = ["create", "read"] as const satisfies readonly CapabilityTool[];
+const GENERATED_HANDLER_UNITS = TRANSITIONAL_CAPABILITY_TOOLS;
 
 // The single generated presentation unit's name — the stem of the version-keyed file
 // the router loads it from (`item.ts`, `ITEM_RENDERER_FILE` in src/router/router.ts).
@@ -34,7 +38,8 @@ export const ITEM_RENDERER_UNIT_NAME = "item";
 const generatedUnitSchema = z.strictObject({ content: z.string().min(1) });
 type GeneratedUnitObject = z.infer<typeof generatedUnitSchema>;
 
-export type HandlerUnitName = (typeof HANDLER_UNITS)[number];
+export type HandlerUnitName = (typeof FULL_CAPABILITY_TOOLS)[number];
+export type TransitionalHandlerUnitName = (typeof TRANSITIONAL_CAPABILITY_TOOLS)[number];
 export type ItemRendererUnitName = typeof ITEM_RENDERER_UNIT_NAME;
 
 export type GeneratedUnit =
@@ -75,7 +80,7 @@ export interface GenerateCapabilityUnitsInput {
 
 export interface GenerateCapabilityUnitsResult {
   readonly units: readonly GeneratedUnit[];
-  readonly handlers: Readonly<Record<HandlerUnitName, string>>;
+  readonly handlers: Readonly<Record<TransitionalHandlerUnitName, string>>;
   // The one generated presentation surface — the composition input the router binds
   // into each Handler's presentation adapter (3.4/01), and the content the commit
   // stage writes to `item.ts`.
@@ -155,7 +160,7 @@ export async function generateCapabilityUnits(
     ),
   );
 
-  for (const action of HANDLER_UNITS) {
+  for (const action of GENERATED_HANDLER_UNITS) {
     units.push(
       await generateUnit(
         input.provider,
@@ -317,7 +322,7 @@ function itemRendererContent(units: readonly GeneratedUnit[]): string {
 }
 
 function assertHandlerSpec(spec: CapabilitySpec): void {
-  for (const action of HANDLER_UNITS) {
+  for (const action of GENERATED_HANDLER_UNITS) {
     if (!(spec.tools as readonly string[]).includes(action)) {
       throw new Error(`Unit generation requires the "${action}" handler in spec.tools.`);
     }

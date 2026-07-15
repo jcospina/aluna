@@ -38,6 +38,14 @@ import {
 import type { GeneratedUnit } from "./units.ts";
 
 const TRANSITIONAL_ARTIFACT_INVENTORY = ["item.ts", "create.ts", "read.ts"] as const;
+const REFERENCE_ARTIFACT_INVENTORY = [
+  "item.ts",
+  "create.ts",
+  "read.ts",
+  "update.ts",
+  "delete.ts",
+  "search.ts",
+] as const;
 
 // Every committed capability starts at version 1. Later regenerations bump it (the
 // Diff Engine, a later module); M2 only ever commits a brand-new v1.
@@ -87,7 +95,7 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   // commit is the last authority before those values become filesystem paths.
   const spec = capabilitySpecSchema.parse(input.spec);
   const incarnationId = incarnationIdSchema.parse(input.incarnationId);
-  assertTransitionalArtifactInventory(input.units);
+  assertArtifactInventory(spec, input.units);
   const version = FIRST_CAPABILITY_VERSION;
   const root = input.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   // The pointer stored on the row and resolved by the router. The trailing slash
@@ -117,14 +125,16 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   return { row, artifactsPath, incarnationId, version, files };
 }
 
-function assertTransitionalArtifactInventory(units: readonly GeneratedUnit[]): void {
+function assertArtifactInventory(spec: CapabilitySpec, units: readonly GeneratedUnit[]): void {
+  const expected =
+    spec.tools.length === 5 ? REFERENCE_ARTIFACT_INVENTORY : TRANSITIONAL_ARTIFACT_INVENTORY;
   const actual = units.map((unit) => unit.filename);
   const exact =
-    actual.length === TRANSITIONAL_ARTIFACT_INVENTORY.length &&
-    actual.every((filename, index) => filename === TRANSITIONAL_ARTIFACT_INVENTORY[index]);
+    actual.length === expected.length &&
+    actual.every((filename, index) => filename === expected[index]);
   if (!exact) {
     throw new Error(
-      `M4.1 capability artifacts must be exactly ${TRANSITIONAL_ARTIFACT_INVENTORY.join(", ")} in order.`,
+      `Capability artifacts must be exactly ${expected.join(", ")} in order for the admitted Action shape.`,
     );
   }
 }

@@ -16,6 +16,7 @@ import { join, resolve } from "node:path";
 
 import { applyCapabilityTableDdl } from "../capability-data/index.ts";
 import { openDatabase, type PlatformDatabase, withWriteTransaction } from "../db.ts";
+import { FIELD_LIFECYCLE_DEMO_SPEC, FIELD_LIFECYCLE_DEMO_UNITS } from "../demo/field-lifecycle.ts";
 import { runMigrations } from "../migrations.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -182,7 +183,7 @@ describe("commitCapability — commit and pre-registration guards", () => {
           database: conns.readwrite,
           artifactsRoot: root,
         }),
-      ).toThrow("M4.1 capability artifacts must be exactly item.ts, create.ts, read.ts");
+      ).toThrow("Capability artifacts must be exactly item.ts, create.ts, read.ts");
       expect(getCapability("notes", conns.readonly)).toBeNull();
       expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1"))).toBe(false);
     }
@@ -211,6 +212,46 @@ describe("commitCapability — commit and pre-registration guards", () => {
     ).toThrow();
     expect(existsSync(root)).toBe(false);
     expect(getCapability("notes", conns.readonly)).toBeNull();
+  });
+});
+
+describe("commitCapability — five-Action reference inventory", () => {
+  test("commits only the complete inventory", () => {
+    const dir = mkdtempSync(join(tmpdir(), "omni-crud-reference-commit-"));
+    const conns = openDatabase(join(dir, "test.db"));
+    try {
+      runMigrations(conns.readwrite);
+      const root = join(dir, "reference-artifacts");
+      const result = commitCapability({
+        spec: FIELD_LIFECYCLE_DEMO_SPEC,
+        incarnationId: INCARNATION_ID,
+        units: FIELD_LIFECYCLE_DEMO_UNITS,
+        database: conns.readwrite,
+        artifactsRoot: root,
+      });
+
+      expect(result.files).toEqual([
+        "item.ts",
+        "create.ts",
+        "read.ts",
+        "update.ts",
+        "delete.ts",
+        "search.ts",
+      ]);
+      expect(() =>
+        commitCapability({
+          spec: FIELD_LIFECYCLE_DEMO_SPEC,
+          incarnationId: "22222222-2222-4222-8222-222222222222",
+          units: FIELD_LIFECYCLE_DEMO_UNITS.slice(0, -1),
+          database: conns.readwrite,
+          artifactsRoot: root,
+        }),
+      ).toThrow(/item\.ts, create\.ts, read\.ts, update\.ts, delete\.ts, search\.ts/);
+    } finally {
+      conns.readwrite.close();
+      conns.readonly.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

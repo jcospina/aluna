@@ -23,6 +23,7 @@ export {
   createCapabilityDataPorts,
   createCapabilityMutationPort,
   createCapabilityQueryPort,
+  encodeCapabilityFieldForStorage,
   MissingRequiredFieldsError,
   selectCapabilityRows,
 } from "./tool.ts";

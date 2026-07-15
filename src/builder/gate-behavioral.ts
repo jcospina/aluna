@@ -34,7 +34,11 @@ import type {
   CapabilityGateInput,
 } from "./gate.ts";
 import {
-  applyDdl,
+  type BehavioralScalar,
+  fieldValuesToRecord,
+  inputValuesToHandlerInput,
+} from "./gate-behavioral-input.ts";
+import {
   assertFragment,
   buildGatePresent,
   errorMessage,
@@ -42,6 +46,7 @@ import {
   type LoadedHandlers,
   loadHandlers,
   openScratchDatabasePair,
+  prepareScratchCatalog,
   sameSnapshot,
   snapshotCapabilityTables,
   sqlIdentifier,
@@ -91,7 +96,6 @@ const behavioralTestSuiteSchema = z.strictObject({
 
 type BehavioralTestCase = z.infer<typeof behavioralTestCaseSchema>;
 type BehavioralTestSuite = z.infer<typeof behavioralTestSuiteSchema>;
-type BehavioralScalar = z.infer<typeof behavioralScalarSchema>;
 type BehavioralExpectedError = z.infer<typeof behavioralExpectedErrorSchema>;
 
 interface GeneratedBehavioralTests {
@@ -136,6 +140,7 @@ export async function runBehavioralRung(input: CapabilityGateInput): Promise<Beh
     itemRenderer: input.itemRenderer,
     suite: generated.suite,
     realDatabase: input.realDatabase,
+    scratchCatalog: input.scratchCatalog,
   });
 
   return {
@@ -199,10 +204,11 @@ async function generateBehavioralTests(
 interface RunBehavioralTestsInput {
   readonly spec: CapabilitySpec;
   readonly ddl: CapabilityTableDdl;
-  readonly handlers: Readonly<Record<HandlerUnitName, string>>;
+  readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
   readonly itemRenderer: string;
   readonly suite: BehavioralTestSuite;
   readonly realDatabase?: Database;
+  readonly scratchCatalog?: CapabilityGateInput["scratchCatalog"];
 }
 
 async function runBehavioralTests(
@@ -220,7 +226,14 @@ async function runBehavioralTests(
   try {
     for (const testCase of input.suite.cases) {
       const caseStartedAt = performance.now();
-      await runBehavioralCase(input.spec, input.ddl, handlers, present, testCase);
+      await runBehavioralCase(
+        input.spec,
+        input.ddl,
+        input.scratchCatalog,
+        handlers,
+        present,
+        testCase,
+      );
       cases.push({
         name: testCase.name,
         status: "passed",
@@ -251,6 +264,7 @@ async function runBehavioralTests(
 async function runBehavioralCase(
   spec: CapabilitySpec,
   ddl: CapabilityTableDdl,
+  scratchCatalog: CapabilityGateInput["scratchCatalog"],
   handlers: LoadedHandlers,
   present: PresentationAdapter,
   testCase: BehavioralTestCase,
@@ -264,7 +278,7 @@ async function runBehavioralCase(
   let scratchRows: ReturnType<typeof selectCapabilityRows> | undefined;
 
   try {
-    applyDdl(ddl, scratch.readwrite);
+    prepareScratchCatalog(spec, ddl, scratchCatalog, scratch);
     const { mutation, query } = createCapabilityDataPorts(spec, scratch);
     const setupIds: string[] = [];
 
@@ -535,35 +549,4 @@ function rowMatches(
     const type = fields.find((candidate) => candidate.name === field)?.type;
     return type ? fieldValueMatches(type, row[field], value) : row[field] === value;
   });
-}
-
-function fieldValuesToRecord(
-  values: readonly z.infer<typeof behavioralFieldValueSchema>[],
-): Record<string, BehavioralScalar> {
-  return Object.fromEntries(values.map((entry) => [entry.field, entry.value]));
-}
-
-function inputValuesToHandlerInput(
-  spec: CapabilitySpec,
-  values: readonly z.infer<typeof behavioralInputValueSchema>[],
-): CapabilityInput {
-  const fieldsByName = new Map(
-    activeSpecFields(spec.schema.fields).map((field) => [field.name, field]),
-  );
-  const grouped = new Map<string, string[]>();
-  for (const entry of values) {
-    const existing = grouped.get(entry.field);
-    if (existing) existing.push(entry.value);
-    else grouped.set(entry.field, [entry.value]);
-  }
-
-  return {
-    values: Object.fromEntries(
-      [...grouped].map(([fieldName, submitted]) => [
-        fieldName,
-        fieldsByName.get(fieldName)?.type === "string[]" ? submitted : (submitted[0] ?? ""),
-      ]),
-    ),
-    submittedFields: new Set(activeSpecFields(spec.schema.fields).map((field) => field.name)),
-  };
 }

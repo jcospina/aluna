@@ -109,6 +109,19 @@ export function createCapabilityMutationPort(
   };
 }
 
+/**
+ * Encode one already-selected spec field for platform-owned physical fixture writes.
+ * Generated Handlers never receive this helper; canonical live writes still cross the
+ * capability-bound mutation port. The Gate uses it only to seed synthetic inactive
+ * compatibility columns that a copied reader may legally observe.
+ */
+export function encodeCapabilityFieldForStorage(
+  field: Pick<SpecField, "name" | "type">,
+  value: unknown,
+): SqlValue {
+  return value === null ? null : normalizeFieldValue(field.name, field.type, value);
+}
+
 export function createCapabilityQueryPort(database = dbReadonly): CapabilityQueryPort {
   return {
     all({ sql, parameters = [], result }) {
