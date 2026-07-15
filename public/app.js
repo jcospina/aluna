@@ -129,7 +129,7 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
 });
 
 // HTMX keeps 4xx responses out of the DOM by default. Structured create
-// validation is the exception: the router retargets it to the form's aria-live
+// refusals are the exception: the router retargets them to the form's aria-live
 // error region, while leaving the response marked unsuccessful so the form stays
 // open and its values are preserved.
 document.addEventListener("htmx:beforeSwap", (event) => {
@@ -137,7 +137,10 @@ document.addEventListener("htmx:beforeSwap", (event) => {
     .detail;
   const response = detail?.xhr?.responseText;
   if (detail?.xhr?.status !== 422 || typeof response !== "string") return;
-  if (!response.includes('data-error-code="missing_required_fields"')) return;
+  const isCreateRefusal = ["missing_required_fields", "mutation_busy"].some((code) =>
+    response.includes(`data-error-code="${code}"`),
+  );
+  if (!isCreateRefusal) return;
 
   detail.shouldSwap = true;
 });

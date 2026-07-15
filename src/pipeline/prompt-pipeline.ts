@@ -5,11 +5,12 @@
 // full spec → migration → units → gate → commit build for a `new_capability`. The
 // `/build/:id/stream` route drives this; the POST `/prompt` path only admits the job.
 
-import type { BuildPipeline } from "../build-jobs.ts";
+import type { BuildPipeline, BuildPipelineCompletion } from "../build-jobs.ts";
 import type { CommitCapabilityResult } from "../builder/index.ts";
 import type { PlatformDatabase } from "../db.ts";
 import { classifyIntentWithUsage, type IntentClassification } from "../intent-resolver/index.ts";
-import type { Provider, TokenUsage } from "../provider/index.ts";
+import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
+import { abortableProvider, type Provider, type TokenUsage } from "../provider/index.ts";
 import { listCapabilities } from "../registry/index.ts";
 import type { Send } from "../sse/index.ts";
 import { renderCachedCapabilityCommitSwap } from "../web/index.ts";
@@ -28,6 +29,12 @@ import {
   writeDeflectionMetrics,
 } from "./metrics-recorder.ts";
 import { buildCommitPreview } from "./previews.ts";
+import {
+  DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
+  deliverActivatedPresentation,
+  deliverActivatedRecoveryPresentation,
+  deliverFailedPresentation,
+} from "./terminal-presentation.ts";
 
 /** What {@link createPromptBuildPipeline} needs to run a build against the real db/disk. */
 export interface PromptBuildPipelineDeps {
@@ -35,6 +42,8 @@ export interface PromptBuildPipelineDeps {
   readonly recordMetrics: RecordMetrics;
   readonly buildDatabases: PlatformDatabase;
   readonly artifactsRoot: string;
+  readonly mutationCoordinator: MutationCoordinator;
+  readonly terminalPresenterTimeoutMs?: number;
 }
 
 interface DeflectionPipelineInput {
@@ -44,6 +53,8 @@ interface DeflectionPipelineInput {
   readonly recordMetrics: RecordMetrics;
   readonly send: Send;
   readonly isAborted: () => boolean;
+  readonly signal?: AbortSignal;
+  readonly mutationCoordinator: MutationCoordinator;
 }
 
 /** Record the deflection metrics row and narrate the warm "not yet" line. */
@@ -54,8 +65,22 @@ async function streamDeflection({
   recordMetrics,
   send,
   isAborted,
+  signal,
+  mutationCoordinator,
 }: DeflectionPipelineInput): Promise<void> {
-  writeDeflectionMetrics(recordMetrics, generationId, intent, usage);
+  // Non-build resolver metrics are best-effort: the write still queues behind any
+  // build reservation, but the user-visible deflection never waits for experiment data.
+  void mutationCoordinator
+    .withPlatformWrite(
+      () => writeDeflectionMetrics(recordMetrics, generationId, intent, usage),
+      signal ? { signal } : {},
+    )
+    .catch((error) => {
+      console.error(
+        "Aluna resolver metrics write did not complete:",
+        error instanceof Error ? error.message : error,
+      );
+    });
   if (!isAborted()) {
     await send("narration", deflectionNarration(intent));
   }
@@ -73,6 +98,28 @@ interface NewCapabilityPipelineInput {
   readonly artifactsRoot: string;
   readonly send: Send;
   readonly isAborted: () => boolean;
+  readonly terminalPresenterTimeoutMs: number;
+}
+
+async function deliverActivatedBuild(
+  commit: CommitCapabilityResult,
+  send: Send,
+  timeoutMs: number,
+): Promise<void> {
+  try {
+    await deliverActivatedPresentation(
+      send,
+      JSON.stringify(buildCommitPreview(commit)),
+      renderCachedCapabilityCommitSwap(commit.row),
+      timeoutMs,
+    );
+  } catch (error) {
+    console.error(
+      "Aluna activated presentation could not be prepared:",
+      error instanceof Error ? error.message : error,
+    );
+    await deliverActivatedRecoveryPresentation(send, timeoutMs);
+  }
 }
 
 /**
@@ -93,7 +140,8 @@ async function streamNewCapabilityBuild({
   artifactsRoot,
   send,
   isAborted,
-}: NewCapabilityPipelineInput): Promise<void> {
+  terminalPresenterTimeoutMs,
+}: NewCapabilityPipelineInput): Promise<BuildPipelineCompletion> {
   const acc: DemoBuildAccumulator = { usages: [usage], timings: {} };
   let commit: CommitCapabilityResult | undefined;
   try {
@@ -118,15 +166,17 @@ async function streamNewCapabilityBuild({
         "failure",
         classifyBuildFailure(error, acc),
       );
+      await deliverFailedPresentation(send, terminalPresenterTimeoutMs);
+      return "terminal-sent";
     }
-    throw error;
+    return;
   }
 
   if (commit === undefined) return;
 
   writeBuildMetrics(recordMetrics, generationId, intent, acc, builtAt, "success");
-  await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
-  await send("commit", renderCachedCapabilityCommitSwap(commit.row));
+  await deliverActivatedBuild(commit, send, terminalPresenterTimeoutMs);
+  return "terminal-sent";
 }
 
 /**
@@ -139,8 +189,10 @@ export function createPromptBuildPipeline({
   recordMetrics,
   buildDatabases,
   artifactsRoot,
+  mutationCoordinator,
+  terminalPresenterTimeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
 }: PromptBuildPipelineDeps): BuildPipeline {
-  return async ({ job, send, isAborted }) => {
+  return async ({ job, send, isAborted, signal }) => {
     const builtAt = performance.now();
     const capabilities = listCapabilities(buildDatabases.readonly);
     const duplicateIntent = duplicateIntentForPrompt(job.prompt, capabilities);
@@ -152,11 +204,13 @@ export function createPromptBuildPipeline({
         recordMetrics,
         send,
         isAborted,
+        signal,
+        mutationCoordinator,
       });
       return;
     }
 
-    const provider = getProvider();
+    const provider = abortableProvider(getProvider(), signal);
     const classification = await classifyIntentWithUsage({
       provider,
       prompt: job.prompt,
@@ -174,22 +228,31 @@ export function createPromptBuildPipeline({
         recordMetrics,
         send,
         isAborted,
+        signal,
+        mutationCoordinator,
       });
       return;
     }
 
-    await streamNewCapabilityBuild({
-      generationId: job.id,
-      prompt: job.prompt,
-      provider,
-      intent,
-      usage,
-      builtAt,
-      recordMetrics,
-      buildDatabases,
-      artifactsRoot,
-      send,
-      isAborted,
-    });
+    const reservation = mutationCoordinator.reserveBuild();
+    return mutationCoordinator.withBuildLease(
+      reservation,
+      () =>
+        streamNewCapabilityBuild({
+          generationId: job.id,
+          prompt: job.prompt,
+          provider,
+          intent,
+          usage,
+          builtAt,
+          recordMetrics,
+          buildDatabases,
+          artifactsRoot,
+          send,
+          isAborted,
+          terminalPresenterTimeoutMs,
+        }),
+      signal ? { signal } : {},
+    );
   };
 }
