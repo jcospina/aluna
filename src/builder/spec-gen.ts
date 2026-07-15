@@ -84,6 +84,8 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "",
     "Presentation intent:",
     "- ui_intent.item.direction is one concise sentence of capability-specific item design direction.",
+    "- ui_intent.form.list_inputs contains exactly one { field, mode } entry for every active string[] field, in schema-field order. It contains no scalar, inactive, or unknown fields.",
+    "- list input mode is exactly comma_separated | repeatable. Choose comma_separated only for short atomic values whose grammar cannot meaningfully contain commas (tags, genres, categories, skills). Choose repeatable when an element may contain a comma (quotes, addresses, citations, or names as entered). There is no quoting or escaping in comma_separated mode, so never choose it for comma-bearing element semantics.",
     "- ui_intent.item.shows is the ordered list of active schema field names the item renderer may receive; it may also include created_at.",
     `- ui_intent.collection.layout is one of: ${collectionLayouts}. Use feed for text-forward lists and grid for visually dominant collections.`,
     "- ui_intent.detail.shows is the ordered list of active schema field names the read-only detail surface should show; it may also include created_at.",

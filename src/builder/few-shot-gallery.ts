@@ -7,12 +7,13 @@
 // from this same data as a developer sign-off surface.
 
 import { ALLOWED_CLASSES } from "../presentation/vocabulary.ts";
-import type { FieldType, SpecField, UiCollectionLayout } from "../registry/index.ts";
+import type { FieldType, SpecField, UiCollectionLayout, UiFormIntent } from "../registry/index.ts";
 
 export interface FewShotPreviewCapability {
   readonly id: string;
   readonly label: string;
   readonly schema: { readonly fields: readonly SpecField[] };
+  readonly form: UiFormIntent;
   readonly detail: { readonly shows: readonly string[] };
 }
 
@@ -68,6 +69,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
           ["tag", "string", false],
         ]),
       },
+      form: { list_inputs: [] },
       detail: { shows: ["title", "source", "excerpt", "tag"] },
     },
     previewSamples: [
@@ -154,6 +156,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
           ["taken_on", "date", false],
         ]),
       },
+      form: { list_inputs: [] },
       detail: { shows: ["title", "place", "taken_on", "image_url"] },
     },
     previewSamples: [
@@ -246,6 +249,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
           ["priority", "string", false],
         ]),
       },
+      form: { list_inputs: [] },
       detail: { shows: ["title", "url", "topic", "priority"] },
     },
     previewSamples: [

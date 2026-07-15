@@ -69,6 +69,12 @@
   outline: none;
 }
 
+.field__guidance {
+  margin: 0;
+  font: var(--meta);
+  color: var(--color-text-muted);
+}
+
 .field-list__values {
   display: grid;
   gap: var(--space-1);

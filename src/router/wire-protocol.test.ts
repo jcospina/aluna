@@ -36,6 +36,7 @@ function spec(): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: { direction: "A text-forward note.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
@@ -55,7 +56,10 @@ function spec(): CapabilitySpec {
   };
 }
 
-function listSpec(required = false): CapabilitySpec {
+function listSpec(
+  required = false,
+  mode: "comma_separated" | "repeatable" = "repeatable",
+): CapabilitySpec {
   return {
     ...spec(),
     schema: {
@@ -70,6 +74,7 @@ function listSpec(required = false): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [{ field: "tags", mode }] },
       item: { direction: "A tag-forward note.", shows: ["tags"] },
       collection: { layout: "feed" },
       detail: { shows: ["tags"] },
@@ -139,6 +144,43 @@ describe("reserved capability wire protocol", () => {
       listSpec(),
     );
     expect(singleton.input.values.tags).toEqual(["solo"]);
+  });
+
+  test("normalizes comma-separated values before Handler input without changing repeatable commas", async () => {
+    const commaSeparated = await parseCapabilityRequest(
+      post([
+        ["tags", "Drama, Historical fiction, , Classic, Drama"],
+        [ALUNA_PRESENT_MARKER, "tags"],
+      ]),
+      "create",
+      listSpec(true, "comma_separated"),
+    );
+    expect(commaSeparated.input.values.tags).toEqual([
+      "Drama",
+      "Historical fiction",
+      "Classic",
+      "Drama",
+    ]);
+
+    const delimiterOnly = await parseCapabilityRequest(
+      post([
+        ["tags", " , , "],
+        [ALUNA_PRESENT_MARKER, "tags"],
+      ]),
+      "create",
+      listSpec(false, "comma_separated"),
+    );
+    expect(delimiterOnly.input.values.tags).toEqual([]);
+
+    const repeatable = await parseCapabilityRequest(
+      post([
+        ["tags", "Doe, Jane"],
+        [ALUNA_PRESENT_MARKER, "tags"],
+      ]),
+      "create",
+      listSpec(false, "repeatable"),
+    );
+    expect(repeatable.input.values.tags).toEqual(["Doe, Jane"]);
   });
 
   test("rejects duplicate scalar input and invalid presence markers deterministically", async () => {

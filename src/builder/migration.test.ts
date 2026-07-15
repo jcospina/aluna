@@ -43,6 +43,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: {
         direction: "A text-forward card that emphasizes the note text.",
         shows: ["title", "amount", "done", "logged_at"],

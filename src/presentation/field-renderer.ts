@@ -21,6 +21,7 @@
 // form itself is platform chrome (not generated item markup), so the runtime
 // allow-list enforcer never runs on it.
 
+import { listInputModeForField } from "../list-input/index.ts";
 import {
   activeSpecFields,
   CREATED_AT_DESCRIPTOR,
@@ -29,6 +30,7 @@ import {
   type ListFieldType,
   type PresentationFieldDescriptor,
   type SpecField,
+  type UiFormIntent,
 } from "../registry/index.ts";
 import { ALUNA_PRESENT_MARKER } from "../router/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
@@ -45,6 +47,7 @@ export interface RenderableCapability {
   readonly id: string;
   readonly label: string;
   readonly schema: { readonly fields: readonly SpecField[] };
+  readonly form: UiFormIntent;
   readonly item?: { readonly shows: readonly string[] };
   /**
    * Which fields the read-only DETAIL surface shows, and in what order —
@@ -94,7 +97,7 @@ export function renderCreateForm(capability: RenderableCapability): string {
   const regionId = capabilityRecordsRegionId(capabilityId);
   const errorId = capabilityCreateErrorId(capabilityId);
   const fields = activeSpecFields(capability.schema.fields)
-    .map((field) => renderCreateField(capabilityId, field))
+    .map((field) => renderCreateField(capabilityId, field, capability.form))
     .join("");
   // Platform close-on-success: on a successful request only, clear the form for the
   // next entry and emit the bubbling event the container/modal act on. `capabilityId`
@@ -212,8 +215,8 @@ function createInputFor(type: Exclude<FieldType, ListFieldType>): CreateInput {
   }
 }
 
-function renderCreateField(capabilityId: string, field: SpecField): string {
-  if (isListFieldType(field.type)) return renderCreateListField(capabilityId, field);
+function renderCreateField(capabilityId: string, field: SpecField, form: UiFormIntent): string {
+  if (isListFieldType(field.type)) return renderCreateListField(capabilityId, field, form);
 
   const control = createInputFor(field.type);
   // `capabilityId` and `field.name` are both `[a-z][a-z0-9_]*` (spec-validated), so
@@ -247,14 +250,40 @@ function renderCreateField(capabilityId: string, field: SpecField): string {
   );
 }
 
-function renderCreateListField(capabilityId: string, field: SpecField): string {
+function renderCreateListField(capabilityId: string, field: SpecField, form: UiFormIntent): string {
+  const mode = listInputModeForField(form, field.name);
+  if (mode === "comma_separated") return renderCommaSeparatedListField(capabilityId, field);
+  return renderRepeatableListField(capabilityId, field);
+}
+
+function renderCommaSeparatedListField(capabilityId: string, field: SpecField): string {
+  const inputId = `cap-${capabilityId}-${field.name}`;
+  const guidanceId = `${inputId}-guidance`;
+  const label = escapeHtml(field.label);
+  const nameAttribute = escapeHtml(field.name);
+  const required = field.required ? " required" : "";
+  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
+
+  return (
+    `<div class="field field--list field--list-comma-separated" data-list-input-mode="comma_separated">` +
+    presenceMarker +
+    `<label class="field__label" for="${inputId}">${label}</label>` +
+    `<input class="field__control" id="${inputId}" type="text" name="${nameAttribute}"` +
+    ` aria-describedby="${guidanceId}"${required}>` +
+    `<p class="field__guidance" id="${guidanceId}">Separate values with commas.</p>` +
+    `</div>`
+  );
+}
+
+function renderRepeatableListField(capabilityId: string, field: SpecField): string {
   const inputId = `cap-${capabilityId}-${field.name}`;
   const label = escapeHtml(field.label);
   const nameAttribute = escapeHtml(field.name);
   const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
 
   return (
-    `<div class="field field--list" data-list-field data-list-field-label="${label}"` +
+    `<div class="field field--list field--list-repeatable" data-list-input-mode="repeatable"` +
+    ` data-list-field data-list-field-label="${label}"` +
     ` data-list-input-id="${inputId}">` +
     presenceMarker +
     `<label class="field__label" for="${inputId}-1">${label}</label>` +

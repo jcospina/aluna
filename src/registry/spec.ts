@@ -19,8 +19,9 @@
 //     relations (never — no foreign keys). Every object is strict, so any
 //     extra key — `auto`, `references`, `added_in_version` — fails validation.
 //   - `ui_intent` records only capability-specific presentation choices:
-//     item direction, the closed collection layout (`feed | grid`), and the
-//     detail fields/order. It never stores `views` or `modal: true`; the shared
+//     item direction, the closed collection layout (`feed | grid`), the
+//     detail fields/order, and one closed input mode for every active `string[]`.
+//     It never stores `views` or `modal: true`; the shared
 //     modal is a platform invariant (ADR-0005 §6). `tools` speaks M2's two
 //     actions (`create`, `read`); `behavior` is free text the behavioral tier
 //     generates tests from; `behavioral_errors` is the stable validation error
@@ -113,7 +114,23 @@ export type PresentationFieldDescriptor =
 export const uiCollectionLayoutSchema = z.enum(["feed", "grid"]);
 export type UiCollectionLayout = z.infer<typeof uiCollectionLayoutSchema>;
 
+export const LIST_INPUT_MODES = ["comma_separated", "repeatable"] as const;
+export const listInputModeSchema = z.enum(LIST_INPUT_MODES);
+export type ListInputMode = z.infer<typeof listInputModeSchema>;
+
+export const listInputIntentSchema = z.strictObject({
+  field: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
+  mode: listInputModeSchema,
+});
+export type ListInputIntent = z.infer<typeof listInputIntentSchema>;
+
+export const uiFormIntentSchema = z.strictObject({
+  list_inputs: z.array(listInputIntentSchema),
+});
+export type UiFormIntent = z.infer<typeof uiFormIntentSchema>;
+
 export const uiIntentSchema = z.strictObject({
+  form: uiFormIntentSchema,
   item: z.strictObject({
     direction: nonBlankText,
     shows: z
@@ -280,6 +297,50 @@ function validateSpecSemantics(
 ): void {
   validateBehavioralErrors(spec, ctx);
   validatePresentationShows(spec, ctx);
+  validateListInputs(spec, ctx);
+}
+
+function validateListInputs(
+  spec: Pick<CapabilitySpec, "schema" | "ui_intent">,
+  ctx: z.RefinementCtx,
+): void {
+  const fieldsByName = new Map(spec.schema.fields.map((field) => [field.name, field]));
+  const expectedFields = spec.schema.fields
+    .filter((field) => field.lifecycle === "active" && isListFieldType(field.type))
+    .map((field) => field.name);
+  const actualFields = spec.ui_intent.form.list_inputs.map((entry) => entry.field);
+
+  for (const [index, entry] of spec.ui_intent.form.list_inputs.entries()) {
+    const field = fieldsByName.get(entry.field);
+    if (!field) {
+      addListInputIssue(ctx, index, `field "${entry.field}" is not in schema.fields`);
+    } else if (field.lifecycle !== "active") {
+      addListInputIssue(ctx, index, `field "${entry.field}" must be active`);
+    } else if (!isListFieldType(field.type)) {
+      addListInputIssue(ctx, index, `field "${entry.field}" must be a list field`);
+    }
+
+    if (actualFields.indexOf(entry.field) !== index) {
+      addListInputIssue(ctx, index, `field "${entry.field}" appears more than once`);
+    }
+  }
+
+  if (!sameOrderedStrings(actualFields, expectedFields)) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "form list_inputs must contain every active string[] field exactly once in schema-field order",
+      path: ["ui_intent", "form", "list_inputs"],
+    });
+  }
+}
+
+function addListInputIssue(ctx: z.RefinementCtx, index: number, message: string): void {
+  ctx.addIssue({
+    code: "custom",
+    message,
+    path: ["ui_intent", "form", "list_inputs", index, "field"],
+  });
 }
 
 function validatePresentationShows(
@@ -381,4 +442,8 @@ function sameStringSet(left: readonly string[], right: readonly string[]): boole
   if (left.length !== right.length) return false;
   const rightSet = new Set(right);
   return left.every((value) => rightSet.has(value));
+}
+
+function sameOrderedStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }

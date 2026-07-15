@@ -45,6 +45,7 @@ const CAPABILITY: RenderableCapability = {
       },
     ],
   },
+  form: { list_inputs: [] },
   item: { shows: ["title", "author", "created_at"] },
   detail: { shows: ["title", "rating", "note"] },
 };

@@ -17,6 +17,7 @@ import {
   fieldTypeSchema,
   isListFieldType,
   LIST_FIELD_TYPES,
+  LIST_INPUT_MODES,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
 } from "./spec.ts";
@@ -33,6 +34,7 @@ function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
@@ -58,6 +60,11 @@ function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ? {
           ui_intent: {
             ...spec.ui_intent,
+            form: {
+              list_inputs: spec.schema.fields
+                .filter((field) => field.lifecycle === "active" && field.type === "string[]")
+                .map((field) => ({ field: field.name, mode: "repeatable" as const })),
+            },
             item: {
               ...spec.ui_intent.item,
               shows: spec.schema.fields
@@ -112,6 +119,83 @@ describe("capability spec shape", () => {
         });
         expect(capabilitySpecSchema.parse(spec)).toEqual(spec);
       }
+    }
+  });
+
+  test("requires one closed list-input mode per active string[] in schema-field order", () => {
+    expect(LIST_INPUT_MODES).toEqual(["comma_separated", "repeatable"]);
+    const schema: CapabilitySpec["schema"] = {
+      fields: [
+        { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+        { name: "tags", label: "Tags", type: "string[]", required: false, lifecycle: "active" },
+        {
+          name: "retired_aliases",
+          label: "Retired aliases",
+          type: "string[]",
+          required: false,
+          lifecycle: "inactive",
+        },
+        {
+          name: "quotes",
+          label: "Quotes",
+          type: "string[]",
+          required: false,
+          lifecycle: "active",
+        },
+      ],
+    };
+    const accepted = validSpec({
+      schema,
+      ui_intent: {
+        form: {
+          list_inputs: [
+            { field: "tags", mode: "comma_separated" },
+            { field: "quotes", mode: "repeatable" },
+          ],
+        },
+        item: { direction: "Show the title with its tags.", shows: ["title", "tags"] },
+        collection: { layout: "feed" },
+        detail: { shows: ["title", "tags", "quotes"] },
+      },
+      behavioral_errors: defaultBehavioralErrorsForSchema(schema),
+    });
+    expect(capabilitySpecSchema.parse(accepted)).toEqual(accepted);
+
+    const invalidEntries: readonly (readonly Record<string, unknown>[])[] = [
+      [{ field: "tags", mode: "comma_separated" }],
+      [
+        { field: "quotes", mode: "repeatable" },
+        { field: "tags", mode: "comma_separated" },
+      ],
+      [
+        { field: "tags", mode: "comma_separated" },
+        { field: "tags", mode: "repeatable" },
+      ],
+      [
+        { field: "title", mode: "comma_separated" },
+        { field: "quotes", mode: "repeatable" },
+      ],
+      [
+        { field: "retired_aliases", mode: "repeatable" },
+        { field: "quotes", mode: "repeatable" },
+      ],
+      [
+        { field: "unknown", mode: "repeatable" },
+        { field: "quotes", mode: "repeatable" },
+      ],
+      [
+        { field: "tags", mode: "invented" },
+        { field: "quotes", mode: "repeatable" },
+      ],
+    ];
+
+    for (const list_inputs of invalidEntries) {
+      expect(
+        capabilitySpecSchema.safeParse({
+          ...accepted,
+          ui_intent: { ...accepted.ui_intent, form: { list_inputs } },
+        }).success,
+      ).toBe(false);
     }
   });
 
@@ -191,6 +275,7 @@ describe("capability spec shape", () => {
         ],
       },
       ui_intent: {
+        form: { list_inputs: [] },
         item: { direction: "A reserved-name probe.", shows: ["__aluna_present"] },
         collection: { layout: "feed" },
         detail: { shows: ["__aluna_present"] },
@@ -235,6 +320,7 @@ describe("capability spec shape", () => {
   test("ui_intent records item, closed collection layout, and real detail fields only", () => {
     const grid = validSpec({
       ui_intent: {
+        form: { list_inputs: [] },
         item: { direction: "A visual tile that foregrounds the primary field.", shows: ["text"] },
         collection: { layout: "grid" },
         detail: { shows: ["text"] },
@@ -248,6 +334,7 @@ describe("capability spec shape", () => {
 
     const unknownLayout = validSpec({
       ui_intent: {
+        form: { list_inputs: [] },
         item: { direction: "A visual tile that foregrounds the primary field.", shows: ["text"] },
         // @ts-expect-error — unknown collection layouts must fail closed.
         collection: { layout: "masonry" },
@@ -258,6 +345,7 @@ describe("capability spec shape", () => {
 
     const unknownDetailField = validSpec({
       ui_intent: {
+        form: { list_inputs: [] },
         item: {
           direction: "A text-forward card that emphasizes the note text.",
           shows: ["missing"],
@@ -270,6 +358,7 @@ describe("capability spec shape", () => {
 
     const duplicateDetailField = validSpec({
       ui_intent: {
+        form: { list_inputs: [] },
         item: {
           direction: "A text-forward card that emphasizes the note text.",
           shows: ["text", "text"],
@@ -282,6 +371,7 @@ describe("capability spec shape", () => {
 
     const modalFlag = validSpec({
       ui_intent: {
+        form: { list_inputs: [] },
         item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
         collection: { layout: "feed" },
         detail: { shows: ["text"] },
@@ -308,6 +398,7 @@ describe("capability spec shape", () => {
     const accepted = validSpec({
       schema,
       ui_intent: {
+        form: { list_inputs: [] },
         item: { direction: "Show the entry and its age.", shows: ["text", "created_at"] },
         collection: { layout: "feed" },
         detail: { shows: ["created_at", "text"] },
@@ -398,6 +489,7 @@ describe("capability spec shape", () => {
     const valid = validSpec({
       schema,
       ui_intent: {
+        form: { list_inputs: [] },
         item: { direction: "Show the entry.", shows: ["text"] },
         collection: { layout: "feed" },
         detail: { shows: ["text", "note"] },

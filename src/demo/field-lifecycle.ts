@@ -60,6 +60,12 @@ export const FIELD_LIFECYCLE_DEMO_SPEC: CapabilitySpec = {
     ],
   },
   ui_intent: {
+    form: {
+      list_inputs: [
+        { field: "tags", mode: "comma_separated" },
+        { field: "aliases", mode: "repeatable" },
+      ],
+    },
     item: {
       direction: "A calm journal entry that pairs the entry with when it was created.",
       shows: ["entry", "tags", "created_at"],

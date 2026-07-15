@@ -36,10 +36,24 @@ const SAMPLE: RenderableCapability = {
       { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
     ],
   },
+  form: { list_inputs: [] },
 };
 
-function oneField(field: SpecField): RenderableCapability {
-  return { id: "probe", label: "Probe", schema: { fields: [field] } };
+function oneField(
+  field: SpecField,
+  listMode: "comma_separated" | "repeatable" = "repeatable",
+): RenderableCapability {
+  return {
+    id: "probe",
+    label: "Probe",
+    schema: { fields: [field] },
+    form: {
+      list_inputs:
+        field.lifecycle === "active" && field.type === "string[]"
+          ? [{ field: field.name, mode: listMode }]
+          : [],
+    },
+  };
 }
 
 function sampleDetailValue(type: FieldType): string | number | boolean | readonly string[] {
@@ -159,6 +173,26 @@ describe("create form — one control per pantry type", () => {
     expect(listForm).not.toContain('name="tags" required');
   });
 
+  test("comma-separated string[] renders one accessible control with associated guidance", () => {
+    const html = renderCreateForm(
+      oneField(
+        {
+          name: "tags",
+          label: "Tags",
+          type: "string[]",
+          required: true,
+          lifecycle: "active",
+        },
+        "comma_separated",
+      ),
+    );
+    expect(html).toContain('data-list-input-mode="comma_separated"');
+    expect(html).toContain('name="tags" aria-describedby="cap-probe-tags-guidance" required');
+    expect(html).toContain('id="cap-probe-tags-guidance">Separate values with commas.</p>');
+    expect(html).not.toContain("data-list-field-add");
+    expect(html).not.toContain("data-list-field-remove");
+  });
+
   test("uses the authored field label and ties it to the stable field-name control", () => {
     expect(form).toContain('<label class="field__label" for="cap-tasks-due_date">Due date</label>');
     const custom = renderCreateForm(
@@ -190,6 +224,7 @@ describe("create form — one control per pantry type", () => {
           },
         ],
       },
+      form: { list_inputs: [] },
     };
     const create = renderCreateForm(capability);
     expect(create).toContain("Entry");
@@ -473,6 +508,7 @@ describe("detail display — honors ui_intent.detail.shows (fields + order)", ()
           },
         ],
       },
+      form: { list_inputs: [] },
       detail: { shows: ["title", "retired_note"] },
     };
     const detail = renderDetailFields(capability, {

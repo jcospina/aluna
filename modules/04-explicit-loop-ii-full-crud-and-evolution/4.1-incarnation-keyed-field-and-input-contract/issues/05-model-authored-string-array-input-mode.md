@@ -1,6 +1,6 @@
 # Model-authored `string[]` form input mode
 
-Status: ready-for-agent
+Status: done
 
 Category: enhancement
 
@@ -71,33 +71,33 @@ ordered `string[]`.
 
 **Acceptance criteria:**
 
-- [ ] The strict spec accepts exactly `comma_separated | repeatable` and requires
+- [x] The strict spec accepts exactly `comma_separated | repeatable` and requires
       one mode entry for every active `string[]` in schema-field order; it rejects
       missing, duplicate, scalar, inactive, unknown-field, and unknown-mode entries
-- [ ] The Builder prompt teaches the semantic selection rule and pins both good
+- [x] The Builder prompt teaches the semantic selection rule and pins both good
       and bad examples; a prompt-built tags/genres capability can select
       `comma_separated`, while a quotes capability can select `repeatable`
-- [ ] `comma_separated` renders one accessible text control with visible or
+- [x] `comma_separated` renders one accessible text control with visible or
       programmatically associated comma-separation guidance; `repeatable` keeps
       the existing accessible Add another/Remove behavior
-- [ ] Comma-mode input such as `Drama, Historical fiction, Classic` reaches the
+- [x] Comma-mode input such as `Drama, Historical fiction, Classic` reaches the
       Handler as `['Drama', 'Historical fiction', 'Classic']`; surrounding
       whitespace and empty segments are discarded while order and duplicates
       remain
-- [ ] Repeatable input containing `Doe, Jane` or a quotation with commas reaches
+- [x] Repeatable input containing `Doe, Jane` or a quotation with commas reaches
       the Handler as one unchanged element; a comma is never split in this mode
-- [ ] Required blank/delimiter-only comma input fails through the existing
+- [x] Required blank/delimiter-only comma input fails through the existing
       structured required-field error; optional empty comma input stores `[]`
-- [ ] The Field lifecycle homepage demo shows both modes side by side and proves
+- [x] The Field lifecycle homepage demo shows both modes side by side and proves
       create → Handler → JSON storage → item/detail rendering through the real route
-- [ ] The form-intent projection cannot be dropped between registry, cached View,
+- [x] The form-intent projection cannot be dropped between registry, cached View,
       router, Gate, and preview/demo callers; deterministic tests cover every
       platform projection that constructs a renderable capability
-- [ ] The current DDL, JSON storage shape, generated Handler interface, item
+- [x] The current DDL, JSON storage shape, generated Handler interface, item
       renderer input, and behavioral meaning of `string[]` remain unchanged
-- [ ] `bun test`, `bun run typecheck`, `bun run lint`, `git diff --check`, and
+- [x] `bun test`, `bun run typecheck`, `bun run lint`, `git diff --check`, and
       local Markdown-link validation are clean
-- [ ] **Human sign-off:** both modes are exercised on the running homepage before
+- [x] **Human sign-off:** both modes are exercised on the running homepage before
       the issue closes
 
 **Out of scope:**
@@ -108,6 +108,45 @@ ordered `string[]`.
 - New list field types (`number[]`, `boolean[]`, date lists, or `file[]`)
 - Implementing Module 4.3 edit mode in this issue; that issue must consume this
   platform list-input contract when it lands
+
+## Implementation notes
+
+- The authored spec now carries strict `ui_intent.form.list_inputs` entries in
+  active `string[]` schema-field order. The closed mode registry and semantic
+  validation reject missing, duplicate, scalar, inactive, unknown, reordered, and
+  invented entries.
+- `src/list-input/` is the shared platform seam. Rendering and raw request
+  normalization resolve the same authored mode; `comma_separated` splits, trims,
+  flattens, and drops empty segments, while `repeatable` preserves each occurrence
+  exactly. Generated Handlers still receive only the canonical ordered array.
+- Renderable capability projections now require form intent at compile time. The
+  registry, cached View, router, Gate, previews, and demo all pass it explicitly,
+  so a dropped projection fails TypeScript or the list-input module's fail-closed
+  lookup rather than silently falling back.
+- The Builder prompt teaches positive atomic-value examples and comma-bearing
+  counterexamples. The Field lifecycle demo authors Tags as `comma_separated` and
+  Other names as `repeatable` through the existing real Handler, JSON storage,
+  item renderer, and detail modal.
+
+## Verification
+
+- Focused registry, list-input, wire-protocol, presentation, Builder, Gate,
+  storage, and demo tests: 114 pass, 0 fail.
+- `bun test` — 404 pass, 0 fail, 2 snapshots.
+- `bun run typecheck`.
+- `bun run lint`.
+- `git diff --check`.
+- Local Markdown-link validation.
+- `bun run reset` preserved `data/omni-crud.db` and cleared stale pre-contract
+  runtime rows; `bun run demo:field-lifecycle` installed
+  `capabilities/field_lifecycle_demo/89a80faf-de42-47f1-8e40-e9c6cb6affe3/v1/`.
+- Live browser verification on the existing `localhost:3030` server: Tags showed
+  one associated comma-guidance control; Other names retained Add another/Remove;
+  `fantasy, historical fiction, classic` stored/rendered as three ordered tags;
+  `Doe, Jane` rendered as one detail-list element; delimiter-only Tags kept the
+  form open with the structured required-field error and added no item.
+- Human sign-off confirmed on 2026-07-15 after exercising both modes on the
+  running homepage.
 
 ## Living demo
 

@@ -45,6 +45,7 @@ const PREVIEW_CAPABILITY: RenderableCapability = {
       { name: "tags", label: "Tags", type: "string[]", required: false, lifecycle: "active" },
     ],
   },
+  form: { list_inputs: [{ field: "tags", mode: "repeatable" }] },
 };
 
 /** One dev trigger + the record its detail template holds. */

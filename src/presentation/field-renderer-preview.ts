@@ -42,6 +42,7 @@ export const PREVIEW_CAPABILITY: RenderableCapability = {
       { name: "tags", label: "Tags", type: "string[]", required: false, lifecycle: "active" },
     ],
   },
+  form: { list_inputs: [{ field: "tags", mode: "comma_separated" }] },
 };
 
 /** A filled record — shows each type's detail formatting, including a multi-line value. */

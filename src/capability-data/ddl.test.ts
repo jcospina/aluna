@@ -50,6 +50,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: {
         direction: "A text-forward card that emphasizes the note text.",
         shows: ["title", "amount", "done", "logged_at"],
@@ -214,6 +215,12 @@ describe("capability table DDL mapper", () => {
               lifecycle: "active",
             },
           ],
+        },
+        ui_intent: {
+          form: { list_inputs: [{ field: "tags", mode: "repeatable" }] },
+          item: { direction: "A tag-forward note.", shows: ["tags"] },
+          collection: { layout: "feed" },
+          detail: { shows: ["tags"] },
         },
         behavioral_errors: [],
       });
