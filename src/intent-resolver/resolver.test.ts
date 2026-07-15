@@ -134,20 +134,29 @@ function insertRows(database: Database, rows: readonly CapabilityRow[]): void {
   }
 }
 
-describe("intent resolver classification", () => {
+function openIntentDatabase(): { dir: string; conns: PlatformDatabase } {
+  const dir = mkdtempSync(join(tmpdir(), "omni-crud-intent-"));
+  const conns = openDatabase(join(dir, "test.db"));
+  runMigrations(conns.readwrite);
+  return { dir, conns };
+}
+
+function closeIntentDatabase(dir: string, conns: PlatformDatabase): void {
+  conns.readwrite.close();
+  conns.readonly.close();
+  rmSync(dir, { recursive: true, force: true });
+}
+
+describe("intent resolver classification — schema and prompt assembly", () => {
   let dir: string;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-intent-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    ({ dir, conns } = openIntentDatabase());
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    closeIntentDatabase(dir, conns);
   });
 
   test("the schema speaks the full intent enum plus the reject bucket and keeps confirmations off in M2", () => {
@@ -228,6 +237,19 @@ describe("intent resolver classification", () => {
       "'let me store notes with images' is extend_capability",
     );
     expect(provider.calls[0]?.prompt).toContain("do not invent suffixed duplicate ids");
+  });
+});
+
+describe("intent resolver classification — narration and round-trip results", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = openIntentDatabase());
+  });
+
+  afterEach(() => {
+    closeIntentDatabase(dir, conns);
   });
 
   test("narrates the resolver stage in product voice before the provider round trip", async () => {

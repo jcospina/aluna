@@ -2,201 +2,30 @@
 // construction property, not a convention: once a tool is created for one spec,
 // its public surface has no table/capability argument, writes ride the injected
 // read-write connection, and reads ride the injected read-only connection.
+//
+// The oversized "capability data tool" group is split into sibling describes by
+// concern; the shared spec builders and database harness live in
+// `tool.test-support.ts`.
 
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
-import { openDatabase, type PlatformDatabase } from "../db.ts";
-import {
-  BEHAVIORAL_ERROR_MARKERS,
-  type CapabilitySpec,
-  MISSING_REQUIRED_FIELDS_ERROR_CODE,
-} from "../registry/index.ts";
+import { MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/index.ts";
 import {
   applyCapabilityTableDdl,
   createCapabilityDataPorts,
   createCapabilityQueryPort,
   MissingRequiredFieldsError,
-  selectCapabilityRows,
 } from "./index.ts";
-
-function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
-  const { mutation, query } = createCapabilityDataPorts(spec, databases);
-  return {
-    insert: mutation.create,
-    select: () => selectCapabilityRows(spec, query),
-  };
-}
-
-function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
-  return {
-    id: "notes",
-    label: "Notes",
-    schema: {
-      fields: [
-        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
-        { name: "pinned", label: "Pinned", type: "boolean", required: false, lifecycle: "active" },
-      ],
-    },
-    ui_intent: {
-      form: { list_inputs: [] },
-      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
-      collection: { layout: "feed" },
-      detail: { shows: ["text"] },
-    },
-    behavior: "Text is required. Newest notes appear first.",
-    behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["text"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-    ],
-    tools: ["create", "read"],
-    read_dependencies: { create: [], read: [] },
-    prompt_context: "Stores the user's text notes.",
-    ...overrides,
-  };
-}
-
-function recipesSpec(): CapabilitySpec {
-  return notesSpec({
-    id: "recipes",
-    label: "Recipes",
-    schema: {
-      fields: [
-        { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
-      ],
-    },
-    ui_intent: {
-      form: { list_inputs: [] },
-      item: {
-        direction: "A text-forward card that emphasizes the recipe title.",
-        shows: ["title"],
-      },
-      collection: { layout: "feed" },
-      detail: { shows: ["title"] },
-    },
-    behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["title"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-    ],
-    prompt_context: "Stores the user's recipes.",
-  });
-}
-
-function requirednessSpec(): CapabilitySpec {
-  const fields: CapabilitySpec["schema"]["fields"] = [
-    { name: "title", label: "Entry", type: "string", required: true, lifecycle: "active" },
-    { name: "count", label: "Count", type: "number", required: true, lifecycle: "active" },
-    { name: "enabled", label: "Enabled", type: "boolean", required: true, lifecycle: "active" },
-    { name: "due_on", label: "Due on", type: "date", required: true, lifecycle: "active" },
-    {
-      name: "happens_at",
-      label: "Happens at",
-      type: "datetime",
-      required: true,
-      lifecycle: "active",
-    },
-    { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
-    {
-      name: "retired_note",
-      label: "Retired note",
-      type: "string",
-      required: true,
-      lifecycle: "inactive",
-    },
-  ];
-  const required = ["title", "count", "enabled", "due_on", "happens_at"];
-  return notesSpec({
-    schema: { fields },
-    ui_intent: {
-      form: { list_inputs: [] },
-      item: { direction: "Show the entry and its count.", shows: ["title", "count"] },
-      collection: { layout: "feed" },
-      detail: { shows: ["title", "count", "enabled", "due_on", "happens_at", "note"] },
-    },
-    behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: required,
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-    ],
-  });
-}
-
-function stringListSpec(): CapabilitySpec {
-  return notesSpec({
-    schema: {
-      fields: [
-        { name: "tags", label: "Tags", type: "string[]", required: true, lifecycle: "active" },
-        {
-          name: "aliases",
-          label: "Aliases",
-          type: "string[]",
-          required: false,
-          lifecycle: "active",
-        },
-      ],
-    },
-    ui_intent: {
-      form: {
-        list_inputs: [
-          { field: "tags", mode: "repeatable" },
-          { field: "aliases", mode: "repeatable" },
-        ],
-      },
-      item: { direction: "Show tags in their submitted order.", shows: ["tags"] },
-      collection: { layout: "feed" },
-      detail: { shows: ["tags", "aliases"] },
-    },
-    behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["tags"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-    ],
-  });
-}
-
-function withFileDatabase(run: (databases: PlatformDatabase) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), "omni-crud-tool-"));
-  const databases = openDatabase(join(dir, "test.db"));
-
-  try {
-    run(databases);
-  } finally {
-    closeQuietly(databases.readwrite);
-    closeQuietly(databases.readonly);
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-function closeQuietly(database: Database): void {
-  try {
-    database.close();
-  } catch {
-    // Some tests deliberately close one side early to prove which connection a
-    // tool method uses.
-  }
-}
+import {
+  createCapabilityDataTool,
+  notesSpec,
+  recipesSpec,
+  requirednessSpec,
+  stringListSpec,
+  withFileDatabase,
+} from "./tool.test-support.ts";
 
 describe("split capability data ports", () => {
   test("mutation authority is capability-bound while the query port can join capabilities", () => {
@@ -301,7 +130,7 @@ describe("split capability data ports", () => {
   });
 });
 
-describe("capability data tool", () => {
+describe("capability data tool — scoped surface & connection routing", () => {
   test("exposes only capability-scoped insert and select methods", () => {
     withFileDatabase((databases) => {
       const spec = notesSpec();
@@ -362,6 +191,29 @@ describe("capability data tool", () => {
     });
   });
 
+  test("the same round-trip works against a shared in-memory scratch database pair", () => {
+    const name = randomUUID().replaceAll("-", "_");
+    const uri = `file:${name}?mode=memory&cache=shared`;
+    const readwrite = new Database(uri, { create: true, readwrite: true });
+    const readonly = new Database(uri, { readonly: true });
+    const databases = { readwrite, readonly };
+
+    try {
+      const spec = notesSpec();
+      applyCapabilityTableDdl(spec, readwrite);
+      const tool = createCapabilityDataTool(spec, databases);
+
+      tool.insert({ text: "Scratch note" });
+
+      expect(tool.select()).toMatchObject([{ text: "Scratch note" }]);
+    } finally {
+      readonly.close();
+      readwrite.close();
+    }
+  });
+});
+
+describe("capability data tool — platform columns & rejected values", () => {
   test("insert then select exposes only handler-safe platform columns and active fields", () => {
     withFileDatabase((databases) => {
       const spec = notesSpec();
@@ -401,27 +253,25 @@ describe("capability data tool", () => {
     });
   });
 
-  test("the same round-trip works against a shared in-memory scratch database pair", () => {
-    const name = randomUUID().replaceAll("-", "_");
-    const uri = `file:${name}?mode=memory&cache=shared`;
-    const readwrite = new Database(uri, { create: true, readwrite: true });
-    const readonly = new Database(uri, { readonly: true });
-    const databases = { readwrite, readonly };
-
-    try {
+  test("platform-populated columns and invalid field values are rejected before SQLite sees them", () => {
+    withFileDatabase((databases) => {
       const spec = notesSpec();
-      applyCapabilityTableDdl(spec, readwrite);
+      applyCapabilityTableDdl(spec, databases.readwrite);
       const tool = createCapabilityDataTool(spec, databases);
 
-      tool.insert({ text: "Scratch note" });
-
-      expect(tool.select()).toMatchObject([{ text: "Scratch note" }]);
-    } finally {
-      readonly.close();
-      readwrite.close();
-    }
+      expect(() => tool.insert({ id: "custom", text: "Nope" })).toThrow(/platform-populated/);
+      expect(() => tool.insert({ text: "Nope", pinned: "yes" })).toThrow(
+        /Field "pinned" must be a boolean/,
+      );
+      expect(() => tool.insert({ text: "Nope", extra: { bad: undefined } })).toThrow(
+        /platform-populated/,
+      );
+      expect(tool.select()).toEqual([]);
+    });
   });
+});
 
+describe("capability data tool — requiredness", () => {
   test("required field violations surface clearly and write nothing", () => {
     withFileDatabase((databases) => {
       const spec = notesSpec();
@@ -480,7 +330,9 @@ describe("capability data tool", () => {
       expect(tool.insert({ ...valid, enabled: true })).toMatchObject({ enabled: true });
     });
   });
+});
 
+describe("capability data tool — temporal & string-list values", () => {
   test("date and datetime validation rejects impossible calendar values", () => {
     withFileDatabase((databases) => {
       const spec = requirednessSpec();
@@ -558,7 +410,9 @@ describe("capability data tool", () => {
       ]);
     });
   });
+});
 
+describe("capability data tool — inactive fields & historical nulls", () => {
   test("inactive fields keep physical values but stay outside mutations and runtime rows", () => {
     withFileDatabase((databases) => {
       const spec = requirednessSpec();
@@ -609,23 +463,6 @@ describe("capability data tool", () => {
           happens_at: null,
         },
       ]);
-    });
-  });
-
-  test("platform-populated columns and invalid field values are rejected before SQLite sees them", () => {
-    withFileDatabase((databases) => {
-      const spec = notesSpec();
-      applyCapabilityTableDdl(spec, databases.readwrite);
-      const tool = createCapabilityDataTool(spec, databases);
-
-      expect(() => tool.insert({ id: "custom", text: "Nope" })).toThrow(/platform-populated/);
-      expect(() => tool.insert({ text: "Nope", pinned: "yes" })).toThrow(
-        /Field "pinned" must be a boolean/,
-      );
-      expect(() => tool.insert({ text: "Nope", extra: { bad: undefined } })).toThrow(
-        /platform-populated/,
-      );
-      expect(tool.select()).toEqual([]);
     });
   });
 });

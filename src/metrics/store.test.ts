@@ -70,20 +70,29 @@ function buildMetrics(overrides: Partial<GenerationMetrics> = {}): GenerationMet
   };
 }
 
-describe("generation-metrics store", () => {
+function openMetricsDatabase(): { dir: string; conns: PlatformDatabase } {
+  const dir = mkdtempSync(join(tmpdir(), "omni-crud-metrics-"));
+  const conns = openDatabase(join(dir, "test.db"));
+  runMigrations(conns.readwrite);
+  return { dir, conns };
+}
+
+function closeMetricsDatabase(dir: string, conns: PlatformDatabase): void {
+  conns.readwrite.close();
+  conns.readonly.close();
+  rmSync(dir, { recursive: true, force: true });
+}
+
+describe("generation-metrics store — round-trips and partial writes", () => {
   let dir: string;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-metrics-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    ({ dir, conns } = openMetricsDatabase());
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    closeMetricsDatabase(dir, conns);
   });
 
   test("a complete build row round-trips deep-equal through the read-only connection", () => {
@@ -167,6 +176,19 @@ describe("generation-metrics store", () => {
       { rung: "smoke", status: "failed", durationMs: 6, error: "create handler threw" },
     ]);
   });
+});
+
+describe("generation-metrics store — failed builds and token accounting", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = openMetricsDatabase());
+  });
+
+  afterEach(() => {
+    closeMetricsDatabase(dir, conns);
+  });
 
   test("a build that fails before the gate writes everything up to the failing stage", () => {
     // Unit generation exhausted the bounded fix loop: spec + migration + code-gen are
@@ -249,6 +271,19 @@ describe("generation-metrics store", () => {
       outputTokens: undefined,
       totalTokens: undefined,
     });
+  });
+});
+
+describe("generation-metrics store — reads, listing, and invariants", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = openMetricsDatabase());
+  });
+
+  afterEach(() => {
+    closeMetricsDatabase(dir, conns);
   });
 
   test("get-by-id returns null for an unknown generation", () => {

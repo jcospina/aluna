@@ -109,7 +109,7 @@ function capTableExists(database: Database, tableName: string): boolean {
   );
 }
 
-describe("commitCapability", () => {
+describe("commitCapability — commit and pre-registration guards", () => {
   let dir: string;
   let conns: PlatformDatabase;
 
@@ -211,6 +211,23 @@ describe("commitCapability", () => {
     ).toThrow();
     expect(existsSync(root)).toBe(false);
     expect(getCapability("notes", conns.readonly)).toBeNull();
+  });
+});
+
+describe("commitCapability — transactional integrity and duplicate registration", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "omni-crud-commit-"));
+    conns = openDatabase(join(dir, "test.db"));
+    runMigrations(conns.readwrite);
+  });
+
+  afterEach(() => {
+    conns.readwrite.close();
+    conns.readonly.close();
+    rmSync(dir, { recursive: true, force: true });
   });
 
   test("a rollback after commit leaves no row and no table, orphaning the written files for GC", async () => {

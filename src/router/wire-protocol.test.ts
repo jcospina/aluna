@@ -102,7 +102,7 @@ function post(entries: readonly [string, string][]): Request {
   });
 }
 
-describe("reserved capability wire protocol", () => {
+describe("reserved capability wire protocol — input parsing", () => {
   test("strips markers and returns scalar values plus the validated submitted-field set", async () => {
     const parsed = await parseCapabilityRequest(
       post([
@@ -184,7 +184,9 @@ describe("reserved capability wire protocol", () => {
     );
     expect(repeatable.input.values.tags).toEqual(["Doe, Jane"]);
   });
+});
 
+describe("reserved capability wire protocol — marker and record-target validation", () => {
   test("rejects duplicate scalar input and invalid presence markers deterministically", async () => {
     await expect(
       parseCapabilityRequest(

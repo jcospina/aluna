@@ -161,7 +161,7 @@ const BAD_ITEM_RENDERER = `export default function renderItem(record: Record<str
   return record.text;
 }`;
 
-describe("unit generation with bounded fix loop", () => {
+describe("unit generation with bounded fix loop — generation and fix-loop regeneration", () => {
   test("generates one item renderer + create/read handlers, validates contracts, records metrics", async () => {
     const provider = makeQueuedProvider([ITEM_RENDERER, CREATE_HANDLER, READ_HANDLER]);
 
@@ -243,7 +243,9 @@ describe("unit generation with bounded fix loop", () => {
     expect(provider.calls[2]?.prompt).toContain("Previous attempt failed");
     expect(provider.calls[2]?.prompt).toContain("Type 'number' is not assignable");
   });
+});
 
+describe("unit generation with bounded fix loop — attempt-cap exhaustion and static checks", () => {
   test("exhausts the default two-attempt cap on the item renderer and fails cleanly", async () => {
     await expect(
       generateCapabilityUnits({
@@ -325,7 +327,9 @@ describe("unit generation with bounded fix loop", () => {
       checkGeneratedUnit(notesSpec(), { kind: "item-renderer", name: "item" }, allowedAlias),
     ).toBeUndefined();
   });
+});
 
+describe("unit generation with bounded fix loop — item-renderer prompt", () => {
   test("builds the item-renderer prompt knowing the collection layout and design direction", () => {
     const feedPrompt = buildUnitPrompt(notesSpec(), { kind: "item-renderer", name: "item" });
     expect(feedPrompt).toContain("Generate the item.ts item renderer");
@@ -410,7 +414,9 @@ describe("unit generation with bounded fix loop", () => {
     expect(createPrompt).not.toContain("retired_note");
     expect(createPrompt).not.toContain("Retired note");
   });
+});
 
+describe("unit generation with bounded fix loop — read, few-shot, and present-adapter prompts", () => {
   test("the read handler prompt defers the empty state to the platform, never emitting its own", () => {
     // Regression: the read prompt used to tell the model to "include a helpful empty
     // state when there are no rows". That contradicts ADR-0005 §1 + ARCH §"Platform
@@ -472,7 +478,9 @@ describe("unit generation with bounded fix loop", () => {
       "Destructure only `{ query, present }`: `export default async function read({ query, present }: CapabilityContext): Promise<string>`.",
     );
   });
+});
 
+describe("unit generation with bounded fix loop — retry, strict-index, and validation-marker prompts", () => {
   test("builds retry prompts from the unit contract and prior failure", () => {
     const prompt = buildUnitPrompt(
       notesSpec(),
