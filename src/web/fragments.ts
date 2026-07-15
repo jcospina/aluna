@@ -8,8 +8,6 @@ import { renderDetailModal } from "../presentation/detail-modal.ts";
 import { type CapabilityRow, canonicalCapabilityLabel } from "../registry/index.ts";
 import { escapeHtml } from "./html.ts";
 
-/** The shell region a busy-notice retargets, via htmx `HX-Retarget` (see `/prompt`). */
-export const PROMPT_NOTICE_TARGET = "#prompt-notice";
 const CAPABILITY_TOOLBAR_TARGET = "#capability-toolbar";
 
 // The shell's toolbar placeholder comment (public/index.html) — where the on-load
@@ -20,9 +18,6 @@ const SHELL_TOOLBAR_PLACEHOLDER = "        <!-- Capability entries render here l
 // server-rendered shell mounts the one shared read-only detail modal instance (epic
 // 3.2/04), so a clicked capability item (epic 3.3/02) always has the modal to open.
 const SHELL_DETAIL_MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here. -->";
-
-const BUSY_NOTICE =
-  "I'm already putting something together. Give me a moment and I'll be ready for the next one.";
 
 const PREVIEW_TARGETS = [
   ["spec-preview", "spec-build-preview"],
@@ -72,15 +67,6 @@ export function renderBuildSubscriber(jobId: string): string {
       ([tag, target]) => `<${tag} id="${target}" hx-swap-oob="innerHTML"></${tag}>`,
     ),
   ].join("\n");
-}
-
-/**
- * The notice returned when `/prompt` is rejected because a build is already in
- * flight. Retargeted to {@link PROMPT_NOTICE_TARGET} so it lands in the prompt-bar
- * status region rather than the content area.
- */
-export function renderBusyNotice(): string {
-  return `<p id="prompt-notice" role="status" aria-live="polite">${escapeHtml(BUSY_NOTICE)}</p>`;
 }
 
 /**

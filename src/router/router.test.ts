@@ -19,6 +19,7 @@ import { createApp } from "../app.ts";
 import { applyCapabilityTableDdl, createCapabilityDataTool } from "../capability-data/index.ts";
 import { openDatabase, type PlatformDatabase } from "../db.ts";
 import { runMigrations } from "../migrations.ts";
+import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { CapabilityRow, CapabilitySpec } from "../registry/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -258,6 +259,54 @@ describe("deterministic capability router", () => {
     const readBody = await read.text();
     expect(readBody).toContain("Buy milk");
     expect(readBody).toContain("pinned");
+  });
+
+  test("a record create cannot join or be rolled back with an active build transaction", async () => {
+    install(conns, notesRow());
+    const mutationCoordinator = createMutationCoordinator();
+    const reservation = mutationCoordinator.reserveBuild();
+    const buildLease = await mutationCoordinator.acquireBuild(reservation);
+    const app = createApp({
+      capabilityRouter: { databases: conns },
+      mutationCoordinator,
+    });
+
+    conns.readwrite.exec("BEGIN IMMEDIATE");
+    conns.readwrite
+      .query(
+        "INSERT INTO cap_notes (id, created_at, extra, text, pinned) VALUES (?, ?, '{}', ?, ?)",
+      )
+      .run("build-row", "2026-07-15T00:00:00.000Z", "Rolled-back build work", 0);
+    const response = await app.request(
+      "/capability/notes/create",
+      formBody({ text: "Must not join the build", pinned: "true" }),
+    );
+    conns.readwrite.exec("ROLLBACK");
+
+    expect(response.status).toBe(422);
+    expect(response.headers.get("HX-Retarget")).toBe("#notes-create-error");
+    expect(await response.text()).toMatch(/still putting something together/i);
+    expect(createCapabilityDataTool(notesSpec(), conns).select()).toEqual([]);
+    expect(mutationCoordinator.release(buildLease)).toBe(true);
+  });
+
+  test("reads remain concurrent during an active build lease", async () => {
+    install(conns, notesRow());
+    createCapabilityDataTool(notesSpec(), conns).insert({ text: "Still readable", pinned: false });
+    const mutationCoordinator = createMutationCoordinator();
+    const reservation = mutationCoordinator.reserveBuild();
+    const buildLease = await mutationCoordinator.acquireBuild(reservation);
+    const app = createApp({
+      capabilityRouter: { databases: conns },
+      mutationCoordinator,
+    });
+
+    const response = await app.request("/capability/notes/read");
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("Still readable");
+    expect(mutationCoordinator.snapshot().activeLease?.leaseId).toBe(buildLease.leaseId);
+    expect(mutationCoordinator.release(buildLease)).toBe(true);
   });
 
   test("platform requiredness returns warm structured markers and does not reset a failed create", async () => {

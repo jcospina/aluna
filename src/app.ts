@@ -19,9 +19,17 @@ import { db, dbReadonly, type PlatformDatabase } from "./db.ts";
 import { handleStreamError, streamGreeting } from "./greeting.ts";
 import { writeGenerationMetrics } from "./metrics/index.ts";
 import {
+  createMutationCoordinator,
+  type MutationCoordinator,
+} from "./mutation-coordinator/index.ts";
+import {
+  abortableDelay,
+  DEFAULT_MUTATION_PREVIEW_HOLD_MS,
+  renderMutationCoordinatorPreviewPage,
+} from "./mutation-coordinator/preview.ts";
+import {
   createPromptBuildPipeline,
   DEMO_SPEC_PROMPT,
-  handleSpecBuildError,
   type RecordMetrics,
   streamSpecBuildDemo,
 } from "./pipeline/index.ts";
@@ -32,13 +40,7 @@ import { renderListContainerPreviewPage } from "./presentation/list-container-pr
 import { createProvider, type Provider } from "./provider/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "./sse/index.ts";
-import {
-  PROMPT_NOTICE_TARGET,
-  readPrompt,
-  renderBuildSubscriber,
-  renderBusyNotice,
-  renderRehydratedShellPage,
-} from "./web/index.ts";
+import { readPrompt, renderBuildSubscriber, renderRehydratedShellPage } from "./web/index.ts";
 
 /**
  * Dependencies the app is built with. Everything is injected (defaulting to the real
@@ -88,6 +90,10 @@ export interface AppDeps {
    * committed build's artifacts never land in the repo tree.
    */
   readonly artifactsRoot?: string;
+  /** Atomic admission shared by builds, record routes, and platform writes. */
+  readonly mutationCoordinator?: MutationCoordinator;
+  /** Test-only override for the deliberately slow mutation preview lease. */
+  readonly mutationPreviewHoldMs?: number;
 }
 
 /**
@@ -101,6 +107,8 @@ export function createApp(deps: AppDeps = {}): Hono {
     deps.recordMetrics ?? ((metrics) => void writeGenerationMetrics(metrics, db));
   const buildDatabases = deps.buildDatabases ?? { readwrite: db, readonly: dbReadonly };
   const artifactsRoot = deps.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
+  const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
+  const mutationPreviewHoldMs = deps.mutationPreviewHoldMs ?? DEFAULT_MUTATION_PREVIEW_HOLD_MS;
   const buildJobs =
     deps.buildJobs ??
     createBuildJobQueue({
@@ -109,6 +117,7 @@ export function createApp(deps: AppDeps = {}): Hono {
         recordMetrics,
         buildDatabases,
         artifactsRoot,
+        mutationCoordinator,
       }),
     });
   // The capability router and the on-load shell rehydration read the same registry:
@@ -169,26 +178,26 @@ export function createApp(deps: AppDeps = {}): Hono {
       const transport = sseTransport(stream);
       await withSseHeartbeat(transport, sseHeartbeatMs, async () => {
         let aborted = false;
+        const abortController = new AbortController();
         stream.onAbort(() => {
           aborted = true;
+          abortController.abort();
         });
         const isAborted = () => aborted;
         const typed = (c.req.query("prompt") ?? "").trim();
         const prompt = typed.length > 0 ? typed : DEMO_SPEC_PROMPT;
 
-        try {
-          await streamSpecBuildDemo(
-            transport.send,
-            isAborted,
-            getProvider(),
-            prompt,
-            recordMetrics,
-            buildDatabases,
-            artifactsRoot,
-          );
-        } catch (err) {
-          await handleSpecBuildError(transport.send, isAborted, err);
-        }
+        await streamSpecBuildDemo(
+          transport.send,
+          isAborted,
+          getProvider,
+          prompt,
+          recordMetrics,
+          buildDatabases,
+          artifactsRoot,
+          mutationCoordinator,
+          abortController.signal,
+        );
       });
     }),
   );
@@ -254,21 +263,38 @@ export function createApp(deps: AppDeps = {}): Hono {
       }),
   );
 
+  app.get(
+    "/demo/mutation-coordinator",
+    () =>
+      new Response(renderMutationCoordinatorPreviewPage(mutationPreviewHoldMs), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }),
+  );
+
+  app.get("/demo/mutation-coordinator/state", (c) => c.json(mutationCoordinator.snapshot()));
+
+  app.post("/demo/mutation-coordinator/slow-build", async (c) => {
+    const signal = c.req.raw.signal;
+    const reservation = mutationCoordinator.reserveBuild();
+    try {
+      await mutationCoordinator.withBuildLease(
+        reservation,
+        () => abortableDelay(mutationPreviewHoldMs, signal),
+        { signal },
+      );
+      return c.json({ status: "released" });
+    } catch {
+      return c.json({ status: "cancelled" }, 409);
+    }
+  });
+
   // Prompt submission enters the build-job lifecycle (Epic 2.5). The POST does
-  // only synchronous queue admission and returns the per-build SSE subscriber
+  // only synchronous ephemeral job creation and returns the per-build SSE subscriber
   // fragment immediately; intent resolution and later builder stages run from
   // `/build/:id/stream`, never on the POST path.
   app.post("/prompt", async (c) => {
     const prompt = await readPrompt(c);
     const result = buildJobs.create(prompt);
-
-    if (!result.accepted) {
-      return c.html(renderBusyNotice(), 200, {
-        "cache-control": "no-store",
-        "HX-Reswap": "innerHTML",
-        "HX-Retarget": PROMPT_NOTICE_TARGET,
-      });
-    }
 
     return c.html(renderBuildSubscriber(result.job.id), 200, {
       "cache-control": "no-store",
@@ -284,11 +310,18 @@ export function createApp(deps: AppDeps = {}): Hono {
       const transport = sseTransport(stream);
       await withSseHeartbeat(transport, sseHeartbeatMs, async () => {
         let aborted = false;
+        const abortController = new AbortController();
         stream.onAbort(() => {
           aborted = true;
+          abortController.abort();
         });
 
-        await buildJobs.stream(c.req.param("id"), transport.send, () => aborted);
+        await buildJobs.stream(
+          c.req.param("id"),
+          transport.send,
+          () => aborted,
+          abortController.signal,
+        );
       });
     }),
   );
@@ -299,7 +332,7 @@ export function createApp(deps: AppDeps = {}): Hono {
   // the scoped context, and wraps the returned fragment — routing is never an AI
   // concern. Registered as its own subsystem (src/router) so this file stays the
   // thin wiring sheet.
-  registerCapabilityRoutes(app, capabilityRouter);
+  registerCapabilityRoutes(app, { ...capabilityRouter, mutationCoordinator });
 
   // Static assets live in ./public and are served under the /static/* prefix
   // (e.g. the shell's CSS/JS will be referenced as /static/<file>). A dedicated

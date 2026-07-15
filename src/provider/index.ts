@@ -6,6 +6,7 @@
 // provider (the AI SDK spine) behind this same surface; callers see only the
 // contract, so the spine stays swappable.
 
+export { abortableProvider, ProviderAbortedError } from "./abort.ts";
 export {
   API_KEY_ENV_VAR,
   BASE_URL_ENV_VAR,

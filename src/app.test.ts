@@ -21,6 +21,7 @@ import { openDatabase, type PlatformDatabase } from "./db.ts";
 import type { IntentClassification } from "./intent-resolver/index.ts";
 import type { GenerationMetrics } from "./metrics/index.ts";
 import { runMigrations } from "./migrations.ts";
+import { createMutationCoordinator } from "./mutation-coordinator/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "./provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -256,21 +257,22 @@ describe("GET / (shell)", () => {
       appScript,
     )(documentStub, windowStub, () => undefined, class InputStub {});
 
-    const detail = {
-      xhr: {
-        status: 422,
-        responseText:
-          '<p data-role="error" data-error-code="missing_required_fields">Still needed</p>',
-      },
-      shouldSwap: false,
-      isError: true,
-      successful: false,
-    };
-    listeners.get("htmx:beforeSwap")?.({ detail });
+    for (const code of ["missing_required_fields", "mutation_busy"]) {
+      const detail = {
+        xhr: {
+          status: 422,
+          responseText: `<p data-role="error" data-error-code="${code}">Try again</p>`,
+        },
+        shouldSwap: false,
+        isError: true,
+        successful: false,
+      };
+      listeners.get("htmx:beforeSwap")?.({ detail });
 
-    expect(detail.shouldSwap).toBe(true);
-    expect(detail.isError).toBe(true);
-    expect(detail.successful).toBe(false);
+      expect(detail.shouldSwap).toBe(true);
+      expect(detail.isError).toBe(true);
+      expect(detail.successful).toBe(false);
+    }
   });
 
   test("clears and refocuses the prompt when the build stream closes", () => {
@@ -458,6 +460,63 @@ describe("GET /demo/few-shot-gallery (few-shot gallery, epic 3.5)", () => {
     expect(html).toContain("Chosen collection layout for this capability: &quot;grid&quot;");
     expect(html).toContain("style=&quot;grid-template-columns");
     expect(html).toContain("var(--border-thin) solid var(--color-border)");
+  });
+});
+
+describe("GET /demo/mutation-coordinator (Module 4.2 admission preview)", () => {
+  test("shows live active-lease and FIFO-queue regions with second-tab instructions", async () => {
+    const app = createApp();
+    const response = await app.request("/demo/mutation-coordinator");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("One owner on the write path");
+    expect(html).toContain('id="active-lease"');
+    expect(html).toContain('id="queue-list"');
+    expect(html).toContain("/demo/mutation-coordinator/state");
+    expect(html).toContain("/demo/mutation-coordinator/slow-build");
+    expect(html).toContain("/capability/field_lifecycle_demo");
+  });
+
+  test("the deliberately slow build is queued and leased by the shared coordinator", async () => {
+    const mutationCoordinator = createMutationCoordinator();
+    const recordLease = mutationCoordinator.tryAcquireRecordWrite();
+    expect(recordLease).toBeDefined();
+    const app = createApp({
+      mutationCoordinator,
+      mutationPreviewHoldMs: 20,
+    });
+
+    const slowBuildResponse = app.request("/demo/mutation-coordinator/slow-build", {
+      method: "POST",
+    });
+    await wait(0);
+    expect(mutationCoordinator.snapshot().queuedTickets).toMatchObject([{ kind: "build" }]);
+
+    expect(recordLease && mutationCoordinator.release(recordLease)).toBe(true);
+    await wait(0);
+    expect(mutationCoordinator.snapshot().activeLease?.kind).toBe("build");
+    expect((await slowBuildResponse).status).toBe(200);
+    expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
+  });
+
+  test("the legacy spec-build demo cannot bypass the shared coordinator", async () => {
+    const mutationCoordinator = createMutationCoordinator();
+    const recordLease = mutationCoordinator.tryAcquireRecordWrite();
+    expect(recordLease).toBeDefined();
+    const app = createApp({
+      mutationCoordinator,
+      getProvider: throwingProvider("preview stop"),
+    });
+
+    const response = await app.request("/demo/spec-build?prompt=track%20notes");
+    const payload = readSse(response);
+    await wait(0);
+    expect(mutationCoordinator.snapshot().queuedTickets).toMatchObject([{ kind: "build" }]);
+
+    expect(recordLease && mutationCoordinator.release(recordLease)).toBe(true);
+    expect(await payload).toContain("event: done");
+    expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
   });
 });
 
@@ -1597,6 +1656,94 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(existsSync(resolve(committed?.artifacts_path ?? "", "create.ts"))).toBe(true);
   });
 
+  test("the production resolved-build route waits on the injected shared coordinator", async () => {
+    const mutationCoordinator = createMutationCoordinator();
+    const recordLease = mutationCoordinator.tryAcquireRecordWrite();
+    expect(recordLease).toBeDefined();
+    const { provider } = makePromptBuildProvider(newCapabilityIntent);
+    const { recordMetrics } = makeMetricsRecorder();
+    const app = createApp({
+      getProvider: () => provider,
+      recordMetrics,
+      buildDatabases: conns,
+      artifactsRoot,
+      capabilityRouter: { databases: conns },
+      mutationCoordinator,
+    });
+
+    const jobId = buildJobIdFromSubscriber(
+      await responseText(await postPrompt(app, "track my notes")),
+    );
+    const payload = readSse(await app.request(`/build/${jobId}/stream`));
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      if (mutationCoordinator.snapshot().queuedTickets.some((ticket) => ticket.kind === "build")) {
+        break;
+      }
+      await wait(1);
+    }
+
+    expect(mutationCoordinator.snapshot()).toMatchObject({
+      queuedTickets: [{ kind: "build" }],
+      activeLease: { kind: "record" },
+    });
+    expect(recordLease && mutationCoordinator.release(recordLease)).toBe(true);
+    expect(collectSseEvents(await payload).at(-1)).toMatchObject({ event: "done", data: "ok" });
+    expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
+  });
+
+  test("a failed production build presents one terminal error before releasing ownership", async () => {
+    const mutationCoordinator = createMutationCoordinator();
+    const { provider } = makePromptBuildProvider(newCapabilityIntent, {});
+    const { rows, recordMetrics } = makeMetricsRecorder();
+    const app = createApp({
+      getProvider: () => provider,
+      recordMetrics,
+      buildDatabases: conns,
+      artifactsRoot,
+      capabilityRouter: { databases: conns },
+      mutationCoordinator,
+    });
+    const jobId = buildJobIdFromSubscriber(
+      await responseText(await postPrompt(app, "track my notes")),
+    );
+
+    const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
+
+    expect(events.filter((event) => event.event === "done")).toEqual([
+      expect.objectContaining({ data: "error" }),
+    ]);
+    expect(events.filter((event) => event.event === "narration").at(-1)?.data).toMatch(
+      /mind trying again/i,
+    );
+    expect(rows[0]?.outcome).toBe("failure");
+    expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
+  });
+
+  test("a failed metrics write cannot move failure presentation outside the lease", async () => {
+    const mutationCoordinator = createMutationCoordinator();
+    const { provider } = makePromptBuildProvider(newCapabilityIntent, {});
+    const app = createApp({
+      getProvider: () => provider,
+      recordMetrics: () => {
+        throw new Error("metrics unavailable");
+      },
+      buildDatabases: conns,
+      artifactsRoot,
+      capabilityRouter: { databases: conns },
+      mutationCoordinator,
+    });
+    const jobId = buildJobIdFromSubscriber(
+      await responseText(await postPrompt(app, "track my notes")),
+    );
+
+    const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
+
+    expect(events.filter((event) => event.event === "done")).toEqual([
+      expect.objectContaining({ data: "error" }),
+    ]);
+    expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
+  });
+
   test("non-new-capability intents stream a warm deflection, write metrics, and build nothing", async () => {
     const dataQueryIntent: IntentClassification = {
       type: "data_query",
@@ -1780,6 +1927,24 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 });
 
 describe("POST /prompt and GET /build/:id/stream (build jobs)", () => {
+  test("an abandoned prompt job owns no mutation state", async () => {
+    let providerCalls = 0;
+    const mutationCoordinator = createMutationCoordinator();
+    const app = createApp({
+      mutationCoordinator,
+      getProvider: () => {
+        providerCalls += 1;
+        return makeFakeProvider("unused", "unused");
+      },
+    });
+
+    const response = await postPrompt(app, "track notes");
+
+    expect(response.status).toBe(200);
+    expect(providerCalls).toBe(0);
+    expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
+  });
+
   test("POST returns the subscriber fragment immediately without touching the provider", async () => {
     let providerCalls = 0;
     const buildJobs = createBuildJobQueue({ createId: createIdSequence(["job-one"]) });
@@ -1864,7 +2029,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs)", () => {
     expect(events.at(-1)).toEqual({ id: "2", event: "done", data: "ok" });
   });
 
-  test("a second prompt during an active job gets a transient busy notice and does not disturb the stream", async () => {
+  test("prompt jobs no longer use a check-then-act busy flag", async () => {
     let providerCalls = 0;
     const started = createDeferred();
     const unblock = createDeferred();
@@ -1890,15 +2055,12 @@ describe("POST /prompt and GET /build/:id/stream (build jobs)", () => {
     const streamPayload = readSse(await app.request("/build/job-active/stream"));
     await started.promise;
 
-    const busyRes = await postPrompt(app, "track recipes");
-    const busyFragment = await responseText(busyRes);
+    const secondRes = await postPrompt(app, "track recipes");
+    const secondFragment = await responseText(secondRes);
 
-    expect(busyRes.status).toBe(200);
-    expect(busyRes.headers.get("HX-Retarget")).toBe("#prompt-notice");
-    expect(busyRes.headers.get("HX-Reswap")).toBe("innerHTML");
-    expect(busyFragment).toContain('id="prompt-notice"');
-    expect(busyFragment).toContain("Give me a moment");
-    expect(busyFragment).not.toContain("job-after");
+    expect(secondRes.status).toBe(200);
+    expect(secondFragment).toContain('data-build-job-id="job-after"');
+    expect(secondFragment).toContain('sse-connect="/build/job-after/stream"');
     expect(providerCalls).toBe(0);
 
     unblock.resolve();
@@ -1908,9 +2070,10 @@ describe("POST /prompt and GET /build/:id/stream (build jobs)", () => {
     expect(streamEvents.map((event) => event.id)).toEqual(["0", "1", "2"]);
     expect(streamEvents.map((event) => event.data).join(" ")).toContain("First line. Last line.");
 
-    const nextFragment = await responseText(await postPrompt(app, "track recipes"));
-    expect(nextFragment).toContain('data-build-job-id="job-after"');
-    expect(providerCalls).toBe(0);
+    const secondEvents = collectSseEvents(
+      await readSse(await app.request("/build/job-after/stream")),
+    );
+    expect(secondEvents.at(-1)).toEqual({ id: "2", event: "done", data: "ok" });
   });
 
   test("unknown and completed job streams end cleanly with done", async () => {

@@ -28,6 +28,10 @@ import type { Context, Hono } from "hono";
 import { createCapabilityDataTool, MissingRequiredFieldsError } from "../capability-data/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
 import {
+  createMutationCoordinator,
+  type MutationCoordinator,
+} from "../mutation-coordinator/index.ts";
+import {
   capabilityCreateErrorId,
   createPresentationAdapter,
   type ItemRenderer,
@@ -63,6 +67,8 @@ export interface CapabilityRouterDeps {
   readonly loadHandler?: HandlerLoader;
   // Defaults to {@link defaultLoadItemRenderer}.
   readonly loadItemRenderer?: ItemRendererLoader;
+  // Shared atomic admission for every route mutation; reads never acquire it.
+  readonly mutationCoordinator?: MutationCoordinator;
 }
 
 // The fixed route. Registered for the methods M2's two actions use (read = GET,
@@ -97,10 +103,11 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
   const databases = deps.databases ?? { readwrite: db, readonly: dbReadonly };
   const loadHandler = deps.loadHandler ?? defaultLoadHandler;
   const loadItemRenderer = deps.loadItemRenderer ?? defaultLoadItemRenderer;
+  const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
 
   app.get(CAPABILITY_VIEW_ROUTE, (c) => handleCapabilityViewRequest(c, databases));
   app.on(["GET", "POST"], CAPABILITY_ROUTE, (c) =>
-    handleCapabilityRequest(c, databases, loadHandler, loadItemRenderer),
+    handleCapabilityRequest(c, databases, loadHandler, loadItemRenderer, mutationCoordinator),
   );
 }
 
@@ -131,6 +138,7 @@ async function handleCapabilityRequest(
   databases: PlatformDatabase,
   loadHandler: HandlerLoader,
   loadItemRenderer: ItemRendererLoader,
+  mutationCoordinator: MutationCoordinator,
 ): Promise<Response> {
   const target = routableTarget(c);
   if (!target) {
@@ -145,6 +153,48 @@ async function handleCapabilityRequest(
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
 
+  if (action === "create") {
+    return handleRecordMutation(
+      c,
+      databases,
+      loadHandler,
+      loadItemRenderer,
+      mutationCoordinator,
+      row,
+      action,
+    );
+  }
+  return executeCapabilityHandler(c, databases, loadHandler, loadItemRenderer, row, action);
+}
+
+async function handleRecordMutation(
+  c: Context,
+  databases: PlatformDatabase,
+  loadHandler: HandlerLoader,
+  loadItemRenderer: ItemRendererLoader,
+  mutationCoordinator: MutationCoordinator,
+  row: CapabilityRow,
+  action: CapabilityTool,
+): Promise<Response> {
+  const mutationLease = mutationCoordinator.tryAcquireRecordWrite();
+  if (!mutationLease) return recordMutationRefusal(c, row.id);
+
+  try {
+    return await executeCapabilityHandler(c, databases, loadHandler, loadItemRenderer, row, action);
+  } finally {
+    mutationCoordinator.release(mutationLease);
+  }
+}
+
+async function executeCapabilityHandler(
+  c: Context,
+  databases: PlatformDatabase,
+  loadHandler: HandlerLoader,
+  loadItemRenderer: ItemRendererLoader,
+  row: CapabilityRow,
+  action: CapabilityTool,
+): Promise<Response> {
+  const { id } = row;
   // Everything past validation is the build-and-run path: a throw anywhere in it —
   // input parsing, handler loading, handler execution, or a contract violation —
   // becomes one warm, internals-free failure.
@@ -171,6 +221,15 @@ async function handleCapabilityRequest(
     }
     return internalFailure(c, id, action, error);
   }
+}
+
+function recordMutationRefusal(c: Context, capabilityId: string): Response {
+  c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
+  c.header("HX-Reswap", "innerHTML");
+  return c.html(
+    '<p class="notice" data-role="error" data-error-code="mutation_busy">I\'m still putting something together. Give me a moment, then try that again.</p>',
+    422,
+  );
 }
 
 function missingRequiredFieldsFailure(

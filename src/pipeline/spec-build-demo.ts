@@ -15,7 +15,8 @@
 
 import { type CommitCapabilityResult, hardcodedNewCapabilityIntent } from "../builder/index.ts";
 import type { PlatformDatabase } from "../db.ts";
-import type { Provider } from "../provider/index.ts";
+import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
+import { abortableProvider, type Provider } from "../provider/index.ts";
 import type { Send } from "../sse/index.ts";
 import { renderCachedCapabilityCommitSwap } from "../web/index.ts";
 import { runSpecBuildStages } from "./build-run.ts";
@@ -26,6 +27,10 @@ import {
   writeBuildMetrics,
 } from "./metrics-recorder.ts";
 import { buildCommitPreview, buildDemoErrorPreview } from "./previews.ts";
+import {
+  DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
+  runBoundedTerminalPresentation,
+} from "./terminal-presentation.ts";
 
 /** The default prompt the bare demo button builds when none is typed. */
 export const DEMO_SPEC_PROMPT = "I want to keep track of my notes";
@@ -34,66 +39,99 @@ export const DEMO_SPEC_PROMPT = "I want to keep track of my notes";
  * Run the full build demo for `prompt`: build the capability through commit, record
  * the one metrics row (success, failure, or — on abort — nothing), then announce the
  * committed capability with a developer commit preview and the product commit swap.
- * A build failure records the failure row and rethrows for
- * {@link handleSpecBuildError}; an abort mid-build rolls the transaction back and
- * records nothing.
+ * The resolved demo intent reserves the shared coordinator before provider work. A
+ * failure records its row and presents the bounded warm terminal branch while the
+ * lease is still owned; an abort rolls the transaction back and records nothing.
  */
 export async function streamSpecBuildDemo(
   send: Send,
   isAborted: () => boolean,
-  provider: Provider,
+  getProvider: () => Provider,
   prompt: string,
   recordMetrics: RecordMetrics,
   buildDatabases: PlatformDatabase,
   artifactsRoot: string,
+  mutationCoordinator: MutationCoordinator,
+  signal?: AbortSignal,
+  terminalPresenterTimeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
 ) {
   const intent = hardcodedNewCapabilityIntent(prompt);
-  const builtAt = performance.now();
-  const acc: DemoBuildAccumulator = { usages: [], timings: {} };
+  const reservation = mutationCoordinator.reserveBuild();
 
-  let commit: CommitCapabilityResult | undefined;
   try {
-    commit = await runSpecBuildStages(
-      send,
-      isAborted,
-      provider,
-      prompt,
-      intent,
-      acc,
-      buildDatabases,
-      artifactsRoot,
+    await mutationCoordinator.withBuildLease(
+      reservation,
+      async () => {
+        let provider: Provider;
+        try {
+          provider = abortableProvider(getProvider(), signal);
+        } catch (error) {
+          await runBoundedTerminalPresentation(
+            () => handleSpecBuildError(send, isAborted, error),
+            terminalPresenterTimeoutMs,
+          );
+          return;
+        }
+        const builtAt = performance.now();
+        const acc: DemoBuildAccumulator = { usages: [], timings: {} };
+        let commit: CommitCapabilityResult | undefined;
+        try {
+          commit = await runSpecBuildStages(
+            send,
+            isAborted,
+            provider,
+            prompt,
+            intent,
+            acc,
+            buildDatabases,
+            artifactsRoot,
+          );
+        } catch (error) {
+          // An aborted stream is not a build failure — and the transaction already
+          // rolled back, so nothing committed. Don't record a failure row for it.
+          if (!isAborted()) {
+            writeBuildMetrics(
+              recordMetrics,
+              `demo-${crypto.randomUUID()}`,
+              intent,
+              acc,
+              builtAt,
+              "failure",
+              classifyBuildFailure(error, acc),
+            );
+            await runBoundedTerminalPresentation(
+              () => handleSpecBuildError(send, isAborted, error),
+              terminalPresenterTimeoutMs,
+            );
+          }
+          return;
+        }
+
+        // Aborted mid-build (commit undefined): the transaction rolled back, nothing
+        // committed, nothing recorded.
+        if (commit === undefined) return;
+
+        // The row lands before the build's `done` — PLAN flow step 8 ("written before
+        // the job ends"). The build genuinely committed, so this records a success.
+        writeBuildMetrics(
+          recordMetrics,
+          `demo-${crypto.randomUUID()}`,
+          intent,
+          acc,
+          builtAt,
+          "success",
+        );
+        await runBoundedTerminalPresentation(async () => {
+          await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
+          await send("commit", renderCachedCapabilityCommitSwap(commit.row));
+          await send("done", "ok");
+        }, terminalPresenterTimeoutMs);
+      },
+      signal ? { signal } : {},
     );
   } catch (error) {
-    // An aborted stream is not a build failure — and the transaction already rolled
-    // back, so nothing committed. Don't record a failure row for it.
-    if (!isAborted()) {
-      writeBuildMetrics(
-        recordMetrics,
-        `demo-${crypto.randomUUID()}`,
-        intent,
-        acc,
-        builtAt,
-        "failure",
-        classifyBuildFailure(error, acc),
-      );
-    }
-    throw error;
+    if (!isAborted()) await handleSpecBuildError(send, isAborted, error);
   }
-
-  // Aborted mid-build (commit undefined): the transaction rolled back, nothing
-  // committed, nothing recorded.
-  if (commit === undefined) return;
-
-  // The row lands before the build's `done` — PLAN flow step 8 ("written before the
-  // job ends"). The build genuinely committed (registry row + artifacts + cap_<id>
-  // table), so this records a success.
-  writeBuildMetrics(recordMetrics, `demo-${crypto.randomUUID()}`, intent, acc, builtAt, "success");
-  // Announce the committed capability: the developer-facing commit preview, then the
-  // product `commit` swap that replaces the content view and updates the toolbar
-  // out-of-band from the same SSE response.
-  await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
-  await send("commit", renderCachedCapabilityCommitSwap(commit.row));
-  await send("done", "ok");
 }
 
 /**

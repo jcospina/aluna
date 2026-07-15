@@ -13,22 +13,35 @@ export interface BuildPipelineContext {
   readonly job: BuildJob;
   readonly send: SendBuildEvent;
   readonly isAborted: () => boolean;
+  readonly signal?: AbortSignal;
 }
 
-export type BuildPipeline = (context: BuildPipelineContext) => Promise<void>;
+export type BuildPipelineCompletion = "terminal-sent" | undefined;
+export type BuildPipeline = (
+  context: BuildPipelineContext,
+) => Promise<BuildPipelineCompletion> | Promise<void>;
 type CreateBuildId = () => string;
+type Now = () => number;
 
-export type CreateBuildJobResult =
-  | { readonly accepted: true; readonly job: BuildJob }
-  | { readonly accepted: false; readonly activeJobId: string };
+export interface CreateBuildJobResult {
+  readonly accepted: true;
+  readonly job: BuildJob;
+}
 
 export interface BuildJobQueueOptions {
   readonly pipeline?: BuildPipeline;
   readonly createId?: CreateBuildId;
+  readonly pendingJobTtlMs?: number;
+  readonly now?: Now;
 }
 
 const DEFAULT_BUILD_NARRATION = "Got it. I'm putting that together now.";
 const BUILD_FAILURE_NARRATION = "Hmm, that didn't work. Mind trying again?";
+const DEFAULT_PENDING_JOB_TTL_MS = 60_000;
+
+interface StoredBuildJob extends BuildJob {
+  readonly createdAt: number;
+}
 
 async function placeholderBuildPipeline({ send, isAborted }: BuildPipelineContext) {
   if (isAborted()) return;
@@ -40,30 +53,38 @@ function defaultBuildId(): string {
 }
 
 export class BuildJobQueue {
-  private activeJob: BuildJob | undefined;
   private readonly pipeline: BuildPipeline;
   private readonly createId: CreateBuildId;
+  private readonly jobs = new Map<string, StoredBuildJob>();
+  private readonly now: Now;
+  private readonly pendingJobTtlMs: number;
 
   constructor(options: BuildJobQueueOptions = {}) {
     this.pipeline = options.pipeline ?? placeholderBuildPipeline;
     this.createId = options.createId ?? defaultBuildId;
+    this.now = options.now ?? Date.now;
+    this.pendingJobTtlMs = options.pendingJobTtlMs ?? DEFAULT_PENDING_JOB_TTL_MS;
   }
 
   create(prompt: string): CreateBuildJobResult {
-    if (this.activeJob && this.activeJob.status !== "done") {
-      return { accepted: false, activeJobId: this.activeJob.id };
-    }
-
-    const job: BuildJob = {
+    this.pruneExpiredPendingJobs();
+    const job: StoredBuildJob = {
       id: this.createId(),
       prompt,
       status: "pending",
+      createdAt: this.now(),
     };
-    this.activeJob = job;
+    this.jobs.set(job.id, job);
     return { accepted: true, job };
   }
 
-  async stream(jobId: string, send: SendBuildEvent, isAborted: () => boolean): Promise<void> {
+  async stream(
+    jobId: string,
+    send: SendBuildEvent,
+    isAborted: () => boolean,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    this.pruneExpiredPendingJobs();
     const job = this.findStreamableJob(jobId);
     if (!job) {
       await send("done", "missing");
@@ -75,23 +96,24 @@ export class BuildJobQueue {
       return;
     }
 
-    await this.runPendingJob(job, send, isAborted);
+    await this.runPendingJob(job, send, isAborted, signal);
   }
 
   private findStreamableJob(jobId: string): BuildJob | undefined {
-    const job = this.activeJob;
-    return job && job.id === jobId && job.status !== "done" ? job : undefined;
+    const job = this.jobs.get(jobId);
+    return job?.status !== "done" ? job : undefined;
   }
 
   private async runPendingJob(
     job: BuildJob,
     send: SendBuildEvent,
     isAborted: () => boolean,
+    signal?: AbortSignal,
   ): Promise<void> {
     job.status = "running";
     try {
-      await this.pipeline({ job, send, isAborted });
-      if (!isAborted()) {
+      const completion = await this.pipeline({ job, send, isAborted, signal });
+      if (!isAborted() && completion !== "terminal-sent") {
         await send("done", "ok");
       }
     } catch (err) {
@@ -102,8 +124,15 @@ export class BuildJobQueue {
       }
     } finally {
       job.status = "done";
-      if (this.activeJob === job) {
-        this.activeJob = undefined;
+      this.jobs.delete(job.id);
+    }
+  }
+
+  private pruneExpiredPendingJobs(): void {
+    const cutoff = this.now() - this.pendingJobTtlMs;
+    for (const [jobId, job] of this.jobs) {
+      if (job.status === "pending" && job.createdAt <= cutoff) {
+        this.jobs.delete(jobId);
       }
     }
   }
