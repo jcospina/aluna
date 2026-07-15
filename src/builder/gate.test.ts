@@ -62,12 +62,12 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
 
 // The handlers render records through the injected `present` adapter (ADR-0005 §2), so
 // the smoke and behavioral rungs exercise the real adapter path — create and read cannot
-// drift. `text: input.text,` is kept verbatim so the trim test can patch it.
+// drift. `text: input.values.text,` is kept verbatim so the trim test can patch it.
 const CREATE_HANDLER = [
   "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
   "  const note = data.insert({",
-  "    text: input.text,",
-  '    pinned: input.pinned === "on" || input.pinned === "true",',
+  "    text: input.values.text,",
+  '    pinned: input.values.pinned === "on" || input.values.pinned === "true",',
   "  });",
   "  return present(note);",
   "}",
@@ -133,12 +133,12 @@ function articlesSpec(): CapabilitySpec {
 
 const MARKED_ARTICLE_CREATE_HANDLER = [
   "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
-  '  const missing = ["title", "body"].filter((field) => String(input[field] ?? "").trim().length === 0);',
+  '  const missing = ["title", "body"].filter((field) => String(input.values[field] ?? "").trim().length === 0);',
   "  if (missing.length > 0) {",
   '    return `<div class="notice" data-role="error" data-error-code="missing_required_fields" data-error-fields="$' +
     '{missing.join(" ")}">I need a little more before I can save this.</div>`;',
   "  }",
-  "  const article = data.insert({ title: input.title, body: input.body });",
+  "  const article = data.insert({ title: input.values.title, body: input.values.body });",
   "  return `<article><h3>$" +
     "{escapeHtml(article.title)}</h3><p>$" +
     "{escapeHtml(article.body)}</p></article>`;",
@@ -419,7 +419,7 @@ describe("capability gate", () => {
   test("structural type-check failure stops before smoke", async () => {
     const badCreate = [
       "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
-      "  data.insert({ text: input.text });",
+      "  data.insert({ text: input.values.text });",
       "  return 123;",
       "}",
     ].join("\n");
@@ -558,8 +558,8 @@ describe("capability gate", () => {
       ],
     };
     const trimmingCreate = CREATE_HANDLER.replace(
-      "text: input.text,",
-      'text: String(input.text ?? "").trim(),',
+      "text: input.values.text,",
+      'text: String(input.values.text ?? "").trim(),',
     );
 
     const pass = await runCapabilityGate(
@@ -596,7 +596,10 @@ describe("capability gate", () => {
     expect(error.outcomes[2]?.error).toContain("did not find a scratch row matching");
     expect(error.diagnostic).toMatchObject({
       failure: expect.stringContaining("did not find a scratch row matching"),
-      createInput: { text: "  Trim me  ", pinned: "false" },
+      createInput: {
+        values: { text: "  Trim me  ", pinned: "false" },
+        submittedFields: expect.any(Set),
+      },
       scratchRows: [expect.objectContaining({ text: "  Trim me  " })],
       createFragment: expect.stringContaining("Trim me"),
     });
@@ -740,8 +743,9 @@ describe("capability gate", () => {
     });
     const canonicalizingCreate = [
       "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
-      '  const happensAt = new Date(input.happens_at ?? "").toISOString();',
-      "  const event = data.insert({ title: input.title, happens_at: happensAt });",
+      "  const rawHappensAt = input.values.happens_at;",
+      '  const happensAt = new Date(typeof rawHappensAt === "string" ? rawHappensAt : "").toISOString();',
+      "  const event = data.insert({ title: input.values.title, happens_at: happensAt });",
       "  return `<article><h3>$" +
         "{escapeHtml(event.title)}</h3><time>$" +
         "{escapeHtml(event.happens_at)}</time></article>`;",

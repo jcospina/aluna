@@ -36,7 +36,8 @@ import {
 } from "../presentation/index.ts";
 import { type CapabilityRow, type CapabilitySpec, getCapability } from "../registry/index.ts";
 import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
-import type { CapabilityHandler, CapabilityInput } from "./contract.ts";
+import type { CapabilityHandler } from "./contract.ts";
+import { parseCapabilityRequest, WireProtocolError } from "./wire-protocol.ts";
 
 // How the router turns a row's `artifacts_path` + an action into a runnable
 // handler. Injectable so the gate (2.5) and tests can substitute loading without
@@ -78,6 +79,8 @@ const NOT_FOUND_FRAGMENT =
   "<p class=\"notice\">Hmm — I can't find that here. It might be something I haven't made yet.</p>";
 const INTERNAL_ERROR_FRAGMENT =
   '<p class="notice">Hmm, something went sideways on my end just now. Mind trying again?</p>';
+const WIRE_PROTOCOL_ERROR_FRAGMENT =
+  '<p class="notice">Hmm — I couldn\'t make sense of that submission. Mind trying again?</p>';
 
 // Attach the capability router to the app (called from createApp). Generated code
 // reaches the platform only through what this builds — never the Hono context.
@@ -139,8 +142,9 @@ async function handleCapabilityRequest(
   // input parsing, handler loading, handler execution, or a contract violation —
   // becomes one warm, internals-free failure.
   try {
-    const input = await parseInput(c);
-    const data = createCapabilityDataTool(specFromRow(row), databases);
+    const spec = specFromRow(row);
+    const { input } = await parseCapabilityRequest(c.req.raw, action as "create" | "read", spec);
+    const data = createCapabilityDataTool(spec, databases);
     const present = await buildPresentationAdapter(row, loadItemRenderer);
     const handler = await loadHandler(row.artifacts_path, action);
 
@@ -152,6 +156,9 @@ async function handleCapabilityRequest(
     }
     return c.html(fragment);
   } catch (error) {
+    if (error instanceof WireProtocolError) {
+      return c.html(WIRE_PROTOCOL_ERROR_FRAGMENT, 400);
+    }
     if (error instanceof MissingRequiredFieldsError) {
       return missingRequiredFieldsFailure(c, id, error);
     }
@@ -178,25 +185,6 @@ function missingRequiredFieldsFailure(
 // refused the same as a request for a capability that doesn't exist.
 function isDeclaredAction(row: CapabilityRow, action: string): boolean {
   return (row.tools as readonly string[]).includes(action);
-}
-
-// Parse the request into the flat string map the handler contract speaks: query
-// params for a GET (read), the form body otherwise (create). M2 has no file
-// fields, so non-string body parts (uploads) are dropped here rather than reaching
-// a handler that can't take them yet.
-async function parseInput(c: Context): Promise<CapabilityInput> {
-  if (c.req.method === "GET") {
-    return c.req.query();
-  }
-
-  const body = await c.req.parseBody();
-  const input: Record<string, string> = {};
-  for (const [key, value] of Object.entries(body)) {
-    if (typeof value === "string") {
-      input[key] = value;
-    }
-  }
-  return input;
 }
 
 // The spec embedded in a registry row — the row minus the two platform-assigned

@@ -101,6 +101,17 @@ describe("create form — one control per pantry type", () => {
     expect(form).toContain('name="title"');
   });
 
+  test("emits one reserved presence marker for every rendered active field", () => {
+    const markers = form.match(/name="__aluna_present" value="[^"]+"/g) ?? [];
+    expect(markers).toEqual([
+      'name="__aluna_present" value="title"',
+      'name="__aluna_present" value="priority"',
+      'name="__aluna_present" value="done"',
+      'name="__aluna_present" value="due_date"',
+      'name="__aluna_present" value="note"',
+    ]);
+  });
+
   test("number renders a decimal-capable number input", () => {
     expect(form).toContain('id="cap-tasks-priority" type="number"');
     expect(form).toContain('step="any"');

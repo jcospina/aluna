@@ -10,6 +10,7 @@
 
 import { createCapabilityDataTool } from "../capability-data/index.ts";
 import { activeSpecFields, type CapabilitySpec, type SpecField } from "../registry/index.ts";
+import type { CapabilityInput } from "../router/index.ts";
 import type { CapabilityGateInput, SmokeGateResult } from "./gate.ts";
 import {
   applyDdl,
@@ -50,7 +51,11 @@ export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGat
     const rows = data.select();
     assertSmokeRows(input.spec, rows, smokeInput.expectedValues);
 
-    const readFragment = await handlers.read({ input: {}, data, present });
+    const readFragment = await handlers.read({
+      input: { values: {}, submittedFields: new Set() },
+      data,
+      present,
+    });
     assertFragment("read", readFragment);
 
     const insertedRow = rows[0];
@@ -87,21 +92,27 @@ export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGat
 }
 
 interface SmokeInput {
-  readonly input: Readonly<Record<string, string>>;
+  readonly input: CapabilityInput;
   readonly expectedValues: Readonly<Record<string, string | number | boolean>>;
 }
 
 function buildSmokeInput(spec: CapabilitySpec): SmokeInput {
-  const input: Record<string, string> = {};
+  const values: Record<string, string> = {};
   const expectedValues: Record<string, string | number | boolean> = {};
 
   for (const field of activeSpecFields(spec.schema.fields)) {
     const sample = sampleValue(field);
-    input[field.name] = sample.input;
+    values[field.name] = sample.input;
     expectedValues[field.name] = sample.expected;
   }
 
-  return { input, expectedValues };
+  return {
+    input: {
+      values,
+      submittedFields: new Set(activeSpecFields(spec.schema.fields).map((field) => field.name)),
+    },
+    expectedValues,
+  };
 }
 
 function sampleValue(field: SpecField): { input: string; expected: string | number | boolean } {

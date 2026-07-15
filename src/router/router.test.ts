@@ -132,11 +132,16 @@ function makeSpyLoader(): {
   return { calls, loadHandler };
 }
 
-function formBody(fields: Record<string, string>): RequestInit {
+function formBody(
+  fields: Record<string, string>,
+  presentFields: readonly string[] = ["text", "pinned"],
+): RequestInit {
+  const body = new URLSearchParams(fields);
+  for (const field of presentFields) body.append("__aluna_present", field);
   return {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(fields).toString(),
+    body: body.toString(),
   };
 }
 
@@ -258,7 +263,7 @@ describe("deterministic capability router", () => {
         loadHandler:
           async () =>
           async ({ input, data, present }) =>
-            present(data.insert({ text: input.text, pinned: false })),
+            present(data.insert({ text: input.values.text, pinned: false })),
         loadItemRenderer: async () => (record) =>
           `<span class="text-lg">${String(record.text)}</span>`,
       },
@@ -274,6 +279,134 @@ describe("deterministic capability router", () => {
     expect(html).toContain('data-error-fields="text"');
     expect(html).toContain("I still need a little more");
     expect(createCapabilityDataTool(notesSpec(), conns).select()).toEqual([]);
+  });
+
+  test("create presence distinguishes empty optional scalars and unchecked booleans", async () => {
+    const presenceSpec = notesSpec({
+      schema: {
+        fields: [
+          { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+          {
+            name: "summary",
+            label: "Summary",
+            type: "string",
+            required: false,
+            lifecycle: "active",
+          },
+          {
+            name: "pinned",
+            label: "Pinned",
+            type: "boolean",
+            required: false,
+            lifecycle: "active",
+          },
+        ],
+      },
+      ui_intent: {
+        item: { direction: "A text-forward note.", shows: ["text"] },
+        collection: { layout: "feed" },
+        detail: { shows: ["text", "summary", "pinned"] },
+      },
+    });
+    install(
+      conns,
+      notesRow({
+        ...presenceSpec,
+        incarnation_id: NOTES_INCARNATION_ID,
+        version: 1,
+        artifacts_path: NOTES_ARTIFACTS,
+      }),
+    );
+    let receivedInput: Parameters<Awaited<ReturnType<HandlerLoader>>>[0]["input"] | undefined;
+    const app = createApp({
+      capabilityRouter: {
+        databases: conns,
+        loadHandler:
+          async () =>
+          async ({ input, data, present }) => {
+            receivedInput = input;
+            const summary = input.values.summary;
+            const pinned = input.values.pinned;
+            return present(
+              data.insert({
+                text: input.values.text,
+                summary: summary === "" ? null : summary,
+                pinned:
+                  input.submittedFields.has("pinned") && (pinned === "on" || pinned === "true"),
+              }),
+            );
+          },
+        loadItemRenderer: async () => (record) => `<span>${String(record.text)}</span>`,
+      },
+    });
+    const body = new URLSearchParams([
+      ["text", "Buy milk"],
+      ["summary", ""],
+      ["__aluna_present", "text"],
+      ["__aluna_present", "summary"],
+      ["__aluna_present", "pinned"],
+    ]);
+
+    const response = await app.request("/capability/notes/create", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+
+    expect(response.status).toBe(200);
+    expect(receivedInput).toEqual({
+      values: { text: "Buy milk", summary: "" },
+      submittedFields: new Set(["text", "summary", "pinned"]),
+    });
+    expect(createCapabilityDataTool(presenceSpec, conns).select()).toMatchObject([
+      { text: "Buy milk", summary: null, pinned: false },
+    ]);
+  });
+
+  test("duplicate scalar input and create record targets fail warm before generated code loads", async () => {
+    install(conns, notesRow());
+    let handlerLoads = 0;
+    let rendererLoads = 0;
+    const app = createApp({
+      capabilityRouter: {
+        databases: conns,
+        loadHandler: async () => {
+          handlerLoads += 1;
+          return async () => "<p>should not run</p>";
+        },
+        loadItemRenderer: async () => {
+          rendererLoads += 1;
+          return () => "<span>should not run</span>";
+        },
+      },
+    });
+
+    for (const body of [
+      new URLSearchParams([
+        ["text", "one"],
+        ["text", "two"],
+        ["__aluna_present", "text"],
+        ["__aluna_present", "pinned"],
+      ]),
+      new URLSearchParams([
+        ["text", "one"],
+        ["__aluna_present", "text"],
+        ["__aluna_present", "pinned"],
+        ["__aluna_record_id", "record-1"],
+      ]),
+    ]) {
+      const response = await app.request("/capability/notes/create", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      });
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toMatch(/couldn't make sense/i);
+      expect(html).not.toMatch(/scalar|record target|__aluna_|handler/i);
+    }
+    expect(handlerLoads).toBe(0);
+    expect(rendererLoads).toBe(0);
   });
 
   test("the default loader keys Bun imports by incarnation path for a recreated semantic id", async () => {

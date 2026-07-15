@@ -76,7 +76,8 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "",
     "Available global types in the isolated type-check:",
     "- `CapabilityContext` has `{ input, data, present }`.",
-    "- `input` is a flat record of form/query strings.",
+    "- `input.values` is a record of parsed `string | readonly string[]` values; repeated keys keep arrival order and spec-known list fields are always arrays.",
+    "- `input.submittedFields` is a platform-validated `ReadonlySet<string>`; reserved `__aluna_` markers never reach generated code.",
     "- `data.insert(values)` returns the inserted row.",
     "- `data.select()` returns rows ordered newest first.",
     "- `present(record)` returns that record as a safe item HTML string.",
@@ -84,7 +85,8 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "Action behavior:",
     action === "create"
       ? [
-          "- Coerce form strings into the spec field types, call `data.insert`, and return `present(row)` for the inserted row.",
+          "- Read values only from `input.values`, coerce them into the spec field types, call `data.insert`, and return `present(row)` for the inserted row.",
+          "- Create presence is explicit: every active field is in `input.submittedFields`. A submitted empty optional scalar becomes `null`; an absent submitted boolean becomes `false`; required empty values must reach the platform mutation validation and fail rather than receiving an invented value.",
           "- Destructure `{ input, data, present }`: `export default async function create({ input, data, present }: CapabilityContext): Promise<string>`.",
         ].join("\n")
       : [

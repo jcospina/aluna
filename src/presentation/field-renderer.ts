@@ -28,6 +28,7 @@ import {
   type PresentationFieldDescriptor,
   type SpecField,
 } from "../registry/index.ts";
+import { ALUNA_PRESENT_MARKER } from "../router/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
 
 /**
@@ -219,10 +220,12 @@ function renderCreateField(capabilityId: string, field: SpecField): string {
   // Only emptyable controls carry `required`; a boolean checkbox never does (see
   // CreateInput.canBeEmpty) — otherwise a required boolean would be forced checked.
   const required = field.required && control.canBeEmpty ? " required" : "";
+  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
 
   if (control.inline) {
     return (
       `<div class="field field--inline">` +
+      presenceMarker +
       `<input class="field__checkbox" id="${inputId}" type="${control.inputType}"` +
       ` name="${nameAttribute}"${required}>` +
       `<label class="field__label field__label--inline" for="${inputId}">${label}</label>` +
@@ -232,6 +235,7 @@ function renderCreateField(capabilityId: string, field: SpecField): string {
 
   return (
     `<div class="field">` +
+    presenceMarker +
     `<label class="field__label" for="${inputId}">${label}</label>` +
     `<input class="field__control" id="${inputId}" type="${control.inputType}"` +
     ` name="${nameAttribute}"${control.extraAttributes}${required}>` +

@@ -118,9 +118,9 @@ const ITEM_RENDERER = [
 // no row markup of its own (ADR-0005 §2).
 const CREATE_HANDLER = [
   "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
-  "  const values: Record<string, unknown> = { text: input.text };",
-  "  if (input.pinned !== undefined) {",
-  '    values.pinned = input.pinned === "true" || input.pinned === "on";',
+  "  const values: Record<string, unknown> = { text: input.values.text };",
+  '  if (input.submittedFields.has("pinned")) {',
+  '    values.pinned = input.values.pinned === "true" || input.values.pinned === "on";',
   "  }",
   "",
   "  const row = data.insert(values);",
@@ -141,13 +141,13 @@ const READ_HANDLER = [
 
 // Fails the isolated type-check: an async handler returning a bare number.
 const BAD_CREATE_HANDLER = `export default async function create({ input, data }: CapabilityContext): Promise<string> {
-  data.insert({ text: input.text });
+  data.insert({ text: input.values.text });
   return 123;
 }`;
 
 // Fails the type-check with implicit-any bindings (no annotation on the context param).
 const UNTYPED_BAD_HANDLER = `export default async function create({ input, data }) {
-  data.insert({ text: input.text });
+  data.insert({ text: input.values.text });
   return 123;
 }`;
 

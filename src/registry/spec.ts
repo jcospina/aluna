@@ -44,6 +44,7 @@ export const PLATFORM_COLUMNS = ["id", "created_at", "extra"] as const;
 // confined to a shape that needs no quoting and can never smuggle SQL.
 const SQL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
 const SQL_NAME_MESSAGE = "must be lowercase letters/digits/underscores, starting with a letter";
+export const ALUNA_RESERVED_FIELD_PREFIX = "__aluna_";
 
 // Free-text values the platform displays or feeds to the model — blank strings
 // are never meaningful, so they fail rather than propagate.
@@ -72,6 +73,10 @@ export const specFieldSchema = z.strictObject({
   name: z
     .string()
     .regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE)
+    .refine(
+      (name) => !name.startsWith(ALUNA_RESERVED_FIELD_PREFIX),
+      `uses the reserved ${ALUNA_RESERVED_FIELD_PREFIX} prefix`,
+    )
     .refine(
       (name) => !(PLATFORM_COLUMNS as readonly string[]).includes(name),
       `is platform-owned (${PLATFORM_COLUMNS.join(", ")}) and cannot be a spec field`,
