@@ -14,11 +14,7 @@
 
 import type { Database } from "bun:sqlite";
 import { db, dbReadonly } from "../db.ts";
-import {
-  type CapabilityRow,
-  capabilityRowSchema,
-  defaultBehavioralErrorsForSchema,
-} from "./spec.ts";
+import { type CapabilityRow, capabilityRowSchema } from "./spec.ts";
 
 // The registry table, created by platform migration 0002 (src/migrations.ts).
 // A fixed platform constant (never user input), so interpolating it into the
@@ -26,7 +22,7 @@ import {
 export const REGISTRY_TABLE = "capability_registry";
 
 // The row as SQLite stores it: the structured parts (`schema`, `ui_intent`,
-// `tools`) serialized as JSON text, everything else a scalar column.
+// `tools`, `read_dependencies`) serialized as JSON text, everything else a scalar column.
 interface StoredRow {
   id: string;
   label: string;
@@ -37,12 +33,13 @@ interface StoredRow {
   behavior: string;
   behavioral_errors: string;
   tools: string;
+  read_dependencies: string;
   artifacts_path: string;
   prompt_context: string;
 }
 
 const ROW_COLUMNS =
-  "id, label, incarnation_id, version, schema, ui_intent, behavior, behavioral_errors, tools, artifacts_path, prompt_context";
+  "id, label, incarnation_id, version, schema, ui_intent, behavior, behavioral_errors, tools, read_dependencies, artifacts_path, prompt_context";
 
 // Rehydrate a stored row and re-validate it. Validating on the way out too is
 // deliberate: the registry drives DDL, routing, and generation, so a row that
@@ -50,10 +47,6 @@ const ROW_COLUMNS =
 // read site instead of misbehaving three derivations later.
 function parseStoredRow(stored: StoredRow): CapabilityRow {
   const schema = JSON.parse(stored.schema) as CapabilityRow["schema"];
-  const behavioralErrors = JSON.parse(
-    stored.behavioral_errors,
-  ) as CapabilityRow["behavioral_errors"];
-
   return capabilityRowSchema.parse({
     id: stored.id,
     label: stored.label,
@@ -62,9 +55,9 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
     schema,
     ui_intent: JSON.parse(stored.ui_intent),
     behavior: stored.behavior,
-    behavioral_errors:
-      behavioralErrors.length > 0 ? behavioralErrors : defaultBehavioralErrorsForSchema(schema),
+    behavioral_errors: JSON.parse(stored.behavioral_errors),
     tools: JSON.parse(stored.tools),
+    read_dependencies: JSON.parse(stored.read_dependencies),
     artifacts_path: stored.artifacts_path,
     prompt_context: stored.prompt_context,
   });
@@ -79,7 +72,7 @@ export function insertCapability(row: CapabilityRow, database: Database = db): C
   const valid = capabilityRowSchema.parse(row);
 
   database.run(
-    `INSERT INTO ${REGISTRY_TABLE} (${ROW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ${REGISTRY_TABLE} (${ROW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       valid.id,
       valid.label,
@@ -90,6 +83,7 @@ export function insertCapability(row: CapabilityRow, database: Database = db): C
       valid.behavior,
       JSON.stringify(valid.behavioral_errors),
       JSON.stringify(valid.tools),
+      JSON.stringify(valid.read_dependencies),
       valid.artifacts_path,
       valid.prompt_context,
     ],

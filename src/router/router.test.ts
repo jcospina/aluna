@@ -59,6 +59,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       },
     ],
     tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -94,7 +95,8 @@ function boomRow(): CapabilityRow {
     },
     behavior: "Always fails, to prove failures stay friendly.",
     behavioral_errors: [],
-    tools: ["read"],
+    tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     artifacts_path: BOOM_ARTIFACTS,
     prompt_context: "A fixture whose handler throws.",
   };
@@ -116,6 +118,7 @@ function rowSpec(row: CapabilityRow): CapabilitySpec {
     behavior: row.behavior,
     behavioral_errors: row.behavioral_errors,
     tools: row.tools,
+    read_dependencies: row.read_dependencies,
     prompt_context: row.prompt_context,
   };
 }
@@ -655,13 +658,13 @@ describe("deterministic capability router", () => {
   });
 
   test("an action the capability does not declare is refused before any handler loads", async () => {
-    // The row declares only `create`; a request for `read` must be refused even
-    // though a read handler file exists at the artifacts path.
-    install(conns, notesRow({ tools: ["create"] }));
+    // The transitional row declares exactly create/read; a future Action must be
+    // refused before any corresponding file could be loaded.
+    install(conns, notesRow());
     const spy = makeSpyLoader();
     const app = createApp({ capabilityRouter: { databases: conns, loadHandler: spy.loadHandler } });
 
-    const res = await app.request("/capability/notes/read");
+    const res = await app.request("/capability/notes/update", { method: "POST" });
 
     expect(res.status).toBe(404);
     expect(await res.text()).toMatch(/can't find that/i);
@@ -682,7 +685,7 @@ describe("deterministic capability router", () => {
     expect(body).not.toMatch(/internal|stack|\bError\b/);
   });
 
-  test("the hand-written fixture is exactly the M3 artifact shape and every unit honors its boundary", () => {
+  test("the hand-written fixture is exactly the M4.1 transitional inventory and every unit honors its boundary", () => {
     expect(readdirSync(resolve(NOTES_ARTIFACTS)).sort()).toEqual([
       "create.ts",
       "item.ts",

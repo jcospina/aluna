@@ -170,6 +170,18 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
+  // 0007 closes the M4.1 authored transition around the exact two-Action shape.
+  // Existing greenfield rows receive the only admitted dependency object; the
+  // registry validator rejects missing/future keys and non-empty arrays.
+  {
+    id: "0007_capability_registry_read_dependencies",
+    up: (database) => {
+      database.exec(
+        `ALTER TABLE ${REGISTRY_TABLE}
+         ADD COLUMN read_dependencies TEXT NOT NULL DEFAULT '{"create":[],"read":[]}';`,
+      );
+    },
+  },
 ];
 
 // The set of migration ids already recorded in the ledger. Returns empty when the

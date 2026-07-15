@@ -31,6 +31,8 @@ import { resolve } from "node:path";
 import { type CapabilityRow, type CapabilitySpec, insertCapability } from "../registry/index.ts";
 import type { GeneratedUnit } from "./units.ts";
 
+const TRANSITIONAL_ARTIFACT_INVENTORY = ["item.ts", "create.ts", "read.ts"] as const;
+
 // Every committed capability starts at version 1. Later regenerations bump it (the
 // Diff Engine, a later module); M2 only ever commits a brand-new v1.
 export const FIRST_CAPABILITY_VERSION = 1;
@@ -74,6 +76,7 @@ export interface CommitCapabilityResult {
 // them. Both happen synchronously so they sit inside the caller's open transaction
 // — the registry insert is the single committing step (the pointer flip for v1).
 export function commitCapability(input: CommitCapabilityInput): CommitCapabilityResult {
+  assertTransitionalArtifactInventory(input.units);
   const version = FIRST_CAPABILITY_VERSION;
   const root = input.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   // The pointer stored on the row and resolved by the router. The trailing slash
@@ -101,6 +104,18 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   );
 
   return { row, artifactsPath, incarnationId: input.incarnationId, version, files };
+}
+
+function assertTransitionalArtifactInventory(units: readonly GeneratedUnit[]): void {
+  const actual = units.map((unit) => unit.filename);
+  const exact =
+    actual.length === TRANSITIONAL_ARTIFACT_INVENTORY.length &&
+    actual.every((filename, index) => filename === TRANSITIONAL_ARTIFACT_INVENTORY[index]);
+  if (!exact) {
+    throw new Error(
+      `M4.1 capability artifacts must be exactly ${TRANSITIONAL_ARTIFACT_INVENTORY.join(", ")} in order.`,
+    );
+  }
 }
 
 // The registry row the platform assigns at commit: the AI-authored spec plus the

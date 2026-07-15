@@ -56,6 +56,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       },
     ],
     tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -574,6 +575,9 @@ describe("capability gate", () => {
     expect(prompts[0]).toContain('"fields"');
     expect(prompts[0]).toContain('"behavioral_errors"');
     expect(prompts[0]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
+    expect(prompts[0]).toContain(
+      "For `setupRows` and `expectedCreatedRow`, a string[] field value must be an array of strings, never a scalar string",
+    );
     expect(prompts[0]).not.toContain(createMarker);
     expect(prompts[0]).not.toContain("export default async function");
     expect(buildBehavioralTestPrompt(notesSpec())).not.toContain("export default async function");

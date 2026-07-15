@@ -66,6 +66,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
       },
     ],
     tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     artifacts_path: `capabilities/notes/${incarnationId}/v1/`,
     prompt_context: "Stores the user's text notes.",
     ...overrides,
@@ -100,6 +101,7 @@ function recipesRow(): CapabilityRow {
       },
     ],
     tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v2/",
     prompt_context: "Stores recipes the user wants to cook again.",
   };

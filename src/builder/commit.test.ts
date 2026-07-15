@@ -56,6 +56,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       },
     ],
     tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -85,7 +86,7 @@ function itemRendererUnit(content: string): GeneratedUnit {
   };
 }
 
-// The three M3 artifacts, with just enough content to assert they were written, in the
+// The three M4.1 transitional artifacts, with just enough content to assert they were written, in the
 // order unit generation produces them (item renderer first, then the handlers).
 function notesUnits(): GeneratedUnit[] {
   return [
@@ -160,6 +161,31 @@ describe("commitCapability", () => {
     expect(row?.artifacts_path).toBe(result.artifactsPath);
     expect(row?.label).toBe("Notes");
     expect(row?.tools).toEqual(["create", "read"]);
+    expect(row?.read_dependencies).toEqual({ create: [], read: [] });
+  });
+
+  test("rejects any partial or extra artifact inventory before registration", () => {
+    const root = join(dir, "artifacts");
+    const validUnits = notesUnits();
+    const invalidInventories = [
+      validUnits.slice(0, 2),
+      [validUnits[1], validUnits[0], validUnits[2]],
+      [...validUnits, validUnits[2]],
+    ] as readonly (readonly GeneratedUnit[])[];
+
+    for (const units of invalidInventories) {
+      expect(() =>
+        commitCapability({
+          spec: notesSpec(),
+          incarnationId: INCARNATION_ID,
+          units,
+          database: conns.readwrite,
+          artifactsRoot: root,
+        }),
+      ).toThrow("M4.1 capability artifacts must be exactly item.ts, create.ts, read.ts");
+      expect(getCapability("notes", conns.readonly)).toBeNull();
+      expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1"))).toBe(false);
+    }
   });
 
   test("a rollback after commit leaves no row and no table, orphaning the written files for GC", async () => {

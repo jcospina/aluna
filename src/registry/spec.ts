@@ -22,8 +22,10 @@
 //     item direction, the closed collection layout (`feed | grid`), the
 //     detail fields/order, and one closed input mode for every active `string[]`.
 //     It never stores `views` or `modal: true`; the shared
-//     modal is a platform invariant (ADR-0005 §6). `tools` speaks M2's two
-//     actions (`create`, `read`); `behavior` is free text the behavioral tier
+//     modal is a platform invariant (ADR-0005 §6). `tools` is the exact
+//     reset-bounded M4.1 Action tuple (`create`, `read`) and
+//     `read_dependencies` carries exactly those keys with empty arrays;
+//     `behavior` is free text the behavioral tier
 //     generates tests from; `behavioral_errors` is the stable validation error
 //     contract product copy must not stand in for.
 //   - The platform trio — `id`, `created_at`, `extra` — is platform-owned, never
@@ -150,10 +152,39 @@ export const uiIntentSchema = z.strictObject({
 });
 export type UiIntent = z.infer<typeof uiIntentSchema>;
 
-// M2's two actions, the values the router validates `/capability/:id/:action`
-// against (2.3). `update`/`delete`/`search` arrive in later modules.
-export const capabilityToolSchema = z.enum(["create", "read"]);
+// M4.1's exact reset-bounded two-Action transition. `update`/`delete`/`search`
+// arrive through the complete five-Action reference shape in 4.2, not as
+// optional or empty keys here.
+export const TRANSITIONAL_CAPABILITY_TOOLS = ["create", "read"] as const;
+export const capabilityToolSchema = z.enum(TRANSITIONAL_CAPABILITY_TOOLS);
 export type CapabilityTool = z.infer<typeof capabilityToolSchema>;
+
+// Model this as a homogeneous fixed-length array for provider JSON Schema:
+// OpenAI rejects tuple-style positional `items: [...]`. The refinement keeps the
+// authored contract just as narrow — only the exact ordered [create, read] value
+// crosses the local hard gate — while the emitted wire schema uses one item object.
+const capabilityToolsSchema = z
+  .array(capabilityToolSchema)
+  .length(TRANSITIONAL_CAPABILITY_TOOLS.length)
+  .refine(
+    (tools) => tools.every((tool, index) => tool === TRANSITIONAL_CAPABILITY_TOOLS[index]),
+    `must be exactly [${TRANSITIONAL_CAPABILITY_TOOLS.join(", ")}] in that order`,
+  );
+
+// The pair shape is defined now so 4.2 can admit validated dependency identities
+// without recutting the authored property. M4.1 deliberately requires both
+// arrays to be empty.
+export const readDependencySchema = z.strictObject({
+  capability_id: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
+  incarnation_id: incarnationIdSchema,
+});
+export type ReadDependency = z.infer<typeof readDependencySchema>;
+
+export const readDependenciesSchema = z.strictObject({
+  create: z.array(readDependencySchema).length(0, "must be empty during the M4.1 transition"),
+  read: z.array(readDependencySchema).length(0, "must be empty during the M4.1 transition"),
+});
+export type ReadDependencies = z.infer<typeof readDependenciesSchema>;
 
 export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
 export const BEHAVIORAL_ERROR_MARKERS = {
@@ -214,7 +245,8 @@ const commonSpecShape = {
   // behavioral tests both consume. User-facing copy can vary; this contract is
   // made of semantic markers and affected fields.
   behavioral_errors: z.array(behavioralErrorCaseSchema).max(8),
-  tools: z.array(capabilityToolSchema).min(1).refine(allUnique, "tools must be unique"),
+  tools: capabilityToolsSchema,
+  read_dependencies: readDependenciesSchema,
   // What the intent resolver reads to understand this capability (ARCH §6.3).
   prompt_context: nonBlankText,
 };
@@ -281,11 +313,11 @@ function validateBehavioralErrors(
     validateBehavioralErrorFields(ctx, fieldsByName, errorCase, index);
   }
 
-  if (missingRequiredFieldsCaseIsMissing(spec.behavioral_errors, requiredFieldNames)) {
+  if (!hasExactTransitionalRequiredFieldsErrors(spec.behavioral_errors, requiredFieldNames)) {
     ctx.addIssue({
       code: "custom",
       message:
-        "behavioral_errors must include one missing_required_fields case covering all required fields",
+        "behavioral_errors must be exactly one create missing_required_fields case covering all active required fields, or empty when none are required",
       path: ["behavioral_errors"],
     });
   }
@@ -426,22 +458,18 @@ function addBehavioralErrorFieldIssue(
   });
 }
 
-function missingRequiredFieldsCaseIsMissing(
+function hasExactTransitionalRequiredFieldsErrors(
   errorCases: readonly BehavioralErrorCase[],
   requiredFieldNames: readonly string[],
 ): boolean {
-  if (requiredFieldNames.length === 0) return false;
-  return !errorCases.some(
-    (errorCase) =>
-      errorCase.code === MISSING_REQUIRED_FIELDS_ERROR_CODE &&
-      sameStringSet(errorCase.fields, requiredFieldNames),
+  if (requiredFieldNames.length === 0) return errorCases.length === 0;
+  if (errorCases.length !== 1) return false;
+  const [errorCase] = errorCases;
+  return (
+    errorCase?.action === "create" &&
+    errorCase.code === MISSING_REQUIRED_FIELDS_ERROR_CODE &&
+    sameOrderedStrings(errorCase.fields, requiredFieldNames)
   );
-}
-
-function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length !== right.length) return false;
-  const rightSet = new Set(right);
-  return left.every((value) => rightSet.has(value));
 }
 
 function sameOrderedStrings(left: readonly string[], right: readonly string[]): boolean {

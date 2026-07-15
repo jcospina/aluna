@@ -803,6 +803,7 @@ const NOTES_SPEC = {
     },
   ],
   tools: ["create", "read"],
+  read_dependencies: { create: [], read: [] },
   prompt_context: "Stores the user's text notes.",
 };
 
@@ -987,6 +988,8 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(dataFor("spec-preview")).toContain("collection");
     expect(dataFor("spec-preview")).toContain("feed");
     expect(dataFor("spec-preview")).toContain("detail");
+    expect(dataFor("spec-preview")).toContain('"tools":["create","read"]');
+    expect(dataFor("spec-preview")).toContain('"read_dependencies":{"create":[],"read":[]}');
     expect(dataFor("spec-preview")).not.toContain("views");
     expect(dataFor("spec-preview")).not.toContain("modal");
     expect(dataFor("spec-preview")).toContain("notes");
@@ -1126,7 +1129,8 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     // prompt followed — proof the demo runs the current builder stages, not a canned string.
     expect(prompts).toHaveLength(5);
     expect(prompts[0]).toContain("track my notes");
-    expect(prompts[0]).toContain("tools: only create, read.");
+    expect(prompts[0]).toContain("tools: exactly [create, read] in that order");
+    expect(prompts[0]).toContain('read_dependencies: exactly { "create": [], "read": [] }');
     expect(prompts[0]).toContain("ui_intent.collection.layout is one of: feed | grid");
     expect(prompts[0]).toContain("Do not include ui_intent.views");
     expect(prompts[1]).toContain("Generate the item.ts item renderer");
@@ -1195,8 +1199,10 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(committed?.version).toBe(1);
     expect(committed?.artifacts_path).toBe(commitPreview.artifactsPath);
     expect(committed?.label).toBe("Notes");
+    expect(committed?.tools).toEqual(["create", "read"]);
+    expect(committed?.read_dependencies).toEqual({ create: [], read: [] });
 
-    // …and the three M3 artifacts are on disk in that version directory.
+    // …and the exact three-file M4.1 transitional inventory is on disk.
     for (const file of commitPreview.files) {
       expect(existsSync(resolve(commitPreview.artifactsPath, file))).toBe(true);
     }

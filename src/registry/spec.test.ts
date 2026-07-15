@@ -50,6 +50,7 @@ function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       },
     ],
     tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -433,13 +434,49 @@ describe("capability spec shape", () => {
     expect(capabilitySpecSchema.safeParse(missingLifecycle).success).toBe(false);
   });
 
-  test("tools still speak only M2's two actions", () => {
-    // @ts-expect-error — `delete` is a later module's tool.
-    const deleteTool = validSpec({ tools: ["create", "read", "delete"] });
-    expect(capabilitySpecSchema.safeParse(deleteTool).success).toBe(false);
+  test("requires the exact canonical transitional Action tuple", () => {
+    for (const tools of [
+      ["create"],
+      ["read"],
+      ["read", "create"],
+      ["create", "read", "update"],
+      ["create", "read", "delete"],
+      ["create", "read", "search"],
+      [],
+    ]) {
+      expect(capabilitySpecSchema.safeParse({ ...validSpec(), tools }).success).toBe(false);
+    }
+  });
 
-    const noTools = validSpec({ tools: [] });
-    expect(capabilitySpecSchema.safeParse(noTools).success).toBe(false);
+  test("requires exactly empty create/read dependency arrays during M4.1", () => {
+    const spec = validSpec();
+    expect(spec.read_dependencies).toEqual({ create: [], read: [] });
+
+    for (const read_dependencies of [
+      { create: [] },
+      { read: [] },
+      { create: [], read: [], update: [] },
+      {
+        create: [
+          {
+            capability_id: "recipes",
+            incarnation_id: "11111111-1111-4111-8111-111111111111",
+          },
+        ],
+        read: [],
+      },
+      {
+        create: [],
+        read: [
+          {
+            capability_id: "recipes",
+            incarnation_id: "11111111-1111-4111-8111-111111111111",
+          },
+        ],
+      },
+    ]) {
+      expect(capabilitySpecSchema.safeParse({ ...spec, read_dependencies }).success).toBe(false);
+    }
   });
 
   test("requires stable behavioral error markers for missing required fields", () => {
@@ -468,6 +505,15 @@ describe("capability spec shape", () => {
       behavioral_errors: [],
     });
     expect(capabilitySpecSchema.parse(optionalOnly)).toEqual(optionalOnly);
+
+    for (const action of ["read", "update", "delete", "search"]) {
+      expect(
+        capabilitySpecSchema.safeParse({
+          ...validSpec(),
+          behavioral_errors: [{ ...validSpec().behavioral_errors[0], action }],
+        }).success,
+      ).toBe(false);
+    }
   });
 
   test("missing-required error fields are exactly the active required fields", () => {
@@ -506,6 +552,28 @@ describe("capability spec shape", () => {
             fields: ["text", "retired_note"],
           },
         ],
+      }).success,
+    ).toBe(false);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...valid,
+        behavioral_errors: [valid.behavioral_errors[0], valid.behavioral_errors[0]],
+      }).success,
+    ).toBe(false);
+
+    const twoRequired = validSpec({
+      schema: {
+        fields: [
+          { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+          { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+        ],
+      },
+    });
+    expect(twoRequired.behavioral_errors[0]?.fields).toEqual(["title", "text"]);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...twoRequired,
+        behavioral_errors: [{ ...twoRequired.behavioral_errors[0], fields: ["text", "title"] }],
       }).success,
     ).toBe(false);
   });
