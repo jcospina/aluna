@@ -42,6 +42,7 @@ const PREVIEW_CAPABILITY: RenderableCapability = {
         lifecycle: "active",
       },
       { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
+      { name: "tags", label: "Tags", type: "string[]", required: false, lifecycle: "active" },
     ],
   },
 };
@@ -66,6 +67,7 @@ const PREVIEW_CASES: readonly PreviewCase[] = [
       due_on: "2026-07-05",
       remind_at: "2026-07-05T09:30",
       note: "Get the barista edition if they have it.\nOtherwise the regular is fine.",
+      tags: ["errands", "one,two", "today"],
     },
   },
   {
@@ -79,6 +81,7 @@ const PREVIEW_CASES: readonly PreviewCase[] = [
       due_on: "2026-07-09",
       remind_at: null,
       note: null,
+      tags: null,
     },
   },
   {
@@ -92,6 +95,7 @@ const PREVIEW_CASES: readonly PreviewCase[] = [
       due_on: "2026-07-10",
       remind_at: "2026-07-10T23:59",
       note: 'Value with <b>tags</b>, an & ampersand, and a "quote" — all must show as text.',
+      tags: ['<script>alert("tag")</script>', "safe"],
     },
   },
   {
@@ -109,6 +113,7 @@ const PREVIEW_CASES: readonly PreviewCase[] = [
         { length: 24 },
         (_v, i) => `Line ${i + 1}: something to remember about this week's plan.`,
       ).join("\n"),
+      tags: ["planning", "weekly"],
     },
   },
 ];

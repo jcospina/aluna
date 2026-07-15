@@ -24,6 +24,14 @@ contract. They do not contain deliberately adversarial code or unknown ambient
 Bun/OS access. A true untrusted-code threat model requires the process sandbox
 still deferred by ADR-0003.
 
+**Amended 2026-07-15 for authored list input modes.** An active `string[]`
+declares one closed platform form mode. `repeatable` preserves one raw control
+value per array element, including commas. `comma_separated` is chosen only for
+comma-free atomic values and treats commas as separators, trims surrounding
+whitespace, and discards empty segments. The router normalizes either raw form
+representation before generated code, so the Handler interface remains one
+ordered `readonly string[]`; the choice is not Handler input.
+
 ## Decision
 
 Settled in the Module 2 grilling session (2026-06-12). Three interlocking choices
@@ -48,7 +56,11 @@ remain implementation detail.
    nonblank `__aluna_record_id`. The router validates and strips that namespace,
    rejecting missing/duplicate/unexpected targets before generated code. Record
    identity is passed separately, never as a writable field; update therefore
-   distinguishes preserve from explicit null/false/empty-list.
+   distinguishes preserve from explicit null/false/empty-list. For active
+   `string[]` fields, the same platform seam also reads the spec's closed list
+   input mode: repeated controls preserve each value exactly, while a comma-
+   separated control splits/trims/discards empty segments. Both yield the same
+   ordered-array Handler value and required/optional empty-list semantics.
 
    The toolbox has separate interfaces:
 

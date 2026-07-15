@@ -25,7 +25,13 @@ export interface JsonObject {
   readonly [key: string]: JsonValue;
 }
 
-export type CapabilityDataColumnValue = string | number | boolean | JsonObject | null;
+export type CapabilityDataColumnValue =
+  | string
+  | number
+  | boolean
+  | readonly string[]
+  | JsonObject
+  | null;
 
 export interface CapabilityDataRow {
   readonly id: string;
@@ -190,6 +196,8 @@ function isMissingRequiredValue(field: SpecField, value: unknown): boolean {
       return typeof value !== "string" || !isValidDate(value);
     case "datetime":
       return typeof value !== "string" || !isValidDatetime(value);
+    case "string[]":
+      return !Array.isArray(value) || !value.some(isNonBlankString);
   }
 }
 
@@ -205,6 +213,8 @@ function normalizeFieldValue(name: string, type: FieldType, value: unknown): Sql
       return normalizeNumber(name, value);
     case "boolean":
       return normalizeBoolean(name, value);
+    case "string[]":
+      return JSON.stringify(normalizeStringList(name, value));
   }
 }
 
@@ -241,6 +251,25 @@ function normalizeBoolean(name: string, value: unknown): number {
     throw new CapabilityDataValidationError(`Field "${name}" must be a boolean.`);
   }
   return value ? 1 : 0;
+}
+
+function normalizeStringList(name: string, value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    throw new CapabilityDataValidationError(`Field "${name}" must be a string array.`);
+  }
+
+  const normalized: string[] = [];
+  for (const element of value) {
+    if (typeof element !== "string") {
+      throw new CapabilityDataValidationError(`Field "${name}" must contain only strings.`);
+    }
+    if (isNonBlankString(element)) normalized.push(element);
+  }
+  return normalized;
+}
+
+function isNonBlankString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function isValidDatetime(value: string): boolean {
@@ -300,7 +329,7 @@ function normalizeStoredFieldValue(
   name: string,
   type: FieldType,
   value: unknown,
-): string | number | boolean | null {
+): string | number | boolean | readonly string[] | null {
   if (value === null) return null;
 
   switch (type) {
@@ -318,7 +347,23 @@ function normalizeStoredFieldValue(
         throw new Error(`Expected SQLite boolean 0/1 for column "${name}".`);
       }
       return value === 1;
+    case "string[]":
+      return parseStoredStringList(name, value);
   }
+}
+
+function parseStoredStringList(name: string, value: unknown): readonly string[] {
+  const text = readStringColumn(name, value);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(`Expected column "${name}" to contain a JSON string array.`);
+  }
+  if (!Array.isArray(parsed) || !parsed.every(isNonBlankString)) {
+    throw new Error(`Expected column "${name}" to contain a JSON string array.`);
+  }
+  return parsed;
 }
 
 function parseExtra(value: unknown): JsonObject {

@@ -200,6 +200,35 @@ describe("capability table DDL mapper", () => {
     }
   });
 
+  test("maps string[] to nullable JSON-array TEXT storage", () => {
+    const database = new Database(":memory:");
+    try {
+      const spec = notesSpec({
+        schema: {
+          fields: [
+            {
+              name: "tags",
+              label: "Tags",
+              type: "string[]",
+              required: false,
+              lifecycle: "active",
+            },
+          ],
+        },
+        behavioral_errors: [],
+      });
+      const ddl = applyCapabilityTableDdl(spec, database);
+      expect(tableColumns(database, ddl.tableName)).toContainEqual(
+        expect.objectContaining({ name: "tags", type: "TEXT", notnull: 0 }),
+      );
+      expect(tableSchema(database, ddl.tableName).sql).toContain(
+        `CHECK ("tags" IS NULL OR (json_valid("tags") AND json_type("tags") = 'array'))`,
+      );
+    } finally {
+      database.close();
+    }
+  });
+
   test("emits only additive statements", () => {
     const ddl = deriveCapabilityTableDdl(notesSpec());
     expect(ddl.statements).toHaveLength(1);

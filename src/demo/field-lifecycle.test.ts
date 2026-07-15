@@ -42,6 +42,9 @@ describe("field lifecycle living demo", () => {
     const view = await (await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}`)).text();
     expect(view).toContain("What happened?");
     expect(view).toContain("A small reflection");
+    expect(view).toContain("Tags");
+    expect(view).toContain("Other names");
+    expect(view).toContain("data-list-field-add");
     expect(view).not.toContain("Retired note");
     expect(view).not.toContain("retired_note");
     expect(view).not.toContain('name="created_at"');
@@ -67,14 +70,17 @@ describe("field lifecycle living demo", () => {
       body: new URLSearchParams([
         ["entry", "   "],
         ["reflection", "Optional"],
+        ["tags", "   "],
         ["__aluna_present", "entry"],
         ["__aluna_present", "reflection"],
+        ["__aluna_present", "tags"],
+        ["__aluna_present", "aliases"],
       ]).toString(),
     });
     expect(rejected.status).toBe(422);
     const error = await rejected.text();
     expect(error).toContain('data-error-code="missing_required_fields"');
-    expect(error).toContain('data-error-fields="entry"');
+    expect(error).toContain('data-error-fields="entry tags"');
 
     const created = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/create`, {
       method: "POST",
@@ -82,11 +88,31 @@ describe("field lifecycle living demo", () => {
       body: new URLSearchParams([
         ["entry", "A visible win"],
         ["reflection", "Kept exactly"],
+        ["tags", "first"],
+        ["tags", ""],
+        ["tags", "one,two"],
+        ["tags", "last"],
         ["__aluna_present", "entry"],
         ["__aluna_present", "reflection"],
+        ["__aluna_present", "tags"],
+        ["__aluna_present", "aliases"],
       ]).toString(),
     });
     expect(created.status).toBe(200);
-    expect(await created.text()).toContain("A visible win");
+    const createdHtml = await created.text();
+    expect(createdHtml).toContain("A visible win");
+    expect(createdHtml.indexOf("first")).toBeLessThan(createdHtml.indexOf("one,two"));
+    expect(createdHtml.indexOf("one,two")).toBeLessThan(createdHtml.indexOf("last"));
+    expect(
+      databases.readwrite
+        .query(`SELECT "tags", "aliases" FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "entry" = ?`)
+        .get("A visible win"),
+    ).toEqual({ tags: '["first","one,two","last"]', aliases: "[]" });
+
+    const refreshed = await (
+      await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`)
+    ).text();
+    expect(refreshed.indexOf("first")).toBeLessThan(refreshed.indexOf("one,two"));
+    expect(refreshed.indexOf("one,two")).toBeLessThan(refreshed.indexOf("last"));
   });
 });

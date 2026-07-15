@@ -177,6 +177,7 @@ export function assertFragment(
 // already normalized by the data tool, so a value comparison is exact for them.
 export function fieldValueMatches(type: FieldType, stored: unknown, expected: unknown): boolean {
   if (type === "datetime") return sameInstant(stored, expected);
+  if (type === "string[]") return JSON.stringify(stored) === JSON.stringify(expected);
   return stored === expected;
 }
 

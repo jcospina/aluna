@@ -135,6 +135,17 @@ The user-facing name for a field. It may evolve without changing the field's
 identity.
 _Avoid_: property label, display name, field name
 
+**List input mode**:
+The AI-authored, platform-rendered form choice for one active `string[]` field.
+`comma_separated` is for comma-free atomic values such as tags, genres,
+categories, or skills: commas separate values, surrounding whitespace is
+trimmed, and empty segments disappear. `repeatable` is for free-form values such
+as quotes, addresses, citations, or names as entered: each control is one value
+and commas remain data. Every active `string[]` declares exactly one mode under
+form presentation intent; generated Handlers receive the same ordered array from
+either mode and never see the choice.
+_Avoid_: widget choice, form builder, delimiter setting
+
 **Handler**:
 The generated logic unit behind one capability Action. Generated when first
 created or affected by a later Diff, and otherwise copied byte-for-byte into the

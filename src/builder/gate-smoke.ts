@@ -8,9 +8,12 @@
 // supplied it snapshots the `cap_*` tables before and after and fails if the gate
 // changed them.
 
-import { createCapabilityDataTool } from "../capability-data/index.ts";
+import {
+  type CapabilityDataColumnValue,
+  createCapabilityDataTool,
+} from "../capability-data/index.ts";
 import { activeSpecFields, type CapabilitySpec, type SpecField } from "../registry/index.ts";
-import type { CapabilityInput } from "../router/index.ts";
+import type { CapabilityInput, CapabilityInputValue } from "../router/index.ts";
 import type { CapabilityGateInput, SmokeGateResult } from "./gate.ts";
 import {
   applyDdl,
@@ -93,12 +96,12 @@ export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGat
 
 interface SmokeInput {
   readonly input: CapabilityInput;
-  readonly expectedValues: Readonly<Record<string, string | number | boolean>>;
+  readonly expectedValues: Readonly<Record<string, CapabilityDataColumnValue>>;
 }
 
 function buildSmokeInput(spec: CapabilitySpec): SmokeInput {
-  const values: Record<string, string> = {};
-  const expectedValues: Record<string, string | number | boolean> = {};
+  const values: Record<string, CapabilityInputValue> = {};
+  const expectedValues: Record<string, CapabilityDataColumnValue> = {};
 
   for (const field of activeSpecFields(spec.schema.fields)) {
     const sample = sampleValue(field);
@@ -115,7 +118,10 @@ function buildSmokeInput(spec: CapabilitySpec): SmokeInput {
   };
 }
 
-function sampleValue(field: SpecField): { input: string; expected: string | number | boolean } {
+function sampleValue(field: SpecField): {
+  input: CapabilityInputValue;
+  expected: CapabilityDataColumnValue;
+} {
   switch (field.type) {
     case "string":
       return { input: `gate smoke ${field.name}`, expected: `gate smoke ${field.name}` };
@@ -127,13 +133,22 @@ function sampleValue(field: SpecField): { input: string; expected: string | numb
       return { input: "2026-06-23T00:00:00.000Z", expected: "2026-06-23T00:00:00.000Z" };
     case "date":
       return { input: "2026-06-23", expected: "2026-06-23" };
+    case "string[]":
+      return {
+        input: [`gate smoke ${field.name} first`, "literal,comma", `gate smoke ${field.name} last`],
+        expected: [
+          `gate smoke ${field.name} first`,
+          "literal,comma",
+          `gate smoke ${field.name} last`,
+        ],
+      };
   }
 }
 
 function assertSmokeRows(
   spec: CapabilitySpec,
   rows: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]>,
-  expectedValues: Readonly<Record<string, string | number | boolean>>,
+  expectedValues: Readonly<Record<string, CapabilityDataColumnValue>>,
 ): void {
   if (rows.length !== 1) {
     throw new Error(`Smoke expected exactly one scratch row, received ${rows.length}.`);

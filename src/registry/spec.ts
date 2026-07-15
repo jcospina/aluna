@@ -10,13 +10,13 @@
 // throws here rather than flowing onward malformed (the spec-gen stage maps
 // that throw onto the build's failure path).
 //
-// The pantry is deliberately tiny:
+// The reset-bounded pantry remains deliberately tiny:
 //
-//   - Field types: `string | number | boolean | datetime | date`, each with
-//     `required`. (`date` — a calendar day, distinct from the `datetime` instant —
-//     was added alongside the centralized field renderer, so a "due date"
-//     asks for a day, not a timestamp.) No list types, no `file`/`file[]`,
-//     no relations (never — no foreign keys). Every object is strict, so any
+//   - Field types: `string | number | boolean | datetime | date | string[]`, each
+//     with `required`. (`date` — a calendar day, distinct from the `datetime`
+//     instant — was added earlier, and `string[]` after it, behind the closed list
+//     vocabulary below.) No other list types, no `file`/`file[]`, no
+//     relations (never — no foreign keys). Every object is strict, so any
 //     extra key — `auto`, `references`, `added_in_version` — fails validation.
 //   - `ui_intent` records only capability-specific presentation choices:
 //     item direction, the closed collection layout (`feed | grid`), and the
@@ -58,11 +58,19 @@ const capabilityNameText = nonBlankText.refine(
   "must be a short capability name, not a sentence",
 );
 
-// The complete field type enum. Anything else — `string[]`, `file`, a
-// relation — is not a parse error to recover from but a spec the platform must
-// refuse (list types and files are reserved for later).
-export const fieldTypeSchema = z.enum(["string", "number", "boolean", "datetime", "date"]);
+export const SCALAR_FIELD_TYPES = ["string", "number", "boolean", "datetime", "date"] as const;
+export const LIST_FIELD_TYPES = ["string[]"] as const;
+
+// The closed field pantry. Future list types extend LIST_FIELD_TYPES first, which
+// makes every exhaustive FieldType consumer fail type-check until it handles the
+// new storage, Gate, and presentation behavior.
+export const fieldTypeSchema = z.enum([...SCALAR_FIELD_TYPES, ...LIST_FIELD_TYPES]);
 export type FieldType = z.infer<typeof fieldTypeSchema>;
+export type ListFieldType = (typeof LIST_FIELD_TYPES)[number];
+
+export function isListFieldType(type: string): type is ListFieldType {
+  return (LIST_FIELD_TYPES as readonly string[]).includes(type);
+}
 
 export const fieldLifecycleSchema = z.enum(["active", "inactive"]);
 export type FieldLifecycle = z.infer<typeof fieldLifecycleSchema>;

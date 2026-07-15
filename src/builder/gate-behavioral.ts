@@ -43,7 +43,13 @@ import {
 } from "./gate-internal.ts";
 import type { HandlerUnitName } from "./units.ts";
 
-const behavioralScalarSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const behavioralScalarSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.array(z.string()),
+  z.null(),
+]);
 const nonEmptyStringSchema = z.string().min(1);
 const behavioralFieldValueSchema = z.strictObject({
   field: nonEmptyStringSchema,
@@ -146,9 +152,9 @@ export function buildBehavioralTestPrompt(spec: CapabilitySpec): string {
     "Generate behavioral tests for this Aluna capability.",
     "",
     "Return one structured object with a `cases` array. Each case is a deterministic black-box test:",
-    "- `input` is an array of `{ field, value }` form/query inputs for the create action, as strings.",
+    "- `input` is an array of `{ field, value }` form/query inputs for the create action, as strings. Repeat an entry with the same field name for each string[] element; order is preserved.",
     "- `setupRows` is an array of `{ values }` objects; each `values` is an array of `{ field, value }` pairs. They are preexisting rows, all older than the action's new row, and are listed NEWEST-FIRST: `setupRows[0]` is the most recent preexisting row and each later entry is older. Use an empty array when no setup is needed.",
-    "- `expectedCreatedRow` is an array of `{ field, value }` spec fields that must be present in one scratch row. Use an empty array when no specific row assertion is needed.",
+    "- `expectedCreatedRow` is an array of `{ field, value }` spec fields that must be present in one scratch row. A string[] field value is an array of strings. Use an empty array when no specific row assertion is needed.",
     "- `expectedRowCount` is required. For a normal create test with no setup rows, use 1.",
     "- `expectCreateFragmentIncludes`, `expectReadFragmentIncludes`, and `expectReadFragmentIncludesInOrder` assert visible HTML substrings. Use empty arrays when not needed.",
     "- For a newest-first read, the action's new row is newest of all, so `expectReadFragmentIncludesInOrder` is `[<new row marker>, <setupRows[0] marker>, <setupRows[1] marker>, ...]` — the new row, then the setup rows in their array order.",
@@ -534,8 +540,23 @@ function inputValuesToHandlerInput(
   spec: CapabilitySpec,
   values: readonly z.infer<typeof behavioralInputValueSchema>[],
 ): CapabilityInput {
+  const fieldsByName = new Map(
+    activeSpecFields(spec.schema.fields).map((field) => [field.name, field]),
+  );
+  const grouped = new Map<string, string[]>();
+  for (const entry of values) {
+    const existing = grouped.get(entry.field);
+    if (existing) existing.push(entry.value);
+    else grouped.set(entry.field, [entry.value]);
+  }
+
   return {
-    values: Object.fromEntries(values.map((entry) => [entry.field, entry.value])),
+    values: Object.fromEntries(
+      [...grouped].map(([fieldName, submitted]) => [
+        fieldName,
+        fieldsByName.get(fieldName)?.type === "string[]" ? submitted : (submitted[0] ?? ""),
+      ]),
+    ),
     submittedFields: new Set(activeSpecFields(spec.schema.fields).map((field) => field.name)),
   };
 }

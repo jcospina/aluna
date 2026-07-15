@@ -23,6 +23,7 @@ export const SQLITE_TYPE_BY_FIELD_TYPE = {
   boolean: "INTEGER",
   datetime: "TEXT",
   date: "TEXT",
+  "string[]": "TEXT",
 } as const satisfies Record<FieldType, "TEXT" | "REAL" | "INTEGER">;
 
 export interface CapabilityTableDdl {
@@ -35,9 +36,7 @@ export function deriveCapabilityTableDdl(spec: CapabilitySpec): CapabilityTableD
   const tableName = `${CAPABILITY_TABLE_PREFIX}${parsed.id}`;
   const columns = [
     ...platformColumnDefinitions(),
-    ...parsed.schema.fields.map((field) =>
-      columnDefinition(field.name, SQLITE_TYPE_BY_FIELD_TYPE[field.type]),
-    ),
+    ...parsed.schema.fields.map((field) => columnDefinition(field.name, field.type)),
   ];
 
   return {
@@ -69,10 +68,15 @@ function platformColumnDefinitions(): string[] {
   ];
 }
 
-function columnDefinition(name: string, type: string): string {
-  const parts = [sqlIdentifier(name), type];
-  if (type === SQLITE_TYPE_BY_FIELD_TYPE.boolean) {
+function columnDefinition(name: string, fieldType: FieldType): string {
+  const parts = [sqlIdentifier(name), SQLITE_TYPE_BY_FIELD_TYPE[fieldType]];
+  if (fieldType === "boolean") {
     parts.push(`CHECK (${sqlIdentifier(name)} IS NULL OR ${sqlIdentifier(name)} IN (0, 1))`);
+  }
+  if (fieldType === "string[]") {
+    parts.push(
+      `CHECK (${sqlIdentifier(name)} IS NULL OR (json_valid(${sqlIdentifier(name)}) AND json_type(${sqlIdentifier(name)}) = 'array'))`,
+    );
   }
   return parts.join(" ");
 }

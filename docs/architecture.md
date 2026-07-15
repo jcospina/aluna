@@ -210,9 +210,13 @@ copy — never an Intent Resolver classification or AI call.
 capability: list scaffolding, empty state, accessible item wrapper, create/detail
 modal, spec-rendered fields, and safe composition of generated item output. It
 may interpret structural spec facts such as field type, required state, detail
-ordering, and the collection layout (`ui_intent.collection.layout` — a closed
-value selecting how the list container arranges items); it may not implement
-capability behavior. Its field rendering
+ordering, the collection layout (`ui_intent.collection.layout` — a closed value
+selecting how the list container arranges items), and the closed per-`string[]`
+list input mode. The model chooses `comma_separated` only for comma-free atomic
+values such as tags/genres/categories; free-form list elements that may contain
+commas use `repeatable`. The platform renders and normalizes both modes to the
+same ordered array before generated code; it may not implement capability
+behavior. Its field rendering
 stays centralized so later field types (lists in Module 4 and files in Module 6)
 extend one place instead of every generated artifact. Capability-specific item
 composition remains generated, but the platform enforces the allowed HTML/class
@@ -472,6 +476,11 @@ shape label is analytical—not preservation machinery.
     ]
   },
   "ui_intent": {
+    "form": {
+      "list_inputs": [
+        { "field": "tags", "mode": "comma_separated" }
+      ]
+    },
     "item": {
       "direction": "A text-forward card that emphasizes text and treats tags and date as metadata.",
       "shows": ["text", "tags", "created_at"]
@@ -527,9 +536,15 @@ The AI authors `id` on v1 and thereafter returns it unchanged, plus `label`,
 `incarnation_id`, `version`, snapshot metadata, build id, and `artifacts_path`.
 `ui_intent` records only capability-specific choices: the item's free design
 direction and ordered presentation dependencies, the collection layout (a closed
-`feed | grid` value the platform list container reads), and the entries/order
-shown in detail. Presentation lists may name active user fields plus the closed
-platform field `created_at`; `id`, `extra`, and inactive fields are forbidden.
+`feed | grid` value the platform list container reads), the entries/order shown
+in detail, and exactly one closed list input mode for every active `string[]`.
+Form list-input entries follow active `string[]` schema-field order and use
+`comma_separated | repeatable`; missing, duplicate, scalar, inactive, unknown-
+field, or unknown-mode entries fail validation. Choosing `comma_separated` is a
+semantic assertion that commas are separators rather than element data for that
+field; `repeatable` preserves commas inside each element. Presentation lists may
+name active user fields plus the closed platform field `created_at`; `id`,
+`extra`, and inactive fields are forbidden.
 Fixed platform choices
 such as "detail uses
 the shared modal" do not belong in the AI-authored spec. `artifacts_path` points
@@ -554,9 +569,11 @@ capabilities.
 Field types include a `file` / `file[]` type. A file field stores only a **reference** (storage key + mime + size + original name) in the data table — never the bytes (see §6.3 Object Store and §7 Files). So a `photos` capability is just a normal capability whose schema has a `file`-typed field.
 
 The platform form/detail renderer is exhaustive over the committed field-type
-vocabulary. Module 4 extends that one renderer when list types arrive; Module 6
-extends it again for file controls and file detail presentation. Unknown types
-fail closed rather than falling back to an arbitrary text field.
+vocabulary. Module 4 extends that one renderer when list types arrive and lets
+the authored form intent select between the two platform list-input modes without
+exposing the choice to generated Handlers; Module 6 extends it again for file
+controls and file detail presentation. Unknown types or list-input modes fail
+closed rather than falling back to an arbitrary text field.
 
 #### Event Log — append-only during ordinary operation
 

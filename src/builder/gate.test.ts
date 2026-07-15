@@ -379,6 +379,62 @@ describe("capability gate", () => {
     expect(result.outcomes.every((outcome) => outcome.status !== "failed")).toBe(true);
   });
 
+  test("Gate smoke and design samples exercise string[] as an ordered list", async () => {
+    const spec = notesSpec({
+      schema: {
+        fields: [
+          { name: "tags", label: "Tags", type: "string[]", required: true, lifecycle: "active" },
+        ],
+      },
+      ui_intent: {
+        item: { direction: "Show each tag in order.", shows: ["tags"] },
+        collection: { layout: "feed" },
+        detail: { shows: ["tags"] },
+      },
+      behavior: "At least one tag is required and tag order is preserved.",
+      behavioral_errors: [
+        {
+          action: "create",
+          trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          fields: ["tags"],
+          expected_markers: BEHAVIORAL_ERROR_MARKERS,
+        },
+      ],
+    });
+    const create = [
+      "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
+      "  const tags = input.values.tags;",
+      '  if (!Array.isArray(tags)) return "<p>missing</p>";',
+      "  return present(data.insert({ tags: [...tags] }));",
+      "}",
+    ].join("\n");
+    const renderer = [
+      "export default function renderItem(record: Record<string, unknown>): string {",
+      "  const tags = Array.isArray(record.tags) ? record.tags : [];",
+      '  return `<div class="stack">$' +
+        '{tags.map((tag) => `<span class="text-sm">$' +
+        '{escapeHtml(String(tag))}</span>`).join("")}</div>`;',
+      "}",
+      "function escapeHtml(value: string): string {",
+      '  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");',
+      "}",
+    ].join("\n");
+
+    const result = await runCapabilityGate(
+      gateInput({
+        spec,
+        ddl: deriveCapabilityTableDdl(spec),
+        handlers: { create, read: READ_HANDLER },
+        itemRenderer: renderer,
+        behavioralTier: { enabled: false },
+      }),
+    );
+
+    expect(result.smoke.rowCount).toBe(1);
+    expect(result.outcomes.every((outcome) => outcome.status !== "failed")).toBe(true);
+  });
+
   test("signature assertion catches named exports, non-functions, and non-async functions", async () => {
     const cases: Array<{
       readonly label: string;

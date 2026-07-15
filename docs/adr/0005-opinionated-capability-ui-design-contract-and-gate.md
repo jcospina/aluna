@@ -48,6 +48,16 @@ renderer still receives only `ui_intent.item.shows`. Hidden values are preserved
 by the mutation interface's server-side merge, never by round-tripping them through
 the DOM.
 
+**Amended 2026-07-15 for Module 4 list input modes.** §1's centralized
+create/edit field renderer now consumes one additional capability-specific
+`ui_intent` fact for every active `string[]`: `comma_separated | repeatable`.
+The former is a semantic promise that list elements are comma-free atomic values;
+the latter preserves arbitrary element text including commas. The model chooses
+inside this closed set, while platform modules own both controls, accessibility,
+raw-form normalization, submitted-field presence, and the canonical ordered-array
+Handler value. This remains closed structural presentation, not generated form
+markup or a user-facing form builder.
+
 ## Problem
 
 A capability is born usable but **ugly**. The unit-generation prompts hand the
@@ -82,7 +92,9 @@ presentational platform code is allowed.
    fixed platform modules. They implement no capability rule and persist no
    canonical state. Consequently `list.html` and `create.html` **cease to be
    generated units**. Field rendering is centralized and exhaustive so Module 4's
-   list types and Module 6's file types extend one platform module.
+   list types and Module 6's file types extend one platform module. For active
+   `string[]` fields, that module also interprets the closed authored list input
+   mode and normalizes both controls to the same ordered-array Handler contract.
 
 2. **The item renderer is the single generated creative surface.** Each
    capability has one versioned generated item-renderer unit. It produces the
@@ -164,9 +176,13 @@ presentational platform code is allowed.
    `views: ["list", "create"]` describes generated scaffolding that disappears in
    M3. Its replacement records (a) the item design direction, (b) the
    **collection layout** — a closed enum (`feed | grid`) the platform list
-   container reads to arrange items, and (c) the fields/order the detail surface
-   shows. Collection layout is the same *kind* of structural presentation fact
-   the platform already interprets (field type, required state, detail order):
+   container reads to arrange items, (c) the fields/order the detail surface
+   shows, and, from Module 4, (d) exactly one closed list input mode for every
+   active `string[]`. `comma_separated` is limited to comma-free atomic values
+   such as tags/genres/categories; `repeatable` serves free-form values such as
+   quotes/addresses/citations where commas may be data. Collection layout and
+   list input mode are the same *kind* of structural presentation fact the
+   platform already interprets (field type, required state, detail order):
    one closed value mapped to a platform container class, **not** a model-emitted
    view tree (fully declarative SDUI stays rejected, below). An unknown value
    fails the build closed, exactly as an unknown field type does. `table` and
@@ -206,11 +222,13 @@ presentational platform code is allowed.
   checks (`checkListView`/`checkCreateView`) retire with those generated units.
   One item renderer clears structural/design checks; the platform item wrapper
   has deterministic platform tests.
-- **The Diff Engine (M4) sees one presentation unit.** It drops
-  `list.html`/`create.html`; a presentation-only intent change regenerates the
-  item renderer without rewriting unrelated handlers.
+- **The Diff Engine (M4) sees one generated presentation unit.** It drops
+  `list.html`/`create.html`; item direction/dependency or collection-layout
+  changes may regenerate the item renderer, while a list input mode change
+  selects only platform form/View normalization and no generated unit.
 - **The spec schema changes shape.** `ui_intent.views` retires in favor of item
-  intent + detail fields/order. The field-type pantry gains a `date` type (2026-07-06
+  intent + detail fields/order, and Module 4 adds strict per-active-`string[]`
+  form list-input intent. The field-type pantry gains a `date` type (2026-07-06
   amendment, above) but is otherwise unchanged; `file` remains M6.
 - **Metrics retain semantic continuity.** Item-renderer generation replaces M2
   view generation as the presentation-generation stage, so M8 compares the

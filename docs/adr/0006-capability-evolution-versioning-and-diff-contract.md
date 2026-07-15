@@ -29,7 +29,13 @@ omission is invalid, not a soft hide. `inactive→inactive` preserves the defini
 exactly and `active→inactive` changes lifecycle only; reactivation may union
 label/required changes through ordinary Diff facts. A new field must start active.
 Presentation dependencies may name active user fields plus the closed platform field
-`created_at`, never `id`, `extra`, or inactive fields. Before HTML, the platform
+`created_at`, never `id`, `extra`, or inactive fields. Form presentation intent
+requires exactly one `{ field, mode }` entry for every active `string[]`, in
+schema-field order. Modes are closed to `comma_separated | repeatable`; scalar,
+inactive, unknown, missing, duplicate, or invented entries fail candidate
+validation. Choosing `comma_separated` asserts that commas are separators rather
+than meaningful element data for that field; `repeatable` preserves commas within
+elements. Before HTML, the platform
 retains canonical rows internally and projects only Action-safe active values plus
 an opaque record handle to generated Handlers; the item renderer narrows again to
 its declared fields. Client state contains only the record target, allowed active
@@ -52,13 +58,17 @@ their committed compatibility contract. Free-text `behavior` has no reliable
 Action ownership, so it regenerates all five Handlers. Valid Action-owned
 error/dependency changes select their named Handlers; malformed or unknown
 ownership fails candidate validation before Diff rather than becoming a fallback.
+A list input mode change is a platform form/View and raw-input-normalization fact
+only: it selects no DDL, Handler, item renderer, or behavioral-test generation.
 A semantically identical canonical
 candidate is `lifecycle_status=success, outcome=no_change`: no DDL, copied units,
 snapshot, version, pointer update, or View `commit`. The explicit presenter
 restores the canonical current committed/neutral surface through ADR-0002's `fragment`
 event, then terminates normally. Equality is over the validated canonical value:
 JSON object/set-like ordering is normalized, while ordered field/item/detail facts
-remain semantic.
+remain semantic. Form list-input entries use active `string[]` schema-field order;
+an actual mode change remains semantic, while serialization/key reordering does
+not manufacture a version.
 
 ### Generated data interfaces and dependency compatibility
 
@@ -216,7 +226,9 @@ truthful without turning additive evolution into cascading rebuilds.
 ## Consequences
 
 - Amends ADR-0005's `ui_intent.item` shape with `direction + shows`; generated
-  composition remains open under the closed-value design contract.
+  composition remains open under the closed-value design contract. It also adds
+  closed form list-input intent for active `string[]` fields; the platform owns
+  both controls and their normalization.
 - Amends ADR-0004's injected toolbox: scoped mutation and declared free-query
   ports are distinct, and submitted-field presence belongs to the platform seam.
 - A pre-activation failed build leaves the prior version live. Candidate staging/
