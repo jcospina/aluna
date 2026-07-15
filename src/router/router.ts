@@ -10,11 +10,11 @@
 //      cleanly, in product voice, **before any handler code is loaded**.
 //   2. Parses the closed Action-specific wire contract, including the reserved
 //      record target for update/delete, before generated code loads.
-//   3. Loads the handler for that action from the version directory the row's
+//   3. Builds the platform context (ADR-0004): parsed input (form/query — the
+//      handler never touches raw HTTP), the capability- or record-bound mutation
+//      port for write Actions, and the physically read-only free-query port.
+//   4. Loads the handler for that action from the version directory the row's
 //      `artifacts_path` points to.
-//   4. Builds the platform context (ADR-0004): parsed input (form/query — the
-//      handler never touches raw HTTP), the capability-bound mutation port for
-//      create, and the physically read-only free-query port.
 //   5. Invokes the handler's single default-exported async function and wraps the
 //      returned HTML fragment in the HTTP response — the platform owns headers,
 //      status, and routing.
@@ -28,9 +28,12 @@ import { pathToFileURL } from "node:url";
 import type { Context, Hono } from "hono";
 
 import {
+  createCapabilityDeleteMutationPort,
   createCapabilityMutationPort,
   createCapabilityQueryPort,
+  createCapabilityUpdateMutationPort,
   MissingRequiredFieldsError,
+  RecordNotFoundError,
 } from "../capability-data/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
 import {
@@ -48,10 +51,13 @@ import { type CapabilityRow, type CapabilitySpec, getCapability } from "../regis
 import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
 import type {
   CapabilityCreateHandler,
+  CapabilityDeleteHandler,
   CapabilityHandler,
   CapabilityReadHandler,
+  CapabilityUpdateHandler,
 } from "./contract.ts";
 import {
+  type ParsedCapabilityRequest,
   parseCapabilityRequest,
   type WireProtocolAction,
   WireProtocolError,
@@ -216,7 +222,7 @@ async function handleRecordMutation(
   action: MutationAction,
 ): Promise<Response> {
   const mutationLease = mutationCoordinator.tryAcquireRecordWrite();
-  if (!mutationLease) return recordMutationRefusal(c, row.id);
+  if (!mutationLease) return recordMutationRefusal(c, row.id, action);
 
   try {
     return await executeCapabilityHandler(c, databases, loadHandler, loadItemRenderer, row, action);
@@ -240,21 +246,15 @@ async function executeCapabilityHandler(
   try {
     const spec = specFromRow(row);
     const parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
-    const { input } = parsedRequest;
-    // parsedRequest.recordTarget stays platform-side. Issue 4.2/05 binds it to
-    // update/delete mutation authority without adding it to Handler input.
-    const query = createCapabilityQueryPort(databases.readonly);
-    let fragment: string;
-    if (action === "create") {
-      const mutation = createCapabilityMutationPort(spec, databases.readwrite);
-      const present = await buildPresentationAdapter(row, loadItemRenderer);
-      const handler = await loadHandler(row.artifacts_path, action);
-      fragment = await (handler as CapabilityCreateHandler)({ input, mutation, query, present });
-    } else {
-      const present = await buildPresentationAdapter(row, loadItemRenderer);
-      const handler = await loadHandler(row.artifacts_path, action);
-      fragment = await (handler as CapabilityReadHandler)({ input, query, present });
-    }
+    const fragment = await invokeCapabilityHandler(
+      databases,
+      loadHandler,
+      loadItemRenderer,
+      row,
+      spec,
+      action,
+      parsedRequest,
+    );
     if (typeof fragment !== "string") {
       throw new TypeError(
         `Handler ${id}/${action} returned ${typeof fragment}; the contract requires an HTML string.`,
@@ -268,13 +268,62 @@ async function executeCapabilityHandler(
     if (error instanceof MissingRequiredFieldsError) {
       return missingRequiredFieldsFailure(c, id, error);
     }
+    if (error instanceof RecordNotFoundError) {
+      return recordNotFoundFailure(c, error);
+    }
     return internalFailure(c, id, action, error);
   }
 }
 
-function recordMutationRefusal(c: Context, capabilityId: string): Response {
-  c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
-  c.header("HX-Reswap", "innerHTML");
+async function invokeCapabilityHandler(
+  databases: PlatformDatabase,
+  loadHandler: HandlerLoader,
+  loadItemRenderer: ItemRendererLoader,
+  row: CapabilityRow,
+  spec: CapabilitySpec,
+  action: WireProtocolAction,
+  parsedRequest: ParsedCapabilityRequest,
+): Promise<string> {
+  const { input } = parsedRequest;
+  const query = createCapabilityQueryPort(databases.readonly);
+
+  if (action === "create") {
+    const mutation = createCapabilityMutationPort(spec, databases.readwrite);
+    const present = await buildPresentationAdapter(row, loadItemRenderer);
+    const handler = await loadHandler(row.artifacts_path, action);
+    return (handler as CapabilityCreateHandler)({ input, mutation, query, present });
+  }
+  if (action === "update") {
+    const mutation = createCapabilityUpdateMutationPort(
+      spec,
+      requireRecordTarget(parsedRequest.recordTarget, action),
+      new Set(input.submittedFields),
+      databases.readwrite,
+    );
+    const present = await buildPresentationAdapter(row, loadItemRenderer);
+    const handler = await loadHandler(row.artifacts_path, action);
+    return (handler as CapabilityUpdateHandler)({ input, mutation, query, present });
+  }
+  if (action === "delete") {
+    const mutation = createCapabilityDeleteMutationPort(
+      spec,
+      requireRecordTarget(parsedRequest.recordTarget, action),
+      databases.readwrite,
+    );
+    const handler = await loadHandler(row.artifacts_path, action);
+    return (handler as CapabilityDeleteHandler)({ input, mutation, query });
+  }
+
+  const present = await buildPresentationAdapter(row, loadItemRenderer);
+  const handler = await loadHandler(row.artifacts_path, action);
+  return (handler as CapabilityReadHandler)({ input, query, present });
+}
+
+function recordMutationRefusal(c: Context, capabilityId: string, action: MutationAction): Response {
+  if (action === "create") {
+    c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
+    c.header("HX-Reswap", "innerHTML");
+  }
   return c.html(
     '<p class="notice" data-role="error" data-error-code="mutation_busy">I\'m still putting something together. Give me a moment, then try that again.</p>',
     422,
@@ -287,12 +336,35 @@ function missingRequiredFieldsFailure(
   error: MissingRequiredFieldsError,
 ): Response {
   const fields = error.fields.join(" ");
-  c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
-  c.header("HX-Reswap", "innerHTML");
+  if (error.action === "create") {
+    c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
+    c.header("HX-Reswap", "innerHTML");
+  }
+  const copy =
+    error.action === "create"
+      ? "I still need a little more before I can add this."
+      : "I still need a little more before I can save this.";
   return c.html(
-    `<p class="notice" data-role="error" data-error-code="${error.code}" data-error-fields="${fields}">I still need a little more before I can add this.</p>`,
+    `<p class="notice" data-role="error" data-error-code="${error.code}" data-error-fields="${fields}">${copy}</p>`,
     422,
   );
+}
+
+function recordNotFoundFailure(c: Context, error: RecordNotFoundError): Response {
+  return c.html(
+    `<p class="notice" data-role="error" data-error-code="${error.code}">I couldn’t find that entry anymore. It may already be gone.</p>`,
+    404,
+  );
+}
+
+function requireRecordTarget(
+  recordTarget: string | undefined,
+  action: "update" | "delete",
+): string {
+  if (recordTarget === undefined) {
+    throw new WireProtocolError(`${action} requires a validated record target.`);
+  }
+  return recordTarget;
 }
 
 // Whether the action is one the capability actually declares it can do. `tools` is

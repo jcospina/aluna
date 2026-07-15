@@ -21,6 +21,9 @@ import {
 } from "../registry/index.ts";
 
 export const FIELD_LIFECYCLE_DEMO_ID = "field_lifecycle_demo";
+export const FIELD_LIFECYCLE_MERGE_TARGET_ID = "merge-target";
+export const FIELD_LIFECYCLE_DELETE_TARGET_ID = "delete-target";
+export const FIELD_LIFECYCLE_HISTORICAL_TARGET_ID = "historical-null";
 
 // Development-only 4.2–4.3 reference fixture. Epic 4.4 removes this hand-written
 // capability when prompt builds switch to the final generated five-Action shape.
@@ -150,16 +153,25 @@ const READ_HANDLER = `export default async function read({ query, present }: Cap
 }
 `;
 
-// Issue 4.2/05 replaces these two routable reference seams with target-bound
-// merge/delete behavior. They are intentionally real Handler files now so no
-// registry row advertises an absent Action during the 4.2 transition.
-const UPDATE_HANDLER = `export default async function update(_context: CapabilityContext): Promise<string> {
-  return '<p class="notice" data-demo-result="unavailable">I can’t save that change just yet. Please try again soon.</p>';
+const UPDATE_HANDLER = `export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {
+  const patch: Record<string, unknown> = {};
+  if ("entry" in input.values) patch.entry = input.values.entry;
+  if ("reflection" in input.values) patch.reflection = input.values.reflection;
+  if ("tags" in input.values) {
+    const tags = input.values.tags;
+    patch.tags = Array.isArray(tags) ? [...tags] : tags;
+  }
+  if ("aliases" in input.values) {
+    const aliases = input.values.aliases;
+    patch.aliases = Array.isArray(aliases) ? [...aliases] : aliases;
+  }
+  return present(mutation.update(patch));
 }
 `;
 
-const DELETE_HANDLER = `export default async function remove(_context: CapabilityContext): Promise<string> {
-  return '<p class="notice" data-demo-result="unavailable">I can’t remove that entry just yet. Please try again soon.</p>';
+const DELETE_HANDLER = `export default async function remove({ mutation }: CapabilityDeleteContext): Promise<string> {
+  mutation.delete();
+  return '<p class="notice" data-demo-result="deleted">That entry is gone.</p>';
 }
 `;
 
@@ -284,9 +296,35 @@ export async function installFieldLifecycleDemo(options: InstallFieldLifecycleDe
           database,
           artifactsRoot,
         });
-        database.run(
-          `INSERT INTO "${tableName}" ("id", "entry", "reflection", "tags", "aliases", "retired_note") VALUES (?, NULL, ?, NULL, NULL, ?)`,
-          ["historical-null", "This row predates logical requiredness.", "still stored"],
+        const seed = database.query(
+          `INSERT INTO "${tableName}" ("id", "entry", "reflection", "tags", "aliases", "retired_note", "extra") VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        );
+        seed.run(
+          FIELD_LIFECYCLE_HISTORICAL_TARGET_ID,
+          null,
+          "This row predates logical requiredness.",
+          null,
+          null,
+          "still stored",
+          '{"source":"historical"}',
+        );
+        seed.run(
+          FIELD_LIFECYCLE_MERGE_TARGET_ID,
+          "A quiet beginning",
+          "Keep this reflection",
+          '["kept","before"]',
+          '["Preserved alias"]',
+          "hidden survives update",
+          '{"source":"merge-demo"}',
+        );
+        seed.run(
+          FIELD_LIFECYCLE_DELETE_TARGET_ID,
+          "Ready to remove",
+          "This one is only for the delete tracer.",
+          '["delete-demo"]',
+          "[]",
+          "delete target hidden value",
+          '{"source":"delete-demo"}',
         );
         return committed;
       });

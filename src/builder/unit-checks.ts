@@ -285,6 +285,12 @@ interface CapabilityInput {
 interface CapabilityMutationPort {
   create(values: Record<string, unknown>): CapabilityDataRow;
 }
+interface CapabilityUpdateMutationPort {
+  update(values: Record<string, unknown>): CapabilityDataRow;
+}
+interface CapabilityDeleteMutationPort {
+  delete(): void;
+}
 type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
 interface CapabilityQueryResultColumn {
   readonly alias: string;
@@ -305,13 +311,30 @@ interface CapabilityContext {
 interface CapabilityCreateContext extends CapabilityContext {
   readonly mutation: CapabilityMutationPort;
 }
+interface CapabilityUpdateContext extends CapabilityContext {
+  readonly mutation: CapabilityUpdateMutationPort;
+}
+interface CapabilityDeleteContext {
+  readonly input: CapabilityInput;
+  readonly mutation: CapabilityDeleteMutationPort;
+  readonly query: CapabilityQueryPort;
+}
 type CapabilityCreateHandler = (context: CapabilityCreateContext) => Promise<string>;
 type CapabilityReadHandler = (context: CapabilityContext) => Promise<string>;
+type CapabilityUpdateHandler = (context: CapabilityUpdateContext) => Promise<string>;
+type CapabilityDeleteHandler = (context: CapabilityDeleteContext) => Promise<string>;
 `;
 
 function handlerAssert(action: HandlerUnitName): string {
-  const type = action === "create" ? "CapabilityCreateHandler" : "CapabilityReadHandler";
+  const type = handlerContractType(action);
   return `import handler from "./unit";\nconst assertHandler: ${type} = handler;\nvoid assertHandler;\n`;
+}
+
+function handlerContractType(action: HandlerUnitName): string {
+  if (action === "create") return "CapabilityCreateHandler";
+  if (action === "update") return "CapabilityUpdateHandler";
+  if (action === "delete") return "CapabilityDeleteHandler";
+  return "CapabilityReadHandler";
 }
 
 // The item-renderer contract: one record → its inner markup string (the composition

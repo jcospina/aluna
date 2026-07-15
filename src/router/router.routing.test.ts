@@ -28,7 +28,15 @@ const FULL_ACTIONS = ["create", "read", "update", "delete", "search"] as const;
 // authored shape. This lookup-only row lets the route boundary be exercised now
 // without weakening the registry's exact transitional two-Action validation.
 function fullActionRouteRow(): CapabilityRow {
-  return { ...notesRow(), tools: FULL_ACTIONS } as unknown as CapabilityRow;
+  const base = notesRow();
+  const createRequired = base.behavioral_errors[0];
+  if (!createRequired) throw new Error("notes fixture is missing its required-fields case");
+  return {
+    ...base,
+    tools: [...FULL_ACTIONS],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
+    behavioral_errors: [createRequired, { ...createRequired, action: "update" }],
+  } as CapabilityRow;
 }
 
 function urlEncoded(entries: readonly [string, string][]): RequestInit {

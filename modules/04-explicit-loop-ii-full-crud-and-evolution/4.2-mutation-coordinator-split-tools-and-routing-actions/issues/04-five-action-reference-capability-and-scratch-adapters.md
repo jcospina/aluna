@@ -77,9 +77,9 @@ chrome.
   five-Action reference capability, explicitly marked for removal in 4.4. Its
   internal fixture identity stays internal; the consumer surface calls it
   **Journal entry**.
-  Existing chrome creates/reads records; search is executable now; update/delete
-  are real routable Handler seams that issue 4.2/05 deepens with target-bound
-  mutation behavior.
+  Existing chrome creates/reads records; search is executable; issue 4.2/05 has
+  since bound the update/delete Handler seams to real record-targeted mutation
+  behavior.
 - Added Gate scratch-catalog fixtures keyed by declared capability/incarnation.
   The Gate derives every dependency schema, seeds only caller-supplied synthetic
   rows into the fresh shared-memory database pair, and fails when a declared
@@ -102,9 +102,9 @@ chrome.
   acquires the shared mutation coordinator lease, and publishes within that
   admission boundary. When port 3030 is running, the install script calls the
   server-owned route instead of mutating the live database independently.
-- Browser-visible copy now uses **Journal entry** and warm consumer-facing
-  update/delete unavailability messages without reference-fixture, Handler, or
-  future-slice narration.
+- Browser-visible copy uses **Journal entry** and stays consumer-facing across
+  create/read/search plus the update/delete success and not-found paths completed
+  by issue 4.2/05.
 
 ## Verification
 
@@ -113,10 +113,10 @@ chrome.
 - `bun run lint`
 - `git diff --check`
 - `bun run demo:five-action-reference`
-- Live `localhost:3030` probes: browser `POST create`, `GET read`,
-  `GET search?q=Browser%20QA`, `POST update`, and `POST delete` all returned HTTP
-  200. Read/search contained the saved entry; update/delete contained only the
-  warm consumer messages.
+- At issue 4.2/04 completion, live `localhost:3030` probes for all five Actions
+  returned HTTP 200; update/delete still contained only the warm consumer
+  placeholders. Issue 4.2/05 supersedes that historical result with real
+  target-bound mutations.
 - In-app browser: opened **Journal entry**, expanded **New Journal entry**,
   created a scalar/list record, opened it in the shared detail modal, and
   confirmed it survived reload.
@@ -132,20 +132,18 @@ chrome.
    **Other names** value, then select **Add**. Confirm the new item appears, opens
    in the shared detail modal, and survives reload with the three tags separate
    while `Doe, Jane` remains one value.
-4. Confirm all five Handler files are routable with these developer probes (use
-   any nonblank target marker until issue 4.2/05 binds real target mutations):
+4. Confirm all five Handler files remain routable with these developer probes:
 
    ```sh
    curl -i http://localhost:3030/capability/field_lifecycle_demo/read
    curl -i 'http://localhost:3030/capability/field_lifecycle_demo/search?q=Something'
-   curl -i -X POST http://localhost:3030/capability/field_lifecycle_demo/update --data-urlencode '__aluna_record_id=reference-record'
-   curl -i -X POST http://localhost:3030/capability/field_lifecycle_demo/delete --data-urlencode '__aluna_record_id=reference-record'
+   curl -i -X POST http://localhost:3030/capability/field_lifecycle_demo/update --data-urlencode 'entry=A changed beginning' --data-urlencode '__aluna_present=entry' --data-urlencode '__aluna_record_id=merge-target'
+   curl -i -X POST http://localhost:3030/capability/field_lifecycle_demo/delete --data-urlencode '__aluna_record_id=delete-target'
    ```
 
-   Confirm each returns HTTP 200; read/search render record markup and
-   update/delete return `I can’t save that change just yet. Please try again
-   soon.` and `I can’t remove that entry just yet. Please try again soon.` rather
-   than engineering terminology or an internal error. This slice exercises search routability by
+   Confirm each returns HTTP 200; read/search render record markup, update renders
+   **A changed beginning**, and delete returns **That entry is gone.** rather than
+   engineering terminology or an internal error. This slice exercises search routability by
    matching the reference Handler's `entry` field. Search across every active
    scalar/list text field, including `tags`, lands in issue 4.2/06.
 
@@ -244,8 +242,8 @@ browser-visible strings remain consumer-facing product copy.
 
 **Out of scope:**
 
-- Implementing target-bound merge update and delete behavior owned by issue
-  4.2/05.
+- Target-bound merge update and delete behavior was owned by, and is now completed
+  in, issue 4.2/05; it was outside this issue's original implementation boundary.
 - Implementing per-Action dependency enforcement, target-id rehydration, or the
   complete normalized search baseline owned by issue 4.2/06.
 - Adding hostile-code process containment; generated execution remains

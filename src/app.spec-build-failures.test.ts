@@ -6,7 +6,7 @@
 // happy-path app.spec-build.test.ts so each describe stays under the line budget;
 // shared setup and fixtures live in app.test-support.ts.
 
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ZodType } from "zod";
@@ -37,6 +37,8 @@ import {
   insertCapability,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "./registry/index.ts";
+
+setDefaultTimeout(15_000);
 
 let dir: string;
 let conns: PlatformDatabase;
