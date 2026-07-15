@@ -8,8 +8,11 @@ import { openDatabase, type PlatformDatabase } from "../db.ts";
 import { runMigrations } from "../migrations.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import {
+  FIELD_LIFECYCLE_DELETE_TARGET_ID,
   FIELD_LIFECYCLE_DEMO_ID,
   FIELD_LIFECYCLE_DEMO_SPEC,
+  FIELD_LIFECYCLE_HISTORICAL_TARGET_ID,
+  FIELD_LIFECYCLE_MERGE_TARGET_ID,
   installFieldLifecycleDemo,
 } from "./field-lifecycle.ts";
 
@@ -74,7 +77,7 @@ describe("development-only five-Action reference living demo", () => {
     expect(
       databases.readwrite
         .query(`SELECT "retired_note" FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "id" = ?`)
-        .get("historical-null"),
+        .get(FIELD_LIFECYCLE_HISTORICAL_TARGET_ID),
     ).toEqual({ retired_note: "still stored" });
     expect(
       FIELD_LIFECYCLE_DEMO_SPEC.schema.fields.find((field) => field.name === "retired_note")
@@ -194,7 +197,7 @@ describe("five-Action reference installer admission", () => {
 });
 
 describe("five-Action reference route inventory", () => {
-  test("all five advertised routes are loadable", async () => {
+  test("partial update, post-merge validation, delete, and not-found run through real routes", async () => {
     const dir = mkdtempSync(join(tmpdir(), "aluna-five-action-routes-"));
     const databases = openDatabase(join(dir, "demo.db"));
     try {
@@ -208,16 +211,86 @@ describe("five-Action reference route inventory", () => {
 
       const search = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=old`);
       expect(search.status).toBe(200);
+
+      const before = databases.readwrite
+        .query(`SELECT * FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "id" = ?`)
+        .get(FIELD_LIFECYCLE_MERGE_TARGET_ID) as Record<string, unknown>;
+      const update = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/update`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams([
+          ["entry", "A changed beginning"],
+          ["__aluna_present", "entry"],
+          ["__aluna_record_id", FIELD_LIFECYCLE_MERGE_TARGET_ID],
+        ]).toString(),
+      });
+      expect(update.status).toBe(200);
+      expect(await update.text()).toContain("A changed beginning");
+      const after = databases.readwrite
+        .query(`SELECT * FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "id" = ?`)
+        .get(FIELD_LIFECYCLE_MERGE_TARGET_ID) as Record<string, unknown>;
+      expect(after).toMatchObject({
+        id: before.id,
+        created_at: before.created_at,
+        entry: "A changed beginning",
+        reflection: before.reflection,
+        tags: before.tags,
+        aliases: before.aliases,
+        retired_note: before.retired_note,
+        extra: before.extra,
+      });
+      const refreshed = await (
+        await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`)
+      ).text();
+      expect(refreshed).toContain("A changed beginning");
+      expect(refreshed).toContain("kept");
+      expect(refreshed).toContain("Preserved alias");
+      expect(refreshed).not.toContain("hidden survives update");
+      expect(refreshed).not.toContain("merge-demo");
+
+      const historical = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/update`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams([
+          ["reflection", "Must not save"],
+          ["__aluna_present", "reflection"],
+          ["__aluna_record_id", FIELD_LIFECYCLE_HISTORICAL_TARGET_ID],
+        ]).toString(),
+      });
+      expect(historical.status).toBe(422);
+      expect(await historical.text()).toContain('data-error-code="missing_required_fields"');
+      expect(
+        databases.readwrite
+          .query(`SELECT "reflection" FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "id" = ?`)
+          .get(FIELD_LIFECYCLE_HISTORICAL_TARGET_ID),
+      ).toEqual({ reflection: "This row predates logical requiredness." });
+
+      const remove = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/delete`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          __aluna_record_id: FIELD_LIFECYCLE_DELETE_TARGET_ID,
+        }).toString(),
+      });
+      expect(remove.status).toBe(200);
+      expect(await remove.text()).toContain('data-demo-result="deleted"');
+      expect(
+        databases.readwrite
+          .query(`SELECT "id" FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "id" = ?`)
+          .get(FIELD_LIFECYCLE_DELETE_TARGET_ID),
+      ).toBeNull();
+
       for (const action of ["update", "delete"] as const) {
+        const body = new URLSearchParams({ __aluna_record_id: "bogus-target" });
         const response = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/${action}`, {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ __aluna_record_id: "reference-record" }).toString(),
+          body: body.toString(),
         });
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(404);
         const fragment = await response.text();
-        expect(fragment).toContain('data-demo-result="unavailable"');
-        expect(fragment).not.toMatch(/handler|route|slice|reference/i);
+        expect(fragment).toContain('data-error-code="record_not_found"');
+        expect(fragment).not.toMatch(/handler|route|record target|reference/i);
       }
       expect(FIELD_LIFECYCLE_DEMO_SPEC.tools).toEqual([
         "create",

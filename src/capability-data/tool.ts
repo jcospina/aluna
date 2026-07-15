@@ -4,9 +4,7 @@
 // use a distinct arbitrary-SQL port backed only by the physically read-only SQLite
 // connection. Live and Gate scratch execution construct these same interfaces.
 
-import { randomUUID } from "node:crypto";
-
-import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
+import { dbReadonly } from "../db.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,
@@ -23,12 +21,6 @@ export interface CapabilityDataRow {
   readonly id: string;
   readonly created_at: string;
   readonly [field: string]: CapabilityDataColumnValue;
-}
-
-export type CapabilityCreateValues = Record<string, unknown>;
-
-export interface CapabilityMutationPort {
-  create(values: CapabilityCreateValues): CapabilityDataRow;
 }
 
 export type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
@@ -57,56 +49,28 @@ export class CapabilityDataValidationError extends Error {
 
 export class MissingRequiredFieldsError extends CapabilityDataValidationError {
   override readonly name = "MissingRequiredFieldsError";
-  readonly action = "create";
+  readonly action: "create" | "update";
   readonly code = MISSING_REQUIRED_FIELDS_ERROR_CODE;
   readonly fields: readonly string[];
 
-  constructor(capabilityId: string, fields: readonly string[]) {
+  constructor(
+    capabilityId: string,
+    fields: readonly string[],
+    action: "create" | "update" = "create",
+  ) {
     super(`Missing required fields for capability "${capabilityId}": ${fields.join(", ")}.`);
+    this.action = action;
     this.fields = [...fields];
   }
 }
 
-type SqlValue = string | number | null;
+export type SqlValue = string | number | null;
 
-interface StoredCapabilityRow {
+export interface StoredCapabilityRow {
   id: unknown;
   created_at: unknown;
   extra: unknown;
   [column: string]: unknown;
-}
-
-const PLATFORM_POPULATED_COLUMNS = new Set(["id", "created_at", "extra"]);
-
-export function createCapabilityMutationPort(
-  spec: CapabilitySpec,
-  database = db,
-): CapabilityMutationPort {
-  const parsed = capabilitySpecSchema.parse(spec);
-  const { tableName } = deriveCapabilityTableDdl(parsed);
-  const quotedTable = sqlIdentifier(tableName);
-  const fields = activeSpecFields(parsed.schema.fields);
-  const allowedInsertFields = new Set(fields.map((field) => field.name));
-
-  return {
-    create(values) {
-      const normalized = normalizeInsertValues(parsed.id, fields, allowedInsertFields, values);
-      const columns = ["id", ...fields.map((field) => field.name)];
-      const sqlValues: SqlValue[] = [randomUUID()];
-
-      for (const field of fields) {
-        sqlValues.push(normalized[field.name] ?? null);
-      }
-
-      const placeholders = columns.map(() => "?").join(", ");
-      const quotedColumns = columns.map(sqlIdentifier).join(", ");
-      const stored = database
-        .query(`INSERT INTO ${quotedTable} (${quotedColumns}) VALUES (${placeholders}) RETURNING *`)
-        .get(...sqlValues) as StoredCapabilityRow;
-
-      return normalizeStoredRow(fields, stored);
-    },
-  };
 }
 
 /**
@@ -134,16 +98,6 @@ export function createCapabilityQueryPort(database = dbReadonly): CapabilityQuer
       );
       return rows.map((row, index) => projectQueryRow(row, result, index));
     },
-  };
-}
-
-export function createCapabilityDataPorts(
-  spec: CapabilitySpec,
-  databases: PlatformDatabase = { readwrite: db, readonly: dbReadonly },
-): { readonly mutation: CapabilityMutationPort; readonly query: CapabilityQueryPort } {
-  return {
-    mutation: createCapabilityMutationPort(spec, databases.readwrite),
-    query: createCapabilityQueryPort(databases.readonly),
   };
 }
 
@@ -262,54 +216,18 @@ function isValidStoredDatetime(value: string): boolean {
   );
 }
 
-function normalizeInsertValues(
-  capabilityId: string,
-  fields: readonly SpecField[],
-  allowedInsertFields: Set<string>,
-  values: CapabilityCreateValues,
-): Record<string, SqlValue> {
-  if (!isPlainObject(values)) {
-    throw new CapabilityDataValidationError(
-      `Capability "${capabilityId}" insert values must be an object.`,
-    );
-  }
-
-  validateInsertKeys(capabilityId, allowedInsertFields, values);
-
-  return normalizeSpecFieldValues(capabilityId, fields, values);
-}
-
-function validateInsertKeys(
-  capabilityId: string,
-  allowedInsertFields: Set<string>,
-  values: Record<string, unknown>,
-): void {
-  for (const key of Object.keys(values)) {
-    if (PLATFORM_POPULATED_COLUMNS.has(key)) {
-      throw new CapabilityDataValidationError(
-        `Column "${key}" is platform-populated and cannot be inserted by a handler.`,
-      );
-    }
-    if (!allowedInsertFields.has(key)) {
-      const fieldList = [...allowedInsertFields].sort().join(", ");
-      throw new CapabilityDataValidationError(
-        `Unknown field "${key}" for capability "${capabilityId}". Insert accepts only: ${fieldList}.`,
-      );
-    }
-  }
-}
-
-function normalizeSpecFieldValues(
+export function normalizeSpecFieldValues(
   capabilityId: string,
   fields: readonly SpecField[],
   values: Record<string, unknown>,
+  action: "create" | "update" = "create",
 ): Record<string, SqlValue> {
   const normalized: Record<string, SqlValue> = {};
   const missing = fields
     .filter((field) => field.required && isMissingRequiredValue(field, values[field.name]))
     .map((field) => field.name);
   if (missing.length > 0) {
-    throw new MissingRequiredFieldsError(capabilityId, missing);
+    throw new MissingRequiredFieldsError(capabilityId, missing, action);
   }
 
   for (const field of fields) {
@@ -458,7 +376,7 @@ function isLeapYear(year: number): boolean {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
-function normalizeStoredRow(
+export function normalizeStoredRow(
   fields: readonly SpecField[],
   row: StoredCapabilityRow,
 ): CapabilityDataRow {
@@ -539,12 +457,12 @@ function readStringColumn(name: string, value: unknown): string {
   return value;
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
 }
 
-function sqlIdentifier(identifier: string): string {
+export function sqlIdentifier(identifier: string): string {
   return `"${identifier}"`;
 }

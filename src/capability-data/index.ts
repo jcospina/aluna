@@ -9,10 +9,21 @@ export {
 } from "./ddl.ts";
 export {
   type CapabilityCreateValues,
+  type CapabilityDeleteMutationPort,
+  type CapabilityMutationPort,
+  type CapabilityUpdateMutationPort,
+  type CapabilityUpdateValues,
+  createCapabilityDataPorts,
+  createCapabilityDeleteMutationPort,
+  createCapabilityMutationPort,
+  createCapabilityUpdateMutationPort,
+  RECORD_NOT_FOUND_ERROR_CODE,
+  RecordNotFoundError,
+} from "./mutation.ts";
+export {
   type CapabilityDataColumnValue,
   type CapabilityDataRow,
   CapabilityDataValidationError,
-  type CapabilityMutationPort,
   type CapabilityQueryInput,
   type CapabilityQueryParameter,
   type CapabilityQueryPort,
@@ -20,8 +31,6 @@ export {
   type CapabilityQueryResultType,
   type CapabilityQueryRow,
   capabilityRowDescriptor,
-  createCapabilityDataPorts,
-  createCapabilityMutationPort,
   createCapabilityQueryPort,
   encodeCapabilityFieldForStorage,
   MissingRequiredFieldsError,

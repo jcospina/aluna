@@ -1,8 +1,8 @@
 // The structural rung — the gate's first, always-on verdict over the generated
 // *source*, before anything is executed.
 //
-// It checks the two generated handlers and the generated item renderer: they parse to
-// the required export shape (the handlers to ADR-0004's `export default async function`
+// It checks every declared generated handler and the generated item renderer: they
+// parse to the required export shape (the handlers to ADR-0004's `export default async function`
 // taking one context parameter; the item renderer to a synchronous
 // `export default function` taking one record), and they type-check in isolation against
 // the platform-authored contracts (the handler contract now carries ADR-0005 §2's
@@ -160,7 +160,7 @@ function typeCheckHandlers(
       const assertion = `assert${suffix}`;
       return [
         `import ${binding} from "./${name}.ts";`,
-        `const ${assertion}: ${name === "create" ? "CapabilityCreateHandler" : "CapabilityReadHandler"} = ${binding};`,
+        `const ${assertion}: ${handlerContractType(name)} = ${binding};`,
         `void ${assertion};`,
       ];
     });
@@ -179,6 +179,13 @@ function typeCheckHandlers(
   } finally {
     rmSync(dir, { force: true, recursive: true });
   }
+}
+
+function handlerContractType(action: HandlerUnitName): string {
+  if (action === "create") return "CapabilityCreateHandler";
+  if (action === "update") return "CapabilityUpdateHandler";
+  if (action === "delete") return "CapabilityDeleteHandler";
+  return "CapabilityReadHandler";
 }
 
 function typeCheckItemRenderer(itemRenderer: string): string | undefined {
@@ -229,6 +236,12 @@ interface CapabilityInput {
 interface CapabilityMutationPort {
   create(values: Record<string, unknown>): CapabilityDataRow;
 }
+interface CapabilityUpdateMutationPort {
+  update(values: Record<string, unknown>): CapabilityDataRow;
+}
+interface CapabilityDeleteMutationPort {
+  delete(): void;
+}
 type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
 interface CapabilityQueryResultColumn {
   readonly alias: string;
@@ -249,8 +262,18 @@ interface CapabilityContext {
 interface CapabilityCreateContext extends CapabilityContext {
   readonly mutation: CapabilityMutationPort;
 }
+interface CapabilityUpdateContext extends CapabilityContext {
+  readonly mutation: CapabilityUpdateMutationPort;
+}
+interface CapabilityDeleteContext {
+  readonly input: CapabilityInput;
+  readonly mutation: CapabilityDeleteMutationPort;
+  readonly query: CapabilityQueryPort;
+}
 type CapabilityCreateHandler = (context: CapabilityCreateContext) => Promise<string>;
 type CapabilityReadHandler = (context: CapabilityContext) => Promise<string>;
+type CapabilityUpdateHandler = (context: CapabilityUpdateContext) => Promise<string>;
+type CapabilityDeleteHandler = (context: CapabilityDeleteContext) => Promise<string>;
 `;
 
 // The item-renderer contract — one record → its inner markup string (mirrors the
