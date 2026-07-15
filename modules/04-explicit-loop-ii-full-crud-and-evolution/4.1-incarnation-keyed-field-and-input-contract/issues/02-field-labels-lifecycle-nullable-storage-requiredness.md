@@ -120,3 +120,18 @@ with a warm error on the homepage surface.
 6. Open the seeded `—` item. Confirm detail uses the authored labels, renders `—`
    for the historical required null, includes **Created**, and never exposes the
    inactive stored field.
+
+## Post-epic quality review (2026-07-15)
+
+- The capability data port now exposes only `id`, `created_at`, and active schema
+  fields. Platform-owned `extra` remains validated in storage but cannot be read
+  or written by a generated Handler.
+- The presentation adapter independently projects the client payload to those
+  same admitted columns, so malformed upstream rows cannot serialize `extra` or
+  inactive values into the DOM.
+- Unit checks and the Gate share one AST-based item-renderer check: literal reads
+  outside `ui_intent.item.shows`, destructuring of undeclared fields, and dynamic
+  whole-record access fail before generated code runs.
+- Date/datetime validation now checks actual calendar days, leap years, clock
+  bounds, and ISO offsets. It accepts years `0001`–`0099` and rejects impossible
+  values such as `1900-02-29` and `2026-02-30T10:00`.

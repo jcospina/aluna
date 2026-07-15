@@ -13,11 +13,10 @@ describe("platform list-input contract", () => {
     expect(normalizeListInputValues("comma_separated", [" , , "])).toEqual([]);
   });
 
-  test("repeatable preserves every raw occurrence and treats commas as ordinary data", () => {
-    expect(normalizeListInputValues("repeatable", ["Doe, Jane", "  exact spacing  "])).toEqual([
-      "Doe, Jane",
-      "  exact spacing  ",
-    ]);
+  test("repeatable discards blank placeholders while preserving nonblank bytes and commas", () => {
+    expect(
+      normalizeListInputValues("repeatable", ["Doe, Jane", "", "   ", "  exact spacing  "]),
+    ).toEqual(["Doe, Jane", "  exact spacing  "]);
   });
 
   test("mode lookup fails loudly when a render projection drops authored form intent", () => {

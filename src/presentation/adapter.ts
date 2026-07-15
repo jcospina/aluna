@@ -106,10 +106,31 @@ function present(
   const detail: ItemDetailRef = { templateId, title: capability.label };
 
   const safeInnerHtml = enforceItemMarkup(renderItem(projectItemRecord(capability, record)));
-  const item = renderItemWrapper(safeInnerHtml, record, detail);
+  const item = renderItemWrapper(safeInnerHtml, projectClientRecord(capability, record), detail);
   const detailTemplate = renderDetailContentTemplate(templateId, capability, record);
 
   return item + detailTemplate;
+}
+
+/**
+ * Narrow canonical/runtime state before it enters HTML. The client needs the
+ * record target plus active values for detail and the future edit surface; the
+ * platform timestamp is the one admitted presentational column. `extra` and
+ * inactive values remain server-only even if a malformed upstream row includes
+ * them.
+ */
+function projectClientRecord(
+  capability: RenderableCapability,
+  record: PresentableRecord,
+): PresentableRecord {
+  const names = [
+    "id",
+    "created_at",
+    ...capability.schema.fields
+      .filter((field) => field.lifecycle === "active")
+      .map((field) => field.name),
+  ];
+  return Object.fromEntries(names.map((name) => [name, record[name]]));
 }
 
 function projectItemRecord(

@@ -215,7 +215,7 @@ describe("item wrapper — accessible trigger", () => {
     expect(wrapper).toContain('<div class="stack">inner</div>');
   });
 
-  test("carries the full record as a data-item payload", () => {
+  test("carries the caller-supplied client projection as a data-item payload", () => {
     expect(readBackPayload(wrapper)).toEqual({ title: "Buy oat milk" });
   });
 });

@@ -14,8 +14,5 @@ export {
   CapabilityDataValidationError,
   type CapabilityInsertValues,
   createCapabilityDataTool,
-  type JsonObject,
-  type JsonPrimitive,
-  type JsonValue,
   MissingRequiredFieldsError,
 } from "./tool.ts";

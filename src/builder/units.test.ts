@@ -300,6 +300,29 @@ describe("unit generation with bounded fix loop", () => {
     expect(asyncFailure?.message).toContain("must be synchronous");
   });
 
+  test("rejects item renderer access outside item.shows, including whole-record access", () => {
+    const undeclared = `export default function renderItem(record: Record<string, unknown>): string {\n  return String(record.created_at);\n}`;
+    expect(
+      checkGeneratedUnit(notesSpec(), { kind: "item-renderer", name: "item" }, undeclared)?.message,
+    ).toContain("not declared by ui_intent.item.shows: created_at");
+
+    const dynamic = `export default function renderItem(record: Record<string, unknown>): string {\n  return Object.keys(record).join(",");\n}`;
+    expect(
+      checkGeneratedUnit(notesSpec(), { kind: "item-renderer", name: "item" }, dynamic)?.message,
+    ).toContain("dynamic or whole-record access is not allowed");
+
+    const destructured = `export default function renderItem(record: Record<string, unknown>): string {\n  const { created_at } = record;\n  return String(created_at);\n}`;
+    expect(
+      checkGeneratedUnit(notesSpec(), { kind: "item-renderer", name: "item" }, destructured)
+        ?.message,
+    ).toContain("not declared by ui_intent.item.shows: created_at");
+
+    const allowedAlias = `export default function renderItem(record: Record<string, unknown>): string {\n  const item = record;\n  return String(item.text);\n}`;
+    expect(
+      checkGeneratedUnit(notesSpec(), { kind: "item-renderer", name: "item" }, allowedAlias),
+    ).toBeUndefined();
+  });
+
   test("builds the item-renderer prompt knowing the collection layout and design direction", () => {
     const feedPrompt = buildUnitPrompt(notesSpec(), { kind: "item-renderer", name: "item" });
     expect(feedPrompt).toContain("Generate the item.ts item renderer");
@@ -379,6 +402,8 @@ describe("unit generation with bounded fix loop", () => {
     const createPrompt = buildUnitPrompt(spec, { kind: "handler", name: "create" });
     expect(createPrompt).toContain("Entry");
     expect(createPrompt).toContain("Side note");
+    expect(createPrompt).toContain("extra");
+    expect(createPrompt).toContain("unavailable");
     expect(createPrompt).not.toContain("retired_note");
     expect(createPrompt).not.toContain("Retired note");
   });

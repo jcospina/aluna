@@ -107,3 +107,23 @@ absent Action is advertised anywhere in the UI or registry.
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/03-reserved-wire-protocol-and-parsed-handler-input.md
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/04-string-array-end-to-end.md
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/05-model-authored-string-array-input-mode.md
+
+## Post-epic quality review (2026-07-15)
+
+- The transitional router now treats Action and HTTP method as one deterministic
+  allow-list: `POST create` and `GET read`. Wrong pairs return the same warm 404
+  before registry lookup or generated-code loading; 4.2 can extend this single
+  matrix when the remaining Actions land.
+- Handler and item-renderer ambient contracts no longer advertise platform-owned
+  `extra`. Prompts state the same data boundary, keeping generation, static
+  checks, Gate, runtime ports, and browser payloads aligned.
+- The string-list form switch is exhaustive, preserving the closed input-mode
+  vocabulary as future modes are added.
+- Final verification: `bun test` — 413 passed, 0 failed, 2 snapshots;
+  `bun run typecheck`, `bun run lint`, and `git diff --check` passed. The living
+  demo installed at
+  `capabilities/field_lifecycle_demo/7c1db2cf-c7f9-4d9a-b5cd-22a04011ee6e/v1/`.
+- Live verification on the existing `localhost:3030` server created a record with
+  comma-mode Tags and a blank repeatable placeholder, rendered the expected item
+  and detail, exposed only admitted active fields in `data-item`, logged no browser
+  errors, and returned warm 404s for `GET create` and `POST read`.

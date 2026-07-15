@@ -252,8 +252,14 @@ function renderCreateField(capabilityId: string, field: SpecField, form: UiFormI
 
 function renderCreateListField(capabilityId: string, field: SpecField, form: UiFormIntent): string {
   const mode = listInputModeForField(form, field.name);
-  if (mode === "comma_separated") return renderCommaSeparatedListField(capabilityId, field);
-  return renderRepeatableListField(capabilityId, field);
+  switch (mode) {
+    case "comma_separated":
+      return renderCommaSeparatedListField(capabilityId, field);
+    case "repeatable":
+      return renderRepeatableListField(capabilityId, field);
+    default:
+      return assertNever(mode);
+  }
 }
 
 function renderCommaSeparatedListField(capabilityId: string, field: SpecField): string {

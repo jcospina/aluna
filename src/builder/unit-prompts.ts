@@ -80,6 +80,7 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "- `input.submittedFields` is a platform-validated `ReadonlySet<string>`; reserved `__aluna_` markers never reach generated code.",
     "- `data.insert(values)` returns the inserted row.",
     "- `data.select()` returns rows ordered newest first.",
+    "- Data rows expose only `id`, `created_at`, and active schema fields. Platform-owned `extra` and inactive fields are unavailable and must never be read or written.",
     "- `present(record)` returns that record as a safe item HTML string.",
     "",
     "Action behavior:",

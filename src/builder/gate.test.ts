@@ -82,19 +82,21 @@ const READ_HANDLER = [
   "}",
 ].join("\n");
 
-// A generic item renderer: one record → its field values arranged with the primitive
-// vocabulary, escaped. Reused across specs (it reads no field by name), so the gate can
-// build the real `present` adapter for any capability under test.
-const ITEM_RENDERER = [
-  "export default function renderItem(record: Record<string, unknown>): string {",
-  "  const parts = Object.values(record).map((value) => escapeHtml(value));",
-  '  return `<div class="stack">$' + '{parts.join(" ")}</div>`;',
-  "}",
-  "",
-  "function escapeHtml(value: unknown): string {",
-  '  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");',
-  "}",
-].join("\n");
+// A spec-specific conforming renderer. Every test fixture reads only the exact fields
+// declared by item.shows, matching the generated-unit contract the Gate enforces.
+function itemRendererFor(spec: CapabilitySpec): string {
+  const values = spec.ui_intent.item.shows.map((field) => `record.${field}`).join(", ");
+  return [
+    "export default function renderItem(record: Record<string, unknown>): string {",
+    `  const parts = [${values}].map((value) => escapeHtml(value));`,
+    '  return `<div class="stack">$' + '{parts.join(" ")}</div>`;',
+    "}",
+    "",
+    "function escapeHtml(value: unknown): string {",
+    '  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");',
+    "}",
+  ].join("\n");
+}
 
 const GOOD_HANDLERS: Readonly<Record<HandlerUnitName, string>> = {
   create: CREATE_HANDLER,
@@ -254,13 +256,13 @@ function makeBehaviorProvider(suite: unknown = DEFAULT_BEHAVIORAL_SUITE): {
 function gateInput(
   overrides: Partial<Parameters<typeof runCapabilityGate>[0]> = {},
 ): Parameters<typeof runCapabilityGate>[0] {
-  const spec = notesSpec();
+  const spec = overrides.spec ?? notesSpec();
   const { provider } = makeBehaviorProvider();
   return {
     spec,
-    ddl: deriveCapabilityTableDdl(spec),
+    ddl: overrides.ddl ?? deriveCapabilityTableDdl(spec),
     handlers: GOOD_HANDLERS,
-    itemRenderer: ITEM_RENDERER,
+    itemRenderer: overrides.itemRenderer ?? itemRendererFor(spec),
     provider,
     ...overrides,
   };
@@ -366,8 +368,11 @@ describe("capability gate", () => {
     });
     const renderer = [
       "export default function renderItem(record: Record<string, unknown>): string {",
-      '  if (typeof record.created_at !== "string" || "retired_note" in record) return "";',
-      "  return '<div class=\"stack\"><span class=\"text-lg\">' + String(record.text) + '</span></div>';",
+      '  if (typeof record.created_at !== "string") return "";',
+      "  return '<div class=\"stack\"><span class=\"text-lg\">' + escapeHtml(record.text) + '</span></div>';",
+      "}",
+      "function escapeHtml(value: unknown): string {",
+      '  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");',
       "}",
     ].join("\n");
 
@@ -381,6 +386,23 @@ describe("capability gate", () => {
     );
     expect(result.smoke.rowCount).toBe(1);
     expect(result.outcomes.every((outcome) => outcome.status !== "failed")).toBe(true);
+  });
+
+  test("Gate rejects item renderers that read fields outside item.shows", async () => {
+    const renderer = [
+      "export default function renderItem(record: Record<string, unknown>): string {",
+      "  return '<div class=\"stack\"><span class=\"text-lg\">' + String(record.created_at) + '</span></div>';",
+      "}",
+    ].join("\n");
+
+    await expect(
+      runCapabilityGate(
+        gateInput({
+          itemRenderer: renderer,
+          behavioralTier: { enabled: false },
+        }),
+      ),
+    ).rejects.toThrow(/not declared by ui_intent\.item\.shows: created_at/);
   });
 
   test("Gate smoke and design samples exercise string[] as an ordered list", async () => {

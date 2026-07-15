@@ -16,6 +16,7 @@ import { join } from "node:path";
 import ts from "typescript";
 
 import type { CapabilitySpec } from "../registry/index.ts";
+import { checkItemRendererFieldAccess } from "./item-field-access.ts";
 import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
 
 /**
@@ -31,7 +32,7 @@ export function checkGeneratedUnit(
   const message =
     unit.kind === "handler"
       ? checkHandlerUnit(spec, unit.name, content)
-      : checkItemRendererUnit(content);
+      : checkItemRendererUnit(spec, content);
 
   return message ? { ...unit, message } : undefined;
 }
@@ -57,13 +58,15 @@ function checkHandlerUnit(
   return typeCheckUnit(content, handlerContractDeclarations, HANDLER_ASSERT);
 }
 
-function checkItemRendererUnit(content: string): string | undefined {
+function checkItemRendererUnit(spec: CapabilitySpec, content: string): string | undefined {
   const source = ts.createSourceFile("item.ts", content, ts.ScriptTarget.Latest, true);
   const exportMessage = validateDefaultFunctionExport(source, { async: false });
   if (exportMessage) return exportMessage;
   if (source.statements.some((statement) => ts.isImportDeclaration(statement))) {
     return "The item renderer must not import anything — it composes one record into markup and nothing else.";
   }
+  const fieldAccessMessage = checkItemRendererFieldAccess(spec, content);
+  if (fieldAccessMessage) return fieldAccessMessage;
 
   return typeCheckUnit(content, itemRendererContractDeclarations, ITEM_RENDERER_ASSERT);
 }
@@ -200,16 +203,10 @@ function escapeRegExp(value: string): string {
 // The shared record shape both contracts speak — the capability data row seen
 // structurally (spec fields plus the platform-populated `id`/`created_at`).
 const RECORD_CONTRACT = `
-type JsonPrimitive = string | number | boolean | null;
-interface JsonObject {
-  readonly [key: string]: JsonValue;
-}
-type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
-type CapabilityDataColumnValue = string | number | boolean | readonly string[] | JsonObject | null;
+type CapabilityDataColumnValue = string | number | boolean | readonly string[] | null;
 interface CapabilityDataRow {
   readonly id: string;
   readonly created_at: string;
-  readonly extra: JsonObject;
   readonly [field: string]: CapabilityDataColumnValue;
 }
 type PresentableRecord = Readonly<Record<string, unknown>>;

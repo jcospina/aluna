@@ -101,3 +101,9 @@ the detail modal in submitted order.
 5. Open the create form again, enter an event, leave Tags blank, and select **Add**.
    Confirm the warm “I still need a little more” message appears, the form stays
    open, and no item is added.
+
+## Post-epic quality review (2026-07-15)
+
+- Repeatable-list normalization now discards blank placeholder rows at the wire
+  boundary, before generated Handler code runs, while preserving every nonblank
+  value byte-for-byte and in order. Storage retains its defensive normalization.

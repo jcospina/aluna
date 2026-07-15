@@ -34,7 +34,12 @@ import {
   type PresentationAdapter,
   type RenderableCapability,
 } from "../presentation/index.ts";
-import { type CapabilityRow, type CapabilitySpec, getCapability } from "../registry/index.ts";
+import {
+  type CapabilityRow,
+  type CapabilitySpec,
+  type CapabilityTool,
+  getCapability,
+} from "../registry/index.ts";
 import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
 import type { CapabilityHandler } from "./contract.ts";
 import { parseCapabilityRequest, WireProtocolError } from "./wire-protocol.ts";
@@ -64,6 +69,10 @@ export interface CapabilityRouterDeps {
 // create = POST); update/delete arrive with their own methods in later modules.
 const CAPABILITY_ROUTE = "/capability/:id/:action";
 const CAPABILITY_VIEW_ROUTE = "/capability/:id";
+const METHOD_BY_ACTION = {
+  create: "POST",
+  read: "GET",
+} as const satisfies Record<CapabilityTool, "GET" | "POST">;
 
 // The version-directory filename the item renderer is generated to (epic 3.4/02) and
 // loaded from here — the seam that lets the router build a capability's presentation
@@ -123,13 +132,11 @@ async function handleCapabilityRequest(
   loadHandler: HandlerLoader,
   loadItemRenderer: ItemRendererLoader,
 ): Promise<Response> {
-  const id = c.req.param("id");
-  const action = c.req.param("action");
-  // The route pattern always binds both, but the typed params are optional; a miss
-  // is the same clean not-found as any other unroutable request.
-  if (!id || !action) {
+  const target = routableTarget(c);
+  if (!target) {
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
+  const { id, action } = target;
 
   // Validate against the registry row's declared tools *before* loading any code.
   // An unknown capability (no row) or an undeclared action both fail here, cleanly.
@@ -143,7 +150,7 @@ async function handleCapabilityRequest(
   // becomes one warm, internals-free failure.
   try {
     const spec = specFromRow(row);
-    const { input } = await parseCapabilityRequest(c.req.raw, action as "create" | "read", spec);
+    const { input } = await parseCapabilityRequest(c.req.raw, action, spec);
     const data = createCapabilityDataTool(spec, databases);
     const present = await buildPresentationAdapter(row, loadItemRenderer);
     const handler = await loadHandler(row.artifacts_path, action);
@@ -185,6 +192,21 @@ function missingRequiredFieldsFailure(
 // refused the same as a request for a capability that doesn't exist.
 function isDeclaredAction(row: CapabilityRow, action: string): boolean {
   return (row.tools as readonly string[]).includes(action);
+}
+
+function hasExpectedMethod(action: string, method: string): action is CapabilityTool {
+  return action in METHOD_BY_ACTION && METHOD_BY_ACTION[action as CapabilityTool] === method;
+}
+
+function routableTarget(
+  c: Context,
+): { readonly id: string; readonly action: CapabilityTool } | undefined {
+  const id = c.req.param("id");
+  const action = c.req.param("action");
+  // The route pattern normally binds both. The action allow-list and method are
+  // one contract, so reject a miss or wrong pair before any registry/code access.
+  if (!id || !action || !hasExpectedMethod(action, c.req.method)) return undefined;
+  return { id, action };
 }
 
 // The spec embedded in a registry row — the row minus the two platform-assigned

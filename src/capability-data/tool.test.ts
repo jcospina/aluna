@@ -233,7 +233,6 @@ describe("capability data tool", () => {
 
       expect(tool.insert({ text: "Still writes" })).toMatchObject({
         text: "Still writes",
-        extra: {},
       });
     });
   });
@@ -250,7 +249,7 @@ describe("capability data tool", () => {
     });
   });
 
-  test("insert then select returns platform-populated columns and defaulted extra", () => {
+  test("insert then select exposes only handler-safe platform columns and active fields", () => {
     withFileDatabase((databases) => {
       const spec = notesSpec();
       applyCapabilityTableDdl(spec, databases.readwrite);
@@ -261,33 +260,31 @@ describe("capability data tool", () => {
 
       expect(inserted.id).toBeTruthy();
       expect(inserted.created_at).toBeTruthy();
-      expect(inserted.extra).toEqual({});
+      expect(inserted).not.toHaveProperty("extra");
       expect(rows).toEqual([inserted]);
       expect(rows[0]).toMatchObject({
         text: "Hello",
         pinned: true,
-        extra: {},
+      });
+      expect(databases.readwrite.query('SELECT "extra" FROM "cap_notes"').get()).toEqual({
+        extra: "{}",
       });
     });
   });
 
-  test("insert accepts the explicit extra JSON escape hatch", () => {
+  test("handlers cannot write the platform-owned extra column", () => {
     withFileDatabase((databases) => {
       const spec = notesSpec();
       applyCapabilityTableDdl(spec, databases.readwrite);
       const tool = createCapabilityDataTool(spec, databases);
 
-      tool.insert({
-        text: "With metadata",
-        extra: { source: "test", nested: { priority: 1 }, tags: ["a", "b"] },
-      });
-
-      expect(tool.select()).toMatchObject([
-        {
+      expect(() =>
+        tool.insert({
           text: "With metadata",
-          extra: { source: "test", nested: { priority: 1 }, tags: ["a", "b"] },
-        },
-      ]);
+          extra: { source: "test" },
+        }),
+      ).toThrow(/platform-populated/);
+      expect(tool.select()).toEqual([]);
     });
   });
 
@@ -305,7 +302,7 @@ describe("capability data tool", () => {
 
       tool.insert({ text: "Scratch note" });
 
-      expect(tool.select()).toMatchObject([{ text: "Scratch note", extra: {} }]);
+      expect(tool.select()).toMatchObject([{ text: "Scratch note" }]);
     } finally {
       readonly.close();
       readwrite.close();
@@ -368,6 +365,32 @@ describe("capability data tool", () => {
         enabled: false,
       });
       expect(tool.insert({ ...valid, enabled: true })).toMatchObject({ enabled: true });
+    });
+  });
+
+  test("date and datetime validation rejects impossible calendar values", () => {
+    withFileDatabase((databases) => {
+      const spec = requirednessSpec();
+      applyCapabilityTableDdl(spec, databases.readwrite);
+      const tool = createCapabilityDataTool(spec, databases);
+      const valid = {
+        title: "Entry",
+        count: 1,
+        enabled: true,
+        due_on: "0001-01-01",
+        happens_at: "2000-02-29T23:59:59.999+14:00",
+      };
+
+      expect(tool.insert(valid)).toMatchObject(valid);
+      for (const values of [
+        { ...valid, due_on: "1900-02-29" },
+        { ...valid, happens_at: "2026-02-30T10:00" },
+        { ...valid, happens_at: "2026-07-15" },
+        { ...valid, happens_at: "2026-07-15T10:00+14:01" },
+      ]) {
+        expect(() => tool.insert(values)).toThrow(MissingRequiredFieldsError);
+      }
+      expect(tool.select()).toHaveLength(1);
     });
   });
 
@@ -487,7 +510,7 @@ describe("capability data tool", () => {
         /Field "pinned" must be a boolean/,
       );
       expect(() => tool.insert({ text: "Nope", extra: { bad: undefined } })).toThrow(
-        /Field "extra.bad" must be JSON-serializable/,
+        /platform-populated/,
       );
       expect(tool.select()).toEqual([]);
     });

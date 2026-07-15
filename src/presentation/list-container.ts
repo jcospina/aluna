@@ -7,8 +7,9 @@
 //     `feed | grid` collection layouts (mapped to a token-consuming platform class),
 //     the "New X" disclosure that opens the create form (3.2/01), and the empty state.
 //   • ITEM WRAPPER — renderItemWrapper: the standardized accessible trigger each
-//     rendered record is wrapped in, carrying the full record as an escaped
-//     `data-item` payload (`file` fields as references, never bytes — ADR-0005 §3)
+//     rendered record is wrapped in, carrying the caller's admitted client
+//     projection as an escaped `data-item` payload (`file` fields as references,
+//     never bytes — ADR-0005 §3)
 //     and the click-to-open affordance the shared detail modal (3.2/04) reads once
 //     its click wiring lands (3.3/02).
 //
@@ -59,9 +60,10 @@ export const DEFAULT_COLLECTION_LAYOUT: CollectionLayout = "feed";
 export const ITEM_TRIGGER_CLASS = "capability-item";
 
 /**
- * The attribute the full record rides in on the wrapper — the escaped `data-item`
- * payload the shared modal prefills from (ADR-0005 §3), so no read-single route is
- * needed. Exported so the modal reads `element.dataset.item` against one contract.
+ * The attribute the admitted client projection rides in on the wrapper — the
+ * escaped `data-item` payload future edit chrome can prefill from (ADR-0005 §3).
+ * The presentation adapter supplies only the record target, active fields, and
+ * `created_at`; server-only state never reaches this generic serializer.
  */
 export const ITEM_PAYLOAD_ATTR = "data-item";
 
@@ -194,9 +196,9 @@ export function renderCollection(options: CollectionOptions): string {
 /**
  * Wrap one record's already-safe inner markup in the standardized accessible trigger.
  * The wrapper is a `role="button"` control with `aria-haspopup="dialog"` that carries the
- * full record as an escaped `data-item` payload (ADR-0005 §3) — so the record is in-page
- * and no read-single route is needed (today the whole record; the escape hatch later
- * shrinks it to an id).
+ * caller-supplied client projection as an escaped `data-item` payload (ADR-0005
+ * §3). The presentation adapter owns that projection and excludes server-only
+ * canonical state before calling this framing function.
  *
  * Given a {@link ItemDetailRef} it also carries the two hooks the click controller
  * (public/item-detail.js) reads to open the shared read-only detail modal (3.2/04)
@@ -207,7 +209,7 @@ export function renderCollection(options: CollectionOptions): string {
  *     when the item truncates — no client-side field formatting).
  *   • `data-detail-title` — the modal title (the capability label).
  *
- * `detail` is optional so the frame alone (record payload + accessible chrome) can render
+ * `detail` is optional so the frame alone (client payload + accessible chrome) can render
  * without click-to-open — the shape the 3.2/02 stand-in demo exercises before the modal
  * wiring. The real read path (3.4 adapter) always passes it. The model authors none of
  * this wiring (ADR-0005 §3).
@@ -232,7 +234,7 @@ export function renderItemWrapper(
 }
 
 /**
- * Serialize a record for the `data-item` payload. JSON is the interchange shape the
+ * Serialize a client-safe record projection for the `data-item` payload. JSON is the interchange shape the
  * modal parses back with `JSON.parse(element.dataset.item)`; the caller HTML-escapes
  * the result for the attribute. A record value that is raw bytes
  * (`Uint8Array`/`ArrayBuffer`, incl. Bun's `Buffer` subclass) is neutralized to `null`

@@ -16,6 +16,7 @@ import ts from "typescript";
 
 import type { CapabilityGateInput } from "./gate.ts";
 import { formatDiagnostics, HANDLER_NAMES } from "./gate-internal.ts";
+import { checkItemRendererFieldAccess } from "./item-field-access.ts";
 import type { HandlerUnitName } from "./units.ts";
 
 const STRICT_CHECK_OPTIONS: ts.CompilerOptions = {
@@ -41,6 +42,8 @@ const STRICT_CHECK_OPTIONS: ts.CompilerOptions = {
 export function runStructuralRung(input: CapabilityGateInput): void {
   assertHandlerExportShapes(input.handlers);
   assertItemRendererExportShape(input.itemRenderer);
+  const fieldAccessFailure = checkItemRendererFieldAccess(input.spec, input.itemRenderer);
+  if (fieldAccessFailure) throw new Error(fieldAccessFailure);
 
   const handlerFailure = typeCheckHandlers(input.handlers);
   if (handlerFailure) throw new Error(handlerFailure);
@@ -197,16 +200,10 @@ function typeCheckItemRenderer(itemRenderer: string): string | undefined {
 
 // The record shape both contracts speak — the capability data row seen structurally.
 const recordContractDeclarations = `
-type JsonPrimitive = string | number | boolean | null;
-interface JsonObject {
-  readonly [key: string]: JsonValue;
-}
-type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
-type CapabilityDataColumnValue = string | number | boolean | readonly string[] | JsonObject | null;
+type CapabilityDataColumnValue = string | number | boolean | readonly string[] | null;
 interface CapabilityDataRow {
   readonly id: string;
   readonly created_at: string;
-  readonly extra: JsonObject;
   readonly [field: string]: CapabilityDataColumnValue;
 }
 type PresentableRecord = Readonly<Record<string, unknown>>;

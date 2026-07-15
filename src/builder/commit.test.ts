@@ -188,6 +188,31 @@ describe("commitCapability", () => {
     }
   });
 
+  test("validates filesystem path components before creating artifact directories", () => {
+    const root = join(dir, "untrusted-artifacts");
+
+    expect(() =>
+      commitCapability({
+        spec: notesSpec({ id: "../escape" }),
+        incarnationId: INCARNATION_ID,
+        units: notesUnits(),
+        database: conns.readwrite,
+        artifactsRoot: root,
+      }),
+    ).toThrow();
+    expect(() =>
+      commitCapability({
+        spec: notesSpec(),
+        incarnationId: "../../escape",
+        units: notesUnits(),
+        database: conns.readwrite,
+        artifactsRoot: root,
+      }),
+    ).toThrow();
+    expect(existsSync(root)).toBe(false);
+    expect(getCapability("notes", conns.readonly)).toBeNull();
+  });
+
   test("a rollback after commit leaves no row and no table, orphaning the written files for GC", async () => {
     const root = join(dir, "artifacts");
 

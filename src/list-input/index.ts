@@ -13,9 +13,10 @@ export function listInputModeForField(form: UiFormIntent, fieldName: string): Li
 
 /**
  * Normalize the raw form representation before generated Handler code runs.
- * Repeatable controls preserve each occurrence exactly. Comma-separated controls
- * flatten every occurrence, trim segment boundaries, and discard empty segments;
- * order and duplicates remain untouched.
+ * Repeatable controls discard blank placeholder rows and preserve every nonblank
+ * occurrence exactly. Comma-separated controls flatten every occurrence, trim
+ * segment boundaries, and discard empty segments; order and duplicates remain
+ * untouched.
  */
 export function normalizeListInputValues(
   mode: ListInputMode,
@@ -23,7 +24,7 @@ export function normalizeListInputValues(
 ): readonly string[] {
   switch (mode) {
     case "repeatable":
-      return [...repeated];
+      return repeated.filter((value) => value.trim().length > 0);
     case "comma_separated":
       return repeated.flatMap((raw) =>
         raw

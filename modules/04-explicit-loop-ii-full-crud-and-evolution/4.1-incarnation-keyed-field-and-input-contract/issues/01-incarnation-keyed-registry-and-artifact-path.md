@@ -94,3 +94,11 @@ None — can start immediately (this is the first M4 issue).
 5. Inspect `capability_registry` and `generation_metrics` in
    `data/omni-crud.db`; confirm the successful build row and registry row carry
    that same incarnation and the three files exist under the previewed path.
+
+## Post-epic quality review (2026-07-15)
+
+- `commitCapability` now validates both the authored spec and the platform UUID
+  before deriving or creating an artifact directory. Malformed path components
+  therefore fail before filesystem or registry mutation.
+- Regression coverage proves invalid semantic ids and incarnation ids create no
+  artifact root and register no capability.
