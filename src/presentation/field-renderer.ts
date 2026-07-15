@@ -336,7 +336,7 @@ function formatDetailValue(type: FieldType, value: unknown): string {
     case "number":
       return escapeHtml(String(value));
     case "boolean":
-      // Real records carry a JS boolean (the data tool normalizes 0/1 → false/true);
+      // Real records carry a JS boolean (the data ports normalize 0/1 → false/true);
       // a non-boolean payload falls back to its escaped string rather than lying.
       if (value === true) return "Yes";
       if (value === false) return "No";

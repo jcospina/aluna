@@ -19,11 +19,16 @@ import {
   type RenderableCapability,
 } from "../presentation/index.ts";
 import type { CapabilitySpec, FieldType } from "../registry/index.ts";
-import type { CapabilityHandler } from "../router/index.ts";
+import type { CapabilityCreateHandler, CapabilityReadHandler } from "../router/index.ts";
 import type { HandlerUnitName } from "./units.ts";
 
 /** The two generated handlers the gate loads and exercises. */
 export const HANDLER_NAMES = ["create", "read"] as const satisfies readonly HandlerUnitName[];
+
+export interface LoadedHandlers {
+  readonly create: CapabilityCreateHandler;
+  readonly read: CapabilityReadHandler;
+}
 
 /**
  * Build the real `present` adapter the gate hands handlers alongside the scratch data
@@ -70,16 +75,12 @@ export function applyDdl(ddl: CapabilityTableDdl, database: Database): void {
 /** Transpile + load the generated handler strings into live callable functions. */
 export async function loadHandlers(
   handlers: Readonly<Record<HandlerUnitName, string>>,
-): Promise<Readonly<Record<HandlerUnitName, CapabilityHandler>>> {
+): Promise<LoadedHandlers> {
   const loaded = HANDLER_NAMES.map(
-    (name) =>
-      [
-        name,
-        loadDefaultExport(`handler "${name}"`, name, handlers[name]) as CapabilityHandler,
-      ] as const,
+    (name) => [name, loadDefaultExport(`handler "${name}"`, name, handlers[name])] as const,
   );
 
-  return Object.fromEntries(loaded) as Readonly<Record<HandlerUnitName, CapabilityHandler>>;
+  return Object.fromEntries(loaded) as unknown as LoadedHandlers;
 }
 
 /** Transpile + load the generated item renderer string into a live callable function. */
@@ -175,7 +176,7 @@ export function assertFragment(
 // may legitimately canonicalize "2025-06-01T12:00:00Z" to "2025-06-01T12:00:00.000Z"
 // (a `new Date(...).toISOString()` round-trip) while the model authors the test in the
 // raw input form; the same *moment* is a match. Strings, numbers, and booleans are
-// already normalized by the data tool, so a value comparison is exact for them.
+// already normalized by the split data ports, so a value comparison is exact for them.
 export function fieldValueMatches(type: FieldType, stored: unknown, expected: unknown): boolean {
   if (type === "datetime") return sameInstant(stored, expected);
   if (type === "string[]") return JSON.stringify(stored) === JSON.stringify(expected);

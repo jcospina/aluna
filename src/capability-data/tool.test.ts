@@ -18,9 +18,19 @@ import {
 } from "../registry/index.ts";
 import {
   applyCapabilityTableDdl,
-  createCapabilityDataTool,
+  createCapabilityDataPorts,
+  createCapabilityQueryPort,
   MissingRequiredFieldsError,
+  selectCapabilityRows,
 } from "./index.ts";
+
+function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
+  const { mutation, query } = createCapabilityDataPorts(spec, databases);
+  return {
+    insert: mutation.create,
+    select: () => selectCapabilityRows(spec, query),
+  };
+}
 
 function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return {
@@ -187,6 +197,109 @@ function closeQuietly(database: Database): void {
     // tool method uses.
   }
 }
+
+describe("split capability data ports", () => {
+  test("mutation authority is capability-bound while the query port can join capabilities", () => {
+    withFileDatabase((databases) => {
+      const notes = notesSpec();
+      const recipes = recipesSpec();
+      applyCapabilityTableDdl(notes, databases.readwrite);
+      applyCapabilityTableDdl(recipes, databases.readwrite);
+
+      const notesPorts = createCapabilityDataPorts(notes, databases);
+      const recipesPorts = createCapabilityDataPorts(recipes, databases);
+      const note = notesPorts.mutation.create({ text: "Soup notes", pinned: false });
+      recipesPorts.mutation.create({ title: "Soup" });
+
+      expect(Object.keys(notesPorts.mutation)).toEqual(["create"]);
+      expect(notesPorts.mutation.create.length).toBe(1);
+      expect(() => notesPorts.mutation.create({ title: "Not a notes field" })).toThrow(
+        /Unknown field "title" for capability "notes"/,
+      );
+      expect(
+        notesPorts.query.all({
+          sql: `SELECT n."id" AS "note_id", r."title" AS "recipe_title"
+                FROM "cap_notes" n CROSS JOIN "cap_recipes" r
+                WHERE n."id" = ?`,
+          parameters: [note.id],
+          result: [
+            { alias: "note_id", type: "string" },
+            { alias: "recipe_title", type: "string" },
+          ],
+        }),
+      ).toEqual([{ note_id: note.id, recipe_title: "Soup" }]);
+    });
+  });
+
+  test("a write through the query port fails at the physically read-only connection", () => {
+    withFileDatabase((databases) => {
+      const spec = notesSpec();
+      applyCapabilityTableDdl(spec, databases.readwrite);
+      const query = createCapabilityQueryPort(databases.readonly);
+
+      expect(() =>
+        query.all({
+          sql: 'INSERT INTO "cap_notes" ("id", "text") VALUES (?, ?)',
+          parameters: ["query-write", "must fail"],
+          result: [],
+        }),
+      ).toThrow(/readonly|read-only/i);
+      expect(
+        databases.readwrite.query('SELECT COUNT(*) AS "count" FROM "cap_notes"').get(),
+      ).toEqual({ count: 0 });
+    });
+  });
+
+  test("closed ordered descriptors discard extras and reject missing, duplicate, and invalid values", () => {
+    withFileDatabase((databases) => {
+      const spec = notesSpec();
+      applyCapabilityTableDdl(spec, databases.readwrite);
+      const { mutation, query } = createCapabilityDataPorts(spec, databases);
+      mutation.create({ text: "Declared only", pinned: true });
+
+      const projected = query.all({
+        sql: 'SELECT * FROM "cap_notes"',
+        result: [
+          { alias: "text", type: "string" },
+          { alias: "id", type: "string" },
+        ],
+      });
+      expect(projected).toHaveLength(1);
+      expect(Object.keys(projected[0] ?? {})).toEqual(["text", "id"]);
+      expect(projected[0]).toMatchObject({ text: "Declared only" });
+      expect(projected[0]).not.toHaveProperty("pinned");
+      expect(projected[0]).not.toHaveProperty("extra");
+
+      expect(() =>
+        query.all({
+          sql: 'SELECT "id" FROM "cap_notes"',
+          result: [{ alias: "text", type: "string" }],
+        }),
+      ).toThrow(/missing declared alias "text"/);
+      expect(() =>
+        query.all({
+          sql: 'SELECT "id" AS "value", "text" AS "value" FROM "cap_notes"',
+          result: [{ alias: "value", type: "string" }],
+        }),
+      ).toThrow(/duplicate declared alias "value"/);
+      expect(() =>
+        query.all({
+          sql: 'SELECT "pinned" FROM "cap_notes"',
+          result: [{ alias: "pinned", type: "string" }],
+        }),
+      ).toThrow(/invalid value for declared alias "pinned"/);
+      expect(() =>
+        query.all({
+          sql: 'SELECT "id" FROM "cap_notes"',
+          result: [
+            { alias: "id", type: "string" },
+            { alias: "id", type: "string" },
+          ],
+        }),
+      ).toThrow(/Duplicate query result alias "id"/);
+    });
+  });
+});
 
 describe("capability data tool", () => {
   test("exposes only capability-scoped insert and select methods", () => {

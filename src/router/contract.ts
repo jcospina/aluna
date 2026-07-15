@@ -7,7 +7,7 @@
 // it, the smoke rung runs it, and the router below builds it. Generated code never
 // sees raw HTTP or a table name — only this.
 
-import type { CapabilityDataTool } from "../capability-data/index.ts";
+import type { CapabilityMutationPort, CapabilityQueryPort } from "../capability-data/index.ts";
 import type { PresentationAdapter } from "../presentation/index.ts";
 
 // Parsed request input. Multiplicity survives parsing, while the submitted-field
@@ -19,20 +19,23 @@ export interface CapabilityInput {
   readonly submittedFields: ReadonlySet<string>;
 }
 
-// The single platform-built context a handler receives: parsed input, a data tool
-// already scoped to this capability — its insert/select physically cannot address
-// another capability's table (ADR-0004 decision 2: scoping by construction) — and the
-// capability's presentation adapter (ADR-0005 §2 & §3). The handler renders each record
-// by calling `present`, so create/read/search share one item composition and cannot
-// drift; it never imports the item renderer, the enforcer, or the wrapper, and never
-// carries its own row markup (ADR-0004 "Handlers import nothing" preserved).
+// The platform-built contexts keep write authority separate from free reads. Every
+// current Action receives the physically read-only query port; create additionally
+// receives a mutation port already bound to the target capability. Both receive the
+// presentation adapter (ADR-0005 §2 & §3). The Handler never imports platform modules.
 export interface CapabilityContext {
   readonly input: CapabilityInput;
-  readonly data: CapabilityDataTool;
+  readonly query: CapabilityQueryPort;
   readonly present: PresentationAdapter;
+}
+
+export interface CapabilityCreateContext extends CapabilityContext {
+  readonly mutation: CapabilityMutationPort;
 }
 
 // One handler: a single default-exported async function returning an HTML fragment
 // string. The platform owns the HTTP response — headers, status, routing; the
 // handler owns only the fragment (ADR-0004).
-export type CapabilityHandler = (context: CapabilityContext) => Promise<string>;
+export type CapabilityCreateHandler = (context: CapabilityCreateContext) => Promise<string>;
+export type CapabilityReadHandler = (context: CapabilityContext) => Promise<string>;
+export type CapabilityHandler = CapabilityCreateHandler | CapabilityReadHandler;

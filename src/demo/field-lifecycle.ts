@@ -107,11 +107,11 @@ function escapeHtml(value: string): string {
 }
 `;
 
-const CREATE_HANDLER = `export default async function create({ input, data, present }: CapabilityContext): Promise<string> {
+const CREATE_HANDLER = `export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {
   const reflection = input.values.reflection;
   const tags = input.values.tags;
   const aliases = input.values.aliases;
-  const row = data.insert({
+  const row = mutation.create({
     entry: input.values.entry,
     reflection: reflection === "" || reflection === undefined ? null : reflection,
     tags: Array.isArray(tags) ? [...tags] : tags,
@@ -121,8 +121,18 @@ const CREATE_HANDLER = `export default async function create({ input, data, pres
 }
 `;
 
-const READ_HANDLER = `export default async function read({ data, present }: CapabilityContext): Promise<string> {
-  return data.select().map((row) => present(row)).join("");
+const READ_HANDLER = `export default async function read({ query, present }: CapabilityContext): Promise<string> {
+  return query.all({
+    sql: 'SELECT * FROM "cap_field_lifecycle_demo" ORDER BY "created_at" DESC, "id" DESC',
+    result: [
+      { alias: "id", type: "string" },
+      { alias: "created_at", type: "datetime" },
+      { alias: "entry", type: "string" },
+      { alias: "reflection", type: "string" },
+      { alias: "tags", type: "string[]" },
+      { alias: "aliases", type: "string[]" },
+    ],
+  }).map((row) => present(row)).join("");
 }
 `;
 

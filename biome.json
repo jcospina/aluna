@@ -41,10 +41,38 @@
           "options": {
             "maxAllowedComplexity": 10
           }
+        },
+        "noExcessiveLinesPerFunction": {
+          "level": "error",
+          "options": {
+            "maxLines": 100,
+            "skipBlankLines": true
+          }
+        }
+      },
+      "nursery": {
+        "noExcessiveLinesPerFile": {
+          "level": "error",
+          "options": {
+            "maxLines": 500,
+            "skipBlankLines": true
+          }
         }
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["docs/**/*.html", "modules/**/TECHNICAL-GUIDE.html"],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "noExcessiveLinesPerFile": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double",

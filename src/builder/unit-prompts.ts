@@ -10,6 +10,7 @@
 // model to render every record through the injected `present` adapter instead of
 // emitting its own row markup (ADR-0005 §2 — kills create/read drift by construction).
 
+import { capabilityRowDescriptor, deriveCapabilityTableDdl } from "../capability-data/index.ts";
 import {
   activeSpecFields,
   BEHAVIORAL_ERROR_MARKERS,
@@ -62,7 +63,7 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "Hard contract:",
     "- No imports.",
     "- No raw HTTP: no Request, Response, Headers, or fetch.",
-    "- No table names or SQL. Use only the injected `data` tool.",
+    "- No raw mutation SQL. Canonical writes use only the injected `mutation` port; reads use only the injected `query` port.",
     "- Exactly one export: `export default async function ...`.",
     "- The function receives one `CapabilityContext` parameter and returns `Promise<string>`.",
     "- The isolated checker uses strict TypeScript, noUncheckedIndexedAccess, and rejects unused parameters and locals.",
@@ -75,27 +76,30 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "- You may include a small escaping helper locally for any non-record text you emit (validation error copy); records themselves go through `present`.",
     "",
     "Available global types in the isolated type-check:",
-    "- `CapabilityContext` has `{ input, data, present }`.",
+    action === "create"
+      ? "- `CapabilityCreateContext` has `{ input, mutation, query, present }`."
+      : "- `CapabilityContext` has `{ input, query, present }` and no mutation authority.",
     "- `input.values` is a record of parsed `string | readonly string[]` values; repeated keys keep arrival order and spec-known list fields are always arrays.",
     "- `input.submittedFields` is a platform-validated `ReadonlySet<string>`; reserved `__aluna_` markers never reach generated code.",
-    "- `data.insert(values)` returns the inserted row.",
-    "- `data.select()` returns rows ordered newest first.",
+    "- `mutation.create(values)` returns the inserted row; it has no table, capability, or record selector.",
+    "- `query.all({ sql, parameters, result })` runs parameterized SQL on a physically read-only connection and returns only the aliases declared by the ordered result descriptor.",
     "- Data rows expose only `id`, `created_at`, and active schema fields. Platform-owned `extra` and inactive fields are unavailable and must never be read or written.",
     "- `present(record)` returns that record as a safe item HTML string.",
     "",
     "Action behavior:",
     action === "create"
       ? [
-          "- Read values only from `input.values`, coerce them into the spec field types, call `data.insert`, and return `present(row)` for the inserted row.",
+          "- Read values only from `input.values`, coerce them into the spec field types, call `mutation.create`, and return `present(row)` for the inserted row.",
           "- Create presence is explicit: every active field is in `input.submittedFields`. A submitted empty optional scalar becomes `null`; an absent submitted boolean becomes `false`; never invent a value for a required field.",
-          "- When this spec declares a missing_required_fields case, detect every missing required field before calling `data.insert`; return the declared validation-error fragment instead. Do not rely on `data.insert` throwing, because the Handler owns that user-visible error fragment.",
-          "- A string[] input is already a readonly string array in submitted order. Narrow with `Array.isArray`, pass a flat mutable copy such as `[...value]` to data.insert, and never wrap the array in another array or split commas. The platform discards blank placeholders and validates required lists.",
-          "- Destructure `{ input, data, present }`: `export default async function create({ input, data, present }: CapabilityContext): Promise<string>`.",
+          "- When this spec declares a missing_required_fields case, detect every missing required field before calling `mutation.create`; return the declared validation-error fragment instead. Do not rely on `mutation.create` throwing, because the Handler owns that user-visible error fragment.",
+          "- A string[] input is already a readonly string array in submitted order. Narrow with `Array.isArray`, pass a flat mutable copy such as `[...value]` to mutation.create, and never wrap the array in another array or split commas. The platform discards blank placeholders and validates required lists.",
+          "- Destructure `{ input, mutation, present }`: `export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string>`.",
         ].join("\n")
       : [
-          "- Call `data.select()`, map each row through `present`, join the results, and return that joined string.",
+          `- Call \`query.all\` with SQL \`SELECT * FROM "${deriveCapabilityTableDdl(spec).tableName}" ORDER BY "created_at" DESC, "id" DESC\` and the exact ordered result descriptor below, map each returned row through \`present\`, join the results, and return that joined string.`,
+          `- Exact ordered result descriptor: ${JSON.stringify(capabilityRowDescriptor(spec))}.`,
           "- When there are no rows, return an empty string. Do not render your own empty state or placeholder text — the platform owns the list's empty state, and returning nothing lets it show (and lets the first created record replace it cleanly).",
-          "- Destructure only `{ data, present }`: `export default async function read({ data, present }: CapabilityContext): Promise<string>`.",
+          "- Destructure only `{ query, present }`: `export default async function read({ query, present }: CapabilityContext): Promise<string>`.",
         ].join("\n"),
     "",
     "Validation error contract:",
@@ -111,7 +115,7 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
 
 function buildValidationErrorContract(errorCases: readonly BehavioralErrorCase[]): string {
   return [
-    "- Before calling `data.insert`, detect every missing required field covered by the cases below.",
+    "- Before calling `mutation.create`, detect every missing required field covered by the cases below.",
     "- When one applies, return the declared validation-error fragment instead and do not insert a row.",
     "- The user-facing copy inside the fragment can vary in Aluna's product voice.",
     "- The stable contract is semantic attributes on the error element:",

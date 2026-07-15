@@ -16,7 +16,11 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createApp } from "../app.ts";
-import { applyCapabilityTableDdl, createCapabilityDataTool } from "../capability-data/index.ts";
+import {
+  applyCapabilityTableDdl,
+  createCapabilityDataPorts,
+  selectCapabilityRows,
+} from "../capability-data/index.ts";
 import { openDatabase, type PlatformDatabase } from "../db.ts";
 import { runMigrations } from "../migrations.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
@@ -26,7 +30,13 @@ import {
   insertCapability,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
+import type { CapabilityContext, CapabilityCreateContext } from "./contract.ts";
 import type { HandlerLoader, ItemRendererLoader } from "./router.ts";
+
+function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
+  const { mutation, query } = createCapabilityDataPorts(spec, databases);
+  return { insert: mutation.create, select: () => selectCapabilityRows(spec, query) };
+}
 
 const NOTES_ARTIFACTS = "src/router/__fixtures__/notes/v1/";
 const BOOM_ARTIFACTS = "src/router/__fixtures__/boom/v1/";
@@ -316,8 +326,8 @@ describe("deterministic capability router", () => {
         databases: conns,
         loadHandler:
           async () =>
-          async ({ input, data, present }) =>
-            present(data.insert({ text: input.values.text, pinned: false })),
+          async ({ input, mutation, present }: CapabilityCreateContext) =>
+            present(mutation.create({ text: input.values.text, pinned: false })),
         loadItemRenderer: async () => (record) =>
           `<span class="text-lg">${String(record.text)}</span>`,
       },
@@ -378,12 +388,12 @@ describe("deterministic capability router", () => {
         databases: conns,
         loadHandler:
           async () =>
-          async ({ input, data, present }) => {
+          async ({ input, mutation, present }: CapabilityCreateContext) => {
             receivedInput = input;
             const summary = input.values.summary;
             const pinned = input.values.pinned;
             return present(
-              data.insert({
+              mutation.create({
                 text: input.values.text,
                 summary: summary === "" ? null : summary,
                 pinned:
@@ -534,9 +544,17 @@ describe("deterministic capability router", () => {
     const loadItemRenderer: ItemRendererLoader = async () => renderItem;
     const loadHandler: HandlerLoader =
       async () =>
-      async ({ data, present }) =>
-        data
-          .select()
+      async ({ query, present }: CapabilityContext) =>
+        query
+          .all({
+            sql: 'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC',
+            result: [
+              { alias: "id", type: "string" },
+              { alias: "created_at", type: "datetime" },
+              { alias: "text", type: "string" },
+              { alias: "pinned", type: "boolean" },
+            ],
+          })
           .map((row) => present(row))
           .join("");
 
@@ -769,7 +787,7 @@ describe("deterministic capability router", () => {
     for (const file of ["item.ts", "create.ts", "read.ts"]) {
       const source = readFileSync(resolve(NOTES_ARTIFACTS, file), "utf8");
       expect(source).not.toMatch(/^\s*import\b/m); // no module imports
-      expect(source).not.toContain("cap_"); // no table names
+      expect(source).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|DROP|ALTER)\b/i); // no mutation SQL
       // no raw HTTP — the handler never sees the request, a response, or parsing
       expect(source).not.toContain("c.req");
       expect(source).not.toContain("parseBody");

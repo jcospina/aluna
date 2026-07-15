@@ -1,10 +1,8 @@
-// Capability-scoped data tool — Module 2, Epic 2.2 (ARCH §3, §7; ADR-0004).
+// Split capability data ports — Module 4, Epic 4.2 (ARCH §3, §7; ADR-0004/0006).
 //
-// Generated handlers receive this object already bound to one capability. The
-// call surface has no table/capability argument: the table name is closed over at
-// construction time, writes ride the injected read-write connection, and reads
-// ride the injected read-only connection. That keeps safety a construction fact,
-// including for the gate's scratch database.
+// Canonical writes use a mutation port already bound to one capability. Free reads
+// use a distinct arbitrary-SQL port backed only by the physically read-only SQLite
+// connection. Live and Gate scratch execution construct these same interfaces.
 
 import { randomUUID } from "node:crypto";
 
@@ -27,11 +25,30 @@ export interface CapabilityDataRow {
   readonly [field: string]: CapabilityDataColumnValue;
 }
 
-export type CapabilityInsertValues = Record<string, unknown>;
+export type CapabilityCreateValues = Record<string, unknown>;
 
-export interface CapabilityDataTool {
-  insert(values: CapabilityInsertValues): CapabilityDataRow;
-  select(): CapabilityDataRow[];
+export interface CapabilityMutationPort {
+  create(values: CapabilityCreateValues): CapabilityDataRow;
+}
+
+export type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
+export type CapabilityQueryResultType = FieldType;
+
+export interface CapabilityQueryResultColumn {
+  readonly alias: string;
+  readonly type: CapabilityQueryResultType;
+}
+
+export interface CapabilityQueryInput {
+  readonly sql: string;
+  readonly parameters?: readonly CapabilityQueryParameter[];
+  readonly result: readonly CapabilityQueryResultColumn[];
+}
+
+export type CapabilityQueryRow = Readonly<Record<string, CapabilityDataColumnValue>>;
+
+export interface CapabilityQueryPort {
+  all(input: CapabilityQueryInput): CapabilityQueryRow[];
 }
 
 export class CapabilityDataValidationError extends Error {
@@ -61,10 +78,10 @@ interface StoredCapabilityRow {
 
 const PLATFORM_POPULATED_COLUMNS = new Set(["id", "created_at", "extra"]);
 
-export function createCapabilityDataTool(
+export function createCapabilityMutationPort(
   spec: CapabilitySpec,
-  databases: PlatformDatabase = { readwrite: db, readonly: dbReadonly },
-): CapabilityDataTool {
+  database = db,
+): CapabilityMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const { tableName } = deriveCapabilityTableDdl(parsed);
   const quotedTable = sqlIdentifier(tableName);
@@ -72,7 +89,7 @@ export function createCapabilityDataTool(
   const allowedInsertFields = new Set(fields.map((field) => field.name));
 
   return {
-    insert(values) {
+    create(values) {
       const normalized = normalizeInsertValues(parsed.id, fields, allowedInsertFields, values);
       const columns = ["id", ...fields.map((field) => field.name)];
       const sqlValues: SqlValue[] = [randomUUID()];
@@ -83,27 +100,160 @@ export function createCapabilityDataTool(
 
       const placeholders = columns.map(() => "?").join(", ");
       const quotedColumns = columns.map(sqlIdentifier).join(", ");
-      const stored = databases.readwrite
+      const stored = database
         .query(`INSERT INTO ${quotedTable} (${quotedColumns}) VALUES (${placeholders}) RETURNING *`)
         .get(...sqlValues) as StoredCapabilityRow;
 
       return normalizeStoredRow(fields, stored);
     },
-    select() {
-      const rows = databases.readonly
-        .query(`SELECT * FROM ${quotedTable} ORDER BY "created_at" DESC, "id" DESC`)
-        .all() as StoredCapabilityRow[];
+  };
+}
 
-      return rows.map((row) => normalizeStoredRow(fields, row));
+export function createCapabilityQueryPort(database = dbReadonly): CapabilityQueryPort {
+  return {
+    all({ sql, parameters = [], result }) {
+      validateResultDescriptor(result);
+      const statement = database.query(sql);
+      const values = statement.values(...parameters) as unknown[][];
+      validateResultColumns(statement.columnNames, result, values);
+      const rows = values.map((row) =>
+        Object.fromEntries(statement.columnNames.map((column, index) => [column, row[index]])),
+      );
+      return rows.map((row, index) => projectQueryRow(row, result, index));
     },
   };
+}
+
+export function createCapabilityDataPorts(
+  spec: CapabilitySpec,
+  databases: PlatformDatabase = { readwrite: db, readonly: dbReadonly },
+): { readonly mutation: CapabilityMutationPort; readonly query: CapabilityQueryPort } {
+  return {
+    mutation: createCapabilityMutationPort(spec, databases.readwrite),
+    query: createCapabilityQueryPort(databases.readonly),
+  };
+}
+
+export function capabilityRowDescriptor(
+  spec: CapabilitySpec,
+): readonly CapabilityQueryResultColumn[] {
+  const parsed = capabilitySpecSchema.parse(spec);
+  return [
+    { alias: "id", type: "string" },
+    { alias: "created_at", type: "datetime" },
+    ...activeSpecFields(parsed.schema.fields).map(({ name, type }) => ({ alias: name, type })),
+  ];
+}
+
+export function selectCapabilityRows(
+  spec: CapabilitySpec,
+  query: CapabilityQueryPort,
+): CapabilityDataRow[] {
+  const parsed = capabilitySpecSchema.parse(spec);
+  const { tableName } = deriveCapabilityTableDdl(parsed);
+  return query.all({
+    sql: `SELECT * FROM ${sqlIdentifier(tableName)} ORDER BY "created_at" DESC, "id" DESC`,
+    result: capabilityRowDescriptor(parsed),
+  }) as CapabilityDataRow[];
+}
+
+function validateResultDescriptor(result: readonly CapabilityQueryResultColumn[]): void {
+  const seen = new Set<string>();
+  for (const column of result) {
+    if (!column.alias || column.alias.trim() !== column.alias) {
+      throw new CapabilityDataValidationError("Query result aliases must be nonblank and trimmed.");
+    }
+    if (seen.has(column.alias)) {
+      throw new CapabilityDataValidationError(`Duplicate query result alias "${column.alias}".`);
+    }
+    seen.add(column.alias);
+  }
+}
+
+function validateResultColumns(
+  actualColumns: readonly string[],
+  result: readonly CapabilityQueryResultColumn[],
+  values: readonly (readonly unknown[])[],
+): void {
+  if (values.some((row) => row.length !== actualColumns.length)) {
+    const declaredDuplicate = result.find(({ alias }) => actualColumns.includes(alias));
+    const alias = declaredDuplicate?.alias ?? "unknown";
+    throw new CapabilityDataValidationError(
+      `Query result contains duplicate declared alias "${alias}".`,
+    );
+  }
+  for (const { alias } of result) {
+    const count = actualColumns.filter((column) => column === alias).length;
+    if (count === 0) {
+      throw new CapabilityDataValidationError(`Query result is missing declared alias "${alias}".`);
+    }
+    if (count > 1) {
+      throw new CapabilityDataValidationError(
+        `Query result contains duplicate declared alias "${alias}".`,
+      );
+    }
+  }
+}
+
+function projectQueryRow(
+  row: Record<string, unknown>,
+  result: readonly CapabilityQueryResultColumn[],
+  rowIndex: number,
+): CapabilityQueryRow {
+  const projected: Array<readonly [string, CapabilityDataColumnValue]> = [];
+  for (const { alias, type } of result) {
+    try {
+      projected.push([alias, normalizeQueryValue(alias, type, row[alias])]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new CapabilityDataValidationError(
+        `Query result row ${rowIndex} has an invalid value for declared alias "${alias}": ${message}`,
+      );
+    }
+  }
+  return Object.fromEntries(projected);
+}
+
+function normalizeQueryValue(
+  alias: string,
+  type: CapabilityQueryResultType,
+  value: unknown,
+): CapabilityDataColumnValue {
+  if (value === null) return null;
+  if (type === "date") {
+    if (typeof value !== "string" || !isValidDate(value)) {
+      throw new Error(`Expected date value for column "${alias}".`);
+    }
+    return value;
+  }
+  if (type === "datetime") {
+    if (typeof value !== "string" || !isValidStoredDatetime(value)) {
+      throw new Error(`Expected datetime value for column "${alias}".`);
+    }
+    return value;
+  }
+  return normalizeStoredFieldValue(alias, type, value);
+}
+
+function isValidStoredDatetime(value: string): boolean {
+  if (isValidDatetime(value)) return true;
+  const match = /^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return false;
+  const [, date, hour, minute, second] = match;
+  return (
+    date !== undefined &&
+    isValidDate(date) &&
+    Number(hour) <= 23 &&
+    Number(minute) <= 59 &&
+    Number(second) <= 59
+  );
 }
 
 function normalizeInsertValues(
   capabilityId: string,
   fields: readonly SpecField[],
   allowedInsertFields: Set<string>,
-  values: CapabilityInsertValues,
+  values: CapabilityCreateValues,
 ): Record<string, SqlValue> {
   if (!isPlainObject(values)) {
     throw new CapabilityDataValidationError(

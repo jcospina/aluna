@@ -96,14 +96,17 @@ const TOKEN_STYLE_RENDERER = renderer(
 
 const HANDLERS: Readonly<Record<HandlerUnitName, string>> = {
   create: [
-    "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
-    '    const note = data.insert({ text: input.values.text, pinned: input.values.pinned === "on" });',
+    "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
+    '    const note = mutation.create({ text: input.values.text, pinned: input.values.pinned === "on" });',
     "  return present(note);",
     "}",
   ].join("\n"),
   read: [
-    "export default async function read({ data, present }: CapabilityContext): Promise<string> {",
-    "  const notes = data.select();",
+    "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+    "  const notes = query.all({",
+    '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+    '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "text", type: "string" }, { alias: "pinned", type: "boolean" }],',
+    "  });",
     '  return notes.map((note) => present(note)).join("");',
     "}",
   ].join("\n"),

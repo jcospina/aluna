@@ -12,7 +12,11 @@
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
 
-import { type CapabilityTableDdl, createCapabilityDataTool } from "../capability-data/index.ts";
+import {
+  type CapabilityTableDdl,
+  createCapabilityDataPorts,
+  selectCapabilityRows,
+} from "../capability-data/index.ts";
 import type { PresentationAdapter } from "../presentation/index.ts";
 import type { Provider, TokenUsage } from "../provider/index.ts";
 import {
@@ -22,7 +26,7 @@ import {
   type CapabilitySpec,
   type SpecField,
 } from "../registry/index.ts";
-import type { CapabilityHandler, CapabilityInput } from "../router/index.ts";
+import type { CapabilityInput } from "../router/index.ts";
 import type {
   BehavioralGateResult,
   BehavioralTestCaseOutcome,
@@ -35,6 +39,7 @@ import {
   buildGatePresent,
   errorMessage,
   fieldValueMatches,
+  type LoadedHandlers,
   loadHandlers,
   openScratchDatabasePair,
   sameSnapshot,
@@ -99,7 +104,7 @@ interface BehavioralCaseDiagnostic {
   readonly testCase: BehavioralTestCase;
   readonly setupRows: readonly Record<string, BehavioralScalar>[];
   readonly createInput?: CapabilityInput;
-  readonly scratchRows?: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]>;
+  readonly scratchRows?: ReturnType<typeof selectCapabilityRows>;
   readonly createFragment?: string;
   readonly readFragment?: string;
   readonly failure: string;
@@ -246,7 +251,7 @@ async function runBehavioralTests(
 async function runBehavioralCase(
   spec: CapabilitySpec,
   ddl: CapabilityTableDdl,
-  handlers: Readonly<Record<HandlerUnitName, CapabilityHandler>>,
+  handlers: LoadedHandlers,
   present: PresentationAdapter,
   testCase: BehavioralTestCase,
 ): Promise<void> {
@@ -256,26 +261,27 @@ async function runBehavioralCase(
   const createInput = inputValuesToHandlerInput(spec, testCase.input);
   let createFragment: string | undefined;
   let readFragment: string | undefined;
-  let scratchRows: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]> | undefined;
+  let scratchRows: ReturnType<typeof selectCapabilityRows> | undefined;
 
   try {
     applyDdl(ddl, scratch.readwrite);
-    const data = createCapabilityDataTool(spec, scratch);
+    const { mutation, query } = createCapabilityDataPorts(spec, scratch);
     const setupIds: string[] = [];
 
     for (const row of setupRows) {
-      setupIds.push(data.insert(row).id);
+      setupIds.push(mutation.create(row).id);
     }
     ageSetupRows(scratch.readwrite, ddl.tableName, setupIds);
 
     createFragment = await handlers.create({
       input: createInput,
-      data,
+      mutation,
+      query,
       present,
     });
     assertFragment("create", createFragment);
 
-    scratchRows = data.select();
+    scratchRows = selectCapabilityRows(spec, query);
     const expectedRowCount = testCase.expectedRowCount;
     if (scratchRows.length !== expectedRowCount) {
       throw new Error(
@@ -299,7 +305,7 @@ async function runBehavioralCase(
 
     readFragment = await handlers.read({
       input: { values: {}, submittedFields: new Set() },
-      data,
+      query,
       present,
     });
     assertFragment("read", readFragment);
@@ -522,7 +528,7 @@ function sameStringSet(left: readonly string[], right: readonly string[]): boole
 
 function rowMatches(
   fields: readonly SpecField[],
-  row: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]>[number],
+  row: ReturnType<typeof selectCapabilityRows>[number],
   expected: Readonly<Record<string, BehavioralScalar>>,
 ): boolean {
   return Object.entries(expected).every(([field, value]) => {

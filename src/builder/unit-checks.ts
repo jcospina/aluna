@@ -2,7 +2,7 @@
 // run inside the fix loop before a unit is accepted.
 //
 // Handlers are checked for the ADR-0004 artifact contract (one default async export,
-// no imports, no raw HTTP, no table names) and type-checked in isolation against the
+// no imports, no raw HTTP or mutation SQL) and type-checked in isolation against the
 // platform-authored handler contract — which, since ADR-0005 §2, carries the injected
 // `present` adapter. The item renderer is checked for its own contract (one default,
 // synchronous function export, no imports) and type-checked against the `ItemRenderer`
@@ -31,17 +31,13 @@ export function checkGeneratedUnit(
 ): UnitGenerationFailure | undefined {
   const message =
     unit.kind === "handler"
-      ? checkHandlerUnit(spec, unit.name, content)
+      ? checkHandlerUnit(unit.name, content)
       : checkItemRendererUnit(spec, content);
 
   return message ? { ...unit, message } : undefined;
 }
 
-function checkHandlerUnit(
-  spec: CapabilitySpec,
-  action: HandlerUnitName,
-  content: string,
-): string | undefined {
+function checkHandlerUnit(action: HandlerUnitName, content: string): string | undefined {
   const source = ts.createSourceFile(`${action}.ts`, content, ts.ScriptTarget.Latest, true);
   const exportMessage = validateDefaultFunctionExport(source, { async: true });
   if (exportMessage) return exportMessage;
@@ -51,11 +47,15 @@ function checkHandlerUnit(
   if (/\b(fetch|Request|Response|Headers|XMLHttpRequest)\b|https?:\/\//.test(content)) {
     return "Generated handlers must not touch raw HTTP.";
   }
-  if (new RegExp(`\\bcap_${escapeRegExp(spec.id)}\\b|\\bcap_[a-z0-9_]+\\b`).test(content)) {
-    return "Generated handlers must not name capability tables.";
+  if (
+    /\b(?:INSERT\s+INTO|UPDATE\s+[^\s]+\s+SET|DELETE\s+FROM|REPLACE\s+INTO|DROP\s+TABLE|ALTER\s+TABLE|CREATE\s+TABLE)\b/i.test(
+      content,
+    )
+  ) {
+    return "Generated handlers must not contain raw mutation SQL.";
   }
 
-  return typeCheckUnit(content, handlerContractDeclarations, HANDLER_ASSERT);
+  return typeCheckUnit(content, handlerContractDeclarations, handlerAssert(action));
 }
 
 function checkItemRendererUnit(spec: CapabilitySpec, content: string): string | undefined {
@@ -196,10 +196,6 @@ function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
     .join("\n");
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 // The shared record shape both contracts speak — the capability data row seen
 // structurally (spec fields plus the platform-populated `id`/`created_at`).
 const RECORD_CONTRACT = `
@@ -222,20 +218,37 @@ interface CapabilityInput {
   readonly values: Readonly<Record<string, CapabilityInputValue>>;
   readonly submittedFields: ReadonlySet<string>;
 }
-interface CapabilityDataTool {
-  insert(values: Record<string, unknown>): CapabilityDataRow;
-  select(): CapabilityDataRow[];
+interface CapabilityMutationPort {
+  create(values: Record<string, unknown>): CapabilityDataRow;
+}
+type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
+interface CapabilityQueryResultColumn {
+  readonly alias: string;
+  readonly type: "string" | "number" | "boolean" | "date" | "datetime" | "string[]";
+}
+interface CapabilityQueryPort {
+  all(input: {
+    readonly sql: string;
+    readonly parameters?: readonly CapabilityQueryParameter[];
+    readonly result: readonly CapabilityQueryResultColumn[];
+  }): Readonly<Record<string, CapabilityDataColumnValue>>[];
 }
 interface CapabilityContext {
   readonly input: CapabilityInput;
-  readonly data: CapabilityDataTool;
+  readonly query: CapabilityQueryPort;
   readonly present: PresentationAdapter;
 }
-type CapabilityHandler = (context: CapabilityContext) => Promise<string>;
+interface CapabilityCreateContext extends CapabilityContext {
+  readonly mutation: CapabilityMutationPort;
+}
+type CapabilityCreateHandler = (context: CapabilityCreateContext) => Promise<string>;
+type CapabilityReadHandler = (context: CapabilityContext) => Promise<string>;
 `;
 
-const HANDLER_ASSERT =
-  'import handler from "./unit";\nconst assertHandler: CapabilityHandler = handler;\nvoid assertHandler;\n';
+function handlerAssert(action: HandlerUnitName): string {
+  const type = action === "create" ? "CapabilityCreateHandler" : "CapabilityReadHandler";
+  return `import handler from "./unit";\nconst assertHandler: ${type} = handler;\nvoid assertHandler;\n`;
+}
 
 // The item-renderer contract: one record → its inner markup string (the composition
 // input the presentation adapter binds, src/presentation/adapter.ts `ItemRenderer`).

@@ -1,6 +1,6 @@
 # Split toolbox: scoped mutation adapters and the read-only query port
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -32,17 +32,17 @@ Split the injected Handler toolbox into constrained mutations and free reads.
 
 ## Acceptance criteria
 
-- [ ] Cross-capability mutation is unrepresentable through the supplied
+- [x] Cross-capability mutation is unrepresentable through the supplied
       mutation interface (no parameter names another table/capability)
-- [ ] A write attempted through the query port fails physically (read-only
+- [x] A write attempted through the query port fails physically (read-only
       connection), pinned by a test
-- [ ] Result descriptors: extra columns discarded; missing, duplicate, or
+- [x] Result descriptors: extra columns discarded; missing, duplicate, or
       type-invalid declared values fail; `SELECT *` returns only declared
       aliases
-- [ ] Existing create/read Handlers run through the split adapters; Handlers
+- [x] Existing create/read Handlers run through the split adapters; Handlers
       still import nothing (ADR-0004)
-- [ ] Gate practice toolbox uses the same split interfaces
-- [ ] `bun test`, `bun run typecheck`, `bun run lint` clean
+- [x] Gate practice toolbox uses the same split interfaces
+- [x] `bun test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -50,6 +50,50 @@ Existing prompt-built capabilities keep working on the homepage through the
 split toolbox — same visible behavior, new seams underneath (note this in the
 issue when closing; the visible proof is no regression plus the physical
 read-only failure in tests).
+
+## Implementation notes
+
+- Replaced the combined Handler data tool with distinct `CapabilityMutationPort`
+  and `CapabilityQueryPort` interfaces. Create receives a capability-bound
+  `mutation.create(values)` surface with no table/capability/record selector;
+  read receives no mutation authority.
+- The query port accepts parameterized SQL on the injected physically read-only
+  SQLite connection. Every call supplies an ordered alias/type descriptor; the
+  adapter returns keys in that order, drops undeclared columns (including from
+  `SELECT *`), and rejects missing, duplicate, or type-invalid declared values.
+- The router, generated-unit prompts/static contracts, hand-written fixtures,
+  Field lifecycle tracer, smoke Gate, and behavioral Gate now construct and use
+  the same split interfaces. Gate execution continues to use its synthetic
+  shared-memory read-write/read-only pair.
+- No new UI was needed: this is a seam replacement beneath the current homepage
+  flow. Reinstalling the idempotent Field lifecycle tracer refreshed its
+  generated v1 artifacts to the split contract; the user-owned server on port
+  3030 then returned its live `read` fragment successfully.
+
+## Verification
+
+- `bun test src/capability-data/tool.test.ts`
+- `bun test src/router/router.test.ts src/builder/units.test.ts src/builder/gate.test.ts src/builder/gate-design-lint.test.ts`
+- `bun test` (438 passing)
+- `bun run typecheck`
+- `bun run lint`
+- `git diff --check`
+- `bun run demo:field-lifecycle`
+- `curl http://localhost:3030/capability/field_lifecycle_demo/read` (HTTP 200 through the refreshed split-port artifact)
+
+## HITL test instructions
+
+1. Run `bun run demo:field-lifecycle`, then reuse the app server on port 3030
+   (or run `bun run dev` if it is not already running).
+2. Open `http://localhost:3030`, reload, and choose **Field lifecycle** from the
+   capability toolbar.
+3. Open **New Field lifecycle**. Enter an event, enter
+   `fantasy, historical fiction, classic` in **Tags**, and enter `Doe, Jane` as
+   one **Other names** value. Submit with **Add**.
+4. Confirm the new item appears without an error, open it, and verify the three
+   tags render separately while `Doe, Jane` remains one value. Reload and confirm
+   the record still appears. This exercises scoped create mutation followed by
+   the physically read-only descriptor-projected read through the real router.
 
 ## Blocked by
 

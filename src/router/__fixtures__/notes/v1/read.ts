@@ -1,13 +1,21 @@
 // Hand-written fixture handler — Module 2, Epic 2.3 tracer bullet.
 //
-// The `read` half of the notes fixture: it pulls live rows through the scoped data
-// tool and renders every row through the injected presentation adapter. Like its sibling it
-// honors the ADR-0004 contract literally — no module imports, no raw HTTP, no
-// table names — and receives only the platform-built context. (Untyped on purpose:
+// The `read` half of the notes fixture: it pulls live rows through the physically
+// read-only query port and renders every row through the injected presentation adapter.
+// Like its sibling it honors the ADR-0004 contract literally — no module imports,
+// no raw HTTP or mutation authority — and receives only the platform-built context. (Untyped on purpose:
 // generated artifacts live outside the platform's type-check.)
 
-export default async function read({ data, present }) {
-  const notes = data.select();
+export default async function read({ query, present }) {
+  const notes = query.all({
+    sql: 'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC',
+    result: [
+      { alias: "id", type: "string" },
+      { alias: "created_at", type: "datetime" },
+      { alias: "text", type: "string" },
+      { alias: "pinned", type: "boolean" },
+    ],
+  });
   if (notes.length === 0) {
     // No records: return nothing so the platform region stays truly `:empty` and the
     // platform-owned empty state shows (ADR-0005 §1). A handler that emits its own
