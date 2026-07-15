@@ -10,7 +10,7 @@
 
 import type { Database } from "bun:sqlite";
 
-import type { CapabilityTableDdl } from "../capability-data/index.ts";
+import type { CapabilityCreateValues, CapabilityTableDdl } from "../capability-data/index.ts";
 import type { Provider, TokenUsage } from "../provider/index.ts";
 import type { CapabilitySpec } from "../registry/index.ts";
 import { runBehavioralRung } from "./gate-behavioral.ts";
@@ -114,7 +114,7 @@ export interface CapabilityGateInput {
   // The migration stage owns DDL derivation. The gate applies that exact output to
   // scratch so smoke proves the build's own schema, not a separately-derived one.
   readonly ddl: CapabilityTableDdl;
-  readonly handlers: Readonly<Record<HandlerUnitName, string>>;
+  readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
   // The build's generated item renderer (ADR-0005 §2). The structural rung type-checks
   // it and the smoke/behavioral rungs bind it into the real `present` adapter the
   // handlers render records through — so create and read cannot drift.
@@ -134,6 +134,16 @@ export interface CapabilityGateInput {
   // Optional assertion hook for the real db: the gate snapshots capability tables
   // before and after smoke and fails if they changed.
   readonly realDatabase?: Database;
+  // Synthetic schemas/rows for every externally declared read dependency. The
+  // Gate derives their DDL and seeds them into its fresh in-memory catalog; live
+  // registry rows or live capability data never enter scratch execution.
+  readonly scratchCatalog?: readonly ScratchCatalogCapability[];
+}
+
+export interface ScratchCatalogCapability {
+  readonly spec: CapabilitySpec;
+  readonly incarnationId: string;
+  readonly rows: readonly CapabilityCreateValues[];
 }
 
 export interface CapabilityGateResult {

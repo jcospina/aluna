@@ -13,6 +13,7 @@ import {
   capabilityRowSchema,
   capabilitySpecSchema,
   defaultBehavioralErrorsForSchema,
+  FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "./spec.ts";
 
@@ -60,6 +61,36 @@ describe("capability spec shape — Action tuple & read dependencies", () => {
     ]) {
       expect(capabilitySpecSchema.safeParse({ ...spec, read_dependencies }).success).toBe(false);
     }
+  });
+
+  test("admits only the complete five-Action reference pair", () => {
+    const base = validSpec();
+    const full = {
+      ...base,
+      tools: [...FULL_CAPABILITY_TOOLS],
+      read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
+      behavioral_errors: defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+    };
+    expect(capabilitySpecSchema.parse(full)).toEqual(full);
+
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...full,
+        tools: ["create", "read", "update", "delete"],
+      }).success,
+    ).toBe(false);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...full,
+        read_dependencies: { create: [], read: [], update: [], delete: [] },
+      }).success,
+    ).toBe(false);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...full,
+        behavioral_errors: full.behavioral_errors.slice(0, 1),
+      }).success,
+    ).toBe(false);
   });
 });
 

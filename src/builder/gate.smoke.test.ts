@@ -7,7 +7,12 @@ import { Database } from "bun:sqlite";
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 
 import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../capability-data/index.ts";
-import { BEHAVIORAL_ERROR_MARKERS, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/index.ts";
+import { FIELD_LIFECYCLE_DEMO_SPEC, FIELD_LIFECYCLE_DEMO_UNITS } from "../demo/field-lifecycle.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilitySpec,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "../registry/index.ts";
 import {
   createCapabilityDataTool,
   expectGateFailure,
@@ -109,6 +114,130 @@ describe("capability gate — smoke rung", () => {
       "smoke:failed",
     ]);
     expect(error.outcomes[1]?.error).toContain("expected exactly one scratch row");
+  });
+});
+
+describe("capability gate — five-Action reference scratch catalog", () => {
+  const dependencyIncarnation = "22222222-2222-4222-8222-222222222222";
+  const dependencySpec = notesSpec({
+    id: "scratch_catalog",
+    label: "Scratch catalog",
+    prompt_context: "Synthetic catalog data used only by the Gate.",
+    schema: {
+      fields: [
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+        {
+          name: "retired_note",
+          label: "Retired note",
+          type: "string",
+          required: false,
+          lifecycle: "inactive",
+        },
+      ],
+    },
+  });
+  const referenceSpec: CapabilitySpec = {
+    ...FIELD_LIFECYCLE_DEMO_SPEC,
+    read_dependencies: {
+      ...FIELD_LIFECYCLE_DEMO_SPEC.read_dependencies,
+      read: [
+        {
+          capability_id: dependencySpec.id,
+          incarnation_id: dependencyIncarnation,
+        },
+      ],
+    },
+  };
+  const referenceHandlers = {
+    ...Object.fromEntries(
+      FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+        unit.name,
+        unit.content,
+      ]),
+    ),
+    read: [
+      "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+      "  const rows = query.all({",
+      '    sql: \'SELECT target.* FROM "cap_field_lifecycle_demo" AS target CROSS JOIN "cap_scratch_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
+      '    parameters: ["synthetic only", "compatibility only"],',
+      '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "entry", type: "string" }, { alias: "reflection", type: "string" }, { alias: "tags", type: "string[]" }, { alias: "aliases", type: "string[]" }],',
+      "  });",
+      '  return rows.map((row) => present(row)).join("");',
+      "}",
+    ].join("\n"),
+  };
+  const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
+    (unit) => unit.kind === "item-renderer",
+  )?.content;
+
+  test("applies every declared schema and seeds only supplied synthetic rows", async () => {
+    if (!itemRenderer) throw new Error("reference item renderer missing");
+    const result = await runCapabilityGate(
+      gateInput({
+        spec: referenceSpec,
+        ddl: deriveCapabilityTableDdl(referenceSpec),
+        handlers: referenceHandlers,
+        itemRenderer,
+        behavioralTier: { enabled: false },
+        scratchCatalog: [
+          {
+            spec: dependencySpec,
+            incarnationId: dependencyIncarnation,
+            rows: [{ text: "synthetic only", retired_note: "compatibility only" }],
+          },
+        ],
+      }),
+    );
+
+    expect(result.smoke.rowCount).toBe(1);
+    expect(result.outcomes.map((outcome) => outcome.status)).toEqual([
+      "passed",
+      "passed",
+      "skipped",
+      "passed",
+    ]);
+  });
+
+  test("fails before Handler execution when a declared scratch schema is absent", async () => {
+    if (!itemRenderer) throw new Error("reference item renderer missing");
+    const error = await expectGateFailure(
+      gateInput({
+        spec: referenceSpec,
+        ddl: deriveCapabilityTableDdl(referenceSpec),
+        handlers: referenceHandlers,
+        itemRenderer,
+        behavioralTier: { enabled: false },
+      }),
+    );
+    expect(error.failedRung).toBe("smoke");
+    expect(error.outcomes[1]?.error).toContain("exactly one synthetic fixture");
+  });
+
+  test("the exact published five-Action reference inventory passes its applicable Gate", async () => {
+    if (!itemRenderer) throw new Error("reference item renderer missing");
+    const handlers = Object.fromEntries(
+      FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+        unit.name,
+        unit.content,
+      ]),
+    );
+
+    const result = await runCapabilityGate(
+      gateInput({
+        spec: FIELD_LIFECYCLE_DEMO_SPEC,
+        ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+        handlers,
+        itemRenderer,
+        behavioralTier: { enabled: false },
+      }),
+    );
+
+    expect(result.outcomes.map((outcome) => `${outcome.rung}:${outcome.status}`)).toEqual([
+      "structural:passed",
+      "smoke:passed",
+      "behavioral:skipped",
+      "design-lint:passed",
+    ]);
   });
 });
 

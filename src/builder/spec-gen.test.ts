@@ -18,8 +18,8 @@ import type { DeepPartial, GenerateResult, Provider, TokenUsage } from "../provi
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
-  capabilitySpecSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  promptCapabilitySpecSchema,
   TRANSITIONAL_CAPABILITY_TOOLS,
 } from "../registry/index.ts";
 import { buildSpecPrompt, generateSpec, hardcodedNewCapabilityIntent } from "./index.ts";
@@ -114,7 +114,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
 
 describe("spec generation stage — schema contract, generation, and prompt", () => {
   test("emits OpenAI-compatible JSON Schema for the fixed transitional Action list", async () => {
-    const jsonSchema = await zodSchema(capabilitySpecSchema).jsonSchema;
+    const jsonSchema = await zodSchema(promptCapabilitySpecSchema).jsonSchema;
     const tools = jsonSchema.properties?.tools as
       | { items?: unknown; minItems?: number; maxItems?: number }
       | undefined;
@@ -125,6 +125,13 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
     expect(Array.isArray(tools?.items)).toBe(false);
     expect(tools?.minItems).toBe(TRANSITIONAL_CAPABILITY_TOOLS.length);
     expect(tools?.maxItems).toBe(TRANSITIONAL_CAPABILITY_TOOLS.length);
+
+    const behavioralErrors = jsonSchema.properties?.behavioral_errors as
+      | { items?: { properties?: { action?: { enum?: string[] } } } }
+      | undefined;
+    expect(behavioralErrors?.items?.properties?.action?.enum).toEqual([
+      ...TRANSITIONAL_CAPABILITY_TOOLS,
+    ]);
   });
 
   test("yields a Zod-valid spec from prompt + intent and reports the measurements", async () => {

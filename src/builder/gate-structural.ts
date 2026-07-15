@@ -15,8 +15,9 @@ import { join } from "node:path";
 import ts from "typescript";
 
 import type { CapabilityGateInput } from "./gate.ts";
-import { formatDiagnostics, HANDLER_NAMES } from "./gate-internal.ts";
+import { formatDiagnostics } from "./gate-internal.ts";
 import { checkItemRendererFieldAccess } from "./item-field-access.ts";
+import { checkHandlerSourceContract } from "./unit-checks.ts";
 import type { HandlerUnitName } from "./units.ts";
 
 const STRICT_CHECK_OPTIONS: ts.CompilerOptions = {
@@ -40,21 +41,28 @@ const STRICT_CHECK_OPTIONS: ts.CompilerOptions = {
 
 /** Run the structural rung: assert the export shapes, then type-check handlers + item renderer. */
 export function runStructuralRung(input: CapabilityGateInput): void {
-  assertHandlerExportShapes(input.handlers);
+  const handlerNames = input.spec.tools;
+  assertHandlerExportShapes(handlerNames, input.handlers);
   assertItemRendererExportShape(input.itemRenderer);
   const fieldAccessFailure = checkItemRendererFieldAccess(input.spec, input.itemRenderer);
   if (fieldAccessFailure) throw new Error(fieldAccessFailure);
 
-  const handlerFailure = typeCheckHandlers(input.handlers);
+  const handlerFailure = typeCheckHandlers(handlerNames, input.handlers);
   if (handlerFailure) throw new Error(handlerFailure);
 
   const rendererFailure = typeCheckItemRenderer(input.itemRenderer);
   if (rendererFailure) throw new Error(rendererFailure);
 }
 
-function assertHandlerExportShapes(handlers: Readonly<Record<HandlerUnitName, string>>): void {
-  for (const name of HANDLER_NAMES) {
-    assertDefaultFunctionSource(`handler "${name}"`, handlers[name], { async: true });
+function assertHandlerExportShapes(
+  handlerNames: readonly HandlerUnitName[],
+  handlers: Readonly<Partial<Record<HandlerUnitName, string>>>,
+): void {
+  for (const name of handlerNames) {
+    const content = handlers[name] ?? "";
+    assertDefaultFunctionSource(`handler "${name}"`, content, { async: true });
+    const contractFailure = checkHandlerSourceContract(name, content);
+    if (contractFailure) throw new Error(contractFailure);
   }
 }
 
@@ -137,31 +145,31 @@ function hasExportSurface(statement: ts.Statement): boolean {
 }
 
 function typeCheckHandlers(
-  handlers: Readonly<Record<HandlerUnitName, string>>,
+  handlerNames: readonly HandlerUnitName[],
+  handlers: Readonly<Partial<Record<HandlerUnitName, string>>>,
 ): string | undefined {
   const dir = mkdtempSync(join(tmpdir(), "aluna-gate-typecheck-"));
   try {
     writeFileSync(join(dir, "contract.d.ts"), handlerContractDeclarations);
-    for (const name of HANDLER_NAMES) {
-      writeFileSync(join(dir, `${name}.ts`), handlers[name]);
+    for (const name of handlerNames) {
+      writeFileSync(join(dir, `${name}.ts`), handlers[name] ?? "");
     }
-    writeFileSync(
-      join(dir, "assert.ts"),
-      [
-        'import create from "./create.ts";',
-        'import read from "./read.ts";',
-        "const assertCreate: CapabilityCreateHandler = create;",
-        "const assertRead: CapabilityReadHandler = read;",
-        "void assertCreate;",
-        "void assertRead;",
-      ].join("\n"),
-    );
+    const assertions = handlerNames.flatMap((name) => {
+      const suffix = `${name[0]?.toUpperCase()}${name.slice(1)}`;
+      const binding = `handler${suffix}`;
+      const assertion = `assert${suffix}`;
+      return [
+        `import ${binding} from "./${name}.ts";`,
+        `const ${assertion}: ${name === "create" ? "CapabilityCreateHandler" : "CapabilityReadHandler"} = ${binding};`,
+        `void ${assertion};`,
+      ];
+    });
+    writeFileSync(join(dir, "assert.ts"), assertions.join("\n"));
 
     const program = ts.createProgram(
       [
         join(dir, "contract.d.ts"),
-        join(dir, "create.ts"),
-        join(dir, "read.ts"),
+        ...handlerNames.map((name) => join(dir, `${name}.ts`)),
         join(dir, "assert.ts"),
       ],
       STRICT_CHECK_OPTIONS,

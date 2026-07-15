@@ -6,7 +6,8 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 
 import { deriveCapabilityTableDdl } from "../capability-data/index.ts";
-import { MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/index.ts";
+import { FIELD_LIFECYCLE_DEMO_SPEC, FIELD_LIFECYCLE_DEMO_UNITS } from "../demo/field-lifecycle.ts";
+import { type CapabilitySpec, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/index.ts";
 import {
   CREATE_HANDLER,
   expectGateFailure,
@@ -136,6 +137,104 @@ describe("capability gate — behavioral violations", () => {
       scratchRows: [expect.objectContaining({ text: "  Trim me  " })],
       createFragment: expect.stringContaining("Trim me"),
     });
+  });
+});
+
+describe("capability gate — behavioral scratch catalog", () => {
+  test("behavioral execution receives declared synthetic dependency schemas and compatibility rows", async () => {
+    const dependencyIncarnation = "33333333-3333-4333-8333-333333333333";
+    const dependencySpec = notesSpec({
+      id: "behavior_catalog",
+      label: "Behavior catalog",
+      schema: {
+        fields: [
+          { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+          {
+            name: "retired_note",
+            label: "Retired note",
+            type: "string",
+            required: false,
+            lifecycle: "inactive",
+          },
+        ],
+      },
+    });
+    const spec: CapabilitySpec = {
+      ...FIELD_LIFECYCLE_DEMO_SPEC,
+      read_dependencies: {
+        ...FIELD_LIFECYCLE_DEMO_SPEC.read_dependencies,
+        read: [
+          {
+            capability_id: dependencySpec.id,
+            incarnation_id: dependencyIncarnation,
+          },
+        ],
+      },
+    };
+    const handlers = {
+      ...Object.fromEntries(
+        FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+          unit.name,
+          unit.content,
+        ]),
+      ),
+      read: [
+        "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+        "  return query.all({",
+        '    sql: \'SELECT target.* FROM "cap_field_lifecycle_demo" AS target CROSS JOIN "cap_behavior_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
+        '    parameters: ["synthetic behavior", "compatible hidden value"],',
+        '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "entry", type: "string" }, { alias: "reflection", type: "string" }, { alias: "tags", type: "string[]" }, { alias: "aliases", type: "string[]" }],',
+        '  }).map((row) => present(row)).join("");',
+        "}",
+      ].join("\n"),
+    };
+    const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
+      (unit) => unit.kind === "item-renderer",
+    )?.content;
+    if (!itemRenderer) throw new Error("reference item renderer missing");
+    const suite = {
+      cases: [
+        {
+          name: "declared dependency is present during behavior",
+          setupRows: [],
+          input: [
+            { field: "entry", value: "Behavioral entry" },
+            { field: "reflection", value: "Synthetic reflection" },
+            { field: "tags", value: "behavior" },
+          ],
+          expectedCreatedRow: [{ field: "entry", value: "Behavioral entry" }],
+          expectedRowCount: 1,
+          expectCreateFragmentIncludes: ["Behavioral entry"],
+          expectReadFragmentIncludes: ["Behavioral entry"],
+          expectReadFragmentIncludesInOrder: [],
+          expectedError: null,
+        },
+      ],
+    };
+
+    const result = await runCapabilityGate(
+      gateInput({
+        spec,
+        ddl: deriveCapabilityTableDdl(spec),
+        handlers,
+        itemRenderer,
+        provider: makeBehaviorProvider(suite).provider,
+        scratchCatalog: [
+          {
+            spec: dependencySpec,
+            incarnationId: dependencyIncarnation,
+            rows: [
+              {
+                text: "synthetic behavior",
+                retired_note: "compatible hidden value",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(result.behavioral.status).toBe("passed");
   });
 });
 

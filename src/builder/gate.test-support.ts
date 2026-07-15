@@ -98,7 +98,7 @@ export function itemRendererFor(spec: CapabilitySpec): string {
   ].join("\n");
 }
 
-export const GOOD_HANDLERS: Readonly<Record<HandlerUnitName, string>> = {
+export const GOOD_HANDLERS: Readonly<Partial<Record<HandlerUnitName, string>>> = {
   create: CREATE_HANDLER,
   read: READ_HANDLER,
 };
@@ -183,7 +183,7 @@ export const ARTICLE_READ_HANDLER = [
   "}",
 ].join("\n");
 
-export const ARTICLE_HANDLERS: Readonly<Record<HandlerUnitName, string>> = {
+export const ARTICLE_HANDLERS: Readonly<Partial<Record<HandlerUnitName, string>>> = {
   create: MARKED_ARTICLE_CREATE_HANDLER,
   read: ARTICLE_READ_HANDLER,
 };

@@ -11,7 +11,12 @@ import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import ts from "typescript";
 
-import type { CapabilityTableDdl } from "../capability-data/index.ts";
+import type { CapabilityCreateValues, CapabilityTableDdl } from "../capability-data/index.ts";
+import {
+  createCapabilityMutationPort,
+  deriveCapabilityTableDdl,
+  encodeCapabilityFieldForStorage,
+} from "../capability-data/index.ts";
 import {
   createPresentationAdapter,
   type ItemRenderer,
@@ -20,10 +25,11 @@ import {
 } from "../presentation/index.ts";
 import type { CapabilitySpec, FieldType } from "../registry/index.ts";
 import type { CapabilityCreateHandler, CapabilityReadHandler } from "../router/index.ts";
+import type { ScratchCatalogCapability } from "./gate.ts";
 import type { HandlerUnitName } from "./units.ts";
 
-/** The two generated handlers the gate loads and exercises. */
-export const HANDLER_NAMES = ["create", "read"] as const satisfies readonly HandlerUnitName[];
+/** The two handlers the current smoke cycle executes; structural checks cover the full inventory. */
+export const SMOKE_HANDLER_NAMES = ["create", "read"] as const satisfies readonly HandlerUnitName[];
 
 export interface LoadedHandlers {
   readonly create: CapabilityCreateHandler;
@@ -72,12 +78,83 @@ export function applyDdl(ddl: CapabilityTableDdl, database: Database): void {
   }
 }
 
+/** Build one isolated scratch catalog containing the target plus every declared dependency. */
+export function prepareScratchCatalog(
+  spec: CapabilitySpec,
+  ddl: CapabilityTableDdl,
+  catalog: readonly ScratchCatalogCapability[] | undefined,
+  databases: ScratchDatabasePair,
+): void {
+  applyDdl(ddl, databases.readwrite);
+  const declared = Object.values(spec.read_dependencies).flat();
+  const fixtures = catalog ?? [];
+
+  for (const dependency of declared) {
+    const matches = fixtures.filter(
+      (fixture) =>
+        fixture.spec.id === dependency.capability_id &&
+        fixture.incarnationId === dependency.incarnation_id,
+    );
+    if (matches.length !== 1) {
+      throw new Error(
+        `Scratch catalog requires exactly one synthetic fixture for ${dependency.capability_id}/${dependency.incarnation_id}.`,
+      );
+    }
+  }
+
+  const declaredKeys = new Set(
+    declared.map((dependency) => `${dependency.capability_id}/${dependency.incarnation_id}`),
+  );
+  for (const fixture of fixtures) {
+    const key = `${fixture.spec.id}/${fixture.incarnationId}`;
+    if (!declaredKeys.has(key)) {
+      throw new Error(`Scratch catalog fixture ${key} is not declared by the candidate spec.`);
+    }
+    const dependencyDdl = deriveCapabilityTableDdl(fixture.spec);
+    applyDdl(dependencyDdl, databases.readwrite);
+    for (const row of fixture.rows) {
+      seedCompatibilityRow(fixture.spec, dependencyDdl.tableName, row, databases.readwrite);
+    }
+  }
+}
+
+function seedCompatibilityRow(
+  spec: CapabilitySpec,
+  tableName: string,
+  row: CapabilityCreateValues,
+  database: Database,
+): void {
+  const fieldsByName = new Map(spec.schema.fields.map((field) => [field.name, field]));
+  const activeValues: CapabilityCreateValues = {};
+  const inactiveValues: Array<readonly [string, string | number | null]> = [];
+
+  for (const [name, value] of Object.entries(row)) {
+    const field = fieldsByName.get(name);
+    if (!field) {
+      throw new Error(`Synthetic scratch row references unknown field "${name}" in ${spec.id}.`);
+    }
+    if (field.lifecycle === "active") {
+      activeValues[name] = value;
+    } else {
+      inactiveValues.push([name, encodeCapabilityFieldForStorage(field, value)]);
+    }
+  }
+
+  const created = createCapabilityMutationPort(spec, database).create(activeValues);
+  if (inactiveValues.length === 0) return;
+
+  const assignments = inactiveValues.map(([name]) => `${sqlIdentifier(name)} = ?`).join(", ");
+  database
+    .query(`UPDATE ${sqlIdentifier(tableName)} SET ${assignments} WHERE "id" = ?`)
+    .run(...inactiveValues.map(([, value]) => value), created.id);
+}
+
 /** Transpile + load the generated handler strings into live callable functions. */
 export async function loadHandlers(
-  handlers: Readonly<Record<HandlerUnitName, string>>,
+  handlers: Readonly<Partial<Record<HandlerUnitName, string>>>,
 ): Promise<LoadedHandlers> {
-  const loaded = HANDLER_NAMES.map(
-    (name) => [name, loadDefaultExport(`handler "${name}"`, name, handlers[name])] as const,
+  const loaded = SMOKE_HANDLER_NAMES.map(
+    (name) => [name, loadDefaultExport(`handler "${name}"`, name, handlers[name] ?? "")] as const,
   );
 
   return Object.fromEntries(loaded) as unknown as LoadedHandlers;

@@ -27,11 +27,11 @@ import type { Provider, TokenUsage } from "../provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
-  capabilitySpecSchema,
-  capabilityToolSchema,
   fieldTypeSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
+  promptCapabilitySpecSchema,
+  TRANSITIONAL_CAPABILITY_TOOLS,
   uiCollectionLayoutSchema,
 } from "../registry/index.ts";
 
@@ -65,7 +65,7 @@ export interface SpecGenResult {
 export function buildSpecPrompt(input: GenerateSpecInput): string {
   const fieldTypes = fieldTypeSchema.options.join(" | ");
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
-  const tools = capabilityToolSchema.options.join(", ");
+  const tools = TRANSITIONAL_CAPABILITY_TOOLS.join(", ");
   const platformColumns = PLATFORM_COLUMNS.join(", ");
 
   return [
@@ -123,11 +123,11 @@ export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenRes
 
   const startedAt = performance.now();
 
-  const result = input.provider.generate(buildSpecPrompt(input), capabilitySpecSchema);
+  const result = input.provider.generate(buildSpecPrompt(input), promptCapabilitySpecSchema);
   // The gate. `await result.object` already rejects on non-conformance (the
   // contract's guarantee); re-parsing makes the refusal this stage's own so a
   // malformed spec can never continue downstream regardless of the provider.
-  const spec = capabilitySpecSchema.parse(await result.object);
+  const spec = promptCapabilitySpecSchema.parse(await result.object);
   const usage = await result.usage;
 
   const durationMs = performance.now() - startedAt;
