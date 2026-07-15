@@ -10,12 +10,14 @@
 import type { CapabilityDataTool } from "../capability-data/index.ts";
 import type { PresentationAdapter } from "../presentation/index.ts";
 
-// Parsed request input — the form fields of a POST or the query params of a GET,
-// flattened to string values the way HTML forms and query strings arrive. The
-// handler coerces these to its spec's field types before handing them to `data`
-// (the platform can't — it does not know the spec's intent). Generated code never
-// touches the raw Request (ADR-0004).
-export type CapabilityInput = Readonly<Record<string, string>>;
+// Parsed request input. Multiplicity survives parsing, while the submitted-field
+// set carries presence separately from values (an unchecked checkbox has presence
+// but no value). Reserved platform markers never enter either collection.
+export type CapabilityInputValue = string | readonly string[];
+export interface CapabilityInput {
+  readonly values: Readonly<Record<string, CapabilityInputValue>>;
+  readonly submittedFields: ReadonlySet<string>;
+}
 
 // The single platform-built context a handler receives: parsed input, a data tool
 // already scoped to this capability — its insert/select physically cannot address

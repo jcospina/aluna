@@ -22,7 +22,7 @@ import {
   type CapabilitySpec,
   type SpecField,
 } from "../registry/index.ts";
-import type { CapabilityHandler } from "../router/index.ts";
+import type { CapabilityHandler, CapabilityInput } from "../router/index.ts";
 import type {
   BehavioralGateResult,
   BehavioralTestCaseOutcome,
@@ -92,7 +92,7 @@ interface GeneratedBehavioralTests {
 interface BehavioralCaseDiagnostic {
   readonly testCase: BehavioralTestCase;
   readonly setupRows: readonly Record<string, BehavioralScalar>[];
-  readonly createInput?: Record<string, string>;
+  readonly createInput?: CapabilityInput;
   readonly scratchRows?: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]>;
   readonly createFragment?: string;
   readonly readFragment?: string;
@@ -246,7 +246,7 @@ async function runBehavioralCase(
   assertBehavioralCaseReferencesSpecFields(spec, testCase);
   const scratch = openScratchDatabasePair();
   const setupRows = testCase.setupRows.map((row) => fieldValuesToRecord(row.values));
-  const createInput = inputValuesToRecord(testCase.input);
+  const createInput = inputValuesToHandlerInput(spec, testCase.input);
   let createFragment: string | undefined;
   let readFragment: string | undefined;
   let scratchRows: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]> | undefined;
@@ -290,7 +290,11 @@ async function runBehavioralCase(
       throw new Error(`did not find a scratch row matching ${JSON.stringify(expectedCreatedRow)}.`);
     }
 
-    readFragment = await handlers.read({ input: {}, data, present });
+    readFragment = await handlers.read({
+      input: { values: {}, submittedFields: new Set() },
+      data,
+      present,
+    });
     assertFragment("read", readFragment);
     assertFragmentIncludes("read", readFragment, testCase.expectReadFragmentIncludes);
     assertFragmentIncludesInOrder(readFragment, testCase.expectReadFragmentIncludesInOrder);
@@ -526,8 +530,12 @@ function fieldValuesToRecord(
   return Object.fromEntries(values.map((entry) => [entry.field, entry.value]));
 }
 
-function inputValuesToRecord(
+function inputValuesToHandlerInput(
+  spec: CapabilitySpec,
   values: readonly z.infer<typeof behavioralInputValueSchema>[],
-): Record<string, string> {
-  return Object.fromEntries(values.map((entry) => [entry.field, entry.value]));
+): CapabilityInput {
+  return {
+    values: Object.fromEntries(values.map((entry) => [entry.field, entry.value])),
+    submittedFields: new Set(activeSpecFields(spec.schema.fields).map((field) => field.name)),
+  };
 }

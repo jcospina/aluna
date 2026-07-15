@@ -95,7 +95,7 @@ const TOKEN_STYLE_RENDERER = renderer(
 const HANDLERS: Readonly<Record<HandlerUnitName, string>> = {
   create: [
     "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
-    '    const note = data.insert({ text: input.text, pinned: input.pinned === "on" });',
+    '    const note = data.insert({ text: input.values.text, pinned: input.values.pinned === "on" });',
     "  return present(note);",
     "}",
   ].join("\n"),

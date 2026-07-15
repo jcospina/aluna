@@ -64,7 +64,12 @@ describe("field lifecycle living demo", () => {
     const rejected = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/create`, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ entry: "   ", reflection: "Optional" }).toString(),
+      body: new URLSearchParams([
+        ["entry", "   "],
+        ["reflection", "Optional"],
+        ["__aluna_present", "entry"],
+        ["__aluna_present", "reflection"],
+      ]).toString(),
     });
     expect(rejected.status).toBe(422);
     const error = await rejected.text();
@@ -74,7 +79,12 @@ describe("field lifecycle living demo", () => {
     const created = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/create`, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ entry: "A visible win", reflection: "Kept exactly" }).toString(),
+      body: new URLSearchParams([
+        ["entry", "A visible win"],
+        ["reflection", "Kept exactly"],
+        ["__aluna_present", "entry"],
+        ["__aluna_present", "reflection"],
+      ]).toString(),
     });
     expect(created.status).toBe(200);
     expect(await created.text()).toContain("A visible win");

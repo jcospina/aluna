@@ -81,7 +81,11 @@ function escapeHtml(value: string): string {
 `;
 
 const CREATE_HANDLER = `export default async function create({ input, data, present }: CapabilityContext): Promise<string> {
-  const row = data.insert({ entry: input.entry, reflection: input.reflection ?? null });
+  const reflection = input.values.reflection;
+  const row = data.insert({
+    entry: input.values.entry,
+    reflection: reflection === "" || reflection === undefined ? null : reflection,
+  });
   return present(row);
 }
 `;

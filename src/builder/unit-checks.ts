@@ -220,7 +220,11 @@ type PresentationAdapter = (record: PresentableRecord) => string;
 // shape src/router/contract.ts declares (CapabilityContext) and the gate's structural
 // rung re-checks against.
 const handlerContractDeclarations = `${RECORD_CONTRACT}
-type CapabilityInput = Readonly<Record<string, string>>;
+type CapabilityInputValue = string | readonly string[];
+interface CapabilityInput {
+  readonly values: Readonly<Record<string, CapabilityInputValue>>;
+  readonly submittedFields: ReadonlySet<string>;
+}
 interface CapabilityDataTool {
   insert(values: Record<string, unknown>): CapabilityDataRow;
   select(): CapabilityDataRow[];

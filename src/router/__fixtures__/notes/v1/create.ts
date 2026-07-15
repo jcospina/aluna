@@ -12,10 +12,12 @@
 export default async function create({ input, data, present }) {
   // Form values arrive as strings; the handler — which knows the spec — coerces
   // them. `text` is required; `pinned` is an optional boolean from a checkbox.
-  const values = { text: input.text };
-  if (input.pinned !== undefined) {
-    values.pinned = input.pinned === "true" || input.pinned === "on";
-  }
+  const text = input.values.text;
+  const pinned = input.values.pinned;
+  const values = {
+    text,
+    pinned: input.submittedFields.has("pinned") && (pinned === "true" || pinned === "on"),
+  };
 
   const note = data.insert(values);
   return present(note);

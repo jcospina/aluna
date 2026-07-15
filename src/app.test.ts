@@ -579,7 +579,10 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     const created = await app.request("/capability/notes/create", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ text: "Buy milk" }).toString(),
+      body: new URLSearchParams([
+        ["text", "Buy milk"],
+        ["__aluna_present", "text"],
+      ]).toString(),
     });
     expect(created.status).toBe(200);
 
@@ -845,17 +848,17 @@ const ITEM_RENDERER = [
 // their own (ADR-0005 §2), so create and read cannot drift.
 const CREATE_HANDLER = [
   "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
-  "  const note = data.insert({ text: input.text });",
+  "  const note = data.insert({ text: input.values.text });",
   "  return present(note);",
   "}",
 ].join("\n");
 
 const MISSING_MARKER_CREATE_HANDLER = [
   "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
-  '  if (String(input.text ?? "").trim().length === 0) {',
+  '  if (String(input.values.text ?? "").trim().length === 0) {',
   "    return '<div class=\"error\">Any friendly copy can go here.</div>';",
   "  }",
-  "  const note = data.insert({ text: input.text });",
+  "  const note = data.insert({ text: input.values.text });",
   "  return present(note);",
   "}",
 ].join("\n");
@@ -1224,7 +1227,10 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     const created = await app.request("/capability/notes/create", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ text: "Buy milk" }).toString(),
+      body: new URLSearchParams([
+        ["text", "Buy milk"],
+        ["__aluna_present", "text"],
+      ]).toString(),
     });
     expect(created.status).toBe(200);
     expect(await created.text()).toContain("Buy milk");

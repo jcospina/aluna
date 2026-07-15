@@ -164,6 +164,35 @@ describe("capability spec shape", () => {
     }
   });
 
+  test("rejects the reserved __aluna_ wire-protocol prefix", () => {
+    const parsed = capabilitySpecSchema.safeParse({
+      ...validSpec(),
+      schema: {
+        fields: [
+          {
+            name: "__aluna_present",
+            label: "Reserved",
+            type: "string",
+            required: true,
+            lifecycle: "active",
+          },
+        ],
+      },
+      ui_intent: {
+        item: { direction: "A reserved-name probe.", shows: ["__aluna_present"] },
+        collection: { layout: "feed" },
+        detail: { shows: ["__aluna_present"] },
+      },
+      behavioral_errors: [],
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues.some((issue) => issue.message.includes("reserved __aluna_"))).toBe(
+        true,
+      );
+    }
+  });
+
   test("rejects duplicate field names and an empty field list", () => {
     const duplicates = validSpec({
       schema: {

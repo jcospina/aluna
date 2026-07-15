@@ -216,7 +216,11 @@ type PresentationAdapter = (record: PresentableRecord) => string;
 // The handler contract — including ADR-0005 §2's injected `present` adapter (mirrors
 // src/router/contract.ts and src/builder/unit-checks.ts).
 const handlerContractDeclarations = `${recordContractDeclarations}
-type CapabilityInput = Readonly<Record<string, string>>;
+type CapabilityInputValue = string | readonly string[];
+interface CapabilityInput {
+  readonly values: Readonly<Record<string, CapabilityInputValue>>;
+  readonly submittedFields: ReadonlySet<string>;
+}
 interface CapabilityDataTool {
   insert(values: Record<string, unknown>): CapabilityDataRow;
   select(): CapabilityDataRow[];

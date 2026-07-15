@@ -9,6 +9,7 @@ export type {
   CapabilityContext,
   CapabilityHandler,
   CapabilityInput,
+  CapabilityInputValue,
 } from "./contract.ts";
 export {
   type CapabilityRouterDeps,
@@ -17,3 +18,12 @@ export {
   type ItemRendererLoader,
   registerCapabilityRoutes,
 } from "./router.ts";
+export {
+  ALUNA_PRESENT_MARKER,
+  ALUNA_RECORD_ID_MARKER,
+  ALUNA_RESERVED_PREFIX,
+  type ParsedCapabilityRequest,
+  parseCapabilityRequest,
+  type WireProtocolAction,
+  WireProtocolError,
+} from "./wire-protocol.ts";
