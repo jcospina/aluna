@@ -8,12 +8,14 @@
 //   1. Looks up the registry row and validates `:action` against the row's
 //      declared `tools` — an unknown capability or an undeclared action fails
 //      cleanly, in product voice, **before any handler code is loaded**.
-//   2. Loads the handler for that action from the version directory the row's
+//   2. Parses the closed Action-specific wire contract, including the reserved
+//      record target for update/delete, before generated code loads.
+//   3. Loads the handler for that action from the version directory the row's
 //      `artifacts_path` points to.
-//   3. Builds the platform context (ADR-0004): parsed input (form/query — the
+//   4. Builds the platform context (ADR-0004): parsed input (form/query — the
 //      handler never touches raw HTTP), the capability-bound mutation port for
 //      create, and the physically read-only free-query port.
-//   4. Invokes the handler's single default-exported async function and wraps the
+//   5. Invokes the handler's single default-exported async function and wraps the
 //      returned HTML fragment in the HTTP response — the platform owns headers,
 //      status, and routing.
 //
@@ -25,7 +27,11 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Context, Hono } from "hono";
 
-import { createCapabilityDataPorts, MissingRequiredFieldsError } from "../capability-data/index.ts";
+import {
+  createCapabilityMutationPort,
+  createCapabilityQueryPort,
+  MissingRequiredFieldsError,
+} from "../capability-data/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
 import {
   createMutationCoordinator,
@@ -38,19 +44,18 @@ import {
   type PresentationAdapter,
   type RenderableCapability,
 } from "../presentation/index.ts";
-import {
-  type CapabilityRow,
-  type CapabilitySpec,
-  type CapabilityTool,
-  getCapability,
-} from "../registry/index.ts";
+import { type CapabilityRow, type CapabilitySpec, getCapability } from "../registry/index.ts";
 import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
 import type {
   CapabilityCreateHandler,
   CapabilityHandler,
   CapabilityReadHandler,
 } from "./contract.ts";
-import { parseCapabilityRequest, WireProtocolError } from "./wire-protocol.ts";
+import {
+  parseCapabilityRequest,
+  type WireProtocolAction,
+  WireProtocolError,
+} from "./wire-protocol.ts";
 
 // How the router turns a row's `artifacts_path` + an action into a runnable
 // handler. Injectable so the gate (2.5) and tests can substitute loading without
@@ -63,6 +68,13 @@ export type HandlerLoader = (artifactsPath: string, action: string) => Promise<C
 // {@link HandlerLoader}; the default loads the version-keyed file 3.4/02 generates.
 export type ItemRendererLoader = (artifactsPath: string) => Promise<ItemRenderer>;
 
+// Registry lookup seam. Production uses the validated registry store; route tests
+// inject the coming five-Action shape before issue 4.2/04 admits/persists it.
+export type CapabilityLookup = (
+  id: string,
+  database: PlatformDatabase["readonly"],
+) => CapabilityRow | null;
+
 export interface CapabilityRouterDeps {
   // The read-write / read-only pair the lookup and split data ports ride.
   // Defaults to the platform singletons; tests inject a scratch pair.
@@ -71,18 +83,24 @@ export interface CapabilityRouterDeps {
   readonly loadHandler?: HandlerLoader;
   // Defaults to {@link defaultLoadItemRenderer}.
   readonly loadItemRenderer?: ItemRendererLoader;
+  // Defaults to the validated registry lookup.
+  readonly lookupCapability?: CapabilityLookup;
   // Shared atomic admission for every route mutation; reads never acquire it.
   readonly mutationCoordinator?: MutationCoordinator;
 }
 
-// The fixed route. Registered for the methods M2's two actions use (read = GET,
-// create = POST); update/delete arrive with their own methods in later modules.
+// The fixed route and complete M4 method/Action matrix. The matrix is independent
+// of what one capability advertises: prompt-built transitional capabilities still
+// declare only create/read until the steady-state cutover.
 const CAPABILITY_ROUTE = "/capability/:id/:action";
 const CAPABILITY_VIEW_ROUTE = "/capability/:id";
 const METHOD_BY_ACTION = {
   create: "POST",
+  delete: "POST",
   read: "GET",
-} as const satisfies Record<CapabilityTool, "GET" | "POST">;
+  search: "GET",
+  update: "POST",
+} as const satisfies Record<WireProtocolAction, "GET" | "POST">;
 
 // The version-directory filename the item renderer is generated to (epic 3.4/02) and
 // loaded from here — the seam that lets the router build a capability's presentation
@@ -107,21 +125,37 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
   const databases = deps.databases ?? { readwrite: db, readonly: dbReadonly };
   const loadHandler = deps.loadHandler ?? defaultLoadHandler;
   const loadItemRenderer = deps.loadItemRenderer ?? defaultLoadItemRenderer;
+  const lookupCapability = deps.lookupCapability ?? getCapability;
   const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
 
-  app.get(CAPABILITY_VIEW_ROUTE, (c) => handleCapabilityViewRequest(c, databases));
-  app.on(["GET", "POST"], CAPABILITY_ROUTE, (c) =>
-    handleCapabilityRequest(c, databases, loadHandler, loadItemRenderer, mutationCoordinator),
+  app.get(CAPABILITY_VIEW_ROUTE, (c) =>
+    handleCapabilityViewRequest(c, databases, lookupCapability),
+  );
+  // Catch every HTTP method here so a wrong pair receives the same warm product
+  // boundary instead of falling through to Hono's generic 404 response.
+  app.all(CAPABILITY_ROUTE, (c) =>
+    handleCapabilityRequest(
+      c,
+      databases,
+      loadHandler,
+      loadItemRenderer,
+      lookupCapability,
+      mutationCoordinator,
+    ),
   );
 }
 
-function handleCapabilityViewRequest(c: Context, databases: PlatformDatabase): Response {
+function handleCapabilityViewRequest(
+  c: Context,
+  databases: PlatformDatabase,
+  lookupCapability: CapabilityLookup,
+): Response {
   const id = c.req.param("id");
   if (!id) {
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
 
-  const row = getCapability(id, databases.readonly);
+  const row = lookupCapability(id, databases.readonly);
   if (!row) {
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
@@ -142,6 +176,7 @@ async function handleCapabilityRequest(
   databases: PlatformDatabase,
   loadHandler: HandlerLoader,
   loadItemRenderer: ItemRendererLoader,
+  lookupCapability: CapabilityLookup,
   mutationCoordinator: MutationCoordinator,
 ): Promise<Response> {
   const target = routableTarget(c);
@@ -152,12 +187,12 @@ async function handleCapabilityRequest(
 
   // Validate against the registry row's declared tools *before* loading any code.
   // An unknown capability (no row) or an undeclared action both fail here, cleanly.
-  const row = getCapability(id, databases.readonly);
+  const row = lookupCapability(id, databases.readonly);
   if (!row || !isDeclaredAction(row, action)) {
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
 
-  if (action === "create") {
+  if (isMutationAction(action)) {
     return handleRecordMutation(
       c,
       databases,
@@ -178,7 +213,7 @@ async function handleRecordMutation(
   loadItemRenderer: ItemRendererLoader,
   mutationCoordinator: MutationCoordinator,
   row: CapabilityRow,
-  action: CapabilityTool,
+  action: MutationAction,
 ): Promise<Response> {
   const mutationLease = mutationCoordinator.tryAcquireRecordWrite();
   if (!mutationLease) return recordMutationRefusal(c, row.id);
@@ -196,7 +231,7 @@ async function executeCapabilityHandler(
   loadHandler: HandlerLoader,
   loadItemRenderer: ItemRendererLoader,
   row: CapabilityRow,
-  action: CapabilityTool,
+  action: WireProtocolAction,
 ): Promise<Response> {
   const { id } = row;
   // Everything past validation is the build-and-run path: a throw anywhere in it —
@@ -204,15 +239,22 @@ async function executeCapabilityHandler(
   // becomes one warm, internals-free failure.
   try {
     const spec = specFromRow(row);
-    const { input } = await parseCapabilityRequest(c.req.raw, action, spec);
-    const { mutation, query } = createCapabilityDataPorts(spec, databases);
-    const present = await buildPresentationAdapter(row, loadItemRenderer);
-    const handler = await loadHandler(row.artifacts_path, action);
-
-    const fragment =
-      action === "create"
-        ? await (handler as CapabilityCreateHandler)({ input, mutation, query, present })
-        : await (handler as CapabilityReadHandler)({ input, query, present });
+    const parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
+    const { input } = parsedRequest;
+    // parsedRequest.recordTarget stays platform-side. Issue 4.2/05 binds it to
+    // update/delete mutation authority without adding it to Handler input.
+    const query = createCapabilityQueryPort(databases.readonly);
+    let fragment: string;
+    if (action === "create") {
+      const mutation = createCapabilityMutationPort(spec, databases.readwrite);
+      const present = await buildPresentationAdapter(row, loadItemRenderer);
+      const handler = await loadHandler(row.artifacts_path, action);
+      fragment = await (handler as CapabilityCreateHandler)({ input, mutation, query, present });
+    } else {
+      const present = await buildPresentationAdapter(row, loadItemRenderer);
+      const handler = await loadHandler(row.artifacts_path, action);
+      fragment = await (handler as CapabilityReadHandler)({ input, query, present });
+    }
     if (typeof fragment !== "string") {
       throw new TypeError(
         `Handler ${id}/${action} returned ${typeof fragment}; the contract requires an HTML string.`,
@@ -260,13 +302,19 @@ function isDeclaredAction(row: CapabilityRow, action: string): boolean {
   return (row.tools as readonly string[]).includes(action);
 }
 
-function hasExpectedMethod(action: string, method: string): action is CapabilityTool {
-  return action in METHOD_BY_ACTION && METHOD_BY_ACTION[action as CapabilityTool] === method;
+type MutationAction = "create" | "update" | "delete";
+
+function isMutationAction(action: WireProtocolAction): action is MutationAction {
+  return action === "create" || action === "update" || action === "delete";
+}
+
+function hasExpectedMethod(action: string, method: string): action is WireProtocolAction {
+  return action in METHOD_BY_ACTION && METHOD_BY_ACTION[action as WireProtocolAction] === method;
 }
 
 function routableTarget(
   c: Context,
-): { readonly id: string; readonly action: CapabilityTool } | undefined {
+): { readonly id: string; readonly action: WireProtocolAction } | undefined {
   const id = c.req.param("id");
   const action = c.req.param("action");
   // The route pattern normally binds both. The action allow-list and method are

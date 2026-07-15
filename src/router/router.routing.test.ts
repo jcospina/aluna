@@ -8,17 +8,36 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createApp } from "../app.ts";
 import type { PlatformDatabase } from "../db.ts";
+import type { CapabilityRow } from "../registry/index.ts";
+import type { CapabilityContext, CapabilityInput } from "./contract.ts";
 import {
   boomRow,
-  createCapabilityDataTool,
+  formBody,
   install,
   makeSpyLoader,
   NOTES_ARTIFACTS,
   notesRow,
-  notesSpec,
   setupRouterTest,
   teardownRouterTest,
 } from "./router.test-support.ts";
+import type { HandlerLoader } from "./router.ts";
+
+const FULL_ACTIONS = ["create", "read", "update", "delete", "search"] as const;
+
+// Issue 4.2/03 owns the router matrix before 4.2/04 admits the second persisted
+// authored shape. This lookup-only row lets the route boundary be exercised now
+// without weakening the registry's exact transitional two-Action validation.
+function fullActionRouteRow(): CapabilityRow {
+  return { ...notesRow(), tools: FULL_ACTIONS } as unknown as CapabilityRow;
+}
+
+function urlEncoded(entries: readonly [string, string][]): RequestInit {
+  return {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(entries).toString(),
+  };
+}
 
 describe("deterministic capability router — routing refusals and failures", () => {
   let dir: string;
@@ -46,28 +65,138 @@ describe("deterministic capability router — routing refusals and failures", ()
     expect(spy.calls).toHaveLength(0);
   });
 
-  test("an action the capability does not declare is refused before any handler loads", async () => {
+  test("a transitional capability refuses every unadvertised future Action before any code loads", async () => {
     // The transitional row declares exactly create/read; a future Action must be
     // refused before any corresponding file could be loaded.
     install(conns, notesRow());
     const spy = makeSpyLoader();
     const app = createApp({ capabilityRouter: { databases: conns, loadHandler: spy.loadHandler } });
 
-    const res = await app.request("/capability/notes/update", { method: "POST" });
-
-    expect(res.status).toBe(404);
-    expect(await res.text()).toMatch(/can't find that/i);
+    for (const [action, method] of [
+      ["update", "POST"],
+      ["delete", "POST"],
+      ["search", "GET"],
+    ] as const) {
+      const res = await app.request(`/capability/notes/${action}`, { method });
+      expect(res.status).toBe(404);
+      expect(await res.text()).toMatch(/can't find that/i);
+    }
     expect(spy.calls).toHaveLength(0);
   });
+});
 
-  test("wrong HTTP method and action pairs are refused before generated code loads", async () => {
+describe("deterministic capability router — admitted method/Action matrix", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = setupRouterTest());
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, conns);
+  });
+
+  test("the five admitted method/Action pairs route with Action-specific parsed input", async () => {
+    const calls: Array<{ action: string; input: CapabilityInput }> = [];
+    const loadHandler: HandlerLoader = async (_artifactsPath, action) => {
+      return async ({ input }: CapabilityContext) => {
+        calls.push({ action, input });
+        return `<p>${action} reached</p>`;
+      };
+    };
+    const routerDeps = {
+      databases: conns,
+      loadHandler,
+      loadItemRenderer: async () => () => "<span>item</span>",
+    } as const;
     install(conns, notesRow());
-    const spy = makeSpyLoader();
+    const transitionalApp = createApp({ capabilityRouter: routerDeps });
+    const fullActionApp = createApp({
+      capabilityRouter: {
+        ...routerDeps,
+        lookupCapability: () => fullActionRouteRow(),
+      },
+    });
+
+    const requests: Array<() => Response | Promise<Response>> = [
+      () => fullActionApp.request("/capability/notes/read"),
+      () => fullActionApp.request("/capability/notes/search?q=milk"),
+      () =>
+        transitionalApp.request(
+          "/capability/notes/create",
+          formBody({ text: "Milk", pinned: "true" }),
+        ),
+      () =>
+        fullActionApp.request(
+          "/capability/notes/update",
+          urlEncoded([
+            ["text", "Oat milk"],
+            ["__aluna_present", "text"],
+            ["__aluna_record_id", "record-1"],
+          ]),
+        ),
+      () =>
+        fullActionApp.request(
+          "/capability/notes/delete",
+          urlEncoded([["__aluna_record_id", "record-1"]]),
+        ),
+    ];
+
+    for (const request of requests) {
+      const response = await request();
+      expect(response.status).toBe(200);
+    }
+    expect(calls).toEqual([
+      { action: "read", input: { values: {}, submittedFields: new Set() } },
+      { action: "search", input: { values: { q: "milk" }, submittedFields: new Set() } },
+      {
+        action: "create",
+        input: {
+          values: { text: "Milk", pinned: "true" },
+          submittedFields: new Set(["text", "pinned"]),
+        },
+      },
+      {
+        action: "update",
+        input: { values: { text: "Oat milk" }, submittedFields: new Set(["text"]) },
+      },
+      { action: "delete", input: { values: {}, submittedFields: new Set() } },
+    ]);
+    for (const { input } of calls) {
+      expect(input.values).not.toHaveProperty("__aluna_present");
+      expect(input.values).not.toHaveProperty("__aluna_record_id");
+    }
+  });
+});
+
+describe("deterministic capability router — rejected method/Action matrix", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = setupRouterTest());
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, conns);
+  });
+
+  test("every other method/Action pair receives the warm boundary before registry or code access", async () => {
+    let lookupCalls = 0;
+    let handlerLoads = 0;
     let itemLoads = 0;
     const app = createApp({
       capabilityRouter: {
         databases: conns,
-        loadHandler: spy.loadHandler,
+        lookupCapability: () => {
+          lookupCalls += 1;
+          return fullActionRouteRow();
+        },
+        loadHandler: async () => {
+          handlerLoads += 1;
+          return async () => "<p>never</p>";
+        },
         loadItemRenderer: async () => {
           itemLoads += 1;
           return () => "<span>never</span>";
@@ -75,14 +204,115 @@ describe("deterministic capability router — routing refusals and failures", ()
       },
     });
 
-    const getCreate = await app.request("/capability/notes/create");
-    const postRead = await app.request("/capability/notes/read", { method: "POST" });
+    const expected = new Set([
+      "POST create",
+      "GET read",
+      "POST update",
+      "POST delete",
+      "GET search",
+    ]);
+    const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const;
+    const actions = [...FULL_ACTIONS, "unknown"] as const;
+    for (const method of methods) {
+      for (const action of actions) {
+        if (expected.has(`${method} ${action}`)) continue;
+        const response = await app.request(`/capability/notes/${action}`, { method });
+        expect(response.status).toBe(404);
+        expect(await response.text()).toMatch(/can't find that/i);
+      }
+    }
 
-    expect(getCreate.status).toBe(404);
-    expect(postRead.status).toBe(404);
-    expect(spy.calls).toHaveLength(0);
+    expect(lookupCalls).toBe(0);
+    expect(handlerLoads).toBe(0);
     expect(itemLoads).toBe(0);
-    expect(createCapabilityDataTool(notesSpec(), conns).select()).toEqual([]);
+  });
+});
+
+describe("deterministic capability router — reserved marker boundary", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = setupRouterTest());
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, conns);
+  });
+
+  test("record-target and mutation-form marker failures stay warm and load no generated code", async () => {
+    let handlerLoads = 0;
+    let itemLoads = 0;
+    const app = createApp({
+      capabilityRouter: {
+        databases: conns,
+        lookupCapability: () => fullActionRouteRow(),
+        loadHandler: async () => {
+          handlerLoads += 1;
+          return async () => "<p>never</p>";
+        },
+        loadItemRenderer: async () => {
+          itemLoads += 1;
+          return () => "<span>never</span>";
+        },
+      },
+    });
+    const badRequests: Array<() => Response | Promise<Response>> = [
+      () => app.request("/capability/notes/update", urlEncoded([])),
+      () =>
+        app.request(
+          "/capability/notes/update",
+          urlEncoded([
+            ["__aluna_record_id", "one"],
+            ["__aluna_record_id", "two"],
+          ]),
+        ),
+      () => app.request("/capability/notes/delete", urlEncoded([])),
+      () =>
+        app.request(
+          "/capability/notes/delete",
+          urlEncoded([
+            ["__aluna_record_id", "one"],
+            ["__aluna_record_id", "two"],
+          ]),
+        ),
+      () =>
+        app.request(
+          "/capability/notes/create",
+          urlEncoded([
+            ["__aluna_present", "text"],
+            ["__aluna_present", "pinned"],
+            ["__aluna_record_id", "record-1"],
+          ]),
+        ),
+      () => app.request("/capability/notes/read?__aluna_record_id=record-1"),
+      () => app.request("/capability/notes/search?__aluna_record_id=record-1"),
+      () => app.request("/capability/notes/read?__aluna_present=text"),
+      () => app.request("/capability/notes/search?__aluna_present=text"),
+    ];
+
+    for (const request of badRequests) {
+      const response = await request();
+      expect(response.status).toBe(400);
+      const body = await response.text();
+      expect(body).toMatch(/couldn't make sense/i);
+      expect(body).not.toMatch(/record target|__aluna_|handler|route/i);
+    }
+    expect(handlerLoads).toBe(0);
+    expect(itemLoads).toBe(0);
+  });
+});
+
+describe("deterministic capability router — failures and transitional inventory", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = setupRouterTest());
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, conns);
   });
 
   test("a handler that throws surfaces a friendly failure, never a stack trace or internals", async () => {
