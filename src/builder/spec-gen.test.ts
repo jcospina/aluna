@@ -112,7 +112,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   };
 }
 
-describe("spec generation stage", () => {
+describe("spec generation stage — schema contract, generation, and prompt", () => {
   test("emits OpenAI-compatible JSON Schema for the fixed transitional Action list", async () => {
     const jsonSchema = await zodSchema(capabilitySpecSchema).jsonSchema;
     const tools = jsonSchema.properties?.tools as
@@ -200,7 +200,9 @@ describe("spec generation stage", () => {
     expect(prompt).toContain(intent.user_facing_label);
     expect(prompt).toContain("track my notes");
   });
+});
 
+describe("spec generation stage — authored modes, narration, and identity", () => {
   test("admits semantically appropriate authored modes from prompt-built list capabilities", async () => {
     for (const [field, mode, prompt] of [
       ["tags", "comma_separated", "keep a list of books with genres and tags"],
@@ -267,7 +269,9 @@ describe("spec generation stage", () => {
     expect(spec.label).toBe("Reading list");
     expect(spec.id).toMatch(/^[a-z][a-z0-9_]*$/);
   });
+});
 
+describe("spec generation stage — rejects non-conforming specs", () => {
   test("fails the build cleanly when the model's spec is non-conforming — nothing flows downstream", async () => {
     const outsideThePantry: Array<{ why: string; raw: unknown }> = [
       {
