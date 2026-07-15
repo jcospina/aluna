@@ -8,7 +8,7 @@
 //     prefilled from a record payload.
 //
 // Both modes dispatch on the field-type pantry (string | number | boolean |
-// datetime | date) through a **total switch**, so an unhandled type cannot ship silently:
+// datetime | date | string[]) through a **total switch**, so an unhandled type cannot ship silently:
 // Module 4's list types and Module 6's file types extend exactly one place (the two
 // switches below), and until they do the type-checker refuses to build. The
 // exhaustiveness keys on registry `FieldType`, the one source of truth for the
@@ -25,6 +25,8 @@ import {
   activeSpecFields,
   CREATED_AT_DESCRIPTOR,
   type FieldType,
+  isListFieldType,
+  type ListFieldType,
   type PresentationFieldDescriptor,
   type SpecField,
 } from "../registry/index.ts";
@@ -186,7 +188,7 @@ interface CreateInput {
  * without a case here fails the type-check (`assertNever`), so a control can never
  * be silently missing.
  */
-function createInputFor(type: FieldType): CreateInput {
+function createInputFor(type: Exclude<FieldType, ListFieldType>): CreateInput {
   switch (type) {
     case "string":
       return { inputType: "text", inline: false, extraAttributes: "", canBeEmpty: true };
@@ -211,6 +213,8 @@ function createInputFor(type: FieldType): CreateInput {
 }
 
 function renderCreateField(capabilityId: string, field: SpecField): string {
+  if (isListFieldType(field.type)) return renderCreateListField(capabilityId, field);
+
   const control = createInputFor(field.type);
   // `capabilityId` and `field.name` are both `[a-z][a-z0-9_]*` (spec-validated), so
   // this id is a safe HTML token; the label still escapes its humanized text.
@@ -239,6 +243,30 @@ function renderCreateField(capabilityId: string, field: SpecField): string {
     `<label class="field__label" for="${inputId}">${label}</label>` +
     `<input class="field__control" id="${inputId}" type="${control.inputType}"` +
     ` name="${nameAttribute}"${control.extraAttributes}${required}>` +
+    `</div>`
+  );
+}
+
+function renderCreateListField(capabilityId: string, field: SpecField): string {
+  const inputId = `cap-${capabilityId}-${field.name}`;
+  const label = escapeHtml(field.label);
+  const nameAttribute = escapeHtml(field.name);
+  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
+
+  return (
+    `<div class="field field--list" data-list-field data-list-field-label="${label}"` +
+    ` data-list-input-id="${inputId}">` +
+    presenceMarker +
+    `<label class="field__label" for="${inputId}-1">${label}</label>` +
+    `<div class="field-list__values" data-list-field-values>` +
+    `<div class="field-list__row" data-list-field-row>` +
+    `<input class="field__control" id="${inputId}-1" type="text" name="${nameAttribute}"` +
+    ` aria-label="${label} 1">` +
+    `<button class="field-list__remove" type="button" data-list-field-remove` +
+    ` aria-label="Remove ${label} value">Remove</button>` +
+    `</div></div>` +
+    `<button class="btn btn--secondary field-list__add" type="button" data-list-field-add>` +
+    `Add another</button>` +
     `</div>`
   );
 }
@@ -282,9 +310,18 @@ function formatDetailValue(type: FieldType, value: unknown): string {
       return formatDatetime(value);
     case "date":
       return formatDate(value);
+    case "string[]":
+      return formatStringList(value);
     default:
       return assertNever(type);
   }
+}
+
+function formatStringList(value: unknown): string {
+  if (!Array.isArray(value)) return escapeHtml(String(value));
+  return `<ul class="detail-field__list">${value
+    .map((element) => `<li>${escapeHtml(String(element))}</li>`)
+    .join("")}</ul>`;
 }
 
 /**
@@ -320,7 +357,12 @@ function formatDate(value: unknown): string {
 
 /** Absent for display purposes: null, undefined, or the empty string. `false`/`0` are values. */
 function isEmptyValue(value: unknown): boolean {
-  return value === null || value === undefined || value === "";
+  return (
+    value === null ||
+    value === undefined ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0)
+  );
 }
 
 /** Compile-time exhaustiveness guard: reached only if a `FieldType` case is unhandled. */

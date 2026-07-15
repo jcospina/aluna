@@ -22,9 +22,10 @@ they are asking for.
   implementation steering: users never choose types, migrations, frameworks,
   generated code, CSS tokens, or repair steps. Existing field types do not
   change in place. `ui_change` is limited to capability labels, field labels,
-  detail visibility/order, item direction/dependencies, and `feed | grid`;
-  data or behavior changes are `extend_capability`. No preview-adjust-approve
-  coding loop.
+  detail visibility/order, item direction/dependencies, `feed | grid`, and
+  active `string[]` list input modes; data or behavior changes are
+  `extend_capability`. The model chooses comma-separated input only for fields
+  whose element semantics are comma-free. No preview-adjust-approve coding loop.
 - **Overlap (decision 32).** Overlap resolves to extension of the same
   collection/lifecycle, or a semantically named separate capability for a
   distinct context or lifecycle — its own table, incarnation, artifacts,
@@ -41,6 +42,9 @@ they are asking for.
       collision
 - [ ] A ui_change-scoped request never emits data/behavior facts; a data
       request classifies as extend even when phrased cosmetically
+- [ ] A request to make a comma-free tags/genres field more compact may classify
+      as a list-input ui_change; a quotes/addresses field is never switched to
+      comma-separated input merely for compactness
 - [ ] Module-acceptance case: “track my work contacts separately” beside
       Contacts creates a meaningfully named separate capability, never
       `contacts_2`

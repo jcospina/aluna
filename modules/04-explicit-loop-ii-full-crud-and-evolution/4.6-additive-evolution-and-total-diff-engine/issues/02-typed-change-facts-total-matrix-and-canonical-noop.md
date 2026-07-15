@@ -41,7 +41,8 @@ set of admitted facts requires extending and testing the table).
 
 - [ ] Table tests cover **every** matrix row's fact→work mapping, including
       the None columns (e.g. capability label selects no units; field-order
-      change selects nothing; `feed | grid` selects `item` only)
+      change selects nothing; a list input mode selects platform form/View work
+      only; `feed | grid` selects `item` only)
 - [ ] Multi-fact union: a reactivation + required change unions effects; no
       fact subtracts another's work
 - [ ] An unmapped admitted fact fails closed before publication (plan

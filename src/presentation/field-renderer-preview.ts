@@ -1,7 +1,7 @@
 // Dev preview for the centralized field renderer (epic 3.2/01) — the human visual
 // sign-off surface this issue's HITL gate requires. Served at `/demo/field-renderer`
 // (src/app.ts), it runs the REAL renderer (renderCreateForm / renderDetailFields)
-// against a sample spec exercising every M2 pantry type, so what a reviewer eyeballs
+// against a sample spec exercising every admitted pantry type, so what a reviewer eyeballs
 // is exactly what the platform will emit — not a hand-copied mock that could drift.
 //
 // This is a developer surface, not product UI (ARCH §9.7): the page chrome and the
@@ -39,6 +39,7 @@ export const PREVIEW_CAPABILITY: RenderableCapability = {
         lifecycle: "active",
       },
       { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
+      { name: "tags", label: "Tags", type: "string[]", required: false, lifecycle: "active" },
     ],
   },
 };
@@ -51,6 +52,7 @@ const PREVIEW_RECORD: Readonly<Record<string, unknown>> = {
   due_on: "2026-07-05",
   remind_at: "2026-07-05T09:30",
   note: "Get the barista edition if they have it.\nOtherwise the regular is fine.",
+  tags: ["errands", "one,two", "today"],
 };
 
 /** A sparser record — shows the absent-value placeholder on two optional fields. */
@@ -61,6 +63,7 @@ const PREVIEW_RECORD_SPARSE: Readonly<Record<string, unknown>> = {
   due_on: "2026-07-09",
   remind_at: null,
   note: null,
+  tags: null,
 };
 
 /**

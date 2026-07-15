@@ -47,4 +47,4 @@ warm rejection; the homepage keeps using `create`/`read` unchanged.
 ## Blocked by
 
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/03-reserved-wire-protocol-and-parsed-handler-input.md
-- modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/05-transitional-two-action-shape-and-builder-emission.md
+- modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/06-transitional-two-action-shape-and-builder-emission.md

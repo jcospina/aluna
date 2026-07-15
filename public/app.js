@@ -142,6 +142,79 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   detail.shouldSwap = true;
 });
 
+// Repeated-value controls are platform presentation. Event delegation keeps them
+// working in forms HTMX swaps in after page load without per-form script tags.
+document.addEventListener("click", (event) => {
+  if (!(event.target instanceof Element)) return;
+
+  const button = event.target.closest("[data-list-field-add], [data-list-field-remove]");
+  if (!(button instanceof HTMLButtonElement)) return;
+  if (button.hasAttribute("data-list-field-add")) addListFieldRow(button);
+  else removeListFieldRow(button);
+});
+
+/** @param {HTMLButtonElement} button */
+function addListFieldRow(button) {
+  const field = button.closest("[data-list-field]");
+  const values = field?.querySelector("[data-list-field-values]");
+  const firstRow = values?.querySelector("[data-list-field-row]");
+  if (!(field instanceof HTMLElement) || !(values instanceof HTMLElement) || !firstRow) return;
+
+  const row = firstRow.cloneNode(true);
+  if (!(row instanceof HTMLElement)) return;
+  const input = row.querySelector("input");
+  if (input instanceof HTMLInputElement) input.value = "";
+  values.append(row);
+  syncListFieldRows(field);
+  input?.focus();
+}
+
+/** @param {HTMLButtonElement} button */
+function removeListFieldRow(button) {
+  const field = button.closest("[data-list-field]");
+  const row = button.closest("[data-list-field-row]");
+  if (!(field instanceof HTMLElement) || !(row instanceof HTMLElement)) return;
+
+  const rows = field.querySelectorAll("[data-list-field-row]");
+  if (rows.length === 1) {
+    const input = row.querySelector("input");
+    if (input instanceof HTMLInputElement) input.value = "";
+    input?.focus();
+    return;
+  }
+  row.remove();
+  syncListFieldRows(field);
+}
+
+document.addEventListener("aluna:record-created", (event) => {
+  if (!(event.target instanceof HTMLFormElement)) return;
+  for (const field of event.target.querySelectorAll("[data-list-field]")) {
+    if (!(field instanceof HTMLElement)) continue;
+    const rows = [...field.querySelectorAll("[data-list-field-row]")];
+    for (const row of rows.slice(1)) row.remove();
+    syncListFieldRows(field);
+  }
+});
+
+/** @param {HTMLElement} field */
+function syncListFieldRows(field) {
+  const label = field.dataset.listFieldLabel ?? "Value";
+  const inputId = field.dataset.listInputId ?? "list-value";
+  const rows = field.querySelectorAll("[data-list-field-row]");
+
+  rows.forEach((row, index) => {
+    const input = row.querySelector("input");
+    const remove = row.querySelector("[data-list-field-remove]");
+    if (input instanceof HTMLInputElement) {
+      input.id = `${inputId}-${index + 1}`;
+      input.setAttribute("aria-label", `${label} ${index + 1}`);
+    }
+    if (remove instanceof HTMLButtonElement) {
+      remove.setAttribute("aria-label", `Remove ${label} value ${index + 1}`);
+    }
+  });
+}
+
 /**
  * Find the shell component's Alpine state. This is presentation-only glue: HTMX
  * swaps the toolbar entry, and Alpine mirrors whether the sidebar chrome should be

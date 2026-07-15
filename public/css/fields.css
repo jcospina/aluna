@@ -69,6 +69,33 @@
   outline: none;
 }
 
+.field-list__values {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.field-list__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.field-list__remove {
+  min-height: 2.75rem;
+  padding-inline: var(--space-2);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: var(--border-thin) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.field-list__add {
+  justify-self: start;
+  margin-top: var(--space-1);
+}
+
 /* Boolean: the checkbox sits inline before its label. */
 .field--inline {
   flex-direction: row;
@@ -126,6 +153,13 @@
 }
 .detail-field__value--empty {
   color: var(--color-text-subtle);
+}
+
+.detail-field__list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-3);
 }
 /* Narrow (matches the modal's own <480px width): stack the label over its value. */
 @media (max-width: 479px) {

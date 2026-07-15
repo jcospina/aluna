@@ -76,7 +76,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "Spec pantry — stay strictly inside it:",
     `- tools: only ${tools}.`,
     '- schema.fields: at least one field; each field has a stable name, a user-facing label, a type, required (a boolean), and lifecycle: "active".',
-    `- a field's type is one of: ${fieldTypes}. No list types, no files, no relations.`,
+    `- a field's type is one of: ${fieldTypes}. string[] is the only list type; no files or relations.`,
     "- field names and the capability id are lowercase letters, digits, and underscores, starting with a letter.",
     `- ${platformColumns} are platform-owned columns Aluna adds automatically. Never include them as fields.`,
     '- created_at may appear only in item/detail shows; its platform descriptor is fixed as name "created_at", label "Created", type "datetime", read-only.',

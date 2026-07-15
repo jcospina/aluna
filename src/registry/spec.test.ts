@@ -1,6 +1,6 @@
 // Tests for the capability spec shape (Epic 2.1 plus Module 3.3's presentation
-// intent reshape). The headline guarantees: the pantry is exactly five field types
-// (the M2 four plus M3's date) each with `required`; `ui_intent` records only item,
+// intent reshape). The headline guarantees: the pantry is the five scalar types
+// plus M4's one list type, each with `required`; `ui_intent` records only item,
 // closed collection layout, and detail order; and anything outside the contract —
 // list types, files, relations, the `auto` concept, old `views`, platform-owned
 // column names — fails validation loudly instead of flowing downstream into DDL or
@@ -15,6 +15,8 @@ import {
   capabilitySpecSchema,
   defaultBehavioralErrorsForSchema,
   fieldTypeSchema,
+  isListFieldType,
+  LIST_FIELD_TYPES,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
 } from "./spec.ts";
@@ -88,8 +90,18 @@ describe("capability spec shape", () => {
     expect(capabilitySpecSchema.parse(spec)).toEqual(spec);
   });
 
-  test("accepts exactly the five field types (the M2 four plus date), each with required", () => {
-    expect(fieldTypeSchema.options).toEqual(["string", "number", "boolean", "datetime", "date"]);
+  test("accepts the scalar pantry plus string[], each with required", () => {
+    expect(fieldTypeSchema.options).toEqual([
+      "string",
+      "number",
+      "boolean",
+      "datetime",
+      "date",
+      "string[]",
+    ]);
+    expect(LIST_FIELD_TYPES).toEqual(["string[]"]);
+    expect(isListFieldType("string[]")).toBe(true);
+    expect(isListFieldType("number[]")).toBe(false);
 
     for (const type of fieldTypeSchema.options) {
       for (const required of [true, false]) {
@@ -103,8 +115,8 @@ describe("capability spec shape", () => {
     }
   });
 
-  test("rejects list types (M4) and file types (M6) loudly", () => {
-    for (const type of ["string[]", "number[]", "file", "file[]"]) {
+  test("rejects unadmitted list types and file types loudly", () => {
+    for (const type of ["number[]", "boolean[]", "date[]", "datetime[]", "file", "file[]"]) {
       const spec = validSpec({
         // @ts-expect-error — the type system already excludes these; the runtime gate must too.
         schema: { fields: [{ name: "value", type, required: true }] },

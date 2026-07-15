@@ -86,17 +86,29 @@ foreground stream and complete `commit` swap),
    `datetime[]` wait for a concrete need; M6 still owns `file[]`. A required
    `string[]` must contain at least one non-empty string when created or saved;
    an optional submitted empty list stores `[]`; historical rows may remain
-   `null`. Control-level blank placeholders are discarded; every stored element
-   is non-blank and retains its submitted text/order. A literal comma is one value,
-   never an implicit split.
+   `null`. Every active `string[]` has exactly one entry in
+   `ui_intent.form.list_inputs`, in active schema-field order, shaped as
+   `{ field, mode }` with `mode: comma_separated | repeatable`. Missing,
+   duplicate, scalar, inactive, unknown-field, or invented-mode entries fail
+   validation. The model chooses `comma_separated` only for comma-free atomic
+   values such as tags, genres, categories, or skills; commas are separators,
+   surrounding whitespace is trimmed, and empty segments are discarded. It
+   chooses `repeatable` for free-form elements such as quotes, addresses,
+   citations, or names as entered; each control is one value and a comma remains
+   data. In both modes every stored element is non-blank, and normalized element
+   order/duplicates are preserved.
 
 6. **Repeated-value parsing, edit presence, and record targets share one closed
    HTTP protocol.** Spec field names may not use the reserved `__aluna_` prefix.
    Parsed
    Handler input carries a values map of `string | readonly string[]` plus a
    platform-validated submitted-field set. Repeated query/form keys preserve
-   arrival order. Singleton scalar controls remain scalar; spec-known lists
-   normalize to an array even with one value. Platform create/edit forms emit
+   arrival order. Singleton scalar controls remain scalar. A spec-known
+   `repeatable` list preserves each raw occurrence as one element; a spec-known
+   `comma_separated` list splits every raw occurrence on commas, trims each
+   segment, discards empty segments, and flattens the results in arrival order.
+   Both normalize to an array even with one value and expose no mode information
+   to generated code. Platform create/edit forms emit
    repeated `__aluna_present` values for every rendered active field; the router
    validates and strips them. Edit/delete forms also emit exactly one nonblank
    `__aluna_record_id`; missing, duplicate, or unexpected target markers fail
@@ -143,8 +155,10 @@ foreground stream and complete `commit` swap),
     They do not choose types, migrations, frameworks, generated code, CSS tokens,
     or repair steps. Existing field types do not change in place. `ui_change` is
     limited to capability labels, field labels, detail visibility/order, item
-    direction/dependencies, and `feed | grid`; data or behavior changes are
-    `extend_capability`. No preview-adjust-approve coding loop is introduced.
+    direction/dependencies, `feed | grid`, and active `string[]` list input modes;
+    data or behavior changes are `extend_capability`. The model may choose
+    `comma_separated` only when field semantics make comma-free elements a valid
+    promise. No preview-adjust-approve coding loop is introduced.
 
 ### Handler interfaces and full CRUD
 
@@ -617,11 +631,12 @@ an admitted spec fact without extending and testing the table.
 | `id`, `incarnation_id`, `version`, `artifacts_path`, existing field name/type, committed field omission, `inactive→inactive` definition change, `active→inactive` plus another attribute change, newly introduced inactive field, fixed five-Action set changes, or malformed/missing/unknown Action ownership in errors/dependencies | Invalid candidate; fail before DDL/generation | None | None |
 | Capability label | Registry + toolbar/View copy | None; unit prompts do not receive it | None |
 | `prompt_context` | Resolver catalog | None | None |
-| Field order only | Platform form order | None | None |
+| Field order only | Platform form order + canonical list-input entry order | None | None |
 | New active field | Nullable `ADD COLUMN`; platform form/detail | `create`, `update`; add `search` for `string`/`string[]`; item follows separate `item.shows` fact | Regenerate `create`/`update`; add `search` for `string`/`string[]` |
 | `required` change | Resulting-record validation | `create`, `update` | Regenerate `create`/`update` |
 | Field label | Platform form/detail | `item` only when field is in `item.shows` | None |
-| Hide/reactivate field | Platform form/detail/requiredness; no destructive DDL | `create`, `update`; `search` for text/list text; item through required `item.shows` change | Regenerate `create`/`update`; add `search` for text/list text |
+| Hide/reactivate field | Platform form/detail/requiredness and remove/require active list-input intent; no destructive DDL | `create`, `update`; `search` for text/list text; item through required `item.shows` change | Regenerate `create`/`update`; add `search` for text/list text |
+| Active `string[]` list input mode | Platform create/edit form + raw-input normalization | None | None |
 | `ui_intent.detail.shows`/order | Platform detail View | None | None |
 | Item direction or `item.shows` | None | `item` | None |
 | Collection `feed | grid` | Platform list container | `item` | None |
@@ -675,18 +690,23 @@ or preservation migration; reset removes every transitional row/artifact.
 Use `bun run reset`; add capability incarnation to the registry and move current
 artifacts/loaders immediately to `<id>/<incarnation_id>/v<n>`. Add field
 label/lifecycle, physically nullable storage + logical requiredness, `string[]`,
-reserved submitted-field/record-target parsing, and the `created_at` descriptor.
-Extend current create/read Handler input, centralized create/detail rendering,
-Gate samples, and JSON-array storage together. The transitional prompt Builder
+the model-authored `comma_separated | repeatable` list input modes, reserved
+submitted-field/record-target parsing, and the `created_at` descriptor. Extend
+current create/read Handler input, centralized create/detail rendering, Gate
+samples, and JSON-array storage together. The transitional prompt Builder
 must emit the exact two-Action error/dependency/tools/inventory shape defined
 above with both dependency arrays empty in 4.1; it does not emit empty future
 Action keys or update/delete requirements.
 
-The tracer is a hand-written spec submitted through the real create route:
-`tags=a&tags=b` reaches the Handler as an ordered array, stores and renders as the
-same array, labels render, inactive definitions persist but do not render, the
-registry/artifact/loader share one incarnation path, and validation rejects
-invalid lifecycle/reserved-name contracts without advertising absent Actions.
+The tracer is a hand-written spec submitted through the real create route. A
+comma-separated Tags control turns `fantasy, historical fiction, classic` into
+three ordered elements; a repeatable Other names control keeps `Doe, Jane` as one
+element. Both reach the Handler as the same ordered-array type, store/render
+unchanged after their mode-specific normalization, and retain required/optional
+empty semantics. Labels render, inactive definitions persist but do not render,
+the registry/artifact/loader share one incarnation path, and validation rejects
+invalid lifecycle/reserved-name/form-intent contracts without advertising absent
+Actions.
 
 ### 4.2 — Mutation coordinator, split tools, and complete routing Actions
 

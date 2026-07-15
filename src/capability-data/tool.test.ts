@@ -125,6 +125,37 @@ function requirednessSpec(): CapabilitySpec {
   });
 }
 
+function stringListSpec(): CapabilitySpec {
+  return notesSpec({
+    schema: {
+      fields: [
+        { name: "tags", label: "Tags", type: "string[]", required: true, lifecycle: "active" },
+        {
+          name: "aliases",
+          label: "Aliases",
+          type: "string[]",
+          required: false,
+          lifecycle: "active",
+        },
+      ],
+    },
+    ui_intent: {
+      item: { direction: "Show tags in their submitted order.", shows: ["tags"] },
+      collection: { layout: "feed" },
+      detail: { shows: ["tags", "aliases"] },
+    },
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["tags"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
+  });
+}
+
 function withFileDatabase(run: (databases: PlatformDatabase) => void): void {
   const dir = mkdtempSync(join(tmpdir(), "omni-crud-tool-"));
   const databases = openDatabase(join(dir, "test.db"));
@@ -327,6 +358,58 @@ describe("capability data tool", () => {
         enabled: false,
       });
       expect(tool.insert({ ...valid, enabled: true })).toMatchObject({ enabled: true });
+    });
+  });
+
+  test("string lists discard blank placeholders and JSON round-trip text, order, and commas", () => {
+    withFileDatabase((databases) => {
+      const spec = stringListSpec();
+      applyCapabilityTableDdl(spec, databases.readwrite);
+      const tool = createCapabilityDataTool(spec, databases);
+
+      const inserted = tool.insert({
+        tags: ["  first  ", "", "   ", "one,two", "last"],
+        aliases: [],
+      });
+      expect(inserted).toMatchObject({
+        tags: ["  first  ", "one,two", "last"],
+        aliases: [],
+      });
+      expect(tool.select()).toMatchObject([
+        { tags: ["  first  ", "one,two", "last"], aliases: [] },
+      ]);
+      expect(databases.readwrite.query('SELECT "tags", "aliases" FROM "cap_notes"').get()).toEqual({
+        tags: '["  first  ","one,two","last"]',
+        aliases: "[]",
+      });
+    });
+  });
+
+  test("required string lists reject empty or blank-only values while historical null stays readable", () => {
+    withFileDatabase((databases) => {
+      const spec = stringListSpec();
+      applyCapabilityTableDdl(spec, databases.readwrite);
+      const tool = createCapabilityDataTool(spec, databases);
+
+      for (const tags of [undefined, [], ["", "   "]]) {
+        try {
+          tool.insert({ tags, aliases: [] });
+          throw new Error("expected requiredness failure");
+        } catch (error) {
+          expect(error).toMatchObject({
+            code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+            fields: ["tags"],
+          });
+        }
+      }
+
+      databases.readwrite.run(
+        'INSERT INTO "cap_notes" ("id", "tags", "aliases") VALUES (?, NULL, NULL)',
+        ["historical-null-list"],
+      );
+      expect(tool.select()).toMatchObject([
+        { id: "historical-null-list", tags: null, aliases: null },
+      ]);
     });
   });
 

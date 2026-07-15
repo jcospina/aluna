@@ -59,7 +59,7 @@ The **implicit loop adds only two things the explicit loop never needs**: the **
 | 1 | **Platform Scaffold & Runtime Spine** | Boot an empty platform: shell loads, server streams, AI answers, DB opens | Bun · Hono · HTMX · Alpine · SSE · dual SQLite connections · AI provider interface | — |
 | 2 | **Explicit Loop I — Build Your First Capability** | Type a prompt → watch a working capability build itself → add & see records | Registry · data tool · router · builder · build queue · metrics writing · SSE swap | M1 |
 | 3 | **Opinionated Capability UI** | The capabilities the app builds look and feel like a coherent product — styled lists, a shared modal, a prefilled detail view — not a 1990s form dump | Platform UI modules · single generated item renderer · closed-value primitive vocabulary · few-shot design gallery · design-lint gate rung · `ui_intent` (item/collection/detail) · new artifact shape (reset, no cutover) | M1–M2 |
-| 4 | **Explicit Loop II — Full CRUD & Evolution** | Edit/delete/search records; extend or permanently delete a capability without breaking data/readers | Split data ports · mutation coordinator · total diff engine · immutable incarnated snapshots · recoverable activation/deletion · full resolver | M1–M3 |
+| 4 | **Explicit Loop II — Full CRUD & Evolution** | Edit/delete/search records; extend or permanently delete a capability without breaking data/readers | `string[]` + model-authored list input modes · split data ports · mutation coordinator · total diff engine · immutable incarnated snapshots · recoverable activation/deletion · full resolver | M1–M3 |
 | 5 | **Reads Set Free — Ad-hoc Data Queries** | Ask questions across your data; get answers in a table; nothing is built | Whole-catalog NL→SQL `data_query` · generic auto-table · reject classifier | M4's physical read-only query seam |
 | 6 | **Files — Upload, Store & Serve** | Create capabilities that hold files; upload, view, and delete them | S3-shaped object store · `file` field type · upload (write) · serve (read) · lifecycle | M1–M5 |
 | 7 | **Implicit Loop — Behavior → Proposal → Build** | The app notices a pattern in how you work and offers to build for you | Event tracker · event log · server-side gate · async resolution · proposals | M1–M6 |
@@ -174,9 +174,11 @@ M4 contract. This is bounded development sequencing, not persisted dual-serving.
 - **4.1 — Incarnation-keyed, evolution-ready field & input contract.** Reset, add
   capability incarnation, and immediately cut artifacts/loaders to
   `<id>/<incarnation_id>/v<n>`. Add labels/lifecycle, nullable storage + logical
-  requiredness, `string[]`, reserved presence/target parsing, and the closed
-  `created_at` descriptor. The real-route `create | read` tracer stays honest
-  about its exact files while proving repeated values and inactive preservation.
+  requiredness, `string[]`, the model-authored `comma_separated | repeatable`
+  list input modes, reserved presence/target parsing, and the closed `created_at`
+  descriptor. The real-route `create | read` tracer stays honest about its exact
+  files while proving both input modes, canonical ordered arrays, and inactive
+  preservation.
   (ADR-0004, ADR-0006; ARCH §2, §6.3)
 - **4.2 — Mutation coordinator, split tools & complete routing Actions.** One
   ownership-checked coordinator admits every shared-connection write. Split

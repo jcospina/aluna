@@ -158,7 +158,8 @@ describe("spec generation stage", () => {
     expect(prompt).toContain("ui_intent.detail.shows");
     expect(prompt).toContain("Do not include ui_intent.views");
     expect(prompt).toContain("Do not include modal: true");
-    expect(prompt).toContain("string | number | boolean | datetime | date");
+    expect(prompt).toContain("string | number | boolean | datetime | date | string[]");
+    expect(prompt).toContain("string[] is the only list type");
     expect(prompt).toContain("id, created_at, extra are platform-owned");
     // Identity: engineering id vs user-facing label, kept distinct.
     expect(prompt).toContain("id is the engineering identity");

@@ -205,7 +205,7 @@ interface JsonObject {
   readonly [key: string]: JsonValue;
 }
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
-type CapabilityDataColumnValue = string | number | boolean | JsonObject | null;
+type CapabilityDataColumnValue = string | number | boolean | readonly string[] | JsonObject | null;
 interface CapabilityDataRow {
   readonly id: string;
   readonly created_at: string;

@@ -25,6 +25,8 @@ The one admitted prompt-path shape/inventory:
 - `behavioral_errors` owned only by those Actions, including the exact `create`
   `missing_required_fields` case whenever active required fields exist,
   covering exactly those fields (inactive and optional fields cannot appear);
+- `ui_intent.form.list_inputs` with exactly one `{ field, mode }` entry for
+  every active `string[]`, as established by 4.1/05;
 - inventory: `create.ts`, `read.ts`, plus `item.ts`.
 
 No update/delete/search contract is admitted or advertised: the Builder does
@@ -35,7 +37,8 @@ shape/inventory from the prompt path — never an arbitrary subset.
 ## Acceptance criteria
 
 - [ ] A prompt-built capability's stored spec shows the exact transitional
-      shape (tools, two dependency keys with empty arrays, Action-owned errors)
+      shape (tools, two dependency keys with empty arrays, Action-owned errors,
+      and exact active-list form intent)
 - [ ] The `create` required-fields error case is required exactly when active
       required fields exist and must cover exactly those fields
 - [ ] Fixtures with update/delete/search keys, empty future Action keys, errors
@@ -60,3 +63,4 @@ absent Action is advertised anywhere in the UI or registry.
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/02-field-labels-lifecycle-nullable-storage-requiredness.md
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/03-reserved-wire-protocol-and-parsed-handler-input.md
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/04-string-array-end-to-end.md
+- modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/05-model-authored-string-array-input-mode.md

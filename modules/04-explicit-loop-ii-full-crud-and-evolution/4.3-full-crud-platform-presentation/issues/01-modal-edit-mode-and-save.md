@@ -22,6 +22,9 @@ model generation exists.
   active field and exactly one nonblank `__aluna_record_id`, giving decision
   6's unambiguous clear-vs-preserve semantics; required empties block Save with
   the structured error in warm product voice.
+- Active `string[]` fields reuse their authored list input mode from create:
+  comma-separated fields split/trim/discard empty segments, while repeatable
+  fields prefill one exact element per control, including comma-bearing values.
 - The collection remains a reading surface: no per-item edit/delete chrome,
   overflow menus, bulk selection, or a second record shell.
 - Inactive fields and `extra` never appear in the edit form or the DOM.
@@ -36,6 +39,8 @@ model generation exists.
       survive, required empties block Save
 - [ ] The form emits the presence markers and exactly one record target; the
       router strips them (nothing reserved reaches generated code or the DOM)
+- [ ] Edit prefill and Save round-trip both authored `string[]` input modes
+      through the same platform list-input contract used by create
 - [ ] No per-item edit chrome appears in the collection
 - [ ] Focused tests cover mode switching and form emission; `bun test`,
       `bun run typecheck`, `bun run lint` clean
@@ -50,4 +55,5 @@ product.
 
 ## Blocked by
 
+- modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/05-model-authored-string-array-input-mode.md
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.2-mutation-coordinator-split-tools-and-routing-actions/issues/05-record-targeted-merge-update-and-delete.md

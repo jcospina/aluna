@@ -25,8 +25,9 @@ hand-supplied through a dev tracer seam.
   must come from that catalog.
 - **Output.** One complete candidate in the canonical authored shape:
   immutable capability `id`, label, every active and inactive field,
-  `ui_intent`, `behavior`, `behavioral_errors`, the fixed five-Action `tools`
-  set, `read_dependencies`, `prompt_context`. Never lifecycle metadata
+  `ui_intent` (including one valid list input mode for every active `string[]`),
+  `behavior`, `behavioral_errors`, the fixed five-Action `tools` set,
+  `read_dependencies`, `prompt_context`. Never lifecycle metadata
   (incarnation, version, build id, snapshot, `artifacts_path`); never a patch,
   migration, or regeneration list.
 - **Validation, before any DDL or unit generation.** The candidate must return
@@ -38,7 +39,10 @@ hand-supplied through a dev tracer seam.
   Five-Action set changes are invalid. Missing, duplicate, unknown, or
   otherwise malformed Action ownership in errors/dependencies is rejected —
   never converted into an all-Handler fallback. Required-field error cases for
-  create and update must be present/correct. Reserved names rejected.
+  create and update must be present/correct. Form list-input intent must cover
+  exactly the active `string[]` fields in schema order with a closed mode;
+  scalar/inactive/unknown/missing/duplicate entries are rejected. Reserved names
+  rejected.
 
 ## Acceptance criteria
 
@@ -50,6 +54,8 @@ hand-supplied through a dev tracer seam.
       change, new-field-born-inactive, tools-set change, malformed Action
       ownership, undeclared dependency pair
 - [ ] Reactivation combining lifecycle + label/required changes validates
+- [ ] New/reactivated/hidden `string[]` fields require/add/remove the exact form
+      list-input entry, and a valid mode change round-trips as a presentation fact
 - [ ] A valid candidate round-trips to the Diff stage; lifecycle metadata in a
       candidate is rejected
 - [ ] `bun test`, `bun run typecheck`, `bun run lint` clean
@@ -62,4 +68,5 @@ visible half of evolution.
 
 ## Blocked by
 
+- modules/04-explicit-loop-ii-full-crud-and-evolution/4.1-incarnation-keyed-field-and-input-contract/issues/05-model-authored-string-array-input-mode.md
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.5-snapshots-publication-metrics-atomic-activation/issues/05-hand-authored-v2-tracer-and-fault-battery.md

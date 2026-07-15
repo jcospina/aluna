@@ -253,7 +253,7 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
   for (const [index, payload] of HOSTILE_FIELD_VALUES.entries()) {
     probes.push({
       label: `hostile #${index + 1}`,
-      record: recordWith(spec, () => payload),
+      record: recordWith(spec, (field) => (field.type === "string[]" ? [payload] : payload)),
     });
   }
   return probes;
@@ -263,7 +263,7 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
  *  `valueFor`. `id`/`created_at` stay benign (platform-controlled, never user-hostile). */
 function recordWith(
   spec: CapabilitySpec,
-  valueFor: (field: SpecField) => string | number | boolean,
+  valueFor: (field: SpecField) => unknown,
 ): PresentableRecord {
   const record: Record<string, unknown> = {
     id: "design-lint-probe",
@@ -277,7 +277,7 @@ function recordWith(
 }
 
 /** A benign, typed value for the synthetic probe — mirrors the smoke rung's sample shapes. */
-function syntheticValue(field: SpecField): string | number | boolean {
+function syntheticValue(field: SpecField): string | number | boolean | readonly string[] {
   switch (field.type) {
     case "string":
       return `Sample ${field.name}`;
@@ -289,6 +289,8 @@ function syntheticValue(field: SpecField): string | number | boolean {
       return "2026-01-01T12:00:00.000Z";
     case "date":
       return "2026-01-01";
+    case "string[]":
+      return [`Sample ${field.name} first`, `Sample ${field.name} second`];
   }
 }
 

@@ -55,6 +55,39 @@ function spec(): CapabilitySpec {
   };
 }
 
+function listSpec(required = false): CapabilitySpec {
+  return {
+    ...spec(),
+    schema: {
+      fields: [
+        {
+          name: "tags",
+          label: "Tags",
+          type: "string[]",
+          required,
+          lifecycle: "active",
+        },
+      ],
+    },
+    ui_intent: {
+      item: { direction: "A tag-forward note.", shows: ["tags"] },
+      collection: { layout: "feed" },
+      detail: { shows: ["tags"] },
+    },
+    behavioral_errors: required
+      ? [
+          {
+            action: "create",
+            trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+            code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+            fields: ["tags"],
+            expected_markers: BEHAVIORAL_ERROR_MARKERS,
+          },
+        ]
+      : [],
+  };
+}
+
 function post(entries: readonly [string, string][]): Request {
   return new Request("http://localhost/capability/notes/create", {
     method: "POST",
@@ -86,21 +119,6 @@ describe("reserved capability wire protocol", () => {
   });
 
   test("preserves repeated list order and normalizes one list value to an array", async () => {
-    const listSpec = {
-      ...spec(),
-      schema: {
-        fields: [
-          {
-            name: "tags",
-            label: "Tags",
-            type: "string[]",
-            required: false,
-            lifecycle: "active",
-          },
-        ],
-      },
-    } as unknown as CapabilitySpec;
-
     const repeated = await parseCapabilityRequest(
       post([
         ["tags", "second"],
@@ -108,7 +126,7 @@ describe("reserved capability wire protocol", () => {
         [ALUNA_PRESENT_MARKER, "tags"],
       ]),
       "create",
-      listSpec,
+      listSpec(),
     );
     expect(repeated.input.values.tags).toEqual(["second", "first"]);
 
@@ -118,7 +136,7 @@ describe("reserved capability wire protocol", () => {
         [ALUNA_PRESENT_MARKER, "tags"],
       ]),
       "create",
-      listSpec,
+      listSpec(),
     );
     expect(singleton.input.values.tags).toEqual(["solo"]);
   });

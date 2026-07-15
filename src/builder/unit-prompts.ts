@@ -87,6 +87,7 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
       ? [
           "- Read values only from `input.values`, coerce them into the spec field types, call `data.insert`, and return `present(row)` for the inserted row.",
           "- Create presence is explicit: every active field is in `input.submittedFields`. A submitted empty optional scalar becomes `null`; an absent submitted boolean becomes `false`; required empty values must reach the platform mutation validation and fail rather than receiving an invented value.",
+          "- A string[] input is already a readonly string array in submitted order. Pass a mutable copy to data.insert; do not split commas. The platform discards blank placeholders and validates required lists.",
           "- Destructure `{ input, data, present }`: `export default async function create({ input, data, present }: CapabilityContext): Promise<string>`.",
         ].join("\n")
       : [
@@ -138,6 +139,7 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
     "- The isolated checker uses strict TypeScript, noUncheckedIndexedAccess, and rejects unused parameters and locals. A record value is typed `unknown` — coerce and narrow it (e.g. `String(value)`) before use.",
     "- Return ONLY the inner markup for one record. Do NOT emit the list container, an item wrapper/card frame, a `data-item` attribute, links, buttons, inputs, other interactive controls, `<script>`, or any event-handler attribute (`on*=`) — the platform owns all of that.",
     "- Escape every record value before placing it in markup (include a small escaping helper locally). Never interpolate a record value into a `style` attribute.",
+    "- For string[] fields, narrow with Array.isArray, preserve element order, and escape each element independently. Do not stringify or comma-split the list as one scalar.",
     "",
     buildItemRendererDesignInjection(layout),
     "",

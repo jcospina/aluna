@@ -118,8 +118,8 @@ describe("capability registry store", () => {
           {
             name: "tags",
             label: "Tags",
-            // @ts-expect-error — a list type, outside the M2 pantry (PLAN decision 8).
-            type: "string[]",
+            // @ts-expect-error — only string[] is admitted; number[] remains outside the pantry.
+            type: "number[]",
             required: false,
             lifecycle: "active",
           },

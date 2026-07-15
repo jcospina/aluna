@@ -11,8 +11,8 @@ import {
 } from "./field-renderer.ts";
 
 // The centralized field renderer (epic 3.2/01) is the one platform module that turns
-// a spec into create controls and read-only detail — exhaustive over the M2 pantry
-// (string | number | boolean | datetime | date). These tests cover every pantry type in
+// a spec into create controls and read-only detail — exhaustive over the pantry
+// (string | number | boolean | datetime | date | string[]). These tests cover every pantry type in
 // both modes from one fixture, the platform-owned create-form wiring + close-on-
 // success, and the data-safety invariants (escaping, absent-value placeholder). The
 // schema-driven sweep ties the renderer to `fieldTypeSchema`, so a future pantry type
@@ -42,7 +42,7 @@ function oneField(field: SpecField): RenderableCapability {
   return { id: "probe", label: "Probe", schema: { fields: [field] } };
 }
 
-function sampleDetailValue(type: FieldType): string | number | boolean {
+function sampleDetailValue(type: FieldType): string | number | boolean | readonly string[] {
   switch (type) {
     case "string":
       return "a value";
@@ -54,6 +54,8 @@ function sampleDetailValue(type: FieldType): string | number | boolean {
       return "2026-07-05T09:30:00.000Z";
     case "date":
       return "2026-07-05";
+    case "string[]":
+      return ["first", "second"];
   }
 }
 
@@ -138,6 +140,23 @@ describe("create form — one control per pantry type", () => {
     );
     expect(dateForm).toContain('id="cap-probe-due_on" type="date"');
     expect(dateForm).not.toContain("datetime-local");
+  });
+
+  test("string[] renders one repeated-value row plus add/remove controls", () => {
+    const listForm = renderCreateForm(
+      oneField({
+        name: "tags",
+        label: "Tags",
+        type: "string[]",
+        required: true,
+        lifecycle: "active",
+      }),
+    );
+    expect(listForm).toContain("data-list-field");
+    expect(listForm).toContain('name="tags"');
+    expect(listForm).toContain("data-list-field-add");
+    expect(listForm).toContain("data-list-field-remove");
+    expect(listForm).not.toContain('name="tags" required');
   });
 
   test("uses the authored field label and ties it to the stable field-name control", () => {
@@ -305,6 +324,27 @@ describe("detail display — one formatting per pantry type", () => {
     expect(detail).toContain('<time datetime="2026-07-05">2026-07-05</time>');
   });
 
+  test("string[] values render as an escaped ordered list; null and [] render empty", () => {
+    const field: SpecField = {
+      name: "tags",
+      label: "Tags",
+      type: "string[]",
+      required: false,
+      lifecycle: "active",
+    };
+    const detail = renderDetailFields(oneField(field), {
+      tags: ["first", "one,two", "<last>"],
+    });
+    expect(detail).toContain(
+      '<ul class="detail-field__list"><li>first</li><li>one,two</li><li>&lt;last&gt;</li></ul>',
+    );
+    for (const absent of [null, []]) {
+      const empty = renderDetailFields(oneField(field), { tags: absent });
+      expect(empty).toContain("detail-field__value--empty");
+      expect(empty).toContain(">—</dd>");
+    }
+  });
+
   test("absent values show the placeholder and an empty modifier", () => {
     const field: SpecField = {
       name: "note",
@@ -463,7 +503,7 @@ describe("detail display — honors ui_intent.detail.shows (fields + order)", ()
   });
 });
 
-describe("centralization — exhaustive over the M2 pantry", () => {
+describe("centralization — exhaustive over the admitted pantry", () => {
   // Drives straight off the registry enum: if the pantry gains a type, this sweep
   // renders it in both modes and fails loudly unless the renderer's two total
   // switches handle it — proof that adding a type is a single-location change.

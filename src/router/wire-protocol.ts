@@ -1,4 +1,4 @@
-import { activeSpecFields, type CapabilitySpec } from "../registry/index.ts";
+import { activeSpecFields, type CapabilitySpec, isListFieldType } from "../registry/index.ts";
 import type { CapabilityInput, CapabilityInputValue } from "./contract.ts";
 
 export const ALUNA_RESERVED_PREFIX = "__aluna_";
@@ -190,7 +190,7 @@ function normalizeRepeatedValue(
   repeated: readonly string[],
   fieldType: string | undefined,
 ): CapabilityInputValue {
-  if (fieldType && isListType(fieldType)) return [...repeated];
+  if (fieldType && isListFieldType(fieldType)) return [...repeated];
   if (repeated.length !== 1) {
     throw new WireProtocolError(`Scalar input "${key}" was submitted more than once.`);
   }
@@ -205,14 +205,8 @@ function addSubmittedEmptyLists(
   submittedFields: ReadonlySet<string>,
 ): void {
   for (const field of activeFields) {
-    if (!submittedFields.has(field.name) || !isListType(field.type) || field.name in values)
+    if (!submittedFields.has(field.name) || !isListFieldType(field.type) || field.name in values)
       continue;
     values[field.name] = [];
   }
-}
-
-// The concrete list vocabulary grows in 4.1/04. Keeping recognition here means
-// every admitted `...[]` type automatically uses the repeated-value wire seam.
-function isListType(type: string): boolean {
-  return type.endsWith("[]");
 }
