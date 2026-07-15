@@ -9,7 +9,7 @@
 // changed them.
 
 import { createCapabilityDataTool } from "../capability-data/index.ts";
-import type { CapabilitySpec, SpecField } from "../registry/index.ts";
+import { activeSpecFields, type CapabilitySpec, type SpecField } from "../registry/index.ts";
 import type { CapabilityGateInput, SmokeGateResult } from "./gate.ts";
 import {
   applyDdl,
@@ -95,7 +95,7 @@ function buildSmokeInput(spec: CapabilitySpec): SmokeInput {
   const input: Record<string, string> = {};
   const expectedValues: Record<string, string | number | boolean> = {};
 
-  for (const field of spec.schema.fields) {
+  for (const field of activeSpecFields(spec.schema.fields)) {
     const sample = sampleValue(field);
     input[field.name] = sample.input;
     expectedValues[field.name] = sample.expected;
@@ -131,7 +131,7 @@ function assertSmokeRows(
   const row = rows[0];
   if (!row) throw new Error("Smoke expected one scratch row, received none.");
 
-  for (const field of spec.schema.fields) {
+  for (const field of activeSpecFields(spec.schema.fields)) {
     const expected = expectedValues[field.name];
     if (!fieldValueMatches(field.type, row[field.name], expected)) {
       throw new Error(

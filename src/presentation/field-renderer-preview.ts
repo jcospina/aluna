@@ -27,12 +27,18 @@ export const PREVIEW_CAPABILITY: RenderableCapability = {
   label: "Tasks",
   schema: {
     fields: [
-      { name: "title", type: "string", required: true },
-      { name: "priority", type: "number", required: true },
-      { name: "urgent", type: "boolean", required: false },
-      { name: "due_on", type: "date", required: true },
-      { name: "remind_at", type: "datetime", required: false },
-      { name: "note", type: "string", required: false },
+      { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+      { name: "priority", label: "Priority", type: "number", required: true, lifecycle: "active" },
+      { name: "urgent", label: "Urgent", type: "boolean", required: false, lifecycle: "active" },
+      { name: "due_on", label: "Due on", type: "date", required: true, lifecycle: "active" },
+      {
+        name: "remind_at",
+        label: "Remind at",
+        type: "datetime",
+        required: false,
+        lifecycle: "active",
+      },
+      { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
     ],
   },
 };

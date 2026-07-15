@@ -356,5 +356,11 @@ function allowedClassList(): string {
 function fields(
   rows: readonly (readonly [name: string, type: FieldType, required: boolean])[],
 ): SpecField[] {
-  return rows.map(([name, type, required]) => ({ name, type, required }));
+  return rows.map(([name, type, required]) => ({
+    name,
+    label: name,
+    type,
+    required,
+    lifecycle: "active",
+  }));
 }

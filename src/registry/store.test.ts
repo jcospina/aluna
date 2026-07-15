@@ -31,12 +31,12 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     version: 1,
     schema: {
       fields: [
-        { name: "text", type: "string", required: true },
-        { name: "pinned", type: "boolean", required: false },
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+        { name: "pinned", label: "Pinned", type: "boolean", required: false, lifecycle: "active" },
       ],
     },
     ui_intent: {
-      item: "A text-forward card that emphasizes the note text.",
+      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
     },
@@ -114,8 +114,16 @@ describe("capability registry store", () => {
   test("an invalid spec is rejected loudly and writes nothing", () => {
     const invalid = notesRow({
       schema: {
-        // @ts-expect-error — a list type, outside the M2 pantry (PLAN decision 8).
-        fields: [{ name: "tags", type: "string[]", required: false }],
+        fields: [
+          {
+            name: "tags",
+            label: "Tags",
+            // @ts-expect-error — a list type, outside the M2 pantry (PLAN decision 8).
+            type: "string[]",
+            required: false,
+            lifecycle: "active",
+          },
+        ],
       },
     });
 

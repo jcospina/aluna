@@ -16,6 +16,7 @@ import { type CapabilityTableDdl, createCapabilityDataTool } from "../capability
 import type { PresentationAdapter } from "../presentation/index.ts";
 import type { Provider, TokenUsage } from "../provider/index.ts";
 import {
+  activeSpecFields,
   type BehavioralErrorCase,
   behavioralErrorMarkersSchema,
   type CapabilitySpec,
@@ -161,7 +162,11 @@ export function buildBehavioralTestPrompt(spec: CapabilitySpec): string {
     "",
     "Source material JSON:",
     JSON.stringify(
-      { behavior: spec.behavior, schema: spec.schema, behavioral_errors: spec.behavioral_errors },
+      {
+        behavior: spec.behavior,
+        schema: { fields: activeSpecFields(spec.schema.fields) },
+        behavioral_errors: spec.behavioral_errors,
+      },
       null,
       2,
     ),
@@ -328,7 +333,7 @@ function assertBehavioralCaseReferencesSpecFields(
   spec: CapabilitySpec,
   testCase: BehavioralTestCase,
 ): void {
-  const fields = new Set(spec.schema.fields.map((field) => field.name));
+  const fields = new Set(activeSpecFields(spec.schema.fields).map((field) => field.name));
   assertKnownFields(
     testCase.name,
     "input",

@@ -105,11 +105,23 @@ function present(
   const templateId = detailTemplateId(capability.id, record);
   const detail: ItemDetailRef = { templateId, title: capability.label };
 
-  const safeInnerHtml = enforceItemMarkup(renderItem(record));
+  const safeInnerHtml = enforceItemMarkup(renderItem(projectItemRecord(capability, record)));
   const item = renderItemWrapper(safeInnerHtml, record, detail);
   const detailTemplate = renderDetailContentTemplate(templateId, capability, record);
 
   return item + detailTemplate;
+}
+
+function projectItemRecord(
+  capability: RenderableCapability,
+  record: PresentableRecord,
+): PresentableRecord {
+  const shows =
+    capability.item?.shows ??
+    capability.schema.fields
+      .filter((field) => field.lifecycle === "active")
+      .map((field) => field.name);
+  return Object.fromEntries(shows.map((name) => [name, record[name]]));
 }
 
 /**

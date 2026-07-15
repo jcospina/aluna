@@ -16,15 +16,14 @@ import {
 } from "./few-shot-gallery.ts";
 
 function renderedExample(example: FewShotDesignExample): string {
-  const previewHtmlByRecordId = new Map(
-    example.previewSamples.map((sample) => [String(sample.record.id), sample.previewInnerHtml]),
-  );
+  let previewIndex = 0;
   const present = createPresentationAdapter({
     capability: example.capability,
-    renderItem: (record) => {
-      const previewInnerHtml = previewHtmlByRecordId.get(String(record.id));
+    renderItem: () => {
+      const previewInnerHtml = example.previewSamples[previewIndex]?.previewInnerHtml;
+      previewIndex += 1;
       if (previewInnerHtml === undefined) {
-        throw new Error(`Missing few-shot preview HTML for ${example.id}:${String(record.id)}`);
+        throw new Error(`Missing few-shot preview HTML for ${example.id}:${previewIndex - 1}`);
       }
       return previewInnerHtml;
     },

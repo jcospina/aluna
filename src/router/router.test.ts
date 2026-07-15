@@ -38,12 +38,12 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     label: "Notes",
     schema: {
       fields: [
-        { name: "text", type: "string", required: true },
-        { name: "pinned", type: "boolean", required: false },
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+        { name: "pinned", label: "Pinned", type: "boolean", required: false, lifecycle: "active" },
       ],
     },
     ui_intent: {
-      item: "A text-forward card that emphasizes the note text.",
+      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
     },
@@ -80,9 +80,13 @@ function boomRow(): CapabilityRow {
     label: "Boom",
     incarnation_id: "22222222-2222-4222-8222-222222222222",
     version: 1,
-    schema: { fields: [{ name: "note", type: "string", required: false }] },
+    schema: {
+      fields: [
+        { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
+      ],
+    },
     ui_intent: {
-      item: "A text-forward card that emphasizes the note text.",
+      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["note"] },
       collection: { layout: "feed" },
       detail: { shows: ["note"] },
     },
@@ -244,6 +248,32 @@ describe("deterministic capability router", () => {
     const readBody = await read.text();
     expect(readBody).toContain("Buy milk");
     expect(readBody).toContain("pinned");
+  });
+
+  test("platform requiredness returns warm structured markers and does not reset a failed create", async () => {
+    install(conns, notesRow());
+    const app = createApp({
+      capabilityRouter: {
+        databases: conns,
+        loadHandler:
+          async () =>
+          async ({ input, data, present }) =>
+            present(data.insert({ text: input.text, pinned: false })),
+        loadItemRenderer: async () => (record) =>
+          `<span class="text-lg">${String(record.text)}</span>`,
+      },
+    });
+
+    const response = await app.request("/capability/notes/create", formBody({ text: "   " }));
+    expect(response.status).toBe(422);
+    expect(response.headers.get("HX-Retarget")).toBe("#notes-create-error");
+    expect(response.headers.get("HX-Reswap")).toBe("innerHTML");
+    const html = await response.text();
+    expect(html).toContain('data-role="error"');
+    expect(html).toContain('data-error-code="missing_required_fields"');
+    expect(html).toContain('data-error-fields="text"');
+    expect(html).toContain("I still need a little more");
+    expect(createCapabilityDataTool(notesSpec(), conns).select()).toEqual([]);
   });
 
   test("the default loader keys Bun imports by incarnation path for a recreated semantic id", async () => {

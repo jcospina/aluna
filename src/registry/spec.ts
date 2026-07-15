@@ -63,6 +63,9 @@ const capabilityNameText = nonBlankText.refine(
 export const fieldTypeSchema = z.enum(["string", "number", "boolean", "datetime", "date"]);
 export type FieldType = z.infer<typeof fieldTypeSchema>;
 
+export const fieldLifecycleSchema = z.enum(["active", "inactive"]);
+export type FieldLifecycle = z.infer<typeof fieldLifecycleSchema>;
+
 // One user field: name, type, required — nothing else validates. Strictness is
 // what rejects ARCH §6.3's `auto` example key, per the PLAN's recorded deviation.
 export const specFieldSchema = z.strictObject({
@@ -73,10 +76,23 @@ export const specFieldSchema = z.strictObject({
       (name) => !(PLATFORM_COLUMNS as readonly string[]).includes(name),
       `is platform-owned (${PLATFORM_COLUMNS.join(", ")}) and cannot be a spec field`,
     ),
+  label: nonBlankText,
   type: fieldTypeSchema,
   required: z.boolean(),
+  lifecycle: fieldLifecycleSchema,
 });
 export type SpecField = z.infer<typeof specFieldSchema>;
+
+export const CREATED_AT_DESCRIPTOR = {
+  name: "created_at",
+  label: "Created",
+  type: "datetime",
+  readOnly: true,
+} as const;
+
+export type PresentationFieldDescriptor =
+  | Pick<SpecField, "name" | "label" | "type">
+  | typeof CREATED_AT_DESCRIPTOR;
 
 // Closed collection-layout values the platform list container knows how to map
 // to presentation classes. Unknown values fail here, symmetric with unknown field
@@ -85,7 +101,13 @@ export const uiCollectionLayoutSchema = z.enum(["feed", "grid"]);
 export type UiCollectionLayout = z.infer<typeof uiCollectionLayoutSchema>;
 
 export const uiIntentSchema = z.strictObject({
-  item: nonBlankText,
+  item: z.strictObject({
+    direction: nonBlankText,
+    shows: z
+      .array(z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE))
+      .min(1)
+      .refine(allUnique, "item fields must be unique"),
+  }),
   collection: z.strictObject({
     layout: uiCollectionLayoutSchema,
   }),
@@ -200,7 +222,9 @@ export type CapabilityRow = z.infer<typeof capabilityRowSchema>;
 export function defaultBehavioralErrorsForSchema(
   schema: CapabilitySpec["schema"],
 ): BehavioralErrorCase[] {
-  const fields = schema.fields.filter((field) => field.required).map((field) => field.name);
+  const fields = schema.fields
+    .filter((field) => field.lifecycle === "active" && field.required)
+    .map((field) => field.name);
   if (fields.length === 0) return [];
 
   return [
@@ -220,7 +244,7 @@ function validateBehavioralErrors(
 ): void {
   const fieldsByName = new Map(spec.schema.fields.map((field) => [field.name, field]));
   const requiredFieldNames = spec.schema.fields
-    .filter((field) => field.required)
+    .filter((field) => field.lifecycle === "active" && field.required)
     .map((field) => field.name);
 
   for (const [index, errorCase] of spec.behavioral_errors.entries()) {
@@ -242,23 +266,33 @@ function validateSpecSemantics(
   ctx: z.RefinementCtx,
 ): void {
   validateBehavioralErrors(spec, ctx);
-  validateDetailShows(spec, ctx);
+  validatePresentationShows(spec, ctx);
 }
 
-function validateDetailShows(
+function validatePresentationShows(
   spec: Pick<CapabilitySpec, "schema" | "ui_intent">,
   ctx: z.RefinementCtx,
 ): void {
-  const fieldNames = new Set(spec.schema.fields.map((field) => field.name));
+  const fieldsByName = new Map(spec.schema.fields.map((field) => [field.name, field]));
+  validateShowsList("item", spec.ui_intent.item.shows, fieldsByName, ctx);
+  validateShowsList("detail", spec.ui_intent.detail.shows, fieldsByName, ctx);
+}
 
-  for (const [index, fieldName] of spec.ui_intent.detail.shows.entries()) {
-    if (!fieldNames.has(fieldName)) {
-      ctx.addIssue({
-        code: "custom",
-        message: `detail field "${fieldName}" is not in schema.fields`,
-        path: ["ui_intent", "detail", "shows", index],
-      });
-    }
+function validateShowsList(
+  surface: "item" | "detail",
+  shows: readonly string[],
+  fieldsByName: ReadonlyMap<string, SpecField>,
+  ctx: z.RefinementCtx,
+): void {
+  for (const [index, fieldName] of shows.entries()) {
+    if (fieldName === CREATED_AT_DESCRIPTOR.name) continue;
+    const field = fieldsByName.get(fieldName);
+    if (field?.lifecycle === "active") continue;
+    ctx.addIssue({
+      code: "custom",
+      message: `${surface} field "${fieldName}" must be an active schema field or created_at`,
+      path: ["ui_intent", surface, "shows", index],
+    });
   }
 }
 
@@ -276,8 +310,33 @@ function validateBehavioralErrorFields(
     }
     if (!field.required) {
       addBehavioralErrorFieldIssue(ctx, index, fieldName, "must be required");
+      continue;
+    }
+    if (field.lifecycle !== "active") {
+      addBehavioralErrorFieldIssue(ctx, index, fieldName, "must be active");
     }
   }
+}
+
+export function activeSpecFields(fields: readonly SpecField[]): readonly SpecField[] {
+  return fields.filter((field) => field.lifecycle === "active");
+}
+
+export function presentationFieldDescriptors(
+  spec: Pick<CapabilitySpec, "schema">,
+  shows: readonly string[],
+): readonly PresentationFieldDescriptor[] {
+  const activeByName = new Map(
+    activeSpecFields(spec.schema.fields).map((field) => [field.name, field]),
+  );
+  return shows.map((name) => {
+    if (name === CREATED_AT_DESCRIPTOR.name) return CREATED_AT_DESCRIPTOR;
+    const field = activeByName.get(name);
+    if (!field) {
+      throw new Error(`Presentation field "${name}" is not active.`);
+    }
+    return { name: field.name, label: field.label, type: field.type };
+  });
 }
 
 function addBehavioralErrorFieldIssue(

@@ -30,14 +30,23 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     label: "Notes",
     schema: {
       fields: [
-        { name: "title", type: "string", required: true },
-        { name: "amount", type: "number", required: false },
-        { name: "done", type: "boolean", required: true },
-        { name: "logged_at", type: "datetime", required: false },
+        { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+        { name: "amount", label: "Amount", type: "number", required: false, lifecycle: "active" },
+        { name: "done", label: "Done", type: "boolean", required: true, lifecycle: "active" },
+        {
+          name: "logged_at",
+          label: "Logged at",
+          type: "datetime",
+          required: false,
+          lifecycle: "active",
+        },
       ],
     },
     ui_intent: {
-      item: "A text-forward card that emphasizes the note text.",
+      item: {
+        direction: "A text-forward card that emphasizes the note text.",
+        shows: ["title", "amount", "done", "logged_at"],
+      },
       collection: { layout: "feed" },
       detail: { shows: ["title", "amount", "done", "logged_at"] },
     },

@@ -32,12 +32,20 @@ const CAPABILITY: RenderableCapability = {
   label: "Reading list",
   schema: {
     fields: [
-      { name: "title", type: "string", required: true },
-      { name: "author", type: "string", required: true },
-      { name: "rating", type: "number", required: true },
-      { name: "note", type: "string", required: false },
+      { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+      { name: "author", label: "Author", type: "string", required: true, lifecycle: "active" },
+      { name: "rating", label: "Rating", type: "number", required: true, lifecycle: "active" },
+      { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
+      {
+        name: "retired_note",
+        label: "Retired note",
+        type: "string",
+        required: true,
+        lifecycle: "inactive",
+      },
     ],
   },
+  item: { shows: ["title", "author", "created_at"] },
   detail: { shows: ["title", "rating", "note"] },
 };
 
@@ -57,6 +65,7 @@ function record(overrides: Record<string, unknown> = {}): PresentableRecord {
     rating: 4,
     note: "Tides through endless halls.",
     extra: {},
+    retired_note: "still stored",
     ...overrides,
   };
 }
@@ -166,6 +175,28 @@ describe("createPresentationAdapter — composition", () => {
     expect(body).toContain("Tides through endless halls.");
     expect(body).not.toContain("Susanna Clarke");
     expect(readBackPayload(html)).toMatchObject({ author: "Susanna Clarke" });
+  });
+
+  test("passes only item.shows values to the item renderer, including created_at", () => {
+    let received: PresentableRecord | undefined;
+    const present = createPresentationAdapter({
+      capability: CAPABILITY,
+      renderItem: (itemRecord) => {
+        received = itemRecord;
+        return '<span class="text-lg">Shown</span>';
+      },
+    });
+    present(record());
+
+    expect(received).toEqual({
+      title: "Piranesi",
+      author: "Susanna Clarke",
+      created_at: "2026-07-09T00:00:00.000Z",
+    });
+    expect(received).not.toHaveProperty("id");
+    expect(received).not.toHaveProperty("extra");
+    expect(received).not.toHaveProperty("rating");
+    expect(received).not.toHaveProperty("retired_note");
   });
 });
 

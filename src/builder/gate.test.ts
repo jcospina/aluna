@@ -35,12 +35,12 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     label: "Notes",
     schema: {
       fields: [
-        { name: "text", type: "string", required: true },
-        { name: "pinned", type: "boolean", required: false },
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+        { name: "pinned", label: "Pinned", type: "boolean", required: false, lifecycle: "active" },
       ],
     },
     ui_intent: {
-      item: "A text-forward card that emphasizes the note text.",
+      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
     },
@@ -105,12 +105,15 @@ function articlesSpec(): CapabilitySpec {
     label: "Articles",
     schema: {
       fields: [
-        { name: "title", type: "string", required: true },
-        { name: "body", type: "string", required: true },
+        { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+        { name: "body", label: "Body", type: "string", required: true, lifecycle: "active" },
       ],
     },
     ui_intent: {
-      item: "A text-forward card that emphasizes the article title.",
+      item: {
+        direction: "A text-forward card that emphasizes the article title.",
+        shows: ["title", "body"],
+      },
       collection: { layout: "feed" },
       detail: { shows: ["title", "body"] },
     },
@@ -328,6 +331,52 @@ describe("capability gate", () => {
     } finally {
       realDatabase.close();
     }
+  });
+
+  test("Gate samples supply declared created_at and never expose inactive item fields", async () => {
+    const spec = notesSpec({
+      schema: {
+        fields: [
+          { name: "text", label: "Entry", type: "string", required: true, lifecycle: "active" },
+          {
+            name: "pinned",
+            label: "Pinned",
+            type: "boolean",
+            required: false,
+            lifecycle: "active",
+          },
+          {
+            name: "retired_note",
+            label: "Retired note",
+            type: "string",
+            required: true,
+            lifecycle: "inactive",
+          },
+        ],
+      },
+      ui_intent: {
+        item: { direction: "Show the entry and its age.", shows: ["text", "created_at"] },
+        collection: { layout: "feed" },
+        detail: { shows: ["text", "created_at"] },
+      },
+    });
+    const renderer = [
+      "export default function renderItem(record: Record<string, unknown>): string {",
+      '  if (typeof record.created_at !== "string" || "retired_note" in record) return "";',
+      "  return '<div class=\"stack\"><span class=\"text-lg\">' + String(record.text) + '</span></div>';",
+      "}",
+    ].join("\n");
+
+    const result = await runCapabilityGate(
+      gateInput({
+        spec,
+        ddl: deriveCapabilityTableDdl(spec),
+        itemRenderer: renderer,
+        behavioralTier: { enabled: false },
+      }),
+    );
+    expect(result.smoke.rowCount).toBe(1);
+    expect(result.outcomes.every((outcome) => outcome.status !== "failed")).toBe(true);
   });
 
   test("signature assertion catches named exports, non-functions, and non-async functions", async () => {
@@ -659,12 +708,21 @@ describe("capability gate", () => {
       label: "Events",
       schema: {
         fields: [
-          { name: "title", type: "string", required: true },
-          { name: "happens_at", type: "datetime", required: true },
+          { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+          {
+            name: "happens_at",
+            label: "Happens at",
+            type: "datetime",
+            required: true,
+            lifecycle: "active",
+          },
         ],
       },
       ui_intent: {
-        item: "A timeline-style card that emphasizes event title and date.",
+        item: {
+          direction: "A timeline-style card that emphasizes event title and date.",
+          shows: ["title", "happens_at"],
+        },
         collection: { layout: "feed" },
         detail: { shows: ["title", "happens_at"] },
       },

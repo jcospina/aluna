@@ -17,4 +17,5 @@ export {
   type JsonObject,
   type JsonPrimitive,
   type JsonValue,
+  MissingRequiredFieldsError,
 } from "./tool.ts";
