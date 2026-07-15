@@ -166,13 +166,49 @@ function normalizeValues(
   submittedFields: ReadonlySet<string>,
   form: CapabilitySpec["ui_intent"]["form"],
 ): Record<string, CapabilityInputValue> {
+  if (action === "read" || action === "delete") {
+    return rejectUnexpectedValues(action, grouped);
+  }
+  if (action === "search") return normalizeSearchValues(grouped);
+  return normalizeMutationValues(grouped, activeFields, submittedFields, form);
+}
+
+function rejectUnexpectedValues(
+  action: "read" | "delete",
+  grouped: ReadonlyMap<string, readonly string[]>,
+): Record<string, CapabilityInputValue> {
+  const firstKey = grouped.keys().next().value;
+  if (firstKey !== undefined) {
+    throw new WireProtocolError(`Input "${firstKey}" is not accepted for ${action}.`);
+  }
+  return {};
+}
+
+function normalizeSearchValues(
+  grouped: ReadonlyMap<string, readonly string[]>,
+): Record<string, CapabilityInputValue> {
+  const values: Record<string, CapabilityInputValue> = {};
+  for (const [key, repeated] of grouped) {
+    if (key !== "q") {
+      throw new WireProtocolError(`Search input "${key}" is not accepted.`);
+    }
+    values.q = normalizeScalarValue(key, repeated);
+  }
+  return values;
+}
+
+function normalizeMutationValues(
+  grouped: ReadonlyMap<string, readonly string[]>,
+  activeFields: ReturnType<typeof activeSpecFields>,
+  submittedFields: ReadonlySet<string>,
+  form: CapabilitySpec["ui_intent"]["form"],
+): Record<string, CapabilityInputValue> {
   const activeByName = new Map(activeFields.map((field) => [field.name, field]));
   const values: Record<string, CapabilityInputValue> = {};
-  const mutationInput = action === "create" || action === "update";
 
   for (const [key, repeated] of grouped) {
     const field = activeByName.get(key);
-    validateMutationValueKey(mutationInput, key, field, submittedFields);
+    validateMutationValueKey(key, field, submittedFields);
     values[key] = normalizeRepeatedValue(key, repeated, field, form);
   }
 
@@ -181,12 +217,10 @@ function normalizeValues(
 }
 
 function validateMutationValueKey(
-  mutationInput: boolean,
   key: string,
   field: ReturnType<typeof activeSpecFields>[number] | undefined,
   submittedFields: ReadonlySet<string>,
 ): void {
-  if (!mutationInput) return;
   if (!submittedFields.has(key)) {
     throw new WireProtocolError(`Value "${key}" has no submitted field marker.`);
   }
@@ -202,6 +236,10 @@ function normalizeRepeatedValue(
   if (field && isListFieldType(field.type)) {
     return normalizeListInputValues(listInputModeForField(form, field.name), repeated);
   }
+  return normalizeScalarValue(key, repeated);
+}
+
+function normalizeScalarValue(key: string, repeated: readonly string[]): CapabilityInputValue {
   if (repeated.length !== 1) {
     throw new WireProtocolError(`Scalar input "${key}" was submitted more than once.`);
   }

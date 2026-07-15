@@ -102,6 +102,11 @@ function post(entries: readonly [string, string][]): Request {
   });
 }
 
+function get(action: "read" | "search", entries: readonly [string, string][]): Request {
+  const query = new URLSearchParams(entries);
+  return new Request(`http://localhost/capability/notes/${action}?${query}`);
+}
+
 describe("reserved capability wire protocol — input parsing", () => {
   test("strips markers and returns scalar values plus the validated submitted-field set", async () => {
     const parsed = await parseCapabilityRequest(
@@ -183,6 +188,31 @@ describe("reserved capability wire protocol — input parsing", () => {
       listSpec(false, "repeatable"),
     );
     expect(repeatable.input.values.tags).toEqual(["Doe, Jane"]);
+  });
+
+  test("search admits only one scalar q while read admits no ordinary input", async () => {
+    const emptySearch = await parseCapabilityRequest(get("search", []), "search", spec());
+    expect(emptySearch.input).toEqual({ values: {}, submittedFields: new Set() });
+
+    const search = await parseCapabilityRequest(get("search", [["q", "milk"]]), "search", spec());
+    expect(search.input).toEqual({ values: { q: "milk" }, submittedFields: new Set() });
+
+    await expect(
+      parseCapabilityRequest(
+        get("search", [
+          ["q", "one"],
+          ["q", "two"],
+        ]),
+        "search",
+        spec(),
+      ),
+    ).rejects.toThrow(/scalar input/i);
+    await expect(
+      parseCapabilityRequest(get("search", [["other", "value"]]), "search", spec()),
+    ).rejects.toThrow(/search input/i);
+    await expect(
+      parseCapabilityRequest(get("read", [["q", "value"]]), "read", spec()),
+    ).rejects.toThrow(/not accepted for read/i);
   });
 });
 
