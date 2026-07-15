@@ -9,7 +9,14 @@
 import { randomUUID } from "node:crypto";
 
 import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
-import { type CapabilitySpec, capabilitySpecSchema, type FieldType } from "../registry/index.ts";
+import {
+  activeSpecFields,
+  type CapabilitySpec,
+  capabilitySpecSchema,
+  type FieldType,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  type SpecField,
+} from "../registry/index.ts";
 import { deriveCapabilityTableDdl } from "./ddl.ts";
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -35,7 +42,19 @@ export interface CapabilityDataTool {
 }
 
 export class CapabilityDataValidationError extends Error {
-  override readonly name = "CapabilityDataValidationError";
+  override readonly name: string = "CapabilityDataValidationError";
+}
+
+export class MissingRequiredFieldsError extends CapabilityDataValidationError {
+  override readonly name = "MissingRequiredFieldsError";
+  readonly action = "create";
+  readonly code = MISSING_REQUIRED_FIELDS_ERROR_CODE;
+  readonly fields: readonly string[];
+
+  constructor(capabilityId: string, fields: readonly string[]) {
+    super(`Missing required fields for capability "${capabilityId}": ${fields.join(", ")}.`);
+    this.fields = [...fields];
+  }
 }
 
 type SqlValue = string | number | null;
@@ -56,7 +75,7 @@ export function createCapabilityDataTool(
   const parsed = capabilitySpecSchema.parse(spec);
   const { tableName } = deriveCapabilityTableDdl(parsed);
   const quotedTable = sqlIdentifier(tableName);
-  const fields = parsed.schema.fields;
+  const fields = activeSpecFields(parsed.schema.fields);
   const allowedInsertFields = new Set([...fields.map((field) => field.name), "extra"]);
 
   return {
@@ -94,7 +113,7 @@ export function createCapabilityDataTool(
 
 function normalizeInsertValues(
   capabilityId: string,
-  fields: CapabilitySpec["schema"]["fields"],
+  fields: readonly SpecField[],
   allowedInsertFields: Set<string>,
   values: CapabilityInsertValues,
 ): { fields: Record<string, SqlValue>; extra?: string } {
@@ -134,18 +153,20 @@ function validateInsertKeys(
 
 function normalizeSpecFieldValues(
   capabilityId: string,
-  fields: CapabilitySpec["schema"]["fields"],
+  fields: readonly SpecField[],
   values: Record<string, unknown>,
 ): Record<string, SqlValue> {
   const normalized: Record<string, SqlValue> = {};
+  const missing = fields
+    .filter((field) => field.required && isMissingRequiredValue(field, values[field.name]))
+    .map((field) => field.name);
+  if (missing.length > 0) {
+    throw new MissingRequiredFieldsError(capabilityId, missing);
+  }
+
   for (const field of fields) {
     const raw = values[field.name];
     if (raw === undefined || raw === null) {
-      if (field.required) {
-        throw new CapabilityDataValidationError(
-          `Missing required field "${field.name}" for capability "${capabilityId}".`,
-        );
-      }
       normalized[field.name] = null;
       continue;
     }
@@ -156,26 +177,86 @@ function normalizeSpecFieldValues(
   return normalized;
 }
 
+function isMissingRequiredValue(field: SpecField, value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  switch (field.type) {
+    case "string":
+      return typeof value !== "string" || value.trim().length === 0;
+    case "number":
+      return typeof value !== "number" || !Number.isFinite(value);
+    case "boolean":
+      return typeof value !== "boolean";
+    case "date":
+      return typeof value !== "string" || !isValidDate(value);
+    case "datetime":
+      return typeof value !== "string" || !isValidDatetime(value);
+  }
+}
+
 function normalizeFieldValue(name: string, type: FieldType, value: unknown): SqlValue {
   switch (type) {
     case "string":
+      return normalizeString(name, value);
     case "datetime":
+      return normalizeDatetime(name, value);
     case "date":
-      if (typeof value !== "string") {
-        throw new CapabilityDataValidationError(`Field "${name}" must be a string.`);
-      }
-      return value;
+      return normalizeDate(name, value);
     case "number":
-      if (typeof value !== "number" || !Number.isFinite(value)) {
-        throw new CapabilityDataValidationError(`Field "${name}" must be a finite number.`);
-      }
-      return value;
+      return normalizeNumber(name, value);
     case "boolean":
-      if (typeof value !== "boolean") {
-        throw new CapabilityDataValidationError(`Field "${name}" must be a boolean.`);
-      }
-      return value ? 1 : 0;
+      return normalizeBoolean(name, value);
   }
+}
+
+function normalizeString(name: string, value: unknown): string {
+  if (typeof value !== "string") {
+    throw new CapabilityDataValidationError(`Field "${name}" must be a string.`);
+  }
+  return value;
+}
+
+function normalizeDatetime(name: string, value: unknown): string {
+  if (typeof value !== "string" || !isValidDatetime(value)) {
+    throw new CapabilityDataValidationError(`Field "${name}" must be a valid datetime.`);
+  }
+  return value;
+}
+
+function normalizeDate(name: string, value: unknown): string {
+  if (typeof value !== "string" || !isValidDate(value)) {
+    throw new CapabilityDataValidationError(`Field "${name}" must be a valid date.`);
+  }
+  return value;
+}
+
+function normalizeNumber(name: string, value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new CapabilityDataValidationError(`Field "${name}" must be a finite number.`);
+  }
+  return value;
+}
+
+function normalizeBoolean(name: string, value: unknown): number {
+  if (typeof value !== "boolean") {
+    throw new CapabilityDataValidationError(`Field "${name}" must be a boolean.`);
+  }
+  return value ? 1 : 0;
+}
+
+function isValidDatetime(value: string): boolean {
+  return value.trim().length > 0 && !Number.isNaN(Date.parse(value));
+}
+
+function isValidDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
 }
 
 function serializeExtra(value: unknown): string {
@@ -195,7 +276,7 @@ function serializeExtra(value: unknown): string {
 }
 
 function normalizeStoredRow(
-  fields: CapabilitySpec["schema"]["fields"],
+  fields: readonly SpecField[],
   row: StoredCapabilityRow,
 ): CapabilityDataRow {
   const id = readStringColumn("id", row.id);

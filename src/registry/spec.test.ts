@@ -25,9 +25,13 @@ function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   const spec: CapabilitySpec = {
     id: "notes",
     label: "Notes",
-    schema: { fields: [{ name: "text", type: "string", required: true }] },
+    schema: {
+      fields: [
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+      ],
+    },
     ui_intent: {
-      item: "A text-forward card that emphasizes the note text.",
+      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
     },
@@ -52,7 +56,17 @@ function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ? {
           ui_intent: {
             ...spec.ui_intent,
-            detail: { shows: spec.schema.fields.map((field) => field.name) },
+            item: {
+              ...spec.ui_intent.item,
+              shows: spec.schema.fields
+                .filter((field) => field.lifecycle === "active")
+                .map((field) => field.name),
+            },
+            detail: {
+              shows: spec.schema.fields
+                .filter((field) => field.lifecycle === "active")
+                .map((field) => field.name),
+            },
           },
         }
       : {}),
@@ -80,7 +94,9 @@ describe("capability spec shape", () => {
     for (const type of fieldTypeSchema.options) {
       for (const required of [true, false]) {
         const spec = validSpec({
-          schema: { fields: [{ name: "value", type, required }] },
+          schema: {
+            fields: [{ name: "value", label: "Value", type, required, lifecycle: "active" }],
+          },
         });
         expect(capabilitySpecSchema.parse(spec)).toEqual(spec);
       }
@@ -100,8 +116,18 @@ describe("capability spec shape", () => {
   test("rejects relation shapes — no foreign keys, ever", () => {
     // A relation as a type string fails the enum…
     const relationType = validSpec({
-      // @ts-expect-error — deliberately outside the enum.
-      schema: { fields: [{ name: "author", type: "relation", required: true }] },
+      schema: {
+        fields: [
+          {
+            name: "author",
+            label: "Author",
+            // @ts-expect-error — deliberately outside the enum.
+            type: "relation",
+            required: true,
+            lifecycle: "active",
+          },
+        ],
+      },
     });
     expect(capabilitySpecSchema.safeParse(relationType).success).toBe(false);
 
@@ -128,7 +154,11 @@ describe("capability spec shape", () => {
   test("rejects platform-owned column names as spec fields", () => {
     for (const name of PLATFORM_COLUMNS) {
       const spec = validSpec({
-        schema: { fields: [{ name, type: "string", required: true }] },
+        schema: {
+          fields: [
+            { name, label: "Reserved", type: "string", required: true, lifecycle: "active" },
+          ],
+        },
       });
       expect(capabilitySpecSchema.safeParse(spec).success).toBe(false);
     }
@@ -138,8 +168,8 @@ describe("capability spec shape", () => {
     const duplicates = validSpec({
       schema: {
         fields: [
-          { name: "text", type: "string", required: true },
-          { name: "text", type: "number", required: false },
+          { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+          { name: "text", label: "Text", type: "number", required: false, lifecycle: "active" },
         ],
       },
     });
@@ -152,7 +182,9 @@ describe("capability spec shape", () => {
   test("field and capability names must be safe SQL identifiers", () => {
     for (const name of ["My Field", "1st", "UPPER", "dash-ed", ""]) {
       const spec = validSpec({
-        schema: { fields: [{ name, type: "string", required: true }] },
+        schema: {
+          fields: [{ name, label: "Field", type: "string", required: true, lifecycle: "active" }],
+        },
       });
       expect(capabilitySpecSchema.safeParse(spec).success).toBe(false);
       expect(capabilitySpecSchema.safeParse(validSpec({ id: name })).success).toBe(false);
@@ -162,7 +194,7 @@ describe("capability spec shape", () => {
   test("ui_intent records item, closed collection layout, and real detail fields only", () => {
     const grid = validSpec({
       ui_intent: {
-        item: "A visual tile that foregrounds the primary field.",
+        item: { direction: "A visual tile that foregrounds the primary field.", shows: ["text"] },
         collection: { layout: "grid" },
         detail: { shows: ["text"] },
       },
@@ -175,7 +207,7 @@ describe("capability spec shape", () => {
 
     const unknownLayout = validSpec({
       ui_intent: {
-        item: "A visual tile that foregrounds the primary field.",
+        item: { direction: "A visual tile that foregrounds the primary field.", shows: ["text"] },
         // @ts-expect-error — unknown collection layouts must fail closed.
         collection: { layout: "masonry" },
         detail: { shows: ["text"] },
@@ -185,7 +217,10 @@ describe("capability spec shape", () => {
 
     const unknownDetailField = validSpec({
       ui_intent: {
-        item: "A text-forward card that emphasizes the note text.",
+        item: {
+          direction: "A text-forward card that emphasizes the note text.",
+          shows: ["missing"],
+        },
         collection: { layout: "feed" },
         detail: { shows: ["missing"] },
       },
@@ -194,7 +229,10 @@ describe("capability spec shape", () => {
 
     const duplicateDetailField = validSpec({
       ui_intent: {
-        item: "A text-forward card that emphasizes the note text.",
+        item: {
+          direction: "A text-forward card that emphasizes the note text.",
+          shows: ["text", "text"],
+        },
         collection: { layout: "feed" },
         detail: { shows: ["text", "text"] },
       },
@@ -203,7 +241,7 @@ describe("capability spec shape", () => {
 
     const modalFlag = validSpec({
       ui_intent: {
-        item: "A text-forward card that emphasizes the note text.",
+        item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
         collection: { layout: "feed" },
         detail: { shows: ["text"] },
         // @ts-expect-error — the shared modal is a platform invariant, not stored state.
@@ -211,6 +249,56 @@ describe("capability spec shape", () => {
       },
     });
     expect(capabilitySpecSchema.safeParse(modalFlag).success).toBe(false);
+  });
+
+  test("allows created_at in presentation lists and rejects id, extra, inactive, and unknown fields", () => {
+    const schema: CapabilitySpec["schema"] = {
+      fields: [
+        { name: "text", label: "Entry", type: "string", required: true, lifecycle: "active" },
+        {
+          name: "retired_note",
+          label: "Retired note",
+          type: "string",
+          required: true,
+          lifecycle: "inactive",
+        },
+      ],
+    };
+    const accepted = validSpec({
+      schema,
+      ui_intent: {
+        item: { direction: "Show the entry and its age.", shows: ["text", "created_at"] },
+        collection: { layout: "feed" },
+        detail: { shows: ["created_at", "text"] },
+      },
+      behavioral_errors: defaultBehavioralErrorsForSchema(schema),
+    });
+    expect(capabilitySpecSchema.parse(accepted)).toEqual(accepted);
+
+    for (const forbidden of ["id", "extra", "retired_note", "unknown"]) {
+      const invalid = {
+        ...accepted,
+        ui_intent: {
+          ...accepted.ui_intent,
+          item: { ...accepted.ui_intent.item, shows: [forbidden] },
+        },
+      };
+      expect(capabilitySpecSchema.safeParse(invalid).success).toBe(false);
+    }
+  });
+
+  test("requires explicit field labels and lifecycle values", () => {
+    const missingLabel = validSpec() as unknown as Record<string, unknown>;
+    missingLabel.schema = {
+      fields: [{ name: "text", type: "string", required: true, lifecycle: "active" }],
+    };
+    expect(capabilitySpecSchema.safeParse(missingLabel).success).toBe(false);
+
+    const missingLifecycle = validSpec() as unknown as Record<string, unknown>;
+    missingLifecycle.schema = {
+      fields: [{ name: "text", label: "Entry", type: "string", required: true }],
+    };
+    expect(capabilitySpecSchema.safeParse(missingLifecycle).success).toBe(false);
   });
 
   test("tools still speak only M2's two actions", () => {
@@ -240,10 +328,53 @@ describe("capability spec shape", () => {
     expect(capabilitySpecSchema.safeParse(wrongFields).success).toBe(false);
 
     const optionalOnly = validSpec({
-      schema: { fields: [{ name: "text", type: "string", required: false }] },
+      schema: {
+        fields: [
+          { name: "text", label: "Text", type: "string", required: false, lifecycle: "active" },
+        ],
+      },
       behavioral_errors: [],
     });
     expect(capabilitySpecSchema.parse(optionalOnly)).toEqual(optionalOnly);
+  });
+
+  test("missing-required error fields are exactly the active required fields", () => {
+    const schema: CapabilitySpec["schema"] = {
+      fields: [
+        { name: "text", label: "Entry", type: "string", required: true, lifecycle: "active" },
+        { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
+        {
+          name: "retired_note",
+          label: "Retired note",
+          type: "string",
+          required: true,
+          lifecycle: "inactive",
+        },
+      ],
+    };
+    expect(defaultBehavioralErrorsForSchema(schema)[0]?.fields).toEqual(["text"]);
+
+    const valid = validSpec({
+      schema,
+      ui_intent: {
+        item: { direction: "Show the entry.", shows: ["text"] },
+        collection: { layout: "feed" },
+        detail: { shows: ["text", "note"] },
+      },
+      behavioral_errors: defaultBehavioralErrorsForSchema(schema),
+    });
+    expect(capabilitySpecSchema.safeParse(valid).success).toBe(true);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...valid,
+        behavioral_errors: [
+          {
+            ...valid.behavioral_errors[0],
+            fields: ["text", "retired_note"],
+          },
+        ],
+      }).success,
+    ).toBe(false);
   });
 
   test("rejects unknown top-level keys and blank free text", () => {

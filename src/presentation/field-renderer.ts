@@ -21,7 +21,13 @@
 // form itself is platform chrome (not generated item markup), so the runtime
 // allow-list enforcer never runs on it.
 
-import type { FieldType, SpecField } from "../registry/index.ts";
+import {
+  activeSpecFields,
+  CREATED_AT_DESCRIPTOR,
+  type FieldType,
+  type PresentationFieldDescriptor,
+  type SpecField,
+} from "../registry/index.ts";
 import { escapeHtml } from "../web/html.ts";
 
 /**
@@ -36,6 +42,7 @@ export interface RenderableCapability {
   readonly id: string;
   readonly label: string;
   readonly schema: { readonly fields: readonly SpecField[] };
+  readonly item?: { readonly shows: readonly string[] };
   /**
    * Which fields the read-only DETAIL surface shows, and in what order —
    * `ui_intent.detail.shows` (ADR-0005 §6). The CREATE form ignores this (it always
@@ -68,6 +75,11 @@ export function capabilityRecordsRegionId(capabilityId: string): string {
   return `${capabilityId}-records`;
 }
 
+/** The live region that receives structured create-validation feedback. */
+export function capabilityCreateErrorId(capabilityId: string): string {
+  return `${capabilityId}-create-error`;
+}
+
 /**
  * Render the platform-owned create form: one input control per spec field, the
  * HTMX wiring that posts a new record and prepends the returned item into the list
@@ -77,7 +89,8 @@ export function capabilityRecordsRegionId(capabilityId: string): string {
 export function renderCreateForm(capability: RenderableCapability): string {
   const capabilityId = capability.id;
   const regionId = capabilityRecordsRegionId(capabilityId);
-  const fields = capability.schema.fields
+  const errorId = capabilityCreateErrorId(capabilityId);
+  const fields = activeSpecFields(capability.schema.fields)
     .map((field) => renderCreateField(capabilityId, field))
     .join("");
   // Platform close-on-success: on a successful request only, clear the form for the
@@ -93,6 +106,7 @@ export function renderCreateForm(capability: RenderableCapability): string {
     ` hx-post="/capability/${capabilityId}/create"` +
     ` hx-target="#${regionId}" hx-swap="afterbegin"` +
     ` hx-on::after-request="${onAfterRequest}">` +
+    `<div id="${errorId}" class="capability-create-form__error" aria-live="polite"></div>` +
     `<div class="capability-create-form__fields">${fields}</div>` +
     `<div class="capability-create-form__actions">` +
     `<button class="btn btn--primary" type="submit">Add</button>` +
@@ -131,15 +145,20 @@ export function renderDetailFields(
  * capability; it is skipped, and an all-miss list falls back to spec order rather
  * than rendering an empty `<dl>`.
  */
-function detailFieldOrder(capability: RenderableCapability): readonly SpecField[] {
+function detailFieldOrder(
+  capability: RenderableCapability,
+): readonly PresentationFieldDescriptor[] {
   const shows = capability.detail?.shows;
-  if (!shows || shows.length === 0) return capability.schema.fields;
+  const activeFields = activeSpecFields(capability.schema.fields);
+  if (!shows || shows.length === 0) return activeFields;
 
-  const fieldsByName = new Map(capability.schema.fields.map((field) => [field.name, field]));
+  const fieldsByName = new Map(activeFields.map((field) => [field.name, field]));
   const selected = shows
-    .map((name) => fieldsByName.get(name))
-    .filter((field): field is SpecField => field !== undefined);
-  return selected.length > 0 ? selected : capability.schema.fields;
+    .map((name) =>
+      name === CREATED_AT_DESCRIPTOR.name ? CREATED_AT_DESCRIPTOR : fieldsByName.get(name),
+    )
+    .filter((field) => field !== undefined);
+  return selected.length > 0 ? selected : activeFields;
 }
 
 // ── Create controls ─────────────────────────────────────────────────────────
@@ -195,7 +214,7 @@ function renderCreateField(capabilityId: string, field: SpecField): string {
   // `capabilityId` and `field.name` are both `[a-z][a-z0-9_]*` (spec-validated), so
   // this id is a safe HTML token; the label still escapes its humanized text.
   const inputId = `cap-${capabilityId}-${field.name}`;
-  const label = escapeHtml(humanizeFieldName(field.name));
+  const label = escapeHtml(field.label);
   const nameAttribute = escapeHtml(field.name);
   // Only emptyable controls carry `required`; a boolean checkbox never does (see
   // CreateInput.canBeEmpty) — otherwise a required boolean would be forced checked.
@@ -222,8 +241,8 @@ function renderCreateField(capabilityId: string, field: SpecField): string {
 
 // ── Detail values ───────────────────────────────────────────────────────────
 
-function renderDetailField(field: SpecField, value: unknown): string {
-  const label = escapeHtml(humanizeFieldName(field.name));
+function renderDetailField(field: PresentationFieldDescriptor, value: unknown): string {
+  const label = escapeHtml(field.label);
   const emptyModifier = isEmptyValue(value) ? " detail-field__value--empty" : "";
   const rendered = formatDetailValue(field.type, value);
 
@@ -298,13 +317,6 @@ function formatDate(value: unknown): string {
 /** Absent for display purposes: null, undefined, or the empty string. `false`/`0` are values. */
 function isEmptyValue(value: unknown): boolean {
   return value === null || value === undefined || value === "";
-}
-
-/** `due_date` → `Due date`: underscores to spaces, first letter capitalized. */
-function humanizeFieldName(name: string): string {
-  const spaced = name.replace(/_/g, " ").trim();
-  if (spaced.length === 0) return name;
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 /** Compile-time exhaustiveness guard: reached only if a `FieldType` case is unhandled. */

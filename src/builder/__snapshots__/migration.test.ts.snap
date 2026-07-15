@@ -31,7 +31,7 @@ exports[`capability migration apply stage derives through the deterministic mapp
       "dflt_value": null,
       "hidden": 0,
       "name": "title",
-      "notnull": 1,
+      "notnull": 0,
       "pk": 0,
       "type": "TEXT",
     },
@@ -47,7 +47,7 @@ exports[`capability migration apply stage derives through the deterministic mapp
       "dflt_value": null,
       "hidden": 0,
       "name": "done",
-      "notnull": 1,
+      "notnull": 0,
       "pk": 0,
       "type": "INTEGER",
     },
@@ -60,6 +60,6 @@ exports[`capability migration apply stage derives through the deterministic mapp
       "type": "TEXT",
     },
   ],
-  "sql": "CREATE TABLE "cap_notes" ("id" TEXT PRIMARY KEY, "created_at" TEXT NOT NULL DEFAULT (datetime('now')), "extra" TEXT NOT NULL DEFAULT ('{}') CHECK (json_valid("extra")), "title" TEXT NOT NULL, "amount" REAL, "done" INTEGER NOT NULL CHECK ("done" IN (0, 1)), "logged_at" TEXT) STRICT",
+  "sql": "CREATE TABLE "cap_notes" ("id" TEXT PRIMARY KEY, "created_at" TEXT NOT NULL DEFAULT (datetime('now')), "extra" TEXT NOT NULL DEFAULT ('{}') CHECK (json_valid("extra")), "title" TEXT, "amount" REAL, "done" INTEGER CHECK ("done" IS NULL OR "done" IN (0, 1)), "logged_at" TEXT) STRICT",
 }
 `;

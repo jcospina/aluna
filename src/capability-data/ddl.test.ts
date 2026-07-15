@@ -37,14 +37,23 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     label: "Notes",
     schema: {
       fields: [
-        { name: "title", type: "string", required: true },
-        { name: "amount", type: "number", required: false },
-        { name: "done", type: "boolean", required: true },
-        { name: "logged_at", type: "datetime", required: false },
+        { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+        { name: "amount", label: "Amount", type: "number", required: false, lifecycle: "active" },
+        { name: "done", label: "Done", type: "boolean", required: true, lifecycle: "active" },
+        {
+          name: "logged_at",
+          label: "Logged at",
+          type: "datetime",
+          required: false,
+          lifecycle: "active",
+        },
       ],
     },
     ui_intent: {
-      item: "A text-forward card that emphasizes the note text.",
+      item: {
+        direction: "A text-forward card that emphasizes the note text.",
+        shows: ["title", "amount", "done", "logged_at"],
+      },
       collection: { layout: "feed" },
       detail: { shows: ["title", "amount", "done", "logged_at"] },
     },
@@ -68,7 +77,17 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ...spec,
       ui_intent: {
         ...spec.ui_intent,
-        detail: { shows: spec.schema.fields.map((field) => field.name) },
+        item: {
+          ...spec.ui_intent.item,
+          shows: spec.schema.fields
+            .filter((field) => field.lifecycle === "active")
+            .map((field) => field.name),
+        },
+        detail: {
+          shows: spec.schema.fields
+            .filter((field) => field.lifecycle === "active")
+            .map((field) => field.name),
+        },
       },
     };
   }
@@ -123,7 +142,7 @@ describe("capability table DDL mapper", () => {
     }
   });
 
-  test("maps all M2 field types and required nullability into SQLite columns", () => {
+  test("maps every user field to a physically nullable SQLite column", () => {
     const database = new Database(":memory:");
     try {
       const ddl = applyCapabilityTableDdl(notesSpec(), database);
@@ -142,9 +161,9 @@ describe("capability table DDL mapper", () => {
         { name: "extra", type: "TEXT", notnull: 1, dflt_value: "'{}'" },
       ]);
       expect(columns.slice(3)).toMatchObject([
-        { name: "title", type: SQLITE_TYPE_BY_FIELD_TYPE.string, notnull: 1 },
+        { name: "title", type: SQLITE_TYPE_BY_FIELD_TYPE.string, notnull: 0 },
         { name: "amount", type: SQLITE_TYPE_BY_FIELD_TYPE.number, notnull: 0 },
-        { name: "done", type: SQLITE_TYPE_BY_FIELD_TYPE.boolean, notnull: 1 },
+        { name: "done", type: SQLITE_TYPE_BY_FIELD_TYPE.boolean, notnull: 0 },
         { name: "logged_at", type: SQLITE_TYPE_BY_FIELD_TYPE.datetime, notnull: 0 },
       ]);
     } finally {
@@ -158,9 +177,15 @@ describe("capability table DDL mapper", () => {
       const spec = notesSpec({
         schema: {
           fields: [
-            { name: "title", type: "string", required: true },
-            { name: "done", type: "boolean", required: true },
-            { name: "scheduled_on", type: "date", required: false },
+            { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+            { name: "done", label: "Done", type: "boolean", required: true, lifecycle: "active" },
+            {
+              name: "scheduled_on",
+              label: "Scheduled on",
+              type: "date",
+              required: false,
+              lifecycle: "active",
+            },
           ],
         },
       });

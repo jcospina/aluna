@@ -28,6 +28,7 @@ export {
 } from "./detail-modal.ts";
 export { enforceItemMarkup } from "./enforcer.ts";
 export {
+  capabilityCreateErrorId,
   capabilityRecordsRegionId,
   RECORD_CREATED_EVENT,
   type RenderableCapability,

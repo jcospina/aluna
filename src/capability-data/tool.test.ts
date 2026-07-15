@@ -16,7 +16,11 @@ import {
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
-import { applyCapabilityTableDdl, createCapabilityDataTool } from "./index.ts";
+import {
+  applyCapabilityTableDdl,
+  createCapabilityDataTool,
+  MissingRequiredFieldsError,
+} from "./index.ts";
 
 function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return {
@@ -24,12 +28,12 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     label: "Notes",
     schema: {
       fields: [
-        { name: "text", type: "string", required: true },
-        { name: "pinned", type: "boolean", required: false },
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+        { name: "pinned", label: "Pinned", type: "boolean", required: false, lifecycle: "active" },
       ],
     },
     ui_intent: {
-      item: "A text-forward card that emphasizes the note text.",
+      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
     },
@@ -53,9 +57,16 @@ function recipesSpec(): CapabilitySpec {
   return notesSpec({
     id: "recipes",
     label: "Recipes",
-    schema: { fields: [{ name: "title", type: "string", required: true }] },
+    schema: {
+      fields: [
+        { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+      ],
+    },
     ui_intent: {
-      item: "A text-forward card that emphasizes the recipe title.",
+      item: {
+        direction: "A text-forward card that emphasizes the recipe title.",
+        shows: ["title"],
+      },
       collection: { layout: "feed" },
       detail: { shows: ["title"] },
     },
@@ -69,6 +80,48 @@ function recipesSpec(): CapabilitySpec {
       },
     ],
     prompt_context: "Stores the user's recipes.",
+  });
+}
+
+function requirednessSpec(): CapabilitySpec {
+  const fields: CapabilitySpec["schema"]["fields"] = [
+    { name: "title", label: "Entry", type: "string", required: true, lifecycle: "active" },
+    { name: "count", label: "Count", type: "number", required: true, lifecycle: "active" },
+    { name: "enabled", label: "Enabled", type: "boolean", required: true, lifecycle: "active" },
+    { name: "due_on", label: "Due on", type: "date", required: true, lifecycle: "active" },
+    {
+      name: "happens_at",
+      label: "Happens at",
+      type: "datetime",
+      required: true,
+      lifecycle: "active",
+    },
+    { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
+    {
+      name: "retired_note",
+      label: "Retired note",
+      type: "string",
+      required: true,
+      lifecycle: "inactive",
+    },
+  ];
+  const required = ["title", "count", "enabled", "due_on", "happens_at"];
+  return notesSpec({
+    schema: { fields },
+    ui_intent: {
+      item: { direction: "Show the entry and its count.", shows: ["title", "count"] },
+      collection: { layout: "feed" },
+      detail: { shows: ["title", "count", "enabled", "due_on", "happens_at", "note"] },
+    },
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: required,
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
   });
 }
 
@@ -224,10 +277,109 @@ describe("capability data tool", () => {
       applyCapabilityTableDdl(spec, databases.readwrite);
       const tool = createCapabilityDataTool(spec, databases);
 
-      expect(() => tool.insert({ pinned: false })).toThrow(
-        /Missing required field "text" for capability "notes"/,
-      );
+      expect(() => tool.insert({ pinned: false })).toThrow(MissingRequiredFieldsError);
+      try {
+        tool.insert({ pinned: false });
+      } catch (error) {
+        expect(error).toMatchObject({
+          action: "create",
+          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          fields: ["text"],
+        });
+      }
       expect(tool.select()).toEqual([]);
+    });
+  });
+
+  test("requiredness is total by type and names every missing active required field", () => {
+    withFileDatabase((databases) => {
+      const spec = requirednessSpec();
+      applyCapabilityTableDdl(spec, databases.readwrite);
+      const tool = createCapabilityDataTool(spec, databases);
+      const valid = {
+        title: "  Keep my spacing  ",
+        count: 0,
+        enabled: false,
+        due_on: "2026-07-14",
+        happens_at: "2026-07-14T10:30:00.000Z",
+      };
+
+      for (const [values, expectedFields] of [
+        [{ ...valid, title: "   " }, ["title"]],
+        [{ ...valid, due_on: "" }, ["due_on"]],
+        [{ note: "optional" }, ["title", "count", "enabled", "due_on", "happens_at"]],
+      ] as const) {
+        try {
+          tool.insert(values);
+          throw new Error("expected requiredness failure");
+        } catch (error) {
+          expect(error).toMatchObject({
+            code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+            fields: expectedFields,
+          });
+        }
+      }
+      expect(tool.select()).toEqual([]);
+
+      expect(tool.insert(valid)).toMatchObject({
+        title: "  Keep my spacing  ",
+        count: 0,
+        enabled: false,
+      });
+      expect(tool.insert({ ...valid, enabled: true })).toMatchObject({ enabled: true });
+    });
+  });
+
+  test("inactive fields keep physical values but stay outside mutations and runtime rows", () => {
+    withFileDatabase((databases) => {
+      const spec = requirednessSpec();
+      applyCapabilityTableDdl(spec, databases.readwrite);
+      expect(spec.schema.fields.find((field) => field.name === "retired_note")?.lifecycle).toBe(
+        "inactive",
+      );
+
+      databases.readwrite.run(
+        `INSERT INTO "cap_notes" ("id", "title", "count", "enabled", "due_on", "happens_at", "retired_note") VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ["historical", "Visible", 1, 1, "2026-07-14", "2026-07-14T10:30:00.000Z", "still stored"],
+      );
+      const tool = createCapabilityDataTool(spec, databases);
+      const row = tool.select()[0];
+      expect(row).toMatchObject({ title: "Visible", count: 1, enabled: true });
+      expect(row).not.toHaveProperty("retired_note");
+      expect(
+        databases.readwrite
+          .query('SELECT "retired_note" FROM "cap_notes" WHERE "id" = ?')
+          .get("historical"),
+      ).toEqual({ retired_note: "still stored" });
+      expect(() =>
+        tool.insert({
+          title: "New",
+          count: 1,
+          enabled: true,
+          due_on: "2026-07-15",
+          happens_at: "2026-07-15T10:30:00.000Z",
+          retired_note: "cannot mutate",
+        }),
+      ).toThrow(/Unknown field "retired_note"/);
+    });
+  });
+
+  test("historical nulls in logically required columns remain readable", () => {
+    withFileDatabase((databases) => {
+      const spec = requirednessSpec();
+      applyCapabilityTableDdl(spec, databases.readwrite);
+      databases.readwrite.run('INSERT INTO "cap_notes" ("id") VALUES (?)', ["legacy-null"]);
+
+      expect(createCapabilityDataTool(spec, databases).select()).toMatchObject([
+        {
+          id: "legacy-null",
+          title: null,
+          count: null,
+          enabled: null,
+          due_on: null,
+          happens_at: null,
+        },
+      ]);
     });
   });
 

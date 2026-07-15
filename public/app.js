@@ -128,6 +128,20 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
   previewTarget.textContent = formatPreviewPayload(message.data);
 });
 
+// HTMX keeps 4xx responses out of the DOM by default. Structured create
+// validation is the exception: the router retargets it to the form's aria-live
+// error region, while leaving the response marked unsuccessful so the form stays
+// open and its values are preserved.
+document.addEventListener("htmx:beforeSwap", (event) => {
+  const detail = /** @type {CustomEvent<{ xhr: XMLHttpRequest, shouldSwap: boolean }>} */ (event)
+    .detail;
+  const response = detail?.xhr?.responseText;
+  if (detail?.xhr?.status !== 422 || typeof response !== "string") return;
+  if (!response.includes('data-error-code="missing_required_fields"')) return;
+
+  detail.shouldSwap = true;
+});
+
 /**
  * Find the shell component's Alpine state. This is presentation-only glue: HTMX
  * swaps the toolbar entry, and Alpine mirrors whether the sidebar chrome should be

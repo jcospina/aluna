@@ -36,7 +36,7 @@ export function deriveCapabilityTableDdl(spec: CapabilitySpec): CapabilityTableD
   const columns = [
     ...platformColumnDefinitions(),
     ...parsed.schema.fields.map((field) =>
-      columnDefinition(field.name, SQLITE_TYPE_BY_FIELD_TYPE[field.type], field.required),
+      columnDefinition(field.name, SQLITE_TYPE_BY_FIELD_TYPE[field.type]),
     ),
   ];
 
@@ -69,11 +69,10 @@ function platformColumnDefinitions(): string[] {
   ];
 }
 
-function columnDefinition(name: string, type: string, required: boolean): string {
+function columnDefinition(name: string, type: string): string {
   const parts = [sqlIdentifier(name), type];
-  if (required) parts.push("NOT NULL");
   if (type === SQLITE_TYPE_BY_FIELD_TYPE.boolean) {
-    parts.push(`CHECK (${sqlIdentifier(name)} IN (0, 1))`);
+    parts.push(`CHECK (${sqlIdentifier(name)} IS NULL OR ${sqlIdentifier(name)} IN (0, 1))`);
   }
   return parts.join(" ");
 }

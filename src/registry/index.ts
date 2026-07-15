@@ -7,6 +7,7 @@
 
 export { canonicalCapabilityLabel, isCapabilityNameLabel } from "./labels.ts";
 export {
+  activeSpecFields,
   BEHAVIORAL_ERROR_MARKERS,
   type BehavioralErrorCase,
   type BehavioralErrorMarkers,
@@ -15,15 +16,20 @@ export {
   type CapabilityRow,
   type CapabilitySpec,
   type CapabilityTool,
+  CREATED_AT_DESCRIPTOR,
   capabilityRowSchema,
   capabilitySpecSchema,
   capabilityToolSchema,
   defaultBehavioralErrorsForSchema,
+  type FieldLifecycle,
   type FieldType,
+  fieldLifecycleSchema,
   fieldTypeSchema,
   incarnationIdSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
+  type PresentationFieldDescriptor,
+  presentationFieldDescriptors,
   type SpecField,
   specFieldSchema,
   type UiCollectionLayout,

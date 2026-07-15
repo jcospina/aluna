@@ -81,9 +81,13 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return {
     id: "notes",
     label: "Notes",
-    schema: { fields: [{ name: "text", type: "string", required: true }] },
+    schema: {
+      fields: [
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+      ],
+    },
     ui_intent: {
-      item: "A text-forward card that emphasizes the note text.",
+      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
     },
@@ -119,7 +123,7 @@ describe("spec generation stage", () => {
 
     expect(result.spec).toEqual(spec);
     expect(result.spec.ui_intent).toEqual({
-      item: "A text-forward card that emphasizes the note text.",
+      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
     });
@@ -217,7 +221,7 @@ describe("spec generation stage", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
-            item: "A visual tile.",
+            item: { direction: "A visual tile.", shows: ["text"] },
             collection: { layout: "masonry" },
             detail: { shows: ["text"] },
           },
@@ -228,7 +232,7 @@ describe("spec generation stage", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
-            item: "A visual tile.",
+            item: { direction: "A visual tile.", shows: ["text"] },
             collection: { layout: "grid" },
             detail: { shows: ["text"] },
             modal: true,
@@ -240,7 +244,7 @@ describe("spec generation stage", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
-            item: "A text-forward card.",
+            item: { direction: "A text-forward card.", shows: ["missing"] },
             collection: { layout: "feed" },
             detail: { shows: ["missing"] },
           },
@@ -250,14 +254,28 @@ describe("spec generation stage", () => {
         why: "a field type outside the pantry",
         raw: {
           ...notesSpec(),
-          schema: { fields: [{ name: "tags", type: "string[]", required: false }] },
+          schema: {
+            fields: [
+              {
+                name: "tags",
+                label: "Tags",
+                type: "string[]",
+                required: false,
+                lifecycle: "active",
+              },
+            ],
+          },
         },
       },
       {
         why: "a platform-owned field name",
         raw: {
           ...notesSpec(),
-          schema: { fields: [{ name: "id", type: "string", required: true }] },
+          schema: {
+            fields: [
+              { name: "id", label: "Id", type: "string", required: true, lifecycle: "active" },
+            ],
+          },
         },
       },
       { why: "an extra top-level key", raw: { ...notesSpec(), version: 1 } },

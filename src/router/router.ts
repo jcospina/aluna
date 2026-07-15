@@ -25,9 +25,10 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Context, Hono } from "hono";
 
-import { createCapabilityDataTool } from "../capability-data/index.ts";
+import { createCapabilityDataTool, MissingRequiredFieldsError } from "../capability-data/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
 import {
+  capabilityCreateErrorId,
   createPresentationAdapter,
   type ItemRenderer,
   type PresentationAdapter,
@@ -151,8 +152,25 @@ async function handleCapabilityRequest(
     }
     return c.html(fragment);
   } catch (error) {
+    if (error instanceof MissingRequiredFieldsError) {
+      return missingRequiredFieldsFailure(c, id, error);
+    }
     return internalFailure(c, id, action, error);
   }
+}
+
+function missingRequiredFieldsFailure(
+  c: Context,
+  capabilityId: string,
+  error: MissingRequiredFieldsError,
+): Response {
+  const fields = error.fields.join(" ");
+  c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
+  c.header("HX-Reswap", "innerHTML");
+  return c.html(
+    `<p class="notice" data-role="error" data-error-code="${error.code}" data-error-fields="${fields}">I still need a little more before I can add this.</p>`,
+    422,
+  );
 }
 
 // Whether the action is one the capability actually declares it can do. `tools` is
@@ -223,6 +241,7 @@ function renderableFromRow(row: CapabilityRow): RenderableCapability {
     id: row.id,
     label: row.label,
     schema: row.schema,
+    item: row.ui_intent.item,
     detail: row.ui_intent.detail,
   };
 }

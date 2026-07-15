@@ -225,6 +225,54 @@ describe("GET / (shell)", () => {
     expect(js).not.toContain('addEventListener("submit"');
   });
 
+  test("structured create validation swaps into its retarget without becoming a successful create", () => {
+    const listeners = new Map<string, (event: { detail: Record<string, unknown> }) => void>();
+    const documentStub = {
+      addEventListener(
+        name: string,
+        listener: (event: { detail: Record<string, unknown> }) => void,
+      ) {
+        listeners.set(name, listener);
+      },
+      querySelector() {
+        return null;
+      },
+      getElementById() {
+        return null;
+      },
+    };
+    const windowStub = {
+      Alpine: { data() {} },
+      matchMedia() {
+        return { matches: true, addEventListener() {} };
+      },
+    };
+    const appScript = readFileSync(resolve("public/app.js"), "utf8");
+    Function(
+      "document",
+      "window",
+      "requestAnimationFrame",
+      "HTMLInputElement",
+      appScript,
+    )(documentStub, windowStub, () => undefined, class InputStub {});
+
+    const detail = {
+      xhr: {
+        status: 422,
+        responseText:
+          '<p data-role="error" data-error-code="missing_required_fields">Still needed</p>',
+      },
+      shouldSwap: false,
+      isError: true,
+      successful: false,
+    };
+    listeners.get("htmx:beforeSwap")?.({ detail });
+
+    expect(detail.shouldSwap).toBe(true);
+    expect(detail.isError).toBe(true);
+    expect(detail.successful).toBe(false);
+  });
+
   test("clears and refocuses the prompt when the build stream closes", () => {
     const listeners = new Map<string, () => void>();
     class InputStub {
@@ -732,9 +780,11 @@ function makeSpecProviderWithBehavioralError(
 const NOTES_SPEC = {
   id: "notes",
   label: "Notes",
-  schema: { fields: [{ name: "text", type: "string", required: true }] },
+  schema: {
+    fields: [{ name: "text", label: "Text", type: "string", required: true, lifecycle: "active" }],
+  },
   ui_intent: {
-    item: "A text-forward card that emphasizes the note text.",
+    item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
     collection: { layout: "feed" },
     detail: { shows: ["text"] },
   },

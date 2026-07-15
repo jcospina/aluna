@@ -39,12 +39,15 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     label: "Notes",
     schema: {
       fields: [
-        { name: "text", type: "string", required: true },
-        { name: "pinned", type: "boolean", required: false },
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+        { name: "pinned", label: "Pinned", type: "boolean", required: false, lifecycle: "active" },
       ],
     },
     ui_intent: {
-      item: "A text-forward card that emphasizes text and pinned status.",
+      item: {
+        direction: "A text-forward card that emphasizes text and pinned status.",
+        shows: ["text", "pinned"],
+      },
       collection: { layout: "feed" },
       detail: { shows: ["text", "pinned"] },
     },
@@ -321,6 +324,60 @@ describe("unit generation with bounded fix loop", () => {
     );
     expect(gridPrompt).toContain('Chosen collection layout for this capability: "grid"');
     expect(gridPrompt).toContain("compact record");
+  });
+
+  test("projects exact shown name/type/label descriptors and hides inactive generation context", () => {
+    const spec = notesSpec({
+      schema: {
+        fields: [
+          { name: "text", label: "Entry", type: "string", required: true, lifecycle: "active" },
+          {
+            name: "note",
+            label: "Side note",
+            type: "string",
+            required: false,
+            lifecycle: "active",
+          },
+          {
+            name: "retired_note",
+            label: "Retired note",
+            type: "string",
+            required: true,
+            lifecycle: "inactive",
+          },
+        ],
+      },
+      ui_intent: {
+        item: {
+          direction: "Show the entry and when it was created.",
+          shows: ["text", "created_at"],
+        },
+        collection: { layout: "feed" },
+        detail: { shows: ["text", "note", "created_at"] },
+      },
+      behavioral_errors: [
+        {
+          action: "create",
+          trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          fields: ["text"],
+          expected_markers: BEHAVIORAL_ERROR_MARKERS,
+        },
+      ],
+    });
+
+    const itemPrompt = buildUnitPrompt(spec, { kind: "item-renderer", name: "item" });
+    expect(itemPrompt).toContain('- text: string, label "Entry"');
+    expect(itemPrompt).toContain('- created_at: datetime, label "Created"');
+    expect(itemPrompt).not.toContain("Side note");
+    expect(itemPrompt).not.toContain("retired_note");
+    expect(itemPrompt).not.toContain("Retired note");
+
+    const createPrompt = buildUnitPrompt(spec, { kind: "handler", name: "create" });
+    expect(createPrompt).toContain("Entry");
+    expect(createPrompt).toContain("Side note");
+    expect(createPrompt).not.toContain("retired_note");
+    expect(createPrompt).not.toContain("Retired note");
   });
 
   test("the read handler prompt defers the empty state to the platform, never emitting its own", () => {

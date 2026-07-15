@@ -1,0 +1,162 @@
+import type { Database } from "bun:sqlite";
+import { rmSync } from "node:fs";
+import { resolve } from "node:path";
+import {
+  commitCapability,
+  createCapabilityIncarnationId,
+  DEFAULT_ARTIFACTS_ROOT,
+  type GeneratedUnit,
+} from "../builder/index.ts";
+import { applyCapabilityTableDdl, CAPABILITY_TABLE_PREFIX } from "../capability-data/index.ts";
+import type { CapabilitySpec } from "../registry/index.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  REGISTRY_TABLE,
+} from "../registry/index.ts";
+
+export const FIELD_LIFECYCLE_DEMO_ID = "field_lifecycle_demo";
+
+export const FIELD_LIFECYCLE_DEMO_SPEC: CapabilitySpec = {
+  id: FIELD_LIFECYCLE_DEMO_ID,
+  label: "Field lifecycle",
+  schema: {
+    fields: [
+      {
+        name: "entry",
+        label: "What happened?",
+        type: "string",
+        required: true,
+        lifecycle: "active",
+      },
+      {
+        name: "reflection",
+        label: "A small reflection",
+        type: "string",
+        required: false,
+        lifecycle: "active",
+      },
+      {
+        name: "retired_note",
+        label: "Retired note",
+        type: "string",
+        required: true,
+        lifecycle: "inactive",
+      },
+    ],
+  },
+  ui_intent: {
+    item: {
+      direction: "A calm journal entry that pairs the entry with when it was created.",
+      shows: ["entry", "created_at"],
+    },
+    collection: { layout: "feed" },
+    detail: { shows: ["entry", "reflection", "created_at"] },
+  },
+  behavior: "An entry is required. Newest reflections appear first.",
+  behavioral_errors: [
+    {
+      action: "create",
+      trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      fields: ["entry"],
+      expected_markers: BEHAVIORAL_ERROR_MARKERS,
+    },
+  ],
+  tools: ["create", "read"],
+  prompt_context: "Stores small reflections while preserving one retired field invisibly.",
+};
+
+const ITEM_RENDERER = `export default function renderItem(record: Record<string, unknown>): string {
+  const entry = record.entry == null || record.entry === "" ? "—" : String(record.entry);
+  const created = record.created_at == null ? "" : String(record.created_at).slice(0, 10);
+  return '<div class="stack"><span class="text-lg">' + escapeHtml(entry) +
+    '</span><span class="text-sm text-muted">' + escapeHtml(created) + '</span></div>';
+}
+
+function escapeHtml(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+`;
+
+const CREATE_HANDLER = `export default async function create({ input, data, present }: CapabilityContext): Promise<string> {
+  const row = data.insert({ entry: input.entry, reflection: input.reflection ?? null });
+  return present(row);
+}
+`;
+
+const READ_HANDLER = `export default async function read({ data, present }: CapabilityContext): Promise<string> {
+  return data.select().map((row) => present(row)).join("");
+}
+`;
+
+const EMPTY_USAGE = { inputTokens: 0, outputTokens: 0, totalTokens: 0 } as const;
+
+const FIELD_LIFECYCLE_DEMO_UNITS: readonly GeneratedUnit[] = [
+  {
+    kind: "item-renderer",
+    name: "item",
+    filename: "item.ts",
+    content: ITEM_RENDERER,
+    attempts: [],
+    durationMs: 0,
+    usage: EMPTY_USAGE,
+  },
+  {
+    kind: "handler",
+    name: "create",
+    filename: "create.ts",
+    content: CREATE_HANDLER,
+    attempts: [],
+    durationMs: 0,
+    usage: EMPTY_USAGE,
+  },
+  {
+    kind: "handler",
+    name: "read",
+    filename: "read.ts",
+    content: READ_HANDLER,
+    attempts: [],
+    durationMs: 0,
+    usage: EMPTY_USAGE,
+  },
+];
+
+export interface InstallFieldLifecycleDemoOptions {
+  readonly database: Database;
+  readonly artifactsRoot?: string;
+}
+
+export function installFieldLifecycleDemo(options: InstallFieldLifecycleDemoOptions) {
+  const artifactsRoot = options.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
+  const database = options.database;
+  const tableName = `${CAPABILITY_TABLE_PREFIX}${FIELD_LIFECYCLE_DEMO_ID}`;
+  rmSync(resolve(process.cwd(), artifactsRoot, FIELD_LIFECYCLE_DEMO_ID), {
+    force: true,
+    recursive: true,
+  });
+
+  database.exec("BEGIN IMMEDIATE TRANSACTION;");
+  try {
+    database.run(`DELETE FROM "${REGISTRY_TABLE}" WHERE "id" = ?`, [FIELD_LIFECYCLE_DEMO_ID]);
+    database.run(`DROP TABLE IF EXISTS "${tableName}"`);
+    applyCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC, database);
+    const commit = commitCapability({
+      spec: FIELD_LIFECYCLE_DEMO_SPEC,
+      incarnationId: createCapabilityIncarnationId(),
+      units: FIELD_LIFECYCLE_DEMO_UNITS,
+      database,
+      artifactsRoot,
+    });
+    database.run(
+      `INSERT INTO "${tableName}" ("id", "entry", "reflection", "retired_note") VALUES (?, NULL, ?, ?)`,
+      ["historical-null", "This row predates logical requiredness.", "still stored"],
+    );
+    database.exec("COMMIT;");
+    return commit;
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}

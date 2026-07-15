@@ -30,9 +30,9 @@ const SAMPLE: RenderableCapability = {
   label: "Tasks",
   schema: {
     fields: [
-      { name: "title", type: "string", required: true },
-      { name: "priority", type: "number", required: true },
-      { name: "done", type: "boolean", required: true },
+      { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+      { name: "priority", label: "Priority", type: "number", required: true, lifecycle: "active" },
+      { name: "done", label: "Done", type: "boolean", required: true, lifecycle: "active" },
     ],
   },
 };

@@ -11,9 +11,11 @@
 // emitting its own row markup (ADR-0005 §2 — kills create/read drift by construction).
 
 import {
+  activeSpecFields,
   BEHAVIORAL_ERROR_MARKERS,
   type BehavioralErrorCase,
   type CapabilitySpec,
+  presentationFieldDescriptors,
 } from "../registry/index.ts";
 import { buildItemRendererDesignInjection } from "./few-shot-gallery.ts";
 import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
@@ -97,8 +99,8 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "Spec fields:",
     fields,
     "",
-    "Capability spec JSON:",
-    JSON.stringify(spec, null, 2),
+    "Action generation context JSON:",
+    JSON.stringify(handlerGenerationContext(spec, action), null, 2),
   ].join("\n");
 }
 
@@ -137,21 +139,47 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
     "",
     buildItemRendererDesignInjection(layout),
     "",
-    `Design direction (ui_intent.item): ${spec.ui_intent.item}`,
+    `Design direction (ui_intent.item.direction): ${spec.ui_intent.item.direction}`,
     "",
-    "Spec fields:",
-    specFieldList(spec),
+    "Declared item fields (the renderer receives exactly these names/types/labels):",
+    itemFieldList(spec),
     "",
-    "Capability spec JSON:",
-    JSON.stringify(spec, null, 2),
+    "Item generation context JSON:",
+    JSON.stringify(itemGenerationContext(spec), null, 2),
   ].join("\n");
 }
 
 /** One-line-per-field summary of the spec's user fields, shared by both prompts. */
 function specFieldList(spec: CapabilitySpec): string {
-  return spec.schema.fields
+  return activeSpecFields(spec.schema.fields)
     .map(
       (field) => `- ${field.name}: ${field.type}${field.required ? " (required)" : " (optional)"}`,
     )
     .join("\n");
+}
+
+function itemFieldList(spec: CapabilitySpec): string {
+  return presentationFieldDescriptors(spec, spec.ui_intent.item.shows)
+    .map((field) => `- ${field.name}: ${field.type}, label ${JSON.stringify(field.label)}`)
+    .join("\n");
+}
+
+function handlerGenerationContext(spec: CapabilitySpec, action: HandlerUnitName): object {
+  return {
+    id: spec.id,
+    schema: { fields: activeSpecFields(spec.schema.fields) },
+    behavior: spec.behavior,
+    behavioral_errors: spec.behavioral_errors.filter((errorCase) => errorCase.action === action),
+  };
+}
+
+function itemGenerationContext(spec: CapabilitySpec): object {
+  return {
+    id: spec.id,
+    collection: spec.ui_intent.collection,
+    item: {
+      direction: spec.ui_intent.item.direction,
+      fields: presentationFieldDescriptors(spec, spec.ui_intent.item.shows),
+    },
+  };
 }

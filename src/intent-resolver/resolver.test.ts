@@ -44,9 +44,13 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     label: "Notes",
     incarnation_id: incarnationId,
     version: 1,
-    schema: { fields: [{ name: "text", type: "string", required: true }] },
+    schema: {
+      fields: [
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+      ],
+    },
     ui_intent: {
-      item: "A text-forward card that emphasizes the note text.",
+      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
     },
@@ -73,9 +77,13 @@ function recipesRow(): CapabilityRow {
     label: "Recipes",
     incarnation_id: "22222222-2222-4222-8222-222222222222",
     version: 2,
-    schema: { fields: [{ name: "title", type: "string", required: true }] },
+    schema: {
+      fields: [
+        { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+      ],
+    },
     ui_intent: {
-      item: "A text-forward card that emphasizes the recipe name.",
+      item: { direction: "A text-forward card that emphasizes the recipe name.", shows: ["title"] },
       collection: { layout: "feed" },
       detail: { shows: ["title"] },
     },

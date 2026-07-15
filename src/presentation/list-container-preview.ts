@@ -28,11 +28,17 @@ const PREVIEW_CAPABILITY: RenderableCapability = {
   label: "Reading list",
   schema: {
     fields: [
-      { name: "title", type: "string", required: true },
-      { name: "author", type: "string", required: true },
-      { name: "rating", type: "number", required: true },
-      { name: "finished", type: "boolean", required: false },
-      { name: "note", type: "string", required: false },
+      { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+      { name: "author", label: "Author", type: "string", required: true, lifecycle: "active" },
+      { name: "rating", label: "Rating", type: "number", required: true, lifecycle: "active" },
+      {
+        name: "finished",
+        label: "Finished",
+        type: "boolean",
+        required: false,
+        lifecycle: "active",
+      },
+      { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
     ],
   },
 };

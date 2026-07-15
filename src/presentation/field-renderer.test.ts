@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { type FieldType, fieldTypeSchema, type SpecField } from "../registry/index.ts";
 import {
+  capabilityCreateErrorId,
   capabilityRecordsRegionId,
   RECORD_CREATED_EVENT,
   type RenderableCapability,
@@ -22,11 +23,17 @@ const SAMPLE: RenderableCapability = {
   label: "Tasks",
   schema: {
     fields: [
-      { name: "title", type: "string", required: true },
-      { name: "priority", type: "number", required: true },
-      { name: "done", type: "boolean", required: true },
-      { name: "due_date", type: "datetime", required: true },
-      { name: "note", type: "string", required: false },
+      { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+      { name: "priority", label: "Priority", type: "number", required: true, lifecycle: "active" },
+      { name: "done", label: "Done", type: "boolean", required: true, lifecycle: "active" },
+      {
+        name: "due_date",
+        label: "Due date",
+        type: "datetime",
+        required: true,
+        lifecycle: "active",
+      },
+      { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
     ],
   },
 };
@@ -70,6 +77,11 @@ describe("create form — platform wiring + close-on-success", () => {
     expect(form).toContain(RECORD_CREATED_EVENT);
   });
 
+  test("reserves an aria-live target for structured create errors", () => {
+    expect(form).toContain(`id="${capabilityCreateErrorId("tasks")}"`);
+    expect(form).toContain('aria-live="polite"');
+  });
+
   test("carries an accessible name and a primary submit affordance", () => {
     expect(form).toContain('aria-label="Add to Tasks"');
     expect(form).toContain('<button class="btn btn--primary" type="submit">Add</button>');
@@ -104,20 +116,70 @@ describe("create form — one control per pantry type", () => {
   });
 
   test("date renders a date-only input, distinct from datetime-local", () => {
-    const dateForm = renderCreateForm(oneField({ name: "due_on", type: "date", required: true }));
+    const dateForm = renderCreateForm(
+      oneField({
+        name: "due_on",
+        label: "Due on",
+        type: "date",
+        required: true,
+        lifecycle: "active",
+      }),
+    );
     expect(dateForm).toContain('id="cap-probe-due_on" type="date"');
     expect(dateForm).not.toContain("datetime-local");
   });
 
-  test("labels are humanized and tied to their control", () => {
+  test("uses the authored field label and ties it to the stable field-name control", () => {
     expect(form).toContain('<label class="field__label" for="cap-tasks-due_date">Due date</label>');
+    const custom = renderCreateForm(
+      oneField({
+        name: "due_date",
+        label: "Finish by",
+        type: "date",
+        required: true,
+        lifecycle: "active",
+      }),
+    );
+    expect(custom).toContain('for="cap-probe-due_date">Finish by</label>');
+    expect(custom).toContain('name="due_date"');
+  });
+
+  test("does not render inactive fields", () => {
+    const capability: RenderableCapability = {
+      id: "probe",
+      label: "Probe",
+      schema: {
+        fields: [
+          { name: "title", label: "Entry", type: "string", required: true, lifecycle: "active" },
+          {
+            name: "retired_note",
+            label: "Retired note",
+            type: "string",
+            required: true,
+            lifecycle: "inactive",
+          },
+        ],
+      },
+    };
+    const create = renderCreateForm(capability);
+    expect(create).toContain("Entry");
+    expect(create).not.toContain("retired_note");
+    expect(create).not.toContain("Retired note");
   });
 
   test("required fields carry the required attribute; optional ones do not", () => {
     expect(form).toContain('name="title" required>');
     // The lone optional field renders without a `required` attribute anywhere.
     expect(
-      renderCreateForm(oneField({ name: "note", type: "string", required: false })),
+      renderCreateForm(
+        oneField({
+          name: "note",
+          label: "Note",
+          type: "string",
+          required: false,
+          lifecycle: "active",
+        }),
+      ),
     ).not.toContain("required");
   });
 
@@ -125,7 +187,13 @@ describe("create form — one control per pantry type", () => {
     // A checkbox always yields a definite value (checked/unchecked → true/false), so a
     // required boolean is already satisfied; forcing it checked would block create.
     const booleanForm = renderCreateForm(
-      oneField({ name: "done", type: "boolean", required: true }),
+      oneField({
+        name: "done",
+        label: "Done",
+        type: "boolean",
+        required: true,
+        lifecycle: "active",
+      }),
     );
     expect(booleanForm).toContain('type="checkbox"');
     expect(booleanForm).not.toContain("required");
@@ -147,15 +215,30 @@ describe("detail display — one formatting per pantry type", () => {
   });
 
   test("string values are shown as escaped text", () => {
-    const detail = renderDetailFields(oneField({ name: "title", type: "string", required: true }), {
-      title: "Buy milk",
-    });
+    const detail = renderDetailFields(
+      oneField({
+        name: "title",
+        label: "Title",
+        type: "string",
+        required: true,
+        lifecycle: "active",
+      }),
+      {
+        title: "Buy milk",
+      },
+    );
     expect(detail).toContain('<dd class="detail-field__value">Buy milk</dd>');
   });
 
   test("number values are shown verbatim", () => {
     const detail = renderDetailFields(
-      oneField({ name: "priority", type: "number", required: true }),
+      oneField({
+        name: "priority",
+        label: "Priority",
+        type: "number",
+        required: true,
+        lifecycle: "active",
+      }),
       {
         priority: 42.5,
       },
@@ -164,7 +247,13 @@ describe("detail display — one formatting per pantry type", () => {
   });
 
   test("boolean values read as Yes / No", () => {
-    const field: SpecField = { name: "done", type: "boolean", required: true };
+    const field: SpecField = {
+      name: "done",
+      label: "Done",
+      type: "boolean",
+      required: true,
+      lifecycle: "active",
+    };
     expect(renderDetailFields(oneField(field), { done: true })).toContain(
       '<dd class="detail-field__value">Yes</dd>',
     );
@@ -175,7 +264,13 @@ describe("detail display — one formatting per pantry type", () => {
 
   test("datetime values ride a semantic <time>, tidied timezone-free", () => {
     const detail = renderDetailFields(
-      oneField({ name: "due_date", type: "datetime", required: true }),
+      oneField({
+        name: "due_date",
+        label: "Due date",
+        type: "datetime",
+        required: true,
+        lifecycle: "active",
+      }),
       {
         due_date: "2026-07-05T09:30:00.000Z",
       },
@@ -184,35 +279,92 @@ describe("detail display — one formatting per pantry type", () => {
   });
 
   test("date values ride a semantic <time>, date-only", () => {
-    const detail = renderDetailFields(oneField({ name: "due_on", type: "date", required: true }), {
-      due_on: "2026-07-05",
-    });
+    const detail = renderDetailFields(
+      oneField({
+        name: "due_on",
+        label: "Due on",
+        type: "date",
+        required: true,
+        lifecycle: "active",
+      }),
+      {
+        due_on: "2026-07-05",
+      },
+    );
     expect(detail).toContain('<time datetime="2026-07-05">2026-07-05</time>');
   });
 
   test("absent values show the placeholder and an empty modifier", () => {
-    const field: SpecField = { name: "note", type: "string", required: false };
+    const field: SpecField = {
+      name: "note",
+      label: "Note",
+      type: "string",
+      required: false,
+      lifecycle: "active",
+    };
     for (const absent of [null, undefined, ""]) {
       const detail = renderDetailFields(oneField(field), { note: absent });
       expect(detail).toContain("detail-field__value detail-field__value--empty");
       expect(detail).toContain("—");
     }
   });
+
+  test("a historical null in a required field renders as the platform empty value", () => {
+    const detail = renderDetailFields(
+      oneField({
+        name: "title",
+        label: "Entry",
+        type: "string",
+        required: true,
+        lifecycle: "active",
+      }),
+      { title: null },
+    );
+    expect(detail).toContain(">Entry</dt>");
+    expect(detail).toContain("detail-field__value--empty");
+    expect(detail).toContain("—");
+  });
+
+  test("renders the immutable created_at descriptor only when detail intent names it", () => {
+    const capability: RenderableCapability = {
+      ...SAMPLE,
+      detail: { shows: ["created_at", "title"] },
+    };
+    const detail = renderDetailFields(capability, {
+      created_at: "2026-07-14T10:30:00.000Z",
+      title: "Visible",
+    });
+    expect(detail).toContain(">Created</dt>");
+    expect(detail).toContain('<time datetime="2026-07-14T10:30:00.000Z">2026-07-14 10:30</time>');
+    expect(renderCreateForm(capability)).not.toContain("created_at");
+  });
 });
 
 describe("detail display — hostile record data cannot become markup", () => {
   test("a script-shaped string value is escaped, not injected", () => {
-    const detail = renderDetailFields(oneField({ name: "title", type: "string", required: true }), {
-      title: "<script>alert(1)</script>",
-    });
+    const detail = renderDetailFields(
+      oneField({
+        name: "title",
+        label: "Title",
+        type: "string",
+        required: true,
+        lifecycle: "active",
+      }),
+      {
+        title: "<script>alert(1)</script>",
+      },
+    );
     expect(detail).not.toContain("<script");
     expect(detail).toContain("&lt;script&gt;");
   });
 
   test("a hostile datetime value cannot break out of the time element", () => {
-    const detail = renderDetailFields(oneField({ name: "at", type: "datetime", required: true }), {
-      at: '"><img src=x onerror=alert(1)>',
-    });
+    const detail = renderDetailFields(
+      oneField({ name: "at", label: "At", type: "datetime", required: true, lifecycle: "active" }),
+      {
+        at: '"><img src=x onerror=alert(1)>',
+      },
+    );
     // The `">` that would close the attribute and the `<img` that would open a new
     // element are both escaped, so nothing new is parsed — in attribute and text alike.
     expect(detail).not.toContain("<img");
@@ -254,6 +406,33 @@ describe("detail display — honors ui_intent.detail.shows (fields + order)", ()
     expect([...detail.matchAll(/<dt class="detail-field__label">/g)]).toHaveLength(3);
   });
 
+  test("inactive stored values never render, even in a defensive hand-built detail list", () => {
+    const capability: RenderableCapability = {
+      id: "probe",
+      label: "Probe",
+      schema: {
+        fields: [
+          { name: "title", label: "Entry", type: "string", required: true, lifecycle: "active" },
+          {
+            name: "retired_note",
+            label: "Retired note",
+            type: "string",
+            required: true,
+            lifecycle: "inactive",
+          },
+        ],
+      },
+      detail: { shows: ["title", "retired_note"] },
+    };
+    const detail = renderDetailFields(capability, {
+      title: "Visible",
+      retired_note: "still stored",
+    });
+    expect(detail).toContain("Visible");
+    expect(detail).not.toContain("Retired note");
+    expect(detail).not.toContain("still stored");
+  });
+
   test("an empty detail.shows falls back to spec order rather than an empty <dl>", () => {
     // Spec validation forbids an empty shows, so this only guards a hand-built capability;
     // it renders the whole record rather than nothing.
@@ -279,7 +458,13 @@ describe("centralization — exhaustive over the M2 pantry", () => {
   // switches handle it — proof that adding a type is a single-location change.
   test("every fieldTypeSchema option renders a create control and a detail value", () => {
     for (const type of fieldTypeSchema.options) {
-      const capability = oneField({ name: "value", type, required: true });
+      const capability = oneField({
+        name: "value",
+        label: "Value",
+        type,
+        required: true,
+        lifecycle: "active",
+      });
 
       const create = renderCreateForm(capability);
       expect(create).toMatch(/<input[^>]*\btype="[^"]+"/);
