@@ -28,7 +28,13 @@ import type { Database } from "bun:sqlite";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { type CapabilityRow, type CapabilitySpec, insertCapability } from "../registry/index.ts";
+import {
+  type CapabilityRow,
+  type CapabilitySpec,
+  capabilitySpecSchema,
+  incarnationIdSchema,
+  insertCapability,
+} from "../registry/index.ts";
 import type { GeneratedUnit } from "./units.ts";
 
 const TRANSITIONAL_ARTIFACT_INVENTORY = ["item.ts", "create.ts", "read.ts"] as const;
@@ -76,12 +82,17 @@ export interface CommitCapabilityResult {
 // them. Both happen synchronously so they sit inside the caller's open transaction
 // — the registry insert is the single committing step (the pointer flip for v1).
 export function commitCapability(input: CommitCapabilityInput): CommitCapabilityResult {
+  // Validate every path component before touching the filesystem. The real
+  // pipeline supplies an already-validated spec and platform-generated UUID, but
+  // commit is the last authority before those values become filesystem paths.
+  const spec = capabilitySpecSchema.parse(input.spec);
+  const incarnationId = incarnationIdSchema.parse(input.incarnationId);
   assertTransitionalArtifactInventory(input.units);
   const version = FIRST_CAPABILITY_VERSION;
   const root = input.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   // The pointer stored on the row and resolved by the router. The trailing slash
   // matches the convention recorded in ARCH §6.3 and capabilities/README.md.
-  const artifactsPath = `${root}/${input.spec.id}/${input.incarnationId}/v${version}/`;
+  const artifactsPath = `${root}/${spec.id}/${incarnationId}/v${version}/`;
   const directory = resolve(process.cwd(), artifactsPath);
 
   // 1. Write the artifacts first, so the row — once inserted — points at files that
@@ -99,11 +110,11 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   //    id throws the primary-key violation. Either way the transaction rolls back,
   //    so a failed commit leaves no row — the files above become orphans.
   const row = insertCapability(
-    rowFromSpec(input.spec, input.incarnationId, version, artifactsPath),
+    rowFromSpec(spec, incarnationId, version, artifactsPath),
     input.database,
   );
 
-  return { row, artifactsPath, incarnationId: input.incarnationId, version, files };
+  return { row, artifactsPath, incarnationId, version, files };
 }
 
 function assertTransitionalArtifactInventory(units: readonly GeneratedUnit[]): void {

@@ -127,8 +127,15 @@ describe("createPresentationAdapter — composition", () => {
     expect(html).toContain('<div class="stack">');
     expect(html).toContain('<span class="text-lg truncate">Piranesi</span>');
 
-    // The full record rides the escaped data-item payload and round-trips exactly.
-    expect(readBackPayload(html)).toEqual(record());
+    // The client receives only the record target, timestamp, and active schema values.
+    expect(readBackPayload(html)).toEqual({
+      id: "rec-1",
+      created_at: "2026-07-09T00:00:00.000Z",
+      title: "Piranesi",
+      author: "Susanna Clarke",
+      rating: 4,
+      note: "Tides through endless halls.",
+    });
 
     // Click-to-open hooks: the record's detail template id + the capability label as title.
     const templateId = `${DETAIL_TEMPLATE_ID_PREFIX}-reading-rec-1`;
@@ -171,7 +178,7 @@ describe("createPresentationAdapter — composition", () => {
     const body = detailTemplateBody(html, "detail-reading-rec-1");
 
     // detail.shows is [title, rating, note] — the detail body shows those and drops author,
-    // even though the full record (incl. author) is in the data-item payload.
+    // even though the active author value remains in the client payload for future edit UI.
     expect(body).toContain("Piranesi");
     expect(body).toContain("Tides through endless halls.");
     expect(body).not.toContain("Susanna Clarke");
@@ -267,7 +274,7 @@ describe("createPresentationAdapter — payload byte safety", () => {
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
-    const html = present(record({ cover: new Uint8Array([1, 2, 3]) }));
-    expect(readBackPayload(html)).toMatchObject({ cover: null });
+    const html = present(record({ note: new Uint8Array([1, 2, 3]) }));
+    expect(readBackPayload(html)).toMatchObject({ note: null });
   });
 });

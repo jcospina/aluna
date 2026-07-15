@@ -176,6 +176,7 @@ describe("reserved capability wire protocol", () => {
     const repeatable = await parseCapabilityRequest(
       post([
         ["tags", "Doe, Jane"],
+        ["tags", "   "],
         [ALUNA_PRESENT_MARKER, "tags"],
       ]),
       "create",

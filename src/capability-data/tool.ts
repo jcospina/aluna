@@ -19,24 +19,11 @@ import {
 } from "../registry/index.ts";
 import { deriveCapabilityTableDdl } from "./ddl.ts";
 
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
-export interface JsonObject {
-  readonly [key: string]: JsonValue;
-}
-
-export type CapabilityDataColumnValue =
-  | string
-  | number
-  | boolean
-  | readonly string[]
-  | JsonObject
-  | null;
+export type CapabilityDataColumnValue = string | number | boolean | readonly string[] | null;
 
 export interface CapabilityDataRow {
   readonly id: string;
   readonly created_at: string;
-  readonly extra: JsonObject;
   readonly [field: string]: CapabilityDataColumnValue;
 }
 
@@ -72,7 +59,7 @@ interface StoredCapabilityRow {
   [column: string]: unknown;
 }
 
-const PLATFORM_POPULATED_COLUMNS = new Set(["id", "created_at"]);
+const PLATFORM_POPULATED_COLUMNS = new Set(["id", "created_at", "extra"]);
 
 export function createCapabilityDataTool(
   spec: CapabilitySpec,
@@ -82,7 +69,7 @@ export function createCapabilityDataTool(
   const { tableName } = deriveCapabilityTableDdl(parsed);
   const quotedTable = sqlIdentifier(tableName);
   const fields = activeSpecFields(parsed.schema.fields);
-  const allowedInsertFields = new Set([...fields.map((field) => field.name), "extra"]);
+  const allowedInsertFields = new Set(fields.map((field) => field.name));
 
   return {
     insert(values) {
@@ -91,12 +78,7 @@ export function createCapabilityDataTool(
       const sqlValues: SqlValue[] = [randomUUID()];
 
       for (const field of fields) {
-        sqlValues.push(normalized.fields[field.name] ?? null);
-      }
-
-      if (normalized.extra !== undefined) {
-        columns.push("extra");
-        sqlValues.push(normalized.extra);
+        sqlValues.push(normalized[field.name] ?? null);
       }
 
       const placeholders = columns.map(() => "?").join(", ");
@@ -122,7 +104,7 @@ function normalizeInsertValues(
   fields: readonly SpecField[],
   allowedInsertFields: Set<string>,
   values: CapabilityInsertValues,
-): { fields: Record<string, SqlValue>; extra?: string } {
+): Record<string, SqlValue> {
   if (!isPlainObject(values)) {
     throw new CapabilityDataValidationError(
       `Capability "${capabilityId}" insert values must be an object.`,
@@ -131,10 +113,7 @@ function normalizeInsertValues(
 
   validateInsertKeys(capabilityId, allowedInsertFields, values);
 
-  return {
-    fields: normalizeSpecFieldValues(capabilityId, fields, values),
-    extra: values.extra === undefined ? undefined : serializeExtra(values.extra),
-  };
+  return normalizeSpecFieldValues(capabilityId, fields, values);
 }
 
 function validateInsertKeys(
@@ -273,7 +252,31 @@ function isNonBlankString(value: unknown): value is string {
 }
 
 function isValidDatetime(value: string): boolean {
-  return value.trim().length > 0 && !Number.isNaN(Date.parse(value));
+  const match =
+    /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(?:Z|([+-])(\d{2}):(\d{2}))?$/.exec(
+      value,
+    );
+  if (!match) return false;
+
+  const [, date, hourText, minuteText, secondText, , offsetHourText, offsetMinuteText] = match;
+  if (!date || !isValidDate(date)) return false;
+
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = secondText === undefined ? 0 : Number(secondText);
+  const offsetHour = offsetHourText === undefined ? 0 : Number(offsetHourText);
+  const offsetMinute = offsetMinuteText === undefined ? 0 : Number(offsetMinuteText);
+  const validOffset =
+    offsetHourText === undefined || offsetHour < 14 || (offsetHour === 14 && offsetMinute === 0);
+  return (
+    hour <= 23 &&
+    minute <= 59 &&
+    second <= 59 &&
+    offsetHour <= 14 &&
+    offsetMinute <= 59 &&
+    validOffset &&
+    !Number.isNaN(Date.parse(value))
+  );
 }
 
 function isValidDate(value: string): boolean {
@@ -282,26 +285,14 @@ function isValidDate(value: string): boolean {
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
-  );
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+
+  const daysByMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= (daysByMonth[month - 1] ?? 0);
 }
 
-function serializeExtra(value: unknown): string {
-  if (!isPlainObject(value)) {
-    throw new CapabilityDataValidationError('Field "extra" must be a JSON object.');
-  }
-
-  assertJsonValue(value, "extra", new WeakSet<object>());
-
-  try {
-    return JSON.stringify(value);
-  } catch (error) {
-    throw new CapabilityDataValidationError(
-      `Field "extra" must be JSON-serializable: ${error instanceof Error ? error.message : error}`,
-    );
-  }
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
 function normalizeStoredRow(
@@ -310,11 +301,10 @@ function normalizeStoredRow(
 ): CapabilityDataRow {
   const id = readStringColumn("id", row.id);
   const createdAt = readStringColumn("created_at", row.created_at);
-  const extra = parseExtra(row.extra);
+  assertStoredExtra(row.extra);
   const normalized: Record<string, CapabilityDataColumnValue> = {
     id,
     created_at: createdAt,
-    extra,
   };
 
   for (const field of fields) {
@@ -366,14 +356,17 @@ function parseStoredStringList(name: string, value: unknown): readonly string[] 
   return parsed;
 }
 
-function parseExtra(value: unknown): JsonObject {
+function assertStoredExtra(value: unknown): void {
   const text = readStringColumn("extra", value);
-  const parsed = JSON.parse(text) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text) as unknown;
+  } catch {
+    throw new Error('Expected "extra" to contain a JSON object.');
+  }
   if (!isPlainObject(parsed)) {
     throw new Error('Expected "extra" to contain a JSON object.');
   }
-  assertJsonValue(parsed, "extra", new WeakSet<object>());
-  return parsed as JsonObject;
 }
 
 function readStringColumn(name: string, value: unknown): string {
@@ -381,51 +374,6 @@ function readStringColumn(name: string, value: unknown): string {
     throw new Error(`Expected text value for column "${name}".`);
   }
   return value;
-}
-
-function assertJsonValue(
-  value: unknown,
-  path: string,
-  seen: WeakSet<object>,
-): asserts value is JsonValue {
-  if (isJsonPrimitive(value)) return;
-  if (typeof value !== "object" || value === null) {
-    throw new CapabilityDataValidationError(`Field "${path}" must be JSON-serializable.`);
-  }
-
-  assertJsonContainer(value, path, seen);
-}
-
-function isJsonPrimitive(value: unknown): value is JsonPrimitive {
-  if (value === null) return true;
-  if (typeof value === "string" || typeof value === "boolean") return true;
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-function assertJsonContainer(value: object, path: string, seen: WeakSet<object>): void {
-  if (seen.has(value)) {
-    throw new CapabilityDataValidationError(`Field "${path}" must not contain cycles.`);
-  }
-  seen.add(value);
-
-  try {
-    if (Array.isArray(value)) {
-      for (const [index, item] of value.entries()) {
-        assertJsonValue(item, `${path}[${index}]`, seen);
-      }
-      return;
-    }
-
-    if (!isPlainObject(value)) {
-      throw new CapabilityDataValidationError(`Field "${path}" must be JSON-serializable.`);
-    }
-
-    for (const [key, child] of Object.entries(value)) {
-      assertJsonValue(child, `${path}.${key}`, seen);
-    }
-  } finally {
-    seen.delete(value);
-  }
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

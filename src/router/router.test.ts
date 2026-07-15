@@ -671,6 +671,31 @@ describe("deterministic capability router", () => {
     expect(spy.calls).toHaveLength(0);
   });
 
+  test("wrong HTTP method and action pairs are refused before generated code loads", async () => {
+    install(conns, notesRow());
+    const spy = makeSpyLoader();
+    let itemLoads = 0;
+    const app = createApp({
+      capabilityRouter: {
+        databases: conns,
+        loadHandler: spy.loadHandler,
+        loadItemRenderer: async () => {
+          itemLoads += 1;
+          return () => "<span>never</span>";
+        },
+      },
+    });
+
+    const getCreate = await app.request("/capability/notes/create");
+    const postRead = await app.request("/capability/notes/read", { method: "POST" });
+
+    expect(getCreate.status).toBe(404);
+    expect(postRead.status).toBe(404);
+    expect(spy.calls).toHaveLength(0);
+    expect(itemLoads).toBe(0);
+    expect(createCapabilityDataTool(notesSpec(), conns).select()).toEqual([]);
+  });
+
   test("a handler that throws surfaces a friendly failure, never a stack trace or internals", async () => {
     install(conns, boomRow());
     const app = createApp({ capabilityRouter: { databases: conns } });

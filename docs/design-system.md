@@ -308,11 +308,12 @@ ADR-0004's never-stale cache because the cached surface holds no user data.
 
 Every record is framed in one standardized trigger: a `role="button"` card with
 `aria-haspopup="dialog"`, an on-brand surface/border/radius and the shared gentle
-press + accent focus ring. It carries the full record as an **escaped `data-item`
-payload** (`JSON.stringify`, HTML-escaped for the attribute) so the detail modal (3.2/04)
-prefills from it — no read-single route (ADR-0005 §3). `file` fields ride as references,
-**never bytes**: raw `Uint8Array`/`ArrayBuffer` values are neutralized to `null` rather
-than serialized. Given an `ItemDetailRef` the wrapper also carries **`data-detail-template`**
+press + accent focus ring. It carries an **escaped `data-item` client projection**
+(`JSON.stringify`, HTML-escaped for the attribute): record target, active schema fields,
+and `created_at`. Platform-owned `extra` and inactive fields remain server-only, matching
+ADR-0005's Module 4 amendment. `file` fields ride as references, **never bytes**: raw
+`Uint8Array`/`ArrayBuffer` values are neutralized to `null` rather than serialized. Given
+an `ItemDetailRef` the wrapper also carries **`data-detail-template`**
 (the id of the record's inert detail `<template>`, cloned into the modal on open) and
 **`data-detail-title`** (the modal title — the capability label); the generic click
 controller ([`public/item-detail.js`](../public/item-detail.js)) reads them to fire the
