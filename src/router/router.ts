@@ -11,8 +11,8 @@
 //   2. Loads the handler for that action from the version directory the row's
 //      `artifacts_path` points to.
 //   3. Builds the platform context (ADR-0004): parsed input (form/query — the
-//      handler never touches raw HTTP) plus the data tool **already scoped** to
-//      this capability (it cannot name another table).
+//      handler never touches raw HTTP), the capability-bound mutation port for
+//      create, and the physically read-only free-query port.
 //   4. Invokes the handler's single default-exported async function and wraps the
 //      returned HTML fragment in the HTTP response — the platform owns headers,
 //      status, and routing.
@@ -25,7 +25,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Context, Hono } from "hono";
 
-import { createCapabilityDataTool, MissingRequiredFieldsError } from "../capability-data/index.ts";
+import { createCapabilityDataPorts, MissingRequiredFieldsError } from "../capability-data/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
 import {
   createMutationCoordinator,
@@ -45,7 +45,11 @@ import {
   getCapability,
 } from "../registry/index.ts";
 import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
-import type { CapabilityHandler } from "./contract.ts";
+import type {
+  CapabilityCreateHandler,
+  CapabilityHandler,
+  CapabilityReadHandler,
+} from "./contract.ts";
 import { parseCapabilityRequest, WireProtocolError } from "./wire-protocol.ts";
 
 // How the router turns a row's `artifacts_path` + an action into a runnable
@@ -60,7 +64,7 @@ export type HandlerLoader = (artifactsPath: string, action: string) => Promise<C
 export type ItemRendererLoader = (artifactsPath: string) => Promise<ItemRenderer>;
 
 export interface CapabilityRouterDeps {
-  // The read-write / read-only pair the lookup and the scoped data tool ride.
+  // The read-write / read-only pair the lookup and split data ports ride.
   // Defaults to the platform singletons; tests inject a scratch pair.
   readonly databases?: PlatformDatabase;
   // Defaults to {@link defaultLoadHandler}.
@@ -201,11 +205,14 @@ async function executeCapabilityHandler(
   try {
     const spec = specFromRow(row);
     const { input } = await parseCapabilityRequest(c.req.raw, action, spec);
-    const data = createCapabilityDataTool(spec, databases);
+    const { mutation, query } = createCapabilityDataPorts(spec, databases);
     const present = await buildPresentationAdapter(row, loadItemRenderer);
     const handler = await loadHandler(row.artifacts_path, action);
 
-    const fragment = await handler({ input, data, present });
+    const fragment =
+      action === "create"
+        ? await (handler as CapabilityCreateHandler)({ input, mutation, query, present })
+        : await (handler as CapabilityReadHandler)({ input, query, present });
     if (typeof fragment !== "string") {
       throw new TypeError(
         `Handler ${id}/${action} returned ${typeof fragment}; the contract requires an HTML string.`,
@@ -269,7 +276,7 @@ function routableTarget(
 }
 
 // The spec embedded in a registry row — the row minus the two platform-assigned
-// values (`version`, `artifacts_path`). The data tool's constructor parses against
+// values (`version`, `artifacts_path`). The mutation port constructor parses against
 // the strict spec schema, which rejects those extra keys, so the row can't be
 // handed over whole.
 function specFromRow(row: CapabilityRow): CapabilitySpec {

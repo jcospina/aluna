@@ -119,13 +119,13 @@ const ITEM_RENDERER = [
 // The create handler renders the inserted row through the injected `present` adapter —
 // no row markup of its own (ADR-0005 §2).
 const CREATE_HANDLER = [
-  "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
+  "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
   "  const values: Record<string, unknown> = { text: input.values.text };",
   '  if (input.submittedFields.has("pinned")) {',
   '    values.pinned = input.values.pinned === "true" || input.values.pinned === "on";',
   "  }",
   "",
-  "  const row = data.insert(values);",
+  "  const row = mutation.create(values);",
   "  return present(row);",
   "}",
 ].join("\n");
@@ -135,21 +135,24 @@ const CREATE_HANDLER = [
 // region truly `:empty` so the platform-owned empty state shows (ADR-0005 §1); the
 // handler never emits its own empty state.
 const READ_HANDLER = [
-  "export default async function read({ data, present }: CapabilityContext): Promise<string> {",
-  "  const notes = data.select();",
+  "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+  "  const notes = query.all({",
+  '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+  '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "text", type: "string" }, { alias: "pinned", type: "boolean" }],',
+  "  });",
   '  return notes.map((note) => present(note)).join("");',
   "}",
 ].join("\n");
 
 // Fails the isolated type-check: an async handler returning a bare number.
-const BAD_CREATE_HANDLER = `export default async function create({ input, data }: CapabilityContext): Promise<string> {
-  data.insert({ text: input.values.text });
+const BAD_CREATE_HANDLER = `export default async function create({ input, mutation }: CapabilityCreateContext): Promise<string> {
+  mutation.create({ text: input.values.text });
   return 123;
 }`;
 
 // Fails the type-check with implicit-any bindings (no annotation on the context param).
-const UNTYPED_BAD_HANDLER = `export default async function create({ input, data }) {
-  data.insert({ text: input.values.text });
+const UNTYPED_BAD_HANDLER = `export default async function create({ input, mutation }) {
+  mutation.create({ text: input.values.text });
   return 123;
 }`;
 
@@ -466,7 +469,7 @@ describe("unit generation with bounded fix loop", () => {
 
     const readPrompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "read" });
     expect(readPrompt).toContain(
-      "Destructure only `{ data, present }`: `export default async function read({ data, present }: CapabilityContext): Promise<string>`.",
+      "Destructure only `{ query, present }`: `export default async function read({ query, present }: CapabilityContext): Promise<string>`.",
     );
   });
 
@@ -493,8 +496,8 @@ describe("unit generation with bounded fix loop", () => {
     expect(prompt).toContain("Do not use unchecked array indexes or regex captures");
 
     const unsafeRegexCapture = [
-      "export default async function read({ data }: CapabilityContext): Promise<string> {",
-      "  const rows = data.select();",
+      "export default async function read({ query }: CapabilityContext): Promise<string> {",
+      '  const rows = query.all({ sql: \'SELECT * FROM "cap_notes"\', result: [{ alias: "created_at", type: "datetime" }] });',
       '  const match = String(rows[0]?.created_at ?? "").match(/^(\\d{4}-\\d{2}-\\d{2})/);',
       "  if (match) return match[1];",
       '  return "";',
@@ -521,7 +524,9 @@ describe("unit generation with bounded fix loop", () => {
     expect(prompt).toContain(BEHAVIORAL_ERROR_MARKERS.code_attribute);
     expect(prompt).toContain(BEHAVIORAL_ERROR_MARKERS.fields_attribute);
     expect(prompt).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
-    expect(prompt).toContain("detect every missing required field before calling `data.insert`");
+    expect(prompt).toContain(
+      "detect every missing required field before calling `mutation.create`",
+    );
     expect(prompt).toContain("return the declared validation-error fragment instead");
     expect(prompt).not.toContain(
       "required empty values must reach the platform mutation validation and fail",

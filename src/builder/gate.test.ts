@@ -9,9 +9,11 @@ import { type ZodType, z } from "zod";
 
 import {
   applyCapabilityTableDdl,
-  createCapabilityDataTool,
+  createCapabilityDataPorts,
   deriveCapabilityTableDdl,
+  selectCapabilityRows,
 } from "../capability-data/index.ts";
+import type { PlatformDatabase } from "../db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -28,6 +30,11 @@ import {
 import type { HandlerUnitName } from "./units.ts";
 
 setDefaultTimeout(15_000);
+
+function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
+  const { mutation, query } = createCapabilityDataPorts(spec, databases);
+  return { insert: mutation.create, select: () => selectCapabilityRows(spec, query) };
+}
 
 function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return {
@@ -66,8 +73,8 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
 // the smoke and behavioral rungs exercise the real adapter path — create and read cannot
 // drift. `text: input.values.text,` is kept verbatim so the trim test can patch it.
 const CREATE_HANDLER = [
-  "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
-  "  const note = data.insert({",
+  "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
+  "  const note = mutation.create({",
   "    text: input.values.text,",
   '    pinned: input.values.pinned === "on" || input.values.pinned === "true",',
   "  });",
@@ -76,8 +83,11 @@ const CREATE_HANDLER = [
 ].join("\n");
 
 const READ_HANDLER = [
-  "export default async function read({ data, present }: CapabilityContext): Promise<string> {",
-  "  const notes = data.select();",
+  "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+  "  const notes = query.all({",
+  '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+  '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "text", type: "string" }, { alias: "pinned", type: "boolean" }],',
+  "  });",
   '  return notes.map((note) => present(note)).join("");',
   "}",
 ].join("\n");
@@ -137,13 +147,13 @@ function articlesSpec(): CapabilitySpec {
 }
 
 const MARKED_ARTICLE_CREATE_HANDLER = [
-  "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
+  "export default async function create({ input, mutation }: CapabilityCreateContext): Promise<string> {",
   '  const missing = ["title", "body"].filter((field) => String(input.values[field] ?? "").trim().length === 0);',
   "  if (missing.length > 0) {",
   '    return `<div class="notice" data-role="error" data-error-code="missing_required_fields" data-error-fields="$' +
     '{missing.join(" ")}">I need a little more before I can save this.</div>`;',
   "  }",
-  "  const article = data.insert({ title: input.values.title, body: input.values.body });",
+  "  const article = mutation.create({ title: input.values.title, body: input.values.body });",
   "  return `<article><h3>$" +
     "{escapeHtml(article.title)}</h3><p>$" +
     "{escapeHtml(article.body)}</p></article>`;",
@@ -160,8 +170,11 @@ const MARKED_ARTICLE_CREATE_HANDLER = [
 ].join("\n");
 
 const ARTICLE_READ_HANDLER = [
-  "export default async function read({ data }: CapabilityContext): Promise<string> {",
-  "  const articles = data.select();",
+  "export default async function read({ query }: CapabilityContext): Promise<string> {",
+  "  const articles = query.all({",
+  '    sql: \'SELECT * FROM "cap_articles" ORDER BY "created_at" DESC, "id" DESC\',',
+  '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "title", type: "string" }, { alias: "body", type: "string" }],',
+  "  });",
   "  const items = articles",
   "    .map((article) => `<article><h3>$" +
     "{escapeHtml(article.title)}</h3><p>$" +
@@ -430,10 +443,19 @@ describe("capability gate", () => {
       ],
     });
     const create = [
-      "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
+      "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
       "  const tags = input.values.tags;",
       '  if (!Array.isArray(tags)) return "<p>missing</p>";',
-      "  return present(data.insert({ tags: [...tags] }));",
+      "  return present(mutation.create({ tags: [...tags] }));",
+      "}",
+    ].join("\n");
+    const read = [
+      "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+      "  const rows = query.all({",
+      '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+      '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "tags", type: "string[]" }],',
+      "  });",
+      '  return rows.map((row) => present(row)).join("");',
       "}",
     ].join("\n");
     const renderer = [
@@ -452,7 +474,7 @@ describe("capability gate", () => {
       gateInput({
         spec,
         ddl: deriveCapabilityTableDdl(spec),
-        handlers: { create, read: READ_HANDLER },
+        handlers: { create, read },
         itemRenderer: renderer,
         behavioralTier: { enabled: false },
       }),
@@ -501,8 +523,8 @@ describe("capability gate", () => {
 
   test("structural type-check failure stops before smoke", async () => {
     const badCreate = [
-      "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
-      "  data.insert({ text: input.values.text });",
+      "export default async function create({ input, mutation }: CapabilityCreateContext): Promise<string> {",
+      "  mutation.create({ text: input.values.text });",
       "  return 123;",
       "}",
     ].join("\n");
@@ -829,10 +851,10 @@ describe("capability gate", () => {
       prompt_context: "Stores the user's events.",
     });
     const canonicalizingCreate = [
-      "export default async function create({ input, data }: CapabilityContext): Promise<string> {",
+      "export default async function create({ input, mutation }: CapabilityCreateContext): Promise<string> {",
       "  const rawHappensAt = input.values.happens_at;",
       '  const happensAt = new Date(typeof rawHappensAt === "string" ? rawHappensAt : "").toISOString();',
-      "  const event = data.insert({ title: input.values.title, happens_at: happensAt });",
+      "  const event = mutation.create({ title: input.values.title, happens_at: happensAt });",
       "  return `<article><h3>$" +
         "{escapeHtml(event.title)}</h3><time>$" +
         "{escapeHtml(event.happens_at)}</time></article>`;",
@@ -843,8 +865,11 @@ describe("capability gate", () => {
       "}",
     ].join("\n");
     const eventsRead = [
-      "export default async function read({ data }: CapabilityContext): Promise<string> {",
-      "  const events = data.select();",
+      "export default async function read({ query }: CapabilityContext): Promise<string> {",
+      "  const events = query.all({",
+      '    sql: \'SELECT * FROM "cap_events" ORDER BY "created_at" DESC, "id" DESC\',',
+      '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "title", type: "string" }, { alias: "happens_at", type: "datetime" }],',
+      "  });",
       "  const items = events.map((event) => `<article>$" +
         '{escapeHtml(event.title)}</article>`).join("");',
       '  return `<section class="events">$' + "{items}</section>`;",

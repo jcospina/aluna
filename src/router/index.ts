@@ -7,9 +7,12 @@
 
 export type {
   CapabilityContext,
+  CapabilityCreateContext,
+  CapabilityCreateHandler,
   CapabilityHandler,
   CapabilityInput,
   CapabilityInputValue,
+  CapabilityReadHandler,
 } from "./contract.ts";
 export {
   type CapabilityRouterDeps,

@@ -908,25 +908,28 @@ const ITEM_RENDERER = [
 // The handlers render records through the injected `present` adapter — no row markup of
 // their own (ADR-0005 §2), so create and read cannot drift.
 const CREATE_HANDLER = [
-  "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
-  "  const note = data.insert({ text: input.values.text });",
+  "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
+  "  const note = mutation.create({ text: input.values.text });",
   "  return present(note);",
   "}",
 ].join("\n");
 
 const MISSING_MARKER_CREATE_HANDLER = [
-  "export default async function create({ input, data, present }: CapabilityContext): Promise<string> {",
+  "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
   '  if (String(input.values.text ?? "").trim().length === 0) {',
   "    return '<div class=\"error\">Any friendly copy can go here.</div>';",
   "  }",
-  "  const note = data.insert({ text: input.values.text });",
+  "  const note = mutation.create({ text: input.values.text });",
   "  return present(note);",
   "}",
 ].join("\n");
 
 const READ_HANDLER = [
-  "export default async function read({ data, present }: CapabilityContext): Promise<string> {",
-  "  const notes = data.select();",
+  "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+  "  const notes = query.all({",
+  '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+  '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "text", type: "string" }],',
+  "  });",
   '  return notes.map((note) => present(note)).join("");',
   "}",
 ].join("\n");

@@ -35,7 +35,7 @@ import type { RenderableCapability } from "./field-renderer.ts";
 import { type ItemDetailRef, renderItemWrapper } from "./list-container.ts";
 
 /**
- * A record as it reaches presentation: the capability data tool's row shape — the spec
+ * A record as it reaches presentation: the capability data ports' row shape — the spec
  * fields plus the platform-populated `id`/`created_at` — seen structurally as a plain
  * keyed object (the same shape {@link renderItemWrapper} and
  * {@link renderDetailContentTemplate} already speak). The adapter keys each record's
@@ -147,7 +147,7 @@ function projectItemRecord(
 
 /**
  * The id linking one record's item wrapper to its detail `<template>` — `detail-<cap>-<id>`.
- * Records reach the adapter from the capability data tool, which always populates a unique
+ * Records reach the adapter from the capability data ports, which always populate a unique
  * string `id` (a UUID), so this is both unique per record and stable. `capabilityId` is
  * spec-validated `[a-z][a-z0-9_]*` and a data-tool id is UUID-shaped, so the result is a
  * DOM-safe id `getElementById` resolves; both the wrapper's `data-detail-template` and the

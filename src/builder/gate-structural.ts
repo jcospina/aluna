@@ -150,8 +150,8 @@ function typeCheckHandlers(
       [
         'import create from "./create.ts";',
         'import read from "./read.ts";',
-        "const assertCreate: CapabilityHandler = create;",
-        "const assertRead: CapabilityHandler = read;",
+        "const assertCreate: CapabilityCreateHandler = create;",
+        "const assertRead: CapabilityReadHandler = read;",
         "void assertCreate;",
         "void assertRead;",
       ].join("\n"),
@@ -218,16 +218,31 @@ interface CapabilityInput {
   readonly values: Readonly<Record<string, CapabilityInputValue>>;
   readonly submittedFields: ReadonlySet<string>;
 }
-interface CapabilityDataTool {
-  insert(values: Record<string, unknown>): CapabilityDataRow;
-  select(): CapabilityDataRow[];
+interface CapabilityMutationPort {
+  create(values: Record<string, unknown>): CapabilityDataRow;
+}
+type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
+interface CapabilityQueryResultColumn {
+  readonly alias: string;
+  readonly type: "string" | "number" | "boolean" | "date" | "datetime" | "string[]";
+}
+interface CapabilityQueryPort {
+  all(input: {
+    readonly sql: string;
+    readonly parameters?: readonly CapabilityQueryParameter[];
+    readonly result: readonly CapabilityQueryResultColumn[];
+  }): Readonly<Record<string, CapabilityDataColumnValue>>[];
 }
 interface CapabilityContext {
   readonly input: CapabilityInput;
-  readonly data: CapabilityDataTool;
+  readonly query: CapabilityQueryPort;
   readonly present: PresentationAdapter;
 }
-type CapabilityHandler = (context: CapabilityContext) => Promise<string>;
+interface CapabilityCreateContext extends CapabilityContext {
+  readonly mutation: CapabilityMutationPort;
+}
+type CapabilityCreateHandler = (context: CapabilityCreateContext) => Promise<string>;
+type CapabilityReadHandler = (context: CapabilityContext) => Promise<string>;
 `;
 
 // The item-renderer contract — one record → its inner markup string (mirrors the

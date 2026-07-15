@@ -10,7 +10,8 @@
 
 import {
   type CapabilityDataColumnValue,
-  createCapabilityDataTool,
+  createCapabilityDataPorts,
+  selectCapabilityRows,
 } from "../capability-data/index.ts";
 import { activeSpecFields, type CapabilitySpec, type SpecField } from "../registry/index.ts";
 import type { CapabilityInput, CapabilityInputValue } from "../router/index.ts";
@@ -36,7 +37,7 @@ export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGat
 
   try {
     applyDdl(input.ddl, scratch.readwrite);
-    const data = createCapabilityDataTool(input.spec, scratch);
+    const { mutation, query } = createCapabilityDataPorts(input.spec, scratch);
     const handlers = await loadHandlers(input.handlers);
     // The real adapter the router injects at runtime, built from this build's item
     // renderer. Create and read render records through it, so their item markup cannot
@@ -46,17 +47,18 @@ export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGat
 
     const createFragment = await handlers.create({
       input: smokeInput.input,
-      data,
+      mutation,
+      query,
       present,
     });
     assertFragment("create", createFragment);
 
-    const rows = data.select();
+    const rows = selectCapabilityRows(input.spec, query);
     assertSmokeRows(input.spec, rows, smokeInput.expectedValues);
 
     const readFragment = await handlers.read({
       input: { values: {}, submittedFields: new Set() },
-      data,
+      query,
       present,
     });
     assertFragment("read", readFragment);
@@ -147,7 +149,7 @@ function sampleValue(field: SpecField): {
 
 function assertSmokeRows(
   spec: CapabilitySpec,
-  rows: ReturnType<ReturnType<typeof createCapabilityDataTool>["select"]>,
+  rows: ReturnType<typeof selectCapabilityRows>,
   expectedValues: Readonly<Record<string, CapabilityDataColumnValue>>,
 ): void {
   if (rows.length !== 1) {
