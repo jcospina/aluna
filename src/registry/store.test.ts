@@ -52,6 +52,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
       },
     ],
     tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     artifacts_path: `capabilities/notes/${NOTES_INCARNATION_ID}/v1/`,
     prompt_context: "Stores the user's text notes.",
     ...overrides,
@@ -132,6 +133,13 @@ describe("capability registry store", () => {
     expect(listCapabilities(conns.readonly)).toEqual([]);
   });
 
+  test("stored rows fail closed instead of synthesizing a missing required-fields contract", () => {
+    insertCapability(notesRow(), conns.readwrite);
+    conns.readwrite.run(`UPDATE ${REGISTRY_TABLE} SET behavioral_errors = '[]' WHERE id = 'notes'`);
+
+    expect(() => getCapability("notes", conns.readonly)).toThrow();
+  });
+
   test("a duplicate id throws — duplicates are the resolver's to deflect, not the store's", () => {
     insertCapability(notesRow(), conns.readwrite);
     expect(() => insertCapability(notesRow(), conns.readwrite)).toThrow();
@@ -154,6 +162,7 @@ describe("capability registry store", () => {
       "prompt_context",
       "behavioral_errors",
       "incarnation_id",
+      "read_dependencies",
     ]);
   });
 });

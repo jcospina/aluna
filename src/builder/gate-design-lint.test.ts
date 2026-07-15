@@ -53,6 +53,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       },
     ],
     tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };

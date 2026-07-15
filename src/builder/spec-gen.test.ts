@@ -9,6 +9,7 @@
 // (the real spine additionally rejects `.object`, so the gate is belt-and-suspenders).
 
 import { describe, expect, test } from "bun:test";
+import { zodSchema } from "ai";
 import type { ZodType } from "zod";
 
 import type { SendBuildEvent } from "../build-jobs.ts";
@@ -17,7 +18,9 @@ import type { DeepPartial, GenerateResult, Provider, TokenUsage } from "../provi
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  capabilitySpecSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  TRANSITIONAL_CAPABILITY_TOOLS,
 } from "../registry/index.ts";
 import { buildSpecPrompt, generateSpec, hardcodedNewCapabilityIntent } from "./index.ts";
 
@@ -103,12 +106,27 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       },
     ],
     tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
 }
 
 describe("spec generation stage", () => {
+  test("emits OpenAI-compatible JSON Schema for the fixed transitional Action list", async () => {
+    const jsonSchema = await zodSchema(capabilitySpecSchema).jsonSchema;
+    const tools = jsonSchema.properties?.tools as
+      | { items?: unknown; minItems?: number; maxItems?: number }
+      | undefined;
+
+    // OpenAI rejects tuple-style positional `items: [...]`. The provider-facing
+    // schema must be a homogeneous fixed-length array; the Zod refinement remains
+    // the hard gate for the exact ordered [create, read] value.
+    expect(Array.isArray(tools?.items)).toBe(false);
+    expect(tools?.minItems).toBe(TRANSITIONAL_CAPABILITY_TOOLS.length);
+    expect(tools?.maxItems).toBe(TRANSITIONAL_CAPABILITY_TOOLS.length);
+  });
+
   test("yields a Zod-valid spec from prompt + intent and reports the measurements", async () => {
     const spec = notesSpec();
     const usage: TokenUsage = { inputTokens: 412, outputTokens: 96, totalTokens: 508 };
@@ -154,7 +172,9 @@ describe("spec generation stage", () => {
     // The stage builds its prompt with the exported builder — same input, same text.
     expect(prompt).toBe(buildSpecPrompt({ provider, prompt: "track my notes", intent, send }));
     // The pantry, stated to the model (the schema is the hard wall behind it).
-    expect(prompt).toContain("tools: only create, read.");
+    expect(prompt).toContain("tools: exactly [create, read] in that order");
+    expect(prompt).toContain('read_dependencies: exactly { "create": [], "read": [] }');
+    expect(prompt).toContain("Do not emit update, delete, or search keys anywhere");
     expect(prompt).toContain("ui_intent.item");
     expect(prompt).toContain("ui_intent.form.list_inputs contains exactly one");
     expect(prompt).toContain("comma_separated only for short atomic values");

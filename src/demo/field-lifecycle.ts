@@ -84,6 +84,7 @@ export const FIELD_LIFECYCLE_DEMO_SPEC: CapabilitySpec = {
     },
   ],
   tools: ["create", "read"],
+  read_dependencies: { create: [], read: [] },
   prompt_context:
     "Stores tagged reflections while preserving submitted tag order and one retired field invisibly.",
 };

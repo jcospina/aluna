@@ -155,6 +155,7 @@ export function buildBehavioralTestPrompt(spec: CapabilitySpec): string {
     "- `input` is an array of `{ field, value }` form/query inputs for the create action, as strings. Repeat an entry with the same field name for each string[] element; order is preserved.",
     "- `setupRows` is an array of `{ values }` objects; each `values` is an array of `{ field, value }` pairs. They are preexisting rows, all older than the action's new row, and are listed NEWEST-FIRST: `setupRows[0]` is the most recent preexisting row and each later entry is older. Use an empty array when no setup is needed.",
     "- `expectedCreatedRow` is an array of `{ field, value }` spec fields that must be present in one scratch row. A string[] field value is an array of strings. Use an empty array when no specific row assertion is needed.",
+    '- For `setupRows` and `expectedCreatedRow`, a string[] field value must be an array of strings, never a scalar string and never a nested array. Example: `{ field: "tags", value: ["work", "urgent"] }`.',
     "- `expectedRowCount` is required. For a normal create test with no setup rows, use 1.",
     "- `expectCreateFragmentIncludes`, `expectReadFragmentIncludes`, and `expectReadFragmentIncludesInOrder` assert visible HTML substrings. Use empty arrays when not needed.",
     "- For a newest-first read, the action's new row is newest of all, so `expectReadFragmentIncludesInOrder` is `[<new row marker>, <setupRows[0] marker>, <setupRows[1] marker>, ...]` — the new row, then the setup rows in their array order.",

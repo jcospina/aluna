@@ -200,6 +200,7 @@ function specFromRow(row: CapabilityRow): CapabilitySpec {
     behavior: row.behavior,
     behavioral_errors: row.behavioral_errors,
     tools: row.tools,
+    read_dependencies: row.read_dependencies,
     prompt_context: row.prompt_context,
   };
 }

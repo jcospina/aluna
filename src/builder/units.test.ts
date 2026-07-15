@@ -63,6 +63,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       },
     ],
     tools: ["create", "read"],
+    read_dependencies: { create: [], read: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -495,5 +496,10 @@ describe("unit generation with bounded fix loop", () => {
     expect(prompt).toContain(BEHAVIORAL_ERROR_MARKERS.code_attribute);
     expect(prompt).toContain(BEHAVIORAL_ERROR_MARKERS.fields_attribute);
     expect(prompt).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
+    expect(prompt).toContain("detect every missing required field before calling `data.insert`");
+    expect(prompt).toContain("return the declared validation-error fragment instead");
+    expect(prompt).not.toContain(
+      "required empty values must reach the platform mutation validation and fail",
+    );
   });
 });

@@ -86,8 +86,9 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     action === "create"
       ? [
           "- Read values only from `input.values`, coerce them into the spec field types, call `data.insert`, and return `present(row)` for the inserted row.",
-          "- Create presence is explicit: every active field is in `input.submittedFields`. A submitted empty optional scalar becomes `null`; an absent submitted boolean becomes `false`; required empty values must reach the platform mutation validation and fail rather than receiving an invented value.",
-          "- A string[] input is already a readonly string array in submitted order. Pass a mutable copy to data.insert; do not split commas. The platform discards blank placeholders and validates required lists.",
+          "- Create presence is explicit: every active field is in `input.submittedFields`. A submitted empty optional scalar becomes `null`; an absent submitted boolean becomes `false`; never invent a value for a required field.",
+          "- When this spec declares a missing_required_fields case, detect every missing required field before calling `data.insert`; return the declared validation-error fragment instead. Do not rely on `data.insert` throwing, because the Handler owns that user-visible error fragment.",
+          "- A string[] input is already a readonly string array in submitted order. Narrow with `Array.isArray`, pass a flat mutable copy such as `[...value]` to data.insert, and never wrap the array in another array or split commas. The platform discards blank placeholders and validates required lists.",
           "- Destructure `{ input, data, present }`: `export default async function create({ input, data, present }: CapabilityContext): Promise<string>`.",
         ].join("\n")
       : [
@@ -109,8 +110,8 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
 
 function buildValidationErrorContract(errorCases: readonly BehavioralErrorCase[]): string {
   return [
-    "- Before calling `data.insert`, detect the validation errors listed below.",
-    "- When one applies, return an HTML error fragment and do not insert a row.",
+    "- Before calling `data.insert`, detect every missing required field covered by the cases below.",
+    "- When one applies, return the declared validation-error fragment instead and do not insert a row.",
     "- The user-facing copy inside the fragment can vary in Aluna's product voice.",
     "- The stable contract is semantic attributes on the error element:",
     `  - ${BEHAVIORAL_ERROR_MARKERS.role_attribute}="${BEHAVIORAL_ERROR_MARKERS.role}"`,
