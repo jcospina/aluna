@@ -41,6 +41,7 @@ const PREVIEW_CAPABILITY: RenderableCapability = {
       { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
     ],
   },
+  form: { list_inputs: [] },
 };
 
 // A `type` (not `interface`) so it carries an implicit index signature and passes to

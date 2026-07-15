@@ -33,6 +33,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
@@ -63,6 +64,7 @@ function recipesSpec(): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: {
         direction: "A text-forward card that emphasizes the recipe title.",
         shows: ["title"],
@@ -109,6 +111,7 @@ function requirednessSpec(): CapabilitySpec {
   return notesSpec({
     schema: { fields },
     ui_intent: {
+      form: { list_inputs: [] },
       item: { direction: "Show the entry and its count.", shows: ["title", "count"] },
       collection: { layout: "feed" },
       detail: { shows: ["title", "count", "enabled", "due_on", "happens_at", "note"] },
@@ -140,6 +143,12 @@ function stringListSpec(): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: {
+        list_inputs: [
+          { field: "tags", mode: "repeatable" },
+          { field: "aliases", mode: "repeatable" },
+        ],
+      },
       item: { direction: "Show tags in their submitted order.", shows: ["tags"] },
       collection: { layout: "feed" },
       detail: { shows: ["tags", "aliases"] },

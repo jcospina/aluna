@@ -40,6 +40,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
@@ -110,6 +111,7 @@ function articlesSpec(): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: {
         direction: "A text-forward card that emphasizes the article title.",
         shows: ["title", "body"],
@@ -355,6 +357,7 @@ describe("capability gate", () => {
         ],
       },
       ui_intent: {
+        form: { list_inputs: [] },
         item: { direction: "Show the entry and its age.", shows: ["text", "created_at"] },
         collection: { layout: "feed" },
         detail: { shows: ["text", "created_at"] },
@@ -387,6 +390,7 @@ describe("capability gate", () => {
         ],
       },
       ui_intent: {
+        form: { list_inputs: [{ field: "tags", mode: "repeatable" }] },
         item: { direction: "Show each tag in order.", shows: ["tags"] },
         collection: { layout: "feed" },
         detail: { shows: ["tags"] },
@@ -778,6 +782,7 @@ describe("capability gate", () => {
         ],
       },
       ui_intent: {
+        form: { list_inputs: [] },
         item: {
           direction: "A timeline-style card that emphasizes event title and date.",
           shows: ["title", "happens_at"],

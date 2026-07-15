@@ -43,6 +43,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
@@ -86,6 +87,7 @@ function boomRow(): CapabilityRow {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["note"] },
       collection: { layout: "feed" },
       detail: { shows: ["note"] },
@@ -303,6 +305,7 @@ describe("deterministic capability router", () => {
         ],
       },
       ui_intent: {
+        form: { list_inputs: [] },
         item: { direction: "A text-forward note.", shows: ["text"] },
         collection: { layout: "feed" },
         detail: { shows: ["text", "summary", "pinned"] },

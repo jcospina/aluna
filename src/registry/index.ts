@@ -28,7 +28,12 @@ export {
   incarnationIdSchema,
   isListFieldType,
   LIST_FIELD_TYPES,
+  LIST_INPUT_MODES,
   type ListFieldType,
+  type ListInputIntent,
+  type ListInputMode,
+  listInputIntentSchema,
+  listInputModeSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
   type PresentationFieldDescriptor,
@@ -37,8 +42,10 @@ export {
   type SpecField,
   specFieldSchema,
   type UiCollectionLayout,
+  type UiFormIntent,
   type UiIntent,
   uiCollectionLayoutSchema,
+  uiFormIntentSchema,
   uiIntentSchema,
 } from "./spec.ts";
 export {

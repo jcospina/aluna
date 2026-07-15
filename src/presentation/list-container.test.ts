@@ -35,6 +35,7 @@ const SAMPLE: RenderableCapability = {
       { name: "done", label: "Done", type: "boolean", required: true, lifecycle: "active" },
     ],
   },
+  form: { list_inputs: [] },
 };
 
 // Reverse escapeHtml exactly (&amp; last so "&amp;lt;" round-trips to "&lt;", not "<") —

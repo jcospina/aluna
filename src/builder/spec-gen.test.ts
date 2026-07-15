@@ -87,6 +87,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
@@ -123,6 +124,7 @@ describe("spec generation stage", () => {
 
     expect(result.spec).toEqual(spec);
     expect(result.spec.ui_intent).toEqual({
+      form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },
@@ -154,6 +156,11 @@ describe("spec generation stage", () => {
     // The pantry, stated to the model (the schema is the hard wall behind it).
     expect(prompt).toContain("tools: only create, read.");
     expect(prompt).toContain("ui_intent.item");
+    expect(prompt).toContain("ui_intent.form.list_inputs contains exactly one");
+    expect(prompt).toContain("comma_separated only for short atomic values");
+    expect(prompt).toContain("tags, genres, categories, skills");
+    expect(prompt).toContain("quotes, addresses, citations, or names as entered");
+    expect(prompt).toContain("never choose it for comma-bearing element semantics");
     expect(prompt).toContain("ui_intent.collection.layout is one of: feed | grid");
     expect(prompt).toContain("ui_intent.detail.shows");
     expect(prompt).toContain("Do not include ui_intent.views");
@@ -172,6 +179,40 @@ describe("spec generation stage", () => {
     expect(prompt).toContain(intent.proposed_action);
     expect(prompt).toContain(intent.user_facing_label);
     expect(prompt).toContain("track my notes");
+  });
+
+  test("admits semantically appropriate authored modes from prompt-built list capabilities", async () => {
+    for (const [field, mode, prompt] of [
+      ["tags", "comma_separated", "keep a list of books with genres and tags"],
+      ["quotes", "repeatable", "keep quotations exactly as entered"],
+    ] as const) {
+      const spec = notesSpec({
+        id: field,
+        label: field === "tags" ? "Tagged books" : "Quotes",
+        schema: {
+          fields: [
+            {
+              name: field,
+              label: field === "tags" ? "Tags" : "Quotes",
+              type: "string[]",
+              required: false,
+              lifecycle: "active",
+            },
+          ],
+        },
+        ui_intent: {
+          form: { list_inputs: [{ field, mode }] },
+          item: { direction: `Show ${field} in their authored order.`, shows: [field] },
+          collection: { layout: "feed" },
+          detail: { shows: [field] },
+        },
+        behavioral_errors: [],
+      });
+      const provider = makeSpecProvider(spec);
+      const { send } = recordingSend();
+      const result = await generateSpec({ provider, prompt, intent: notesIntent(), send });
+      expect(result.spec.ui_intent.form.list_inputs).toEqual([{ field, mode }]);
+    }
   });
 
   test("narrates in product voice from the intent label and leaks no internals", async () => {
@@ -222,6 +263,7 @@ describe("spec generation stage", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
+            form: { list_inputs: [] },
             item: { direction: "A visual tile.", shows: ["text"] },
             collection: { layout: "masonry" },
             detail: { shows: ["text"] },
@@ -233,6 +275,7 @@ describe("spec generation stage", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
+            form: { list_inputs: [] },
             item: { direction: "A visual tile.", shows: ["text"] },
             collection: { layout: "grid" },
             detail: { shows: ["text"] },
@@ -245,6 +288,7 @@ describe("spec generation stage", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
+            form: { list_inputs: [] },
             item: { direction: "A text-forward card.", shows: ["missing"] },
             collection: { layout: "feed" },
             detail: { shows: ["missing"] },

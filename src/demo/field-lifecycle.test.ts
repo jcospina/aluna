@@ -32,7 +32,7 @@ describe("field lifecycle living demo", () => {
     rmSync(dir, { force: true, recursive: true });
   });
 
-  test("runs labels, lifecycle, null history, requiredness, and created_at through the real router", async () => {
+  test("runs both authored list modes through create, Handler, storage, item, and detail", async () => {
     const app = createApp({ capabilityRouter: { databases } });
 
     const home = await (await app.request("/")).text();
@@ -44,6 +44,9 @@ describe("field lifecycle living demo", () => {
     expect(view).toContain("A small reflection");
     expect(view).toContain("Tags");
     expect(view).toContain("Other names");
+    expect(view).toContain('data-list-input-mode="comma_separated"');
+    expect(view).toContain("Separate values with commas.");
+    expect(view).toContain('data-list-input-mode="repeatable"');
     expect(view).toContain("data-list-field-add");
     expect(view).not.toContain("Retired note");
     expect(view).not.toContain("retired_note");
@@ -70,7 +73,7 @@ describe("field lifecycle living demo", () => {
       body: new URLSearchParams([
         ["entry", "   "],
         ["reflection", "Optional"],
-        ["tags", "   "],
+        ["tags", " , , "],
         ["__aluna_present", "entry"],
         ["__aluna_present", "reflection"],
         ["__aluna_present", "tags"],
@@ -88,10 +91,8 @@ describe("field lifecycle living demo", () => {
       body: new URLSearchParams([
         ["entry", "A visible win"],
         ["reflection", "Kept exactly"],
-        ["tags", "first"],
-        ["tags", ""],
-        ["tags", "one,two"],
-        ["tags", "last"],
+        ["tags", "fantasy, historical fiction, classic"],
+        ["aliases", "Doe, Jane"],
         ["__aluna_present", "entry"],
         ["__aluna_present", "reflection"],
         ["__aluna_present", "tags"],
@@ -101,18 +102,22 @@ describe("field lifecycle living demo", () => {
     expect(created.status).toBe(200);
     const createdHtml = await created.text();
     expect(createdHtml).toContain("A visible win");
-    expect(createdHtml.indexOf("first")).toBeLessThan(createdHtml.indexOf("one,two"));
-    expect(createdHtml.indexOf("one,two")).toBeLessThan(createdHtml.indexOf("last"));
+    expect(createdHtml.indexOf("fantasy")).toBeLessThan(createdHtml.indexOf("historical fiction"));
+    expect(createdHtml.indexOf("historical fiction")).toBeLessThan(createdHtml.indexOf("classic"));
     expect(
       databases.readwrite
         .query(`SELECT "tags", "aliases" FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "entry" = ?`)
         .get("A visible win"),
-    ).toEqual({ tags: '["first","one,two","last"]', aliases: "[]" });
+    ).toEqual({
+      tags: '["fantasy","historical fiction","classic"]',
+      aliases: '["Doe, Jane"]',
+    });
 
     const refreshed = await (
       await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`)
     ).text();
-    expect(refreshed.indexOf("first")).toBeLessThan(refreshed.indexOf("one,two"));
-    expect(refreshed.indexOf("one,two")).toBeLessThan(refreshed.indexOf("last"));
+    expect(refreshed.indexOf("fantasy")).toBeLessThan(refreshed.indexOf("historical fiction"));
+    expect(refreshed.indexOf("historical fiction")).toBeLessThan(refreshed.indexOf("classic"));
+    expect(refreshed).toContain("Doe, Jane");
   });
 });

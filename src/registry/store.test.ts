@@ -36,6 +36,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
       detail: { shows: ["text"] },

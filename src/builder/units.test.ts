@@ -44,6 +44,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
+      form: { list_inputs: [] },
       item: {
         direction: "A text-forward card that emphasizes text and pinned status.",
         shows: ["text", "pinned"],
@@ -348,6 +349,7 @@ describe("unit generation with bounded fix loop", () => {
         ],
       },
       ui_intent: {
+        form: { list_inputs: [] },
         item: {
           direction: "Show the entry and when it was created.",
           shows: ["text", "created_at"],

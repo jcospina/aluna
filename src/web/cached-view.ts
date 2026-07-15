@@ -48,6 +48,7 @@ function renderCapabilityCollection(row: CapabilityRow): string {
     id: row.id,
     label: canonicalCapabilityLabel(row),
     schema: row.schema,
+    form: row.ui_intent.form,
   };
   return renderCollection({
     capability,

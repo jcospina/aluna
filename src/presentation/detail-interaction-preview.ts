@@ -51,6 +51,7 @@ const PREVIEW_CAPABILITY: RenderableCapability = {
       { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
     ],
   },
+  form: { list_inputs: [] },
   detail: { shows: ["title", "rating", "note", "author"] },
 };
 

@@ -42,6 +42,7 @@ const SAMPLE: RenderableCapability = {
       { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
     ],
   },
+  form: { list_inputs: [] },
 };
 
 const RECORD: Readonly<Record<string, unknown>> = {

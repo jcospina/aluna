@@ -1,3 +1,4 @@
+import { listInputModeForField, normalizeListInputValues } from "../list-input/index.ts";
 import { activeSpecFields, type CapabilitySpec, isListFieldType } from "../registry/index.ts";
 import type { CapabilityInput, CapabilityInputValue } from "./contract.ts";
 
@@ -34,7 +35,13 @@ export async function parseCapabilityRequest(
   const activeFields = activeSpecFields(spec.schema.fields);
   const submittedFields = validatePresenceMarkers(action, presentMarkers, activeFields);
   const recordTarget = validateRecordTarget(action, targetMarkers);
-  const values = normalizeValues(action, grouped, activeFields, submittedFields);
+  const values = normalizeValues(
+    action,
+    grouped,
+    activeFields,
+    submittedFields,
+    spec.ui_intent.form,
+  );
 
   return {
     input: { values: Object.freeze(values), submittedFields },
@@ -157,6 +164,7 @@ function normalizeValues(
   grouped: ReadonlyMap<string, readonly string[]>,
   activeFields: ReturnType<typeof activeSpecFields>,
   submittedFields: ReadonlySet<string>,
+  form: CapabilitySpec["ui_intent"]["form"],
 ): Record<string, CapabilityInputValue> {
   const activeByName = new Map(activeFields.map((field) => [field.name, field]));
   const values: Record<string, CapabilityInputValue> = {};
@@ -165,7 +173,7 @@ function normalizeValues(
   for (const [key, repeated] of grouped) {
     const field = activeByName.get(key);
     validateMutationValueKey(mutationInput, key, field, submittedFields);
-    values[key] = normalizeRepeatedValue(key, repeated, field?.type);
+    values[key] = normalizeRepeatedValue(key, repeated, field, form);
   }
 
   addSubmittedEmptyLists(values, activeFields, submittedFields);
@@ -188,9 +196,12 @@ function validateMutationValueKey(
 function normalizeRepeatedValue(
   key: string,
   repeated: readonly string[],
-  fieldType: string | undefined,
+  field: ReturnType<typeof activeSpecFields>[number] | undefined,
+  form: CapabilitySpec["ui_intent"]["form"],
 ): CapabilityInputValue {
-  if (fieldType && isListFieldType(fieldType)) return [...repeated];
+  if (field && isListFieldType(field.type)) {
+    return normalizeListInputValues(listInputModeForField(form, field.name), repeated);
+  }
   if (repeated.length !== 1) {
     throw new WireProtocolError(`Scalar input "${key}" was submitted more than once.`);
   }
