@@ -12,6 +12,34 @@ Uses the default five-role vocabulary (needs-triage, needs-info, ready-for-agent
 
 Single-context repo — one `CONTEXT.md` and `docs/adr/` at the root. See `docs/agents/domain.md`.
 
+### Delivery summaries
+
+Lead every final delivery summary with clear, plain-English product outcomes:
+what changed for the product, what users can now accomplish or what problem is
+solved, and how the work moves the product or project forward. Put technical
+implementation details and verification in a separate section afterward; they
+must not lead or obscure the product outcome.
+
+Format:
+
+```
+# Product outcome
+
+Aluna can now ...
+- bullet
+- points
+- listing
+- new stuff
+
+# How this moves us forward
+
+Paragraph explaining how this moves us forward to reach the overall goal stated in the architecture
+
+# Technical Details
+
+Implementation details
+```
+
 ### Living demo and HITL
 
 Relevant runtime work must be wired into the current homepage demo as soon as it

@@ -17,7 +17,14 @@ import {
   type CapabilityRow,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "./spec.ts";
-import { getCapability, insertCapability, listCapabilities, REGISTRY_TABLE } from "./store.ts";
+import {
+  getCapability,
+  insertCapability,
+  listCapabilities,
+  listCapabilityDependents,
+  REGISTRY_TABLE,
+  resolveActionReadDependencies,
+} from "./store.ts";
 
 const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -59,6 +66,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: the shared database lifecycle keeps store regressions in one suite.
 describe("capability registry store", () => {
   let dir: string;
   let conns: PlatformDatabase;
@@ -143,6 +151,56 @@ describe("capability registry store", () => {
   test("a duplicate id throws — duplicates are the resolver's to deflect, not the store's", () => {
     insertCapability(notesRow(), conns.readwrite);
     expect(() => insertCapability(notesRow(), conns.readwrite)).toThrow();
+  });
+
+  test("dependency pairs must resolve to active rows and are reverse-indexed", () => {
+    const notes = notesRow();
+    const requiredError = notes.behavioral_errors[0];
+    if (!requiredError) throw new Error("notes fixture requires one validation error");
+    insertCapability(notes, conns.readwrite);
+    const dependent = notesRow({
+      id: "reading_list",
+      label: "Reading list",
+      incarnation_id: "22222222-2222-4222-8222-222222222222",
+      artifacts_path: "capabilities/reading_list/22222222-2222-4222-8222-222222222222/v1/",
+      tools: ["create", "read", "update", "delete", "search"],
+      behavioral_errors: [requiredError, { ...requiredError, action: "update" }],
+      read_dependencies: {
+        create: [],
+        read: [{ capability_id: notes.id, incarnation_id: notes.incarnation_id }],
+        update: [],
+        delete: [],
+        search: [],
+      },
+    });
+    insertCapability(dependent, conns.readwrite);
+
+    expect(resolveActionReadDependencies(dependent, "read", conns.readonly)).toEqual([notes]);
+    expect(listCapabilityDependents(notes, conns.readonly)).toEqual([dependent]);
+    expect(() =>
+      insertCapability(
+        notesRow({
+          id: "broken_reader",
+          incarnation_id: "33333333-3333-4333-8333-333333333333",
+          artifacts_path: "capabilities/broken_reader/33333333-3333-4333-8333-333333333333/v1/",
+          tools: ["create", "read", "update", "delete", "search"],
+          behavioral_errors: [requiredError, { ...requiredError, action: "update" }],
+          read_dependencies: {
+            create: [],
+            read: [
+              {
+                capability_id: "missing",
+                incarnation_id: "44444444-4444-4444-8444-444444444444",
+              },
+            ],
+            update: [],
+            delete: [],
+            search: [],
+          },
+        }),
+        conns.readwrite,
+      ),
+    ).toThrow(/does not resolve to one active registry row/);
   });
 
   test("the registry row stays lean and carries the capability incarnation", () => {

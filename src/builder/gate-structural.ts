@@ -222,7 +222,13 @@ interface CapabilityDataRow {
   readonly [field: string]: CapabilityDataColumnValue;
 }
 type PresentableRecord = Readonly<Record<string, unknown>>;
-type PresentationAdapter = (record: PresentableRecord) => string;
+interface CapabilityRecordHandle { readonly __opaqueCapabilityRecord?: never; }
+interface CapabilityActionRecord {
+  readonly fields: Readonly<Record<string, CapabilityDataColumnValue>>;
+  readonly created_at: string;
+  readonly handle: CapabilityRecordHandle;
+}
+type PresentationAdapter = (record: CapabilityActionRecord) => string;
 `;
 
 // The handler contract — including ADR-0005 §2's injected `present` adapter (mirrors
@@ -234,10 +240,10 @@ interface CapabilityInput {
   readonly submittedFields: ReadonlySet<string>;
 }
 interface CapabilityMutationPort {
-  create(values: Record<string, unknown>): CapabilityDataRow;
+  create(values: Record<string, unknown>): CapabilityActionRecord;
 }
 interface CapabilityUpdateMutationPort {
-  update(values: Record<string, unknown>): CapabilityDataRow;
+  update(values: Record<string, unknown>): CapabilityActionRecord;
 }
 interface CapabilityDeleteMutationPort {
   delete(): void;
@@ -253,6 +259,15 @@ interface CapabilityQueryPort {
     readonly parameters?: readonly CapabilityQueryParameter[];
     readonly result: readonly CapabilityQueryResultColumn[];
   }): Readonly<Record<string, CapabilityDataColumnValue>>[];
+  records(input: {
+    readonly sql: string;
+    readonly parameters?: readonly CapabilityQueryParameter[];
+    readonly targetIdAlias?: string;
+    readonly result?: readonly CapabilityQueryResultColumn[];
+  }): readonly {
+    readonly record: CapabilityActionRecord;
+    readonly values: Readonly<Record<string, CapabilityDataColumnValue>>;
+  }[];
 }
 interface CapabilityContext {
   readonly input: CapabilityInput;

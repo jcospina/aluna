@@ -325,6 +325,20 @@ export const capabilityRowSchema = z
   .superRefine(validateSpecSemantics);
 export type CapabilityRow = z.infer<typeof capabilityRowSchema>;
 
+export function capabilitySpecFromRow(row: CapabilityRow): CapabilitySpec {
+  return capabilitySpecSchema.parse({
+    id: row.id,
+    label: row.label,
+    schema: row.schema,
+    ui_intent: row.ui_intent,
+    behavior: row.behavior,
+    behavioral_errors: row.behavioral_errors,
+    tools: row.tools,
+    read_dependencies: row.read_dependencies,
+    prompt_context: row.prompt_context,
+  });
+}
+
 export function defaultBehavioralErrorsForSchema(
   schema: CapabilitySpec["schema"],
   tools: readonly CapabilityTool[] = TRANSITIONAL_CAPABILITY_TOOLS,
@@ -372,14 +386,43 @@ function validateBehavioralErrors(
 function validateSpecSemantics(
   spec: Pick<
     CapabilitySpec,
-    "schema" | "ui_intent" | "behavioral_errors" | "tools" | "read_dependencies"
+    "id" | "schema" | "ui_intent" | "behavioral_errors" | "tools" | "read_dependencies"
   >,
   ctx: z.RefinementCtx,
 ): void {
   validateActionShapePair(spec, ctx);
+  validateReadDependencies(spec, ctx);
   validateBehavioralErrors(spec, ctx);
   validatePresentationShows(spec, ctx);
   validateListInputs(spec, ctx);
+}
+
+function validateReadDependencies(
+  spec: Pick<CapabilitySpec, "id" | "read_dependencies">,
+  ctx: z.RefinementCtx,
+): void {
+  for (const [action, dependencies] of Object.entries(spec.read_dependencies)) {
+    let previousKey: string | undefined;
+    for (const [index, dependency] of dependencies.entries()) {
+      const path = ["read_dependencies", action, index];
+      if (dependency.capability_id === spec.id) {
+        ctx.addIssue({
+          code: "custom",
+          message: "self-dependency is implicit and must not be listed",
+          path,
+        });
+      }
+      const key = `${dependency.capability_id}\u0000${dependency.incarnation_id}`;
+      if (previousKey !== undefined && key <= previousKey) {
+        ctx.addIssue({
+          code: "custom",
+          message: "read dependencies must be unique and in canonical capability/incarnation order",
+          path,
+        });
+      }
+      previousKey = key;
+    }
+  }
 }
 
 function validateListInputs(

@@ -13,7 +13,6 @@ export {
   type CapabilityMutationPort,
   type CapabilityUpdateMutationPort,
   type CapabilityUpdateValues,
-  createCapabilityDataPorts,
   createCapabilityDeleteMutationPort,
   createCapabilityMutationPort,
   createCapabilityUpdateMutationPort,
@@ -21,6 +20,7 @@ export {
   RecordNotFoundError,
 } from "./mutation.ts";
 export {
+  type CapabilityActionRecord,
   type CapabilityDataColumnValue,
   type CapabilityDataRow,
   CapabilityDataValidationError,
@@ -30,9 +30,16 @@ export {
   type CapabilityQueryResultColumn,
   type CapabilityQueryResultType,
   type CapabilityQueryRow,
-  capabilityRowDescriptor,
+  type CapabilityQueryScope,
+  type CapabilityRecordHandle,
+  type CapabilityRecordQueryInput,
+  type CapabilityRecordQueryRow,
+  createCapabilityActionRecord,
   createCapabilityQueryPort,
   encodeCapabilityFieldForStorage,
+  isCapabilityActionRecord,
   MissingRequiredFieldsError,
+  materializeCapabilityActionRecord,
+  normalizeSearchText,
   selectCapabilityRows,
 } from "./tool.ts";

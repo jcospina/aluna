@@ -4,16 +4,31 @@
 // use a distinct arbitrary-SQL port backed only by the physically read-only SQLite
 // connection. Live and Gate scratch execution construct these same interfaces.
 
-import { dbReadonly } from "../db.ts";
+import type { dbReadonly } from "../db.ts";
 import {
-  activeSpecFields,
   type CapabilitySpec,
   capabilitySpecSchema,
   type FieldType,
+  fieldTypeSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   type SpecField,
 } from "../registry/index.ts";
+import { registerPlatformSqlFunctions } from "../sqlite-functions.ts";
 import { deriveCapabilityTableDdl } from "./ddl.ts";
+import { CapabilityDataValidationError, sqlIdentifier } from "./internal.ts";
+import {
+  assertScopedQuery,
+  executeRecordQuery,
+  materializeCapabilityActionRecord,
+} from "./query-runtime.ts";
+
+export { normalizeSearchText } from "../sqlite-functions.ts";
+export { CapabilityDataValidationError } from "./internal.ts";
+export {
+  createCapabilityActionRecord,
+  isCapabilityActionRecord,
+} from "./query-runtime.ts";
+export { materializeCapabilityActionRecord };
 
 export type CapabilityDataColumnValue = string | number | boolean | readonly string[] | null;
 
@@ -37,14 +52,39 @@ export interface CapabilityQueryInput {
   readonly result: readonly CapabilityQueryResultColumn[];
 }
 
+export interface CapabilityRecordQueryInput extends Omit<CapabilityQueryInput, "result"> {
+  /** Alias produced by generated SQL for the target capability record id. */
+  readonly targetIdAlias?: string;
+  /** Closed generated-query values retained alongside the rehydrated target record. */
+  readonly result?: readonly CapabilityQueryResultColumn[];
+}
+
 export type CapabilityQueryRow = Readonly<Record<string, CapabilityDataColumnValue>>;
+
+declare const capabilityRecordHandleBrand: unique symbol;
+export interface CapabilityRecordHandle {
+  readonly [capabilityRecordHandleBrand]: true;
+}
+
+export interface CapabilityActionRecord {
+  readonly fields: CapabilityQueryRow;
+  readonly created_at: string;
+  readonly handle: CapabilityRecordHandle;
+}
+
+export interface CapabilityRecordQueryRow {
+  readonly record: CapabilityActionRecord;
+  readonly values: CapabilityQueryRow;
+}
+
+export interface CapabilityQueryScope {
+  readonly target: CapabilitySpec;
+  readonly dependencies?: readonly CapabilitySpec[];
+}
 
 export interface CapabilityQueryPort {
   all(input: CapabilityQueryInput): CapabilityQueryRow[];
-}
-
-export class CapabilityDataValidationError extends Error {
-  override readonly name: string = "CapabilityDataValidationError";
+  records(input: CapabilityRecordQueryInput): CapabilityRecordQueryRow[];
 }
 
 export class MissingRequiredFieldsError extends CapabilityDataValidationError {
@@ -86,30 +126,37 @@ export function encodeCapabilityFieldForStorage(
   return value === null ? null : normalizeFieldValue(field.name, field.type, value);
 }
 
-export function createCapabilityQueryPort(database = dbReadonly): CapabilityQueryPort {
+export function createCapabilityQueryPort(
+  database: typeof dbReadonly,
+  scope: CapabilityQueryScope,
+): CapabilityQueryPort {
   return {
     all({ sql, parameters = [], result }) {
-      validateResultDescriptor(result);
-      const statement = database.query(sql);
-      const values = statement.values(...parameters) as unknown[][];
-      validateResultColumns(statement.columnNames, result, values);
-      const rows = values.map((row) =>
-        Object.fromEntries(statement.columnNames.map((column, index) => [column, row[index]])),
-      );
-      return rows.map((row, index) => projectQueryRow(row, result, index));
+      registerPlatformSqlFunctions(database);
+      assertScopedQuery(database, scope, sql, parameters, { allowTargetId: false });
+      return executeProjectedQuery(database, sql, parameters, result);
+    },
+    records(input) {
+      registerPlatformSqlFunctions(database);
+      return executeRecordQuery(database, scope, input, executeProjectedQuery, normalizeQueryValue);
     },
   };
 }
 
-export function capabilityRowDescriptor(
-  spec: CapabilitySpec,
-): readonly CapabilityQueryResultColumn[] {
-  const parsed = capabilitySpecSchema.parse(spec);
-  return [
-    { alias: "id", type: "string" },
-    { alias: "created_at", type: "datetime" },
-    ...activeSpecFields(parsed.schema.fields).map(({ name, type }) => ({ alias: name, type })),
-  ];
+function executeProjectedQuery(
+  database: typeof dbReadonly,
+  sql: string,
+  parameters: readonly CapabilityQueryParameter[],
+  result: readonly CapabilityQueryResultColumn[],
+): CapabilityQueryRow[] {
+  validateResultDescriptor(result);
+  const statement = database.query(sql);
+  const values = statement.values(...parameters) as unknown[][];
+  validateResultColumns(statement.columnNames, result, values);
+  const rows = values.map((row) =>
+    Object.fromEntries(statement.columnNames.map((column, index) => [column, row[index]])),
+  );
+  return rows.map((row, index) => projectQueryRow(row, result, index));
 }
 
 export function selectCapabilityRows(
@@ -118,10 +165,11 @@ export function selectCapabilityRows(
 ): CapabilityDataRow[] {
   const parsed = capabilitySpecSchema.parse(spec);
   const { tableName } = deriveCapabilityTableDdl(parsed);
-  return query.all({
-    sql: `SELECT * FROM ${sqlIdentifier(tableName)} ORDER BY "created_at" DESC, "id" DESC`,
-    result: capabilityRowDescriptor(parsed),
-  }) as CapabilityDataRow[];
+  return query
+    .records({
+      sql: `SELECT "id" AS "target_id" FROM ${sqlIdentifier(tableName)} ORDER BY "created_at" DESC, "id" DESC`,
+    })
+    .map(({ record }) => materializeCapabilityActionRecord(record));
 }
 
 function validateResultDescriptor(result: readonly CapabilityQueryResultColumn[]): void {
@@ -132,6 +180,11 @@ function validateResultDescriptor(result: readonly CapabilityQueryResultColumn[]
     }
     if (seen.has(column.alias)) {
       throw new CapabilityDataValidationError(`Duplicate query result alias "${column.alias}".`);
+    }
+    if (!fieldTypeSchema.safeParse(column.type).success) {
+      throw new CapabilityDataValidationError(
+        `Invalid query result type "${String(column.type)}" for alias "${column.alias}".`,
+      );
     }
     seen.add(column.alias);
   }
@@ -461,8 +514,4 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
-}
-
-export function sqlIdentifier(identifier: string): string {
-  return `"${identifier}"`;
 }

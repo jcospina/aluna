@@ -22,7 +22,7 @@
 // consumes the design tokens; everything inside the list + modal is live module output.
 
 import { escapeHtml } from "../web/html.ts";
-import { createPresentationAdapter } from "./adapter.ts";
+import { createPlatformPresentationAdapter } from "./adapter.ts";
 import { renderDetailModal } from "./detail-modal.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
 import { renderCollection } from "./list-container.ts";
@@ -138,7 +138,7 @@ function renderReadingItem(record: ReadingRecord): string {
  * everything else.
  */
 function itemsWithDetail(): string {
-  const present = createPresentationAdapter({
+  const present = createPlatformPresentationAdapter({
     capability: PREVIEW_CAPABILITY,
     renderItem: (record) => renderReadingItem(record as ReadingRecord),
   });

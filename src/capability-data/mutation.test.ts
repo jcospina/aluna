@@ -11,6 +11,7 @@ import {
   createCapabilityDeleteMutationPort,
   createCapabilityUpdateMutationPort,
   MissingRequiredFieldsError,
+  materializeCapabilityActionRecord,
   RECORD_NOT_FOUND_ERROR_CODE,
   RecordNotFoundError,
 } from "./index.ts";
@@ -104,7 +105,7 @@ describe("target-bound capability update preservation", () => {
       );
       expect(Object.keys(mutation)).toEqual(["update"]);
       expect(mutation.update.length).toBe(1);
-      const updated = mutation.update({ note: "Changed note" });
+      const updated = materializeCapabilityActionRecord(mutation.update({ note: "Changed note" }));
 
       expect(updated).toMatchObject({
         id: "target",
@@ -175,12 +176,14 @@ describe("target-bound capability mutation failures and delete", () => {
       applyCapabilityTableDdl(spec, databases.readwrite);
       seedRecord(databases.readwrite, "target");
 
-      const cleared = createCapabilityUpdateMutationPort(
-        spec,
-        "target",
-        new Set(["note", "pinned", "tags"]),
-        databases.readwrite,
-      ).update({ note: "" });
+      const cleared = materializeCapabilityActionRecord(
+        createCapabilityUpdateMutationPort(
+          spec,
+          "target",
+          new Set(["note", "pinned", "tags"]),
+          databases.readwrite,
+        ).update({ note: "" }),
+      );
       expect(cleared).toMatchObject({
         title: "Original title",
         note: null,
@@ -189,12 +192,14 @@ describe("target-bound capability mutation failures and delete", () => {
       });
 
       expect(
-        createCapabilityUpdateMutationPort(
-          spec,
-          "target",
-          new Set(["note"]),
-          databases.readwrite,
-        ).update({ note: null }),
+        materializeCapabilityActionRecord(
+          createCapabilityUpdateMutationPort(
+            spec,
+            "target",
+            new Set(["note"]),
+            databases.readwrite,
+          ).update({ note: null }),
+        ),
       ).toMatchObject({ note: null });
 
       expect(() =>

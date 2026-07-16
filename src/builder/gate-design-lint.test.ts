@@ -103,11 +103,10 @@ const HANDLERS: Readonly<Partial<Record<HandlerUnitName, string>>> = {
   ].join("\n"),
   read: [
     "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-    "  const notes = query.all({",
-    '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
-    '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "text", type: "string" }, { alias: "pinned", type: "boolean" }],',
+    "  const notes = query.records({",
+    '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
     "  });",
-    '  return notes.map((note) => present(note)).join("");',
+    '  return notes.map(({ record }) => present(record)).join("");',
     "}",
   ].join("\n"),
 };

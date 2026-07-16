@@ -3,42 +3,28 @@ const FIELD_LIFECYCLE_DEMO_ID = "field_lifecycle_demo";
 const MERGE_TARGET_ID = "merge-target";
 const DELETE_TARGET_ID = "delete-target";
 
-try {
-  let result: { artifactsPath: string };
-  try {
-    const response = await fetch(SERVER_INSTALL_URL, { method: "POST" });
-    if (!response.ok) {
-      throw new Error(
-        `The running Aluna server refused the reference install (${response.status}).`,
-      );
-    }
-    result = (await response.json()) as { artifactsPath: string };
-  } catch (error) {
-    if (!(error instanceof TypeError)) throw error;
-
-    const [
-      { db },
-      { installFieldLifecycleDemo },
-      { runMigrations },
-      { createMutationCoordinator },
-    ] = await Promise.all([
-      import("../src/db.ts"),
-      import("../src/demo/field-lifecycle.ts"),
-      import("../src/migrations.ts"),
-      import("../src/mutation-coordinator/index.ts"),
-    ]);
-    runMigrations(db);
-    result = await installFieldLifecycleDemo({
-      database: db,
-      mutationCoordinator: createMutationCoordinator(),
-    });
+export async function requestFiveActionReferenceInstall(
+  fetchInstall: typeof fetch = fetch,
+): Promise<{ artifactsPath: string }> {
+  const response = await fetchInstall(SERVER_INSTALL_URL, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`The running Aluna server refused the reference install (${response.status}).`);
   }
-  console.log(`Installed the development-only five-Action reference (${FIELD_LIFECYCLE_DEMO_ID}).`);
-  console.log(`Artifacts: ${result.artifactsPath}`);
-  console.log("Open http://localhost:3030 and choose Journal entry from the toolbar.");
-  console.log(`Partial-update target: ${MERGE_TARGET_ID}`);
-  console.log(`Delete target: ${DELETE_TARGET_ID}`);
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+  return (await response.json()) as { artifactsPath: string };
+}
+
+if (import.meta.main) {
+  try {
+    const result = await requestFiveActionReferenceInstall();
+    console.log(
+      `Installed the development-only five-Action reference (${FIELD_LIFECYCLE_DEMO_ID}).`,
+    );
+    console.log(`Artifacts: ${result.artifactsPath}`);
+    console.log("Open http://localhost:3030 and choose Journal entry from the toolbar.");
+    console.log(`Partial-update target: ${MERGE_TARGET_ID}`);
+    console.log(`Delete target: ${DELETE_TARGET_ID}`);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }

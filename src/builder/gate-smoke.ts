@@ -10,7 +10,7 @@
 
 import {
   type CapabilityDataColumnValue,
-  createCapabilityDataPorts,
+  createCapabilityMutationPort,
   selectCapabilityRows,
 } from "../capability-data/index.ts";
 import { activeSpecFields, type CapabilitySpec, type SpecField } from "../registry/index.ts";
@@ -19,6 +19,7 @@ import type { CapabilityGateInput, SmokeGateResult } from "./gate.ts";
 import {
   assertFragment,
   buildGatePresent,
+  buildGateQueryPort,
   fieldValueMatches,
   loadHandlers,
   openScratchDatabasePair,
@@ -37,7 +38,19 @@ export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGat
 
   try {
     prepareScratchCatalog(input.spec, input.ddl, input.scratchCatalog, scratch);
-    const { mutation, query } = createCapabilityDataPorts(input.spec, scratch);
+    const mutation = createCapabilityMutationPort(input.spec, scratch.readwrite);
+    const createQuery = buildGateQueryPort(
+      input.spec,
+      "create",
+      input.scratchCatalog,
+      scratch.readonly,
+    );
+    const readQuery = buildGateQueryPort(
+      input.spec,
+      "read",
+      input.scratchCatalog,
+      scratch.readonly,
+    );
     const handlers = await loadHandlers(input.handlers);
     // The real adapter the router injects at runtime, built from this build's item
     // renderer. Create and read render records through it, so their item markup cannot
@@ -48,17 +61,17 @@ export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeGat
     const createFragment = await handlers.create({
       input: smokeInput.input,
       mutation,
-      query,
+      query: createQuery,
       present,
     });
     assertFragment("create", createFragment);
 
-    const rows = selectCapabilityRows(input.spec, query);
+    const rows = selectCapabilityRows(input.spec, readQuery);
     assertSmokeRows(input.spec, rows, smokeInput.expectedValues);
 
     const readFragment = await handlers.read({
       input: { values: {}, submittedFields: new Set() },
-      query,
+      query: readQuery,
       present,
     });
     assertFragment("read", readFragment);

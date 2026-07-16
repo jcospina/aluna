@@ -29,7 +29,7 @@
 
 import {
   collectionLayoutClass,
-  createPresentationAdapter,
+  createPlatformPresentationAdapter,
   enforceItemMarkup,
   type PresentableRecord,
   type RenderableCapability,
@@ -218,7 +218,7 @@ export function findDesignViolation(
   // adapter path (record → enforced inner → accessible wrapper → detail template) arranged
   // in the container class the layout maps to. A platform bug here surfaces loudly rather
   // than shipping a renderer that only ever ran outside its container.
-  const present = createPresentationAdapter({ capability, renderItem });
+  const present = createPlatformPresentationAdapter({ capability, renderItem });
   const layout = spec.ui_intent.collection.layout;
   const collection = renderCollection({
     capability,

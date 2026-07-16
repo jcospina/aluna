@@ -7,8 +7,10 @@ import { expect } from "bun:test";
 import { type ZodType, z } from "zod";
 
 import {
-  createCapabilityDataPorts,
+  createCapabilityMutationPort,
+  createCapabilityQueryPort,
   deriveCapabilityTableDdl,
+  materializeCapabilityActionRecord,
   selectCapabilityRows,
 } from "../capability-data/index.ts";
 import type { PlatformDatabase } from "../db.ts";
@@ -22,8 +24,13 @@ import { CapabilityGateError, runCapabilityGate } from "./gate.ts";
 import type { HandlerUnitName } from "./units.ts";
 
 export function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
-  const { mutation, query } = createCapabilityDataPorts(spec, databases);
-  return { insert: mutation.create, select: () => selectCapabilityRows(spec, query) };
+  const mutation = createCapabilityMutationPort(spec, databases.readwrite);
+  const query = createCapabilityQueryPort(databases.readonly, { target: spec });
+  return {
+    insert: (values: Record<string, unknown>) =>
+      materializeCapabilityActionRecord(mutation.create(values)),
+    select: () => selectCapabilityRows(spec, query),
+  };
 }
 
 export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
@@ -74,11 +81,10 @@ export const CREATE_HANDLER = [
 
 export const READ_HANDLER = [
   "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-  "  const notes = query.all({",
-  '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
-  '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "text", type: "string" }, { alias: "pinned", type: "boolean" }],',
+  "  const notes = query.records({",
+  '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
   "  });",
-  '  return notes.map((note) => present(note)).join("");',
+  '  return notes.map(({ record }) => present(record)).join("");',
   "}",
 ].join("\n");
 
@@ -137,49 +143,23 @@ export function articlesSpec(): CapabilitySpec {
 }
 
 export const MARKED_ARTICLE_CREATE_HANDLER = [
-  "export default async function create({ input, mutation }: CapabilityCreateContext): Promise<string> {",
+  "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
   '  const missing = ["title", "body"].filter((field) => String(input.values[field] ?? "").trim().length === 0);',
   "  if (missing.length > 0) {",
   '    return `<div class="notice" data-role="error" data-error-code="missing_required_fields" data-error-fields="$' +
     '{missing.join(" ")}">I need a little more before I can save this.</div>`;',
   "  }",
   "  const article = mutation.create({ title: input.values.title, body: input.values.body });",
-  "  return `<article><h3>$" +
-    "{escapeHtml(article.title)}</h3><p>$" +
-    "{escapeHtml(article.body)}</p></article>`;",
-  "}",
-  "",
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
+  "  return present(article);",
   "}",
 ].join("\n");
 
 export const ARTICLE_READ_HANDLER = [
-  "export default async function read({ query }: CapabilityContext): Promise<string> {",
-  "  const articles = query.all({",
-  '    sql: \'SELECT * FROM "cap_articles" ORDER BY "created_at" DESC, "id" DESC\',',
-  '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "title", type: "string" }, { alias: "body", type: "string" }],',
+  "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+  "  const articles = query.records({",
+  '    sql: \'SELECT "id" AS "target_id" FROM "cap_articles" ORDER BY "created_at" DESC, "id" DESC\',',
   "  });",
-  "  const items = articles",
-  "    .map((article) => `<article><h3>$" +
-    "{escapeHtml(article.title)}</h3><p>$" +
-    "{escapeHtml(article.body)}</p></article>`)",
-  '    .join("");',
-  '  return `<section class="articles">$' + "{items}</section>`;",
-  "}",
-  "",
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
+  '  return articles.map(({ record }) => present(record)).join("");',
   "}",
 ].join("\n");
 

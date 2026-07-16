@@ -143,7 +143,7 @@ Chosen for minimal overhead, native speed, and the fact that **LLMs generate HTM
 | **Server** | Hono | ~14KB, runs on Bun directly, no framework ceremony, one route file |
 | **Transport** | SSE (Server-Sent Events) | Native streaming, 3 lines of client code, perfect for "watch the UI build itself" |
 | **Client shell** | HTMX + Alpine.js | HTMX swaps server HTML into the DOM with no build step; Alpine handles local interactivity. Zero framework in the critical path |
-| **Persistence** | `bun:sqlite` | Zero-dependency, in-process, microsecond queries. A separate **read-only connection** serves the read/query path |
+| **Persistence** | `bun:sqlite` + platform-owned SQLite extension bridge | In-process, microsecond queries. A separate **read-only connection** serves the read/query path. M4 search normalization adds one loadable scalar function compiled locally; it requires a C compiler and extension headers, plus extension-capable SQLite on macOS |
 | **File storage** | `Bun.file` / `Bun.write` (local FS), S3-shaped provider | No separate storage process (same "no dependency tax" logic as choosing SQLite over Postgres). Zero-copy `sendfile` streaming; swap to R2/S3/Garage on deploy by config |
 | **AI** | Fast variants of flagship models — Claude Opus (fast mode), top GPT (fast tier), pluggable — behind the **Vercel AI SDK** as the in-process provider spine | Capability quality matters more than per-call cost; latency is part of the thesis. BYO-key keeps the open-sourced demo free. The SDK supplies streaming + structured output + a bounded tool-loop so we don't hand-build a streaming client; provider-agnosticism comes from targeting the Anthropic-/OpenAI-compatible wire shapes (see ADR-0003) |
 | **Spec format** | JSON (AG-UI–aligned shape) | Open, structured, diffable. Not invented from scratch |
@@ -724,7 +724,13 @@ containment; the deferred process sandbox remains the security answer.
 For M4's mandatory search baseline, both live and scratch connections register one
 platform function that applies JavaScript
 `normalize("NFKC").toLocaleLowerCase("und")`; generated search SQL uses it instead
-of SQLite's ASCII-only `NOCASE`/`lower()`.
+of SQLite's ASCII-only `NOCASE`/`lower()`. Bun does not expose scalar-function
+registration directly, so the platform compiles a small loadable bridge once into
+the OS temp directory and calls the canonical JavaScript normalizer through it.
+That keeps persistence in-process and adds no service, but it does require a local
+C compiler and SQLite extension headers. On macOS the runtime selects an
+extension-capable Homebrew SQLite (or `OMNI_CRUD_SQLITE_LIBRARY`) instead of
+Apple's extension-disabled library; setup details live in `data/README.md`.
 
 M5 `data_query` is the ephemeral whole-catalog reader and persists no reverse
 dependency. A cheap classifier may route/reject obvious non-queries early

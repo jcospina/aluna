@@ -358,6 +358,6 @@ describe("deterministic capability router — failures and transitional inventor
     expect(readFileSync(resolve(NOTES_ARTIFACTS, "create.ts"), "utf8")).toContain(
       "return present(note)",
     );
-    expect(readFileSync(resolve(NOTES_ARTIFACTS, "read.ts"), "utf8")).toContain("present(note)");
+    expect(readFileSync(resolve(NOTES_ARTIFACTS, "read.ts"), "utf8")).toContain("present(record)");
   });
 });

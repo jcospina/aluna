@@ -84,6 +84,16 @@ keeps copied readers forward-compatible when their own target gains a behavior-
 neutral field without exposing target-row inactive fields or `extra`; previously
 declared external query aliases retain the separate compatibility rule below.
 
+The mandatory search normalizer is one platform-owned SQLite scalar function.
+Bun does not expose scalar-function registration, so the accepted implementation
+is a small loadable bridge compiled once into the OS temp directory and connected
+to the canonical JavaScript `normalize("NFKC").toLocaleLowerCase("und")`
+callback. This remains an in-process persistence adapter, not a service, but it
+adds an explicit local-runtime prerequisite: a C compiler and SQLite extension
+headers, plus extension-capable SQLite on macOS (Homebrew by default, or
+`OMNI_CRUD_SQLITE_LIBRARY`). This is preferred to SQLite `NOCASE`/`lower()`, whose
+ASCII-only behavior fails the required composed/decomposed non-ASCII contract.
+
 Dependency identities are committed diff/test inputs. New model generation sees
 only active fields in each dependency. Execution and scratch use the stable
 physical compatibility catalog: field names/types never change and soft-hide

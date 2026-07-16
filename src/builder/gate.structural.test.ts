@@ -102,6 +102,26 @@ describe("capability gate — structural rung", () => {
     expect(error.outcomes[0]?.error).toMatch(/synchronous/);
   });
 
+  test("plain query projections cannot cross the opaque presentation boundary", async () => {
+    const unsafeRead = [
+      "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+      "  const rows = query.all({",
+      '    sql: \'SELECT "text" AS "text" FROM "cap_notes"\',',
+      '    result: [{ alias: "text", type: "string" }],',
+      "  });",
+      '  return rows.map((row) => present(row)).join("");',
+      "}",
+    ].join("\n");
+
+    const error = await expectGateFailure(
+      gateInput({ handlers: { ...GOOD_HANDLERS, read: unsafeRead } }),
+    );
+
+    expect(error.failedRung).toBe("structural");
+    expect(error.outcomes.map((outcome) => outcome.rung)).toEqual(["structural"]);
+    expect(error.outcomes[0]?.error).toMatch(/CapabilityActionRecord/);
+  });
+
   test("structural checks reject injected-toolbox bypasses before execution", async () => {
     for (const bypass of [
       'const fs = await import("node:fs"); void fs;',
@@ -198,10 +218,9 @@ describe("capability gate — complete Handler static contract", () => {
     ].join("\n");
     const read = [
       "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-      "  return query.all({",
-      '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
-      '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "process", type: "string" }],',
-      '  }).map((row) => present(row)).join("");',
+      "  return query.records({",
+      '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+      '  }).map(({ record }) => present(record)).join("");',
       "}",
     ].join("\n");
 

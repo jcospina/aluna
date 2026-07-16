@@ -180,11 +180,10 @@ describe("capability gate — behavioral scratch catalog", () => {
       ),
       read: [
         "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-        "  return query.all({",
-        '    sql: \'SELECT target.* FROM "cap_field_lifecycle_demo" AS target CROSS JOIN "cap_behavior_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
+        "  return query.records({",
+        '    sql: \'SELECT target."id" AS "target_id" FROM "cap_field_lifecycle_demo" AS target CROSS JOIN "cap_behavior_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
         '    parameters: ["synthetic behavior", "compatible hidden value"],',
-        '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "entry", type: "string" }, { alias: "reflection", type: "string" }, { alias: "tags", type: "string[]" }, { alias: "aliases", type: "string[]" }],',
-        '  }).map((row) => present(row)).join("");',
+        '  }).map(({ record }) => present(record)).join("");',
         "}",
       ].join("\n"),
     };

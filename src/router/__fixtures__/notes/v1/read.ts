@@ -7,14 +7,8 @@
 // generated artifacts live outside the platform's type-check.)
 
 export default async function read({ query, present }) {
-  const notes = query.all({
-    sql: 'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC',
-    result: [
-      { alias: "id", type: "string" },
-      { alias: "created_at", type: "datetime" },
-      { alias: "text", type: "string" },
-      { alias: "pinned", type: "boolean" },
-    ],
+  const notes = query.records({
+    sql: 'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC',
   });
   if (notes.length === 0) {
     // No records: return nothing so the platform region stays truly `:empty` and the
@@ -24,5 +18,5 @@ export default async function read({ query, present }) {
     return "";
   }
 
-  return notes.map((note) => present(note)).join("");
+  return notes.map(({ record }) => present(record)).join("");
 }

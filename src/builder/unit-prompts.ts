@@ -10,11 +10,12 @@
 // model to render every record through the injected `present` adapter instead of
 // emitting its own row markup (ADR-0005 §2 — kills create/read drift by construction).
 
-import { capabilityRowDescriptor, deriveCapabilityTableDdl } from "../capability-data/index.ts";
+import { deriveCapabilityTableDdl } from "../capability-data/index.ts";
 import {
   activeSpecFields,
   BEHAVIORAL_ERROR_MARKERS,
   type BehavioralErrorCase,
+  type CapabilityRow,
   type CapabilitySpec,
   presentationFieldDescriptors,
 } from "../registry/index.ts";
@@ -30,9 +31,12 @@ export function buildUnitPrompt(
   spec: CapabilitySpec,
   unit: UnitDescriptor,
   previousFailure?: UnitGenerationFailure,
+  dependencyCatalog: readonly CapabilityRow[] = [],
 ): string {
   const base =
-    unit.kind === "handler" ? buildHandlerPrompt(spec, unit.name) : buildItemRendererPrompt(spec);
+    unit.kind === "handler"
+      ? buildHandlerPrompt(spec, unit.name, dependencyCatalog)
+      : buildItemRendererPrompt(spec);
 
   if (!previousFailure) return base;
 
@@ -45,7 +49,11 @@ export function buildUnitPrompt(
   ].join("\n");
 }
 
-function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): string {
+function buildHandlerPrompt(
+  spec: CapabilitySpec,
+  action: HandlerUnitName,
+  dependencyCatalog: readonly CapabilityRow[],
+): string {
   const fields = specFieldList(spec);
   const validationErrors = spec.behavioral_errors.filter(
     (errorCase) => errorCase.action === action,
@@ -82,8 +90,10 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     "- `input.values` is a record of parsed `string | readonly string[]` values; repeated keys keep arrival order and spec-known list fields are always arrays.",
     "- `input.submittedFields` is a platform-validated `ReadonlySet<string>`; reserved `__aluna_` markers never reach generated code.",
     "- `mutation.create(values)` returns the inserted row; it has no table, capability, or record selector.",
-    "- `query.all({ sql, parameters, result })` runs parameterized SQL on a physically read-only connection and returns only the aliases declared by the ordered result descriptor.",
-    "- Data rows expose only `id`, `created_at`, and active schema fields. Platform-owned `extra` and inactive fields are unavailable and must never be read or written.",
+    "- `query.all({ sql, parameters, result })` runs parameterized SQL inside this Action's declared catalog and returns only aliases declared by the ordered result descriptor.",
+    "- Record-producing read/search SQL returns ordered target ids through `query.records({ sql, targetIdAlias, result })`; each result is `{ record, values }`. The platform rehydrates the full target row and exposes only `record.fields`, `record.created_at`, and an opaque `record.handle`.",
+    "- Search SQL must normalize both stored values and terms with the registered `platform_search_normalize(value)` SQL function (JavaScript NFKC + locale-independent lowercase semantics).",
+    "- Canonical ids, platform-owned `extra`, and inactive target fields are unavailable and must never be read or written.",
     "- `present(record)` returns that record as a safe item HTML string.",
     "",
     "Action behavior:",
@@ -96,8 +106,7 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
           "- Destructure `{ input, mutation, present }`: `export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string>`.",
         ].join("\n")
       : [
-          `- Call \`query.all\` with SQL \`SELECT * FROM "${deriveCapabilityTableDdl(spec).tableName}" ORDER BY "created_at" DESC, "id" DESC\` and the exact ordered result descriptor below, map each returned row through \`present\`, join the results, and return that joined string.`,
-          `- Exact ordered result descriptor: ${JSON.stringify(capabilityRowDescriptor(spec))}.`,
+          `- Call \`query.records\` with SQL \`SELECT "id" AS "target_id" FROM "${deriveCapabilityTableDdl(spec).tableName}" ORDER BY "created_at" DESC, "id" DESC\`, map each returned \`record\` through \`present\`, join the results, and return that joined string.`,
           "- When there are no rows, return an empty string. Do not render your own empty state or placeholder text — the platform owns the list's empty state, and returning nothing lets it show (and lets the first created record replace it cleanly).",
           "- Destructure only `{ query, present }`: `export default async function read({ query, present }: CapabilityContext): Promise<string>`.",
         ].join("\n"),
@@ -109,7 +118,7 @@ function buildHandlerPrompt(spec: CapabilitySpec, action: HandlerUnitName): stri
     fields,
     "",
     "Action generation context JSON:",
-    JSON.stringify(handlerGenerationContext(spec, action), null, 2),
+    JSON.stringify(handlerGenerationContext(spec, action, dependencyCatalog), null, 2),
   ].join("\n");
 }
 
@@ -174,12 +183,40 @@ function itemFieldList(spec: CapabilitySpec): string {
     .join("\n");
 }
 
-function handlerGenerationContext(spec: CapabilitySpec, action: HandlerUnitName): object {
+function handlerGenerationContext(
+  spec: CapabilitySpec,
+  action: HandlerUnitName,
+  dependencyCatalog: readonly CapabilityRow[],
+): object {
+  const declared =
+    action in spec.read_dependencies
+      ? spec.read_dependencies[action as keyof typeof spec.read_dependencies]
+      : [];
+  const dependencies = declared.map((dependency) => {
+    const row = dependencyCatalog.find(
+      (candidate) =>
+        candidate.id === dependency.capability_id &&
+        candidate.incarnation_id === dependency.incarnation_id,
+    );
+    if (!row) {
+      throw new Error(
+        `Generation catalog is missing ${dependency.capability_id}/${dependency.incarnation_id}.`,
+      );
+    }
+    return {
+      capability_id: row.id,
+      incarnation_id: row.incarnation_id,
+      label: row.label,
+      prompt_context: row.prompt_context,
+      active_schema: { fields: activeSpecFields(row.schema.fields) },
+    };
+  });
   return {
     id: spec.id,
     schema: { fields: activeSpecFields(spec.schema.fields) },
     behavior: spec.behavior,
     behavioral_errors: spec.behavioral_errors.filter((errorCase) => errorCase.action === action),
+    read_dependencies: dependencies,
   };
 }
 

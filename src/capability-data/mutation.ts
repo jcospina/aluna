@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
+import { db, type PlatformDatabase } from "../db.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,
@@ -8,28 +8,28 @@ import {
   type SpecField,
 } from "../registry/index.ts";
 import { deriveCapabilityTableDdl } from "./ddl.ts";
+import { sqlIdentifier } from "./internal.ts";
 import {
+  type CapabilityActionRecord,
   type CapabilityDataRow,
   CapabilityDataValidationError,
-  type CapabilityQueryPort,
-  createCapabilityQueryPort,
+  createCapabilityActionRecord,
   isPlainObject,
   normalizeSpecFieldValues,
   normalizeStoredRow,
   type SqlValue,
   type StoredCapabilityRow,
-  sqlIdentifier,
 } from "./tool.ts";
 
 export type CapabilityCreateValues = Record<string, unknown>;
 export type CapabilityUpdateValues = Record<string, unknown>;
 
 export interface CapabilityMutationPort {
-  create(values: CapabilityCreateValues): CapabilityDataRow;
+  create(values: CapabilityCreateValues): CapabilityActionRecord;
 }
 
 export interface CapabilityUpdateMutationPort {
-  update(values: CapabilityUpdateValues): CapabilityDataRow;
+  update(values: CapabilityUpdateValues): CapabilityActionRecord;
 }
 
 export interface CapabilityDeleteMutationPort {
@@ -74,7 +74,7 @@ export function createCapabilityMutationPort(
       const stored = database
         .query(`INSERT INTO ${quotedTable} (${quotedColumns}) VALUES (${placeholders}) RETURNING *`)
         .get(...sqlValues) as StoredCapabilityRow;
-      return normalizeStoredRow(fields, stored);
+      return createCapabilityActionRecord(normalizeStoredRow(fields, stored));
     },
   };
 }
@@ -105,7 +105,7 @@ export function createCapabilityUpdateMutationPort(
         );
       }
       validateUpdateKeys(parsed.id, input.fieldsByName, input.submittedFields, values);
-      const update = () => updateBoundTarget(input, values);
+      const update = () => createCapabilityActionRecord(updateBoundTarget(input, values));
       return database.inTransaction ? update() : database.transaction(update)();
     },
   };
@@ -127,16 +127,6 @@ export function createCapabilityDeleteMutationPort(
         .get(target);
       if (!deleted) throw new RecordNotFoundError(parsed.id, "delete");
     },
-  };
-}
-
-export function createCapabilityDataPorts(
-  spec: CapabilitySpec,
-  databases: PlatformDatabase = { readwrite: db, readonly: dbReadonly },
-): { readonly mutation: CapabilityMutationPort; readonly query: CapabilityQueryPort } {
-  return {
-    mutation: createCapabilityMutationPort(spec, databases.readwrite),
-    query: createCapabilityQueryPort(databases.readonly),
   };
 }
 
