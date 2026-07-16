@@ -74,6 +74,11 @@
   background: var(--color-warm);
   border-color: color-mix(in oklch, var(--color-warm), var(--color-text) 25%);
 }
+.btn--danger {
+  color: var(--color-text-on-danger);
+  background: var(--color-danger);
+  border-color: color-mix(in oklch, var(--color-danger), var(--color-text) 25%);
+}
 /* Neutral — the surface-weight default (same treatment as today's buttons). */
 .btn--neutral {
   color: var(--color-text);

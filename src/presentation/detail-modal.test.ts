@@ -67,22 +67,23 @@ describe("renderDetailModal — the one shared dialog instance", () => {
 
   test("is labelled by its heading, so the dialog announces what it shows", () => {
     expect(modal).toContain(`aria-labelledby="${DETAIL_MODAL_TITLE_ID}"`);
-    expect(modal).toContain(`<h2 class="detail-modal__title" id="${DETAIL_MODAL_TITLE_ID}">`);
+    expect(modal).toContain(
+      `<h2 class="detail-modal__title" id="${DETAIL_MODAL_TITLE_ID}" tabindex="-1">`,
+    );
   });
 
-  test("puts one accessible pencil edit affordance beside the modal title", () => {
-    expect(modal).toContain('<div class="detail-modal__heading">');
-    expect(modal).toContain('class="btn btn--ghost detail-modal__edit"');
-    expect(modal).toContain('data-detail-edit aria-label="Edit record" title="Edit"');
-    expect(modal).toContain("<svg");
-    expect(modal).not.toContain(">Edit</button>");
+  test("keeps record actions out of the header so Close remains isolated", () => {
+    const header = modal.slice(modal.indexOf("<header"), modal.indexOf("</header>"));
+    expect(header).not.toContain("data-detail-edit");
+    expect(header).not.toContain("data-detail-delete");
+    expect(header).toContain("detail-modal__close");
   });
 
   test("has a native close: a method=dialog form + a labelled close button", () => {
     // Submitting a `method="dialog"` form closes the dialog and restores focus with no JS —
     // the guaranteed close path (alongside native Escape) even if the controller never loads.
     expect(modal).toContain('<form method="dialog"');
-    expect(modal).toContain('aria-label="Close"');
+    expect(modal).toContain('aria-label="Close record details" data-tooltip="Close"');
     expect(modal).toContain("detail-modal__close");
   });
 
@@ -119,10 +120,36 @@ describe("renderDetailContent — read-only body via the centralized field rende
 
     expect(readStart).toBeGreaterThanOrEqual(0);
     expect(editStart).toBeGreaterThan(readStart);
-    expect(body.slice(readStart, editStart)).not.toContain("data-detail-edit");
     expect(body.slice(readStart, editStart)).not.toContain(">Save</button>");
+    expect(body.slice(readStart, editStart)).toContain("data-detail-edit>Edit</button>");
     expect(body.slice(editStart)).toContain("hidden");
     expect(body.slice(editStart)).toContain(">Save</button>");
+  });
+
+  test("keeps Delete in read detail and arms an inline confirmation before submission", () => {
+    const body = renderDetailContent(SAMPLE, RECORD, "detail-tasks-task-1");
+    const read = body.slice(0, body.indexOf("data-detail-edit-mode"));
+    const edit = body.slice(body.indexOf("data-detail-edit-mode"));
+
+    expect(read).toContain("data-detail-delete>Delete</button>");
+    expect(read).toContain("data-modal-delete-form hidden");
+    expect(read).toContain('hx-post="/capability/tasks/delete"');
+    expect(read).toContain('hx-swap="none"');
+    expect(read).toContain('name="__aluna_record_id" value="task-1"');
+    expect(read).toContain("Delete this record? You won’t be able to bring it back.");
+    expect(read).toContain("data-detail-cancel-delete");
+    expect(read).toContain('class="btn btn--danger" type="submit"');
+    expect(read).toContain('aria-describedby="detail-tasks-task-1-delete-confirmation"');
+    expect(read).toContain(">Delete record</button>");
+    expect(edit).not.toContain("data-detail-delete");
+    expect(edit).not.toContain("data-modal-delete-form");
+  });
+
+  test("only the final confirmation control can submit delete", () => {
+    const body = renderDetailContent(SAMPLE, RECORD, "detail-tasks-task-1");
+    const read = body.slice(0, body.indexOf("data-detail-edit-mode"));
+    expect(read).toContain('type="button" data-detail-delete>Delete</button>');
+    expect(read.match(/type="submit"/g)).toHaveLength(1);
   });
 
   test("without detail.shows, falls back to every spec field in spec order", () => {
@@ -202,11 +229,16 @@ describe("detail modal — CSS parity", () => {
       "detail-modal",
       "detail-modal__panel",
       "detail-modal__header",
-      "detail-modal__heading",
       "detail-modal__title",
-      "detail-modal__edit",
       "detail-modal__close",
       "detail-modal__body",
+      "detail-modal__read",
+      "detail-modal__read-content",
+      "detail-modal__read-actions",
+      "detail-modal__delete-confirm",
+      "detail-modal__delete-copy",
+      "detail-modal__delete-error",
+      "detail-modal__delete-actions",
     ]) {
       expect(css).toContain(`.${cls}`);
     }
@@ -250,15 +282,19 @@ describe("detail modal — controller contract parity (server ⇄ client)", () =
     expect(controller).toContain(`addEventListener(OPEN_EVENT`);
   });
 
-  test("switches the shared body between read and edit modes and returns to read on Cancel", () => {
+  test("switches among read, edit, and inline delete confirmation modes", () => {
     expect(controller).toContain("data-detail-read-mode");
     expect(controller).toContain("data-detail-edit-mode");
     expect(controller).toContain("data-detail-edit");
     expect(controller).toContain("data-detail-cancel-edit");
-    expect(controller).toContain('setMode("edit")');
+    expect(controller).toContain("data-detail-delete");
+    expect(controller).toContain("data-detail-cancel-delete");
+    expect(controller).toContain("transitionDetailModalMode");
+    expect(controller).toContain('transition("request-edit", true)');
+    expect(controller).toContain('transition("request-delete", true)');
+    expect(controller).toContain('transition("cancel-delete")');
     expect(controller).toContain("prefill(currentPayload)");
-    expect(controller).toContain('editTrigger.hidden = mode !== "read"');
-    expect(controller).toContain("body.dataset.detailMode = mode");
+    expect(controller).toContain("deleteForm.hidden");
   });
 
   test("processes cloned HTMX wiring and owns reliable request feedback outside the clone", () => {
@@ -266,7 +302,15 @@ describe("detail modal — controller contract parity (server ⇄ client)", () =
     expect(controller).toContain('addEventListener("htmx:beforeRequest"');
     expect(controller).toContain('addEventListener("htmx:afterRequest"');
     expect(controller).toContain("Saving…");
+    expect(controller).toContain("Deleting…");
     expect(controller).toContain("aluna:record-updated");
+    expect(controller).toContain("refreshCommittedRead");
+    expect(controller).toContain("setDeletePending");
+    expect(controller).toContain("close.disabled = pending");
+    expect(controller).toContain("cancel.disabled = pending");
+    expect(controller).toContain("ownsActiveModal");
+    expect(controller).toContain('modal?.dataset.deleteBusy === "true"');
+    expect(controller).toContain("window.location.reload()");
   });
 
   test("opens via native showModal() — the source of the focus trap + restore", () => {

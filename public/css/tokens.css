@@ -35,8 +35,8 @@
   --color-info: oklch(75% 0.1 195);
   --color-feature: oklch(82% 0.13 90);
   --color-warm: oklch(82% 0.12 75);
-  /* Status tones (error/success) intentionally omitted — the inert shell
-     surfaces no errors yet; add additively when a capability needs them. */
+  --color-danger: oklch(45% 0.16 25); /* confirmed destructive action */
+  --color-text-on-danger: oklch(98% 0.012 85);
 
   /* ── Typography ──────────────────────────────────────────────────────────── */
   --font-sans:

@@ -71,7 +71,7 @@ export function renderFewShotGalleryPreviewPage(): string {
     <title>Aluna - few-shot gallery preview</title>
     <link rel="stylesheet" href="/static/app.css">
     <script defer src="/static/vendor/alpine.min.js"></script>
-    <script defer src="/static/detail-modal.js"></script>
+    <script type="module" src="/static/detail-modal.js"></script>
     <script defer src="/static/item-detail.js"></script>
     <style>
       body {

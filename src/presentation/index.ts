@@ -31,6 +31,7 @@ export {
 export { enforceItemMarkup } from "./enforcer.ts";
 export {
   capabilityCreateErrorId,
+  capabilityDeleteErrorId,
   capabilityEditErrorId,
   capabilityRecordsRegionId,
   RECORD_CREATED_EVENT,

@@ -95,6 +95,11 @@ export function capabilityEditErrorId(capabilityId: string): string {
   return `${capabilityId}-edit-error`;
 }
 
+/** The live region that receives a failed record-delete response in the modal. */
+export function capabilityDeleteErrorId(capabilityId: string): string {
+  return `${capabilityId}-delete-error`;
+}
+
 export interface EditFormOptions {
   /** Stable id of the item wrapper replaced by the update Handler's presented record. */
   readonly itemTargetId: string;
