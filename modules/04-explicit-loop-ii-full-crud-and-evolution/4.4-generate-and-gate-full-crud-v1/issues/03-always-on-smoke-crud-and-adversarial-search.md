@@ -20,8 +20,10 @@ The search baseline (decision 20) is complete and always-on:
 - Terms are Unicode-whitespace-delimited literal substrings; every normalized
   term must match somewhere (AND semantics), including across different
   fields/list elements.
-- Case/normalization through the one platform-owned SQL function
-  (`normalize("NFKC").toLocaleLowerCase("und")`); generated SQL cannot
+- Case- and Latin-accent-insensitive normalization through the one platform-owned
+  SQL function (NFKD, locale-independent lowercase, Latin-base combining-
+  diacritic folding, then NFKC);
+  generated SQL cannot
   substitute SQLite's ASCII-only `NOCASE`/`lower()`.
 - Matching includes every active `string` and each active `string[]` element;
   excludes inactive fields, `extra`, platform columns, and non-text types.
@@ -35,8 +37,9 @@ The search baseline (decision 20) is complete and always-on:
 
 - [ ] The adversarial fixture proves: scalar and list inclusion; all exclusions
       (inactive, `extra`, platform columns, non-text); AND semantics across
-      fields; literal `%`, `_`, and quotes; composed vs decomposed non-ASCII
-      text; case; repeated Unicode whitespace; complete target rows
+      fields; literal `%`, `_`, and quotes; Latin-accented vs unaccented and composed
+      vs decomposed non-ASCII text; preservation of non-Latin voicing/vowel/tone
+      marks; case; repeated Unicode whitespace; complete target rows
       (rehydration); empty/whitespace-`q` ≡ read; no duplicates; stable default
       ordering — not merely “a field other than title participates”
 - [ ] Smoke executes a full CRUD cycle (create → read → update-merge → search →
@@ -50,7 +53,8 @@ The search baseline (decision 20) is complete and always-on:
 ## Living demo
 
 Module-acceptance data on a generated capability: create records containing
-literal `%`, `_`, quotes, mixed case, composed/decomposed accents, and repeated
+literal `%`, `_`, quotes, mixed case, Latin-accented/unaccented and composed/
+decomposed text, non-Latin marks, and repeated
 whitespace, then search them from the homepage chrome and watch the baseline
 semantics hold live.
 

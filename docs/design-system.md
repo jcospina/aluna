@@ -306,6 +306,29 @@ into the chrome. In the serving path (`renderCollection({ loadThroughRead: true 
 hx-trigger="load"`, so htmx fills it after the deterministic chrome renders — preserving
 ADR-0004's never-stale cache because the cached surface holds no user data.
 
+### Debounced search chrome (Module 4 · epic 4.3/03)
+
+Every committed five-Action View renders one platform-owned `role="search"` form above
+its records region. The labelled `type="search"` control uses the same quiet surface,
+border, radius, and focus-ring vocabulary as the platform field controls; a persistent
+text **Clear** action remains a full target rather than relying on browser-specific
+search-input decoration. The chrome owns a 300 ms debounce, visible and announced
+loading feedback, no-match and warm failure states, request cancellation, and
+out-of-order response suppression. Matching and ranking remain inside the generated
+`search` Handler. The platform normalizer makes composed/decomposed Unicode, letter
+case, and Latin accents equivalent, so `cafe`, `CAFE`, `Café`, and `Cáfé` share one
+match set while marks in other scripts remain meaningful.
+Search and New share the header row; the single live feedback row sits immediately
+below it and centers no-match copy across the whole collection content area.
+
+Nonblank input calls committed `GET /capability/:id/search?q=...` and replaces the whole
+records region with the returned shared item-renderer fragment. Clear acts immediately;
+empty or Unicode-whitespace-only input calls committed `read` directly. Search result
+items therefore carry the same accessible trigger and detail-template hooks as ordinary
+read results. During the approved 4.2–4.3 transition, two-Action prompt-built rows omit
+this chrome rather than advertising an undeclared route; 4.4 removes that temporary
+shape, after which every admitted capability has search.
+
 ### The accessible item wrapper
 
 Every record is framed in one standardized trigger: a `role="button"` card with

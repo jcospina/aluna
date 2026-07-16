@@ -49,6 +49,8 @@ export interface RenderableCapability {
   readonly label: string;
   readonly schema: { readonly fields: readonly SpecField[] };
   readonly form: UiFormIntent;
+  /** Transitional 4.2–4.3 guard: true only when the committed Action set includes search. */
+  readonly searchEnabled?: boolean;
   readonly item?: { readonly shows: readonly string[] };
   /**
    * Which fields the read-only DETAIL surface shows, and in what order —

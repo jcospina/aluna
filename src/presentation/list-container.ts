@@ -144,6 +144,53 @@ export interface CollectionOptions {
   readonly loadThroughRead?: boolean;
 }
 
+/** Debounce used by the platform-owned collection search controller. */
+export const SEARCH_DEBOUNCE_MS = 300;
+
+/**
+ * Render the local, ephemeral search controls paired with one records region.
+ * Matching remains the generated `search` Handler's responsibility; this chrome only
+ * owns request timing and the loading/clear/no-match presentation states.
+ */
+function renderSearchChrome(capability: RenderableCapability, regionId: string): string {
+  // Prompt-built capabilities remain the approved two-Action shape until 4.4. Do not
+  // advertise a route the committed row does not declare; every complete five-Action
+  // capability gets the chrome, and 4.4 makes that the only admitted shape.
+  if (capability.searchEnabled !== true) return "";
+  const label = escapeHtml(capability.label);
+  const inputId = `${capability.id}-search`;
+
+  return (
+    `<form class="capability-search" role="search" data-capability-search` +
+    ` data-search-state="idle" data-records-region-id="${regionId}"` +
+    ` data-read-url="/capability/${capability.id}/read"` +
+    ` data-search-url="/capability/${capability.id}/search"` +
+    ` data-search-debounce-ms="${SEARCH_DEBOUNCE_MS}">` +
+    `<div class="capability-search__control">` +
+    `<svg class="capability-search__icon" viewBox="0 0 24 24" fill="none"` +
+    ` stroke="currentColor" stroke-width="2" stroke-linecap="round"` +
+    ` stroke-linejoin="round" aria-hidden="true">` +
+    `<circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>` +
+    `<input class="capability-search__input" id="${inputId}" type="search" name="q"` +
+    ` placeholder="Search ${label}" autocomplete="off" spellcheck="false"` +
+    ` aria-label="Search ${label}" aria-controls="${regionId}" data-capability-search-input>` +
+    `<button class="capability-search__clear" type="button" data-capability-search-clear` +
+    ` hidden>Clear</button>` +
+    `</div>` +
+    `</form>`
+  );
+}
+
+function renderSearchFeedback(capability: RenderableCapability): string {
+  if (capability.searchEnabled !== true) return "";
+  return (
+    `<div class="capability-search__feedback" aria-live="polite" aria-atomic="true">` +
+    `<span class="capability-search__loading" aria-hidden="true"></span>` +
+    `<span class="capability-search__status" data-capability-search-status></span>` +
+    `</div>`
+  );
+}
+
 /**
  * Render a capability's list scaffolding: the "New X" disclosure that opens the
  * platform create form (3.2/01), the records region in the chosen closed layout, and
@@ -182,12 +229,15 @@ export function renderCollection(options: CollectionOptions): string {
 
   return (
     `<section class="capability-collection" aria-label="${label}"` +
+    (capability.searchEnabled === true ? ` data-search-state="idle"` : "") +
     ` x-data="{ createOpen: false }" @${RECORD_CREATED_EVENT}.window="${closeOnCreated}">` +
     `<header class="capability-collection__header">` +
+    renderSearchChrome(capability, regionId) +
     `<button type="button" class="btn btn--primary capability-collection__new"` +
     ` @click="createOpen = !createOpen" :aria-expanded="createOpen ? 'true' : 'false'">` +
     `New ${label}</button>` +
     `</header>` +
+    renderSearchFeedback(capability) +
     `<div class="capability-collection__create" x-show="createOpen" x-cloak>${renderCreateForm(capability)}</div>` +
     // No whitespace inside the region: an empty region must stay truly `:empty` so the
     // empty-state CSS fires (and so the first loaded/prepended record clears it). In the

@@ -2,6 +2,11 @@
 
 Status: done
 
+Follow-up (2026-07-16): issue 4.3/03 widened the platform search contract from
+canonical-equivalence-plus-lowercase to case- and Latin-accent-insensitive matching. The
+original 4.2 contract and verification evidence below are preserved as closure
+history; current normative semantics live in PLAN decision 20 and ADR-0006.
+
 ## Epic
 
 Module 4 — Explicit Loop II: Full CRUD & Evolution · Epic 4.2 — Mutation

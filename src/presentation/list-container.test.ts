@@ -36,6 +36,7 @@ const SAMPLE: RenderableCapability = {
     ],
   },
   form: { list_inputs: [] },
+  searchEnabled: true,
 };
 
 // Reverse escapeHtml exactly (&amp; last so "&amp;lt;" round-trips to "&lt;", not "<") —
@@ -99,6 +100,20 @@ describe("collection layout — CSS parity", () => {
   test("the item wrapper and empty state are defined in collection.css", () => {
     expect(css).toContain(`.${ITEM_TRIGGER_CLASS}`);
     expect(css).toContain(".capability-empty");
+    expect(css).toContain(".capability-search__input");
+    expect(css).toContain(".capability-collection__new");
+    expect(css).toContain("justify-content: space-between");
+    expect(css).toContain('[data-search-state="no-matches"]');
+    expect(css).toContain('[data-search-state="error"]');
+  });
+
+  test("collection-wide search feedback suppresses the canonical empty state", () => {
+    expect(css).toContain(
+      '.capability-collection[data-search-state="no-matches"] > .capability-empty',
+    );
+    expect(css).toContain(
+      '.capability-collection[data-search-state="no-matches"] > .capability-search__feedback',
+    );
   });
 });
 
@@ -131,6 +146,40 @@ describe("container scaffolding", () => {
 
   test("renders the empty state", () => {
     expect(feed).toContain('class="capability-empty"');
+  });
+
+  test("renders accessible debounced search chrome above the records region", () => {
+    const searchIndex = feed.indexOf('data-capability-search data-search-state="idle"');
+    const headerEndIndex = feed.indexOf("</header>");
+    const feedbackIndex = feed.indexOf('class="capability-search__feedback"');
+    const recordsIndex = feed.indexOf(
+      `<div id="${capabilityRecordsRegionId("tasks")}" class="capability-records`,
+    );
+    expect(searchIndex).toBeGreaterThan(-1);
+    expect(searchIndex).toBeLessThan(recordsIndex);
+    expect(feedbackIndex).toBeGreaterThan(headerEndIndex);
+    expect(feedbackIndex).toBeLessThan(recordsIndex);
+    expect(feed).toContain('role="search"');
+    expect(feed).toContain('type="search" name="q"');
+    expect(feed).toContain('aria-label="Search Tasks"');
+    expect(feed).toContain('aria-controls="tasks-records"');
+    expect(feed).toContain('data-search-debounce-ms="300"');
+    expect(feed).toContain('data-read-url="/capability/tasks/read"');
+    expect(feed).toContain('data-search-url="/capability/tasks/search"');
+    expect(feed).toContain("data-capability-search-clear hidden>Clear</button>");
+    expect(feed).toContain("data-capability-search-status></span>");
+    expect(feed).not.toContain('<label class="sr-only"');
+    expect(feed).not.toContain("I couldn’t find a match. Try another word.");
+  });
+
+  test("does not advertise search on the approved transitional two-Action View", () => {
+    const transitional = renderCollection({
+      capability: { ...SAMPLE, searchEnabled: false },
+      loadThroughRead: true,
+    });
+    expect(transitional).not.toContain("data-capability-search");
+    expect(transitional).not.toContain("/capability/tasks/search");
+    expect(transitional).toContain('hx-get="/capability/tasks/read"');
   });
 
   test("closes the create disclosure only when THIS capability reports a created record", () => {

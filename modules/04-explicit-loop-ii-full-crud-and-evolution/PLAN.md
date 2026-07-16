@@ -284,22 +284,28 @@ foreground stream and complete `commit` swap),
     ephemeral: no resolver call, registry row, version, cache, or build.
 
 20. **The deterministic search baseline is complete and always-on.** Terms are
-    Unicode-whitespace-delimited literal substrings. Case/normalization uses one
-    platform-owned SQL function over both query terms and stored values:
-    JavaScript `normalize("NFKC").toLocaleLowerCase("und")`. Generated SQL cannot
+    Unicode-whitespace-delimited literal substrings. Case- and Latin-accent-
+    insensitive normalization uses one platform-owned SQL function over both query
+    terms and stored values. It applies NFKD compatibility decomposition, locale-
+    independent lowercase, removes combining diacritics only after a Latin-script
+    base, then recomposes with NFKC. Generated SQL cannot
     substitute SQLite's ASCII-only `NOCASE`/`lower()`. Every normalized term must
     match somewhere, including across different fields/list elements. Matching
     includes every active `string` and each active `string[]` element; it excludes
-    inactive fields, `extra`, platform columns, and non-text types. SQL wildcard
-    and quote characters are literal/parameterized, not patterns or injection. A
+    inactive fields, `extra`, platform columns, and non-text types. Latin-accented,
+    unaccented, composed, decomposed, uppercase, and lowercase
+    forms share one match set; non-Latin voicing, vowel, and tone marks remain
+    meaningful. SQL wildcard and quote characters are literal/parameterized, not
+    patterns or injection. A
     missing, empty, or whitespace-only `q` returns exactly the canonical `read`
     rows in default read order (the UI Clear path calls `read` directly).
     Results contain no duplicates and default to `created_at DESC, id DESC` for a
     behavior-neutral spec. Capability behavior may deterministically rerank the
     same baseline match set. The always-on Gate fixture proves scalar/list
     inclusion, all exclusions, AND semantics, literal metacharacters, composed vs
-    decomposed non-ASCII text, case, repeated Unicode whitespace, complete target
-    rows, empty-query behavior, and stable ordering—not merely “a field other than
+    decomposed and Latin-accented/unaccented non-ASCII text, preservation of non-
+    Latin marks, case, repeated Unicode whitespace, complete target rows, empty-
+    query behavior, and stable ordering—not merely “a field other than
     title participates.”
 
 ### Diff, tests, snapshots, and activation
@@ -882,8 +888,8 @@ recovers the UI. No path overwrites a final version directory.
 
 Run `bun run reset`, start Aluna, and build Notes with the behavioral tier on.
 Create records containing scalar text, tags, non-text fields, literal `%`, `_`,
-quotes, mixed case, composed/decomposed accented text, and repeated Unicode
-whitespace. Then:
+quotes, mixed case, Latin-accented/unaccented and composed/decomposed text, and
+repeated Unicode whitespace. Then:
 
 1. Type *“add a due date to my notes and make it stand out in the list.”* Confirm
    extension, complete v2 activation, existing records, and one final View swap.
@@ -892,8 +898,9 @@ whitespace. Then:
    fields, inactive data, and `extra` survive while required empties block Save.
 3. Search terms that match different scalar/list fields. Confirm AND semantics,
    literal metacharacters, exclusions, no duplicates, stable order, and whitespace-
-   only `q` matching read. Confirm composed/decomposed forms match under the one
-   platform normalization function. Update/delete under an active query and confirm
+   only `q` matching read. Confirm bare `cafe` matches stored `CAFÉ`, alongside
+   composed/decomposed and mixed-case equivalents, under the one platform
+   normalization function. Update/delete under an active query and confirm
    the same search reruns with correct membership/ranking.
 4. Delete a record through inline confirmation.
 5. Build *“track my work contacts separately”* beside Contacts and confirm a

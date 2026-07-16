@@ -17,13 +17,19 @@
    A calm vertical stack: the New X header, the disclosed create form, the records
    region, and the empty state — separated by the standard section rhythm. */
 .capability-collection {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 .capability-collection__header {
   display: flex;
-  justify-content: flex-start;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.capability-collection__new {
+  flex: 0 0 auto;
 }
 /* The create form the "New X" button discloses (x-show). A surface panel so the
    platform form sits on its own quiet card above the list. */
@@ -32,6 +38,125 @@
   background: var(--color-surface);
   border: var(--border-thin) solid var(--color-border);
   border-radius: var(--radius-md);
+}
+
+/* ── Search chrome ─────────────────────────────────────────────────────────────
+   Search is a compact tool above the records, not another card. It reuses the form
+   control vocabulary while keeping loading and no-match feedback in the document flow. */
+.capability-search {
+  display: flex;
+  flex: 1 1 28rem;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.capability-search__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.capability-search__icon {
+  position: absolute;
+  left: var(--space-2);
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--color-text-subtle);
+  pointer-events: none;
+}
+.capability-search__input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-1) calc(var(--space-6) + var(--space-3)) var(--space-1)
+    calc(var(--space-2) + 1.125rem + var(--space-1));
+  font: var(--body);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-thin) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.capability-search__input::placeholder {
+  color: var(--color-text-subtle);
+}
+.capability-search__input:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-accent), transparent 70%);
+}
+/* Suppress the inconsistent browser-owned clear glyph; the labelled platform Clear
+   button has a stable target and owns the canonical-read action. */
+.capability-search__input::-webkit-search-cancel-button {
+  appearance: none;
+}
+.capability-search__clear {
+  position: absolute;
+  right: var(--space-1);
+  min-width: 3.5rem;
+  min-height: 2.25rem;
+  padding: 0 var(--space-1);
+  font: var(--body-emph);
+  color: var(--color-text-subtle);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.capability-search__clear:hover {
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+.capability-search__clear:focus-visible {
+  outline: var(--border-regular) solid var(--color-accent-secondary);
+  outline-offset: 1px;
+}
+.capability-search__feedback {
+  display: flex;
+  width: 100%;
+  min-height: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding-inline: var(--space-1);
+  font: var(--meta);
+  color: var(--color-text-subtle);
+  text-align: center;
+}
+.capability-search__loading {
+  display: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border: var(--border-regular) solid var(--color-border);
+  border-top-color: var(--color-accent-secondary);
+  border-radius: 50%;
+  animation: capability-search-spin var(--duration-slow) linear infinite;
+}
+.capability-collection[data-search-state="idle"] > .capability-search__feedback {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.capability-collection[data-search-state="loading"]
+  > .capability-search__feedback
+  .capability-search__loading {
+  display: inline-block;
+}
+.capability-collection[data-search-state="no-matches"] > .capability-search__feedback {
+  display: block;
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-4) var(--space-3);
+  font: var(--body);
+  color: var(--color-text-subtle);
+  text-align: center;
+}
+@keyframes capability-search-spin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 /* ── Records region — the two closed collection layouts ───────────────────────
@@ -61,11 +186,26 @@
   color: var(--color-text-subtle);
   text-align: center;
 }
+.capability-collection[data-search-state="loading"] > .capability-empty,
+.capability-collection[data-search-state="no-matches"] > .capability-empty,
+.capability-collection[data-search-state="error"] > .capability-empty {
+  display: none;
+}
 /* The `:empty` selector fires when the region is truly childless (the renderer emits
    no whitespace inside it), and stops firing the moment a record is server-rendered or
    prepended — so the empty state hides itself with no JS. */
 .capability-records:not(:empty) ~ .capability-empty {
   display: none;
+}
+
+@media (max-width: 639.98px) {
+  .capability-collection__header {
+    flex-wrap: wrap;
+  }
+  .capability-search,
+  .capability-collection__new {
+    flex-basis: 100%;
+  }
 }
 
 /* ── Item wrapper — the standardized accessible trigger ───────────────────────

@@ -92,7 +92,7 @@ function buildHandlerPrompt(
     "- `mutation.create(values)` returns the inserted row; it has no table, capability, or record selector.",
     "- `query.all({ sql, parameters, result })` runs parameterized SQL inside this Action's declared catalog and returns only aliases declared by the ordered result descriptor.",
     "- Record-producing read/search SQL returns ordered target ids through `query.records({ sql, targetIdAlias, result })`; each result is `{ record, values }`. The platform rehydrates the full target row and exposes only `record.fields`, `record.created_at`, and an opaque `record.handle`.",
-    "- Search SQL must normalize both stored values and terms with the registered `platform_search_normalize(value)` SQL function (JavaScript NFKC + locale-independent lowercase semantics).",
+    "- Search SQL must normalize both stored values and terms with the registered `platform_search_normalize(value)` SQL function (JavaScript NFKD compatibility decomposition + locale-independent lowercase + Latin-base combining-diacritic folding + NFKC recomposition).",
     "- Canonical ids, platform-owned `extra`, and inactive target fields are unavailable and must never be read or written.",
     "- `present(record)` returns that record as a safe item HTML string.",
     "",

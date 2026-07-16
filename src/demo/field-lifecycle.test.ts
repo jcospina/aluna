@@ -71,6 +71,9 @@ describe("development-only five-Action reference living demo", () => {
     expect(view).toContain("Separate values with commas.");
     expect(view).toContain('data-list-input-mode="repeatable"');
     expect(view).toContain("data-list-field-add");
+    expect(view).toContain("data-capability-search");
+    expect(view).toContain(`data-read-url="/capability/${FIELD_LIFECYCLE_DEMO_ID}/read"`);
+    expect(view).toContain(`data-search-url="/capability/${FIELD_LIFECYCLE_DEMO_ID}/search"`);
     expect(view).not.toContain("Retired note");
     expect(view).not.toContain("retired_note");
     expect(view).not.toContain('name="created_at"');
@@ -353,7 +356,15 @@ describe("five-Action reference route inventory", () => {
         artifactsRoot: join(dir, "capabilities"),
         mutationCoordinator,
       });
-      const app = createApp({ capabilityRouter: { databases }, mutationCoordinator });
+      let providerCalls = 0;
+      const app = createApp({
+        capabilityRouter: { databases },
+        mutationCoordinator,
+        getProvider: () => {
+          providerCalls += 1;
+          throw new Error("search must not reach the provider");
+        },
+      });
 
       const reservation = mutationCoordinator.reserveBuild();
       const buildLease = await mutationCoordinator.acquireBuild(reservation);
@@ -366,7 +377,9 @@ describe("five-Action reference route inventory", () => {
         `/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`,
         `/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=old`,
       ]) {
+        const coordinatorBefore = mutationCoordinator.snapshot();
         expect((await app.request(path)).status).toBe(200);
+        expect(mutationCoordinator.snapshot()).toEqual(coordinatorBefore);
       }
       for (const action of ["create", "update", "delete"] as const) {
         const body = new URLSearchParams();
@@ -381,13 +394,43 @@ describe("five-Action reference route inventory", () => {
       }
       expect(mutationCoordinator.release(buildLease)).toBe(true);
 
+      const registryBefore = databases.readonly
+        .query("SELECT * FROM capability_registry ORDER BY id")
+        .all();
       const search = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=old`);
       expect(search.status).toBe(200);
       const normalizedSearch = await app.request(
-        `/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=${encodeURIComponent("Cafe\u0301 a\u030angstro\u0308m")}`,
+        `/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=${encodeURIComponent("cafe angstrom")}`,
       );
       expect(normalizedSearch.status).toBe(200);
-      expect(await normalizedSearch.text()).toContain("Ready to remove — CAFÉ ÅNGSTRÖM");
+      const normalizedHtml = await normalizedSearch.text();
+      expect(normalizedHtml).toContain("Ready to remove — CAFÉ ÅNGSTRÖM");
+      expect(normalizedHtml).toContain("data-detail-template");
+
+      const listSearch = await app.request(
+        `/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=${encodeURIComponent("Doe")}`,
+      );
+      expect(listSearch.status).toBe(200);
+      expect(await listSearch.text()).toContain("Doe, Jane");
+
+      const noMatches = await app.request(
+        `/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=definitely-missing`,
+      );
+      expect(noMatches.status).toBe(200);
+      expect((await noMatches.text()).trim()).toBe("");
+
+      const readHtml = await (
+        await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`)
+      ).text();
+      const whitespaceSearch = await (
+        await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=%E2%80%83%20%09`)
+      ).text();
+      expect(whitespaceSearch).toBe(readHtml);
+      expect(
+        databases.readonly.query("SELECT * FROM capability_registry ORDER BY id").all(),
+      ).toEqual(registryBefore);
+      expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
+      expect(providerCalls).toBe(0);
 
       const before = databases.readwrite
         .query(`SELECT * FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "id" = ?`)

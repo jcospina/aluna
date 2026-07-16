@@ -2567,11 +2567,12 @@
                 <tr>
                   <td>Normalization</td>
                   <td>
-                    Aluna cleans up both the query and stored text in the same way and compares them
-                    without case differences. This lets visually equivalent character forms match
-                    consistently. The exact JavaScript rule is
-                    <code>normalize("NFKC").toLocaleLowerCase("und")</code>
-                    for the exact rule.
+                    Aluna cleans up both the query and stored text in the same way and compares
+                    Latin-script text without case or accent differences. This lets
+                    <code>cafe</code>,
+                    <code>CAFÉ</code>, and decomposed accented forms share one match set. The exact
+                    sequence is <code>NFKD → und lowercase → Latin accent fold → NFKC</code>. Marks
+                    that carry voicing, vowels, or tones in other scripts stay meaningful.
                   </td>
                 </tr>
                 <tr>
@@ -2956,8 +2957,9 @@
                 <span class="protocol__index">03</span>
                 <h3>Difficult search cases</h3>
                 <p>
-                  Try accented and equivalent characters, text lists, punctuation, several search
-                  words, hidden fields, full records, and stable ordering.
+                  Try unaccented queries against accented text (and the reverse), equivalent
+                  composed/decomposed characters, text lists, punctuation, several search words,
+                  hidden fields, full records, and stable ordering.
                 </p>
               </article>
               <article class="protocol__step">
@@ -4115,12 +4117,12 @@
     const fieldStates = {
       new: {
         spec: `{
-          "name": "due_date",
-          "label": "Due date",
-          "type": "date",
-          "required": false,
-          "lifecycle": "active"
-        }`,
+              "name": "due_date",
+              "label": "Due date",
+              "type": "date",
+              "required": false,
+              "lifecycle": "active"
+            }`,
         title: "Add the field without breaking old records.",
         copy: "A new field starts visible. Its database column allows empty values so records created before the field existed remain readable.",
         effects: [
@@ -4132,12 +4134,12 @@
       },
       hidden: {
         spec: `{
-          "name": "due_date",
-          "label": "Due date",
-          "type": "date",
-          "required": false,
-          "lifecycle": "inactive"
-        }`,
+              "name": "due_date",
+              "label": "Due date",
+              "type": "date",
+              "required": false,
+              "lifecycle": "inactive"
+            }`,
         title: "Stop showing it, keep the column and values.",
         copy: "Aluna marks the field hidden instead of removing it from the capability definition. The original column and saved values remain.",
         effects: [
@@ -4149,12 +4151,12 @@
       },
       reactivated: {
         spec: `{
-          "name": "due_date",
-          "label": "Target day",
-          "type": "date",
-          "required": true,
-          "lifecycle": "active"
-        }`,
+              "name": "due_date",
+              "label": "Target day",
+              "type": "date",
+              "required": true,
+              "lifecycle": "active"
+            }`,
         title: "Reveal the original field and stored values.",
         copy: "Aluna shows the same field again. The proposal may also change its visible label or make it required, and Aluna combines all work those changes need.",
         effects: [

@@ -199,8 +199,32 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain('hx-trigger="load"');
     expect(body).toContain('hx-post="/capability/notes/create"');
     expect(body).toContain('hx-target="#notes-records"');
+    expect(body).not.toContain("data-capability-search");
     expect(body).not.toContain("<!doctype html>");
     expect(body).not.toContain("/static/app.css");
+  });
+
+  test("a complete five-Action View renders search chrome wired only to committed routes", async () => {
+    const createRequired = notesRow().behavioral_errors[0];
+    if (!createRequired) throw new Error("notes fixture is missing its required-fields case");
+    const fullRow = notesRow({
+      tools: ["create", "read", "update", "delete", "search"],
+      read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
+      behavioral_errors: [createRequired, { ...createRequired, action: "update" }],
+    });
+    const app = createApp({
+      capabilityRouter: { databases: conns, lookupCapability: () => fullRow },
+    });
+
+    const body = await (
+      await app.request("/capability/notes", { headers: { "HX-Request": "true" } })
+    ).text();
+
+    expect(body).toContain("data-capability-search");
+    expect(body).toContain('data-read-url="/capability/notes/read"');
+    expect(body).toContain('data-search-url="/capability/notes/search"');
+    expect(body).not.toContain("/prompt");
+    expect(body).not.toContain("/build/");
   });
 
   test("the spec-rendered View is data-free: a committed record never enters the chrome", async () => {

@@ -197,8 +197,9 @@ M4 contract. This is bounded development sequencing, not persisted dual-serving.
   remove the transition/reference fixture, then generate five Handlers plus
   `item.ts` from Action-projected contexts. Whole-snapshot structural validation
   and full CRUD/search smoke are always on; the adversarial search fixture proves
-  scalar/list inclusion, exclusions, AND/literal semantics, platform NFKC +
-  locale-independent lowercase normalization, canonical rows, and stable order.
+  scalar/list inclusion, exclusions, AND/literal semantics, platform compatibility
+  decomposition plus Latin-script accent folding and locale-independent lowercase normalization,
+  canonical rows, and stable order.
   The behavioral tier covers all Actions/errors independently.
 - **4.5 — Immutable snapshots, publication, metrics & atomic activation.** Start
   with one greenfield reset/rebuild so the surviving five-Action v1 is born
