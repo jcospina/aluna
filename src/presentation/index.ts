@@ -10,9 +10,11 @@
 // one source of truth rather than re-list it.
 
 export {
+  createPlatformPresentationAdapter,
   createPresentationAdapter,
   DETAIL_TEMPLATE_ID_PREFIX,
   type ItemRenderer,
+  type PlatformPresentationAdapter,
   type PresentableRecord,
   type PresentationAdapter,
   type PresentationAdapterOptions,

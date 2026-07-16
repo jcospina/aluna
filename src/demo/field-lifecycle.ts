@@ -19,6 +19,7 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   REGISTRY_TABLE,
 } from "../registry/index.ts";
+import { installReadDependencyDemo, removeReadDependencyDemo } from "./read-dependency.ts";
 
 export const FIELD_LIFECYCLE_DEMO_ID = "field_lifecycle_demo";
 export const FIELD_LIFECYCLE_MERGE_TARGET_ID = "merge-target";
@@ -139,17 +140,9 @@ const CREATE_HANDLER = `export default async function create({ input, mutation, 
 `;
 
 const READ_HANDLER = `export default async function read({ query, present }: CapabilityContext): Promise<string> {
-  return query.all({
-    sql: 'SELECT * FROM "cap_field_lifecycle_demo" ORDER BY "created_at" DESC, "id" DESC',
-    result: [
-      { alias: "id", type: "string" },
-      { alias: "created_at", type: "datetime" },
-      { alias: "entry", type: "string" },
-      { alias: "reflection", type: "string" },
-      { alias: "tags", type: "string[]" },
-      { alias: "aliases", type: "string[]" },
-    ],
-  }).map((row) => present(row)).join("");
+  return query.records({
+    sql: 'SELECT "id" AS "target_id" FROM "cap_field_lifecycle_demo" ORDER BY "created_at" DESC, "id" DESC',
+  }).map(({ record }) => present(record)).join("");
 }
 `;
 
@@ -178,18 +171,11 @@ const DELETE_HANDLER = `export default async function remove({ mutation }: Capab
 const SEARCH_HANDLER = `export default async function search({ input, query, present }: CapabilityContext): Promise<string> {
   const raw = input.values.q;
   const q = typeof raw === "string" ? raw : "";
-  return query.all({
-    sql: 'SELECT * FROM "cap_field_lifecycle_demo" WHERE length(?) = 0 OR "entry" LIKE char(37) || ? || char(37) ORDER BY "created_at" DESC, "id" DESC',
-    parameters: [q, q],
-    result: [
-      { alias: "id", type: "string" },
-      { alias: "created_at", type: "datetime" },
-      { alias: "entry", type: "string" },
-      { alias: "reflection", type: "string" },
-      { alias: "tags", type: "string[]" },
-      { alias: "aliases", type: "string[]" },
-    ],
-  }).map((row) => present(row)).join("");
+  const terms = q.trim().split(/\\s+/u).filter(Boolean);
+  return query.records({
+    sql: 'WITH "search_terms" AS (SELECT "value" AS "term" FROM json_each(?)) SELECT "target"."id" AS "target_id" FROM "cap_field_lifecycle_demo" AS "target" WHERE NOT EXISTS (SELECT 1 FROM "search_terms" AS "search_term" WHERE NOT (platform_search_normalize("target"."entry") LIKE char(37) || platform_search_normalize("search_term"."term") || char(37) OR platform_search_normalize("target"."reflection") LIKE char(37) || platform_search_normalize("search_term"."term") || char(37) OR EXISTS (SELECT 1 FROM json_each("target"."tags") AS "tag" WHERE platform_search_normalize("tag"."value") LIKE char(37) || platform_search_normalize("search_term"."term") || char(37)) OR EXISTS (SELECT 1 FROM json_each("target"."aliases") AS "alias" WHERE platform_search_normalize("alias"."value") LIKE char(37) || platform_search_normalize("search_term"."term") || char(37)))) ORDER BY "target"."created_at" DESC, "target"."id" DESC',
+    parameters: [JSON.stringify(terms)],
+  }).map(({ record }) => present(record)).join("");
 }
 `;
 
@@ -286,6 +272,7 @@ export async function installFieldLifecycleDemo(options: InstallFieldLifecycleDe
         realDatabase: database,
       });
       const commit = await withWriteTransaction(database, () => {
+        removeReadDependencyDemo(database);
         database.run(`DELETE FROM "${REGISTRY_TABLE}" WHERE "id" = ?`, [FIELD_LIFECYCLE_DEMO_ID]);
         database.run(`DROP TABLE IF EXISTS "${tableName}"`);
         applyCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC, database);
@@ -319,7 +306,7 @@ export async function installFieldLifecycleDemo(options: InstallFieldLifecycleDe
         );
         seed.run(
           FIELD_LIFECYCLE_DELETE_TARGET_ID,
-          "Ready to remove",
+          "Ready to remove — CAFÉ ÅNGSTRÖM",
           "This one is only for the delete tracer.",
           '["delete-demo"]',
           "[]",
@@ -328,7 +315,13 @@ export async function installFieldLifecycleDemo(options: InstallFieldLifecycleDe
         );
         return committed;
       });
-      return { ...commit, gate };
+      const readDependency = await installReadDependencyDemo(
+        database,
+        artifactsRoot,
+        commit.row,
+        FIELD_LIFECYCLE_MERGE_TARGET_ID,
+      );
+      return { ...commit, gate, readDependency };
     });
   } catch (error) {
     options.mutationCoordinator.cancelBuild(reservation);

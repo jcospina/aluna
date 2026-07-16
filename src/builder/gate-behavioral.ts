@@ -14,7 +14,8 @@ import { z } from "zod";
 
 import {
   type CapabilityTableDdl,
-  createCapabilityDataPorts,
+  createCapabilityMutationPort,
+  materializeCapabilityActionRecord,
   selectCapabilityRows,
 } from "../capability-data/index.ts";
 import type { PresentationAdapter } from "../presentation/index.ts";
@@ -41,6 +42,7 @@ import {
 import {
   assertFragment,
   buildGatePresent,
+  buildGateQueryPort,
   errorMessage,
   fieldValueMatches,
   type LoadedHandlers,
@@ -279,23 +281,26 @@ async function runBehavioralCase(
 
   try {
     prepareScratchCatalog(spec, ddl, scratchCatalog, scratch);
-    const { mutation, query } = createCapabilityDataPorts(spec, scratch);
+    const mutation = createCapabilityMutationPort(spec, scratch.readwrite);
+    const createQuery = buildGateQueryPort(spec, "create", scratchCatalog, scratch.readonly);
+    const readQuery = buildGateQueryPort(spec, "read", scratchCatalog, scratch.readonly);
     const setupIds: string[] = [];
 
     for (const row of setupRows) {
-      setupIds.push(mutation.create(row).id);
+      const created = materializeCapabilityActionRecord(mutation.create(row));
+      setupIds.push(String(created.id));
     }
     ageSetupRows(scratch.readwrite, ddl.tableName, setupIds);
 
     createFragment = await handlers.create({
       input: createInput,
       mutation,
-      query,
+      query: createQuery,
       present,
     });
     assertFragment("create", createFragment);
 
-    scratchRows = selectCapabilityRows(spec, query);
+    scratchRows = selectCapabilityRows(spec, readQuery);
     const expectedRowCount = testCase.expectedRowCount;
     if (scratchRows.length !== expectedRowCount) {
       throw new Error(
@@ -319,7 +324,7 @@ async function runBehavioralCase(
 
     readFragment = await handlers.read({
       input: { values: {}, submittedFields: new Set() },
-      query,
+      query: readQuery,
       present,
     });
     assertFragment("read", readFragment);

@@ -14,12 +14,19 @@ import {
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
-import { createCapabilityDataPorts, selectCapabilityRows } from "./index.ts";
+import {
+  createCapabilityMutationPort,
+  createCapabilityQueryPort,
+  materializeCapabilityActionRecord,
+  selectCapabilityRows,
+} from "./index.ts";
 
 export function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
-  const { mutation, query } = createCapabilityDataPorts(spec, databases);
+  const mutation = createCapabilityMutationPort(spec, databases.readwrite);
+  const query = createCapabilityQueryPort(databases.readonly, { target: spec });
   return {
-    insert: mutation.create,
+    insert: (values: Record<string, unknown>) =>
+      materializeCapabilityActionRecord(mutation.create(values)),
     select: () => selectCapabilityRows(spec, query),
   };
 }

@@ -14,7 +14,12 @@
 
 import type { Database } from "bun:sqlite";
 import { db, dbReadonly } from "../db.ts";
-import { type CapabilityRow, capabilityRowSchema } from "./spec.ts";
+import {
+  type CapabilityRow,
+  type CapabilityTool,
+  capabilityRowSchema,
+  type ReadDependency,
+} from "./spec.ts";
 
 // The registry table, created by platform migration 0002 (src/migrations.ts).
 // A fixed platform constant (never user input), so interpolating it into the
@@ -70,6 +75,7 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
 // (PLAN decision 6 — no collision logic here), so reaching this is a bug.
 export function insertCapability(row: CapabilityRow, database: Database = db): CapabilityRow {
   const valid = capabilityRowSchema.parse(row);
+  assertActiveReadDependencies(valid, database);
 
   database.run(
     `INSERT INTO ${REGISTRY_TABLE} (${ROW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -90,6 +96,51 @@ export function insertCapability(row: CapabilityRow, database: Database = db): C
   );
 
   return valid;
+}
+
+/** Resolve one Action's exact committed dependency catalog or fail closed. */
+export function resolveActionReadDependencies(
+  row: CapabilityRow,
+  action: CapabilityTool,
+  database: Database = dbReadonly,
+): CapabilityRow[] {
+  const dependencies: readonly ReadDependency[] =
+    action in row.read_dependencies
+      ? row.read_dependencies[action as keyof typeof row.read_dependencies]
+      : [];
+  return dependencies.map((dependency) => resolveActiveDependency(dependency, database));
+}
+
+/** Reverse dependency lookup consumed by capability deletion in epic 4.9. */
+export function listCapabilityDependents(
+  target: Pick<CapabilityRow, "id" | "incarnation_id">,
+  database: Database = dbReadonly,
+): CapabilityRow[] {
+  return listCapabilities(database).filter((candidate) =>
+    Object.values(candidate.read_dependencies)
+      .flat()
+      .some(
+        (dependency) =>
+          dependency.capability_id === target.id &&
+          dependency.incarnation_id === target.incarnation_id,
+      ),
+  );
+}
+
+function assertActiveReadDependencies(row: CapabilityRow, database: Database): void {
+  for (const dependency of Object.values(row.read_dependencies).flat()) {
+    resolveActiveDependency(dependency, database);
+  }
+}
+
+function resolveActiveDependency(dependency: ReadDependency, database: Database): CapabilityRow {
+  const row = getCapability(dependency.capability_id, database);
+  if (!row || row.incarnation_id !== dependency.incarnation_id) {
+    throw new Error(
+      `Read dependency ${dependency.capability_id}/${dependency.incarnation_id} does not resolve to one active registry row.`,
+    );
+  }
+  return row;
 }
 
 // Fetch one capability by id, or null when it doesn't exist — the router's

@@ -7,7 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   applyCapabilityTableDdl,
-  createCapabilityDataPorts,
+  createCapabilityMutationPort,
+  createCapabilityQueryPort,
+  materializeCapabilityActionRecord,
   selectCapabilityRows,
 } from "../capability-data/index.ts";
 import { openDatabase, type PlatformDatabase } from "../db.ts";
@@ -37,8 +39,13 @@ export function teardownRouterTest(dir: string, conns: PlatformDatabase): void {
 }
 
 export function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
-  const { mutation, query } = createCapabilityDataPorts(spec, databases);
-  return { insert: mutation.create, select: () => selectCapabilityRows(spec, query) };
+  const mutation = createCapabilityMutationPort(spec, databases.readwrite);
+  const query = createCapabilityQueryPort(databases.readonly, { target: spec });
+  return {
+    insert: (values: Record<string, unknown>) =>
+      materializeCapabilityActionRecord(mutation.create(values)),
+    select: () => selectCapabilityRows(spec, query),
+  };
 }
 
 export const NOTES_ARTIFACTS = "src/router/__fixtures__/notes/v1/";

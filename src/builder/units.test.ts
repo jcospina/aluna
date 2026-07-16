@@ -7,13 +7,18 @@
 // renderer (first, the creative surface) then the create/read handlers that render
 // records through the injected `present` adapter.
 
+// biome-ignore-all lint/nursery/noExcessiveLinesPerFile: the unit-generation contract remains one cohesive provider-loop suite.
+
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import type { ZodType } from "zod";
 
 import type { DeepPartial, GenerateResult, Provider, TokenUsage } from "../provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
+  type CapabilityRow,
   type CapabilitySpec,
+  defaultBehavioralErrorsForSchema,
+  FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
 import { FEW_SHOT_DESIGN_EXAMPLES } from "./few-shot-gallery.ts";
@@ -136,11 +141,10 @@ const CREATE_HANDLER = [
 // handler never emits its own empty state.
 const READ_HANDLER = [
   "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-  "  const notes = query.all({",
-  '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
-  '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "text", type: "string" }, { alias: "pinned", type: "boolean" }],',
+  "  const notes = query.records({",
+  '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
   "  });",
-  '  return notes.map((note) => present(note)).join("");',
+  '  return notes.map(({ record }) => present(record)).join("");',
   "}",
 ].join("\n");
 
@@ -188,7 +192,7 @@ describe("unit generation with bounded fix loop — generation and fix-loop rege
 
     // Handlers render records through the injected adapter and import nothing.
     expect(result.handlers.create).toContain("present(row)");
-    expect(result.handlers.read).toContain("present(note)");
+    expect(result.handlers.read).toContain("present(record)");
     expect(result.handlers.create).not.toMatch(
       /\bimport\b|\bfetch\b|\bRequest\b|\bResponse\b|cap_notes/,
     );
@@ -477,6 +481,63 @@ describe("unit generation with bounded fix loop — read, few-shot, and present-
     expect(readPrompt).toContain(
       "Destructure only `{ query, present }`: `export default async function read({ query, present }: CapabilityContext): Promise<string>`.",
     );
+  });
+
+  test("new Handler context includes only active fields from declared dependencies", () => {
+    const base = notesSpec();
+    const requiredError = base.behavioral_errors[0];
+    if (!requiredError) throw new Error("notes fixture requires one validation error");
+    const incarnation_id = "11111111-1111-4111-8111-111111111111";
+    const dependency: CapabilityRow = {
+      ...base,
+      id: "recipes",
+      label: "Recipes",
+      incarnation_id,
+      version: 2,
+      artifacts_path: `capabilities/recipes/${incarnation_id}/v2/`,
+      schema: {
+        fields: [
+          { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
+          {
+            name: "retired_secret",
+            label: "Retired secret",
+            type: "string",
+            required: false,
+            lifecycle: "inactive",
+          },
+        ],
+      },
+      ui_intent: {
+        ...base.ui_intent,
+        item: { ...base.ui_intent.item, shows: ["title"] },
+        detail: { shows: ["title"] },
+      },
+      behavioral_errors: [
+        {
+          ...requiredError,
+          fields: ["title"],
+        },
+      ],
+    };
+    const target: CapabilitySpec = {
+      ...base,
+      tools: [...FULL_CAPABILITY_TOOLS],
+      behavioral_errors: defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+      read_dependencies: {
+        create: [],
+        read: [{ capability_id: dependency.id, incarnation_id }],
+        update: [],
+        delete: [],
+        search: [],
+      },
+    };
+
+    const prompt = buildUnitPrompt(target, { kind: "handler", name: "read" }, undefined, [
+      dependency,
+    ]);
+    expect(prompt).toContain('"capability_id": "recipes"');
+    expect(prompt).toContain('"name": "title"');
+    expect(prompt).not.toContain("retired_secret");
   });
 });
 

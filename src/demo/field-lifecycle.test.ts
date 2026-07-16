@@ -15,6 +15,7 @@ import {
   FIELD_LIFECYCLE_MERGE_TARGET_ID,
   installFieldLifecycleDemo,
 } from "./field-lifecycle.ts";
+import { READ_DEPENDENCY_DEMO_ID } from "./read-dependency.ts";
 
 async function installReference(database: PlatformDatabase["readwrite"], artifactsRoot: string) {
   const result = await installFieldLifecycleDemo({
@@ -28,6 +29,8 @@ async function installReference(database: PlatformDatabase["readwrite"], artifac
     "behavioral:skipped",
     "design-lint:passed",
   ]);
+  expect(result.readDependency.row).toMatchObject({ id: READ_DEPENDENCY_DEMO_ID });
+  expect(result.readDependency.artifactsPath).toContain(READ_DEPENDENCY_DEMO_ID);
   return result;
 }
 
@@ -53,6 +56,7 @@ describe("development-only five-Action reference living demo", () => {
 
     const home = await (await app.request("/")).text();
     expect(home).toContain("Journal entry");
+    expect(home).toContain("Journal links");
     expect(home).not.toContain("Five-action reference");
     expect(home).toContain(`/capability/${FIELD_LIFECYCLE_DEMO_ID}`);
 
@@ -136,6 +140,11 @@ describe("development-only five-Action reference living demo", () => {
     expect(refreshed.indexOf("fantasy")).toBeLessThan(refreshed.indexOf("historical fiction"));
     expect(refreshed.indexOf("historical fiction")).toBeLessThan(refreshed.indexOf("classic"));
     expect(refreshed).toContain("Doe, Jane");
+
+    const joined = await (await app.request(`/capability/${READ_DEPENDENCY_DEMO_ID}/read`)).text();
+    expect(joined).toContain("data-joined-journal-entry");
+    expect(joined).toContain("A quiet beginning");
+    expect(joined).toContain("Seen through a declared dependency");
   });
 });
 
@@ -196,21 +205,52 @@ describe("five-Action reference installer admission", () => {
   });
 });
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: the tracer intentionally proves the complete route lifecycle in one database.
 describe("five-Action reference route inventory", () => {
+  // biome-ignore lint/complexity/noExcessiveLinesPerFunction: one tracer keeps race, CRUD, normalization, and preservation assertions ordered.
   test("partial update, post-merge validation, delete, and not-found run through real routes", async () => {
     const dir = mkdtempSync(join(tmpdir(), "aluna-five-action-routes-"));
     const databases = openDatabase(join(dir, "demo.db"));
     try {
       runMigrations(databases.readwrite);
+      const mutationCoordinator = createMutationCoordinator();
       await installFieldLifecycleDemo({
         database: databases.readwrite,
         artifactsRoot: join(dir, "capabilities"),
-        mutationCoordinator: createMutationCoordinator(),
+        mutationCoordinator,
       });
-      const app = createApp({ capabilityRouter: { databases } });
+      const app = createApp({ capabilityRouter: { databases }, mutationCoordinator });
+
+      const reservation = mutationCoordinator.reserveBuild();
+      const buildLease = await mutationCoordinator.acquireBuild(reservation);
+      for (const path of [
+        `/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`,
+        `/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=old`,
+      ]) {
+        expect((await app.request(path)).status).toBe(200);
+      }
+      for (const action of ["create", "update", "delete"] as const) {
+        const body = new URLSearchParams();
+        if (action !== "create") body.set("__aluna_record_id", FIELD_LIFECYCLE_MERGE_TARGET_ID);
+        expect(
+          (
+            await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/${action}`, {
+              method: "POST",
+              headers: { "content-type": "application/x-www-form-urlencoded" },
+              body: body.toString(),
+            })
+          ).status,
+        ).toBe(422);
+      }
+      expect(mutationCoordinator.release(buildLease)).toBe(true);
 
       const search = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=old`);
       expect(search.status).toBe(200);
+      const normalizedSearch = await app.request(
+        `/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=${encodeURIComponent("Cafe\u0301 a\u030angstro\u0308m")}`,
+      );
+      expect(normalizedSearch.status).toBe(200);
+      expect(await normalizedSearch.text()).toContain("Ready to remove — CAFÉ ÅNGSTRÖM");
 
       const before = databases.readwrite
         .query(`SELECT * FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "id" = ?`)

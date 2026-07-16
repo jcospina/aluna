@@ -19,6 +19,7 @@
 import { z } from "zod";
 import type { DeepPartial, Provider, TokenUsage } from "../provider/index.ts";
 import {
+  type CapabilityRow,
   type CapabilitySpec,
   type FULL_CAPABILITY_TOOLS,
   TRANSITIONAL_CAPABILITY_TOOLS,
@@ -72,6 +73,7 @@ export interface UnitGenerationAttempt {
 export interface GenerateCapabilityUnitsInput {
   readonly provider: Provider;
   readonly spec: CapabilitySpec;
+  readonly dependencyCatalog?: readonly CapabilityRow[];
   // Config knob from PLAN decision 5. Defaults to two attempts: the initial write
   // plus one fix pass. Reused (not new) for the item renderer (ADR-0005 decision 6).
   readonly maxAttempts?: number;
@@ -157,6 +159,7 @@ export async function generateCapabilityUnits(
       { kind: "item-renderer", name: ITEM_RENDERER_UNIT_NAME },
       maxAttempts,
       input.observer,
+      input.dependencyCatalog,
     ),
   );
 
@@ -168,6 +171,7 @@ export async function generateCapabilityUnits(
         { kind: "handler", name: action },
         maxAttempts,
         input.observer,
+        input.dependencyCatalog,
       ),
     );
   }
@@ -188,6 +192,7 @@ async function generateUnit(
   unit: UnitDescriptor,
   maxAttempts: number,
   observer: UnitGenerationObserver | undefined,
+  dependencyCatalog: readonly CapabilityRow[] | undefined,
 ): Promise<GeneratedUnit> {
   const attempts: UnitGenerationAttempt[] = [];
   let previousFailure: UnitGenerationFailure | undefined;
@@ -196,7 +201,7 @@ async function generateUnit(
     await observer?.onUnitStart?.({ unit, attempt });
     const startedAt = performance.now();
     const result = provider.generate(
-      buildUnitPrompt(spec, unit, previousFailure),
+      buildUnitPrompt(spec, unit, previousFailure, dependencyCatalog),
       generatedUnitSchema,
     );
     const partialsSettled = observeUnitPartials(unit, attempt, result.partialStream, observer);

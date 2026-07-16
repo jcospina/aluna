@@ -92,6 +92,44 @@ describe("capability spec shape — Action tuple & read dependencies", () => {
       }).success,
     ).toBe(false);
   });
+
+  test("full Action dependencies reject self, duplicates, and non-canonical order", () => {
+    const base = validSpec();
+    const dependency = (capability_id: string, incarnation_id: string) => ({
+      capability_id,
+      incarnation_id,
+    });
+    const a = dependency("recipes", "11111111-1111-4111-8111-111111111111");
+    const b = dependency("tasks", "22222222-2222-4222-8222-222222222222");
+    const full = {
+      ...base,
+      tools: [...FULL_CAPABILITY_TOOLS],
+      behavioral_errors: defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+      read_dependencies: { create: [], read: [a, b], update: [], delete: [], search: [] },
+    };
+    expect(capabilitySpecSchema.safeParse(full).success).toBe(true);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...full,
+        read_dependencies: { ...full.read_dependencies, read: [b, a] },
+      }).success,
+    ).toBe(false);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...full,
+        read_dependencies: { ...full.read_dependencies, read: [a, a] },
+      }).success,
+    ).toBe(false);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...full,
+        read_dependencies: {
+          ...full.read_dependencies,
+          read: [dependency("notes", "33333333-3333-4333-8333-333333333333")],
+        },
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("capability spec shape — behavioral error contract", () => {

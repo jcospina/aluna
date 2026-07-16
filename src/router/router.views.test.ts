@@ -121,16 +121,10 @@ describe("deterministic capability router — presentation adapter and empty rea
       async () =>
       async ({ query, present }: CapabilityContext) =>
         query
-          .all({
-            sql: 'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC',
-            result: [
-              { alias: "id", type: "string" },
-              { alias: "created_at", type: "datetime" },
-              { alias: "text", type: "string" },
-              { alias: "pinned", type: "boolean" },
-            ],
+          .records({
+            sql: 'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC',
           })
-          .map((row) => present(row))
+          .map(({ record }) => present(record))
           .join("");
 
     const app = createApp({

@@ -1,6 +1,6 @@
 # Per-Action read dependencies, id→canonical-row rehydration, and the search normalization function
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -41,20 +41,20 @@ The lifecycle-aware read side, closing epic 4.2 with its full tracer.
 
 ## Acceptance criteria
 
-- [ ] A declared cross-capability read succeeds; an undeclared one is rejected;
+- [x] A declared cross-capability read succeeds; an undeclared one is rejected;
       a listed self-dependency is rejected; pairs must resolve to active rows
-- [ ] Dependency compatibility (plan acceptance): an old declared reader still
+- [x] Dependency compatibility (plan acceptance): an old declared reader still
       executes after an external field is soft-hidden, while new model contexts
       omit that field
-- [ ] Rehydration: order restored; missing/duplicate/foreign ids fail; an old
+- [x] Rehydration: order restored; missing/duplicate/foreign ids fail; an old
       explicit projection cannot omit a newly added column; inactive/`extra`
       never reach Handler input or the DOM (pinned by tests)
-- [ ] The normalization function matches composed vs decomposed non-ASCII text
+- [x] The normalization function matches composed vs decomposed non-ASCII text
       and non-ASCII case where SQLite `NOCASE`/`lower()` would not
-- [ ] Epic tracer on the reference capability: create → read → partial update →
+- [x] Epic tracer on the reference capability: create → read → partial update →
       search → delete; a read-port write fails physically; the paused-build
       race from 4.2/01 passes against the full route set
-- [ ] `bun test`, `bun run typecheck`, `bun run lint` clean
+- [x] `bun test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -66,3 +66,63 @@ returns normalized matches via curl.
 
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.2-mutation-coordinator-split-tools-and-routing-actions/issues/01-atomic-mutation-coordinator.md
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.2-mutation-coordinator-split-tools-and-routing-actions/issues/05-record-targeted-merge-update-and-delete.md
+
+## Implementation notes
+
+- The registry validates strict, canonical, unique per-Action dependency pairs,
+  rejects self-dependencies, resolves exact active incarnations at commit and
+  routing time, and exposes the reverse lookup reserved for deletion refusal.
+- The scoped read port admits only the target plus that Action's resolved
+  dependency tables. Gate scratch execution builds the same catalog, while
+  generation context exposes only active dependency fields; committed copied SQL
+  can still read physically retained soft-hidden columns.
+- `query.records` accepts ordered unique target ids plus declared result aliases,
+  then selects the complete canonical target rows in the same explicit read-only
+  snapshot. Handler input contains only active fields, `created_at`, declared
+  values, and an opaque handle; presentation uses the handle inside platform code
+  and narrows again before HTML.
+- Bun 1.3 does not expose SQLite scalar-function registration. The platform owns
+  a small loadable SQLite bridge that is compiled into the OS temp directory,
+  registered per query connection, and calls the single JavaScript
+  `normalize("NFKC").toLocaleLowerCase("und")` implementation. macOS selects an
+  extension-capable Homebrew SQLite before opening the first connection; the
+  setup and `OMNI_CRUD_SQLITE_LIBRARY` override are documented in `data/README.md`.
+- The five-Action Journal reference uses the SQL function over both stored values
+  and terms. A committed **Journal links** capability declares the exact Journal
+  incarnation, joins it in read/search, passes both Gate rungs against copied
+  scratch tables, and appears beside Journal entry in the homepage toolbar.
+- The Epic 4.2 quality pass hardened the generated-code boundary: query ports are
+  always Action-scoped, plain query projections cannot enter presentation,
+  mutation and record-query results carry opaque platform-owned record handles,
+  protected target/schema columns fail closed, and field names such as `fields`
+  and `handle` remain ordinary user data. The demo installer now admits work only
+  through the running server coordinator, and the data/demo module cycles were
+  removed.
+
+## Verification
+
+- `bun test` — 472 passing, 0 failing, 2 snapshots, 2125 expectations
+- `bun run typecheck`
+- `bun run lint`
+- `git diff --check`
+- Focused query-port and living-demo run — 25 passing, 0 failing
+- Live `localhost:3030` probes after `bun run demo:five-action-reference`:
+  declared joined read rendered its Journal value, and decomposed lowercase
+  search matched the composed uppercase **CAFÉ ÅNGSTRÖM** seed.
+
+## HITL test instructions
+
+1. Ensure an extension-capable SQLite is available (`brew install sqlite` on
+   macOS). Reuse the app server on port 3030, or run `bun run dev` if it is not
+   already running, then run `bun run demo:five-action-reference`.
+2. Open `http://localhost:3030`, choose **Journal links**, and confirm the View
+   shows **A quiet beginning** above **Seen through a declared dependency**.
+3. Run:
+
+   ```sh
+   curl -s 'http://localhost:3030/capability/field_lifecycle_demo/search?q=Cafe%CC%81%20a%CC%8Angstro%CC%88m'
+   ```
+
+   Confirm the response includes **Ready to remove — CAFÉ ÅNGSTRÖM** even though
+   the query uses decomposed lowercase Unicode.
+4. Run `bun test`, `bun run typecheck`, and `bun run lint`; all must finish cleanly.

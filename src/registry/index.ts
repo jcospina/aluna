@@ -18,6 +18,7 @@ export {
   type CapabilityTool,
   CREATED_AT_DESCRIPTOR,
   capabilityRowSchema,
+  capabilitySpecFromRow,
   capabilitySpecSchema,
   capabilityToolSchema,
   defaultBehavioralErrorsForSchema,
@@ -60,5 +61,7 @@ export {
   insertCapability,
   isRegistryInitialized,
   listCapabilities,
+  listCapabilityDependents,
   REGISTRY_TABLE,
+  resolveActionReadDependencies,
 } from "./store.ts";

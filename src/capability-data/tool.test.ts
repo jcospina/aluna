@@ -7,6 +7,8 @@
 // concern; the shared spec builders and database harness live in
 // `tool.test-support.ts`.
 
+// biome-ignore-all lint/nursery/noExcessiveLinesPerFile: one data-port regression suite stays grouped by concern.
+
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
@@ -14,9 +16,11 @@ import { randomUUID } from "node:crypto";
 import { MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/index.ts";
 import {
   applyCapabilityTableDdl,
-  createCapabilityDataPorts,
+  createCapabilityMutationPort,
   createCapabilityQueryPort,
   MissingRequiredFieldsError,
+  materializeCapabilityActionRecord,
+  normalizeSearchText,
 } from "./index.ts";
 import {
   createCapabilityDataTool,
@@ -27,6 +31,7 @@ import {
   withFileDatabase,
 } from "./tool.test-support.ts";
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: split query-port cases share one compact file-database harness.
 describe("split capability data ports", () => {
   test("mutation authority is capability-bound while the query port can join capabilities", () => {
     withFileDatabase((databases) => {
@@ -35,28 +40,212 @@ describe("split capability data ports", () => {
       applyCapabilityTableDdl(notes, databases.readwrite);
       applyCapabilityTableDdl(recipes, databases.readwrite);
 
-      const notesPorts = createCapabilityDataPorts(notes, databases);
-      const recipesPorts = createCapabilityDataPorts(recipes, databases);
-      const note = notesPorts.mutation.create({ text: "Soup notes", pinned: false });
-      recipesPorts.mutation.create({ title: "Soup" });
+      const notesMutation = createCapabilityMutationPort(notes, databases.readwrite);
+      const recipesMutation = createCapabilityMutationPort(recipes, databases.readwrite);
+      const note = materializeCapabilityActionRecord(
+        notesMutation.create({ text: "Soup notes", pinned: false }),
+      );
+      recipesMutation.create({ title: "Soup" });
+      const query = createCapabilityQueryPort(databases.readonly, {
+        target: notes,
+        dependencies: [recipes],
+      });
 
-      expect(Object.keys(notesPorts.mutation)).toEqual(["create"]);
-      expect(notesPorts.mutation.create.length).toBe(1);
-      expect(() => notesPorts.mutation.create({ title: "Not a notes field" })).toThrow(
+      expect(Object.keys(notesMutation)).toEqual(["create"]);
+      expect(notesMutation.create.length).toBe(1);
+      expect(() => notesMutation.create({ title: "Not a notes field" })).toThrow(
         /Unknown field "title" for capability "notes"/,
       );
       expect(
-        notesPorts.query.all({
-          sql: `SELECT n."id" AS "note_id", r."title" AS "recipe_title"
+        query.records({
+          sql: `SELECT n."id" AS "target_id", r."title" AS "recipe_title"
                 FROM "cap_notes" n CROSS JOIN "cap_recipes" r
                 WHERE n."id" = ?`,
           parameters: [note.id],
-          result: [
-            { alias: "note_id", type: "string" },
-            { alias: "recipe_title", type: "string" },
-          ],
+          result: [{ alias: "recipe_title", type: "string" }],
         }),
-      ).toEqual([{ note_id: note.id, recipe_title: "Soup" }]);
+      ).toMatchObject([
+        { record: { fields: { text: "Soup notes" } }, values: { recipe_title: "Soup" } },
+      ]);
+    });
+  });
+
+  test("Action scope admits only the target and declared dependency tables", () => {
+    withFileDatabase((databases) => {
+      const notes = notesSpec();
+      const recipes = recipesSpec();
+      const hidden = notesSpec({ id: "hidden", label: "Hidden" });
+      for (const spec of [notes, recipes, hidden]) {
+        applyCapabilityTableDdl(spec, databases.readwrite);
+      }
+      const notesMutation = createCapabilityMutationPort(notes, databases.readwrite);
+      const recipesMutation = createCapabilityMutationPort(recipes, databases.readwrite);
+      notesMutation.create({ text: "Soup notes", pinned: false });
+      recipesMutation.create({ title: "Soup" });
+      const query = createCapabilityQueryPort(databases.readonly, {
+        target: notes,
+        dependencies: [recipes],
+      });
+
+      expect(
+        query.records({
+          sql: 'SELECT n."id" AS "target_id", r."title" AS "recipe_title" FROM "cap_notes" n CROSS JOIN "cap_recipes" r',
+          result: [{ alias: "recipe_title", type: "string" }],
+        }),
+      ).toMatchObject([
+        { record: { fields: { text: "Soup notes" } }, values: { recipe_title: "Soup" } },
+      ]);
+      expect(() =>
+        query.all({
+          sql: 'SELECT "id" FROM "cap_hidden"',
+          result: [{ alias: "id", type: "string" }],
+        }),
+      ).toThrow(/undeclared capability table.*cap_hidden/);
+    });
+  });
+
+  test("a copied reader can still read a declared field after its dependency soft-hides it", () => {
+    withFileDatabase((databases) => {
+      const notes = notesSpec();
+      const recipes = recipesSpec();
+      recipes.schema.fields.push({
+        name: "summary",
+        label: "Summary",
+        type: "string",
+        required: false,
+        lifecycle: "active",
+      });
+      recipes.ui_intent.item.shows = ["title", "summary"];
+      recipes.ui_intent.detail.shows = ["title", "summary"];
+      applyCapabilityTableDdl(notes, databases.readwrite);
+      applyCapabilityTableDdl(recipes, databases.readwrite);
+      createCapabilityMutationPort(recipes, databases.readwrite).create({ title: "Soup" });
+      const hiddenRecipes = recipesSpec();
+      hiddenRecipes.schema.fields = recipes.schema.fields.map((field) =>
+        field.name === "title" ? { ...field, lifecycle: "inactive" } : field,
+      );
+      hiddenRecipes.ui_intent.item.shows = ["summary"];
+      hiddenRecipes.ui_intent.detail.shows = ["summary"];
+      hiddenRecipes.behavioral_errors = [];
+      const query = createCapabilityQueryPort(databases.readonly, {
+        target: notes,
+        dependencies: [hiddenRecipes],
+      });
+
+      expect(
+        query.all({
+          sql: 'SELECT "title" FROM "cap_recipes"',
+          result: [{ alias: "title", type: "string" }],
+        }),
+      ).toEqual([{ title: "Soup" }]);
+    });
+  });
+
+  test("record queries rehydrate full target rows, restore order, and fail closed on bad ids", () => {
+    withFileDatabase((databases) => {
+      const notes = notesSpec({
+        schema: {
+          fields: [
+            ...notesSpec().schema.fields,
+            {
+              name: "added_later",
+              label: "Added later",
+              type: "string",
+              required: false,
+              lifecycle: "active",
+            },
+            {
+              name: "retired",
+              label: "Retired",
+              type: "string",
+              required: false,
+              lifecycle: "inactive",
+            },
+          ],
+        },
+        ui_intent: {
+          ...notesSpec().ui_intent,
+          detail: { shows: ["text", "added_later"] },
+        },
+      });
+      const recipes = recipesSpec();
+      applyCapabilityTableDdl(notes, databases.readwrite);
+      applyCapabilityTableDdl(recipes, databases.readwrite);
+      const mutation = createCapabilityMutationPort(notes, databases.readwrite);
+      const first = materializeCapabilityActionRecord(
+        mutation.create({ text: "First", pinned: false, added_later: "new value" }),
+      );
+      const second = materializeCapabilityActionRecord(
+        mutation.create({ text: "Second", pinned: true, added_later: "also new" }),
+      );
+      const foreign = materializeCapabilityActionRecord(
+        createCapabilityMutationPort(recipes, databases.readwrite).create({ title: "Soup" }),
+      );
+      databases.readwrite.run('UPDATE "cap_notes" SET "retired" = ?, "extra" = ? WHERE "id" = ?', [
+        "secret",
+        '{"private":true}',
+        first.id,
+      ]);
+      const query = createCapabilityQueryPort(databases.readonly, { target: notes });
+
+      const rows = query.records({
+        sql: 'SELECT "id" AS "target_id", "text" AS "selected_text" FROM "cap_notes" ORDER BY CASE "id" WHEN ? THEN 0 ELSE 1 END',
+        parameters: [second.id],
+        result: [{ alias: "selected_text", type: "string" }],
+      });
+      expect(rows.map(({ record }) => record.fields.text)).toEqual(["Second", "First"]);
+      expect(rows[1]?.record.fields.added_later).toBe("new value");
+      expect(rows[1]?.record.fields).not.toHaveProperty("retired");
+      expect(rows[1]?.record.fields).not.toHaveProperty("extra");
+      expect(rows[1]?.record).not.toHaveProperty("id");
+      expect(rows[0]?.values).toEqual({ selected_text: "Second" });
+
+      expect(() =>
+        query.records({
+          sql: 'SELECT "id" AS "target_id" FROM "cap_notes" UNION ALL SELECT "id" FROM "cap_notes"',
+        }),
+      ).toThrow(/duplicate target ids/);
+      expect(() =>
+        query.records({
+          sql: "SELECT ? AS target_id",
+          parameters: [foreign.id],
+        }),
+      ).toThrow(/missing or foreign target id/);
+    });
+  });
+
+  test("platform search normalization handles canonical equivalence and non-ASCII case", () => {
+    expect(normalizeSearchText("CAFÉ")).toBe(normalizeSearchText("Cafe\u0301"));
+    expect(normalizeSearchText("ÅNGSTRÖM")).toBe(normalizeSearchText("a\u030angstro\u0308m"));
+    withFileDatabase((databases) => {
+      const notes = notesSpec();
+      applyCapabilityTableDdl(notes, databases.readwrite);
+      const row = materializeCapabilityActionRecord(
+        createCapabilityMutationPort(notes, databases.readwrite).create({
+          text: "CAFÉ ÅNGSTRÖM",
+          pinned: false,
+        }),
+      );
+      const query = createCapabilityQueryPort(databases.readonly, { target: notes });
+
+      expect(
+        query.all({
+          sql: "SELECT platform_search_normalize(?) AS normalized",
+          parameters: ["Cafe\u0301 a\u030angstro\u0308m"],
+          result: [{ alias: "normalized", type: "string" }],
+        }),
+      ).toEqual([{ normalized: "café ångström" }]);
+      expect(
+        query.records({
+          sql: 'SELECT "id" AS "target_id" FROM "cap_notes" WHERE platform_search_normalize("text") = platform_search_normalize(?)',
+          parameters: ["Cafe\u0301 a\u030angstro\u0308m"],
+        }),
+      ).toHaveLength(1);
+      expect(
+        databases.readonly
+          .query('SELECT lower("text") = lower(?) AS matches FROM "cap_notes" WHERE "id" = ?')
+          .get("Cafe\u0301 a\u030angstro\u0308m", row.id),
+      ).toEqual({ matches: 0 });
     });
   });
 
@@ -64,7 +253,7 @@ describe("split capability data ports", () => {
     withFileDatabase((databases) => {
       const spec = notesSpec();
       applyCapabilityTableDdl(spec, databases.readwrite);
-      const query = createCapabilityQueryPort(databases.readonly);
+      const query = createCapabilityQueryPort(databases.readonly, { target: spec });
 
       expect(() =>
         query.all({
@@ -83,31 +272,29 @@ describe("split capability data ports", () => {
     withFileDatabase((databases) => {
       const spec = notesSpec();
       applyCapabilityTableDdl(spec, databases.readwrite);
-      const { mutation, query } = createCapabilityDataPorts(spec, databases);
+      const mutation = createCapabilityMutationPort(spec, databases.readwrite);
+      const query = createCapabilityQueryPort(databases.readonly, { target: spec });
       mutation.create({ text: "Declared only", pinned: true });
 
       const projected = query.all({
-        sql: 'SELECT * FROM "cap_notes"',
-        result: [
-          { alias: "text", type: "string" },
-          { alias: "id", type: "string" },
-        ],
+        sql: 'SELECT "text", "pinned" FROM "cap_notes"',
+        result: [{ alias: "text", type: "string" }],
       });
       expect(projected).toHaveLength(1);
-      expect(Object.keys(projected[0] ?? {})).toEqual(["text", "id"]);
+      expect(Object.keys(projected[0] ?? {})).toEqual(["text"]);
       expect(projected[0]).toMatchObject({ text: "Declared only" });
       expect(projected[0]).not.toHaveProperty("pinned");
       expect(projected[0]).not.toHaveProperty("extra");
 
       expect(() =>
         query.all({
-          sql: 'SELECT "id" FROM "cap_notes"',
+          sql: 'SELECT "text" AS "different" FROM "cap_notes"',
           result: [{ alias: "text", type: "string" }],
         }),
       ).toThrow(/missing declared alias "text"/);
       expect(() =>
         query.all({
-          sql: 'SELECT "id" AS "value", "text" AS "value" FROM "cap_notes"',
+          sql: 'SELECT "text" AS "value", "pinned" AS "value" FROM "cap_notes"',
           result: [{ alias: "value", type: "string" }],
         }),
       ).toThrow(/duplicate declared alias "value"/);
@@ -119,13 +306,59 @@ describe("split capability data ports", () => {
       ).toThrow(/invalid value for declared alias "pinned"/);
       expect(() =>
         query.all({
-          sql: 'SELECT "id" FROM "cap_notes"',
+          sql: 'SELECT "text" FROM "cap_notes"',
           result: [
             { alias: "id", type: "string" },
             { alias: "id", type: "string" },
           ],
         }),
       ).toThrow(/Duplicate query result alias "id"/);
+
+      expect(() =>
+        query.all({
+          sql: 'SELECT "text" FROM "cap_notes"',
+          result: [{ alias: "text", type: "invented" as "string" }],
+        }),
+      ).toThrow(/Invalid query result type "invented"/);
+    });
+  });
+
+  test("target internals and ambient schema readers never cross the Handler query interface", () => {
+    withFileDatabase((databases) => {
+      const spec = notesSpec({
+        schema: {
+          fields: [
+            ...notesSpec().schema.fields,
+            {
+              name: "retired_note",
+              label: "Retired note",
+              type: "string",
+              required: false,
+              lifecycle: "inactive",
+            },
+          ],
+        },
+      });
+      applyCapabilityTableDdl(spec, databases.readwrite);
+      const query = createCapabilityQueryPort(databases.readonly, { target: spec });
+
+      for (const sql of [
+        'SELECT "id" AS "leak" FROM "cap_notes"',
+        'SELECT "extra" AS "leak" FROM "cap_notes"',
+        'SELECT "retired_note" AS "leak" FROM "cap_notes"',
+      ]) {
+        expect(() => query.all({ sql, result: [{ alias: "leak", type: "string" }] })).toThrow(
+          /protected target column/,
+        );
+      }
+      for (const sql of [
+        'SELECT * FROM pragma_table_info("cap_notes")',
+        'SELECT * FROM pragma_table_xinfo("cap_notes")',
+      ]) {
+        expect(() => query.all({ sql, result: [{ alias: "name", type: "string" }] })).toThrow(
+          /schema and ambient virtual tables/,
+        );
+      }
     });
   });
 });

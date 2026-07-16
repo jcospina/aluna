@@ -13,9 +13,12 @@ import ts from "typescript";
 
 import type { CapabilityCreateValues, CapabilityTableDdl } from "../capability-data/index.ts";
 import {
+  type CapabilityQueryPort,
   createCapabilityMutationPort,
+  createCapabilityQueryPort,
   deriveCapabilityTableDdl,
   encodeCapabilityFieldForStorage,
+  materializeCapabilityActionRecord,
 } from "../capability-data/index.ts";
 import {
   createPresentationAdapter,
@@ -23,7 +26,12 @@ import {
   type PresentationAdapter,
   type RenderableCapability,
 } from "../presentation/index.ts";
-import type { CapabilitySpec, FieldType } from "../registry/index.ts";
+import type {
+  CapabilitySpec,
+  CapabilityTool,
+  FieldType,
+  ReadDependency,
+} from "../registry/index.ts";
 import type { CapabilityCreateHandler, CapabilityReadHandler } from "../router/index.ts";
 import type { ScratchCatalogCapability } from "./gate.ts";
 import type { HandlerUnitName } from "./units.ts";
@@ -118,6 +126,32 @@ export function prepareScratchCatalog(
   }
 }
 
+export function buildGateQueryPort(
+  spec: CapabilitySpec,
+  action: CapabilityTool,
+  catalog: readonly ScratchCatalogCapability[] | undefined,
+  database: Database,
+): CapabilityQueryPort {
+  const declared: readonly ReadDependency[] =
+    action in spec.read_dependencies
+      ? spec.read_dependencies[action as keyof typeof spec.read_dependencies]
+      : [];
+  const dependencies = declared.map((dependency) => {
+    const fixture = (catalog ?? []).find(
+      (candidate) =>
+        candidate.spec.id === dependency.capability_id &&
+        candidate.incarnationId === dependency.incarnation_id,
+    );
+    if (!fixture) {
+      throw new Error(
+        `Scratch catalog requires ${dependency.capability_id}/${dependency.incarnation_id} for ${action}.`,
+      );
+    }
+    return fixture.spec;
+  });
+  return createCapabilityQueryPort(database, { target: spec, dependencies });
+}
+
 function seedCompatibilityRow(
   spec: CapabilitySpec,
   tableName: string,
@@ -140,7 +174,9 @@ function seedCompatibilityRow(
     }
   }
 
-  const created = createCapabilityMutationPort(spec, database).create(activeValues);
+  const created = materializeCapabilityActionRecord(
+    createCapabilityMutationPort(spec, database).create(activeValues),
+  );
   if (inactiveValues.length === 0) return;
 
   const assignments = inactiveValues.map(([name]) => `${sqlIdentifier(name)} = ?`).join(", ");

@@ -247,11 +247,10 @@ export const CREATE_HANDLER = [
 
 export const READ_HANDLER = [
   "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-  "  const notes = query.all({",
-  '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
-  '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "text", type: "string" }],',
+  "  const notes = query.records({",
+  '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
   "  });",
-  '  return notes.map((note) => present(note)).join("");',
+  '  return notes.map(({ record }) => present(record)).join("");',
   "}",
 ].join("\n");
 

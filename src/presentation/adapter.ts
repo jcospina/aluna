@@ -29,6 +29,10 @@
 // the item renderer is resolved once, by the router, before a Handler is ever handed the
 // toolbox, which is why the router loads it eagerly (src/router/router.ts).
 
+import {
+  type CapabilityActionRecord,
+  materializeCapabilityActionRecord,
+} from "../capability-data/index.ts";
 import { renderDetailContentTemplate } from "./detail-modal.ts";
 import { enforceItemMarkup } from "./enforcer.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
@@ -59,7 +63,8 @@ export type ItemRenderer = (record: PresentableRecord) => string;
  * toolbox as `present`; the Handler maps its records through it and returns the joined
  * result, never touching the renderer/enforcer/wrapper itself.
  */
-export type PresentationAdapter = (record: PresentableRecord) => string;
+export type PresentationAdapter = (record: CapabilityActionRecord) => string;
+export type PlatformPresentationAdapter = (record: PresentableRecord) => string;
 
 /** What {@link createPresentationAdapter} closes over: the capability (for the label,
  *  `detail.shows`, and the id namespacing the detail templates) and its item renderer. */
@@ -85,6 +90,14 @@ export const DETAIL_TEMPLATE_ID_PREFIX = "detail";
 export function createPresentationAdapter(
   options: PresentationAdapterOptions,
 ): PresentationAdapter {
+  const { capability, renderItem } = options;
+  return (record) => present(capability, renderItem, materializeCapabilityActionRecord(record));
+}
+
+/** Platform-only presentation for synthetic previews and deterministic design probes. */
+export function createPlatformPresentationAdapter(
+  options: PresentationAdapterOptions,
+): PlatformPresentationAdapter {
   const { capability, renderItem } = options;
   return (record) => present(capability, renderItem, record);
 }

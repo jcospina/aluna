@@ -5,7 +5,7 @@
 // The examples remain builder guidance; this route is a developer preview, not a
 // product shell surface.
 
-import { createPresentationAdapter } from "../presentation/adapter.ts";
+import { createPlatformPresentationAdapter } from "../presentation/adapter.ts";
 import { renderDetailModal } from "../presentation/detail-modal.ts";
 import { renderCollection } from "../presentation/list-container.ts";
 import { escapeHtml } from "../web/html.ts";
@@ -17,7 +17,7 @@ import {
 
 function renderedExample(example: FewShotDesignExample): string {
   let previewIndex = 0;
-  const present = createPresentationAdapter({
+  const present = createPlatformPresentationAdapter({
     capability: example.capability,
     renderItem: () => {
       const previewInnerHtml = example.previewSamples[previewIndex]?.previewInnerHtml;

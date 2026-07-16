@@ -135,32 +135,19 @@ describe("capability gate — datetime instant matching", () => {
       prompt_context: "Stores the user's events.",
     });
     const canonicalizingCreate = [
-      "export default async function create({ input, mutation }: CapabilityCreateContext): Promise<string> {",
+      "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
       "  const rawHappensAt = input.values.happens_at;",
       '  const happensAt = new Date(typeof rawHappensAt === "string" ? rawHappensAt : "").toISOString();',
       "  const event = mutation.create({ title: input.values.title, happens_at: happensAt });",
-      "  return `<article><h3>$" +
-        "{escapeHtml(event.title)}</h3><time>$" +
-        "{escapeHtml(event.happens_at)}</time></article>`;",
-      "}",
-      "",
-      "function escapeHtml(value: unknown): string {",
-      '  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;");',
+      "  return present(event);",
       "}",
     ].join("\n");
     const eventsRead = [
-      "export default async function read({ query }: CapabilityContext): Promise<string> {",
-      "  const events = query.all({",
-      '    sql: \'SELECT * FROM "cap_events" ORDER BY "created_at" DESC, "id" DESC\',',
-      '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "title", type: "string" }, { alias: "happens_at", type: "datetime" }],',
+      "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+      "  const events = query.records({",
+      '    sql: \'SELECT "id" AS "target_id" FROM "cap_events" ORDER BY "created_at" DESC, "id" DESC\',',
       "  });",
-      "  const items = events.map((event) => `<article>$" +
-        '{escapeHtml(event.title)}</article>`).join("");',
-      '  return `<section class="events">$' + "{items}</section>`;",
-      "}",
-      "",
-      "function escapeHtml(value: unknown): string {",
-      '  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;");',
+      '  return events.map(({ record }) => present(record)).join("");',
       "}",
     ].join("\n");
     const datetimeSuite = {

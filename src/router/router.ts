@@ -47,7 +47,13 @@ import {
   type PresentationAdapter,
   type RenderableCapability,
 } from "../presentation/index.ts";
-import { type CapabilityRow, type CapabilitySpec, getCapability } from "../registry/index.ts";
+import {
+  type CapabilityRow,
+  type CapabilitySpec,
+  capabilitySpecFromRow,
+  getCapability,
+  resolveActionReadDependencies,
+} from "../registry/index.ts";
 import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
 import type {
   CapabilityCreateHandler,
@@ -244,7 +250,7 @@ async function executeCapabilityHandler(
   // input parsing, handler loading, handler execution, or a contract violation —
   // becomes one warm, internals-free failure.
   try {
-    const spec = specFromRow(row);
+    const spec = capabilitySpecFromRow(row);
     const parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
     const fragment = await invokeCapabilityHandler(
       databases,
@@ -285,7 +291,11 @@ async function invokeCapabilityHandler(
   parsedRequest: ParsedCapabilityRequest,
 ): Promise<string> {
   const { input } = parsedRequest;
-  const query = createCapabilityQueryPort(databases.readonly);
+  const dependencies = resolveActionReadDependencies(row, action, databases.readonly);
+  const query = createCapabilityQueryPort(databases.readonly, {
+    target: spec,
+    dependencies: dependencies.map(capabilitySpecFromRow),
+  });
 
   if (action === "create") {
     const mutation = createCapabilityMutationPort(spec, databases.readwrite);
@@ -393,24 +403,6 @@ function routableTarget(
   // one contract, so reject a miss or wrong pair before any registry/code access.
   if (!id || !action || !hasExpectedMethod(action, c.req.method)) return undefined;
   return { id, action };
-}
-
-// The spec embedded in a registry row — the row minus the two platform-assigned
-// values (`version`, `artifacts_path`). The mutation port constructor parses against
-// the strict spec schema, which rejects those extra keys, so the row can't be
-// handed over whole.
-function specFromRow(row: CapabilityRow): CapabilitySpec {
-  return {
-    id: row.id,
-    label: row.label,
-    schema: row.schema,
-    ui_intent: row.ui_intent,
-    behavior: row.behavior,
-    behavioral_errors: row.behavioral_errors,
-    tools: row.tools,
-    read_dependencies: row.read_dependencies,
-    prompt_context: row.prompt_context,
-  };
 }
 
 // Build the capability's presentation adapter for the injected toolbox (epic 3.4/01):

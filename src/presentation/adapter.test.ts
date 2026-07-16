@@ -14,8 +14,10 @@
 
 import { describe, expect, test } from "bun:test";
 
+import { createCapabilityActionRecord } from "../capability-data/index.ts";
 import { escapeHtml } from "../web/html.ts";
 import {
+  createPlatformPresentationAdapter,
   createPresentationAdapter,
   DETAIL_TEMPLATE_ID_PREFIX,
   type ItemRenderer,
@@ -108,8 +110,45 @@ function innerMarkupOf(html: string): string {
 }
 
 describe("createPresentationAdapter — composition", () => {
-  test("wraps item markup in the accessible trigger with the escaped payload + click-to-open hooks", () => {
+  test("treats user fields named fields and handle as ordinary capability data", () => {
+    const collisionCapability: RenderableCapability = {
+      id: "collision",
+      label: "Collision",
+      schema: {
+        fields: [
+          { name: "fields", label: "Fields", type: "string", required: true, lifecycle: "active" },
+          { name: "handle", label: "Handle", type: "string", required: true, lifecycle: "active" },
+        ],
+      },
+      form: { list_inputs: [] },
+      item: { shows: ["fields", "handle"] },
+      detail: { shows: ["fields", "handle"] },
+    };
     const present = createPresentationAdapter({
+      capability: collisionCapability,
+      renderItem: (item) =>
+        `<span class="text-lg">${escapeHtml(String(item.fields))} / ${escapeHtml(String(item.handle))}</span>`,
+    });
+    const html = present(
+      createCapabilityActionRecord({
+        id: "collision-1",
+        created_at: "2026-07-15T00:00:00.000Z",
+        fields: "ordinary field value",
+        handle: "ordinary handle value",
+      }),
+    );
+
+    expect(html).toContain("ordinary field value / ordinary handle value");
+    expect(readBackPayload(html)).toEqual({
+      id: "collision-1",
+      created_at: "2026-07-15T00:00:00.000Z",
+      fields: "ordinary field value",
+      handle: "ordinary handle value",
+    });
+  });
+
+  test("wraps item markup in the accessible trigger with the escaped payload + click-to-open hooks", () => {
+    const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
@@ -145,7 +184,7 @@ describe("createPresentationAdapter — composition", () => {
   });
 
   test("emits the item wrapper first, then the record's detail template", () => {
-    const present = createPresentationAdapter({
+    const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
@@ -155,7 +194,7 @@ describe("createPresentationAdapter — composition", () => {
   });
 
   test("keys the detail template to the record id and namespaces it by capability", () => {
-    const present = createPresentationAdapter({
+    const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
@@ -170,7 +209,7 @@ describe("createPresentationAdapter — composition", () => {
   });
 
   test("routes the capability's detail.shows into the record's detail template", () => {
-    const present = createPresentationAdapter({
+    const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
@@ -187,7 +226,7 @@ describe("createPresentationAdapter — composition", () => {
 
   test("passes only item.shows values to the item renderer, including created_at", () => {
     let received: PresentableRecord | undefined;
-    const present = createPresentationAdapter({
+    const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: (itemRecord) => {
         received = itemRecord;
@@ -222,7 +261,7 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
     `</div>`;
 
   test("neutralizes hostile markup a renderer emits, keeping only the allow-listed surface", () => {
-    const present = createPresentationAdapter({
+    const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: hostileRenderer,
     });
@@ -249,7 +288,7 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
     // A generation slip: the renderer interpolates a field value WITHOUT escaping it.
     const unescapedRenderer: ItemRenderer = (record) =>
       `<div class="stack"><span class="text-lg">${String(record.title)}</span></div>`;
-    const present = createPresentationAdapter({
+    const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: unescapedRenderer,
     });
@@ -270,7 +309,7 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
 
 describe("createPresentationAdapter — payload byte safety", () => {
   test("neutralizes raw bytes in a record to null rather than serializing them", () => {
-    const present = createPresentationAdapter({
+    const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });

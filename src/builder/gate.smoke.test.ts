@@ -157,12 +157,11 @@ describe("capability gate — five-Action reference scratch catalog", () => {
     ),
     read: [
       "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-      "  const rows = query.all({",
-      '    sql: \'SELECT target.* FROM "cap_field_lifecycle_demo" AS target CROSS JOIN "cap_scratch_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
+      "  const rows = query.records({",
+      '    sql: \'SELECT target."id" AS "target_id" FROM "cap_field_lifecycle_demo" AS target CROSS JOIN "cap_scratch_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
       '    parameters: ["synthetic only", "compatibility only"],',
-      '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "entry", type: "string" }, { alias: "reflection", type: "string" }, { alias: "tags", type: "string[]" }, { alias: "aliases", type: "string[]" }],',
       "  });",
-      '  return rows.map((row) => present(row)).join("");',
+      '  return rows.map(({ record }) => present(record)).join("");',
       "}",
     ].join("\n"),
   };
@@ -344,11 +343,10 @@ describe("capability gate — string[] ordered-list samples", () => {
     ].join("\n");
     const read = [
       "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-      "  const rows = query.all({",
-      '    sql: \'SELECT * FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
-      '    result: [{ alias: "id", type: "string" }, { alias: "created_at", type: "datetime" }, { alias: "tags", type: "string[]" }],',
+      "  const rows = query.records({",
+      '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
       "  });",
-      '  return rows.map((row) => present(row)).join("");',
+      '  return rows.map(({ record }) => present(record)).join("");',
       "}",
     ].join("\n");
     const renderer = [
