@@ -142,6 +142,9 @@ export function renderDetailContent(
     ` data-item-target-id="${escapeHtml(itemTargetId)}"` +
     ` data-records-target-id="${escapeHtml(recordsRegionId)}"` +
     ` data-read-url="/capability/${capability.id}/read"` +
+    (capability.searchEnabled === true
+      ? ` data-search-url="/capability/${capability.id}/search"`
+      : "") +
     ` hx-post="/capability/${capability.id}/delete" hx-swap="none">` +
     `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapeHtml(recordId)}">` +
     `<div class="detail-modal__delete-copy">` +

@@ -211,7 +211,10 @@ function assertNarrationCommitAndPrompts(
   expect(commitSwap).toContain('data-active-capability-id="notes"');
   expect(commitSwap).toContain('hx-get="/capability/notes/read"');
   expect(commitSwap).toContain('hx-post="/capability/notes/create"');
-  expect(commitSwap).toContain('hx-target="#notes-records"');
+  expect(commitSwap).toContain('hx-swap="none"');
+  expect(commitSwap).toContain("data-post-mutation-refresh");
+  expect(commitSwap).toContain('data-records-target-id="notes-records"');
+  expect(commitSwap).toContain('data-read-url="/capability/notes/read"');
   expect(commitSwap).toContain('hx-swap-oob="beforeend:#capability-toolbar"');
   expect(commitSwap).toContain("data-capability-entry");
   expect(commitSwap).toContain('hx-get="/capability/notes"');

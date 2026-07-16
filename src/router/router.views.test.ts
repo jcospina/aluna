@@ -198,7 +198,10 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain('hx-get="/capability/notes/read"');
     expect(body).toContain('hx-trigger="load"');
     expect(body).toContain('hx-post="/capability/notes/create"');
-    expect(body).toContain('hx-target="#notes-records"');
+    expect(body).toContain('hx-swap="none"');
+    expect(body).toContain("data-post-mutation-refresh");
+    expect(body).toContain('data-records-target-id="notes-records"');
+    expect(body).toContain('data-read-url="/capability/notes/read"');
     expect(body).not.toContain("data-capability-search");
     expect(body).not.toContain("<!doctype html>");
     expect(body).not.toContain("/static/app.css");
@@ -274,7 +277,10 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain('data-active-capability-id="notes"');
     expect(body).toContain('hx-get="/capability/notes/read"');
     expect(body).toContain('hx-post="/capability/notes/create"');
-    expect(body).toContain('hx-target="#notes-records"');
+    expect(body).toContain('hx-swap="none"');
+    expect(body).toContain("data-post-mutation-refresh");
+    expect(body).toContain('data-records-target-id="notes-records"');
+    expect(body).toContain('data-read-url="/capability/notes/read"');
     expect(body).toContain("data-capability-entry");
     expect(body).toContain('hx-get="/capability/notes"');
     expect(await inspectCapabilitySurfacePlacement(body)).toEqual({

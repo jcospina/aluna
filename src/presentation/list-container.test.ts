@@ -243,10 +243,11 @@ describe("container scaffolding — serving mode (loadThroughRead)", () => {
     expect(both).toContain('hx-get="/capability/tasks/read"');
   });
 
-  test("still renders the create disclosure and its form (the create path is untouched)", () => {
+  test("still renders the create disclosure and its post-mutation refresh form", () => {
     expect(serving).toContain("New Tasks");
     expect(serving).toContain('hx-post="/capability/tasks/create"');
-    expect(serving).toContain(`hx-target="#${capabilityRecordsRegionId("tasks")}"`);
+    expect(serving).toContain('hx-swap="none"');
+    expect(serving).toContain(`data-records-target-id="${capabilityRecordsRegionId("tasks")}"`);
   });
 });
 

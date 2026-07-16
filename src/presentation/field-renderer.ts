@@ -109,10 +109,16 @@ export interface EditFormOptions {
   readonly sourceTemplateId: string;
 }
 
+function searchRefreshAttributes(capability: RenderableCapability): string {
+  return capability.searchEnabled === true
+    ? ` data-search-url="/capability/${capability.id}/search"`
+    : "";
+}
+
 /**
  * Render the platform-owned create form: one input control per spec field, the
- * HTMX wiring that posts a new record and prepends the returned item into the list
- * region, and the close-on-success behavior (reset the form, dispatch
+ * HTMX wiring that posts a new record and defers to the shared post-mutation
+ * whole-region refresh, and the close-on-success behavior (reset the form, dispatch
  * {@link RECORD_CREATED_EVENT}). Deterministic from the spec — never generated.
  */
 export function renderCreateForm(capability: RenderableCapability): string {
@@ -122,19 +128,17 @@ export function renderCreateForm(capability: RenderableCapability): string {
   const fields = activeSpecFields(capability.schema.fields)
     .map((field) => renderCreateField(capabilityId, field, capability.form))
     .join("");
-  // Platform close-on-success: on a successful request only, clear the form for the
-  // next entry and emit the bubbling event the container/modal act on. `capabilityId`
-  // is `[a-z][a-z0-9_]*`, so it cannot break out of the single-quoted JS string.
-  const onAfterRequest =
-    `if(event.detail.successful){this.reset();` +
-    `this.dispatchEvent(new CustomEvent('${RECORD_CREATED_EVENT}',` +
-    `{bubbles:true,detail:{capabilityId:'${capabilityId}'}}))}`;
-
   return (
     `<form class="capability-create-form" aria-label="Add to ${escapeHtml(capability.label)}"` +
     ` hx-post="/capability/${capabilityId}/create"` +
-    ` hx-target="#${regionId}" hx-swap="afterbegin"` +
-    ` hx-on::after-request="${onAfterRequest}">` +
+    ` hx-swap="none"` +
+    ` data-post-mutation-refresh` +
+    ` data-mutation-kind="create"` +
+    ` data-capability-id="${capabilityId}"` +
+    ` data-records-target-id="${regionId}"` +
+    ` data-read-url="/capability/${capabilityId}/read"` +
+    searchRefreshAttributes(capability) +
+    `>` +
     `<div id="${errorId}" class="capability-create-form__error" aria-live="polite"></div>` +
     `<div class="capability-create-form__fields">${fields}</div>` +
     `<div class="capability-create-form__actions">` +
@@ -165,18 +169,18 @@ export function renderEditForm(
     .join("");
   const errorId = capabilityEditErrorId(capability.id);
   const targetId = escapeHtml(options.itemTargetId);
-  const templateId = escapeHtml(options.sourceTemplateId);
   const escapedRecordId = escapeHtml(recordId);
   const label = escapeHtml(capability.label);
-  const onBeforeSwap =
-    "if(event.detail.successful){document.getElementById(this.dataset.detailTemplateId)?.remove()}";
 
   return (
     `<form class="capability-edit-form" data-modal-edit-form aria-label="Edit ${label}"` +
     ` data-item-target-id="${targetId}"` +
-    ` data-detail-template-id="${templateId}"` +
-    ` hx-post="/capability/${capability.id}/update" hx-target="#${targetId}"` +
-    ` hx-swap="outerHTML" hx-on::before-swap="${onBeforeSwap}">` +
+    ` data-post-mutation-refresh` +
+    ` data-mutation-kind="update"` +
+    ` data-records-target-id="${capabilityRecordsRegionId(capability.id)}"` +
+    ` data-read-url="/capability/${capability.id}/read"` +
+    searchRefreshAttributes(capability) +
+    ` hx-post="/capability/${capability.id}/update" hx-swap="none">` +
     `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapedRecordId}">` +
     `<div id="${errorId}" class="capability-edit-form__error" aria-live="polite"></div>` +
     `<div class="capability-edit-form__fields">${fields}</div>` +

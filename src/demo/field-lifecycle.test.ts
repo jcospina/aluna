@@ -170,6 +170,7 @@ describe("development-only five-Action reference living demo", () => {
     expect(template).toContain("data-modal-delete-form hidden");
     expect(template).toContain(`hx-post="/capability/${FIELD_LIFECYCLE_DEMO_ID}/delete"`);
     expect(template).toContain(`data-read-url="/capability/${FIELD_LIFECYCLE_DEMO_ID}/read"`);
+    expect(template).toContain(`data-search-url="/capability/${FIELD_LIFECYCLE_DEMO_ID}/search"`);
     expect(template).toContain(`hx-post="/capability/${FIELD_LIFECYCLE_DEMO_ID}/update"`);
     expect(template).toContain(
       `name="__aluna_record_id" value="${FIELD_LIFECYCLE_MERGE_TARGET_ID}"`,
