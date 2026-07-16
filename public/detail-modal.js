@@ -1,6 +1,6 @@
 // @ts-check
 
-import { refreshCommittedRecords } from "./detail-modal-refresh.js";
+import { refreshCommittedRecordsForMutation } from "./detail-modal-refresh.js";
 import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-state.js";
 
 // Shared read/edit/delete-confirmation modal controller — Module 4, epic 4.3.
@@ -24,6 +24,7 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
   const CANCEL_DELETE_SELECTOR = "[data-detail-cancel-delete]";
   const EDIT_FORM_SELECTOR = "[data-modal-edit-form]";
   const DELETE_FORM_SELECTOR = "[data-modal-delete-form]";
+  const MUTATION_REFRESH_FORM_SELECTOR = "[data-post-mutation-refresh]";
   const SUBMIT_BUTTON_SELECTOR = 'button[type="submit"]';
   const ITEM_SELECTOR = "[data-detail-template]";
 
@@ -211,17 +212,14 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
    * @returns {Promise<HTMLElement | null>}
    */
   async function refreshCommittedRead(form) {
-    const region = document.getElementById(form.dataset.recordsTargetId ?? "");
-    const readUrl = form.dataset.readUrl;
-    if (!(region instanceof HTMLElement) || !readUrl) return null;
     const htmx = /** @type {Window & { htmx?: { process(node: Element): void } }} */ (window).htmx;
-    return refreshCommittedRecords({
-      region,
-      readUrl,
+    const result = await refreshCommittedRecordsForMutation({
+      form,
       process: (refreshed) => {
         if (refreshed instanceof Element) htmx?.process(refreshed);
       },
     });
+    return result?.region ?? null;
   }
 
   /** @param {HTMLElement | null} region @param {number} deletedIndex */
@@ -239,12 +237,36 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
     if (addButton instanceof HTMLElement) addButton.focus();
   }
 
+  /** @param {HTMLFormElement} form */
+  async function handleCreateAfterRequest(form) {
+    try {
+      await refreshCommittedRead(form);
+    } catch {
+      window.location.reload();
+      return;
+    }
+    form.reset();
+    form.dispatchEvent(
+      new CustomEvent("aluna:record-created", {
+        bubbles: true,
+        detail: { capabilityId: form.dataset.capabilityId },
+      }),
+    );
+  }
+
   /** @param {HTMLFormElement} form @param {boolean} successful */
-  function handleEditAfterRequest(form, successful) {
+  async function handleEditAfterRequest(form, successful) {
     if (successful) {
+      let region = null;
+      try {
+        region = await refreshCommittedRead(form);
+      } catch {
+        window.location.reload();
+        return;
+      }
       document.dispatchEvent(
         new CustomEvent(RECORD_UPDATED_EVENT, {
-          detail: { itemTargetId: form.dataset.itemTargetId },
+          detail: { itemTargetId: form.dataset.itemTargetId, regionId: region?.id },
         }),
       );
       return;
@@ -279,6 +301,20 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
     requestAnimationFrame(() => focusAfterDelete(region, deletedIndex));
   }
 
+  /**
+   * @param {{ itemTargetId?: string, regionId?: string }} detail
+   */
+  function focusAfterUpdate(detail) {
+    const updatedItem = detail.itemTargetId ? document.getElementById(detail.itemTargetId) : null;
+    if (updatedItem instanceof HTMLElement) {
+      updatedItem.focus();
+      return;
+    }
+    const region = detail.regionId ? document.getElementById(detail.regionId) : null;
+    const fallback = region?.querySelector(ITEM_SELECTOR);
+    if (fallback instanceof HTMLElement) fallback.focus();
+  }
+
   /** @param {HTMLFormElement} deleteForm @param {boolean} successful */
   async function handleDeleteAfterRequest(deleteForm, successful) {
     const ownsActiveModal = getBody()?.querySelector(DELETE_FORM_SELECTOR) === deleteForm;
@@ -306,11 +342,15 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
     const successful = custom.detail?.successful === true;
     const editForm = requestForm(event, EDIT_FORM_SELECTOR);
     if (editForm) {
-      handleEditAfterRequest(editForm, successful);
+      await handleEditAfterRequest(editForm, successful);
       return;
     }
     const deleteForm = requestForm(event, DELETE_FORM_SELECTOR);
     if (deleteForm) await handleDeleteAfterRequest(deleteForm, successful);
+    const refreshForm = requestForm(event, MUTATION_REFRESH_FORM_SELECTOR);
+    if (refreshForm?.dataset.mutationKind === "create" && successful) {
+      await handleCreateAfterRequest(refreshForm);
+    }
   }
 
   document.addEventListener("htmx:afterRequest", (event) => {
@@ -318,15 +358,10 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
   });
 
   document.addEventListener(RECORD_UPDATED_EVENT, (event) => {
-    const custom = /** @type {CustomEvent<{ itemTargetId?: string }>} */ (event);
+    const custom = /** @type {CustomEvent<{ itemTargetId?: string, regionId?: string }>} */ (event);
     const modal = getModal();
     if (modal?.open) modal.close();
-    requestAnimationFrame(() => {
-      const updatedItem = custom.detail?.itemTargetId
-        ? document.getElementById(custom.detail.itemTargetId)
-        : null;
-      updatedItem?.focus();
-    });
+    requestAnimationFrame(() => focusAfterUpdate(custom.detail ?? {}));
   });
 
   document.addEventListener("click", (event) => {

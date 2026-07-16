@@ -135,6 +135,7 @@ describe("renderDetailContent — read-only body via the centralized field rende
     expect(read).toContain("data-modal-delete-form hidden");
     expect(read).toContain('hx-post="/capability/tasks/delete"');
     expect(read).toContain('hx-swap="none"');
+    expect(read).toContain('data-read-url="/capability/tasks/read"');
     expect(read).toContain('name="__aluna_record_id" value="task-1"');
     expect(read).toContain("Delete this record? You won’t be able to bring it back.");
     expect(read).toContain("data-detail-cancel-delete");
@@ -143,6 +144,15 @@ describe("renderDetailContent — read-only body via the centralized field rende
     expect(read).toContain(">Delete record</button>");
     expect(edit).not.toContain("data-detail-delete");
     expect(edit).not.toContain("data-modal-delete-form");
+  });
+
+  test("delete confirmation adds the search refresh URL only for search-capable rows", () => {
+    expect(renderDetailContent(SAMPLE, RECORD, "detail-tasks-task-1")).not.toContain(
+      'data-search-url="/capability/tasks/search"',
+    );
+    expect(
+      renderDetailContent({ ...SAMPLE, searchEnabled: true }, RECORD, "detail-tasks-task-1"),
+    ).toContain('data-search-url="/capability/tasks/search"');
   });
 
   test("only the final confirmation control can submit delete", () => {

@@ -74,13 +74,26 @@ describe("edit form — committed update wiring", () => {
     sourceTemplateId: "detail-journal-record-1",
   });
 
-  test("posts Save to update and replaces only the matching item", () => {
+  test("posts Save to update and declares the shared post-mutation region refresh", () => {
     expect(form).toContain('hx-post="/capability/journal/update"');
-    expect(form).toContain('hx-target="#detail-journal-record-1-item"');
+    expect(form).toContain('hx-swap="none"');
     expect(form).toContain('data-item-target-id="detail-journal-record-1-item"');
-    expect(form).toContain('hx-swap="outerHTML"');
+    expect(form).toContain("data-post-mutation-refresh");
+    expect(form).toContain('data-mutation-kind="update"');
+    expect(form).toContain('data-records-target-id="journal-records"');
+    expect(form).toContain('data-read-url="/capability/journal/read"');
     expect(form).toContain('<button class="btn btn--primary" type="submit">Save</button>');
     expect(form).not.toContain(RECORD_UPDATED_EVENT);
+  });
+
+  test("adds the search refresh URL only for search-capable committed rows", () => {
+    expect(form).not.toContain('data-search-url="/capability/journal/search"');
+    expect(
+      renderEditForm({ ...CAPABILITY, searchEnabled: true }, RECORD, {
+        itemTargetId: "detail-journal-record-1-item",
+        sourceTemplateId: "detail-journal-record-1",
+      }),
+    ).toContain('data-search-url="/capability/journal/search"');
   });
 
   test("reserves the warm structured-error target and keeps Cancel non-submitting", () => {

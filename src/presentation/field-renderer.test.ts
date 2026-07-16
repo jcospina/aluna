@@ -23,21 +23,29 @@ import {
 describe("create form — platform wiring + close-on-success", () => {
   const form = renderCreateForm(SAMPLE);
 
-  test("posts to the capability's create action and prepends into its live region", () => {
+  test("posts to create and declares the shared post-mutation region refresh", () => {
     expect(form).toContain('hx-post="/capability/tasks/create"');
-    expect(form).toContain(`hx-target="#${capabilityRecordsRegionId("tasks")}"`);
-    expect(form).toContain('hx-swap="afterbegin"');
+    expect(form).toContain('hx-swap="none"');
+    expect(form).toContain("data-post-mutation-refresh");
+    expect(form).toContain('data-mutation-kind="create"');
+    expect(form).toContain(`data-records-target-id="${capabilityRecordsRegionId("tasks")}"`);
+    expect(form).toContain('data-read-url="/capability/tasks/read"');
+  });
+
+  test("adds the search refresh URL only when the committed Action set includes search", () => {
+    expect(form).not.toContain('data-search-url="/capability/tasks/search"');
+    expect(renderCreateForm({ ...SAMPLE, searchEnabled: true })).toContain(
+      'data-search-url="/capability/tasks/search"',
+    );
   });
 
   test("region id is derived from the capability id", () => {
     expect(capabilityRecordsRegionId("tasks")).toBe("tasks-records");
   });
 
-  test("close-on-success resets the form and dispatches the record-created event", () => {
-    expect(form).toContain("hx-on::after-request=");
-    expect(form).toContain("event.detail.successful");
-    expect(form).toContain("this.reset()");
-    expect(form).toContain(RECORD_CREATED_EVENT);
+  test("exposes the capability id used by post-refresh close-on-success", () => {
+    expect(form).toContain('data-capability-id="tasks"');
+    expect(RECORD_CREATED_EVENT).toBe("aluna:record-created");
   });
 
   test("reserves an aria-live target for structured create errors", () => {

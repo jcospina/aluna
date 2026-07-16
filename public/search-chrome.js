@@ -1,5 +1,7 @@
 // @ts-check
 
+import { RECORDS_REFRESH_START_EVENT } from "./detail-modal-refresh.js";
+
 /** @typedef {(input: string, init?: RequestInit) => Promise<Response>} SearchRequest */
 /** @typedef {"idle" | "loading" | "results" | "no-matches" | "error"} SearchState */
 
@@ -255,6 +257,15 @@ function installSearchChrome() {
       ?.searchNow("")
       .then(() => input.focus())
       .catch(() => input.focus());
+  });
+
+  document.addEventListener(RECORDS_REFRESH_START_EVENT, (event) => {
+    const region = event.target;
+    if (!(region instanceof HTMLElement)) return;
+    const form = region
+      .closest(".capability-collection")
+      ?.querySelector("[data-capability-search]");
+    if (form instanceof HTMLFormElement) controllers.get(form)?.dispose();
   });
 }
 
