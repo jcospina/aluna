@@ -1,10 +1,14 @@
 // @ts-check
 
+import {
+  createRecordsRegionRequestCoordinator,
+  handOffRecordsRegionFromHtmx,
+  recordsRegionRequestCoordinator,
+} from "./records-region-requests.js";
+
 /** @typedef {(input: string, init?: RequestInit) => Promise<Response>} RefreshRequest */
 
 export const RECORDS_REFRESH_START_EVENT = "aluna:records-refresh-start";
-
-/** @typedef {"create" | "update" | "delete"} MutationKind */
 
 /**
  * @param {{ readUrl: string, searchUrl?: string, activeQuery?: string }} input
@@ -51,9 +55,9 @@ function applyRefreshState(form, region, state) {
 function refreshStatusMessage(state) {
   switch (state) {
     case "loading":
-      return "Searching…";
+      return "I’m searching…";
     case "results":
-      return "Search results updated.";
+      return "I updated the results.";
     case "error":
       return "I couldn’t refresh that just now. Try again.";
     case "no-matches":
@@ -71,6 +75,10 @@ function refreshStatusMessage(state) {
  */
 function startRefresh(region, query) {
   region.dispatchEvent(new CustomEvent(RECORDS_REFRESH_START_EVENT, { bubbles: true }));
+  const htmx =
+    /** @type {Window & { htmx?: { trigger(node: Element, eventName: string): void } }} */ (window)
+      .htmx;
+  handOffRecordsRegionFromHtmx(region, htmx);
   const form = searchFormForRegion(region);
   if (form) applyRefreshState(form, region, query === "" ? "idle" : "loading");
 }
@@ -112,6 +120,32 @@ function isDomElement(value) {
 }
 
 /**
+ * @param {Element | undefined} region
+ * @param {(() => import("./records-region-requests.js").RecordsRegionRequestClaim) | undefined} claimRequest
+ */
+function claimRefreshRequest(region, claimRequest) {
+  if (claimRequest) return claimRequest();
+  if (region) return recordsRegionRequestCoordinator(region).claim();
+  return createRecordsRegionRequestCoordinator().claim();
+}
+
+/**
+ * @param {RefreshRequest} request
+ * @param {string} url
+ * @param {AbortSignal} signal
+ */
+async function requestRefreshHtml(request, url, signal) {
+  const response = await request(url, {
+    headers: { "HX-Request": "true" },
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`Committed records refresh failed with status ${response.status}`);
+  }
+  return response.text();
+}
+
+/**
  * Refresh a committed records region without hiding failures behind HTMX's
  * promise resolution. Keeping this seam pure makes the post-mutation degraded path
  * executable in Bun without a browser DOM.
@@ -124,8 +158,9 @@ function isDomElement(value) {
  *   activeQuery?: string,
  *   request?: RefreshRequest,
  *   process?: (region: T) => void,
+ *   claimRequest?: () => import("./records-region-requests.js").RecordsRegionRequestClaim,
  * }} input
- * @returns {Promise<{ region: T, query: string }>}
+ * @returns {Promise<{ applied: boolean, region: T, query: string }>}
  */
 export async function refreshCommittedRecords({
   region,
@@ -134,22 +169,25 @@ export async function refreshCommittedRecords({
   activeQuery,
   request = fetch,
   process,
+  claimRequest,
 }) {
   const target = committedRecordsRefreshTarget({ readUrl, searchUrl, activeQuery });
-  if (isDomElement(region)) startRefresh(region, target.query);
+  const domRegion = isDomElement(region) ? region : undefined;
+  const claim = claimRefreshRequest(domRegion, claimRequest);
+  if (domRegion) startRefresh(domRegion, target.query);
   try {
-    const response = await request(target.url, { headers: { "HX-Request": "true" } });
-    if (!response.ok) {
-      throw new Error(`Committed records refresh failed with status ${response.status}`);
-    }
-    const html = await response.text();
+    const html = await requestRefreshHtml(request, target.url, claim.signal);
+    if (!claim.isCurrent()) return { applied: false, region, query: target.query };
     region.innerHTML = html;
     process?.(region);
-    if (isDomElement(region)) finishRefresh(region, target.query, html);
-    return { region, query: target.query };
+    if (domRegion) finishRefresh(domRegion, target.query, html);
+    return { applied: true, region, query: target.query };
   } catch (error) {
-    if (isDomElement(region)) failRefresh(region);
+    if (!claim.isCurrent()) return { applied: false, region, query: target.query };
+    if (domRegion) failRefresh(domRegion);
     throw error;
+  } finally {
+    claim.release();
   }
 }
 

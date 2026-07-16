@@ -50,7 +50,7 @@ function renderCapabilityCollection(row: CapabilityRow): string {
     label: canonicalCapabilityLabel(row),
     schema: row.schema,
     form: row.ui_intent.form,
-    searchEnabled: row.tools.includes("search"),
+    actions: row.tools,
   };
   return renderCollection({
     capability,

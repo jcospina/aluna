@@ -156,7 +156,7 @@ function renderSearchChrome(capability: RenderableCapability, regionId: string):
   // Prompt-built capabilities remain the approved two-Action shape until 4.4. Do not
   // advertise a route the committed row does not declare; every complete five-Action
   // capability gets the chrome, and 4.4 makes that the only admitted shape.
-  if (capability.searchEnabled !== true) return "";
+  if (!capability.actions.includes("search")) return "";
   const label = escapeHtml(capability.label);
   const inputId = `${capability.id}-search`;
 
@@ -182,7 +182,7 @@ function renderSearchChrome(capability: RenderableCapability, regionId: string):
 }
 
 function renderSearchFeedback(capability: RenderableCapability): string {
-  if (capability.searchEnabled !== true) return "";
+  if (!capability.actions.includes("search")) return "";
   return (
     `<div class="capability-search__feedback" aria-live="polite" aria-atomic="true">` +
     `<span class="capability-search__loading" aria-hidden="true"></span>` +
@@ -229,7 +229,7 @@ export function renderCollection(options: CollectionOptions): string {
 
   return (
     `<section class="capability-collection" aria-label="${label}"` +
-    (capability.searchEnabled === true ? ` data-search-state="idle"` : "") +
+    (capability.actions.includes("search") ? ` data-search-state="idle"` : "") +
     ` x-data="{ createOpen: false }" @${RECORD_CREATED_EVENT}.window="${closeOnCreated}">` +
     `<header class="capability-collection__header">` +
     renderSearchChrome(capability, regionId) +
@@ -290,9 +290,10 @@ export function renderItemWrapper(
 }
 
 /**
- * Serialize a client-safe record projection for the `data-item` payload. JSON is the interchange shape the
- * modal parses back with `JSON.parse(element.dataset.item)`; the caller HTML-escapes
- * the result for the attribute. A record value that is raw bytes
+ * Serialize a client-safe record projection for the `data-item` payload retained by
+ * the platform wrapper. The modal now clones its server-rendered inert template; this
+ * remains the closed client-state projection for future platform interactions. The
+ * caller HTML-escapes the JSON result for the attribute. A record value that is raw bytes
  * (`Uint8Array`/`ArrayBuffer`, incl. Bun's `Buffer` subclass) is neutralized to `null`
  * rather than serialized — `file` fields carry a reference, never bytes (ADR-0005 §3,
  * ARCH §7). It only ever fires defensively today (no `file` type until M6), and it

@@ -60,22 +60,32 @@ results rerun correctly.
   reruns committed `read`. It replaces the whole records region, reprocesses the
   returned fragment through HTMX, and preserves the existing search/no-match
   presentation state.
-- Search and post-mutation refresh now coordinate through a small browser event so
-  any in-flight search request is invalidated before a mutation refresh writes the
-  region. This keeps one active writer for the records region.
+- Initial HTMX read, search, and post-mutation refresh now claim one shared
+  per-records-region request owner. A new claim aborts the prior request when
+  possible and, independently, prevents every stale response from rendering.
+  This keeps one active writer even when search begins after mutation refresh or
+  two mutation reconciliations overlap.
+- The committed Action inventory is part of the presentation interface, so the
+  approved two-Action transition renders read detail without dead Edit/Delete/Search
+  affordances.
+- Each admitted record write wraps the full generated Handler and presentation
+  completion in one coordinator-owned SQLite transaction. Server-side failure
+  rolls back; a transport-ambiguous outcome reconciles current search/read before
+  inviting a retry.
 - Update/delete modal success keeps its existing close/focus behavior, but focus
   now falls back to the first surviving result when an updated record no longer
   appears under the active query.
 
 ## Verification
 
-- `bun test` — 514 passing, 0 failing, 2 snapshots
+- `bun test` — 521 passing, 0 failing, 2 snapshots
 - `bun run typecheck`
-- `bun run lint` — 186 files checked, no fixes
+- `bun run lint` — 189 files checked, no fixes
 - `git diff --check`
-- Focused presentation/demo run:
-  `bun test src/presentation/detail-modal-refresh.test.ts src/presentation/search-chrome.test.ts src/presentation/field-renderer.test.ts src/presentation/field-renderer.edit.test.ts src/presentation/detail-modal.test.ts src/presentation/list-container.test.ts src/demo/field-lifecycle.test.ts`
-  — 110 passing, 0 failing
+- Final focused presentation/demo/router run — 72 passing, 0 failing. This
+  includes transaction rollback, literal metacharacter search in both installed
+  five-Action capabilities, lossless exact-datetime editing, and mutation outcome
+  classification.
 - Browser automation on the existing `http://localhost:3030` server, using the
   five-Action reference fixture:
   - search **quiet**, edit **A quiet beginning** to **A changed beginning**, and
@@ -87,6 +97,10 @@ results rerun correctly.
   - search **brandnew**, create **brandnew search creation**, and confirm the new
     result appears under the active query. Network trace showed `POST create`
     followed by `GET /capability/field_lifecycle_demo/search?q=brandnew`.
+  - the 2026-07-16 quality pass additionally searched literal **%** and confirmed
+    the correct no-match state, then edited and deleted the accented **cafe**
+    result under the active query. The modal closed, focus/results reconciled,
+    and the active search stayed intact after each committed mutation.
 - Re-ran `bun run demo:five-action-reference` after browser verification to
   restore the reference fixture to its canonical seed state.
 

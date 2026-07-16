@@ -259,6 +259,7 @@ describe("detail display — honors ui_intent.detail.shows (fields + order)", ()
         ],
       },
       form: { list_inputs: [] },
+      actions: ["create", "read"],
       detail: { shows: ["title", "retired_note"] },
     };
     const detail = renderDetailFields(capability, {

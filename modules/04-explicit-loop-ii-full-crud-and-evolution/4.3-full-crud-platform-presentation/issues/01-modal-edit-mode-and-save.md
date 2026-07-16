@@ -1,6 +1,6 @@
 # Shared modal edit mode and Save→update
 
-Status: ready-for-human
+Status: done
 
 ## Epic
 
@@ -38,13 +38,14 @@ model generation exists.
       presence semantics apply, omitted active fields / inactive data / `extra`
       survive, required empties block Save
 - [x] The form emits the presence markers and exactly one record target; the
-      router strips them (nothing reserved reaches generated code or the DOM)
+      router strips them before generated Handler input; reserved markers never
+      enter generated code, item payloads, or record data
 - [x] Edit prefill and Save round-trip both authored `string[]` input modes
       through the same platform list-input contract used by create
 - [x] No per-item edit chrome appears in the collection
 - [x] Focused tests cover mode switching and form emission; `bun test`,
       `bun run typecheck`, `bun run lint` clean
-- [ ] **Human sign-off**: the edit interaction on the reference capability is
+- [x] **Human sign-off**: the edit interaction on the reference capability is
       validated on the running app before this issue closes
 
 ## Living demo
@@ -66,8 +67,9 @@ product.
   presence marker per active field plus exactly one record target.
 - The shared detail modal has explicit read and edit surfaces. Edit clones the
   record's pristine server-rendered form, Cancel restores that pristine state,
-  and a successful update replaces only the stable collection item, closes the
-  modal, and restores focus to the updated item.
+  and a successful update reruns the active committed search or canonical read,
+  replaces the whole records region, closes the modal, and restores focus to the
+  updated item or the first surviving result.
 - HITL feedback originally moved Edit beside the fixed modal title. Issue 4.3/02's
   responsive UX research superseded that interim placement once read detail gained
   a complete action set: the header now isolates Close, while visibly labelled
@@ -76,6 +78,12 @@ product.
   bottom without covering controls. Save feedback and close-on-success live on
   the persistent modal controller, so the first processed click owns the complete
   request lifecycle.
+- Save now locks Close, Escape, backdrop, and Cancel until its request and
+  committed-region reconciliation complete, then rechecks that the submitting form
+  still owns the shared modal. A late response cannot close a different record.
+- Datetime edit controls preserve the exact stored offset, seconds, and milliseconds
+  in a platform-owned named value until that particular control changes; saving an
+  unrelated field is lossless.
 - Structured update validation is retargeted into the edit form's live error
   region. Required empty fields keep the modal open with warm product copy;
   create-form validation behavior remains unchanged.
@@ -94,8 +102,8 @@ product.
 - Focused edit-form/modal/wire/demo run — 44 passing, 0 failing
 - In-app browser on `http://localhost:3030`: confirmed read-only detail, exact
   edit prefills (including two repeatable rows with comma-bearing **Doe, Jane**
-  preserved as one value), no horizontal overflow, the labelled pencil beside
-  the title, docked actions throughout field scrolling, scalar/list/boolean
+  preserved as one value), no horizontal overflow, labelled Edit/Delete in the
+  docked footer, docked actions throughout field scrolling, scalar/list/boolean
   update, explicit optional scalar and list clearing, focus restoration, Cancel
   reset, and warm required-field validation. Five consecutive pointer-driven
   first-click saves each updated and closed the modal; the exercised HTTP 422
@@ -116,7 +124,7 @@ product.
    covering a field.
 4. Change the title, clear the reflection, change the tags, clear both alias
    rows, and uncheck **Cherished**, then click **Save once**. Confirm immediate
-   Saving feedback, the modal closes from that first click, focus returns to the
+   **I’m saving…** feedback, the modal closes from that first click, focus returns to the
    updated collection item, and the item shows the changed title/tags. Reopen it
    and confirm the reflection and aliases display `—`, **Cherished** displays
    **No**, and the created value is unchanged.
@@ -132,5 +140,7 @@ product.
    ```
 
    Confirm `retired_note` is `hidden survives update` and `extra` remains the
-   original merge-demo object. If the visible interaction is correct, mark the
-   remaining Human sign-off criterion and change this issue to `Status: done`.
+   original merge-demo object.
+
+Human sign-off was accepted with the Epic 4.3 issue-level completion statement on
+2026-07-16; the instructions remain as the repeatable regression recipe.

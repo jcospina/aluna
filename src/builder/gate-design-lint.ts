@@ -182,6 +182,7 @@ export function findDesignViolation(
     label: spec.label,
     schema: spec.schema,
     form: spec.ui_intent.form,
+    actions: spec.tools,
     detail: spec.ui_intent.detail,
   };
   const records = buildProbeRecords(spec);

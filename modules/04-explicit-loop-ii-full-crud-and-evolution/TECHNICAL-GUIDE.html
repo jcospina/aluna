@@ -538,6 +538,15 @@
       font-size: 0.95rem;
     }
 
+    .callout.is-progress {
+      background: var(--green-pale);
+      border-color: color-mix(in oklch, var(--green), transparent 56%);
+    }
+
+    .callout.is-progress .callout__mark {
+      background: var(--green);
+    }
+
     .concept-bridge {
       display: grid;
       grid-template-columns: 8.5rem minmax(0, 1fr);
@@ -1482,6 +1491,28 @@
       line-height: 1.25;
     }
 
+    .epic-button__label {
+      display: grid;
+      gap: 0.25rem;
+    }
+
+    .epic-button__status {
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      font-weight: 750;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+
+    .epic-button.is-complete .epic-button__status {
+      color: var(--green);
+    }
+
+    .epic-button[aria-selected="true"] .epic-button__status {
+      color: color-mix(in oklch, var(--paper), transparent 28%);
+    }
+
     .epic-stage {
       position: sticky;
       top: 6.1rem;
@@ -1635,6 +1666,23 @@
       font-size: 0.9rem;
       font-weight: 800;
       box-shadow: 0 0 0 1px var(--step-color);
+    }
+
+    .epic-cumulative__step.is-complete .epic-cumulative__marker::after {
+      content: "✓";
+      position: absolute;
+      top: -0.55rem;
+      right: -0.55rem;
+      display: grid;
+      place-items: center;
+      width: 1.55rem;
+      height: 1.55rem;
+      background: var(--green);
+      border: 0.2rem solid var(--paper);
+      border-radius: 50%;
+      color: var(--white-tint);
+      font-size: 0.68rem;
+      box-shadow: 0 0 0 1px var(--green);
     }
 
     .epic-cumulative__body {
@@ -2213,9 +2261,11 @@
           <p class="kicker">Technical field guide</p>
           <h1>How a capability changes without losing itself.</h1>
           <p class="hero__lede">
-            Module 4 lets people edit, search, extend, and permanently delete what Aluna has built
-            for them. It also protects saved data when a capability changes and keeps the previous
-            version working if a new version fails. This guide explains how, one idea at a time.
+            Module 4 is the work that lets people edit, search, extend, and permanently delete what
+            Aluna has built for them. The first three of nine epics are now complete: the safe field
+            foundation, runtime paths for all five record Actions, and the homepage interface for
+            using them on the reference capability. This guide explains what has landed and the road
+            still ahead, one idea at a time.
           </p>
         </div>
 
@@ -2227,6 +2277,7 @@
           </p>
           <ul>
             <li>What exactly changes from M3?</li>
+            <li>What already works after Epics 4.1–4.3?</li>
             <li>How does an edit preserve hidden data?</li>
             <li>How does Aluna decide what to rebuild?</li>
             <li>When does a new version become live?</li>
@@ -2250,10 +2301,10 @@
             <li><a href="#activation">Making a version live</a></li>
             <li><a href="#coordination">Safe write order</a></li>
             <li><a href="#deletion">Permanent deletion</a></li>
-            <li><a href="#epics">Build order</a></li>
+            <li><a href="#epics">Build progress</a></li>
             <li><a href="#walkthrough">Worked example</a></li>
             <li><a href="#glossary">Glossary</a></li>
-            <li><a href="#epic-outcomes">After each epic</a></li>
+            <li><a href="#epic-outcomes">Landed and next</a></li>
           </ol>
         </nav>
 
@@ -2439,9 +2490,9 @@
               <div>
                 <h2>Five consistent ways to work with records.</h2>
                 <p class="chapter__intro">
-                  Each capability can behave differently, but every capability uses the same five
-                  Actions and the same safe request paths. Generated code never invents a new route
-                  or chooses which record it is allowed to change.
+                  Each capability can behave differently, but the completed M4 shape uses the same
+                  five Actions and the same safe request paths. Generated code never invents a new
+                  route or chooses which record it is allowed to change.
                 </p>
               </div>
             </header>
@@ -2453,6 +2504,19 @@
                 records. M4 completes that set and treats search as a fifth fixed Action.
               </p>
             </aside>
+
+            <div class="callout is-progress">
+              <span class="callout__mark">3</span>
+              <div>
+                <h3>The five-Action runtime is real; AI generation catches up next.</h3>
+                <p>
+                  Today, the hand-written Journal entry capability uses all five Actions through the
+                  finished routes and homepage interface. Prompt-built capabilities still use the
+                  temporary Create-and-Read shape. Epic 4.4 removes that transition and makes every
+                  newly generated capability start with all five Actions.
+                </p>
+              </div>
+            </div>
 
             <table class="action-table">
               <thead>
@@ -2769,9 +2833,12 @@
               <div>
                 <h3>M4 supports lists of text values.</h3>
                 <p>
-                  A field such as Tags can hold several text entries in order. Empty entries are
-                  removed, a comma remains part of the value the user typed, and the list is stored
-                  as JSON. Lists of numbers, dates, or other types are intentionally deferred.
+                  A field such as Tags can hold several text entries in order. For simple values,
+                  one box treats commas as separators: <code>fantasy, classic</code> becomes two
+                  entries. For free-form values, repeatable boxes keep each entry exactly as typed,
+                  so <code>Doe, Jane</code> stays one value. Blank entries are removed and the final
+                  list is stored as JSON. Lists of numbers, dates, or other types are intentionally
+                  deferred.
                 </p>
               </div>
             </div>
@@ -3393,14 +3460,52 @@
             <header class="chapter__head">
               <span class="chapter__number">11 / 13</span>
               <div>
-                <h2>Why M4 is built in nine stages.</h2>
+                <h2>How M4 is moving through nine stages.</h2>
                 <p class="chapter__intro">
-                  Each stage adds something that can be exercised before the next stage begins. The
-                  homepage demo grows with the implementation, so important gaps become visible
-                  early.
+                  The first three stages are complete. Each one added something people can exercise
+                  on the homepage before the next stage began, so important gaps became visible
+                  early instead of waiting for the end of the module.
                 </p>
               </div>
             </header>
+
+            <div class="callout is-progress">
+              <span class="callout__mark">✓</span>
+              <div>
+                <h3>Epics 4.1, 4.2, and 4.3 have landed.</h3>
+                <p>
+                  Aluna now has stable capability lifetimes and field rules, safe runtime paths for
+                  all five record Actions, and a complete homepage experience for creating, viewing,
+                  editing, deleting, and searching records. The hand-written Journal entry
+                  capability makes the whole path visible while Epic 4.4 teaches the AI to generate
+                  that same complete shape.
+                </p>
+              </div>
+            </div>
+
+            <div class="plain-definition">
+              <div>
+                <p class="plain-definition__label">Try the complete product path</p>
+                <h3>Use Journal entry on the homepage.</h3>
+                <p>
+                  Reuse the app server on port 3030, or start it with <code>bun run dev</code>. Then
+                  run <code>bun run demo:five-action-reference</code>, open
+                  <code>http://localhost:3030</code>, and choose Journal entry. Create, open, edit,
+                  search, and delete a record through the shared interface.
+                </p>
+              </div>
+              <div>
+                <p class="plain-definition__label">See the safety rules separately</p>
+                <h3>Use the focused living demos.</h3>
+                <p>
+                  With that same server running, use <code>bun run demo:field-lifecycle</code> for
+                  hidden fields and both text-list modes. Journal links shows an allowed
+                  cross-capability read. Open
+                  <code>http://localhost:3030/demo/mutation-coordinator</code>
+                  to watch queued builds and record-write admission.
+                </p>
+              </div>
+            </div>
 
             <div class="epic-explorer">
               <div
@@ -3420,13 +3525,13 @@
             <div class="callout">
               <span class="callout__mark">↻</span>
               <div>
-                <h3>Three stages deliberately start with fresh development data.</h3>
+                <h3>Three stages deliberately use fresh development data.</h3>
                 <p>
-                  Stage 4.1 changes how capability lifetimes and fields are stored. Stage 4.4
-                  replaces the temporary Create-and-Read-only implementation with all five Actions.
-                  Stage 4.5 rebuilds the first version using the final safe version-folder process.
-                  These are planned resets of local development data, not changes a user must
-                  manage.
+                  Stage 4.1 changed how capability lifetimes and fields are stored. Stage 4.4 will
+                  replace the temporary Create-and-Read-only implementation with all five Actions.
+                  Stage 4.5 will rebuild the first version using the final safe version-folder
+                  process. These are planned resets of local development data, not changes a user
+                  must manage.
                 </p>
               </div>
             </div>
@@ -3859,6 +3964,21 @@
                   decisions, and checks that each stage must satisfy.
                 </li>
                 <li>
+                  Completed epic notes:
+                  <a
+                    href="4.1-incarnation-keyed-field-and-input-contract/issues/06-transitional-two-action-shape-and-builder-emission.md"
+                    >4.1 foundation</a
+                  >,
+                  <a
+                    href="4.2-mutation-coordinator-split-tools-and-routing-actions/issues/06-read-dependencies-rehydration-and-search-normalization.md"
+                    >4.2 runtime</a
+                  >, and
+                  <a
+                    href="4.3-full-crud-platform-presentation/issues/04-post-mutation-records-region-refresh.md"
+                    >4.3 interface</a
+                  >, including implementation notes, verification, and repeatable human test steps.
+                </li>
+                <li>
                   <a href="../../docs/adr/0006-capability-evolution-versioning-and-diff-contract.md"
                     >ADR-0006</a
                   >, the decision record explaining safe changes, version saving and activation,
@@ -3884,11 +4004,11 @@
             <header class="chapter__head">
               <span class="chapter__number">13 / 13</span>
               <div>
-                <h2>What should be true after each epic lands.</h2>
+                <h2>What has landed, and what comes next.</h2>
                 <p class="chapter__intro">
-                  The nine epics are not separate projects. They form one runnable path. At every
-                  checkpoint, the homepage must show an honest, testable result that gives the next
-                  epic a safe place to start.
+                  The first three epics are complete; the remaining six are the path ahead. They are
+                  not separate projects. Each checkpoint keeps the working behavior above it and
+                  gives the next epic a safe, testable place to start.
                 </p>
               </div>
             </header>
@@ -3897,24 +4017,27 @@
               <figcaption class="epic-cumulative__caption" id="epic-cumulative-caption">
                 <span>
                   <strong>Read from top to bottom.</strong>
-                  Each checkpoint keeps the behavior proven above it. A later reset can replace
-                  temporary example code, but it must preserve the earlier guarantee.
+                  A check mark means the epic has landed. The later cards describe the planned
+                  checkpoints. A future reset can replace temporary example code, but it must
+                  preserve every guarantee already proven.
                 </span>
               </figcaption>
 
               <ol class="epic-cumulative__list">
-                <li class="epic-cumulative__step">
+                <li class="epic-cumulative__step is-complete">
                   <span class="epic-cumulative__marker">4.1</span>
                   <div class="epic-cumulative__body">
                     <div>
-                      <p class="epic-cumulative__carry">Starts from M3</p>
+                      <p class="epic-cumulative__carry">Landed · keeps M3 working</p>
                       <h3>Identity and changing fields have a safe base.</h3>
                     </div>
                     <p class="epic-cumulative__outcome">
-                      <strong>After 4.1 lands</strong>
+                      <strong>Landed in 4.1</strong>
                       Prompt-built capabilities still create and show records. Each capability now
-                      has a unique lifetime and version path. Labels, hidden fields, lists, required
-                      values, and submitted input all follow rules that later changes can trust.
+                      has its own lifetime identifier and file path, so rebuilding the same named
+                      capability cannot load stale code. Fields have friendly labels and can be
+                      hidden without deleting stored values. Required values, text lists, creation
+                      dates, and submitted form input now follow one checked contract.
                     </p>
                   </div>
                   <p class="epic-cumulative__bridge">
@@ -3923,18 +4046,20 @@
                   </p>
                 </li>
 
-                <li class="epic-cumulative__step">
+                <li class="epic-cumulative__step is-complete">
                   <span class="epic-cumulative__marker">4.2</span>
                   <div class="epic-cumulative__body">
                     <div>
-                      <p class="epic-cumulative__carry">Keeps 4.1</p>
+                      <p class="epic-cumulative__carry">Landed · keeps 4.1</p>
                       <h3>All five Actions work through safe runtime paths.</h3>
                     </div>
                     <p class="epic-cumulative__outcome">
-                      <strong>After 4.2 lands</strong>
-                      A hand-written example can Create, Read, Edit, Delete, and Search. Writes take
-                      safe turns, reads cannot write, cross-capability reads must be declared, and
-                      an edit preserves values that were not changed.
+                      <strong>Landed in 4.2</strong>
+                      The hand-written Journal entry capability can Create, Read, Edit, Delete, and
+                      Search through the real routes. Builds and record changes take safe turns,
+                      generated reads cannot write, and cross-capability reads must be declared.
+                      Edit and Delete are tied to one checked record, while partial edits preserve
+                      hidden and untouched values.
                     </p>
                   </div>
                   <p class="epic-cumulative__bridge">
@@ -3944,18 +4069,20 @@
                   </p>
                 </li>
 
-                <li class="epic-cumulative__step">
+                <li class="epic-cumulative__step is-complete">
                   <span class="epic-cumulative__marker">4.3</span>
                   <div class="epic-cumulative__body">
                     <div>
-                      <p class="epic-cumulative__carry">Keeps 4.1 + 4.2</p>
+                      <p class="epic-cumulative__carry">Landed · keeps 4.1 + 4.2</p>
                       <h3>People can use full CRUD and Search from the homepage.</h3>
                     </div>
                     <p class="epic-cumulative__outcome">
-                      <strong>After 4.3 lands</strong>
-                      The example capability has a clear edit mode, a confirmation before record
-                      deletion, search that waits while the person types, and a list that refreshes
-                      after every saved change.
+                      <strong>Landed in 4.3</strong>
+                      People can edit from the shared detail window, see exactly what will be
+                      deleted before confirming, and search without starting a build. Search waits
+                      briefly while they type, ignores case and Latin accents, and keeps the same
+                      detail experience. After Create, Edit, or Delete, the current list or search
+                      reruns as one whole region so stale results do not remain on screen.
                     </p>
                   </div>
                   <p class="epic-cumulative__bridge">
@@ -3973,7 +4100,7 @@
                       <h3>AI-built capabilities start with all five Actions.</h3>
                     </div>
                     <p class="epic-cumulative__outcome">
-                      <strong>After 4.4 lands</strong>
+                      <strong>Planned for 4.4</strong>
                       A fresh prompt build produces Create, Read, Edit, Delete, Search, and its list
                       item. The complete result passes file checks, a full record cycle, difficult
                       search cases, and optional behavior checks before it can be used.
@@ -3993,7 +4120,7 @@
                       <h3>Complete versions are saved and activated safely.</h3>
                     </div>
                     <p class="epic-cumulative__outcome">
-                      <strong>After 4.5 lands</strong>
+                      <strong>Planned for 4.5</strong>
                       Aluna assembles a whole version away from the live one, checks every file,
                       saves it without overwriting history, then makes the files and database point
                       to it together. A failure leaves the correct older version live and
@@ -4014,7 +4141,7 @@
                       <h3>Aluna changes only what the request truly affects.</h3>
                     </div>
                     <p class="epic-cumulative__outcome">
-                      <strong>After 4.6 lands</strong>
+                      <strong>Planned for 4.6</strong>
                       Aluna compares the whole proposed capability with the live one, adds safe
                       database changes, rebuilds every affected generated file, and copies an old
                       file only when a fixed rule proves it is still valid. No real change means no
@@ -4036,7 +4163,7 @@
                       <h3>Repairs cannot weaken the requested behavior.</h3>
                     </div>
                     <p class="epic-cumulative__outcome">
-                      <strong>After 4.7 lands</strong>
+                      <strong>Planned for 4.7</strong>
                       Behavior checks are written from the requested result and frozen before repair
                       begins. Repair may change only failing Action code, never the checks. If the
                       new version still fails, the old live version and its records remain
@@ -4058,7 +4185,7 @@
                       <h3>Only a clear and current build request enters the Builder.</h3>
                     </div>
                     <p class="epic-cumulative__outcome">
-                      <strong>After 4.8 lands</strong>
+                      <strong>Planned for 4.8</strong>
                       Aluna understands the prompt before waiting for a write turn. Data questions
                       never start a build. A request that became outdated while waiting stops
                       safely. Real builds still tell one friendly foreground story and activate one
@@ -4080,7 +4207,7 @@
                       <h3>Permanent deletion is complete, dependency-safe, and recoverable.</h3>
                     </div>
                     <p class="epic-cumulative__outcome">
-                      <strong>After 4.9 lands</strong>
+                      <strong>Planned for 4.9</strong>
                       Aluna asks for direct confirmation, refuses deletion when another capability
                       depends on the target, waits for current readers, removes database state at
                       one clear point of no return, and retries leftover cleanup after a crash.
@@ -4117,12 +4244,12 @@
     const fieldStates = {
       new: {
         spec: `{
-              "name": "due_date",
-              "label": "Due date",
-              "type": "date",
-              "required": false,
-              "lifecycle": "active"
-            }`,
+                  "name": "due_date",
+                  "label": "Due date",
+                  "type": "date",
+                  "required": false,
+                  "lifecycle": "active"
+                }`,
         title: "Add the field without breaking old records.",
         copy: "A new field starts visible. Its database column allows empty values so records created before the field existed remain readable.",
         effects: [
@@ -4134,12 +4261,12 @@
       },
       hidden: {
         spec: `{
-              "name": "due_date",
-              "label": "Due date",
-              "type": "date",
-              "required": false,
-              "lifecycle": "inactive"
-            }`,
+                  "name": "due_date",
+                  "label": "Due date",
+                  "type": "date",
+                  "required": false,
+                  "lifecycle": "inactive"
+                }`,
         title: "Stop showing it, keep the column and values.",
         copy: "Aluna marks the field hidden instead of removing it from the capability definition. The original column and saved values remain.",
         effects: [
@@ -4151,12 +4278,12 @@
       },
       reactivated: {
         spec: `{
-              "name": "due_date",
-              "label": "Target day",
-              "type": "date",
-              "required": true,
-              "lifecycle": "active"
-            }`,
+                  "name": "due_date",
+                  "label": "Target day",
+                  "type": "date",
+                  "required": true,
+                  "lifecycle": "active"
+                }`,
         title: "Reveal the original field and stored values.",
         copy: "Aluna shows the same field again. The proposal may also change its visible label or make it required, and Aluna combines all work those changes need.",
         effects: [
@@ -4297,29 +4424,32 @@
       {
         number: "4.1",
         name: "Stable fields and capability lifetimes",
-        phase: "Foundation · prepare for safe changes",
-        title: "Give each capability lifetime and field a stable identity.",
-        copy: "Move generated files into a separate path for each capability lifetime. Add visible field labels, hidden and visible states, text lists, safe edit markers, and the built-in creation date. Database columns may stay empty for old records even when future edits require a value. At this stage, prompt-built capabilities still support only Create and Read.",
+        phase: "Foundation · safe identity and fields",
+        landed: true,
+        title: "Each capability lifetime and field now has a safe foundation.",
+        copy: "Generated files now live under a separate, opaque identifier for each capability lifetime, which prevents rebuilt capabilities from loading old code. Fields gained friendly labels, active and inactive states, text lists, two list-entry styles, the built-in creation date, and clear rules for required values. Aluna also parses and checks form input before generated code receives it. Prompt-built capabilities intentionally remain Create-and-Read-only until the 4.4 cutover.",
         proof:
-          "Create a record with several tags and confirm that they save and display in order. Hide a field and confirm that its definition and values remain even though the interface no longer shows it.",
+          "The homepage Field lifecycle demo saves ordered tags in both list-entry styles, hides a field without erasing its definition or stored value, and proves that requiredness is enforced without making old database rows unsafe.",
       },
       {
         number: "4.2",
         name: "Safe reading and writing",
-        phase: "Runtime safety · add all five Actions",
-        title: "Make all five Actions safe before asking AI to generate them.",
-        copy: "Add one controller that gives database writes safe turns. Let generated code read only through a connection that cannot write, and give Edit and Delete tools already tied to one checked record. Add a hand-written example capability with Create, Read, Edit, Delete, and Search so every request path and safety rule can be tested first.",
+        phase: "Runtime safety · all five Actions",
+        landed: true,
+        title: "All five Actions now run through safe, testable paths.",
+        copy: "One coordinator gives builds and record changes safe turns while ordinary reads can continue. Generated code receives a read-only query connection and narrowly scoped mutation tools; Edit and Delete are already tied to the one record Aluna checked. The fixed route table rejects the wrong method or unavailable Action early. A hand-written Journal entry capability exercises Create, Read, Edit, Delete, and Search before the AI is allowed to generate that full shape.",
         proof:
-          "Use the example capability to run all five Actions, read from an explicitly allowed capability, prove that the read connection cannot write, and show that a build cannot overlap unsafely with a record edit.",
+          "The reference capability completes the full record cycle, preserves hidden and untouched values during partial edits, allows only declared cross-capability reads, normalizes difficult search text, and proves that a build cannot overlap unsafely with a record change.",
       },
       {
         number: "4.3",
         name: "Editing, deleting, and searching in the interface",
-        phase: "User experience · make every Action usable",
-        title: "Put the five Actions into the shared interface.",
-        copy: "Add Edit and Save to record details, show a clear confirmation before deleting a record, wait briefly while the user types before searching, and refresh the current list or search results after every saved change.",
+        phase: "User experience · every Action is usable",
+        landed: true,
+        title: "People can now use all five Actions from the homepage.",
+        copy: "The shared detail window now has a clear read mode and a prefilled edit mode with Save. Delete asks for confirmation in that same window. Search waits 300 milliseconds while a person types, handles loading, clearing, and no-match states, and matches text regardless of case or Latin accents. Create, Edit, and Delete all rerun the active search or ordinary list and replace the whole records region, so membership and ordering stay honest.",
         proof:
-          "Use the hand-written example from the homepage to create, view, edit, search, and delete records before AI generation for all five Actions is introduced.",
+          "From the homepage, the Journal entry demo can create, view, edit, search, and delete records. Edits preserve exact list values and hidden data, deletion requires a second deliberate action, and a changed or deleted record immediately leaves search results when it no longer belongs there.",
       },
       {
         number: "4.4",
@@ -4444,11 +4574,12 @@
 
     function renderEpic(index) {
       const epic = epics[index];
-      document.querySelector("#epic-phase").textContent = `${epic.number} · ${epic.phase}`;
+      document.querySelector("#epic-phase").textContent =
+        `${epic.number} · ${epic.landed ? "Landed" : "Planned"} · ${epic.phase}`;
       document.querySelector("#epic-title").textContent = epic.title;
       document.querySelector("#epic-copy").textContent = epic.copy;
       document.querySelector("#epic-proof").innerHTML =
-        `<strong>What this stage proves</strong>${epic.proof}`;
+        `<strong>${epic.landed ? "What landed" : "What this stage will prove"}</strong>${epic.proof}`;
       for (const button of document.querySelectorAll("[data-epic]")) {
         button.setAttribute("aria-selected", String(Number(button.dataset.epic) === index));
         button.setAttribute("tabindex", Number(button.dataset.epic) === index ? "0" : "-1");
@@ -4501,7 +4632,8 @@
         button.dataset.epic = String(index);
         button.setAttribute("role", "tab");
         button.setAttribute("aria-controls", "epic-panel");
-        button.innerHTML = `<span class="epic-button__number">${epic.number}</span><span class="epic-button__name">${epic.name}</span>`;
+        button.classList.toggle("is-complete", Boolean(epic.landed));
+        button.innerHTML = `<span class="epic-button__number">${epic.number}</span><span class="epic-button__label"><span class="epic-button__name">${epic.name}</span><span class="epic-button__status">${epic.landed ? "Landed" : "Planned"}</span></span>`;
         button.addEventListener("click", () => renderEpic(index));
         button.addEventListener("keydown", (event) => {
           if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;

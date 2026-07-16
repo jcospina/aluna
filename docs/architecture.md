@@ -391,7 +391,10 @@ results/retries, model, tokens, outcome, tier-stage states, and overlap resoluti
 Success finalizes with pointer activation; failure finalizes after rollback;
 recovery marks abandoned work interrupted. Zero-diff is a successful measured
 outcome with no new version. Short platform-owned record writes and capability
-deletion use the coordinator but do not create generation rows. Module 2's
+deletion use the coordinator but do not create generation rows. Each admitted
+record write keeps the generated Handler, its mutation call, and presentation
+completion inside one SQLite transaction; any non-success response rolls the
+write back before the short lease releases. Module 2's
 historical `html-gen` is the first presentation-gen shape; Module 3+ records item
 renderer generation under the semantic stage name. Module 8 need not assume every
 version writes `.html` or behavioral tests. `reject`/`data_query` create no

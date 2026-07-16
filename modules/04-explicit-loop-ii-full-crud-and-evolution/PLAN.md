@@ -260,7 +260,9 @@ foreground stream and complete `commit` swap),
     read/search reject mutation-form markers.
     From the 4.4 steady-state cutover, all five Actions are mandatory and cannot be
     removed by evolution; the only earlier exception is the exact reset-bounded
-    two-Action shape in the approved sequence below.
+    two-Action shape in the approved sequence below. During that transition,
+    platform chrome renders only affordances backed by the row's committed Action
+    inventory; it never advertises update/delete/search against a two-Action row.
 
 17. **The shared modal has explicit read and edit modes.** Item activation opens
     complete read-only detail. A platform edit affordance switches the same modal
@@ -270,6 +272,11 @@ foreground stream and complete `commit` swap),
     records region through the shared renderer so membership/ranking cannot go
     stale. The collection remains a reading surface without per-item edit/delete chrome,
     overflow menus, bulk selection, or a second record shell.
+    Search, the initial read, and every post-mutation reconciliation share one
+    per-records-region request owner; only the newest claim may render. Each
+    record-write lease also wraps the complete generated Handler in one SQLite
+    transaction, so validation, Handler, or presentation failure rolls back before
+    the response and transport-ambiguous failures reconcile before retry.
 
 18. **Record deletion is confirmation-gated platform chrome.** Delete appears
     only in the read-detail modal. First activation replaces its action area with

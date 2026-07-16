@@ -43,6 +43,7 @@ export const PREVIEW_CAPABILITY: RenderableCapability = {
     ],
   },
   form: { list_inputs: [{ field: "tags", mode: "comma_separated" }] },
+  actions: ["create", "read", "update", "delete", "search"],
 };
 
 /** A filled record — shows each type's detail formatting, including a multi-line value. */

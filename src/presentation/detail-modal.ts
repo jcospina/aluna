@@ -17,10 +17,10 @@
 //     browser owns the hard parts, so the controller only prefills and opens (ARCH §6.1:
 //     "the shell … may open, prefill, and focus the shared modal", never infer intent).
 //
-// Prefill rides the escaped `data-item` payload the item wrapper already carries
-// (3.2/02), so the full record shows even when the item visually truncates and **no
-// read-single route is added** (ADR-0005 §3). The detail body is materialized by the
-// centralized renderer at list-render time and cloned into this one modal on open;
+// Prefill rides the inert detail template emitted beside each item wrapper, so the
+// full record shows even when the item visually truncates and **no read-single route
+// is added** (ADR-0005 §3). The detail body is materialized by the centralized
+// renderer at list-render time and cloned into this one modal on open;
 // there is no client-side re-implementation of field formatting and no server round-trip.
 //
 // Field selection/order renders in **spec order** here; it defers to
@@ -101,6 +101,66 @@ export function renderDetailModal(): string {
   );
 }
 
+function renderReadActions(canUpdate: boolean, canDelete: boolean): string {
+  if (!canUpdate && !canDelete) return "";
+  return (
+    `<div class="detail-modal__read-actions" data-detail-read-actions>` +
+    (canDelete
+      ? `<button class="btn btn--ghost detail-modal__delete-trigger" type="button" data-detail-delete>` +
+        `Delete</button>`
+      : "") +
+    (canUpdate
+      ? `<button class="btn btn--neutral" type="button" data-detail-edit>Edit</button>`
+      : "") +
+    `</div>`
+  );
+}
+
+function renderDeleteConfirmation(
+  capability: RenderableCapability,
+  recordId: string,
+  templateId: string,
+  itemTargetId: string,
+): string {
+  if (!capability.actions.includes("delete")) return "";
+  const confirmationId = `${templateId}-delete-confirmation`;
+  const deleteErrorId = capabilityDeleteErrorId(capability.id);
+  const recordsRegionId = capabilityRecordsRegionId(capability.id);
+  const searchUrl = capability.actions.includes("search")
+    ? ` data-search-url="/capability/${capability.id}/search"`
+    : "";
+  return (
+    `<form class="detail-modal__delete-confirm" data-modal-delete-form hidden` +
+    ` aria-describedby="${escapeHtml(confirmationId)}"` +
+    ` data-item-target-id="${escapeHtml(itemTargetId)}"` +
+    ` data-records-target-id="${escapeHtml(recordsRegionId)}"` +
+    ` data-read-url="/capability/${capability.id}/read"` +
+    searchUrl +
+    ` hx-post="/capability/${capability.id}/delete" hx-swap="none">` +
+    `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapeHtml(recordId)}">` +
+    `<div class="detail-modal__delete-copy">` +
+    `<p id="${escapeHtml(confirmationId)}">Delete this record? You won’t be able to bring it back.</p>` +
+    `<div id="${deleteErrorId}" class="detail-modal__delete-error" aria-live="polite"></div>` +
+    `</div>` +
+    `<div class="detail-modal__delete-actions">` +
+    `<button class="btn btn--ghost" type="button" data-detail-cancel-delete` +
+    ` aria-describedby="${escapeHtml(confirmationId)}">Cancel</button>` +
+    `<button class="btn btn--danger" type="submit"` +
+    ` aria-describedby="${escapeHtml(confirmationId)}">Delete record</button>` +
+    `</div>` +
+    `</form>`
+  );
+}
+
+function renderEditMode(
+  capability: RenderableCapability,
+  record: Readonly<Record<string, unknown>>,
+  itemTargetId: string,
+): string {
+  if (!capability.actions.includes("update")) return "";
+  return `<section class="detail-modal__mode" data-detail-edit-mode hidden>${renderEditForm(capability, record, { itemTargetId })}</section>`;
+}
+
 /**
  * Render the read-only detail body for one record — the modal's prefill content, produced
  * by the **centralized field renderer** (3.2/01) so the create form and the detail modal
@@ -122,44 +182,23 @@ export function renderDetailContent(
     throw new Error("Cannot render record actions without a nonblank record id.");
   }
   const itemTargetId = itemElementIdForTemplate(templateId);
-  const confirmationId = `${templateId}-delete-confirmation`;
-  const deleteErrorId = capabilityDeleteErrorId(capability.id);
-  const recordsRegionId = capabilityRecordsRegionId(capability.id);
-  const edit = renderEditForm(capability, record, {
+  const canUpdate = capability.actions.includes("update");
+  const canDelete = capability.actions.includes("delete");
+  const readActions = renderReadActions(canUpdate, canDelete);
+  const deleteConfirmation = renderDeleteConfirmation(
+    capability,
+    recordId,
+    templateId,
     itemTargetId,
-    sourceTemplateId: templateId,
-  });
+  );
+  const edit = renderEditMode(capability, record, itemTargetId);
   return (
     `<section class="detail-modal__mode detail-modal__read" data-detail-read-mode>` +
     `<div class="detail-modal__read-content">${detail}</div>` +
-    `<div class="detail-modal__read-actions" data-detail-read-actions>` +
-    `<button class="btn btn--ghost detail-modal__delete-trigger" type="button" data-detail-delete>` +
-    `Delete</button>` +
-    `<button class="btn btn--neutral" type="button" data-detail-edit>Edit</button>` +
-    `</div>` +
-    `<form class="detail-modal__delete-confirm" data-modal-delete-form hidden` +
-    ` aria-describedby="${escapeHtml(confirmationId)}"` +
-    ` data-item-target-id="${escapeHtml(itemTargetId)}"` +
-    ` data-records-target-id="${escapeHtml(recordsRegionId)}"` +
-    ` data-read-url="/capability/${capability.id}/read"` +
-    (capability.searchEnabled === true
-      ? ` data-search-url="/capability/${capability.id}/search"`
-      : "") +
-    ` hx-post="/capability/${capability.id}/delete" hx-swap="none">` +
-    `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapeHtml(recordId)}">` +
-    `<div class="detail-modal__delete-copy">` +
-    `<p id="${escapeHtml(confirmationId)}">Delete this record? You won’t be able to bring it back.</p>` +
-    `<div id="${deleteErrorId}" class="detail-modal__delete-error" aria-live="polite"></div>` +
-    `</div>` +
-    `<div class="detail-modal__delete-actions">` +
-    `<button class="btn btn--ghost" type="button" data-detail-cancel-delete` +
-    ` aria-describedby="${escapeHtml(confirmationId)}">Cancel</button>` +
-    `<button class="btn btn--danger" type="submit"` +
-    ` aria-describedby="${escapeHtml(confirmationId)}">Delete record</button>` +
-    `</div>` +
-    `</form>` +
+    readActions +
+    deleteConfirmation +
     `</section>` +
-    `<section class="detail-modal__mode" data-detail-edit-mode hidden>${edit}</section>`
+    edit
   );
 }
 

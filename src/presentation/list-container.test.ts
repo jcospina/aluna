@@ -36,7 +36,7 @@ const SAMPLE: RenderableCapability = {
     ],
   },
   form: { list_inputs: [] },
-  searchEnabled: true,
+  actions: ["create", "read", "update", "delete", "search"],
 };
 
 // Reverse escapeHtml exactly (&amp; last so "&amp;lt;" round-trips to "&lt;", not "<") —
@@ -174,7 +174,7 @@ describe("container scaffolding", () => {
 
   test("does not advertise search on the approved transitional two-Action View", () => {
     const transitional = renderCollection({
-      capability: { ...SAMPLE, searchEnabled: false },
+      capability: { ...SAMPLE, actions: ["create", "read"] },
       loadThroughRead: true,
     });
     expect(transitional).not.toContain("data-capability-search");

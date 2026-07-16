@@ -69,7 +69,9 @@ collection.
   one-shot read attributes, so a late initial read cannot overwrite newer
   results. No-match copy has one visible/live source, and a failed search cannot
   reveal the canonical empty-collection prompt. The controller only calls the
-  committed `read` and `search` URLs embedded by platform chrome.
+  committed `read` and `search` URLs embedded by platform chrome. Its native
+  requests share the per-records-region owner with initial read and mutation
+  reconciliation, so a newer request always invalidates every older writer.
 - The one live feedback row is a collection-level sibling below the shared
   search/New header, so no-match copy centers across the whole content area. The
   controller mirrors search state onto the collection; empty-prompt suppression
@@ -77,7 +79,8 @@ collection.
 - The canonical normalizer uses compatibility decomposition, locale-independent
   lowercase, Latin-base combining-diacritic folding, and final recomposition.
   `cafe`, `CAFE`, `CaFe`, `Café`, and `Cáfé` share one match set while non-Latin
-  voicing, vowel, and tone marks remain meaningful.
+  voicing, vowel, and tone marks remain meaningful. The reference SQL uses literal
+  `instr` matching, so `%`, `_`, and quotes cannot become patterns or injection.
 - Search responses replace the complete records region and are reprocessed by
   HTMX. Because the generated Handler still calls the injected `present`, results
   use the one item renderer and retain the same accessible detail-modal hooks as
@@ -117,7 +120,7 @@ collection.
    already running, then run `bun run demo:five-action-reference`.
 2. Open `http://localhost:3030`, choose **Journal entry**, and confirm a labelled
    search field appears above the records.
-3. Type **cafe**. Confirm **Searching…** appears briefly and only **Ready to
+3. Type **cafe**. Confirm **I’m searching…** appears briefly and only **Ready to
    remove — CAFÉ ÅNGSTRÖM** remains. Open it and confirm the ordinary shared
    read-detail modal appears.
 4. Spot-check **CAFE**, **CaFe**, **Café**, and **Cáfé** and confirm the same record

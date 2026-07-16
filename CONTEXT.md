@@ -122,7 +122,9 @@ connection. A resolved build receives a bounded FIFO ticket and only the head
 holds the long active lease; record and platform writes hold short leases;
 capability deletion uses a non-queued try-acquire. Reads never enter it. It
 replaces advisory busy flags and prevents unrelated requests from joining one open
-SQLite write transaction.
+SQLite write transaction. A record-write lease contains the complete generated
+Handler lifecycle in one SQLite transaction: a non-success response rolls back the
+canonical create/update/delete before ownership releases.
 _Avoid_: busy flag, build-only queue, mutation lock check
 
 **Field name**:

@@ -82,6 +82,12 @@ connection, limited to its target plus exact committed
 `{ capability_id, incarnation_id }` dependencies. Only create/update/delete
 receive canonical mutation authority: create is capability-bound, while
 update/delete are additionally bound to the router-validated record target.
+Each admitted record-write request wraps the complete generated Handler lifecycle
+in one coordinator-owned SQLite transaction. Handler/presentation failure therefore
+rolls back the canonical mutation; an HTTP error never reports failure after a
+silently committed record write. A client transport failure remains ambiguous, so
+platform chrome reconciles through the current committed search/read before inviting
+a retry.
 Record-producing read/search Handlers return ordered unique target ids; the
 platform rehydrates full canonical target rows on the same read snapshot but
 exposes generated code only to Action-safe active projections/opaque handles. This

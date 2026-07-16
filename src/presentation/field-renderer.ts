@@ -33,7 +33,11 @@ import {
   type SpecField,
   type UiFormIntent,
 } from "../registry/index.ts";
-import { ALUNA_PRESENT_MARKER, ALUNA_RECORD_ID_MARKER } from "../router/wire-protocol.ts";
+import {
+  ALUNA_PRESENT_MARKER,
+  ALUNA_RECORD_ID_MARKER,
+  type WireProtocolAction,
+} from "../router/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
 
 /**
@@ -49,8 +53,8 @@ export interface RenderableCapability {
   readonly label: string;
   readonly schema: { readonly fields: readonly SpecField[] };
   readonly form: UiFormIntent;
-  /** Transitional 4.2–4.3 guard: true only when the committed Action set includes search. */
-  readonly searchEnabled?: boolean;
+  /** The committed closed Action inventory; platform chrome fails closed against it. */
+  readonly actions: readonly WireProtocolAction[];
   readonly item?: { readonly shows: readonly string[] };
   /**
    * Which fields the read-only DETAIL surface shows, and in what order —
@@ -70,9 +74,6 @@ export interface RenderableCapability {
  * one constant rather than re-typing the string.
  */
 export const RECORD_CREATED_EVENT = "aluna:record-created";
-
-/** The bubbling presentation event emitted after a committed edit response swaps in. */
-export const RECORD_UPDATED_EVENT = "aluna:record-updated";
 
 /** The placeholder shown for an absent (null / undefined / empty) detail value. */
 const EMPTY_VALUE = "—";
@@ -105,12 +106,10 @@ export function capabilityDeleteErrorId(capabilityId: string): string {
 export interface EditFormOptions {
   /** Stable id of the item wrapper replaced by the update Handler's presented record. */
   readonly itemTargetId: string;
-  /** Existing inert modal template removed immediately before that replacement. */
-  readonly sourceTemplateId: string;
 }
 
 function searchRefreshAttributes(capability: RenderableCapability): string {
-  return capability.searchEnabled === true
+  return capability.actions.includes("search")
     ? ` data-search-url="/capability/${capability.id}/search"`
     : "";
 }
@@ -328,6 +327,7 @@ function renderEditField(
   value: unknown,
 ): string {
   if (isListFieldType(field.type)) return renderEditListField(capabilityId, field, form, value);
+  if (field.type === "datetime") return renderEditDatetimeField(capabilityId, field, value);
 
   const control = createInputFor(field.type);
   const inputId = `edit-${capabilityId}-${field.name}`;
@@ -362,11 +362,40 @@ function renderEditField(
   );
 }
 
+/**
+ * A datetime-local control cannot carry an offset or trailing Z, while canonical
+ * datetime storage intentionally can. Keep the exact committed value in the named
+ * hidden control and let the modal controller update it only when the visible local
+ * control actually changes. Saving an unrelated field is therefore lossless.
+ */
+function renderEditDatetimeField(capabilityId: string, field: SpecField, value: unknown): string {
+  const inputId = `edit-${capabilityId}-${field.name}`;
+  const label = escapeHtml(field.label);
+  const nameAttribute = escapeHtml(field.name);
+  const exactValue = value === null || value === undefined ? "" : String(value);
+  const localValue = datetimeLocalValue(exactValue);
+  const required = field.required ? " required" : "";
+
+  return (
+    `<div class="field">` +
+    `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">` +
+    `<input type="hidden" name="${nameAttribute}" value="${escapeHtml(exactValue)}"` +
+    ` data-edit-datetime-value>` +
+    `<label class="field__label" for="${inputId}">${label}</label>` +
+    `<input class="field__control" id="${inputId}" type="datetime-local" step="any"` +
+    ` value="${escapeHtml(localValue)}" data-edit-datetime-input="${nameAttribute}"${required}>` +
+    `</div>`
+  );
+}
+
+function datetimeLocalValue(value: string): string {
+  return /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?)/.exec(value)?.[1] ?? value;
+}
+
 function editScalarValue(type: Exclude<FieldType, ListFieldType>, value: unknown): string {
   if (value === null || value === undefined) return "";
   const raw = String(value);
   if (type === "date") return /^\d{4}-\d{2}-\d{2}/.exec(raw)?.[0] ?? raw;
-  if (type === "datetime") return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.exec(raw)?.[0] ?? raw;
   return raw;
 }
 

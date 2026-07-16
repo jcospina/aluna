@@ -1,6 +1,6 @@
 # Confirmation-gated record delete in read detail
 
-Status: ready-for-human
+Status: done
 
 ## Epic
 
@@ -36,7 +36,7 @@ Record deletion as confirmation-gated platform chrome:
 - [x] Not-found delete shows a warm failure and changes nothing
 - [x] Focused tests cover the confirm state machine; `bun test`,
       `bun run typecheck`, `bun run lint` clean
-- [ ] **Human sign-off**: the delete flow on the reference capability is
+- [x] **Human sign-off**: the delete flow on the reference capability is
       validated on the running app (module-acceptance step 4)
 
 ## Living demo
@@ -64,9 +64,10 @@ homepage and watch it leave the collection.
   dismissal reset its local state; during the final request those dismissal paths
   and duplicate submission are temporarily locked so a late response cannot
   close or refresh a newly opened record.
-- Confirmed success reruns the capability's committed `read`, closes the modal,
-  and focuses the next surviving record, then the previous record, or New when
-  empty. The refresh seam checks HTTP and network failure explicitly and falls
+- Confirmed success reruns the current nonblank committed search or canonical
+  `read`, replaces the whole records region, closes the modal, and focuses the
+  next surviving record, then the previous record, or New when empty. The refresh
+  seam checks HTTP and network failure explicitly and falls
   back to a canonical reload instead of leaving stale collection content or a
   permanently busy modal.
 - Missing targets retarget warm `record_not_found` copy into the confirmation's
@@ -107,12 +108,14 @@ homepage and watch it leave the collection.
 3. Choose **Delete**. Confirm no record leaves the collection yet; the same action
    area now shows the warning, focused **Cancel**, and red **Delete record**.
    Choose Cancel and confirm the ordinary read actions return with focus on Delete.
-4. Choose Delete again, then **Delete record** once. Confirm **Deleting…** appears,
+4. Choose Delete again, then **Delete record** once. Confirm **I’m deleting…** appears,
    the modal closes, the target disappears after committed read, and focus moves
    to a surviving record.
 5. Run the installer again, switch browser responsive tools below 480px, and
    repeat through the first Delete activation. Confirm the modal has no horizontal
    overflow, Close remains a 44px target, labels remain visible, and Cancel/Delete
    record stack full width below the warning.
-6. If both desktop and mobile interactions are correct, mark the Human sign-off
-   criterion and change this issue to `Status: done`.
+6. Confirm both desktop and mobile interactions remain correct.
+
+Human sign-off was accepted with the Epic 4.3 issue-level completion statement on
+2026-07-16; the instructions remain as the repeatable regression recipe.

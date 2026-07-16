@@ -43,6 +43,7 @@ const SAMPLE: RenderableCapability = {
     ],
   },
   form: { list_inputs: [] },
+  actions: ["create", "read", "update", "delete"],
 };
 
 const RECORD: Readonly<Record<string, unknown>> = {
@@ -146,12 +147,29 @@ describe("renderDetailContent — read-only body via the centralized field rende
     expect(edit).not.toContain("data-modal-delete-form");
   });
 
+  test("renders only Actions the committed capability actually advertises", () => {
+    const readOnly = renderDetailContent(
+      { ...SAMPLE, actions: ["create", "read"] },
+      RECORD,
+      "detail-tasks-task-1",
+    );
+    expect(readOnly).toContain("data-detail-read-mode");
+    expect(readOnly).not.toContain("data-detail-edit");
+    expect(readOnly).not.toContain("data-detail-delete");
+    expect(readOnly).not.toContain("/update");
+    expect(readOnly).not.toContain("/delete");
+  });
+
   test("delete confirmation adds the search refresh URL only for search-capable rows", () => {
     expect(renderDetailContent(SAMPLE, RECORD, "detail-tasks-task-1")).not.toContain(
       'data-search-url="/capability/tasks/search"',
     );
     expect(
-      renderDetailContent({ ...SAMPLE, searchEnabled: true }, RECORD, "detail-tasks-task-1"),
+      renderDetailContent(
+        { ...SAMPLE, actions: [...SAMPLE.actions, "search"] },
+        RECORD,
+        "detail-tasks-task-1",
+      ),
     ).toContain('data-search-url="/capability/tasks/search"');
   });
 
@@ -311,15 +329,18 @@ describe("detail modal — controller contract parity (server ⇄ client)", () =
     expect(controller).toContain("htmx?.process(body)");
     expect(controller).toContain('addEventListener("htmx:beforeRequest"');
     expect(controller).toContain('addEventListener("htmx:afterRequest"');
-    expect(controller).toContain("Saving…");
-    expect(controller).toContain("Deleting…");
+    expect(controller).toContain("I’m saving…");
+    expect(controller).toContain("I’m deleting…");
     expect(controller).toContain("aluna:record-updated");
     expect(controller).toContain("refreshCommittedRead");
+    expect(controller).toContain("setEditPending");
     expect(controller).toContain("setDeletePending");
     expect(controller).toContain("close.disabled = pending");
     expect(controller).toContain("cancel.disabled = pending");
     expect(controller).toContain("ownsActiveModal");
-    expect(controller).toContain('modal?.dataset.deleteBusy === "true"');
+    expect(controller).toContain('modal?.dataset.mutationBusy === "true"');
+    expect(controller).toContain("outcomeUnknown: status === 0");
+    expect(controller).not.toContain("status >= 500");
     expect(controller).toContain("window.location.reload()");
   });
 
