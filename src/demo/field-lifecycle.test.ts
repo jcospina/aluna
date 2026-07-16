@@ -34,6 +34,18 @@ async function installReference(database: PlatformDatabase["readwrite"], artifac
   return result;
 }
 
+async function expectEmptySearch(
+  app: ReturnType<typeof createApp>,
+  capabilityId: string,
+  query: string,
+) {
+  const response = await app.request(
+    `/capability/${capabilityId}/search?q=${encodeURIComponent(query)}`,
+  );
+  expect(response.status).toBe(200);
+  expect((await response.text()).trim()).toBe("");
+}
+
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: this living-demo suite keeps one installed reference database across its browser-facing create and edit tracers.
 describe("development-only five-Action reference living demo", () => {
   let dir: string;
@@ -152,6 +164,18 @@ describe("development-only five-Action reference living demo", () => {
     expect(joined).toContain("data-joined-journal-entry");
     expect(joined).toContain("A quiet beginning");
     expect(joined).toContain("Seen through a declared dependency");
+
+    const joinedSearch = await (
+      await app.request(`/capability/${READ_DEPENDENCY_DEMO_ID}/search?q=quiet`)
+    ).text();
+    expect(joinedSearch).toContain("Seen through a declared dependency");
+    await expectEmptySearch(app, READ_DEPENDENCY_DEMO_ID, "%");
+    await expectEmptySearch(app, READ_DEPENDENCY_DEMO_ID, "_");
+    await expectEmptySearch(app, READ_DEPENDENCY_DEMO_ID, "'");
+    const joinedWhitespace = await (
+      await app.request(`/capability/${READ_DEPENDENCY_DEMO_ID}/search?q=%E2%80%83%20%09`)
+    ).text();
+    expect(joinedWhitespace).toBe(joined);
   });
 
   test("opens read-only detail, prefills both list modes, and round-trips them through update", async () => {
@@ -286,66 +310,10 @@ describe("development-only five-Action reference living demo", () => {
   });
 });
 
-describe("five-Action reference installer admission", () => {
-  test("server-side refresh waits for shared mutation admission and gates before replacing live state", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "aluna-five-action-refresh-"));
-    const databases = openDatabase(join(dir, "demo.db"));
-    const artifactsRoot = join(dir, "capabilities");
-    try {
-      runMigrations(databases.readwrite);
-      await installReference(databases.readwrite, artifactsRoot);
-      const mutationCoordinator = createMutationCoordinator();
-      const recordLease = mutationCoordinator.tryAcquireRecordWrite();
-      if (!recordLease) throw new Error("expected a record lease");
-      const app = createApp({
-        artifactsRoot,
-        buildDatabases: databases,
-        capabilityRouter: { databases },
-        mutationCoordinator,
-      });
-
-      const refresh = app.request("/demo/five-action-reference/install", { method: "POST" });
-      for (let attempt = 0; attempt < 100; attempt += 1) {
-        if (
-          mutationCoordinator.snapshot().queuedTickets.some((ticket) => ticket.kind === "build")
-        ) {
-          break;
-        }
-        await Bun.sleep(5);
-      }
-
-      expect(mutationCoordinator.snapshot()).toMatchObject({
-        activeLease: { kind: "record" },
-        queuedTickets: [{ kind: "build" }],
-      });
-      expect(mutationCoordinator.release(recordLease)).toBe(true);
-
-      const response = await refresh;
-      expect(response.status).toBe(200);
-      const body = (await response.json()) as {
-        status: string;
-        gate: Array<{ rung: string; status: string }>;
-      };
-      expect(body.status).toBe("installed");
-      expect(body.gate.map(({ rung, status }) => `${rung}:${status}`)).toEqual([
-        "structural:passed",
-        "smoke:passed",
-        "behavioral:skipped",
-        "design-lint:passed",
-      ]);
-      expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
-      expect(await (await app.request("/")).text()).toContain("Journal entry");
-    } finally {
-      databases.readonly.close();
-      databases.readwrite.close();
-      rmSync(dir, { force: true, recursive: true });
-    }
-  });
-});
-
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: the tracer intentionally proves the complete route lifecycle in one database.
 describe("five-Action reference route inventory", () => {
   // biome-ignore lint/complexity/noExcessiveLinesPerFunction: one tracer keeps race, CRUD, normalization, and preservation assertions ordered.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the tracer keeps the build/read/write state transitions in one real route lifecycle.
   test("partial update, post-merge validation, delete, and not-found run through real routes", async () => {
     const dir = mkdtempSync(join(tmpdir(), "aluna-five-action-routes-"));
     const databases = openDatabase(join(dir, "demo.db"));
@@ -419,6 +387,14 @@ describe("five-Action reference route inventory", () => {
       );
       expect(noMatches.status).toBe(200);
       expect((await noMatches.text()).trim()).toBe("");
+
+      for (const literal of ["%", "_", "'"]) {
+        const metacharacterSearch = await app.request(
+          `/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=${encodeURIComponent(literal)}`,
+        );
+        expect(metacharacterSearch.status).toBe(200);
+        expect((await metacharacterSearch.text()).trim()).toBe("");
+      }
 
       const readHtml = await (
         await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`)

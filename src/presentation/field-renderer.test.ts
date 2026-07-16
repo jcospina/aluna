@@ -34,7 +34,7 @@ describe("create form — platform wiring + close-on-success", () => {
 
   test("adds the search refresh URL only when the committed Action set includes search", () => {
     expect(form).not.toContain('data-search-url="/capability/tasks/search"');
-    expect(renderCreateForm({ ...SAMPLE, searchEnabled: true })).toContain(
+    expect(renderCreateForm({ ...SAMPLE, actions: [...SAMPLE.actions, "search"] })).toContain(
       'data-search-url="/capability/tasks/search"',
     );
   });
@@ -184,6 +184,7 @@ describe("create form — one control per pantry type — labels, lifecycle, and
         ],
       },
       form: { list_inputs: [] },
+      actions: ["create", "read"],
     };
     const create = renderCreateForm(capability);
     expect(create).toContain("Entry");

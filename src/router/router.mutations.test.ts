@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createApp } from "../app.ts";
 import type { PlatformDatabase } from "../db.ts";
 import type { CapabilityRow } from "../registry/index.ts";
-import type { CapabilityDeleteContext, CapabilityUpdateContext } from "./contract.ts";
+import type {
+  CapabilityCreateContext,
+  CapabilityDeleteContext,
+  CapabilityUpdateContext,
+} from "./contract.ts";
 import { install, notesRow, setupRouterTest, teardownRouterTest } from "./router.test-support.ts";
 import type { HandlerLoader } from "./router.ts";
 
@@ -158,6 +162,86 @@ describe("deterministic capability router — target-bound mutation authority", 
     expect(databases.readwrite.query('SELECT "id" FROM "cap_notes" ORDER BY "id"').all()).toEqual([
       { id: "record-a" },
       { id: "record-b" },
+    ]);
+  });
+});
+
+describe("deterministic capability router — mutation transaction integrity", () => {
+  let dir: string;
+  let databases: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns: databases } = setupRouterTest());
+    install(databases, fiveActionRow());
+    seed(databases.readwrite);
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, databases);
+  });
+
+  test("rolls back every canonical mutation when its Handler fails after writing", async () => {
+    const loadHandler: HandlerLoader = async (_path, action) => {
+      if (action === "create") {
+        return async ({ mutation, present }: CapabilityCreateContext) =>
+          present(mutation.create({ text: "Third", pinned: false }));
+      }
+      if (action === "update") {
+        return async ({ mutation, present }: CapabilityUpdateContext) =>
+          present(mutation.update({ text: "Must roll back" }));
+      }
+      if (action === "delete") {
+        return async ({ mutation }: CapabilityDeleteContext) => {
+          mutation.delete();
+          throw new Error("post-delete Handler failure");
+        };
+      }
+      return async () => "<p>unused</p>";
+    };
+    const app = createApp({
+      capabilityRouter: {
+        databases,
+        loadHandler,
+        loadItemRenderer: async () => () => {
+          throw new Error("post-write presentation failure");
+        },
+      },
+    });
+
+    const create = await app.request("/capability/notes/create", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams([
+        ["text", "Third"],
+        ["__aluna_present", "text"],
+        ["__aluna_present", "pinned"],
+      ]).toString(),
+    });
+    expect(create.status).toBe(500);
+    expect(create.headers.get("HX-Retarget")).toBe("#notes-create-error");
+    expect(await create.text()).toContain('data-error-code="mutation_failed"');
+
+    const update = await app.request(
+      "/capability/notes/update",
+      targetBody("record-a", [
+        ["text", "Must roll back"],
+        ["__aluna_present", "text"],
+      ]),
+    );
+    expect(update.status).toBe(500);
+    expect(update.headers.get("HX-Retarget")).toBe("#notes-edit-error");
+
+    const remove = await app.request("/capability/notes/delete", targetBody("record-a"));
+    expect(remove.status).toBe(500);
+    expect(remove.headers.get("HX-Retarget")).toBe("#notes-delete-error");
+
+    expect(
+      databases.readwrite
+        .query('SELECT "id", "text", "pinned" FROM "cap_notes" ORDER BY "id"')
+        .all(),
+    ).toEqual([
+      { id: "record-a", text: "First", pinned: 0 },
+      { id: "record-b", text: "Second", pinned: 1 },
     ]);
   });
 });

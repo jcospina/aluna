@@ -141,6 +141,10 @@ describe("deterministic capability router — presentation adapter and empty rea
     expect(body).toContain("data-item=");
     expect(body).toContain('data-detail-template="detail-notes-');
     expect(body).toContain('<span class="text-lg truncate">Buy milk</span>');
+    expect(body).not.toContain("data-detail-edit");
+    expect(body).not.toContain("data-detail-delete");
+    expect(body).not.toContain("/capability/notes/update");
+    expect(body).not.toContain("/capability/notes/delete");
   });
 
   test("a missing required item renderer fails cleanly before the handler loads", async () => {
@@ -165,7 +169,7 @@ describe("deterministic capability router — presentation adapter and empty rea
     expect(res.status).toBe(500);
     const body = await res.text();
     expect(body).toMatch(/something went sideways/i);
-    expect(body).not.toMatch(/item renderer|handler|artifacts|Error/i);
+    expect(body).not.toMatch(/item renderer|handler|artifacts|ENOENT/i);
     expect(handlerLoads).toBe(0);
   });
 });

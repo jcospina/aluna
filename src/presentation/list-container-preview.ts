@@ -42,6 +42,7 @@ const PREVIEW_CAPABILITY: RenderableCapability = {
     ],
   },
   form: { list_inputs: [] },
+  actions: ["create", "read", "update", "delete", "search"],
 };
 
 // A `type` (not `interface`) so it carries an implicit index signature and passes to

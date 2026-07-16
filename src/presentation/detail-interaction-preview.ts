@@ -52,6 +52,7 @@ const PREVIEW_CAPABILITY: RenderableCapability = {
     ],
   },
   form: { list_inputs: [] },
+  actions: ["create", "read", "update", "delete", "search"],
   detail: { shows: ["title", "rating", "note", "author"] },
 };
 

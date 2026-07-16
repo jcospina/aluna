@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { ALUNA_PRESENT_MARKER, ALUNA_RECORD_ID_MARKER } from "../router/wire-protocol.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
-import { capabilityEditErrorId, RECORD_UPDATED_EVENT, renderEditForm } from "./field-renderer.ts";
+import { capabilityEditErrorId, renderEditForm } from "./field-renderer.ts";
 
 const CAPABILITY: RenderableCapability = {
   id: "journal",
@@ -45,6 +45,13 @@ const CAPABILITY: RenderableCapability = {
         required: true,
         lifecycle: "inactive",
       },
+      {
+        name: "remembered_at",
+        label: "Remembered at",
+        type: "datetime",
+        required: false,
+        lifecycle: "active",
+      },
     ],
   },
   form: {
@@ -53,6 +60,7 @@ const CAPABILITY: RenderableCapability = {
       { field: "aliases", mode: "repeatable" },
     ],
   },
+  actions: ["create", "read", "update", "delete"],
   detail: { shows: ["entry", "reflection", "created_at"] },
 };
 
@@ -66,12 +74,12 @@ const RECORD = {
   aliases: ["Doe, Jane", "J. Doe"],
   retired_note: "server only",
   extra: { preserved: true },
+  remembered_at: "2000-02-29T23:59:59.999+14:00",
 };
 
 describe("edit form — committed update wiring", () => {
   const form = renderEditForm(CAPABILITY, RECORD, {
     itemTargetId: "detail-journal-record-1-item",
-    sourceTemplateId: "detail-journal-record-1",
   });
 
   test("posts Save to update and declares the shared post-mutation region refresh", () => {
@@ -83,15 +91,14 @@ describe("edit form — committed update wiring", () => {
     expect(form).toContain('data-records-target-id="journal-records"');
     expect(form).toContain('data-read-url="/capability/journal/read"');
     expect(form).toContain('<button class="btn btn--primary" type="submit">Save</button>');
-    expect(form).not.toContain(RECORD_UPDATED_EVENT);
+    expect(form).not.toContain("aluna:record-updated");
   });
 
   test("adds the search refresh URL only for search-capable committed rows", () => {
     expect(form).not.toContain('data-search-url="/capability/journal/search"');
     expect(
-      renderEditForm({ ...CAPABILITY, searchEnabled: true }, RECORD, {
+      renderEditForm({ ...CAPABILITY, actions: [...CAPABILITY.actions, "search"] }, RECORD, {
         itemTargetId: "detail-journal-record-1-item",
-        sourceTemplateId: "detail-journal-record-1",
       }),
     ).toContain('data-search-url="/capability/journal/search"');
   });
@@ -115,6 +122,7 @@ describe("edit form — committed update wiring", () => {
       `name="${ALUNA_PRESENT_MARKER}" value="published"`,
       `name="${ALUNA_PRESENT_MARKER}" value="tags"`,
       `name="${ALUNA_PRESENT_MARKER}" value="aliases"`,
+      `name="${ALUNA_PRESENT_MARKER}" value="remembered_at"`,
     ]);
   });
 
@@ -127,6 +135,15 @@ describe("edit form — committed update wiring", () => {
     expect(form).not.toContain("server only");
     expect(form).not.toContain("preserved");
     expect(form).not.toContain("created_at");
+  });
+
+  test("keeps the exact canonical datetime unless its local control changes", () => {
+    expect(form).toContain(
+      'name="remembered_at" value="2000-02-29T23:59:59.999+14:00" data-edit-datetime-value',
+    );
+    expect(form).toContain(
+      'type="datetime-local" step="any" value="2000-02-29T23:59:59.999" data-edit-datetime-input="remembered_at"',
+    );
   });
 
   test("reuses both authored list modes for exact prefill", () => {
@@ -147,7 +164,6 @@ describe("edit form — committed update wiring", () => {
         { ...RECORD, id: "   " },
         {
           itemTargetId: "item",
-          sourceTemplateId: "template",
         },
       ),
     ).toThrow(/nonblank record id/);

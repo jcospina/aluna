@@ -46,6 +46,7 @@ const PREVIEW_CAPABILITY: RenderableCapability = {
     ],
   },
   form: { list_inputs: [{ field: "tags", mode: "repeatable" }] },
+  actions: ["create", "read", "update", "delete", "search"],
 };
 
 /** One dev trigger + the record its detail template holds. */

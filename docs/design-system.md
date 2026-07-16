@@ -314,10 +314,13 @@ border, radius, and focus-ring vocabulary as the platform field controls; a pers
 text **Clear** action remains a full target rather than relying on browser-specific
 search-input decoration. The chrome owns a 300 ms debounce, visible and announced
 loading feedback, no-match and warm failure states, request cancellation, and
-out-of-order response suppression. Matching and ranking remain inside the generated
+out-of-order response suppression. Search, the initial HTMX read, and post-mutation
+reconciliation share one per-records-region request owner, so only the newest claim
+may render. Matching and ranking remain inside the generated
 `search` Handler. The platform normalizer makes composed/decomposed Unicode, letter
 case, and Latin accents equivalent, so `cafe`, `CAFE`, `Café`, and `Cáfé` share one
-match set while marks in other scripts remain meaningful.
+match set while marks in other scripts remain meaningful; `%`, `_`, and quotes stay
+literal text rather than SQL patterns.
 Search and New share the header row; the single live feedback row sits immediately
 below it and centers no-match copy across the whole collection content area.
 
@@ -328,6 +331,8 @@ items therefore carry the same accessible trigger and detail-template hooks as o
 read results. During the approved 4.2–4.3 transition, two-Action prompt-built rows omit
 this chrome rather than advertising an undeclared route; 4.4 removes that temporary
 shape, after which every admitted capability has search.
+The same committed Action inventory drives modal chrome: a transitional two-Action
+record has read detail but no Edit/Delete affordances.
 
 ### The accessible item wrapper
 
@@ -396,6 +401,10 @@ posts to the committed `update` route. The field stack is the only edit scrollpo
 horizontal overflow suppressed; Cancel and Save stay docked at the modal bottom without
 covering controls. Stable scrollbar space prevents hover/press travel from changing the
 click geometry.
+During Save, the controller disables duplicate submission and every dismissal path,
+then verifies that the submitting form still owns the shared modal before closing it.
+Datetime edit controls keep the exact stored offset, seconds, and milliseconds in a
+platform-owned value mirror; changing another field cannot truncate untouched time data.
 
 Delete's first activation makes no request. It replaces the read action area in place with
 the warning **“Delete this record? You won’t be able to bring it back.”**, neutral Cancel,
@@ -403,10 +412,11 @@ and the final danger-filled **Delete record** submit. Focus moves to Cancel, the
 destructive choice; Cancel restores the ordinary read actions and returns focus to Delete.
 Close, Escape, and backdrop dismissal clear the local confirmation state without deleting.
 Only the final confirmation emits the one record target to committed `delete`. During the
-request it reads **Deleting…**, refuses duplicate submission, and temporarily locks every
+request it reads **I’m deleting…**, refuses duplicate submission, and temporarily locks every
 dismissal path so a late response cannot act on a different record. A warm not-found failure
 stays open, unlocks dismissal, and is announced in the confirmation's live region. Success
-reruns committed `read`, closes the modal, and focuses the next surviving record, then the
+reruns the current nonblank committed search or canonical `read`, replaces the whole
+records region, closes the modal, and focuses the next surviving record, then the
 previous one, or the New button when the collection is empty. If that committed refresh
 cannot complete, the controller falls back to a canonical page reload instead of leaving
 stale collection chrome or a permanently busy modal. On narrow mobile/high-zoom layouts the
@@ -419,6 +429,10 @@ authored `string[]` list-input modes, while inactive fields, `extra`, and `creat
 out of the form and client payload. Every active edit control emits its presence marker,
 and the form emits one record target so clear, false, and empty-list values remain distinct
 from omitted values.
+All three record writes keep the generated Handler and presentation completion inside
+one coordinator-owned SQLite transaction. A server-side failure rolls the mutation back;
+a transport-ambiguous failure reconciles the committed search/read surface and asks the
+person to check it before retrying.
 
 Each record's read and edit surfaces are materialized into an **inert
 `<template>`** at list-render time and **cloned** into the one modal on open — never

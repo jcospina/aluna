@@ -17,8 +17,9 @@ import {
 
 function renderedExample(example: FewShotDesignExample): string {
   let previewIndex = 0;
+  const capability = { ...example.capability, actions: ["create", "read"] as const };
   const present = createPlatformPresentationAdapter({
-    capability: example.capability,
+    capability,
     renderItem: () => {
       const previewInnerHtml = example.previewSamples[previewIndex]?.previewInnerHtml;
       previewIndex += 1;
@@ -30,7 +31,7 @@ function renderedExample(example: FewShotDesignExample): string {
   });
 
   return renderCollection({
-    capability: example.capability,
+    capability,
     layout: example.layout,
     items: example.previewSamples.map((sample) => present(sample.record)).join(""),
   });

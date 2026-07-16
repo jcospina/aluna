@@ -1,6 +1,11 @@
 // @ts-check
 
 import { RECORDS_REFRESH_START_EVENT } from "./detail-modal-refresh.js";
+import {
+  createRecordsRegionRequestCoordinator,
+  handOffRecordsRegionFromHtmx,
+  recordsRegionRequestCoordinator,
+} from "./records-region-requests.js";
 
 /** @typedef {(input: string, init?: RequestInit) => Promise<Response>} SearchRequest */
 /** @typedef {"idle" | "loading" | "results" | "no-matches" | "error"} SearchState */
@@ -17,9 +22,7 @@ export const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
  * @param {{ trigger(node: Element, eventName: string): void } | undefined} htmx
  */
 export function handOffRecordsRegionToSearch(region, htmx) {
-  htmx?.trigger(region, "htmx:abort");
-  region.removeAttribute("hx-get");
-  region.removeAttribute("hx-trigger");
+  handOffRecordsRegionFromHtmx(region, htmx);
 }
 
 /**
@@ -34,6 +37,7 @@ export function handOffRecordsRegionToSearch(region, htmx) {
  *   state: (state: SearchState) => void,
  *   queryChanged?: (rawQuery: string) => void,
  *   cancelExternalRead?: () => void,
+ *   claimRequest?: () => import("./records-region-requests.js").RecordsRegionRequestClaim,
  *   request?: SearchRequest,
  *   delayMs?: number,
  *   schedule?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>,
@@ -45,9 +49,11 @@ export function createDebouncedCapabilitySearch(options) {
   const delayMs = options.delayMs ?? DEFAULT_SEARCH_DEBOUNCE_MS;
   const schedule = options.schedule ?? setTimeout;
   const cancelSchedule = options.cancelSchedule ?? clearTimeout;
+  const localCoordinator = createRecordsRegionRequestCoordinator();
+  const claimRequest = options.claimRequest ?? localCoordinator.claim;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
-  /** @type {AbortController | undefined} */
+  /** @type {import("./records-region-requests.js").RecordsRegionRequestClaim | undefined} */
   let activeRequest;
   let generation = 0;
 
@@ -69,9 +75,9 @@ export function createDebouncedCapabilitySearch(options) {
     };
   }
 
-  /** @param {AbortController} controller @param {number} ownGeneration */
-  function requestIsObsolete(controller, ownGeneration) {
-    return controller.signal.aborted || ownGeneration !== generation;
+  /** @param {import("./records-region-requests.js").RecordsRegionRequestClaim} claim @param {number} ownGeneration */
+  function requestIsObsolete(claim, ownGeneration) {
+    return !claim.isCurrent() || ownGeneration !== generation;
   }
 
   /** @param {string} query @param {string} html @returns {SearchState} */
@@ -90,16 +96,16 @@ export function createDebouncedCapabilitySearch(options) {
     return response.text();
   }
 
-  /** @param {string} html @param {string} query @param {AbortController} controller @param {number} ownGeneration */
-  function acceptResponse(html, query, controller, ownGeneration) {
-    if (requestIsObsolete(controller, ownGeneration)) return;
+  /** @param {string} html @param {string} query @param {import("./records-region-requests.js").RecordsRegionRequestClaim} claim @param {number} ownGeneration */
+  function acceptResponse(html, query, claim, ownGeneration) {
+    if (requestIsObsolete(claim, ownGeneration)) return;
     options.render(html);
     options.state(completedState(query, html));
   }
 
-  /** @param {unknown} error @param {AbortController} controller @param {number} ownGeneration */
-  function handleRequestError(error, controller, ownGeneration) {
-    if (requestIsObsolete(controller, ownGeneration)) return;
+  /** @param {unknown} error @param {import("./records-region-requests.js").RecordsRegionRequestClaim} claim @param {number} ownGeneration */
+  function handleRequestError(error, claim, ownGeneration) {
+    if (requestIsObsolete(claim, ownGeneration)) return;
     options.state("error");
     throw error;
   }
@@ -109,15 +115,16 @@ export function createDebouncedCapabilitySearch(options) {
     timer = undefined;
     const { query, url } = requestTarget(rawQuery);
     const ownGeneration = generation;
-    const controller = new AbortController();
-    activeRequest = controller;
+    const claim = claimRequest();
+    activeRequest = claim;
 
     try {
-      acceptResponse(await requestHtml(url, controller.signal), query, controller, ownGeneration);
+      acceptResponse(await requestHtml(url, claim.signal), query, claim, ownGeneration);
     } catch (error) {
-      handleRequestError(error, controller, ownGeneration);
+      handleRequestError(error, claim, ownGeneration);
     } finally {
-      if (activeRequest === controller) activeRequest = undefined;
+      claim.release();
+      if (activeRequest === claim) activeRequest = undefined;
     }
   }
 
@@ -163,9 +170,9 @@ function applySearchState(form, region, state) {
 function searchStatusMessage(state) {
   switch (state) {
     case "loading":
-      return "Searching…";
+      return "I’m searching…";
     case "results":
-      return "Search results updated.";
+      return "I updated the results.";
     case "error":
       return "I couldn’t search just now. Try again.";
     case "no-matches":
@@ -203,6 +210,7 @@ function controllerFor(form) {
     readUrl,
     searchUrl,
     delayMs,
+    claimRequest: recordsRegionRequestCoordinator(region).claim,
     render: (html) => {
       region.innerHTML = html;
       htmx?.process(region);

@@ -24,6 +24,7 @@ export const SAMPLE: RenderableCapability = {
     ],
   },
   form: { list_inputs: [] },
+  actions: ["create", "read"],
 };
 
 export function oneField(
@@ -40,6 +41,7 @@ export function oneField(
           ? [{ field: field.name, mode: listMode }]
           : [],
     },
+    actions: ["create", "read"],
   };
 }
 

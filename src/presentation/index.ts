@@ -35,7 +35,6 @@ export {
   capabilityEditErrorId,
   capabilityRecordsRegionId,
   RECORD_CREATED_EVENT,
-  RECORD_UPDATED_EVENT,
   type RenderableCapability,
   renderCreateForm,
   renderDetailFields,

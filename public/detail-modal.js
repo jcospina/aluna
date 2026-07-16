@@ -130,7 +130,9 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
   /** @param {{ title?: string, sourceId?: string }} payload */
   function openDetail(payload) {
     const modal = getModal();
-    if (!modal || typeof modal.showModal !== "function") return;
+    if (!modal || typeof modal.showModal !== "function" || modal.dataset.mutationBusy === "true") {
+      return;
+    }
     currentPayload = payload;
     if (!prefill(payload)) return;
     modal.showModal();
@@ -178,25 +180,58 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
     submit.disabled = pending;
   }
 
-  /** @param {HTMLFormElement} form @param {boolean} pending */
-  function setDeletePending(form, pending) {
-    setRequestPending(form, pending, "Deleting…", "Delete record");
+  /** @param {HTMLFormElement} form @param {boolean} pending @param {string} cancelSelector */
+  function setModalMutationPending(form, pending, cancelSelector) {
     const modal = getModal();
     const close = modal?.querySelector(".detail-modal__close");
-    const cancel = form.querySelector(CANCEL_DELETE_SELECTOR);
+    const cancel = form.querySelector(cancelSelector);
     if (close instanceof HTMLButtonElement) close.disabled = pending;
     if (cancel instanceof HTMLButtonElement) cancel.disabled = pending;
-    if (modal) modal.dataset.deleteBusy = pending ? "true" : "false";
+    if (modal) modal.dataset.mutationBusy = pending ? "true" : "false";
+  }
+
+  /** @param {HTMLFormElement} form @param {boolean} pending */
+  function setEditPending(form, pending) {
+    setRequestPending(form, pending, "I’m saving…", "Save");
+    setModalMutationPending(form, pending, CANCEL_EDIT_SELECTOR);
+  }
+
+  /** @param {HTMLFormElement} form @param {boolean} pending */
+  function setDeletePending(form, pending) {
+    setRequestPending(form, pending, "I’m deleting…", "Delete record");
+    setModalMutationPending(form, pending, CANCEL_DELETE_SELECTOR);
   }
 
   document.addEventListener("htmx:beforeRequest", (event) => {
     const editForm = requestForm(event, EDIT_FORM_SELECTOR);
     if (editForm) {
-      setRequestPending(editForm, true, "Saving…", "Save");
+      setEditPending(editForm, true);
       return;
     }
     const deleteForm = requestForm(event, DELETE_FORM_SELECTOR);
-    if (deleteForm) setDeletePending(deleteForm, true);
+    if (deleteForm) {
+      setDeletePending(deleteForm, true);
+      return;
+    }
+    const createForm = requestForm(event, MUTATION_REFRESH_FORM_SELECTOR);
+    if (createForm?.dataset.mutationKind === "create") {
+      setRequestPending(createForm, true, "I’m adding…", "Add");
+    }
+  });
+
+  document.addEventListener("input", (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.matches("[data-edit-datetime-input]")) {
+      return;
+    }
+    const fieldName = input.dataset.editDatetimeInput;
+    const exactValue = fieldName ? input.form?.elements.namedItem(fieldName) : null;
+    if (
+      exactValue instanceof HTMLInputElement &&
+      exactValue.matches("[data-edit-datetime-value]")
+    ) {
+      exactValue.value = input.value;
+    }
   });
 
   /** @param {HTMLFormElement} form */
@@ -245,6 +280,7 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
       window.location.reload();
       return;
     }
+    setRequestPending(form, false, "I’m adding…", "Add");
     form.reset();
     form.dispatchEvent(
       new CustomEvent("aluna:record-created", {
@@ -254,26 +290,66 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
     );
   }
 
-  /** @param {HTMLFormElement} form @param {boolean} successful */
-  async function handleEditAfterRequest(form, successful) {
-    if (successful) {
-      let region = null;
-      try {
-        region = await refreshCommittedRead(form);
-      } catch {
-        window.location.reload();
-        return;
-      }
-      document.dispatchEvent(
-        new CustomEvent(RECORD_UPDATED_EVENT, {
-          detail: { itemTargetId: form.dataset.itemTargetId, regionId: region?.id },
-        }),
-      );
+  /** @param {HTMLFormElement} form */
+  function showUnknownMutationFailure(form) {
+    const target = form.querySelector('[aria-live="polite"]');
+    if (!(target instanceof HTMLElement)) return;
+    const message = document.createElement("p");
+    message.className = "notice";
+    message.dataset.role = "error";
+    message.dataset.errorCode = "mutation_outcome_unknown";
+    message.textContent =
+      "I couldn’t confirm that change. I refreshed what’s here — please check before trying again.";
+    target.replaceChildren(message);
+  }
+
+  /** @param {HTMLFormElement} form */
+  async function reconcileUnknownMutation(form) {
+    try {
+      await refreshCommittedRead(form);
+      return true;
+    } catch {
+      window.location.reload();
+      return false;
+    }
+  }
+
+  /** @param {HTMLFormElement} form @param {boolean} ownsActiveModal */
+  async function finishSuccessfulEdit(form, ownsActiveModal) {
+    let region = null;
+    try {
+      region = await refreshCommittedRead(form);
+    } catch {
+      window.location.reload();
       return;
     }
-    setRequestPending(form, false, "Saving…", "Save");
+    if (!ownsActiveModal) return;
+    setEditPending(form, false);
+    document.dispatchEvent(
+      new CustomEvent(RECORD_UPDATED_EVENT, {
+        detail: { itemTargetId: form.dataset.itemTargetId, regionId: region?.id },
+      }),
+    );
+  }
+
+  /** @param {HTMLFormElement} form @param {boolean} ownsActiveModal @param {boolean} outcomeUnknown */
+  async function finishFailedEdit(form, ownsActiveModal, outcomeUnknown) {
+    if (outcomeUnknown && !(await reconcileUnknownMutation(form))) return;
+    if (!ownsActiveModal) return;
+    setEditPending(form, false);
+    if (outcomeUnknown) showUnknownMutationFailure(form);
     const fields = form.querySelector(".capability-edit-form__fields");
     if (fields instanceof HTMLElement) fields.scrollTop = 0;
+  }
+
+  /** @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown */
+  async function handleEditAfterRequest(form, successful, outcomeUnknown) {
+    const ownsActiveModal = getBody()?.querySelector(EDIT_FORM_SELECTOR) === form;
+    if (successful) {
+      await finishSuccessfulEdit(form, ownsActiveModal);
+      return;
+    }
+    await finishFailedEdit(form, ownsActiveModal, outcomeUnknown);
   }
 
   /** @param {HTMLFormElement} deleteForm @param {boolean} ownsActiveModal */
@@ -315,14 +391,8 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
     if (fallback instanceof HTMLElement) fallback.focus();
   }
 
-  /** @param {HTMLFormElement} deleteForm @param {boolean} successful */
-  async function handleDeleteAfterRequest(deleteForm, successful) {
-    const ownsActiveModal = getBody()?.querySelector(DELETE_FORM_SELECTOR) === deleteForm;
-    if (!successful) {
-      finishFailedDelete(deleteForm, ownsActiveModal);
-      return;
-    }
-
+  /** @param {HTMLFormElement} deleteForm @param {boolean} ownsActiveModal */
+  async function finishCommittedDelete(deleteForm, ownsActiveModal) {
     const deletedIndex = itemIndexBeforeDelete(deleteForm);
     let region = null;
     try {
@@ -336,21 +406,62 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
     finishSuccessfulDelete(region, deletedIndex);
   }
 
+  /** @param {HTMLFormElement} deleteForm @param {boolean} ownsActiveModal @param {boolean} outcomeUnknown */
+  async function finishRejectedDelete(deleteForm, ownsActiveModal, outcomeUnknown) {
+    if (outcomeUnknown && !(await reconcileUnknownMutation(deleteForm))) return;
+    finishFailedDelete(deleteForm, ownsActiveModal);
+    if (outcomeUnknown && ownsActiveModal) showUnknownMutationFailure(deleteForm);
+  }
+
+  /** @param {HTMLFormElement} deleteForm @param {boolean} successful @param {boolean} outcomeUnknown */
+  async function handleDeleteAfterRequest(deleteForm, successful, outcomeUnknown) {
+    const ownsActiveModal = getBody()?.querySelector(DELETE_FORM_SELECTOR) === deleteForm;
+    if (successful) {
+      await finishCommittedDelete(deleteForm, ownsActiveModal);
+      return;
+    }
+    await finishRejectedDelete(deleteForm, ownsActiveModal, outcomeUnknown);
+  }
+
+  /** @param {CustomEvent<{ successful?: boolean, xhr?: XMLHttpRequest }>} event */
+  function requestOutcome(event) {
+    const status = event.detail?.xhr?.status ?? 0;
+    return {
+      successful: event.detail?.successful === true,
+      outcomeUnknown: status === 0,
+    };
+  }
+
+  /** @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown */
+  async function handleCreateAfterRequestOutcome(form, successful, outcomeUnknown) {
+    if (successful) {
+      await handleCreateAfterRequest(form);
+      return;
+    }
+    if (outcomeUnknown && !(await reconcileUnknownMutation(form))) return;
+    setRequestPending(form, false, "I’m adding…", "Add");
+    if (outcomeUnknown) showUnknownMutationFailure(form);
+  }
+
   /** @param {Event} event */
   async function afterRequest(event) {
-    const custom = /** @type {CustomEvent<{ successful?: boolean }>} */ (event);
-    const successful = custom.detail?.successful === true;
+    const custom = /** @type {CustomEvent<{ successful?: boolean, xhr?: XMLHttpRequest }>} */ (
+      event
+    );
+    const { successful, outcomeUnknown } = requestOutcome(custom);
     const editForm = requestForm(event, EDIT_FORM_SELECTOR);
     if (editForm) {
-      await handleEditAfterRequest(editForm, successful);
+      await handleEditAfterRequest(editForm, successful, outcomeUnknown);
       return;
     }
     const deleteForm = requestForm(event, DELETE_FORM_SELECTOR);
-    if (deleteForm) await handleDeleteAfterRequest(deleteForm, successful);
-    const refreshForm = requestForm(event, MUTATION_REFRESH_FORM_SELECTOR);
-    if (refreshForm?.dataset.mutationKind === "create" && successful) {
-      await handleCreateAfterRequest(refreshForm);
+    if (deleteForm) {
+      await handleDeleteAfterRequest(deleteForm, successful, outcomeUnknown);
+      return;
     }
+    const refreshForm = requestForm(event, MUTATION_REFRESH_FORM_SELECTOR);
+    if (refreshForm?.dataset.mutationKind !== "create") return;
+    await handleCreateAfterRequestOutcome(refreshForm, successful, outcomeUnknown);
   }
 
   document.addEventListener("htmx:afterRequest", (event) => {
@@ -366,14 +477,16 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
 
   document.addEventListener("click", (event) => {
     const modal = getModal();
-    if (modal && event.target === modal && modal.dataset.deleteBusy !== "true") modal.close();
+    if (modal && event.target === modal && modal.dataset.mutationBusy !== "true") modal.close();
   });
 
   document.addEventListener(
     "cancel",
     (event) => {
       const modal = getModal();
-      if (event.target === modal && modal?.dataset.deleteBusy === "true") event.preventDefault();
+      if (event.target === modal && modal?.dataset.mutationBusy === "true") {
+        event.preventDefault();
+      }
     },
     true,
   );

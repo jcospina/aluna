@@ -117,6 +117,14 @@ describe("GET / (shell)", () => {
     expect(body).toContain('"HX-Request": "true"');
   });
 
+  test("serves the shared records-region request owner imported by search and refresh", async () => {
+    const app = createApp();
+    const res = await app.request("/static/records-region-requests.js");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("javascript");
+    expect(await res.text()).toContain("createRecordsRegionRequestCoordinator");
+  });
+
   test("serves the debounced search controller as JavaScript at its static path", async () => {
     const app = createApp();
     const res = await app.request("/static/search-chrome.js");
@@ -185,6 +193,7 @@ describe("GET / (shell) — browser glue", () => {
       ["missing_required_fields", 422],
       ["mutation_busy", 422],
       ["record_not_found", 404],
+      ["mutation_failed", 500],
     ] as const) {
       const detail = {
         xhr: {

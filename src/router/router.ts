@@ -130,6 +130,8 @@ const NOT_FOUND_FRAGMENT =
   "<p class=\"notice\">Hmm — I can't find that here. It might be something I haven't made yet.</p>";
 const INTERNAL_ERROR_FRAGMENT =
   '<p class="notice">Hmm, something went sideways on my end just now. Mind trying again?</p>';
+const MUTATION_FAILURE_FRAGMENT =
+  '<p class="notice" data-role="error" data-error-code="mutation_failed">Hmm, something went sideways on my end just now. Mind trying again?</p>';
 const WIRE_PROTOCOL_ERROR_FRAGMENT =
   '<p class="notice">Hmm — I couldn\'t make sense of that submission. Mind trying again?</p>';
 
@@ -232,8 +234,24 @@ async function handleRecordMutation(
   const mutationLease = mutationCoordinator.tryAcquireRecordWrite();
   if (!mutationLease) return recordMutationRefusal(c, row.id, action);
 
+  let transactionOpen = false;
   try {
-    return await executeCapabilityHandler(c, databases, loadHandler, loadItemRenderer, row, action);
+    databases.readwrite.exec("BEGIN IMMEDIATE TRANSACTION");
+    transactionOpen = true;
+    const response = await executeCapabilityHandler(
+      c,
+      databases,
+      loadHandler,
+      loadItemRenderer,
+      row,
+      action,
+    );
+    databases.readwrite.exec(response.ok ? "COMMIT" : "ROLLBACK");
+    transactionOpen = false;
+    return response;
+  } catch (error) {
+    if (transactionOpen) databases.readwrite.exec("ROLLBACK");
+    throw error;
   } finally {
     mutationCoordinator.release(mutationLease);
   }
@@ -454,7 +472,7 @@ function renderableFromRow(row: CapabilityRow): RenderableCapability {
     label: row.label,
     schema: row.schema,
     form: row.ui_intent.form,
-    searchEnabled: row.tools.includes("search"),
+    actions: row.tools,
     item: row.ui_intent.item,
     detail: row.ui_intent.detail,
   };
@@ -494,5 +512,20 @@ function internalFailure(c: Context, id: string, action: string, error: unknown)
     `Capability ${id}/${action} failed:`,
     error instanceof Error ? error.message : error,
   );
+  if (isMutationActionName(action)) {
+    const errorId =
+      action === "create"
+        ? capabilityCreateErrorId(id)
+        : action === "update"
+          ? capabilityEditErrorId(id)
+          : capabilityDeleteErrorId(id);
+    c.header("HX-Retarget", `#${errorId}`);
+    c.header("HX-Reswap", "innerHTML");
+    return c.html(MUTATION_FAILURE_FRAGMENT, 500);
+  }
   return c.html(INTERNAL_ERROR_FRAGMENT, 500);
+}
+
+function isMutationActionName(action: string): action is MutationAction {
+  return action === "create" || action === "update" || action === "delete";
 }

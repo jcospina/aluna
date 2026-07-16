@@ -14,6 +14,7 @@ export declare function createDebouncedCapabilitySearch(options: {
   state: (state: CapabilitySearchState) => void;
   queryChanged?: (rawQuery: string) => void;
   cancelExternalRead?: () => void;
+  claimRequest?: () => import("./records-region-requests.js").RecordsRegionRequestClaim;
   request?: (input: string, init?: RequestInit) => Promise<Response>;
   delayMs?: number;
   schedule?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;

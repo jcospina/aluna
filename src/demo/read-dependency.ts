@@ -121,10 +121,23 @@ const DELETE_HANDLER = `export default async function remove({ mutation }: Capab
 const SEARCH_HANDLER = `export default async function search({ input, query, present }: CapabilityContext): Promise<string> {
   const raw = input.values.q;
   const term = typeof raw === "string" ? raw : "";
+  if (term.trim() === "") {
+    return query.records({
+      sql: 'SELECT links."id" AS "target_id", coalesce(journal."entry", "") AS "journal_entry" FROM "cap_journal_links_demo" links LEFT JOIN "cap_field_lifecycle_demo" journal ON journal."id" = links."journal_entry_id" ORDER BY links."created_at" DESC, links."id" DESC',
+      result: [{ alias: "journal_entry", type: "string" }],
+    }).map(({ record, values }) => '<p class="text-sm text-muted" data-joined-journal-entry>' +
+      escapeHtml(String(values.journal_entry ?? "")) + '</p>' + present(record)).join("");
+  }
   return query.records({
-    sql: 'SELECT links."id" AS "target_id" FROM "cap_journal_links_demo" links LEFT JOIN "cap_field_lifecycle_demo" journal ON journal."id" = links."journal_entry_id" WHERE platform_search_normalize(links."note") LIKE char(37) || platform_search_normalize(?) || char(37) OR platform_search_normalize(coalesce(journal."entry", "")) LIKE char(37) || platform_search_normalize(?) || char(37) ORDER BY links."created_at" DESC, links."id" DESC',
+    sql: 'SELECT links."id" AS "target_id", coalesce(journal."entry", "") AS "journal_entry" FROM "cap_journal_links_demo" links LEFT JOIN "cap_field_lifecycle_demo" journal ON journal."id" = links."journal_entry_id" WHERE coalesce(instr(platform_search_normalize(links."note"), platform_search_normalize(?)), 0) > 0 OR coalesce(instr(platform_search_normalize(coalesce(journal."entry", "")), platform_search_normalize(?)), 0) > 0 ORDER BY links."created_at" DESC, links."id" DESC',
     parameters: [term, term],
-  }).map(({ record }) => present(record)).join("");
+    result: [{ alias: "journal_entry", type: "string" }],
+  }).map(({ record, values }) => '<p class="text-sm text-muted" data-joined-journal-entry>' +
+    escapeHtml(String(values.journal_entry ?? "")) + '</p>' + present(record)).join("");
+}
+function escapeHtml(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 `;
 

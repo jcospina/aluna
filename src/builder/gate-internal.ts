@@ -59,6 +59,7 @@ export function buildGatePresent(spec: CapabilitySpec, itemRenderer: string): Pr
     label: spec.label,
     schema: spec.schema,
     form: spec.ui_intent.form,
+    actions: spec.tools,
     item: spec.ui_intent.item,
     detail: spec.ui_intent.detail,
   };
