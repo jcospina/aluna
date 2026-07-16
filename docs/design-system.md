@@ -47,11 +47,13 @@ neobrutalism turned *down* for a quieter, PostHog-like register.
 | `--color-info` | `oklch(75% 0.1 195)` | `.btn--info` |
 | `--color-feature` | `oklch(82% 0.13 90)` | `.btn--feature` |
 | `--color-warm` | `oklch(82% 0.12 75)` | `.btn--warm` |
+| `--color-danger` | `oklch(45% 0.16 25)` | final, confirmation-gated destructive actions |
+| `--color-text-on-danger` | `oklch(98% 0.012 85)` | near-white text on the danger fill |
 
-Status tones (error/success) are intentionally **omitted** — the inert shell
-surfaces no errors yet. Add them additively when a capability needs them. The
-same goes for a dark theme: because these are *semantic* tokens, dark is a future
-additive `:root` override — no switching machinery exists or is needed.
+The destructive tone arrived with confirmation-gated record deletion. Other
+status tones remain additive when a concrete surface needs them. The same goes
+for a dark theme: because these are *semantic* tokens, dark is a future additive
+`:root` override — no switching machinery exists or is needed.
 
 ### Typography — Outfit (vendored)
 
@@ -356,20 +358,44 @@ records cramped): almost full width `<480px`, ~80vw on small tablets, and a fixe
 on desktop (breakpoints mirror the shell's 768px line). No entrance animation (calm, and
 nothing to reset for reduced motion).
 
-### Read first, then prefilled edit without a read-single route
+### Read actions, confirmation, and prefilled edit without a read-single route
 
 The initial read-only body is rendered by the **centralized field renderer** (3.2/01, via
-`renderDetailContent`). One labelled pencil icon sits immediately beside the modal title;
-it switches the same modal to a prefilled form over every active field and disappears in
-edit mode. **Save** exists only in that edit state and posts to the committed `update`
-route. The field stack is the only edit scrollport, with horizontal overflow suppressed;
-Cancel and Save stay docked at the modal bottom without covering controls. Stable scrollbar
-space prevents hover/press travel from changing the click geometry. The persistent modal
-controller owns in-flight Save feedback and close-on-success, rather than attaching that
-lifecycle to each cloned form. Create and edit resolve the same authored `string[]`
-list-input modes, while inactive fields, `extra`, and `created_at` stay out of the form and
-client payload. Every active edit control emits its presence marker, and the form emits one
-record target so clear, false, and empty-list values remain distinct from omitted values.
+`renderDetailContent`). The header keeps the capability title at the leading edge and one
+isolated, icon-only native Close control at the trailing edge. The title accepts programmatic
+focus on open; Close has an accessible name and tooltip, and its target is at least 44×44px.
+
+Read mode has one docked action area below the scrolling fields. **Delete** is a quiet,
+visibly labelled leading action and **Edit** is a visibly labelled neutral trailing action;
+neither is reduced to an icon or crowded beside a long title. Edit switches the same modal
+to a prefilled form over every active field. **Save** exists only in that edit state and
+posts to the committed `update` route. The field stack is the only edit scrollport, with
+horizontal overflow suppressed; Cancel and Save stay docked at the modal bottom without
+covering controls. Stable scrollbar space prevents hover/press travel from changing the
+click geometry.
+
+Delete's first activation makes no request. It replaces the read action area in place with
+the warning **“Delete this record? You won’t be able to bring it back.”**, neutral Cancel,
+and the final danger-filled **Delete record** submit. Focus moves to Cancel, the least
+destructive choice; Cancel restores the ordinary read actions and returns focus to Delete.
+Close, Escape, and backdrop dismissal clear the local confirmation state without deleting.
+Only the final confirmation emits the one record target to committed `delete`. During the
+request it reads **Deleting…**, refuses duplicate submission, and temporarily locks every
+dismissal path so a late response cannot act on a different record. A warm not-found failure
+stays open, unlocks dismissal, and is announced in the confirmation's live region. Success
+reruns committed `read`, closes the modal, and focuses the next surviving record, then the
+previous one, or the New button when the collection is empty. If that committed refresh
+cannot complete, the controller falls back to a canonical page reload instead of leaving
+stale collection chrome or a permanently busy modal. On narrow mobile/high-zoom layouts the
+warning occupies its own row and the two confirmation actions stack at full width; labels
+never truncate into icon-only or overflow-menu forms.
+
+The persistent modal controller owns in-flight Save/Delete feedback and close-on-success,
+rather than attaching that lifecycle to each cloned form. Create and edit resolve the same
+authored `string[]` list-input modes, while inactive fields, `extra`, and `created_at` stay
+out of the form and client payload. Every active edit control emits its presence marker,
+and the form emits one record target so clear, false, and empty-list values remain distinct
+from omitted values.
 
 Each record's read and edit surfaces are materialized into an **inert
 `<template>`** at list-render time and **cloned** into the one modal on open — never

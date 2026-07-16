@@ -162,7 +162,11 @@ describe("development-only five-Action reference living demo", () => {
 
     expect(template).toContain("data-detail-read-mode");
     expect(template).toContain("data-detail-edit-mode hidden");
-    expect(template).not.toContain(">Edit</button>");
+    expect(template).toContain("data-detail-edit>Edit</button>");
+    expect(template).toContain("data-detail-delete>Delete</button>");
+    expect(template).toContain("data-modal-delete-form hidden");
+    expect(template).toContain(`hx-post="/capability/${FIELD_LIFECYCLE_DEMO_ID}/delete"`);
+    expect(template).toContain(`data-read-url="/capability/${FIELD_LIFECYCLE_DEMO_ID}/read"`);
     expect(template).toContain(`hx-post="/capability/${FIELD_LIFECYCLE_DEMO_ID}/update"`);
     expect(template).toContain(
       `name="__aluna_record_id" value="${FIELD_LIFECYCLE_MERGE_TARGET_ID}"`,
@@ -353,6 +357,11 @@ describe("five-Action reference route inventory", () => {
 
       const reservation = mutationCoordinator.reserveBuild();
       const buildLease = await mutationCoordinator.acquireBuild(reservation);
+      const refusalTargetByAction = {
+        create: `#${FIELD_LIFECYCLE_DEMO_ID}-create-error`,
+        update: `#${FIELD_LIFECYCLE_DEMO_ID}-edit-error`,
+        delete: `#${FIELD_LIFECYCLE_DEMO_ID}-delete-error`,
+      } as const;
       for (const path of [
         `/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`,
         `/capability/${FIELD_LIFECYCLE_DEMO_ID}/search?q=old`,
@@ -362,15 +371,13 @@ describe("five-Action reference route inventory", () => {
       for (const action of ["create", "update", "delete"] as const) {
         const body = new URLSearchParams();
         if (action !== "create") body.set("__aluna_record_id", FIELD_LIFECYCLE_MERGE_TARGET_ID);
-        expect(
-          (
-            await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/${action}`, {
-              method: "POST",
-              headers: { "content-type": "application/x-www-form-urlencoded" },
-              body: body.toString(),
-            })
-          ).status,
-        ).toBe(422);
+        const refused = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/${action}`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: body.toString(),
+        });
+        expect(refused.status).toBe(422);
+        expect(refused.headers.get("HX-Retarget")).toBe(refusalTargetByAction[action]);
       }
       expect(mutationCoordinator.release(buildLease)).toBe(true);
 
@@ -451,6 +458,10 @@ describe("five-Action reference route inventory", () => {
           .query(`SELECT "id" FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "id" = ?`)
           .get(FIELD_LIFECYCLE_DELETE_TARGET_ID),
       ).toBeNull();
+      const afterDelete = await (
+        await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`)
+      ).text();
+      expect(afterDelete).not.toContain(FIELD_LIFECYCLE_DELETE_TARGET_ID);
 
       for (const action of ["update", "delete"] as const) {
         const body = new URLSearchParams({ __aluna_record_id: "bogus-target" });
@@ -460,6 +471,7 @@ describe("five-Action reference route inventory", () => {
           body: body.toString(),
         });
         expect(response.status).toBe(404);
+        expect(response.headers.get("HX-Retarget")).toBe(refusalTargetByAction[action]);
         const fragment = await response.text();
         expect(fragment).toContain('data-error-code="record_not_found"');
         expect(fragment).not.toMatch(/handler|route|record target|reference/i);

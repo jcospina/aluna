@@ -78,7 +78,7 @@ describe("GET / (shell)", () => {
     expect(html).toContain('id="aluna-detail-modal-body"');
     expect(html.split('<dialog id="aluna-detail-modal"').length - 1).toBe(1);
     // Both dumb glue files load: the modal mechanics and the item click-to-open (ARCH §6.1).
-    expect(html).toContain('src="/static/detail-modal.js"');
+    expect(html).toContain('<script type="module" src="/static/detail-modal.js"></script>');
     expect(html).toContain('src="/static/item-detail.js"');
   });
 
@@ -92,6 +92,28 @@ describe("GET / (shell)", () => {
     // It fires the shared modal's open event when an item is activated.
     expect(body).toContain("aluna:open-detail");
     expect(body).toContain(".capability-item");
+  });
+
+  test("serves the modal state module imported by the controller", async () => {
+    const app = createApp();
+    const res = await app.request("/static/detail-modal-state.js");
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") ?? "").toContain("javascript");
+    expect(body).toContain("transitionDetailModalMode");
+    expect(body).toContain('deleteConfirm: "delete-confirm"');
+  });
+
+  test("serves the committed-read refresh module imported by the controller", async () => {
+    const app = createApp();
+    const res = await app.request("/static/detail-modal-refresh.js");
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") ?? "").toContain("javascript");
+    expect(body).toContain("refreshCommittedRecords");
+    expect(body).toContain('"HX-Request": "true"');
   });
 });
 
@@ -146,10 +168,14 @@ describe("GET / (shell) — browser glue", () => {
       appScript,
     )(documentStub, windowStub, () => undefined, class InputStub {});
 
-    for (const code of ["missing_required_fields", "mutation_busy"]) {
+    for (const [code, status] of [
+      ["missing_required_fields", 422],
+      ["mutation_busy", 422],
+      ["record_not_found", 404],
+    ] as const) {
       const detail = {
         xhr: {
-          status: 422,
+          status,
           responseText: `<p data-role="error" data-error-code="${code}">Try again</p>`,
         },
         shouldSwap: false,

@@ -191,6 +191,9 @@ describe("createPresentationAdapter — composition", () => {
     const html = present(record());
     expect(html.indexOf("<article")).toBeGreaterThanOrEqual(0);
     expect(html.indexOf("<article")).toBeLessThan(html.indexOf("<template"));
+    const collectionItem = html.slice(0, html.indexOf("<template"));
+    expect(collectionItem).not.toContain("data-detail-edit");
+    expect(collectionItem).not.toContain("data-detail-delete");
   });
 
   test("keys the detail template to the record id and namespaces it by capability", () => {

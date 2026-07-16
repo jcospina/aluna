@@ -169,7 +169,7 @@ export function renderDetailInteractionPreviewPage(): string {
     <script defer src="/static/vendor/alpine.min.js"></script>
     <!-- The REAL shared-modal mechanics + the REAL item click-to-open — the same files the
          shell loads. Together they turn an item click/keypress into the modal opening. -->
-    <script defer src="/static/detail-modal.js"></script>
+    <script type="module" src="/static/detail-modal.js"></script>
     <script defer src="/static/item-detail.js"></script>
     <style>
       body {

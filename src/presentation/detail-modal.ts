@@ -29,9 +29,15 @@
 // (renderDetailContent for the body, OPEN_DETAIL_EVENT for the open call) without
 // changing this module.
 
+import { ALUNA_RECORD_ID_MARKER } from "../router/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
-import { renderDetailFields, renderEditForm } from "./field-renderer.ts";
+import {
+  capabilityDeleteErrorId,
+  capabilityRecordsRegionId,
+  renderDetailFields,
+  renderEditForm,
+} from "./field-renderer.ts";
 import { itemElementIdForTemplate } from "./list-container.ts";
 
 /**
@@ -76,20 +82,12 @@ export function renderDetailModal(): string {
     `<dialog id="${DETAIL_MODAL_ID}" class="detail-modal" aria-labelledby="${DETAIL_MODAL_TITLE_ID}">` +
     `<div class="detail-modal__panel">` +
     `<header class="detail-modal__header">` +
-    `<div class="detail-modal__heading">` +
-    `<h2 class="detail-modal__title" id="${DETAIL_MODAL_TITLE_ID}"></h2>` +
-    `<button type="button" class="btn btn--ghost detail-modal__edit"` +
-    ` data-detail-edit aria-label="Edit record" title="Edit">` +
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"` +
-    ` stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
-    `<path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />` +
-    `</svg>` +
-    `</button>` +
-    `</div>` +
+    `<h2 class="detail-modal__title" id="${DETAIL_MODAL_TITLE_ID}" tabindex="-1"></h2>` +
     // Native close: submitting a `method="dialog"` form closes the dialog and restores
     // focus with no JS — the guaranteed close path alongside Escape (also native).
     `<form method="dialog" class="detail-modal__dismiss">` +
-    `<button type="submit" class="btn btn--ghost detail-modal__close" aria-label="Close">` +
+    `<button type="submit" class="btn btn--ghost detail-modal__close"` +
+    ` aria-label="Close record details" data-tooltip="Close">` +
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"` +
     ` stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
     `<path d="M18 6 6 18" /><path d="m6 6 12 12" />` +
@@ -119,12 +117,45 @@ export function renderDetailContent(
   templateId: string,
 ): string {
   const detail = renderDetailFields(capability, record);
+  const recordId = record.id;
+  if (typeof recordId !== "string" || recordId.trim() === "") {
+    throw new Error("Cannot render record actions without a nonblank record id.");
+  }
+  const itemTargetId = itemElementIdForTemplate(templateId);
+  const confirmationId = `${templateId}-delete-confirmation`;
+  const deleteErrorId = capabilityDeleteErrorId(capability.id);
+  const recordsRegionId = capabilityRecordsRegionId(capability.id);
   const edit = renderEditForm(capability, record, {
-    itemTargetId: itemElementIdForTemplate(templateId),
+    itemTargetId,
     sourceTemplateId: templateId,
   });
   return (
-    `<section class="detail-modal__mode" data-detail-read-mode>${detail}</section>` +
+    `<section class="detail-modal__mode detail-modal__read" data-detail-read-mode>` +
+    `<div class="detail-modal__read-content">${detail}</div>` +
+    `<div class="detail-modal__read-actions" data-detail-read-actions>` +
+    `<button class="btn btn--ghost detail-modal__delete-trigger" type="button" data-detail-delete>` +
+    `Delete</button>` +
+    `<button class="btn btn--neutral" type="button" data-detail-edit>Edit</button>` +
+    `</div>` +
+    `<form class="detail-modal__delete-confirm" data-modal-delete-form hidden` +
+    ` aria-describedby="${escapeHtml(confirmationId)}"` +
+    ` data-item-target-id="${escapeHtml(itemTargetId)}"` +
+    ` data-records-target-id="${escapeHtml(recordsRegionId)}"` +
+    ` data-read-url="/capability/${capability.id}/read"` +
+    ` hx-post="/capability/${capability.id}/delete" hx-swap="none">` +
+    `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapeHtml(recordId)}">` +
+    `<div class="detail-modal__delete-copy">` +
+    `<p id="${escapeHtml(confirmationId)}">Delete this record? You won’t be able to bring it back.</p>` +
+    `<div id="${deleteErrorId}" class="detail-modal__delete-error" aria-live="polite"></div>` +
+    `</div>` +
+    `<div class="detail-modal__delete-actions">` +
+    `<button class="btn btn--ghost" type="button" data-detail-cancel-delete` +
+    ` aria-describedby="${escapeHtml(confirmationId)}">Cancel</button>` +
+    `<button class="btn btn--danger" type="submit"` +
+    ` aria-describedby="${escapeHtml(confirmationId)}">Delete record</button>` +
+    `</div>` +
+    `</form>` +
+    `</section>` +
     `<section class="detail-modal__mode" data-detail-edit-mode hidden>${edit}</section>`
   );
 }

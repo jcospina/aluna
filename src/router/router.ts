@@ -42,6 +42,7 @@ import {
 } from "../mutation-coordinator/index.ts";
 import {
   capabilityCreateErrorId,
+  capabilityDeleteErrorId,
   capabilityEditErrorId,
   createPresentationAdapter,
   type ItemRenderer,
@@ -276,7 +277,7 @@ async function executeCapabilityHandler(
       return missingRequiredFieldsFailure(c, id, error);
     }
     if (error instanceof RecordNotFoundError) {
-      return recordNotFoundFailure(c, error);
+      return recordNotFoundFailure(c, id, action, error);
     }
     return internalFailure(c, id, action, error);
   }
@@ -337,6 +338,9 @@ function recordMutationRefusal(c: Context, capabilityId: string, action: Mutatio
   } else if (action === "update") {
     c.header("HX-Retarget", `#${capabilityEditErrorId(capabilityId)}`);
     c.header("HX-Reswap", "innerHTML");
+  } else {
+    c.header("HX-Retarget", `#${capabilityDeleteErrorId(capabilityId)}`);
+    c.header("HX-Reswap", "innerHTML");
   }
   return c.html(
     '<p class="notice" data-role="error" data-error-code="mutation_busy">I\'m still putting something together. Give me a moment, then try that again.</p>',
@@ -367,7 +371,19 @@ function missingRequiredFieldsFailure(
   );
 }
 
-function recordNotFoundFailure(c: Context, error: RecordNotFoundError): Response {
+function recordNotFoundFailure(
+  c: Context,
+  capabilityId: string,
+  action: WireProtocolAction,
+  error: RecordNotFoundError,
+): Response {
+  if (action === "update") {
+    c.header("HX-Retarget", `#${capabilityEditErrorId(capabilityId)}`);
+    c.header("HX-Reswap", "innerHTML");
+  } else if (action === "delete") {
+    c.header("HX-Retarget", `#${capabilityDeleteErrorId(capabilityId)}`);
+    c.header("HX-Reswap", "innerHTML");
+  }
   return c.html(
     `<p class="notice" data-role="error" data-error-code="${error.code}">I couldn’t find that entry anymore. It may already be gone.</p>`,
     404,

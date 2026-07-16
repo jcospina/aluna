@@ -68,11 +68,14 @@ product.
   record's pristine server-rendered form, Cancel restores that pristine state,
   and a successful update replaces only the stable collection item, closes the
   modal, and restores focus to the updated item.
-- HITL feedback moved the edit affordance into one labelled pencil beside the
-  fixed modal title. Horizontal overflow is suppressed, only the field stack
-  scrolls, and the Cancel/Save bar remains docked at the bottom without covering
-  controls. Save feedback and close-on-success now live on the persistent modal
-  controller, so the first processed click owns the complete request lifecycle.
+- HITL feedback originally moved Edit beside the fixed modal title. Issue 4.3/02's
+  responsive UX research superseded that interim placement once read detail gained
+  a complete action set: the header now isolates Close, while visibly labelled
+  Delete/Edit share the docked read footer. Horizontal overflow is suppressed,
+  only the field stack scrolls, and the Cancel/Save bar remains docked at the
+  bottom without covering controls. Save feedback and close-on-success live on
+  the persistent modal controller, so the first processed click owns the complete
+  request lifecycle.
 - Structured update validation is retargeted into the edit form's live error
   region. Required empty fields keep the modal open with warm product copy;
   create-form validation behavior remains unchanged.
@@ -103,10 +106,10 @@ product.
 1. Reuse the app server on port 3030 (or run `bun run dev` if it is not already
    running), then run `bun run demo:five-action-reference`.
 2. Open `http://localhost:3030`, choose **Journal entry**, and activate **A quiet
-   beginning**. Confirm the modal opens in read mode with one pencil icon beside
-   **Journal entry**, no text Edit button, no Save button, and no horizontal or
-   flickering scrollbar.
-3. Choose the pencil. Confirm the title, reflection, tags, exact **Doe, Jane**
+   beginning**. Confirm the modal opens in read mode with **Delete** and **Edit**
+   in the docked footer, Close isolated at the top-right, no Save button, and no
+   horizontal or flickering scrollbar.
+3. Choose **Edit**. Confirm the title, reflection, tags, exact **Doe, Jane**
    and **J. Doe** repeatable rows, and checked **Cherished** value are prefilled.
    The comma in **Doe, Jane** must stay inside one row. Scroll the field stack and
    confirm **Cancel** and **Save** remain visible at the modal bottom without

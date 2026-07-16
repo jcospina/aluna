@@ -156,7 +156,7 @@ export function renderDetailModalPreviewPage(): string {
     <title>Aluna — detail modal preview</title>
     <link rel="stylesheet" href="/static/app.css">
     <!-- The REAL shared-modal controller — the same file the shell will load. -->
-    <script defer src="/static/detail-modal.js"></script>
+    <script type="module" src="/static/detail-modal.js"></script>
     <style>
       body {
         /* Normal scrolling document, not the shell's fixed-viewport box (design-system.md). */

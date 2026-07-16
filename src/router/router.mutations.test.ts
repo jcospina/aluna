@@ -134,4 +134,30 @@ describe("deterministic capability router — target-bound mutation authority", 
       { id: "record-b" },
     ]);
   });
+
+  test("missing delete stays warm and retargets the modal confirmation error region", async () => {
+    const app = createApp({
+      capabilityRouter: {
+        databases,
+        loadHandler:
+          async () =>
+          async ({ mutation }: CapabilityDeleteContext) => {
+            mutation.delete();
+            return "<p>gone</p>";
+          },
+        loadItemRenderer: async () => () => "<span>unused</span>",
+      },
+    });
+
+    const response = await app.request("/capability/notes/delete", targetBody("missing"));
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("HX-Retarget")).toBe("#notes-delete-error");
+    expect(response.headers.get("HX-Reswap")).toBe("innerHTML");
+    expect(await response.text()).toMatch(/couldn’t find that entry anymore/i);
+    expect(databases.readwrite.query('SELECT "id" FROM "cap_notes" ORDER BY "id"').all()).toEqual([
+      { id: "record-a" },
+      { id: "record-b" },
+    ]);
+  });
 });
