@@ -99,6 +99,11 @@ export interface ItemDetailRef {
   readonly title: string;
 }
 
+/** Stable DOM id for the item paired with one inert modal template. */
+export function itemElementIdForTemplate(templateId: string): string {
+  return `${templateId}-item`;
+}
+
 /**
  * Map a closed {@link CollectionLayout} to its platform layout class through a total
  * switch. Reaching `default` means a layout member has no case — `assertNever` fails
@@ -223,12 +228,13 @@ export function renderItemWrapper(
   detail?: ItemDetailRef,
 ): string {
   const payload = escapeHtml(serializeItemPayload(record));
+  const itemId = detail ? ` id="${escapeHtml(itemElementIdForTemplate(detail.templateId))}"` : "";
   const detailHooks = detail
     ? ` ${ITEM_DETAIL_TEMPLATE_ATTR}="${escapeHtml(detail.templateId)}"` +
       ` ${ITEM_DETAIL_TITLE_ATTR}="${escapeHtml(detail.title)}"`
     : "";
   return (
-    `<article class="${ITEM_TRIGGER_CLASS}" role="button" tabindex="0"` +
+    `<article${itemId} class="${ITEM_TRIGGER_CLASS}" role="button" tabindex="0"` +
     ` aria-haspopup="dialog" ${ITEM_PAYLOAD_ATTR}="${payload}"${detailHooks}>${innerHtml}</article>`
   );
 }

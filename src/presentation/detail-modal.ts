@@ -1,6 +1,7 @@
-// The shared read-only detail modal — Module 3, epic 3.2/04 (ADR-0005 §1, §3 & §6,
+// The shared read/edit modal — Module 4, epic 4.3/01 (ADR-0005 §1, §3 & §6,
 // PLAN decisions 1, 3 & 7). The single platform modal every capability opens to show
-// one record in full — platform-owned, presentational only: no capability rule, no
+// one record in full and then edit it explicitly — platform-owned, presentational only:
+// no capability rule, no
 // canonical state (ADR-0005 §1). `modal: true` is never model-authored state; the
 // shared modal is a fixed platform invariant (ADR-0005 §6).
 //
@@ -30,7 +31,8 @@
 
 import { escapeHtml } from "../web/html.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
-import { renderDetailFields } from "./field-renderer.ts";
+import { renderDetailFields, renderEditForm } from "./field-renderer.ts";
+import { itemElementIdForTemplate } from "./list-container.ts";
 
 /**
  * The id of the one shared modal instance. A single element the whole app reuses — the
@@ -74,7 +76,16 @@ export function renderDetailModal(): string {
     `<dialog id="${DETAIL_MODAL_ID}" class="detail-modal" aria-labelledby="${DETAIL_MODAL_TITLE_ID}">` +
     `<div class="detail-modal__panel">` +
     `<header class="detail-modal__header">` +
+    `<div class="detail-modal__heading">` +
     `<h2 class="detail-modal__title" id="${DETAIL_MODAL_TITLE_ID}"></h2>` +
+    `<button type="button" class="btn btn--ghost detail-modal__edit"` +
+    ` data-detail-edit aria-label="Edit record" title="Edit">` +
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"` +
+    ` stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+    `<path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />` +
+    `</svg>` +
+    `</button>` +
+    `</div>` +
     // Native close: submitting a `method="dialog"` form closes the dialog and restores
     // focus with no JS — the guaranteed close path alongside Escape (also native).
     `<form method="dialog" class="detail-modal__dismiss">` +
@@ -105,8 +116,17 @@ export function renderDetailModal(): string {
 export function renderDetailContent(
   capability: RenderableCapability,
   record: Readonly<Record<string, unknown>>,
+  templateId: string,
 ): string {
-  return renderDetailFields(capability, record);
+  const detail = renderDetailFields(capability, record);
+  const edit = renderEditForm(capability, record, {
+    itemTargetId: itemElementIdForTemplate(templateId),
+    sourceTemplateId: templateId,
+  });
+  return (
+    `<section class="detail-modal__mode" data-detail-read-mode>${detail}</section>` +
+    `<section class="detail-modal__mode" data-detail-edit-mode hidden>${edit}</section>`
+  );
 }
 
 /**
@@ -123,5 +143,5 @@ export function renderDetailContentTemplate(
   capability: RenderableCapability,
   record: Readonly<Record<string, unknown>>,
 ): string {
-  return `<template id="${escapeHtml(templateId)}">${renderDetailContent(capability, record)}</template>`;
+  return `<template id="${escapeHtml(templateId)}">${renderDetailContent(capability, record, templateId)}</template>`;
 }

@@ -21,8 +21,8 @@
 @import "css/demo.css"; /* cold-start, intro stream, raw stage previews       */
 @import "css/prompt.css"; /* bottom-pinned prompt composer                    */
 @import "css/components.css"; /* platform button variants (design-system color)*/
-@import "css/fields.css"; /* capability create/detail field chrome (M3 §3.2)   */
+@import "css/fields.css"; /* capability create/edit/detail field chrome       */
 @import "css/collection.css"; /* list layout + item wrapper chrome (M3 §3.2)   */
-@import "css/detail-modal.css"; /* shared read-only detail modal (M3 §3.2/04)  */
+@import "css/detail-modal.css"; /* shared read/edit record modal (M4 §4.3/01)  */
 @import "css/primitives.css"; /* capability item vocabulary (Module 3 §3.1)   */
 @import "css/a11y.css"; /* focus ring + reduced-motion (loaded last)          */

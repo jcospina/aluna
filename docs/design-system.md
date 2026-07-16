@@ -327,9 +327,10 @@ The wrapper is **platform chrome, so the runtime enforcer never runs on it** —
 and does not re-sanitize. The wrapper's card surface + press/focus live in the
 reduced-motion reset (a11y.css) alongside the other pressables.
 
-## Shared read-only detail modal (Module 3 · epic 3.2/04)
+## Shared read/edit modal (Module 4 · epic 4.3/01)
 
-The one shared modal every capability opens to show a single record in full, rendered by
+The one shared modal every capability opens to read a record in full and then, explicitly,
+edit that same record, rendered by
 [`src/presentation/detail-modal.ts`](../src/presentation/detail-modal.ts) and styled in
 [`public/css/detail-modal.css`](../public/css/detail-modal.css). Platform **chrome** and a
 platform **invariant** — a single instance the whole app reuses, never one per capability
@@ -341,8 +342,9 @@ running app at [`/demo/detail-modal`](../src/presentation/detail-modal-preview.t
 The modal is a native modal `<dialog>` opened with `showModal()`. That single choice buys
 the **focus trap**, **focus restore to the trigger** on close, **Escape-to-close**, and the
 **`::backdrop`** — all native, nothing hand-rolled. The shell stays dumb (ARCH §6.1): the
-controller ([`public/detail-modal.js`](../public/detail-modal.js)) only **prefills and
-opens**, never infers intent or mutates state. Three close paths, in descending robustness:
+controller ([`public/detail-modal.js`](../public/detail-modal.js)) only **prefills, opens,
+and switches local read/edit presentation state**, never infers intent or mutates canonical
+state. Three close paths, in descending robustness:
 the native `<form method="dialog">` ✕ button and Escape work even if the controller never
 loads; a **backdrop click** is the controller's light-dismiss enhancement (the `<dialog>`
 is chrome-less and a padded `__panel` holds the card, so a click on the dialog element is a
@@ -354,19 +356,30 @@ records cramped): almost full width `<480px`, ~80vw on small tablets, and a fixe
 on desktop (breakpoints mirror the shell's 768px line). No entrance animation (calm, and
 nothing to reset for reduced motion).
 
-### Prefill without a read-single route
+### Read first, then prefilled edit without a read-single route
 
-The read-only body is rendered by the **centralized field renderer** (3.2/01, via
-`renderDetailContent`) — the same one place the create form uses, so the two never drift and
-every value is escaped once. Each record's detail is materialized into an **inert
+The initial read-only body is rendered by the **centralized field renderer** (3.2/01, via
+`renderDetailContent`). One labelled pencil icon sits immediately beside the modal title;
+it switches the same modal to a prefilled form over every active field and disappears in
+edit mode. **Save** exists only in that edit state and posts to the committed `update`
+route. The field stack is the only edit scrollport, with horizontal overflow suppressed;
+Cancel and Save stay docked at the modal bottom without covering controls. Stable scrollbar
+space prevents hover/press travel from changing the click geometry. The persistent modal
+controller owns in-flight Save feedback and close-on-success, rather than attaching that
+lifecycle to each cloned form. Create and edit resolve the same authored `string[]`
+list-input modes, while inactive fields, `extra`, and `created_at` stay out of the form and
+client payload. Every active edit control emits its presence marker, and the form emits one
+record target so clear, false, and empty-list values remain distinct from omitted values.
+
+Each record's read and edit surfaces are materialized into an **inert
 `<template>`** at list-render time and **cloned** into the one modal on open — never
 `innerHTML` from a string, never a server round-trip. So the full record shows even when the
 item visually truncates and **no read-single route is added** (ADR-0005 §3); if large-text
 lists later make this expensive, prefill moves behind the adapter to read-single-on-open and
 the payload shrinks to an id (ADR-0005 §3, post-M4). Field selection/order **honors
 `ui_intent.detail.shows`** (3.3/02): the body renders exactly those fields, in that order,
-falling back to every field in spec order when a capability carries no intent; M4 adds the
-Save affordance to this same module. Opening is driven by the `aluna:open-detail` event
+falling back to every field in spec order when a capability carries no intent. Opening is
+driven by the `aluna:open-detail` event
 (`OPEN_DETAIL_EVENT`) — the seam a dev trigger fires at [`/demo/detail-modal`](../src/presentation/detail-modal-preview.ts)
 and the item click-to-open fires from a clicked/activated record. See the whole interaction
 end to end at [`/demo/detail-interaction`](../src/presentation/detail-interaction-preview.ts).

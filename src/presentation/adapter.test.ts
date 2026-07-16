@@ -215,12 +215,14 @@ describe("createPresentationAdapter — composition", () => {
     });
     const html = present(record());
     const body = detailTemplateBody(html, "detail-reading-rec-1");
+    const readMode = body.slice(0, body.indexOf("data-detail-edit-mode"));
 
     // detail.shows is [title, rating, note] — the detail body shows those and drops author,
     // even though the active author value remains in the client payload for future edit UI.
-    expect(body).toContain("Piranesi");
-    expect(body).toContain("Tides through endless halls.");
-    expect(body).not.toContain("Susanna Clarke");
+    expect(readMode).toContain("Piranesi");
+    expect(readMode).toContain("Tides through endless halls.");
+    expect(readMode).not.toContain("Susanna Clarke");
+    expect(body).toContain('name="author" value="Susanna Clarke"');
     expect(readBackPayload(html)).toMatchObject({ author: "Susanna Clarke" });
   });
 

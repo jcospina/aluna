@@ -46,6 +46,7 @@ const SAMPLE: RenderableCapability = {
 };
 
 const RECORD: Readonly<Record<string, unknown>> = {
+  id: "task-1",
   title: "Buy oat milk",
   priority: 2,
   urgent: true,
@@ -67,6 +68,14 @@ describe("renderDetailModal — the one shared dialog instance", () => {
   test("is labelled by its heading, so the dialog announces what it shows", () => {
     expect(modal).toContain(`aria-labelledby="${DETAIL_MODAL_TITLE_ID}"`);
     expect(modal).toContain(`<h2 class="detail-modal__title" id="${DETAIL_MODAL_TITLE_ID}">`);
+  });
+
+  test("puts one accessible pencil edit affordance beside the modal title", () => {
+    expect(modal).toContain('<div class="detail-modal__heading">');
+    expect(modal).toContain('class="btn btn--ghost detail-modal__edit"');
+    expect(modal).toContain('data-detail-edit aria-label="Edit record" title="Edit"');
+    expect(modal).toContain("<svg");
+    expect(modal).not.toContain(">Edit</button>");
   });
 
   test("has a native close: a method=dialog form + a labelled close button", () => {
@@ -96,15 +105,30 @@ describe("renderDetailModal — the one shared dialog instance", () => {
 
 describe("renderDetailContent — read-only body via the centralized field renderer", () => {
   test("delegates to the one field renderer, so create and detail never drift", () => {
-    // Byte-identical to renderDetailFields: the modal owns WHERE the body shows, the field
-    // renderer owns HOW each field renders (the single place M4/M6 extend).
-    expect(renderDetailContent(SAMPLE, RECORD)).toBe(renderDetailFields(SAMPLE, RECORD));
+    // The modal wraps the centralized read-only field renderer with platform actions;
+    // field formatting remains byte-identical inside the read mode.
+    expect(renderDetailContent(SAMPLE, RECORD, "detail-tasks-task-1")).toContain(
+      renderDetailFields(SAMPLE, RECORD),
+    );
+  });
+
+  test("opens in read mode and keeps Save only in the hidden edit form", () => {
+    const body = renderDetailContent(SAMPLE, RECORD, "detail-tasks-task-1");
+    const readStart = body.indexOf("data-detail-read-mode");
+    const editStart = body.indexOf("data-detail-edit-mode");
+
+    expect(readStart).toBeGreaterThanOrEqual(0);
+    expect(editStart).toBeGreaterThan(readStart);
+    expect(body.slice(readStart, editStart)).not.toContain("data-detail-edit");
+    expect(body.slice(readStart, editStart)).not.toContain(">Save</button>");
+    expect(body.slice(editStart)).toContain("hidden");
+    expect(body.slice(editStart)).toContain(">Save</button>");
   });
 
   test("without detail.shows, falls back to every spec field in spec order", () => {
     // SAMPLE carries no detail.shows, so the body shows the whole record in spec order —
     // the fallback that keeps a demo/test (or a pre-reshape row) rendering everything.
-    const body = renderDetailContent(SAMPLE, RECORD);
+    const body = renderDetailContent(SAMPLE, RECORD, "detail-tasks-task-1");
     const order = ["Title", "Priority", "Urgent", "Due on", "Remind at", "Note"];
     const positions = order.map((label) => body.indexOf(label));
     expect(positions.every((p) => p >= 0)).toBe(true);
@@ -118,7 +142,7 @@ describe("renderDetailContent — read-only body via the centralized field rende
       ...SAMPLE,
       detail: { shows: ["note", "title", "urgent"] },
     };
-    const body = renderDetailContent(scoped, RECORD);
+    const body = renderDetailContent(scoped, RECORD, "detail-tasks-task-1");
 
     // The three named fields show, in the named order.
     const shown = ["Note", "Title", "Urgent"].map((label) => body.indexOf(label));
@@ -133,17 +157,21 @@ describe("renderDetailContent — read-only body via the centralized field rende
   });
 
   test("formats by type and shows the placeholder for an absent value", () => {
-    const body = renderDetailContent(SAMPLE, RECORD);
+    const body = renderDetailContent(SAMPLE, RECORD, "detail-tasks-task-1");
     expect(body).toContain("Yes"); // boolean urgent=true
     expect(body).toContain('<time datetime="2026-07-05">'); // date due_on
     expect(body).toContain("—"); // absent note
   });
 
   test("escapes a hostile record value — it can never become live markup", () => {
-    const body = renderDetailContent(SAMPLE, {
-      ...RECORD,
-      title: '"><script>alert(1)</script>',
-    });
+    const body = renderDetailContent(
+      SAMPLE,
+      {
+        ...RECORD,
+        title: '"><script>alert(1)</script>',
+      },
+      "detail-tasks-task-1",
+    );
     expect(body).not.toContain("<script>alert(1)</script>");
     expect(body).toContain("&lt;script&gt;");
   });
@@ -154,7 +182,7 @@ describe("renderDetailContentTemplate — inert, cloneable detail", () => {
     const tpl = renderDetailContentTemplate("detail-tpl-1", SAMPLE, RECORD);
     expect(tpl.startsWith('<template id="detail-tpl-1">')).toBe(true);
     expect(tpl.trimEnd().endsWith("</template>")).toBe(true);
-    expect(tpl).toContain(renderDetailContent(SAMPLE, RECORD));
+    expect(tpl).toContain(renderDetailContent(SAMPLE, RECORD, "detail-tpl-1"));
   });
 
   test("escapes the template id so it cannot break out of the attribute", () => {
@@ -167,13 +195,16 @@ describe("renderDetailContentTemplate — inert, cloneable detail", () => {
 describe("detail modal — CSS parity", () => {
   // The classes the modal emits must actually be styled, or the modal renders unstyled.
   const css = readFileSync(join(import.meta.dir, "../../public/css/detail-modal.css"), "utf8");
+  const fieldsCss = readFileSync(join(import.meta.dir, "../../public/css/fields.css"), "utf8");
 
   test("every structural class the markup uses is defined in detail-modal.css", () => {
     for (const cls of [
       "detail-modal",
       "detail-modal__panel",
       "detail-modal__header",
+      "detail-modal__heading",
       "detail-modal__title",
+      "detail-modal__edit",
       "detail-modal__close",
       "detail-modal__body",
     ]) {
@@ -183,6 +214,17 @@ describe("detail modal — CSS parity", () => {
 
   test("styles the ::backdrop (the native dimmed layer behind the modal)", () => {
     expect(css).toContain(".detail-modal::backdrop");
+  });
+
+  test("keeps the modal scrollport stable without horizontal overflow", () => {
+    expect(css).toContain("overflow-x: hidden");
+    expect(css).toContain("scrollbar-gutter: stable");
+  });
+
+  test("keeps edit actions sticky at the bottom of the modal", () => {
+    expect(fieldsCss).toContain(".capability-edit-form__actions");
+    expect(fieldsCss).toContain("position: sticky");
+    expect(fieldsCss).toContain("bottom: 0");
   });
 
   test("detail-modal.css is wired into the served stylesheet", () => {
@@ -206,6 +248,25 @@ describe("detail modal — controller contract parity (server ⇄ client)", () =
   test("listens on the shared open event — the only way the modal opens", () => {
     expect(controller).toContain(`"${OPEN_DETAIL_EVENT}"`);
     expect(controller).toContain(`addEventListener(OPEN_EVENT`);
+  });
+
+  test("switches the shared body between read and edit modes and returns to read on Cancel", () => {
+    expect(controller).toContain("data-detail-read-mode");
+    expect(controller).toContain("data-detail-edit-mode");
+    expect(controller).toContain("data-detail-edit");
+    expect(controller).toContain("data-detail-cancel-edit");
+    expect(controller).toContain('setMode("edit")');
+    expect(controller).toContain("prefill(currentPayload)");
+    expect(controller).toContain('editTrigger.hidden = mode !== "read"');
+    expect(controller).toContain("body.dataset.detailMode = mode");
+  });
+
+  test("processes cloned HTMX wiring and owns reliable request feedback outside the clone", () => {
+    expect(controller).toContain("htmx?.process(body)");
+    expect(controller).toContain('addEventListener("htmx:beforeRequest"');
+    expect(controller).toContain('addEventListener("htmx:afterRequest"');
+    expect(controller).toContain("Saving…");
+    expect(controller).toContain("aluna:record-updated");
   });
 
   test("opens via native showModal() — the source of the focus trap + restore", () => {

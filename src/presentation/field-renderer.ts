@@ -1,9 +1,10 @@
-// The centralized create/detail field renderer — Module 3, epic 3.2/01
+// The centralized create/edit/detail field renderer — Module 4, epic 4.3/01
 // (ADR-0005 §1, PLAN decision 1). The single platform module that renders a
 // capability's fields deterministically from its spec, in two modes:
 //
 //   • CREATE — the platform-owned <form> of input controls the "New X" button
 //     (3.2/02) opens, with its HTMX wiring and close-on-success behavior baked in.
+//   • EDIT — the same controls, prefilled for the shared modal and wired to update.
 //   • DETAIL — the read-only label/value display the shared modal (3.2/04) shows,
 //     prefilled from a record payload.
 //
@@ -32,7 +33,7 @@ import {
   type SpecField,
   type UiFormIntent,
 } from "../registry/index.ts";
-import { ALUNA_PRESENT_MARKER } from "../router/wire-protocol.ts";
+import { ALUNA_PRESENT_MARKER, ALUNA_RECORD_ID_MARKER } from "../router/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
 
 /**
@@ -68,6 +69,9 @@ export interface RenderableCapability {
  */
 export const RECORD_CREATED_EVENT = "aluna:record-created";
 
+/** The bubbling presentation event emitted after a committed edit response swaps in. */
+export const RECORD_UPDATED_EVENT = "aluna:record-updated";
+
 /** The placeholder shown for an absent (null / undefined / empty) detail value. */
 const EMPTY_VALUE = "—";
 
@@ -84,6 +88,18 @@ export function capabilityRecordsRegionId(capabilityId: string): string {
 /** The live region that receives structured create-validation feedback. */
 export function capabilityCreateErrorId(capabilityId: string): string {
   return `${capabilityId}-create-error`;
+}
+
+/** The live region that receives structured update-validation feedback in the modal. */
+export function capabilityEditErrorId(capabilityId: string): string {
+  return `${capabilityId}-edit-error`;
+}
+
+export interface EditFormOptions {
+  /** Stable id of the item wrapper replaced by the update Handler's presented record. */
+  readonly itemTargetId: string;
+  /** Existing inert modal template removed immediately before that replacement. */
+  readonly sourceTemplateId: string;
 }
 
 /**
@@ -116,6 +132,50 @@ export function renderCreateForm(capability: RenderableCapability): string {
     `<div class="capability-create-form__fields">${fields}</div>` +
     `<div class="capability-create-form__actions">` +
     `<button class="btn btn--primary" type="submit">Add</button>` +
+    `</div>` +
+    `</form>`
+  );
+}
+
+/**
+ * Render the platform-owned edit form for one record. It uses the same exhaustive field
+ * dispatch and authored list-input mode contract as create, but prefills active values and
+ * submits the closed update wire markers. Inactive fields, `extra`, and `created_at` are
+ * never rendered; the mutation port preserves them from canonical server state.
+ */
+export function renderEditForm(
+  capability: RenderableCapability,
+  record: Readonly<Record<string, unknown>>,
+  options: EditFormOptions,
+): string {
+  const recordId = record.id;
+  if (typeof recordId !== "string" || recordId.trim() === "") {
+    throw new Error("Cannot render an edit form without a nonblank record id.");
+  }
+
+  const fields = activeSpecFields(capability.schema.fields)
+    .map((field) => renderEditField(capability.id, field, capability.form, record[field.name]))
+    .join("");
+  const errorId = capabilityEditErrorId(capability.id);
+  const targetId = escapeHtml(options.itemTargetId);
+  const templateId = escapeHtml(options.sourceTemplateId);
+  const escapedRecordId = escapeHtml(recordId);
+  const label = escapeHtml(capability.label);
+  const onBeforeSwap =
+    "if(event.detail.successful){document.getElementById(this.dataset.detailTemplateId)?.remove()}";
+
+  return (
+    `<form class="capability-edit-form" data-modal-edit-form aria-label="Edit ${label}"` +
+    ` data-item-target-id="${targetId}"` +
+    ` data-detail-template-id="${templateId}"` +
+    ` hx-post="/capability/${capability.id}/update" hx-target="#${targetId}"` +
+    ` hx-swap="outerHTML" hx-on::before-swap="${onBeforeSwap}">` +
+    `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapedRecordId}">` +
+    `<div id="${errorId}" class="capability-edit-form__error" aria-live="polite"></div>` +
+    `<div class="capability-edit-form__fields">${fields}</div>` +
+    `<div class="capability-edit-form__actions">` +
+    `<button class="btn btn--ghost" type="button" data-detail-cancel-edit>Cancel</button>` +
+    `<button class="btn btn--primary" type="submit">Save</button>` +
     `</div>` +
     `</form>`
   );
@@ -250,6 +310,55 @@ function renderCreateField(capabilityId: string, field: SpecField, form: UiFormI
   );
 }
 
+function renderEditField(
+  capabilityId: string,
+  field: SpecField,
+  form: UiFormIntent,
+  value: unknown,
+): string {
+  if (isListFieldType(field.type)) return renderEditListField(capabilityId, field, form, value);
+
+  const control = createInputFor(field.type);
+  const inputId = `edit-${capabilityId}-${field.name}`;
+  const label = escapeHtml(field.label);
+  const nameAttribute = escapeHtml(field.name);
+  const required = field.required && control.canBeEmpty ? " required" : "";
+  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
+  const checked = control.inputType === "checkbox" && value === true ? " checked" : "";
+  const valueAttribute =
+    control.inputType === "checkbox"
+      ? ""
+      : ` value="${escapeHtml(editScalarValue(field.type, value))}"`;
+
+  if (control.inline) {
+    return (
+      `<div class="field field--inline">` +
+      presenceMarker +
+      `<input class="field__checkbox" id="${inputId}" type="${control.inputType}"` +
+      ` name="${nameAttribute}"${checked}>` +
+      `<label class="field__label field__label--inline" for="${inputId}">${label}</label>` +
+      `</div>`
+    );
+  }
+
+  return (
+    `<div class="field">` +
+    presenceMarker +
+    `<label class="field__label" for="${inputId}">${label}</label>` +
+    `<input class="field__control" id="${inputId}" type="${control.inputType}"` +
+    ` name="${nameAttribute}"${control.extraAttributes}${valueAttribute}${required}>` +
+    `</div>`
+  );
+}
+
+function editScalarValue(type: Exclude<FieldType, ListFieldType>, value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const raw = String(value);
+  if (type === "date") return /^\d{4}-\d{2}-\d{2}/.exec(raw)?.[0] ?? raw;
+  if (type === "datetime") return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.exec(raw)?.[0] ?? raw;
+  return raw;
+}
+
 function renderCreateListField(capabilityId: string, field: SpecField, form: UiFormIntent): string {
   const mode = listInputModeForField(form, field.name);
   switch (mode) {
@@ -260,6 +369,82 @@ function renderCreateListField(capabilityId: string, field: SpecField, form: UiF
     default:
       return assertNever(mode);
   }
+}
+
+function renderEditListField(
+  capabilityId: string,
+  field: SpecField,
+  form: UiFormIntent,
+  value: unknown,
+): string {
+  const mode = listInputModeForField(form, field.name);
+  switch (mode) {
+    case "comma_separated":
+      return renderEditCommaSeparatedListField(capabilityId, field, value);
+    case "repeatable":
+      return renderEditRepeatableListField(capabilityId, field, value);
+    default:
+      return assertNever(mode);
+  }
+}
+
+function renderEditCommaSeparatedListField(
+  capabilityId: string,
+  field: SpecField,
+  value: unknown,
+): string {
+  const inputId = `edit-${capabilityId}-${field.name}`;
+  const guidanceId = `${inputId}-guidance`;
+  const label = escapeHtml(field.label);
+  const nameAttribute = escapeHtml(field.name);
+  const required = field.required ? " required" : "";
+  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
+  const values = Array.isArray(value) ? value.map(String) : [];
+
+  return (
+    `<div class="field field--list field--list-comma-separated" data-list-input-mode="comma_separated">` +
+    presenceMarker +
+    `<label class="field__label" for="${inputId}">${label}</label>` +
+    `<input class="field__control" id="${inputId}" type="text" name="${nameAttribute}"` +
+    ` aria-describedby="${guidanceId}" value="${escapeHtml(values.join(", "))}"${required}>` +
+    `<p class="field__guidance" id="${guidanceId}">Separate values with commas.</p>` +
+    `</div>`
+  );
+}
+
+function renderEditRepeatableListField(
+  capabilityId: string,
+  field: SpecField,
+  value: unknown,
+): string {
+  const inputId = `edit-${capabilityId}-${field.name}`;
+  const label = escapeHtml(field.label);
+  const nameAttribute = escapeHtml(field.name);
+  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
+  const values = Array.isArray(value) && value.length > 0 ? value.map(String) : [""];
+  const rows = values
+    .map(
+      (element, index) =>
+        `<div class="field-list__row" data-list-field-row>` +
+        `<input class="field__control" id="${inputId}-${index + 1}" type="text"` +
+        ` name="${nameAttribute}" value="${escapeHtml(element)}"` +
+        ` aria-label="${label} ${index + 1}">` +
+        `<button class="field-list__remove" type="button" data-list-field-remove` +
+        ` aria-label="Remove ${label} value ${index + 1}">Remove</button>` +
+        `</div>`,
+    )
+    .join("");
+
+  return (
+    `<div class="field field--list field--list-repeatable" data-list-input-mode="repeatable"` +
+    ` data-list-field data-list-field-label="${label}" data-list-input-id="${inputId}">` +
+    presenceMarker +
+    `<label class="field__label" for="${inputId}-1">${label}</label>` +
+    `<div class="field-list__values" data-list-field-values>${rows}</div>` +
+    `<button class="btn btn--secondary field-list__add" type="button" data-list-field-add>` +
+    `Add another</button>` +
+    `</div>`
+  );
 }
 
 function renderCommaSeparatedListField(capabilityId: string, field: SpecField): string {

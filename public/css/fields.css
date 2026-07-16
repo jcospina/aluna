@@ -11,22 +11,47 @@
    control stays put while it's being filled. Tokens only; no raw values.
    ========================================================================== */
 
-/* ── Create form ──────────────────────────────────────────────────────────────
+/* ── Create and edit forms ────────────────────────────────────────────────────
    A calm vertical stack of fields with a trailing actions row. The submit button
    is the platform `.btn--primary` (components.css), so only layout lives here. */
-.capability-create-form {
+.capability-create-form,
+.capability-edit-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
-.capability-create-form__fields {
+.capability-edit-form {
+  height: 100%;
+  min-height: 0;
+}
+.capability-create-form__fields,
+.capability-edit-form__fields {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
-.capability-create-form__actions {
+.capability-edit-form__fields {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.capability-create-form__actions,
+.capability-edit-form__actions {
   display: flex;
   justify-content: flex-end;
+  gap: var(--space-1);
+}
+.capability-edit-form__actions {
+  position: sticky;
+  flex: 0 0 auto;
+  z-index: 1;
+  bottom: 0;
+  padding: var(--space-2) var(--space-0_5) var(--space-0_5);
+  background: var(--color-surface);
+  border-top: var(--border-thin) solid var(--color-border);
 }
 
 /* One field: label stacked above its control (the everyday case). */

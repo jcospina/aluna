@@ -46,7 +46,7 @@
     <script defer src="/static/vendor/alpine.min.js"></script>
 
     <!--
-      The shared read-only detail modal (Module 3). Two dumb presentation-glue files
+      The shared read/edit record modal (Module 4). Two dumb presentation-glue files
       (ARCH §6.1: the shell may open/prefill/focus the shared modal, never infer intent):
         - detail-modal.js — the modal mechanics (prefill + open), delegated to the
           native <dialog> (focus trap/restore, Escape, backdrop). Epic 3.2/04.
@@ -264,7 +264,7 @@
       </aside>
     </div>
 
-    <!-- The one shared read-only detail modal instance mounts here. The server
+    <!-- The one shared read/edit record modal instance mounts here. The server
          (src/web/fragments.ts) replaces this placeholder with renderDetailModal()
          output on every rendered shell, so a clicked capability item (epic 3.3/02)
          always has the modal to open. A single top-level <dialog>, a sibling of the

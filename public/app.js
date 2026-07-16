@@ -128,19 +128,18 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
   previewTarget.textContent = formatPreviewPayload(message.data);
 });
 
-// HTMX keeps 4xx responses out of the DOM by default. Structured create
-// refusals are the exception: the router retargets them to the form's aria-live
-// error region, while leaving the response marked unsuccessful so the form stays
-// open and its values are preserved.
+// HTMX keeps 4xx responses out of the DOM by default. Structured form refusals are
+// the exception: the router retargets them to the active create/edit aria-live error
+// region, while leaving the response unsuccessful so values and modal state survive.
 document.addEventListener("htmx:beforeSwap", (event) => {
   const detail = /** @type {CustomEvent<{ xhr: XMLHttpRequest, shouldSwap: boolean }>} */ (event)
     .detail;
   const response = detail?.xhr?.responseText;
   if (detail?.xhr?.status !== 422 || typeof response !== "string") return;
-  const isCreateRefusal = ["missing_required_fields", "mutation_busy"].some((code) =>
+  const isStructuredFormRefusal = ["missing_required_fields", "mutation_busy"].some((code) =>
     response.includes(`data-error-code="${code}"`),
   );
-  if (!isCreateRefusal) return;
+  if (!isStructuredFormRefusal) return;
 
   detail.shouldSwap = true;
 });

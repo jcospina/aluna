@@ -265,6 +265,7 @@ describe("item wrapper — detail open ref (click-to-open hooks)", () => {
   test("carries the detail template id + title the click controller opens with", () => {
     expect(wrapper).toContain(`${ITEM_DETAIL_TEMPLATE_ATTR}="detail-tasks-7"`);
     expect(wrapper).toContain(`${ITEM_DETAIL_TITLE_ATTR}="Tasks"`);
+    expect(wrapper).toContain('id="detail-tasks-7-item"');
   });
 
   test("still carries the record payload alongside the detail hooks", () => {

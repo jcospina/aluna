@@ -1,8 +1,8 @@
 // The platform presentation layer. Module 3 introduces the capability-scoped
 // presentation surface: the runtime allow-list enforcer (epic 3.1/02), the
-// centralized create/detail field renderer (epic 3.2/01, deterministic from the
-// spec), the list container/item wrapper (epic 3.2/02), the shared read-only detail
-// modal (epic 3.2/04), and the presentation adapter (epic 3.4/01) that composes them
+// centralized create/edit/detail field renderer (epic 4.3/01, deterministic from the
+// spec), the list container/item wrapper (epic 3.2/02), the shared read/edit modal
+// (epic 4.3/01), and the presentation adapter (epic 3.4/01) that composes them
 // into the record → safe wrapped item HTML the router injects into every Handler.
 //
 // The enforcer is the render-time safety half of the closed-value design contract; the
@@ -31,11 +31,14 @@ export {
 export { enforceItemMarkup } from "./enforcer.ts";
 export {
   capabilityCreateErrorId,
+  capabilityEditErrorId,
   capabilityRecordsRegionId,
   RECORD_CREATED_EVENT,
+  RECORD_UPDATED_EVENT,
   type RenderableCapability,
   renderCreateForm,
   renderDetailFields,
+  renderEditForm,
 } from "./field-renderer.ts";
 export {
   COLLECTION_LAYOUTS,
@@ -48,6 +51,7 @@ export {
   ITEM_PAYLOAD_ATTR,
   ITEM_TRIGGER_CLASS,
   type ItemDetailRef,
+  itemElementIdForTemplate,
   renderCollection,
   renderItemWrapper,
   serializeItemPayload,

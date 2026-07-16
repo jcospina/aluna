@@ -50,3 +50,8 @@ until the final end-to-end slice.
 Every completed turn must end with human-in-the-loop (HITL) test instructions:
 what command to run, what URL or route to open, what prompt/action to try, and
 what visible behavior confirms the work.
+
+### How to approach an issue
+
+Repo has lots of documents that can eat up context quickly. Use subagents to read documents and get the big picture and needed details from them instead of reading them on the main session. This will keep the session clean for the actual work.
+Use subagents as well to run quality and adversarial tests before running the live test.

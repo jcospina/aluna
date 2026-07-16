@@ -42,6 +42,7 @@ import {
 } from "../mutation-coordinator/index.ts";
 import {
   capabilityCreateErrorId,
+  capabilityEditErrorId,
   createPresentationAdapter,
   type ItemRenderer,
   type PresentationAdapter,
@@ -333,6 +334,9 @@ function recordMutationRefusal(c: Context, capabilityId: string, action: Mutatio
   if (action === "create") {
     c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
     c.header("HX-Reswap", "innerHTML");
+  } else if (action === "update") {
+    c.header("HX-Retarget", `#${capabilityEditErrorId(capabilityId)}`);
+    c.header("HX-Reswap", "innerHTML");
   }
   return c.html(
     '<p class="notice" data-role="error" data-error-code="mutation_busy">I\'m still putting something together. Give me a moment, then try that again.</p>',
@@ -348,6 +352,9 @@ function missingRequiredFieldsFailure(
   const fields = error.fields.join(" ");
   if (error.action === "create") {
     c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
+    c.header("HX-Reswap", "innerHTML");
+  } else if (error.action === "update") {
+    c.header("HX-Retarget", `#${capabilityEditErrorId(capabilityId)}`);
     c.header("HX-Reswap", "innerHTML");
   }
   const copy =

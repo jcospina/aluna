@@ -1,5 +1,5 @@
 /* =============================================================================
-   Shared read-only detail modal — platform CHROME (Module 3 · epic 3.2/04).
+   Shared detail/edit modal — platform CHROME (Module 4 · epic 4.3/01).
    The one shared <dialog> every capability opens to show a single record in full
    (src/presentation/detail-modal.ts, renderDetailModal). Platform-owned, presentational
    only — distinct from the generated item vocabulary (public/css/primitives.css).
@@ -69,37 +69,67 @@
 .detail-modal__header {
   flex: 0 0 auto;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
   padding-bottom: var(--space-2);
   margin-bottom: var(--space-2);
   border-bottom: var(--border-thin) solid var(--color-border);
 }
+.detail-modal__heading {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-1);
+}
 .detail-modal__title {
   margin: 0;
   font: var(--h3);
+}
+.detail-modal__edit,
+.detail-modal__close {
+  flex: 0 0 auto;
+  padding: var(--space-0_5);
+}
+.detail-modal__edit[hidden] {
+  display: none;
+}
+.detail-modal__edit svg,
+.detail-modal__close svg {
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 /* The native close form is layout-only; the button inside carries the ghost treatment. */
 .detail-modal__dismiss {
   flex: 0 0 auto;
   margin: 0;
 }
-/* Compact icon-only close (overrides the .btn text padding), sized like the shell's
-   sidebar toggles. */
-.detail-modal__close {
-  padding: var(--space-0_5);
-}
-.detail-modal__close svg {
-  display: block;
-  width: 20px;
-  height: 20px;
-}
 
 /* The scrollable record body. `min-height: 0` lets the flex child actually shrink so its
-   own overflow scrolls (the canonical flexbox-scroll fix) rather than growing the card. */
+   own overflow scrolls (the canonical flexbox-scroll fix) rather than growing the card.
+   Horizontal overflow is never useful here; hiding it also prevents hover/press travel
+   on a flush action from inserting a transient scrollbar and moving the click target. */
 .detail-modal__body {
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.detail-modal__body[data-detail-mode="edit"] {
+  display: flex;
+  overflow-y: hidden;
+}
+.detail-modal__body[data-detail-mode="edit"] > [data-detail-edit-mode] {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+/* Read and edit are two explicit states inside the same shared body. The hidden
+   attribute is the state boundary; this rule protects it from any future display rule. */
+.detail-modal__mode[hidden] {
+  display: none;
 }
