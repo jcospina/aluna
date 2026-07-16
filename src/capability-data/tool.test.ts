@@ -214,9 +214,15 @@ describe("split capability data ports", () => {
     });
   });
 
-  test("platform search normalization handles canonical equivalence and non-ASCII case", () => {
-    expect(normalizeSearchText("CAFÉ")).toBe(normalizeSearchText("Cafe\u0301"));
-    expect(normalizeSearchText("ÅNGSTRÖM")).toBe(normalizeSearchText("a\u030angstro\u0308m"));
+  test("platform search normalization ignores case and accents", () => {
+    for (const variant of ["cafe", "CAFE", "CaFe", "Café", "Cáfé", "Cafe\u0301"]) {
+      expect(normalizeSearchText(variant)).toBe("cafe");
+    }
+    expect(normalizeSearchText("ÅNGSTRÖM")).toBe("angstrom");
+    expect(normalizeSearchText("façade")).toBe("facade");
+    for (const value of ["हिंदी", "क़िला", "がくせい", "เก่ง", "Hawaiʻi"]) {
+      expect(normalizeSearchText(value)).toBe(value.normalize("NFKC").toLocaleLowerCase("und"));
+    }
     withFileDatabase((databases) => {
       const notes = notesSpec();
       applyCapabilityTableDdl(notes, databases.readwrite);
@@ -234,17 +240,17 @@ describe("split capability data ports", () => {
           parameters: ["Cafe\u0301 a\u030angstro\u0308m"],
           result: [{ alias: "normalized", type: "string" }],
         }),
-      ).toEqual([{ normalized: "café ångström" }]);
+      ).toEqual([{ normalized: "cafe angstrom" }]);
       expect(
         query.records({
           sql: 'SELECT "id" AS "target_id" FROM "cap_notes" WHERE platform_search_normalize("text") = platform_search_normalize(?)',
-          parameters: ["Cafe\u0301 a\u030angstro\u0308m"],
+          parameters: ["cafe angstrom"],
         }),
       ).toHaveLength(1);
       expect(
         databases.readonly
           .query('SELECT lower("text") = lower(?) AS matches FROM "cap_notes" WHERE "id" = ?')
-          .get("Cafe\u0301 a\u030angstro\u0308m", row.id),
+          .get("cafe angstrom", row.id),
       ).toEqual({ matches: 0 });
     });
   });

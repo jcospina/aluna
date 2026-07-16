@@ -28,8 +28,10 @@ it does not exist.
 
 The platform registers `platform_search_normalize(value)` on every generated-query
 connection. Its SQLite bridge is compiled once into the operating-system temp
-directory and calls the canonical JavaScript
-`normalize("NFKC").toLocaleLowerCase("und")` implementation.
+directory and calls the canonical case- and Latin-accent-insensitive JavaScript
+implementation: NFKD decomposition, locale-independent lowercase, Latin-base
+combining-diacritic folding, then NFKC recomposition. Marks on non-Latin bases are
+preserved.
 
 This requires a C compiler and SQLite extension headers. On macOS, Bun otherwise
 uses Apple's extension-disabled SQLite, so install extension-capable SQLite with

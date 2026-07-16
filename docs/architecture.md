@@ -722,9 +722,11 @@ receives only active projections. Because execution is in-process, adapter/stati
 check isolation is accidental-output protection rather than hostile-code
 containment; the deferred process sandbox remains the security answer.
 For M4's mandatory search baseline, both live and scratch connections register one
-platform function that applies JavaScript
-`normalize("NFKC").toLocaleLowerCase("und")`; generated search SQL uses it instead
-of SQLite's ASCII-only `NOCASE`/`lower()`. Bun does not expose scalar-function
+platform function that applies JavaScript compatibility decomposition, lowercases
+locale-independently, removes combining diacritics only when they follow a Latin-
+script base, and recomposes canonically. This folds Latin accents without erasing
+voicing, vowel, or tone marks in other scripts.
+Generated search SQL uses it instead of SQLite's ASCII-only `NOCASE`/`lower()`. Bun does not expose scalar-function
 registration directly, so the platform compiles a small loadable bridge once into
 the OS temp directory and calls the canonical JavaScript normalizer through it.
 That keeps persistence in-process and adds no service, but it does require a local

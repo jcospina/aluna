@@ -2,6 +2,11 @@
 
 Status: accepted
 
+Amendment (2026-07-16): the one platform search normalizer is now explicitly case-
+and Latin-accent-insensitive. It removes combining diacritics only after a Latin-
+script base, so Latin accents fold without corrupting voicing, vowel, or tone marks
+in other scripts.
+
 The fixed-five-Action candidate clauses below describe the steady state after
 Module 4 epic 4.4; immutable snapshot/publication clauses apply after 4.5's
 greenfield reset/rebuild makes v1 under that contract. The Module 4 PLAN's reset-
@@ -87,12 +92,16 @@ declared external query aliases retain the separate compatibility rule below.
 The mandatory search normalizer is one platform-owned SQLite scalar function.
 Bun does not expose scalar-function registration, so the accepted implementation
 is a small loadable bridge compiled once into the OS temp directory and connected
-to the canonical JavaScript `normalize("NFKC").toLocaleLowerCase("und")`
-callback. This remains an in-process persistence adapter, not a service, but it
+to the canonical JavaScript callback: NFKD compatibility decomposition, locale-
+independent lowercase, removal of combining diacritics only when they follow a
+Latin-script base, then final NFKC recomposition. This makes Latin-script matching
+case- and Latin-accent-insensitive without deleting meaningful marks from other scripts.
+This remains an in-process persistence adapter, not a service, but it
 adds an explicit local-runtime prerequisite: a C compiler and SQLite extension
 headers, plus extension-capable SQLite on macOS (Homebrew by default, or
 `OMNI_CRUD_SQLITE_LIBRARY`). This is preferred to SQLite `NOCASE`/`lower()`, whose
-ASCII-only behavior fails the required composed/decomposed non-ASCII contract.
+ASCII-only behavior fails the required composed/decomposed, Latin-accented/
+unaccented, non-ASCII contract.
 
 Dependency identities are committed diff/test inputs. New model generation sees
 only active fields in each dependency. Execution and scratch use the stable

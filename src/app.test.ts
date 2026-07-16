@@ -79,6 +79,7 @@ describe("GET / (shell)", () => {
     expect(html.split('<dialog id="aluna-detail-modal"').length - 1).toBe(1);
     // Both dumb glue files load: the modal mechanics and the item click-to-open (ARCH §6.1).
     expect(html).toContain('<script type="module" src="/static/detail-modal.js"></script>');
+    expect(html).toContain('<script type="module" src="/static/search-chrome.js"></script>');
     expect(html).toContain('src="/static/item-detail.js"');
   });
 
@@ -113,6 +114,18 @@ describe("GET / (shell)", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type") ?? "").toContain("javascript");
     expect(body).toContain("refreshCommittedRecords");
+    expect(body).toContain('"HX-Request": "true"');
+  });
+
+  test("serves the debounced search controller as JavaScript at its static path", async () => {
+    const app = createApp();
+    const res = await app.request("/static/search-chrome.js");
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") ?? "").toContain("javascript");
+    expect(body).toContain("createDebouncedCapabilitySearch");
+    expect(body).toContain("data-capability-search-input");
     expect(body).toContain('"HX-Request": "true"');
   });
 });

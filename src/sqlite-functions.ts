@@ -8,6 +8,9 @@ import { join } from "node:path";
 export const SEARCH_NORMALIZE_SQL_FUNCTION = "platform_search_normalize";
 
 const EXTENSION_ENTRY_POINT = "sqlite3_platformnormalize_init";
+const UNICODE_MARK = /^\p{M}$/u;
+const UNICODE_DIACRITIC = /^\p{Diacritic}$/u;
+const LATIN_SCRIPT = /^\p{Script=Latin}$/u;
 const EXTENSION_SOURCE = `
 #include <sqlite3ext.h>
 SQLITE_EXTENSION_INIT1
@@ -115,7 +118,20 @@ export function registerPlatformSqlFunctions(database: Database): void {
 }
 
 export function normalizeSearchText(value: string): string {
-  return value.normalize("NFKC").toLocaleLowerCase("und");
+  const decomposed = value.normalize("NFKD").toLocaleLowerCase("und");
+  let folded = "";
+  let followsLatinBase = false;
+
+  for (const character of decomposed) {
+    if (UNICODE_MARK.test(character)) {
+      if (!(followsLatinBase && UNICODE_DIACRITIC.test(character))) folded += character;
+      continue;
+    }
+    folded += character;
+    followsLatinBase = LATIN_SCRIPT.test(character);
+  }
+
+  return folded.normalize("NFKC");
 }
 
 function ensureNativeBridge(): NativeBridge {

@@ -454,6 +454,7 @@ function renderableFromRow(row: CapabilityRow): RenderableCapability {
     label: row.label,
     schema: row.schema,
     form: row.ui_intent.form,
+    searchEnabled: row.tools.includes("search"),
     item: row.ui_intent.item,
     detail: row.ui_intent.detail,
   };
