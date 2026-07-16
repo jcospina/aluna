@@ -62,6 +62,13 @@ export const FIELD_LIFECYCLE_DEMO_SPEC: CapabilitySpec = {
         lifecycle: "active",
       },
       {
+        name: "cherished",
+        label: "Cherished",
+        type: "boolean",
+        required: false,
+        lifecycle: "active",
+      },
+      {
         name: "retired_note",
         label: "Retired note",
         type: "string",
@@ -82,7 +89,7 @@ export const FIELD_LIFECYCLE_DEMO_SPEC: CapabilitySpec = {
       shows: ["entry", "tags", "created_at"],
     },
     collection: { layout: "feed" },
-    detail: { shows: ["entry", "tags", "aliases", "reflection", "created_at"] },
+    detail: { shows: ["entry", "tags", "aliases", "reflection", "cherished", "created_at"] },
   },
   behavior: "An entry and at least one tag are required. Newest reflections appear first.",
   behavioral_errors: [
@@ -134,6 +141,7 @@ const CREATE_HANDLER = `export default async function create({ input, mutation, 
     reflection: reflection === "" || reflection === undefined ? null : reflection,
     tags: Array.isArray(tags) ? [...tags] : tags,
     aliases: Array.isArray(aliases) ? [...aliases] : aliases,
+    cherished: input.values.cherished === "on",
   });
   return present(row);
 }
@@ -157,6 +165,9 @@ const UPDATE_HANDLER = `export default async function update({ input, mutation, 
   if ("aliases" in input.values) {
     const aliases = input.values.aliases;
     patch.aliases = Array.isArray(aliases) ? [...aliases] : aliases;
+  }
+  if (input.submittedFields.has("cherished")) {
+    patch.cherished = input.values.cherished === "on";
   }
   return present(mutation.update(patch));
 }
@@ -284,7 +295,7 @@ export async function installFieldLifecycleDemo(options: InstallFieldLifecycleDe
           artifactsRoot,
         });
         const seed = database.query(
-          `INSERT INTO "${tableName}" ("id", "entry", "reflection", "tags", "aliases", "retired_note", "extra") VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO "${tableName}" ("id", "entry", "reflection", "tags", "aliases", "cherished", "retired_note", "extra") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         );
         seed.run(
           FIELD_LIFECYCLE_HISTORICAL_TARGET_ID,
@@ -292,6 +303,7 @@ export async function installFieldLifecycleDemo(options: InstallFieldLifecycleDe
           "This row predates logical requiredness.",
           null,
           null,
+          0,
           "still stored",
           '{"source":"historical"}',
         );
@@ -300,7 +312,8 @@ export async function installFieldLifecycleDemo(options: InstallFieldLifecycleDe
           "A quiet beginning",
           "Keep this reflection",
           '["kept","before"]',
-          '["Preserved alias"]',
+          '["Doe, Jane","J. Doe"]',
+          1,
           "hidden survives update",
           '{"source":"merge-demo"}',
         );
@@ -310,6 +323,7 @@ export async function installFieldLifecycleDemo(options: InstallFieldLifecycleDe
           "This one is only for the delete tracer.",
           '["delete-demo"]',
           "[]",
+          0,
           "delete target hidden value",
           '{"source":"delete-demo"}',
         );

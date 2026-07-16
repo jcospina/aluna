@@ -62,6 +62,7 @@ const PREVIEW_CASES: readonly PreviewCase[] = [
     title: "Tasks",
     buttonLabel: "Open a full record",
     record: {
+      id: "filled",
       title: "Buy oat milk",
       priority: 2,
       urgent: true,
@@ -76,6 +77,7 @@ const PREVIEW_CASES: readonly PreviewCase[] = [
     title: "Tasks",
     buttonLabel: "Open a sparse record",
     record: {
+      id: "sparse",
       title: "Renew library books",
       priority: 1,
       urgent: false,
@@ -90,6 +92,7 @@ const PREVIEW_CASES: readonly PreviewCase[] = [
     title: "Tasks",
     buttonLabel: "Open a hostile record",
     record: {
+      id: "hostile",
       title: '"><script>alert(1)</script> & <img src=x onerror=alert(2)>',
       priority: 9,
       urgent: true,
@@ -104,6 +107,7 @@ const PREVIEW_CASES: readonly PreviewCase[] = [
     title: "Tasks",
     buttonLabel: "Open a long record",
     record: {
+      id: "long",
       title: "Plan the week",
       priority: 3,
       urgent: false,

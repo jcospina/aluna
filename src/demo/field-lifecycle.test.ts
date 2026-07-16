@@ -34,6 +34,7 @@ async function installReference(database: PlatformDatabase["readwrite"], artifac
   return result;
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: this living-demo suite keeps one installed reference database across its browser-facing create and edit tracers.
 describe("development-only five-Action reference living demo", () => {
   let dir: string;
   let databases: PlatformDatabase;
@@ -65,6 +66,7 @@ describe("development-only five-Action reference living demo", () => {
     expect(view).toContain("A small reflection");
     expect(view).toContain("Tags");
     expect(view).toContain("Other names");
+    expect(view).toContain("Cherished");
     expect(view).toContain('data-list-input-mode="comma_separated"');
     expect(view).toContain("Separate values with commas.");
     expect(view).toContain('data-list-input-mode="repeatable"');
@@ -99,6 +101,7 @@ describe("development-only five-Action reference living demo", () => {
         ["__aluna_present", "reflection"],
         ["__aluna_present", "tags"],
         ["__aluna_present", "aliases"],
+        ["__aluna_present", "cherished"],
       ]).toString(),
     });
     expect(rejected.status).toBe(422);
@@ -118,6 +121,7 @@ describe("development-only five-Action reference living demo", () => {
         ["__aluna_present", "reflection"],
         ["__aluna_present", "tags"],
         ["__aluna_present", "aliases"],
+        ["__aluna_present", "cherished"],
       ]).toString(),
     });
     expect(created.status).toBe(200);
@@ -145,6 +149,132 @@ describe("development-only five-Action reference living demo", () => {
     expect(joined).toContain("data-joined-journal-entry");
     expect(joined).toContain("A quiet beginning");
     expect(joined).toContain("Seen through a declared dependency");
+  });
+
+  test("opens read-only detail, prefills both list modes, and round-trips them through update", async () => {
+    const app = createApp({ capabilityRouter: { databases } });
+    const read = await (await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`)).text();
+    const templateId = `detail-${FIELD_LIFECYCLE_DEMO_ID}-${FIELD_LIFECYCLE_MERGE_TARGET_ID}`;
+    const template = new RegExp(`<template id="${templateId}">([\\s\\S]*?)</template>`).exec(
+      read,
+    )?.[1];
+    if (!template) throw new Error("reference edit template was not rendered");
+
+    expect(template).toContain("data-detail-read-mode");
+    expect(template).toContain("data-detail-edit-mode hidden");
+    expect(template).not.toContain(">Edit</button>");
+    expect(template).toContain(`hx-post="/capability/${FIELD_LIFECYCLE_DEMO_ID}/update"`);
+    expect(template).toContain(
+      `name="__aluna_record_id" value="${FIELD_LIFECYCLE_MERGE_TARGET_ID}"`,
+    );
+    expect(template).toContain('name="tags" aria-describedby=');
+    expect(template).toContain('value="kept, before"');
+    expect(template).toContain('name="aliases" value="Doe, Jane"');
+    expect(template).toContain('name="aliases" value="J. Doe"');
+    expect(template).not.toContain("retired_note");
+    expect(template).not.toContain("hidden survives update");
+    expect(template).not.toContain("merge-demo");
+
+    const listRoundTrip = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/update`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams([
+        ["entry", "A quiet beginning"],
+        ["reflection", "Keep this reflection"],
+        ["tags", "edited, classic"],
+        ["aliases", "Doe, Jane"],
+        ["aliases", "J. Doe"],
+        ["cherished", "on"],
+        ["__aluna_present", "entry"],
+        ["__aluna_present", "reflection"],
+        ["__aluna_present", "tags"],
+        ["__aluna_present", "aliases"],
+        ["__aluna_present", "cherished"],
+        ["__aluna_record_id", FIELD_LIFECYCLE_MERGE_TARGET_ID],
+      ]).toString(),
+    });
+    expect(listRoundTrip.status).toBe(200);
+    expect(
+      databases.readwrite
+        .query(`SELECT "tags", "aliases" FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "id" = ?`)
+        .get(FIELD_LIFECYCLE_MERGE_TARGET_ID),
+    ).toEqual({
+      tags: '["edited","classic"]',
+      aliases: '["Doe, Jane","J. Doe"]',
+    });
+  });
+
+  test("keeps edit chrome out of the collection and saves clear/false/empty-list values", async () => {
+    const app = createApp({ capabilityRouter: { databases } });
+    const read = await (await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/read`)).text();
+    const templateId = `detail-${FIELD_LIFECYCLE_DEMO_ID}-${FIELD_LIFECYCLE_MERGE_TARGET_ID}`;
+    const item = new RegExp(`<article[^>]*id="${templateId}-item"[\\s\\S]*?</article>`).exec(
+      read,
+    )?.[0];
+    if (!item) throw new Error("reference item wrapper was not rendered");
+    expect(item).not.toContain("data-detail-edit");
+    expect(item).not.toContain(">Save</button>");
+    expect(item).not.toContain("__aluna_");
+
+    const update = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/update`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams([
+        ["entry", "A visible edit"],
+        ["reflection", ""],
+        ["tags", "edited, classic"],
+        ["aliases", ""],
+        ["__aluna_present", "entry"],
+        ["__aluna_present", "reflection"],
+        ["__aluna_present", "tags"],
+        ["__aluna_present", "aliases"],
+        ["__aluna_present", "cherished"],
+        ["__aluna_record_id", FIELD_LIFECYCLE_MERGE_TARGET_ID],
+      ]).toString(),
+    });
+    expect(update.status).toBe(200);
+    const updatedHtml = await update.text();
+    expect(updatedHtml).toContain("A visible edit");
+    expect(updatedHtml).toContain(`id="${templateId}-item"`);
+    expect(
+      databases.readwrite
+        .query(
+          `SELECT "entry", "reflection", "tags", "aliases", "cherished", "retired_note", "extra" FROM "cap_${FIELD_LIFECYCLE_DEMO_ID}" WHERE "id" = ?`,
+        )
+        .get(FIELD_LIFECYCLE_MERGE_TARGET_ID),
+    ).toEqual({
+      entry: "A visible edit",
+      reflection: null,
+      tags: '["edited","classic"]',
+      aliases: "[]",
+      cherished: 0,
+      retired_note: "hidden survives update",
+      extra: '{"source":"merge-demo"}',
+    });
+
+    const rejected = await app.request(`/capability/${FIELD_LIFECYCLE_DEMO_ID}/update`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams([
+        ["entry", "   "],
+        ["reflection", "Still should not save"],
+        ["tags", " , "],
+        ["aliases", "Doe, Jane"],
+        ["__aluna_present", "entry"],
+        ["__aluna_present", "reflection"],
+        ["__aluna_present", "tags"],
+        ["__aluna_present", "aliases"],
+        ["__aluna_present", "cherished"],
+        ["__aluna_record_id", FIELD_LIFECYCLE_MERGE_TARGET_ID],
+      ]).toString(),
+    });
+    expect(rejected.status).toBe(422);
+    expect(rejected.headers.get("HX-Retarget")).toBe(`#${FIELD_LIFECYCLE_DEMO_ID}-edit-error`);
+    expect(rejected.headers.get("HX-Reswap")).toBe("innerHTML");
+    const error = await rejected.text();
+    expect(error).toContain('data-error-code="missing_required_fields"');
+    expect(error).toContain('data-error-fields="entry tags"');
+    expect(error).toContain("before I can save this");
   });
 });
 
@@ -284,7 +414,8 @@ describe("five-Action reference route inventory", () => {
       ).text();
       expect(refreshed).toContain("A changed beginning");
       expect(refreshed).toContain("kept");
-      expect(refreshed).toContain("Preserved alias");
+      expect(refreshed).toContain("Doe, Jane");
+      expect(refreshed).toContain("J. Doe");
       expect(refreshed).not.toContain("hidden survives update");
       expect(refreshed).not.toContain("merge-demo");
 
@@ -298,6 +429,7 @@ describe("five-Action reference route inventory", () => {
         ]).toString(),
       });
       expect(historical.status).toBe(422);
+      expect(historical.headers.get("HX-Retarget")).toBe(`#${FIELD_LIFECYCLE_DEMO_ID}-edit-error`);
       expect(await historical.text()).toContain('data-error-code="missing_required_fields"');
       expect(
         databases.readwrite
