@@ -263,13 +263,15 @@ attribute** — a checkbox always yields a definite value, so a *required* boole
 satisfied by `false` and is never forced-checked at create (only emptyable controls —
 text/number/datetime — carry `required`). Controls follow the prompt field's treatment —
 `--color-surface` fill, a 1px border, `--radius-md`, an accent focus ring, no press
-travel so a control stays put while it's filled; the submit is the platform
-`.btn--primary`. Create-form HTMX wiring and **close-on-success** are platform-owned,
-not generated: on a successful create the form resets and dispatches a bubbling
-`aluna:record-created` event (exported as `RECORD_CREATED_EVENT`) that the list
-container (3.2/02) and shared modal (3.2/04) act on. The new record prepends into the
-capability's live region (`<id>-records`, via `capabilityRecordsRegionId`), so no user
-data enters the platform-rendered chrome (ADR-0004 "never-stale cache").
+travel so a control stays put while it's filled. The actions row pairs a neutral
+**Cancel** with the primary **Add**: Cancel discards the local draft, closes the form,
+and returns focus to "New X"; Add remains the platform `.btn--primary`. Create-form
+HTMX wiring and **close-on-success** are platform-owned, not generated: on a successful
+create the form resets and dispatches a bubbling `aluna:record-created` event (exported
+as `RECORD_CREATED_EVENT`) that the list container (3.2/02) and shared modal (3.2/04)
+act on. The new record prepends into the capability's live region (`<id>-records`, via
+`capabilityRecordsRegionId`), so no user data enters the platform-rendered chrome
+(ADR-0004 "never-stale cache").
 
 ## Collection layout + item wrapper (Module 3 · epic 3.2/02)
 
@@ -295,10 +297,12 @@ defaults to `feed` (PLAN decision 5).
 | `feed` (default) | `.capability-records--feed` | single vertical column, `--space-3` gap |
 | `grid` | `.capability-records--grid` | responsive `auto-fill` grid (`minmax(16rem, 1fr)`), `--space-3` gap |
 
-The container also renders the **“New X” disclosure** (an Alpine toggle opening the live
-create form from 3.2/01, closing itself on this capability's `aluna:record-created`), and
-the **empty state** — shown purely by CSS while the records region is `:empty`, so a
-server-rendered or prepended record clears it with no JS. The records region carries
+The container also renders the **“New X” disclosure**, an Alpine toggle opening the live
+create form from 3.2/01. It closes on this capability's `aluna:record-created` or the
+form's local `aluna:create-cancelled` event; Cancel discards the draft (including added
+repeatable rows) and returns focus to “New X.” The **empty state** is shown purely by CSS
+while the records region is `:empty`, so a server-rendered or prepended record clears it
+with no JS. The records region carries
 `id="<id>-records"` (`capabilityRecordsRegionId`), the same target the create form posts
 into, and stays **data-free**: live records arrive through the `read` action, never baked
 into the chrome. In the serving path (`renderCollection({ loadThroughRead: true })`, epic

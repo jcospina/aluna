@@ -39,9 +39,16 @@ const PREVIEW_CAPABILITY: RenderableCapability = {
         lifecycle: "active",
       },
       { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
+      {
+        name: "quotes",
+        label: "Favorite quotes",
+        type: "string[]",
+        required: false,
+        lifecycle: "active",
+      },
     ],
   },
-  form: { list_inputs: [] },
+  form: { list_inputs: [{ field: "quotes", mode: "repeatable" }] },
   actions: ["create", "read", "update", "delete", "search"],
 };
 
@@ -138,7 +145,8 @@ export function renderListContainerPreviewPage(): string {
     <link rel="icon" href="data:,">
     <title>Aluna — list container preview</title>
     <link rel="stylesheet" href="/static/app.css">
-    <!-- Alpine drives the "New X" disclosure (inline x-data); nothing else here needs it. -->
+    <!-- The authored browser glue resets repeatable rows on Cancel; Alpine owns disclosure state. -->
+    <script defer src="/static/app.js"></script>
     <script defer src="/static/vendor/alpine.min.js"></script>
     <style>
       body {

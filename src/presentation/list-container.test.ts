@@ -144,6 +144,13 @@ describe("container scaffolding", () => {
     expect(feed).toContain('hx-post="/capability/tasks/create"');
   });
 
+  test("closes a cancelled create form and returns focus to its New button", () => {
+    expect(feed).toContain('x-ref="createTrigger"');
+    expect(feed).toContain(
+      `@aluna:create-cancelled="createOpen = false; $nextTick(() => $refs.createTrigger.focus())"`,
+    );
+  });
+
   test("renders the empty state", () => {
     expect(feed).toContain('class="capability-empty"');
   });

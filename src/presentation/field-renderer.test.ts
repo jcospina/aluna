@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { fieldTypeSchema } from "../registry/index.ts";
 import { oneField, SAMPLE, sampleDetailValue } from "./field-renderer.test-support.ts";
 import {
+  CREATE_CANCELLED_EVENT,
   capabilityCreateErrorId,
   capabilityRecordsRegionId,
   RECORD_CREATED_EVENT,
@@ -53,9 +54,35 @@ describe("create form — platform wiring + close-on-success", () => {
     expect(form).toContain('aria-live="polite"');
   });
 
-  test("carries an accessible name and a primary submit affordance", () => {
+  test("carries an accessible name and adjacent cancel/add affordances", () => {
     expect(form).toContain('aria-label="Add to Tasks"');
+    const cancel =
+      `<button class="btn btn--ghost" type="button" data-create-cancel` +
+      ` @click="$el.ownerDocument.defaultView.HTMLFormElement.prototype.reset.call($el.form);` +
+      ` $el.ownerDocument.getElementById('${capabilityCreateErrorId("tasks")}').replaceChildren();` +
+      ` $dispatch('${CREATE_CANCELLED_EVENT}')">Cancel</button>`;
+    expect(form).toContain(cancel);
     expect(form).toContain('<button class="btn btn--primary" type="submit">Add</button>');
+    expect(form.indexOf(cancel)).toBeLessThan(
+      form.indexOf('<button class="btn btn--primary" type="submit">Add</button>'),
+    );
+  });
+
+  test("cancel cannot be DOM-clobbered by a valid field named reset", () => {
+    const resetFieldForm = renderCreateForm({
+      ...SAMPLE,
+      schema: {
+        fields: [
+          { name: "reset", label: "Reset", type: "string", required: false, lifecycle: "active" },
+        ],
+      },
+    });
+
+    expect(resetFieldForm).toContain('name="reset"');
+    expect(resetFieldForm).toContain(
+      "$el.ownerDocument.defaultView.HTMLFormElement.prototype.reset.call($el.form)",
+    );
+    expect(resetFieldForm).not.toContain("$el.form.reset()");
   });
 
   test("holds no record data — the create surface is data-free", () => {
