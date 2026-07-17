@@ -105,7 +105,10 @@ describe("capability gate — smoke rung", () => {
     ].join("\n");
 
     const error = await expectGateFailure(
-      gateInput({ handlers: { ...GOOD_HANDLERS, create: noInsertCreate } }),
+      gateInput({
+        handlers: { ...GOOD_HANDLERS, create: noInsertCreate },
+        provider: undefined,
+      }),
     );
 
     expect(error.failedRung).toBe("smoke");
@@ -211,6 +214,12 @@ describe("capability gate — five-Action reference scratch catalog", () => {
     expect(error.failedRung).toBe("structural");
     expect(error.outcomes[0]?.error).toContain("expected exactly one dependency");
   });
+});
+
+describe("capability gate — complete five-Action smoke", () => {
+  const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
+    (unit) => unit.kind === "item-renderer",
+  )?.content;
 
   test("the exact published five-Action reference inventory passes its applicable Gate", async () => {
     if (!itemRenderer) throw new Error("reference item renderer missing");
@@ -237,6 +246,14 @@ describe("capability gate — five-Action reference scratch catalog", () => {
       "behavioral:skipped",
       "design-lint:passed",
     ]);
+    expect(result.smoke).toMatchObject({
+      rowCount: 1,
+      fixed: false,
+      attempts: [{ attempt: 1 }],
+    });
+    expect(result.smoke.updateFragmentLength).toBeGreaterThan(0);
+    expect(result.smoke.searchCaseCount).toBe(26);
+    expect(result.smoke.deleteFragmentLength).toBeGreaterThanOrEqual(0);
   });
 });
 

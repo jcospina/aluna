@@ -236,6 +236,30 @@ export function makeBehaviorProvider(suite: unknown = DEFAULT_BEHAVIORAL_SUITE):
   return { provider, prompts, jsonSchemas };
 }
 
+export function makeSequenceProvider(responses: readonly unknown[]): {
+  provider: Provider;
+  prompts: string[];
+} {
+  const prompts: string[] = [];
+  let index = 0;
+  const provider: Provider = {
+    generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
+      prompts.push(prompt);
+      const response = responses[Math.min(index, responses.length - 1)];
+      index += 1;
+      async function* stream(): AsyncGenerator<DeepPartial<T>> {
+        yield response as DeepPartial<T>;
+      }
+      return {
+        partialStream: stream(),
+        object: Promise.resolve(response as T),
+        usage: Promise.resolve({ inputTokens: 7, outputTokens: 11, totalTokens: 18 }),
+      };
+    },
+  };
+  return { provider, prompts };
+}
+
 export function gateInput(
   overrides: Partial<Parameters<typeof runCapabilityGate>[0]> = {},
 ): Parameters<typeof runCapabilityGate>[0] {

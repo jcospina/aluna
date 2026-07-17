@@ -121,7 +121,8 @@ const DELETE_HANDLER = `export default async function remove({ mutation }: Capab
 const SEARCH_HANDLER = `export default async function search({ input, query, present }: CapabilityContext): Promise<string> {
   const raw = input.values.q;
   const term = typeof raw === "string" ? raw : "";
-  if (term.trim() === "") {
+  const terms = term.trim().split(/\\s+/u).filter(Boolean);
+  if (terms.length === 0) {
     return query.records({
       sql: 'SELECT links."id" AS "target_id", coalesce(journal."entry", "") AS "journal_entry" FROM "cap_journal_links_demo" links LEFT JOIN "cap_field_lifecycle_demo" journal ON journal."id" = links."journal_entry_id" ORDER BY links."created_at" DESC, links."id" DESC',
       result: [{ alias: "journal_entry", type: "string" }],
@@ -129,8 +130,8 @@ const SEARCH_HANDLER = `export default async function search({ input, query, pre
       escapeHtml(String(values.journal_entry ?? "")) + '</p>' + present(record)).join("");
   }
   return query.records({
-    sql: 'SELECT links."id" AS "target_id", coalesce(journal."entry", "") AS "journal_entry" FROM "cap_journal_links_demo" links LEFT JOIN "cap_field_lifecycle_demo" journal ON journal."id" = links."journal_entry_id" WHERE coalesce(instr(platform_search_normalize(links."note"), platform_search_normalize(?)), 0) > 0 OR coalesce(instr(platform_search_normalize(coalesce(journal."entry", "")), platform_search_normalize(?)), 0) > 0 ORDER BY links."created_at" DESC, links."id" DESC',
-    parameters: [term, term],
+    sql: 'WITH "search_terms" AS (SELECT "value" AS "term" FROM json_each(?)) SELECT links."id" AS "target_id", coalesce(journal."entry", "") AS "journal_entry" FROM "cap_journal_links_demo" links LEFT JOIN "cap_field_lifecycle_demo" journal ON journal."id" = links."journal_entry_id" WHERE NOT EXISTS (SELECT 1 FROM "search_terms" AS "search_term" WHERE NOT (coalesce(instr(platform_search_normalize(links."journal_entry_id"), platform_search_normalize("search_term"."term")), 0) > 0 OR coalesce(instr(platform_search_normalize(links."note"), platform_search_normalize("search_term"."term")), 0) > 0 OR coalesce(instr(platform_search_normalize(coalesce(journal."entry", "")), platform_search_normalize("search_term"."term")), 0) > 0)) ORDER BY links."created_at" DESC, links."id" DESC',
+    parameters: [JSON.stringify(terms)],
     result: [{ alias: "journal_entry", type: "string" }],
   }).map(({ record, values }) => '<p class="text-sm text-muted" data-joined-journal-entry>' +
     escapeHtml(String(values.journal_entry ?? "")) + '</p>' + present(record)).join("");

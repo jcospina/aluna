@@ -321,6 +321,7 @@ export function makeSpecProvider(
     readonly update?: string;
     readonly delete?: string;
     readonly search?: string;
+    readonly searchRepair?: string;
   } = {},
 ): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];
@@ -332,6 +333,7 @@ export function makeSpecProvider(
     { content: units.update ?? UPDATE_HANDLER },
     { content: units.delete ?? DELETE_HANDLER },
     { content: units.search ?? SEARCH_HANDLER },
+    ...(units.searchRepair ? [{ content: units.searchRepair }] : []),
     behavioralSuite,
   ];
   const provider: Provider = {
