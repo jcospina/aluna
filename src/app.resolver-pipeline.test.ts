@@ -16,6 +16,7 @@ import {
   CREATE_HANDLER,
   collectSseEvents,
   createScratchDbEnv,
+  DELETE_HANDLER,
   eventData,
   ITEM_RENDERER,
   makeMetricsRecorder,
@@ -26,7 +27,9 @@ import {
   READ_HANDLER,
   readSse,
   responseText,
+  SEARCH_HANDLER,
   teardownScratchDbEnv,
+  UPDATE_HANDLER,
   wait,
 } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
@@ -53,6 +56,9 @@ function makePromptBuildProvider(
     readonly item?: string;
     readonly create?: string;
     readonly read?: string;
+    readonly update?: string;
+    readonly delete?: string;
+    readonly search?: string;
   } = {},
 ): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];
@@ -62,6 +68,9 @@ function makePromptBuildProvider(
     { content: units.item ?? ITEM_RENDERER },
     { content: units.create ?? CREATE_HANDLER },
     { content: units.read ?? READ_HANDLER },
+    { content: units.update ?? UPDATE_HANDLER },
+    { content: units.delete ?? DELETE_HANDLER },
+    { content: units.search ?? SEARCH_HANDLER },
     behavioralSuite,
   ];
   const provider: Provider = {
@@ -141,8 +150,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(events[1]?.event).toBe("narration");
     expect(events[1]?.data).toBe(newCapabilityIntent.user_facing_label);
 
-    // intent + spec + 3 units (item renderer, create, read) + behavioral test-gen.
-    expect(prompts).toHaveLength(6);
+    // intent + spec + 6 units (item renderer + five Actions) + behavioral test-gen.
+    expect(prompts).toHaveLength(9);
     expect(prompts[0]).toContain("Aluna's Intent Resolver");
     expect(prompts[0]).toContain("track my notes");
     expect(prompts[1]).toContain("Aluna's Capability Builder");
@@ -163,8 +172,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       capabilityId: "notes",
       intent: { type: "new_capability", confidence: 0.97, targetCapability: null },
     });
-    // 6 provider calls × 53 tokens each: intent + spec + 3 units + behavioral test-gen.
-    expect(rows[0]?.usage?.totalTokens).toBe(318);
+    // 9 provider calls × 53 tokens each: intent + spec + 6 units + behavioral test-gen.
+    expect(rows[0]?.usage?.totalTokens).toBe(477);
     expect(rows[0]?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
     expect(rows[0]?.gateRungs?.map((rung) => rung.rung)).toEqual([
       "structural",

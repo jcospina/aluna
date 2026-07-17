@@ -18,9 +18,9 @@ import type { DeepPartial, GenerateResult, Provider, TokenUsage } from "../provi
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   promptCapabilitySpecSchema,
-  TRANSITIONAL_CAPABILITY_TOOLS,
 } from "../registry/index.ts";
 import { buildSpecPrompt, generateSpec, hardcodedNewCapabilityIntent } from "./index.ts";
 
@@ -104,16 +104,23 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         fields: ["text"],
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
+      {
+        action: "update",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
     ],
-    tools: ["create", "read"],
-    read_dependencies: { create: [], read: [] },
+    tools: [...FULL_CAPABILITY_TOOLS],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
 }
 
 describe("spec generation stage — schema contract, generation, and prompt", () => {
-  test("emits OpenAI-compatible JSON Schema for the fixed transitional Action list", async () => {
+  test("emits OpenAI-compatible JSON Schema for the fixed five-Action list", async () => {
     const jsonSchema = await zodSchema(promptCapabilitySpecSchema).jsonSchema;
     const tools = jsonSchema.properties?.tools as
       | { items?: unknown; minItems?: number; maxItems?: number }
@@ -121,17 +128,15 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
 
     // OpenAI rejects tuple-style positional `items: [...]`. The provider-facing
     // schema must be a homogeneous fixed-length array; the Zod refinement remains
-    // the hard gate for the exact ordered [create, read] value.
+    // the hard gate for the exact ordered five-Action value.
     expect(Array.isArray(tools?.items)).toBe(false);
-    expect(tools?.minItems).toBe(TRANSITIONAL_CAPABILITY_TOOLS.length);
-    expect(tools?.maxItems).toBe(TRANSITIONAL_CAPABILITY_TOOLS.length);
+    expect(tools?.minItems).toBe(FULL_CAPABILITY_TOOLS.length);
+    expect(tools?.maxItems).toBe(FULL_CAPABILITY_TOOLS.length);
 
     const behavioralErrors = jsonSchema.properties?.behavioral_errors as
       | { items?: { properties?: { action?: { enum?: string[] } } } }
       | undefined;
-    expect(behavioralErrors?.items?.properties?.action?.enum).toEqual([
-      ...TRANSITIONAL_CAPABILITY_TOOLS,
-    ]);
+    expect(behavioralErrors?.items?.properties?.action?.enum).toEqual([...FULL_CAPABILITY_TOOLS]);
   });
 
   test("yields a Zod-valid spec from prompt + intent and reports the measurements", async () => {
@@ -161,7 +166,59 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(result.usage).toEqual(usage);
   });
+});
 
+describe("spec generation stage — required-field errors", () => {
+  test("requires paired create/update missing-field cases exactly when fields are required", async () => {
+    const required = notesSpec();
+    const { send } = recordingSend();
+    const generated = await generateSpec({
+      provider: makeSpecProvider(required),
+      prompt: "track notes",
+      intent: notesIntent(),
+      send,
+    });
+    expect(generated.spec.behavioral_errors.map((errorCase) => errorCase.action)).toEqual([
+      "create",
+      "update",
+    ]);
+    expect(generated.spec.behavioral_errors.map((errorCase) => errorCase.fields)).toEqual([
+      ["text"],
+      ["text"],
+    ]);
+
+    const optional = notesSpec({
+      schema: {
+        fields: [
+          { name: "text", label: "Text", type: "string", required: false, lifecycle: "active" },
+        ],
+      },
+      behavioral_errors: [],
+    });
+    await expect(
+      generateSpec({
+        provider: makeSpecProvider(optional),
+        prompt: "track optional notes",
+        intent: notesIntent(),
+        send,
+      }),
+    ).resolves.toMatchObject({ spec: { behavioral_errors: [] } });
+
+    await expect(
+      generateSpec({
+        provider: makeSpecProvider({
+          ...required,
+          behavioral_errors: [required.behavioral_errors[0]],
+        }),
+        prompt: "track notes",
+        intent: notesIntent(),
+        send,
+      }),
+    ).rejects.toThrow("exact missing_required_fields cases");
+  });
+});
+
+describe("spec generation stage — authored prompt", () => {
   test("asks the model for the spec inside the field/action pantry, with reshaped ui_intent", async () => {
     const provider = makeSpecProvider(notesSpec());
     const { send } = recordingSend();
@@ -179,9 +236,10 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
     // The stage builds its prompt with the exported builder — same input, same text.
     expect(prompt).toBe(buildSpecPrompt({ provider, prompt: "track my notes", intent, send }));
     // The pantry, stated to the model (the schema is the hard wall behind it).
-    expect(prompt).toContain("tools: exactly [create, read] in that order");
-    expect(prompt).toContain('read_dependencies: exactly { "create": [], "read": [] }');
-    expect(prompt).toContain("Do not emit update, delete, or search keys anywhere");
+    expect(prompt).toContain(
+      "tools: exactly [create, read, update, delete, search] in that canonical order",
+    );
+    expect(prompt).toContain('"update": [], "delete": [], "search": []');
     expect(prompt).toContain("ui_intent.item");
     expect(prompt).toContain("ui_intent.form.list_inputs contains exactly one");
     expect(prompt).toContain("comma_separated only for short atomic values");
@@ -282,7 +340,7 @@ describe("spec generation stage — rejects non-conforming specs", () => {
   test("fails the build cleanly when the model's spec is non-conforming — nothing flows downstream", async () => {
     const outsideThePantry: Array<{ why: string; raw: unknown }> = [
       {
-        why: "a tool outside create+read",
+        why: "a partial Action inventory",
         raw: { ...notesSpec(), tools: ["create", "read", "update"] },
       },
       {

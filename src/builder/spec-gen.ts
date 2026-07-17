@@ -27,11 +27,11 @@ import type { Provider, TokenUsage } from "../provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
   fieldTypeSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
   promptCapabilitySpecSchema,
-  TRANSITIONAL_CAPABILITY_TOOLS,
   uiCollectionLayoutSchema,
 } from "../registry/index.ts";
 
@@ -65,7 +65,7 @@ export interface SpecGenResult {
 export function buildSpecPrompt(input: GenerateSpecInput): string {
   const fieldTypes = fieldTypeSchema.options.join(" | ");
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
-  const tools = TRANSITIONAL_CAPABILITY_TOOLS.join(", ");
+  const tools = FULL_CAPABILITY_TOOLS.join(", ");
   const platformColumns = PLATFORM_COLUMNS.join(", ");
 
   return [
@@ -74,8 +74,8 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "The spec is one structured object. Everything else Aluna builds — the data table, the handlers, the presentation surface, the tests — is derived from it, so it must be complete and exact.",
     "",
     "Spec pantry — stay strictly inside it:",
-    `- tools: exactly [${tools}] in that order. Do not emit update, delete, or search keys anywhere.`,
-    '- read_dependencies: exactly { "create": [], "read": [] }. Both arrays stay empty in this transition.',
+    `- tools: exactly [${tools}] in that canonical order.`,
+    '- read_dependencies: exactly five keys in canonical order: { "create": [], "read": [], "update": [], "delete": [], "search": [] }. A fresh capability has no declared external dependencies, so every array is empty.',
     '- schema.fields: at least one field; each field has a stable name, a user-facing label, a type, required (a boolean), and lifecycle: "active".',
     `- a field's type is one of: ${fieldTypes}. string[] is the only list type; no files or relations.`,
     "- field names and the capability id are lowercase letters, digits, and underscores, starting with a letter.",
@@ -99,7 +99,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "Other fields:",
     "- behavior: one or two plain sentences describing how this capability behaves (what is required, default ordering). Aluna generates tests from this, so state intent, not implementation.",
     "- behavioral_errors: structured validation-error cases. Product copy is not the contract.",
-    `  - If any schema fields are required, include one case with action "create", trigger/code "${MISSING_REQUIRED_FIELDS_ERROR_CODE}", fields set to every required field name in schema order, and expected_markers exactly ${JSON.stringify(BEHAVIORAL_ERROR_MARKERS)}.`,
+    `  - If any schema fields are required, include exactly two cases in this order: action "create", then action "update". Both use trigger/code "${MISSING_REQUIRED_FIELDS_ERROR_CODE}", fields set to every active required field name in schema order, and expected_markers exactly ${JSON.stringify(BEHAVIORAL_ERROR_MARKERS)}.`,
     "  - If no fields are required, use an empty array.",
     "- prompt_context: one concise sentence describing what this capability stores, used later to recognise related requests.",
     "",

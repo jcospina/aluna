@@ -14,6 +14,7 @@ import {
   CREATE_HANDLER,
   collectSseEvents,
   createScratchDbEnv,
+  DELETE_HANDLER,
   eventData,
   ITEM_RENDERER,
   makeMetricsRecorder,
@@ -24,8 +25,10 @@ import {
   notesCapabilityRow,
   READ_HANDLER,
   readSse,
+  SEARCH_HANDLER,
   teardownScratchDbEnv,
   throwingProvider,
+  UPDATE_HANDLER,
 } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
 import type { PlatformDatabase } from "./db.ts";
@@ -58,6 +61,9 @@ function makeSpecProviderWithBehavioralError(
     { content: ITEM_RENDERER },
     { content: CREATE_HANDLER },
     { content: READ_HANDLER },
+    { content: UPDATE_HANDLER },
+    { content: DELETE_HANDLER },
+    { content: SEARCH_HANDLER },
   ];
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
