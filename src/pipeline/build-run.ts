@@ -181,6 +181,7 @@ export async function runSpecBuildStages(
           buildGatePreview(
             gateResult.durationMs,
             gateResult.outcomes,
+            gateResult.structural,
             gateResult.smoke,
             gateResult.behavioral,
           ),

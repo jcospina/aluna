@@ -15,7 +15,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
 
-import type { CapabilitySpec } from "../registry/index.ts";
+import {
+  type CapabilityRow,
+  type CapabilitySpec,
+  capabilitySpecFromRow,
+} from "../registry/index.ts";
+import {
+  checkHandlerSourceSafety,
+  type HandlerDependencyCatalogEntry,
+} from "./handler-source-safety.ts";
 import { checkItemRendererFieldAccess } from "./item-field-access.ts";
 import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
 
@@ -28,98 +36,46 @@ export function checkGeneratedUnit(
   spec: CapabilitySpec,
   unit: UnitDescriptor,
   content: string,
+  dependencyCatalog: readonly CapabilityRow[] = [],
 ): UnitGenerationFailure | undefined {
   const message =
     unit.kind === "handler"
-      ? checkHandlerUnit(unit.name, content)
+      ? checkHandlerUnit(
+          spec,
+          unit.name,
+          content,
+          dependencyCatalog.map((row) => ({
+            spec: capabilitySpecFromRow(row),
+            incarnation_id: row.incarnation_id,
+          })),
+        )
       : checkItemRendererUnit(spec, content);
 
   return message ? { ...unit, message } : undefined;
 }
 
-function checkHandlerUnit(action: HandlerUnitName, content: string): string | undefined {
-  const sourceMessage = checkHandlerSourceContract(action, content);
+function checkHandlerUnit(
+  spec: CapabilitySpec,
+  action: HandlerUnitName,
+  content: string,
+  dependencyCatalog: readonly HandlerDependencyCatalogEntry[],
+): string | undefined {
+  const sourceMessage = checkHandlerSourceContract(spec, action, content, dependencyCatalog);
   if (sourceMessage) return sourceMessage;
   return typeCheckUnit(content, handlerContractDeclarations, handlerAssert(action));
 }
 
 /** The complete static Handler contract shared by unit generation and whole-snapshot Gate. */
 export function checkHandlerSourceContract(
+  spec: CapabilitySpec,
   action: HandlerUnitName,
   content: string,
+  dependencyCatalog: readonly HandlerDependencyCatalogEntry[] = [],
 ): string | undefined {
   const source = ts.createSourceFile(`${action}.ts`, content, ts.ScriptTarget.Latest, true);
   const exportMessage = validateDefaultFunctionExport(source, { async: true });
   if (exportMessage) return exportMessage;
-  const isolationMessage = checkHandlerSourceIsolation(source, content);
-  if (isolationMessage) return isolationMessage;
-  if (/\b(fetch|Request|Response|Headers|XMLHttpRequest)\b|https?:\/\//.test(content)) {
-    return "Generated handlers must not touch raw HTTP.";
-  }
-  if (
-    /\b(?:INSERT\s+INTO|UPDATE\s+[^\s]+\s+SET|DELETE\s+FROM|REPLACE\s+INTO|DROP\s+TABLE|ALTER\s+TABLE|CREATE\s+TABLE)\b/i.test(
-      content,
-    )
-  ) {
-    return "Generated handlers must not contain raw mutation SQL.";
-  }
-
-  return undefined;
-}
-
-export function checkHandlerSourceIsolation(
-  source: ts.SourceFile,
-  content: string,
-): string | undefined {
-  let bypass = false;
-  const visit = (node: ts.Node): void => {
-    if (
-      ts.isImportDeclaration(node) ||
-      ts.isImportEqualsDeclaration(node) ||
-      (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) ||
-      (ts.isIdentifier(node) &&
-        ["Bun", "Deno", "Function", "eval", "globalThis", "process", "require"].includes(
-          node.text,
-        ) &&
-        isRuntimeIdentifierReference(node))
-    ) {
-      bypass = true;
-      return;
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(source);
-  if (bypass || /\bnode:|\bbun:/.test(content)) {
-    return "Generated handlers must use only the injected toolbox; imports, ambient runtime access, dynamic code loading, and evaluation are not allowed.";
-  }
-  return undefined;
-}
-
-function isRuntimeIdentifierReference(node: ts.Identifier): boolean {
-  const parent = node.parent;
-  if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false;
-  if (
-    (ts.isPropertyAssignment(parent) ||
-      ts.isMethodDeclaration(parent) ||
-      ts.isPropertyDeclaration(parent) ||
-      ts.isPropertySignature(parent) ||
-      ts.isMethodSignature(parent)) &&
-    parent.name === node
-  ) {
-    return false;
-  }
-  if (
-    (ts.isVariableDeclaration(parent) ||
-      ts.isParameter(parent) ||
-      ts.isFunctionDeclaration(parent) ||
-      ts.isClassDeclaration(parent) ||
-      ts.isInterfaceDeclaration(parent) ||
-      ts.isTypeAliasDeclaration(parent)) &&
-    parent.name === node
-  ) {
-    return false;
-  }
-  return true;
+  return checkHandlerSourceSafety(spec, action, source, dependencyCatalog);
 }
 
 function checkItemRendererUnit(spec: CapabilitySpec, content: string): string | undefined {

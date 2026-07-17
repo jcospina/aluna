@@ -25,6 +25,7 @@ import {
 export { normalizeSearchText } from "../sqlite-functions.ts";
 export { CapabilityDataValidationError } from "./internal.ts";
 export {
+  capabilityQueryScopeTableNames,
   createCapabilityActionRecord,
   isCapabilityActionRecord,
 } from "./query-runtime.ts";

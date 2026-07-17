@@ -14,8 +14,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
 
+import { capabilitySpecSchema } from "../registry/index.ts";
 import type { CapabilityGateInput } from "./gate.ts";
-import { formatDiagnostics } from "./gate-internal.ts";
+import { errorMessage, formatDiagnostics } from "./gate-internal.ts";
 import { checkItemRendererFieldAccess } from "./item-field-access.ts";
 import { checkHandlerSourceContract } from "./unit-checks.ts";
 import type { HandlerUnitName } from "./units.ts";
@@ -39,30 +40,143 @@ const STRICT_CHECK_OPTIONS: ts.CompilerOptions = {
   verbatimModuleSyntax: true,
 };
 
-/** Run the structural rung: assert the export shapes, then type-check handlers + item renderer. */
-export function runStructuralRung(input: CapabilityGateInput): void {
-  const handlerNames = input.spec.tools;
-  assertHandlerExportShapes(handlerNames, input.handlers);
-  assertItemRendererExportShape(input.itemRenderer);
-  const fieldAccessFailure = checkItemRendererFieldAccess(input.spec, input.itemRenderer);
-  if (fieldAccessFailure) throw new Error(fieldAccessFailure);
-
-  const handlerFailure = typeCheckHandlers(handlerNames, input.handlers);
-  if (handlerFailure) throw new Error(handlerFailure);
-
-  const rendererFailure = typeCheckItemRenderer(input.itemRenderer);
-  if (rendererFailure) throw new Error(rendererFailure);
+export interface StructuralUnitOutcome {
+  readonly kind: "spec" | "handler" | "item-renderer";
+  readonly name: "spec" | HandlerUnitName | "item";
+  readonly filename: "spec.json" | `${HandlerUnitName}.ts` | "item.ts";
+  readonly status: "passed" | "failed";
+  readonly error?: string;
 }
 
-function assertHandlerExportShapes(
+export interface StructuralGateResult {
+  readonly units: readonly StructuralUnitOutcome[];
+}
+
+export class StructuralGateError extends Error {
+  override readonly name = "StructuralGateError";
+  readonly result: StructuralGateResult;
+  readonly diagnostic: { readonly structural: StructuralGateResult };
+
+  constructor(result: StructuralGateResult) {
+    const failed = result.units.filter((unit) => unit.status === "failed");
+    super(
+      `Structural validation failed for ${failed.map((unit) => `${unit.filename}: ${unit.error ?? "unknown failure"}`).join("; ")}`,
+    );
+    this.result = result;
+    this.diagnostic = { structural: result };
+  }
+}
+
+/** Run the structural rung over the spec and every unit in the complete candidate snapshot. */
+export function runStructuralRung(input: CapabilityGateInput): StructuralGateResult {
+  let spec: CapabilityGateInput["spec"];
+  try {
+    spec = capabilitySpecSchema.parse(input.spec);
+  } catch (error) {
+    throw new StructuralGateError({
+      units: [failedUnit("spec", "spec", "spec.json", errorMessage(error))],
+    });
+  }
+  const handlerNames = spec.tools;
+  const handlerTypeFailures = typeCheckHandlerUnits(handlerNames, input.handlers);
+  const units: StructuralUnitOutcome[] = [structuralSpecOutcome(handlerNames, input.handlers)];
+  units.push(structuralItemOutcome(input));
+  for (const name of handlerNames) {
+    units.push(structuralHandlerOutcome(input, name, handlerTypeFailures.get(name)));
+  }
+  const result = { units } satisfies StructuralGateResult;
+  if (units.some((unit) => unit.status === "failed")) throw new StructuralGateError(result);
+  return result;
+}
+
+function structuralSpecOutcome(
+  handlerNames: readonly HandlerUnitName[],
+  handlers: CapabilityGateInput["handlers"],
+): StructuralUnitOutcome {
+  try {
+    assertSnapshotInventory(handlerNames, handlers);
+    return passedUnit("spec", "spec", "spec.json");
+  } catch (error) {
+    return failedUnit("spec", "spec", "spec.json", errorMessage(error));
+  }
+}
+
+function structuralItemOutcome(input: CapabilityGateInput): StructuralUnitOutcome {
+  try {
+    assertItemRendererExportShape(input.itemRenderer);
+    const fieldAccessFailure = checkItemRendererFieldAccess(input.spec, input.itemRenderer);
+    if (fieldAccessFailure) throw new Error(fieldAccessFailure);
+    const rendererFailure = typeCheckItemRenderer(input.itemRenderer);
+    if (rendererFailure) throw new Error(rendererFailure);
+    return passedUnit("item-renderer", "item", "item.ts");
+  } catch (error) {
+    return failedUnit("item-renderer", "item", "item.ts", errorMessage(error));
+  }
+}
+
+function structuralHandlerOutcome(
+  input: CapabilityGateInput,
+  name: HandlerUnitName,
+  typeFailure: string | undefined,
+): StructuralUnitOutcome {
+  try {
+    assertHandlerExportShape(input, name);
+    if (typeFailure) throw new Error(typeFailure);
+    return passedUnit("handler", name, `${name}.ts`);
+  } catch (error) {
+    return failedUnit("handler", name, `${name}.ts`, errorMessage(error));
+  }
+}
+
+function passedUnit(
+  kind: StructuralUnitOutcome["kind"],
+  name: StructuralUnitOutcome["name"],
+  filename: StructuralUnitOutcome["filename"],
+): StructuralUnitOutcome {
+  return { kind, name, filename, status: "passed" };
+}
+
+function failedUnit(
+  kind: StructuralUnitOutcome["kind"],
+  name: StructuralUnitOutcome["name"],
+  filename: StructuralUnitOutcome["filename"],
+  error: string,
+): StructuralUnitOutcome {
+  return { kind, name, filename, status: "failed", error };
+}
+
+function assertHandlerExportShape(input: CapabilityGateInput, name: HandlerUnitName): void {
+  const content = input.handlers[name] ?? "";
+  assertDefaultFunctionSource(`handler "${name}"`, content, { async: true });
+  const contractFailure = checkHandlerSourceContract(
+    input.spec,
+    name,
+    content,
+    (input.scratchCatalog ?? []).map(({ spec: dependencySpec, incarnationId }) => ({
+      spec: dependencySpec,
+      incarnation_id: incarnationId,
+    })),
+  );
+  if (contractFailure) throw new Error(`Generated handler "${name}" failed: ${contractFailure}`);
+}
+
+function assertSnapshotInventory(
   handlerNames: readonly HandlerUnitName[],
   handlers: Readonly<Partial<Record<HandlerUnitName, string>>>,
 ): void {
-  for (const name of handlerNames) {
-    const content = handlers[name] ?? "";
-    assertDefaultFunctionSource(`handler "${name}"`, content, { async: true });
-    const contractFailure = checkHandlerSourceContract(name, content);
-    if (contractFailure) throw new Error(contractFailure);
+  const declared = new Set<string>(handlerNames);
+  const missing = handlerNames.filter((name) => !(name in handlers));
+  const unexpected = Object.keys(handlers)
+    .filter((name) => !declared.has(name))
+    .sort();
+  if (missing.length > 0 || unexpected.length > 0) {
+    const differences = [
+      ...(missing.length > 0 ? [`missing: ${missing.join(", ")}`] : []),
+      ...(unexpected.length > 0 ? [`unexpected: ${unexpected.join(", ")}`] : []),
+    ];
+    throw new Error(
+      `Generated snapshot Handler inventory does not match the spec (${differences.join("; ")}).`,
+    );
   }
 }
 
@@ -144,41 +258,53 @@ function hasExportSurface(statement: ts.Statement): boolean {
   );
 }
 
-function typeCheckHandlers(
+function typeCheckHandlerUnits(
   handlerNames: readonly HandlerUnitName[],
   handlers: Readonly<Partial<Record<HandlerUnitName, string>>>,
-): string | undefined {
+): ReadonlyMap<HandlerUnitName, string> {
   const dir = mkdtempSync(join(tmpdir(), "aluna-gate-typecheck-"));
   try {
     writeFileSync(join(dir, "contract.d.ts"), handlerContractDeclarations);
     for (const name of handlerNames) {
       writeFileSync(join(dir, `${name}.ts`), handlers[name] ?? "");
-    }
-    const assertions = handlerNames.flatMap((name) => {
       const suffix = `${name[0]?.toUpperCase()}${name.slice(1)}`;
       const binding = `handler${suffix}`;
       const assertion = `assert${suffix}`;
-      return [
-        `import ${binding} from "./${name}.ts";`,
-        `const ${assertion}: ${handlerContractType(name)} = ${binding};`,
-        `void ${assertion};`,
-      ];
-    });
-    writeFileSync(join(dir, "assert.ts"), assertions.join("\n"));
+      writeFileSync(
+        join(dir, `${name}.assert.ts`),
+        [
+          `import ${binding} from "./${name}.ts";`,
+          `const ${assertion}: ${handlerContractType(name)} = ${binding};`,
+          `void ${assertion};`,
+        ].join("\n"),
+      );
+    }
 
     const program = ts.createProgram(
       [
         join(dir, "contract.d.ts"),
         ...handlerNames.map((name) => join(dir, `${name}.ts`)),
-        join(dir, "assert.ts"),
+        ...handlerNames.map((name) => join(dir, `${name}.assert.ts`)),
       ],
       STRICT_CHECK_OPTIONS,
     );
     const diagnostics = ts.getPreEmitDiagnostics(program);
-    return diagnostics.length === 0 ? undefined : formatDiagnostics(diagnostics);
+    const failures = new Map<HandlerUnitName, string>();
+    for (const name of handlerNames) {
+      const unitDiagnostics = diagnostics.filter((diagnostic) =>
+        diagnosticAppliesToHandler(diagnostic, name),
+      );
+      if (unitDiagnostics.length > 0) failures.set(name, formatDiagnostics(unitDiagnostics));
+    }
+    return failures;
   } finally {
     rmSync(dir, { force: true, recursive: true });
   }
+}
+
+function diagnosticAppliesToHandler(diagnostic: ts.Diagnostic, name: HandlerUnitName): boolean {
+  const filename = diagnostic.file?.fileName;
+  return !filename || filename.endsWith(`/${name}.ts`) || filename.endsWith(`/${name}.assert.ts`);
 }
 
 function handlerContractType(action: HandlerUnitName): string {

@@ -12,7 +12,7 @@
 // test body stays a readable script of stage checks — no assertion is changed,
 // added, removed, or reordered. Shared setup and fixtures live in app.test-support.ts.
 
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -32,6 +32,8 @@ import type { PlatformDatabase } from "./db.ts";
 import type { GenerationMetrics } from "./metrics/index.ts";
 import type { Provider } from "./provider/index.ts";
 import { getCapability, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "./registry/index.ts";
+
+setDefaultTimeout(15_000);
 
 let dir: string;
 let conns: PlatformDatabase;
@@ -161,6 +163,9 @@ function assertGatePreview(dataFor: (name: string) => string): void {
     status: string;
     durationMs: number;
     rungs: Array<{ rung: string; status: string; durationMs: number }>;
+    structural: {
+      units: Array<{ kind: string; name: string; filename: string; status: string }>;
+    };
     smoke: {
       tableName: string;
       rowCount: number;
@@ -176,6 +181,15 @@ function assertGatePreview(dataFor: (name: string) => string): void {
     };
   };
   expect(gatePreview.kind).toBe("gate-preview");
+  expect(gatePreview.structural.units).toEqual([
+    { kind: "spec", name: "spec", filename: "spec.json", status: "passed" },
+    { kind: "item-renderer", name: "item", filename: "item.ts", status: "passed" },
+    { kind: "handler", name: "create", filename: "create.ts", status: "passed" },
+    { kind: "handler", name: "read", filename: "read.ts", status: "passed" },
+    { kind: "handler", name: "update", filename: "update.ts", status: "passed" },
+    { kind: "handler", name: "delete", filename: "delete.ts", status: "passed" },
+    { kind: "handler", name: "search", filename: "search.ts", status: "passed" },
+  ]);
   expect(gatePreview.status).toBe("passed");
   expect(gatePreview.durationMs).toBeGreaterThanOrEqual(0);
   expect(gatePreview.rungs.map((rung) => `${rung.rung}:${rung.status}`)).toEqual([

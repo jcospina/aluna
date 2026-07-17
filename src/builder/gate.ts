@@ -17,7 +17,7 @@ import { runBehavioralRung } from "./gate-behavioral.ts";
 import { runDesignLintRung } from "./gate-design-lint.ts";
 import { diagnosticForError, errorMessage } from "./gate-internal.ts";
 import { runSmokeRung } from "./gate-smoke.ts";
-import { runStructuralRung } from "./gate-structural.ts";
+import { runStructuralRung, type StructuralGateResult } from "./gate-structural.ts";
 import type { HandlerUnitName } from "./units.ts";
 
 export const BEHAVIORAL_TIER_ENV_VAR = "OMNI_BEHAVIORAL_TIER";
@@ -149,6 +149,7 @@ export interface ScratchCatalogCapability {
 export interface CapabilityGateResult {
   readonly outcomes: readonly GateRungOutcome[];
   readonly durationMs: number;
+  readonly structural: StructuralGateResult;
   readonly smoke: SmokeGateResult;
   readonly behavioral: BehavioralGateResult;
   readonly designLint: DesignLintGateResult;
@@ -186,7 +187,7 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   const startedAt = performance.now();
   const outcomes: GateRungOutcome[] = [];
 
-  await runGateRung(outcomes, "structural", () => runStructuralRung(input));
+  const structural = await runGateRung(outcomes, "structural", () => runStructuralRung(input));
   const smoke = await runGateRung(outcomes, "smoke", () => runSmokeRung(input));
   const behavioral = resolveBehavioralTierEnabledForInput(input)
     ? await runGateRung(outcomes, "behavioral", () => runBehavioralRung(input))
@@ -196,6 +197,7 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   return {
     outcomes,
     durationMs: performance.now() - startedAt,
+    structural,
     smoke,
     behavioral,
     designLint,

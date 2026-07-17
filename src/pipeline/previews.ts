@@ -16,6 +16,7 @@ import type {
   GateRungOutcome,
   GeneratedUnit,
   SmokeGateResult,
+  StructuralGateResult,
   UnitDescriptor,
 } from "../builder/index.ts";
 
@@ -60,6 +61,7 @@ export interface DemoGatePreview {
   readonly status: "passed";
   readonly durationMs: number;
   readonly rungs: readonly GateRungOutcome[];
+  readonly structural: StructuralGateResult;
   readonly smoke: SmokeGateResult;
   readonly behavioral: BehavioralGateResult;
 }
@@ -201,10 +203,11 @@ export function finalUnitPreview(unit: GeneratedUnit): DemoUnitPreview {
   };
 }
 
-/** The gate-stage preview: the per-rung outcomes plus the smoke and behavioral tiers. */
+/** The gate-stage preview: complete structural units, per-rung outcomes, smoke, and behavior. */
 export function buildGatePreview(
   durationMs: number,
   rungs: readonly GateRungOutcome[],
+  structural: StructuralGateResult,
   smoke: SmokeGateResult,
   behavioral: BehavioralGateResult,
 ): DemoGatePreview {
@@ -213,6 +216,7 @@ export function buildGatePreview(
     status: "passed",
     durationMs,
     rungs,
+    structural,
     smoke,
     behavioral,
   };
