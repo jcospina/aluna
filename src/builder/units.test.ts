@@ -74,6 +74,17 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   };
 }
 
+function fullNotesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
+  const base = notesSpec();
+  return {
+    ...base,
+    tools: [...FULL_CAPABILITY_TOOLS],
+    behavioral_errors: defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
+    ...overrides,
+  };
+}
+
 function makeQueuedProvider(contents: readonly string[]): RecordedProvider {
   const calls: Array<{ prompt: string; content: string }> = [];
   let index = 0;
@@ -98,6 +109,97 @@ function makeQueuedProvider(contents: readonly string[]): RecordedProvider {
         object: Promise.resolve(object),
         usage: Promise.resolve(STUB_USAGE),
       };
+    },
+  };
+}
+
+function actionGenerationContext(prompt: string): Record<string, unknown> {
+  const marker = "Action generation context JSON:\n";
+  const start = prompt.indexOf(marker);
+  if (start < 0) throw new Error("missing Action generation context JSON");
+  return JSON.parse(prompt.slice(start + marker.length)) as Record<string, unknown>;
+}
+
+function projectedContextFixture(): {
+  withDependencies: CapabilitySpec;
+  catalog: readonly CapabilityRow[];
+} {
+  const base = fullNotesSpec({
+    schema: {
+      fields: [
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+        { name: "tags", label: "Tags", type: "string[]", required: false, lifecycle: "active" },
+        { name: "score", label: "Score", type: "number", required: false, lifecycle: "active" },
+        {
+          name: "retired_secret",
+          label: "Retired secret",
+          type: "string",
+          required: true,
+          lifecycle: "inactive",
+        },
+      ],
+    },
+    ui_intent: {
+      form: { list_inputs: [{ field: "tags", mode: "comma_separated" }] },
+      item: { direction: "Show the note.", shows: ["text", "tags"] },
+      collection: { layout: "feed" },
+      detail: { shows: ["text", "tags", "score"] },
+    },
+  });
+  const spec = {
+    ...base,
+    behavioral_errors: defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+  };
+  const firstIncarnation = "11111111-1111-4111-8111-111111111111";
+  const secondIncarnation = "22222222-2222-4222-8222-222222222222";
+  const dependency = (id: string, incarnation_id: string): CapabilityRow => ({
+    ...notesSpec(),
+    id,
+    label: id,
+    incarnation_id,
+    version: 1,
+    artifacts_path: `capabilities/${id}/${incarnation_id}/v1/`,
+    schema: {
+      fields: [
+        {
+          name: "public_text",
+          label: "Public text",
+          type: "string",
+          required: false,
+          lifecycle: "active",
+        },
+        {
+          name: "hidden_text",
+          label: "Hidden text",
+          type: "string",
+          required: false,
+          lifecycle: "inactive",
+        },
+      ],
+    },
+    ui_intent: {
+      form: { list_inputs: [] },
+      item: { direction: "Show public text.", shows: ["public_text"] },
+      collection: { layout: "feed" },
+      detail: { shows: ["public_text"] },
+    },
+    behavioral_errors: [],
+  });
+  const catalog = [
+    dependency("journals", firstIncarnation),
+    dependency("recipes", secondIncarnation),
+  ];
+  return {
+    catalog,
+    withDependencies: {
+      ...spec,
+      read_dependencies: {
+        create: [],
+        read: [{ capability_id: "journals", incarnation_id: firstIncarnation }],
+        update: [],
+        delete: [],
+        search: [{ capability_id: "recipes", incarnation_id: secondIncarnation }],
+      },
     },
   };
 }
@@ -148,6 +250,36 @@ const READ_HANDLER = [
   "}",
 ].join("\n");
 
+const UPDATE_HANDLER = [
+  "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
+  "  const patch: Record<string, unknown> = {};",
+  '  if (input.submittedFields.has("text")) patch.text = input.values.text;',
+  '  if (input.submittedFields.has("pinned")) patch.pinned = input.values.pinned === "on";',
+  "  return present(mutation.update(patch));",
+  "}",
+].join("\n");
+
+const DELETE_HANDLER = `export default async function remove({ mutation }: CapabilityDeleteContext): Promise<string> {
+  mutation.delete();
+  return "";
+}`;
+
+const SEARCH_HANDLER = [
+  "export default async function search({ input, query, present }: CapabilityContext): Promise<string> {",
+  "  const raw = input.values.q;",
+  '  const term = typeof raw === "string" ? raw.trim() : "";',
+  '  const records = term === ""',
+  "    ? query.records({",
+  '        sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+  "      })",
+  "    : query.records({",
+  '        sql: \'SELECT "id" AS "target_id" FROM "cap_notes" WHERE instr(platform_search_normalize("text"), platform_search_normalize(?)) > 0 ORDER BY "created_at" DESC, "id" DESC\',',
+  "        parameters: [term],",
+  "      });",
+  '  return records.map(({ record }) => present(record)).join("");',
+  "}",
+].join("\n");
+
 // Fails the isolated type-check: an async handler returning a bare number.
 const BAD_CREATE_HANDLER = `export default async function create({ input, mutation }: CapabilityCreateContext): Promise<string> {
   mutation.create({ text: input.values.text });
@@ -166,6 +298,36 @@ const BAD_ITEM_RENDERER = `export default function renderItem(record: Record<str
 }`;
 
 describe("unit generation with bounded fix loop — generation and fix-loop regeneration", () => {
+  test("generates item.ts and all five canonical Action handlers for a full spec", async () => {
+    const provider = makeQueuedProvider([
+      ITEM_RENDERER,
+      CREATE_HANDLER,
+      READ_HANDLER,
+      UPDATE_HANDLER,
+      DELETE_HANDLER,
+      SEARCH_HANDLER,
+    ]);
+
+    const result = await generateCapabilityUnits({ provider, spec: fullNotesSpec() });
+
+    expect(provider.calls).toHaveLength(6);
+    expect(result.units.map((unit) => unit.filename)).toEqual([
+      "item.ts",
+      "create.ts",
+      "read.ts",
+      "update.ts",
+      "delete.ts",
+      "search.ts",
+    ]);
+    expect(result.handlers).toEqual({
+      create: CREATE_HANDLER,
+      read: READ_HANDLER,
+      update: UPDATE_HANDLER,
+      delete: DELETE_HANDLER,
+      search: SEARCH_HANDLER,
+    });
+  });
+
   test("generates one item renderer + create/read handlers, validates contracts, records metrics", async () => {
     const provider = makeQueuedProvider([ITEM_RENDERER, CREATE_HANDLER, READ_HANDLER]);
 
@@ -411,8 +573,10 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
     expect(itemPrompt).not.toContain("Retired note");
 
     const createPrompt = buildUnitPrompt(spec, { kind: "handler", name: "create" });
-    expect(createPrompt).toContain("Entry");
-    expect(createPrompt).toContain("Side note");
+    expect(createPrompt).toContain("- text: string (required)");
+    expect(createPrompt).toContain("- note: string (optional)");
+    expect(createPrompt).not.toContain("Entry");
+    expect(createPrompt).not.toContain("Side note");
     expect(createPrompt).toContain("extra");
     expect(createPrompt).toContain("unavailable");
     expect(createPrompt).not.toContain("retired_note");
@@ -482,7 +646,9 @@ describe("unit generation with bounded fix loop — read, few-shot, and present-
       "Destructure only `{ query, present }`: `export default async function read({ query, present }: CapabilityContext): Promise<string>`.",
     );
   });
+});
 
+describe("unit generation with bounded fix loop — dependency projection", () => {
   test("new Handler context includes only active fields from declared dependencies", () => {
     const base = notesSpec();
     const requiredError = base.behavioral_errors[0];
@@ -538,6 +704,94 @@ describe("unit generation with bounded fix loop — read, few-shot, and present-
     expect(prompt).toContain('"capability_id": "recipes"');
     expect(prompt).toContain('"name": "title"');
     expect(prompt).not.toContain("retired_secret");
+  });
+});
+
+describe("unit generation with bounded fix loop — per-Action context projection", () => {
+  test("pins the real positional-query and checkbox ABI in Action prompts", () => {
+    const create = buildUnitPrompt(fullNotesSpec(), { kind: "handler", name: "create" });
+    const update = buildUnitPrompt(fullNotesSpec(), { kind: "handler", name: "update" });
+    const search = buildUnitPrompt(fullNotesSpec(), { kind: "handler", name: "search" });
+
+    expect(create).toContain('either "on" (browser checkbox) or "true" (Gate synthetic input)');
+    expect(update).toContain('either "on" (browser checkbox) or "true" (Gate synthetic input)');
+    expect(search).toContain("positional SQLite values only");
+    expect(search).toContain("Never use named placeholders");
+    expect(search).toContain("parameters: [JSON.stringify(terms)]");
+    expect(search).toContain('SELECT "value" AS "term" FROM json_each(?)');
+    expect(search).toContain("omit `result`");
+    expect(search).toContain("{ alias, type }");
+    expect(create).not.toContain("Record-producing SQL for this Action");
+    expect(create).not.toContain("Search SQL must normalize");
+    expect(update).not.toContain("Record-producing SQL for this Action");
+    expect(update).not.toContain("Search SQL must normalize");
+    expect(search).toContain("Record-producing SQL for this Action");
+    expect(search).toContain("Search SQL must normalize");
+  });
+
+  test("assigns update validation translation to the generated Handler", () => {
+    const update = buildUnitPrompt(fullNotesSpec(), { kind: "handler", name: "update" });
+
+    expect(update).toContain("Catch only that matching typed failure");
+    expect(update).toContain("translate it into variable product-voice copy");
+    expect(update).toContain("Rethrow every other failure");
+    expect(update).not.toContain("the platform turns it into");
+  });
+
+  test("projects target fields, dependencies, and errors independently for every Action", () => {
+    const { withDependencies, catalog } = projectedContextFixture();
+
+    const create = actionGenerationContext(
+      buildUnitPrompt(withDependencies, { kind: "handler", name: "create" }, undefined, catalog),
+    );
+    const read = actionGenerationContext(
+      buildUnitPrompt(withDependencies, { kind: "handler", name: "read" }, undefined, catalog),
+    );
+    const update = actionGenerationContext(
+      buildUnitPrompt(withDependencies, { kind: "handler", name: "update" }, undefined, catalog),
+    );
+    const remove = actionGenerationContext(
+      buildUnitPrompt(withDependencies, { kind: "handler", name: "delete" }, undefined, catalog),
+    );
+    const search = actionGenerationContext(
+      buildUnitPrompt(withDependencies, { kind: "handler", name: "search" }, undefined, catalog),
+    );
+
+    expect(create.schema).toEqual({
+      fields: [
+        { name: "text", type: "string", required: true },
+        { name: "tags", type: "string[]", required: false },
+        { name: "score", type: "number", required: false },
+      ],
+    });
+    expect(update.schema).toEqual(create.schema);
+    expect(search.schema).toEqual({
+      fields: [
+        { name: "text", type: "string" },
+        { name: "tags", type: "string[]" },
+      ],
+    });
+    expect(read.schema).toEqual({ fields: [] });
+    expect(remove.schema).toEqual({ fields: [] });
+    expect(
+      (create.behavioral_errors as Array<{ action: string }>).map((item) => item.action),
+    ).toEqual(["create"]);
+    expect(
+      (update.behavioral_errors as Array<{ action: string }>).map((item) => item.action),
+    ).toEqual(["update"]);
+    expect(read.behavioral_errors).toEqual([]);
+    expect(read.read_dependencies).toEqual([
+      expect.objectContaining({ capability_id: "journals" }),
+    ]);
+    expect(search.read_dependencies).toEqual([
+      expect.objectContaining({ capability_id: "recipes" }),
+    ]);
+    expect(create.read_dependencies).toEqual([]);
+    expect(JSON.stringify({ create, read, update, remove, search })).not.toContain(
+      "retired_secret",
+    );
+    expect(JSON.stringify({ create, read, update, remove, search })).not.toContain("hidden_text");
+    expect(JSON.stringify({ create, read, update, remove, search })).not.toContain('"extra"');
   });
 });
 

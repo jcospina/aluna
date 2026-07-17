@@ -1,7 +1,7 @@
 // Unit-generation prompts — the instructions handed to the provider per unit.
 //
-// Module 3 (epic 3.4/02) generates three units: the **item renderer** and the
-// `create`/`read` **Handlers**. Each is generated from a prompt assembled here: the
+// Module 4.4 generates six units: the **item renderer** and all five Action
+// **Handlers**. Each is generated from a prompt assembled here: the
 // hard authoring contract for that unit kind, the spec's fields, and — on a retry —
 // the previous attempt's failure fed back so the model returns a corrected unit
 // rather than a patch. The item-renderer prompt injects the closed design vocabulary
@@ -18,6 +18,7 @@ import {
   type CapabilityRow,
   type CapabilitySpec,
   presentationFieldDescriptors,
+  type SpecField,
 } from "../registry/index.ts";
 import { buildItemRendererDesignInjection } from "./few-shot-gallery.ts";
 import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
@@ -54,14 +55,15 @@ function buildHandlerPrompt(
   action: HandlerUnitName,
   dependencyCatalog: readonly CapabilityRow[],
 ): string {
-  const fields = specFieldList(spec);
+  const fields = handlerFieldList(spec, action);
   const validationErrors = spec.behavioral_errors.filter(
     (errorCase) => errorCase.action === action,
   );
   const validationErrorContract =
     validationErrors.length > 0
-      ? buildValidationErrorContract(validationErrors)
+      ? buildValidationErrorContract(action, validationErrors)
       : "- No spec-owned validation error cases apply to this action.";
+  const rendersRecords = action !== "delete";
 
   return [
     `Generate the ${action}.ts handler for this Aluna capability.`,
@@ -73,48 +75,35 @@ function buildHandlerPrompt(
     "- No raw HTTP: no Request, Response, Headers, or fetch.",
     "- No raw mutation SQL. Canonical writes use only the injected `mutation` port; reads use only the injected `query` port.",
     "- Exactly one export: `export default async function ...`.",
-    "- The function receives one `CapabilityContext` parameter and returns `Promise<string>`.",
+    "- The function receives one Action-specific context parameter and returns `Promise<string>`.",
     "- The isolated checker uses strict TypeScript, noUncheckedIndexedAccess, and rejects unused parameters and locals.",
     "- Do not use unchecked array indexes or regex captures. Guard them first or provide a fallback before returning/assigning them as strings.",
     "- It returns an HTML fragment string.",
     "",
-    "Rendering records — the presentation adapter:",
-    "- Render every record by calling the injected `present(record)` adapter. It returns that record wrapped as safe item HTML (the accessible trigger, the escaped payload, click-to-open, and the enforced item markup).",
-    "- Do NOT emit your own row/card/item markup, and do NOT build the item wrapper, a `data-item` attribute, or any click handling — the platform's adapter owns all of that.",
-    "- You may include a small escaping helper locally for any non-record text you emit (validation error copy); records themselves go through `present`.",
-    "",
+    ...(rendersRecords
+      ? [
+          "Rendering records — the presentation adapter:",
+          "- Render every record by calling the injected `present(record)` adapter. It returns that target record wrapped as safe item HTML (the accessible trigger, escaped payload, click-to-open behavior, and enforced item markup).",
+          "- Do NOT emit your own row/card/item markup, and do NOT build the item wrapper, a `data-item` attribute, or any click handling — the platform's adapter owns all of that.",
+          "- You may include a small escaping helper locally for non-record validation copy; records themselves go through `present`.",
+          "",
+        ]
+      : []),
     "Available global types in the isolated type-check:",
-    action === "create"
-      ? "- `CapabilityCreateContext` has `{ input, mutation, query, present }`."
-      : "- `CapabilityContext` has `{ input, query, present }` and no mutation authority.",
+    contextContract(action),
     "- `input.values` is a record of parsed `string | readonly string[]` values; repeated keys keep arrival order and spec-known list fields are always arrays.",
     "- `input.submittedFields` is a platform-validated `ReadonlySet<string>`; reserved `__aluna_` markers never reach generated code.",
-    "- `mutation.create(values)` returns the inserted row; it has no table, capability, or record selector.",
-    "- `query.all({ sql, parameters, result })` runs parameterized SQL inside this Action's declared catalog and returns only aliases declared by the ordered result descriptor.",
-    "- Record-producing read/search SQL returns ordered target ids through `query.records({ sql, targetIdAlias, result })`; each result is `{ record, values }`. The platform rehydrates the full target row and exposes only `record.fields`, `record.created_at`, and an opaque `record.handle`.",
-    "- Search SQL must normalize both stored values and terms with the registered `platform_search_normalize(value)` SQL function (JavaScript NFKD compatibility decomposition + locale-independent lowercase + Latin-base combining-diacritic folding + NFKC recomposition).",
+    ...queryPortContract(action),
     "- Canonical ids, platform-owned `extra`, and inactive target fields are unavailable and must never be read or written.",
-    "- `present(record)` returns that record as a safe item HTML string.",
+    ...actionPortContract(action),
     "",
     "Action behavior:",
-    action === "create"
-      ? [
-          "- Read values only from `input.values`, coerce them into the spec field types, call `mutation.create`, and return `present(row)` for the inserted row.",
-          "- Create presence is explicit: every active field is in `input.submittedFields`. A submitted empty optional scalar becomes `null`; an absent submitted boolean becomes `false`; never invent a value for a required field.",
-          "- When this spec declares a missing_required_fields case, detect every missing required field before calling `mutation.create`; return the declared validation-error fragment instead. Do not rely on `mutation.create` throwing, because the Handler owns that user-visible error fragment.",
-          "- A string[] input is already a readonly string array in submitted order. Narrow with `Array.isArray`, pass a flat mutable copy such as `[...value]` to mutation.create, and never wrap the array in another array or split commas. The platform discards blank placeholders and validates required lists.",
-          "- Destructure `{ input, mutation, present }`: `export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string>`.",
-        ].join("\n")
-      : [
-          `- Call \`query.records\` with SQL \`SELECT "id" AS "target_id" FROM "${deriveCapabilityTableDdl(spec).tableName}" ORDER BY "created_at" DESC, "id" DESC\`, map each returned \`record\` through \`present\`, join the results, and return that joined string.`,
-          "- When there are no rows, return an empty string. Do not render your own empty state or placeholder text — the platform owns the list's empty state, and returning nothing lets it show (and lets the first created record replace it cleanly).",
-          "- Destructure only `{ query, present }`: `export default async function read({ query, present }: CapabilityContext): Promise<string>`.",
-        ].join("\n"),
+    actionBehavior(spec, action),
     "",
     "Validation error contract:",
     validationErrorContract,
     "",
-    "Spec fields:",
+    "Action-safe target fields:",
     fields,
     "",
     "Action generation context JSON:",
@@ -122,10 +111,23 @@ function buildHandlerPrompt(
   ].join("\n");
 }
 
-function buildValidationErrorContract(errorCases: readonly BehavioralErrorCase[]): string {
+function buildValidationErrorContract(
+  action: HandlerUnitName,
+  errorCases: readonly BehavioralErrorCase[],
+): string {
+  const enforcement =
+    action === "create"
+      ? [
+          "- You must detect every missing required field before calling `mutation.create`, using the cases below.",
+          "- When one applies, return the declared validation-error fragment instead and do not insert a row.",
+        ]
+      : [
+          "- Build the submitted merge patch without inventing omitted values. The target-bound update adapter validates the complete merged record and raises a typed failure whose `code` and `fields` match one case below.",
+          "- Catch only that matching typed failure, translate it into variable product-voice copy, and return the declared validation-error fragment. Rethrow every other failure.",
+          "- Narrow the caught `unknown` structurally before reading its `code` or `fields`; do not import a platform error class.",
+        ];
   return [
-    "- Before calling `mutation.create`, detect every missing required field covered by the cases below.",
-    "- When one applies, return the declared validation-error fragment instead and do not insert a row.",
+    ...enforcement,
     "- The user-facing copy inside the fragment can vary in Aluna's product voice.",
     "- The stable contract is semantic attributes on the error element:",
     `  - ${BEHAVIORAL_ERROR_MARKERS.role_attribute}="${BEHAVIORAL_ERROR_MARKERS.role}"`,
@@ -133,6 +135,100 @@ function buildValidationErrorContract(errorCases: readonly BehavioralErrorCase[]
     `  - ${BEHAVIORAL_ERROR_MARKERS.fields_attribute} set to affected field names joined by "${BEHAVIORAL_ERROR_MARKERS.fields_separator}"`,
     "- Validation error cases:",
     JSON.stringify(errorCases, null, 2),
+  ].join("\n");
+}
+
+function queryPortContract(action: HandlerUnitName): string[] {
+  const common = [
+    "- `query` parameters are positional SQLite values only (`string | number | bigint | boolean | null | Uint8Array`) paired with `?` placeholders. Never use named placeholders or `{ name, value }` parameter objects.",
+    "- `query.all({ sql, parameters, result })` runs parameterized SQL inside this Action's declared catalog. Extra result descriptors use exactly `{ alias, type }` and return only those aliases.",
+  ];
+  if (action !== "read" && action !== "search") return common;
+
+  const records =
+    "- Record-producing SQL for this Action returns ordered target ids through `query.records({ sql, parameters, targetIdAlias, result })`; each result is `{ record, values }`. The target-id alias is special: omit `result` when there are no additional projected values, and never declare the target id in `result`.";
+  if (action === "read") return [...common, records];
+
+  return [
+    ...common,
+    records,
+    "- Search SQL must normalize both stored values and terms with the registered `platform_search_normalize(value)` SQL function (JavaScript NFKD compatibility decomposition + locale-independent lowercase + Latin-base combining-diacritic folding + NFKC recomposition).",
+  ];
+}
+
+function contextContract(action: HandlerUnitName): string {
+  if (action === "create") {
+    return "- `CapabilityCreateContext` has exactly `{ input, mutation, query, present }`; its mutation port exposes only `create(values)`.";
+  }
+  if (action === "update") {
+    return "- `CapabilityUpdateContext` has exactly `{ input, mutation, query, present }`; its target-bound mutation port exposes only `update(values)`.";
+  }
+  if (action === "delete") {
+    return "- `CapabilityDeleteContext` has exactly `{ input, mutation, query }`; its target-bound mutation port exposes only `delete()` and there is no presentation adapter.";
+  }
+  return "- `CapabilityContext` has exactly `{ input, query, present }` and no mutation authority.";
+}
+
+function actionPortContract(action: HandlerUnitName): string[] {
+  if (action === "create") {
+    return [
+      "- `mutation.create(values)` returns the inserted Action-safe record; it has no table, capability, or record selector.",
+      "- `present(record)` returns that record as a safe item HTML string.",
+    ];
+  }
+  if (action === "update") {
+    return [
+      "- `mutation.update(values)` merges only submitted fields into the router-bound target and returns the updated Action-safe record; it has no table, capability, or record selector.",
+      "- `present(record)` returns that record as a safe item HTML string.",
+    ];
+  }
+  if (action === "delete") {
+    return [
+      "- `mutation.delete()` deletes only the router-bound target and returns void; it has no table, capability, or record selector.",
+    ];
+  }
+  return ["- `present(record)` returns that record as a safe item HTML string."];
+}
+
+function actionBehavior(spec: CapabilitySpec, action: HandlerUnitName): string {
+  const tableName = deriveCapabilityTableDdl(spec).tableName;
+  if (action === "create") {
+    return [
+      "- Read values only from `input.values`, coerce them into the Action-safe field types, call `mutation.create`, and return `present(row)` for the inserted row.",
+      '- Create presence is explicit: every active field is in `input.submittedFields`. A submitted empty optional scalar becomes `null`; treat either "on" (browser checkbox) or "true" (Gate synthetic input) as a checked boolean, while an unchecked submitted boolean has no value and becomes `false`; never invent a value for a required field.',
+      "- A string[] input is already a readonly string array in submitted order. Narrow with `Array.isArray`, pass a flat mutable copy such as `[...value]` to `mutation.create`, and never wrap the array in another array or split commas.",
+      "- Destructure `{ input, mutation, present }`: `export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string>`.",
+    ].join("\n");
+  }
+  if (action === "read") {
+    return [
+      `- Call \`query.records\` with SQL \`SELECT "id" AS "target_id" FROM "${tableName}" ORDER BY "created_at" DESC, "id" DESC\`, map each returned \`record\` through \`present\`, join the results, and return that joined string.`,
+      "- When there are no rows, return an empty string. Do not render your own empty state; the platform owns the list's empty state.",
+      "- Destructure only `{ query, present }`: `export default async function read({ query, present }: CapabilityContext): Promise<string>`.",
+    ].join("\n");
+  }
+  if (action === "update") {
+    return [
+      "- Build a patch from fields present in `input.submittedFields` only. Omitted fields mean preserve and must not appear in the patch.",
+      '- A submitted empty optional scalar becomes `null`; treat either "on" (browser checkbox) or "true" (Gate synthetic input) as a checked boolean, while a submitted boolean without a value becomes `false`; a submitted string[] is already an ordered readonly array and must be copied flat with `[...value]`.',
+      "- Call `mutation.update(patch)` and return `present(row)` for the updated row. The target is already bound by the platform and is never Handler input.",
+      "- Destructure `{ input, mutation, present }`: `export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string>`.",
+    ].join("\n");
+  }
+  if (action === "delete") {
+    return [
+      "- Call `mutation.delete()` exactly once and return an empty string. Platform chrome owns confirmation, success copy, and the records-region refresh.",
+      "- Destructure only `{ mutation }`: `export default async function remove({ mutation }: CapabilityDeleteContext): Promise<string>`.",
+    ].join("\n");
+  }
+  return [
+    "- Read scalar `q` from `input.values`; missing, empty, or Unicode-whitespace-only input must return exactly the canonical read rows in default order.",
+    "- Split a nonblank query on Unicode whitespace into literal terms. Every normalized term must match somewhere across any active string field or any element of any active string[] field (AND across terms, OR across fields/elements).",
+    "- Use parameterized SQL and `instr(platform_search_normalize(stored_value), platform_search_normalize(term))`; do not use `LIKE`, `lower`, or `NOCASE`. Quotes and SQL wildcard characters are literal data.",
+    '- Pass all terms as one JSON array parameter: `parameters: [JSON.stringify(terms)]`, then expand them in SQL with `WITH "search_terms" AS (SELECT "value" AS "term" FROM json_each(?))`. Do not generate dynamic placeholders or parameter objects.',
+    "- For string[] fields, search elements through `json_each`. Exclude non-text fields, inactive fields, platform columns, and undeclared dependency data.",
+    `- Return ordered unique target ids from "${tableName}" through \`query.records\`, ordered by \`created_at DESC, id DESC\`; omit \`result\` unless projecting additional declared dependency values, map records through \`present\`, and join them.`,
+    "- Destructure `{ input, query, present }`: `export default async function search({ input, query, present }: CapabilityContext): Promise<string>`.",
   ].join("\n");
 }
 
@@ -168,11 +264,14 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
   ].join("\n");
 }
 
-/** One-line-per-field summary of the spec's user fields, shared by both prompts. */
-function specFieldList(spec: CapabilitySpec): string {
-  return activeSpecFields(spec.schema.fields)
-    .map(
-      (field) => `- ${field.name}: ${field.type}${field.required ? " (required)" : " (optional)"}`,
+function handlerFieldList(spec: CapabilitySpec, action: HandlerUnitName): string {
+  const fields = handlerFieldProjection(spec, action);
+  if (fields.length === 0) return "- None.";
+  return fields
+    .map((field) =>
+      "required" in field
+        ? `- ${field.name}: ${field.type}${field.required ? " (required)" : " (optional)"}`
+        : `- ${field.name}: ${field.type}`,
     )
     .join("\n");
 }
@@ -213,11 +312,30 @@ function handlerGenerationContext(
   });
   return {
     id: spec.id,
-    schema: { fields: activeSpecFields(spec.schema.fields) },
+    schema: { fields: handlerFieldProjection(spec, action) },
     behavior: spec.behavior,
     behavioral_errors: spec.behavioral_errors.filter((errorCase) => errorCase.action === action),
     read_dependencies: dependencies,
   };
+}
+
+type MutationFieldProjection = Pick<SpecField, "name" | "type" | "required">;
+type SearchFieldProjection = Pick<SpecField, "name" | "type">;
+
+function handlerFieldProjection(
+  spec: CapabilitySpec,
+  action: HandlerUnitName,
+): readonly (MutationFieldProjection | SearchFieldProjection)[] {
+  const active = activeSpecFields(spec.schema.fields);
+  if (action === "create" || action === "update") {
+    return active.map(({ name, type, required }) => ({ name, type, required }));
+  }
+  if (action === "search") {
+    return active
+      .filter((field) => field.type === "string" || field.type === "string[]")
+      .map(({ name, type }) => ({ name, type }));
+  }
+  return [];
 }
 
 function itemGenerationContext(spec: CapabilitySpec): object {

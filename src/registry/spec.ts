@@ -161,12 +161,12 @@ export const FULL_CAPABILITY_TOOLS = ["create", "read", "update", "delete", "sea
 export const capabilityToolSchema = z.enum(FULL_CAPABILITY_TOOLS);
 export type CapabilityTool = z.infer<typeof capabilityToolSchema>;
 
-const transitionalCapabilityToolsSchema = z
-  .array(z.enum(TRANSITIONAL_CAPABILITY_TOOLS))
-  .length(TRANSITIONAL_CAPABILITY_TOOLS.length)
+const fullCapabilityToolsSchema = z
+  .array(capabilityToolSchema)
+  .length(FULL_CAPABILITY_TOOLS.length)
   .refine(
-    (tools) => sameOrderedStrings(tools, TRANSITIONAL_CAPABILITY_TOOLS),
-    `must be exactly [${TRANSITIONAL_CAPABILITY_TOOLS.join(", ")}] in that order`,
+    (tools) => sameOrderedStrings(tools, FULL_CAPABILITY_TOOLS),
+    `must be exactly [${FULL_CAPABILITY_TOOLS.join(", ")}] in canonical order`,
   );
 
 // Model this as a homogeneous fixed-length array for provider JSON Schema:
@@ -242,11 +242,6 @@ export const behavioralErrorCaseSchema = z.strictObject({
 });
 export type BehavioralErrorCase = z.infer<typeof behavioralErrorCaseSchema>;
 
-const transitionalBehavioralErrorCaseSchema = z.strictObject({
-  action: z.enum(TRANSITIONAL_CAPABILITY_TOOLS),
-  ...behavioralErrorCaseShape,
-});
-
 function allUnique(values: readonly string[]): boolean {
   return new Set(values).size === values.length;
 }
@@ -292,15 +287,15 @@ export const capabilitySpecSchema = z
   .superRefine(validateSpecSemantics);
 export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 
-// The prompt Builder remains pinned to the exact two-Action transition even
-// while the platform also admits the hand-written five-Action reference. This
-// narrower provider schema makes that boundary hard rather than prompt-only.
+// From 4.4 onward every prompt-built capability is born with the complete fixed
+// five-Action authored shape. The broader registry schema still admits the exact
+// two-Action transition until 4.4/05 removes that reset-bounded allowance.
 export const promptCapabilitySpecSchema = z
   .strictObject({
     ...commonSpecShape,
-    behavioral_errors: z.array(transitionalBehavioralErrorCaseSchema).max(8),
-    tools: transitionalCapabilityToolsSchema,
-    read_dependencies: transitionalReadDependenciesSchema,
+    behavioral_errors: z.array(behavioralErrorCaseSchema).max(8),
+    tools: fullCapabilityToolsSchema,
+    read_dependencies: fullReadDependenciesSchema,
     label: capabilityNameText,
   })
   .superRefine(validateSpecSemantics);

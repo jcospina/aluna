@@ -225,13 +225,26 @@ describe("split capability data ports", () => {
     }
     withFileDatabase((databases) => {
       const notes = notesSpec();
+      notes.schema.fields.push({
+        name: "details",
+        label: "Details",
+        type: "string",
+        required: false,
+        lifecycle: "active",
+      });
       applyCapabilityTableDdl(notes, databases.readwrite);
       const row = materializeCapabilityActionRecord(
         createCapabilityMutationPort(notes, databases.readwrite).create({
           text: "CAFÉ ÅNGSTRÖM",
           pinned: false,
+          details: "Afternoon",
         }),
       );
+      createCapabilityMutationPort(notes, databases.readwrite).create({
+        text: "Jupiter",
+        pinned: false,
+        details: "",
+      });
       const query = createCapabilityQueryPort(databases.readonly, { target: notes });
 
       expect(
@@ -242,9 +255,22 @@ describe("split capability data ports", () => {
         }),
       ).toEqual([{ normalized: "cafe angstrom" }]);
       expect(
+        query.all({
+          sql: "SELECT platform_search_normalize(?) AS normalized",
+          parameters: [""],
+          result: [{ alias: "normalized", type: "string" }],
+        }),
+      ).toEqual([{ normalized: "" }]);
+      expect(
         query.records({
           sql: 'SELECT "id" AS "target_id" FROM "cap_notes" WHERE platform_search_normalize("text") = platform_search_normalize(?)',
           parameters: ["cafe angstrom"],
+        }),
+      ).toHaveLength(1);
+      expect(
+        query.records({
+          sql: 'SELECT "id" AS "target_id" FROM "cap_notes" WHERE instr(platform_search_normalize("text"), platform_search_normalize(?)) > 0 OR instr(platform_search_normalize("details"), platform_search_normalize(?)) > 0',
+          parameters: ["cafe", "cafe"],
         }),
       ).toHaveLength(1);
       expect(

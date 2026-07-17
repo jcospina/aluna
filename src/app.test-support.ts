@@ -199,9 +199,16 @@ export const NOTES_SPEC = {
       fields: ["text"],
       expected_markers: BEHAVIORAL_ERROR_MARKERS,
     },
+    {
+      action: "update",
+      trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+      fields: ["text"],
+      expected_markers: BEHAVIORAL_ERROR_MARKERS,
+    },
   ],
-  tools: ["create", "read"],
-  read_dependencies: { create: [], read: [] },
+  tools: ["create", "read", "update", "delete", "search"],
+  read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
   prompt_context: "Stores the user's text notes.",
 };
 
@@ -254,6 +261,37 @@ export const READ_HANDLER = [
   "}",
 ].join("\n");
 
+export const UPDATE_HANDLER = [
+  "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
+  "  const patch: Record<string, unknown> = {};",
+  '  if (input.submittedFields.has("text")) patch.text = input.values.text;',
+  "  return present(mutation.update(patch));",
+  "}",
+].join("\n");
+
+export const DELETE_HANDLER = [
+  "export default async function remove({ mutation }: CapabilityDeleteContext): Promise<string> {",
+  "  mutation.delete();",
+  '  return "";',
+  "}",
+].join("\n");
+
+export const SEARCH_HANDLER = [
+  "export default async function search({ input, query, present }: CapabilityContext): Promise<string> {",
+  "  const raw = input.values.q;",
+  '  const terms = (typeof raw === "string" ? raw : "").trim().split(/\\s+/u).filter(Boolean);',
+  "  const records = terms.length === 0",
+  "    ? query.records({",
+  '        sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+  "      })",
+  "    : query.records({",
+  '        sql: \'WITH "search_terms" AS (SELECT "value" AS "term" FROM json_each(?)) SELECT "target"."id" AS "target_id" FROM "cap_notes" AS "target" WHERE NOT EXISTS (SELECT 1 FROM "search_terms" AS "search_term" WHERE coalesce(instr(platform_search_normalize("target"."text"), platform_search_normalize("search_term"."term")), 0) = 0) ORDER BY "target"."created_at" DESC, "target"."id" DESC\',',
+  "        parameters: [JSON.stringify(terms)],",
+  "      });",
+  '  return records.map(({ record }) => present(record)).join("");',
+  "}",
+].join("\n");
+
 export const BEHAVIORAL_SUITE = {
   cases: [
     {
@@ -270,8 +308,8 @@ export const BEHAVIORAL_SUITE = {
   ],
 };
 
-// A fake provider that returns a valid capability spec and then the three generated
-// units (item renderer, then the create/read handlers), recording each prompt — so the
+// A fake provider that returns a valid capability spec and then the complete generated
+// inventory (item renderer, then all five handlers), recording each prompt — so the
 // builder-stage demo route is driven end-to-end without a real call.
 export function makeSpecProvider(
   spec: unknown,
@@ -280,6 +318,9 @@ export function makeSpecProvider(
     readonly item?: string;
     readonly create?: string;
     readonly read?: string;
+    readonly update?: string;
+    readonly delete?: string;
+    readonly search?: string;
   } = {},
 ): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];
@@ -288,6 +329,9 @@ export function makeSpecProvider(
     { content: units.item ?? ITEM_RENDERER },
     { content: units.create ?? CREATE_HANDLER },
     { content: units.read ?? READ_HANDLER },
+    { content: units.update ?? UPDATE_HANDLER },
+    { content: units.delete ?? DELETE_HANDLER },
+    { content: units.search ?? SEARCH_HANDLER },
     behavioralSuite,
   ];
   const provider: Provider = {

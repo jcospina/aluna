@@ -2,9 +2,8 @@
 // "Capability Builder" step 3, ADR-0003 bounded tool-loop, ADR-0004 generated
 // artifact contract as amended by ADR-0005 §2).
 //
-// Module 3 replaces M2's four artifacts (`handler:create`, `handler:read`,
-// `view:list`, `view:create`) with **one item renderer + `create` + `read`
-// Handlers**. The item renderer turns one record into the capability-specific inner
+// Module 4.4 extends Module 3's one item renderer + Handler model to the complete
+// fixed Action inventory. The item renderer turns one record into the capability-specific inner
 // markup, generated **knowing** the chosen `collection.layout`; the Handlers receive
 // the presentation adapter (3.4/01) through their injected toolbox and call it instead
 // of emitting their own row markup — so create and read render identical item markup by
@@ -21,7 +20,7 @@ import type { DeepPartial, Provider, TokenUsage } from "../provider/index.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,
-  type FULL_CAPABILITY_TOOLS,
+  FULL_CAPABILITY_TOOLS,
   TRANSITIONAL_CAPABILITY_TOOLS,
 } from "../registry/index.ts";
 
@@ -29,8 +28,6 @@ import { checkGeneratedUnit } from "./unit-checks.ts";
 import { buildUnitPrompt } from "./unit-prompts.ts";
 
 export const DEFAULT_UNIT_FIX_ATTEMPTS = 2;
-
-const GENERATED_HANDLER_UNITS = TRANSITIONAL_CAPABILITY_TOOLS;
 
 // The single generated presentation unit's name — the stem of the version-keyed file
 // the router loads it from (`item.ts`, `ITEM_RENDERER_FILE` in src/router/router.ts).
@@ -82,7 +79,7 @@ export interface GenerateCapabilityUnitsInput {
 
 export interface GenerateCapabilityUnitsResult {
   readonly units: readonly GeneratedUnit[];
-  readonly handlers: Readonly<Record<TransitionalHandlerUnitName, string>>;
+  readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
   // The one generated presentation surface — the composition input the router binds
   // into each Handler's presentation adapter (3.4/01), and the content the commit
   // stage writes to `item.ts`.
@@ -138,10 +135,11 @@ export class UnitGenerationError extends Error {
 export { buildUnitPrompt } from "./unit-prompts.ts";
 
 /**
- * Generate the capability's three M3 units for `spec`, in fixed order — the item
+ * Generate the complete unit inventory declared by `spec`, in fixed order — the item
  * renderer first (the creative surface, generated knowing `collection.layout`), then
- * the `create` and `read` Handlers that render records through the injected
- * presentation adapter — each through its bounded write→check→fix loop. Returns the
+ * each canonical Action Handler through its bounded write→check→fix loop. During the
+ * reset-bounded transition this still accepts the exact two-Action shape; prompt-built
+ * 4.4 specs always declare all five. Returns the
  * generated units plus the handler map and item-renderer content the gate and commit
  * consume. Throws {@link UnitGenerationError} if any unit never passes its checks.
  */
@@ -163,7 +161,7 @@ export async function generateCapabilityUnits(
     ),
   );
 
-  for (const action of GENERATED_HANDLER_UNITS) {
+  for (const action of input.spec.tools) {
     units.push(
       await generateUnit(
         input.provider,
@@ -178,10 +176,9 @@ export async function generateCapabilityUnits(
 
   return {
     units,
-    handlers: {
-      create: contentFor(units, "handler", "create"),
-      read: contentFor(units, "handler", "read"),
-    },
+    handlers: Object.fromEntries(
+      input.spec.tools.map((action) => [action, contentFor(units, "handler", action)]),
+    ),
     itemRenderer: itemRendererContent(units),
   };
 }
@@ -327,10 +324,15 @@ function itemRendererContent(units: readonly GeneratedUnit[]): string {
 }
 
 function assertHandlerSpec(spec: CapabilitySpec): void {
-  for (const action of GENERATED_HANDLER_UNITS) {
-    if (!(spec.tools as readonly string[]).includes(action)) {
-      throw new Error(`Unit generation requires the "${action}" handler in spec.tools.`);
-    }
+  const expected =
+    spec.tools.length === FULL_CAPABILITY_TOOLS.length
+      ? FULL_CAPABILITY_TOOLS
+      : TRANSITIONAL_CAPABILITY_TOOLS;
+  if (
+    spec.tools.length !== expected.length ||
+    !spec.tools.every((action, index) => action === expected[index])
+  ) {
+    throw new Error("Unit generation requires one complete admitted Action shape.");
   }
 }
 

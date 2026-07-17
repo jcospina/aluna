@@ -1,6 +1,6 @@
 # Generate all five Handlers and item.ts with Action-specific projected contexts
 
-Status: ready-for-agent
+Status: ready-for-human
 
 ## Epic
 
@@ -34,17 +34,17 @@ real, fully CRUD-capable generated capability.
 
 ## Acceptance criteria
 
-- [ ] A prompt-built capability produces all five Handler files plus `item.ts`
+- [x] A prompt-built capability produces all five Handler files plus `item.ts`
       and the complete five-Action spec shape; the registry validates the full
       inventory before routing
-- [ ] Both required-field error cases are present exactly when active required
+- [x] Both required-field error cases are present exactly when active required
       fields exist and cover exactly those fields
-- [ ] Per-Action context projection pinned by tests: a unit's generation
+- [x] Per-Action context projection pinned by tests: a unit's generation
       context never contains inactive fields, `extra`, or undeclared
       dependency data
-- [ ] Full CRUD works through the 4.3 chrome on a freshly prompt-built
+- [x] Full CRUD works through the 4.3 chrome on a freshly prompt-built
       capability (create, read, edit-save, inline delete, search)
-- [ ] `bun test`, `bun run typecheck`, `bun run lint` clean
+- [x] `bun test`, `bun run typecheck`, `bun run lint` clean
 - [ ] **Human sign-off**: prompt-build a Notes-style capability and exercise
       full CRUD on the running app
 
@@ -57,3 +57,87 @@ surface on the homepage — the module's headline moment.
 
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.2-mutation-coordinator-split-tools-and-routing-actions/issues/06-read-dependencies-rehydration-and-search-normalization.md
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.3-full-crud-platform-presentation/issues/04-post-mutation-records-region-refresh.md
+
+## Implementation notes
+
+- Prompt-built specs now require the canonical five-Action inventory, all five
+  `read_dependencies` keys, and paired create/update `missing_required_fields`
+  cases exactly when active required fields exist. Lifecycle/version/build
+  metadata remains platform-owned.
+- Unit generation follows the admitted spec inventory and emits `item.ts` plus
+  `create.ts`, `read.ts`, `update.ts`, `delete.ts`, and `search.ts`. The existing
+  reset-bounded two-Action shape remains admissible for the later 4.4/05 cutover.
+- Every Handler prompt receives only its Action-safe target fields, declared
+  active dependency projections, and Action-owned error cases. Read/search query
+  guidance is Action-specific, while update owns typed required-field failure
+  translation and product voice.
+- Prompt contracts pin the real positional SQLite query ABI, record-result
+  descriptors, JSON-backed multi-term search, and browser/Gate checkbox values.
+  This came from exercising real generated code rather than only fake-provider
+  fixtures.
+- Commit admission still exact-checks the complete six-file inventory before the
+  registry row is inserted and routable.
+- Live generated-capability testing exposed an empty-string edge case in the
+  platform-owned SQLite normalizer bridge: SQLite can pass zero-byte TEXT to the
+  callback without a decodable buffer. The bridge now treats that valid input as
+  `""`, so searches remain available when any optional searched field is blank.
+
+## Verification
+
+- `bun test` — 526 passing, 0 failing, 2 snapshots
+- `bun run typecheck`
+- `bun run lint` — 189 files checked, no fixes
+- `git diff --check`
+- Focused normalizer regression — the native SQLite callback now round-trips an
+  empty TEXT value as `""`; the test failed with the reported
+  `TextDecoder.decode` exception before the fix and passes afterward. The same
+  test runs a generated-style multi-field search across two rows, including one
+  with a blank optional string, and returns only the matching row.
+- Focused builder/router round trip — 23 passing, including complete unit
+  generation, independent Action projections, Handler-owned update validation,
+  and positive plus negative search assertions.
+- Fresh real-provider build from the final worktree on the existing
+  `http://localhost:3030` server using
+  **“notes with a title, tags and a done flag”**:
+  - job `build-ae6c0c6d-d4dc-4843-b43b-a735752e9c38` committed capability
+    `notes`, incarnation `17c31110-457c-4e23-a22d-6659436f0254`, version 1;
+  - structural, smoke, behavioral, and design-lint rungs passed;
+  - the committed artifact inventory contains all five Handlers plus `item.ts`;
+  - behavioral generation ran two real cases: create/render the title-tags-done
+    record and reject a missing required title with stable markers.
+- Browser automation on `/capability/notes` created a completed tagged note,
+  opened read detail, edited the title/tags/done flag, verified both matching and
+  no-match search states, confirmed inline delete, and observed the canonical
+  empty state afterward. A direct empty-title update returned the generated
+  Handler's stable `missing_required_fields` markers and left the stored record
+  unchanged. The record was then deleted so the demo is clean for HITL.
+- Live regression on the prompt-built `/capability/frases_hijo` View searched
+  the user's two stored phrases by `sol`, `SOL`, accent-folded `sól`, and
+  `Jupiter`. Every request returned 200, the matching phrase only, and no browser
+  error. The visible `sol` search ended in the normal results state instead of
+  “I couldn’t search just now. Try again.”
+- An independent adversarial review found and drove fixes for cross-Action search
+  prompt leakage, reversed update error ownership, and a positive-only search
+  test blind spot. Its inventory review confirmed commit-time admission is exact.
+
+## HITL test instructions
+
+1. Keep the existing app on port 3030 running; if it is not running, start it
+   with `bun run dev`. Do not reset: the real prompt-built **Notes** capability
+   is already committed and intentionally left empty for this check, and the
+   **Frases de mi hijo** regression data is already present.
+2. Open `http://localhost:3030/capability/frases_hijo`. Search **sol**. Confirm
+   only **El sol está en Medellin** remains, the status says the results were
+   updated, and no search-error message appears. Clear the search and confirm
+   both phrases return.
+3. Open `http://localhost:3030/capability/notes`. Choose **New Notes**, enter
+   **Review full CRUD** for Title and **work, verified** for Tags, check **Done**,
+   then choose **Add**. The form closes and the new completed note appears.
+4. Open the note. Confirm detail shows the title, both tags, and **Done: Yes**.
+   Choose **Edit**, change the title to **Reviewed five handlers**, uncheck Done,
+   and choose **Save**. The modal closes and the list shows the edited open note.
+5. Search **verified** and confirm the note remains. Search **coffee** and confirm
+   the no-match state. Choose **Clear** and confirm the edited note returns.
+6. Open the note, choose **Delete**, then **Delete record**. The modal closes and
+   the canonical empty state returns. Check the remaining Human sign-off box and
+   set this issue to `done` once those visible behaviors match.

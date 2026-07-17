@@ -139,7 +139,10 @@ function ensureNativeBridge(): NativeBridge {
   const extensionPath = compileExtension();
   const callback = new JSCallback(
     (input, length) => {
-      const value = new TextDecoder().decode(toArrayBuffer(input, 0, length));
+      // SQLite may represent an empty TEXT value with a null pointer and a zero
+      // byte length. Bun's `toArrayBuffer(null, 0, 0)` returns no decodable
+      // buffer, so keep the valid empty-string case out of the FFI copy path.
+      const value = length === 0 ? "" : new TextDecoder().decode(toArrayBuffer(input, 0, length));
       callbackOutput = Buffer.from(`${normalizeSearchText(value)}\0`);
       return ptr(callbackOutput);
     },

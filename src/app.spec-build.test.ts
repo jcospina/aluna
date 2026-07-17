@@ -73,8 +73,10 @@ function assertSpecAndMigrationPreview(dataFor: (name: string) => string): void 
   expect(dataFor("spec-preview")).toContain("collection");
   expect(dataFor("spec-preview")).toContain("feed");
   expect(dataFor("spec-preview")).toContain("detail");
-  expect(dataFor("spec-preview")).toContain('"tools":["create","read"]');
-  expect(dataFor("spec-preview")).toContain('"read_dependencies":{"create":[],"read":[]}');
+  expect(dataFor("spec-preview")).toContain('"tools":["create","read","update","delete","search"]');
+  expect(dataFor("spec-preview")).toContain(
+    '"read_dependencies":{"create":[],"read":[],"update":[],"delete":[],"search":[]}',
+  );
   expect(dataFor("spec-preview")).not.toContain("views");
   expect(dataFor("spec-preview")).not.toContain("modal");
   expect(dataFor("spec-preview")).toContain("notes");
@@ -137,6 +139,9 @@ function assertUnitsPreview(events: SseEvent[]): void {
     "item-renderer:item:item.ts",
     "handler:create:create.ts",
     "handler:read:read.ts",
+    "handler:update:update.ts",
+    "handler:delete:delete.ts",
+    "handler:search:search.ts",
   ]);
   expect(unitsPreview.units.every((unit) => unit.attempts === 1)).toBe(true);
   expect(unitsPreview.units.find((unit) => unit.filename === "create.ts")?.content).toContain(
@@ -211,6 +216,8 @@ function assertNarrationCommitAndPrompts(
   expect(commitSwap).toContain('data-active-capability-id="notes"');
   expect(commitSwap).toContain('hx-get="/capability/notes/read"');
   expect(commitSwap).toContain('hx-post="/capability/notes/create"');
+  expect(commitSwap).toContain('data-search-url="/capability/notes/search"');
+  expect(commitSwap).toContain("data-capability-search");
   expect(commitSwap).toContain('hx-swap="none"');
   expect(commitSwap).toContain("data-post-mutation-refresh");
   expect(commitSwap).toContain('data-records-target-id="notes-records"');
@@ -221,23 +228,28 @@ function assertNarrationCommitAndPrompts(
   expect(commitSwap).toContain("Notes");
   expect(dataFor("done")).toBe("ok");
 
-  // The typed prompt reached the provider, then the three unit-generation prompts
-  // (item renderer, then the create/read handlers) and the behavioral test-generation
+  // The typed prompt reached the provider, then the complete unit-generation prompts
+  // (item renderer, then all five handlers) and the behavioral test-generation
   // prompt followed — proof the demo runs the current builder stages, not a canned string.
-  expect(prompts).toHaveLength(5);
+  expect(prompts).toHaveLength(8);
   expect(prompts[0]).toContain("track my notes");
-  expect(prompts[0]).toContain("tools: exactly [create, read] in that order");
-  expect(prompts[0]).toContain('read_dependencies: exactly { "create": [], "read": [] }');
+  expect(prompts[0]).toContain(
+    "tools: exactly [create, read, update, delete, search] in that canonical order",
+  );
+  expect(prompts[0]).toContain('"update": [], "delete": [], "search": []');
   expect(prompts[0]).toContain("ui_intent.collection.layout is one of: feed | grid");
   expect(prompts[0]).toContain("Do not include ui_intent.views");
   expect(prompts[1]).toContain("Generate the item.ts item renderer");
   expect(prompts[2]).toContain("Generate the create.ts handler");
   expect(prompts[3]).toContain("Generate the read.ts handler");
-  expect(prompts[4]).toContain("Text is required. Newest notes appear first.");
-  expect(prompts[4]).toContain('"schema"');
-  expect(prompts[4]).toContain('"behavioral_errors"');
-  expect(prompts[4]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
-  expect(prompts[4]).not.toContain("export default async function");
+  expect(prompts[4]).toContain("Generate the update.ts handler");
+  expect(prompts[5]).toContain("Generate the delete.ts handler");
+  expect(prompts[6]).toContain("Generate the search.ts handler");
+  expect(prompts[7]).toContain("Text is required. Newest notes appear first.");
+  expect(prompts[7]).toContain('"schema"');
+  expect(prompts[7]).toContain('"behavioral_errors"');
+  expect(prompts[7]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
+  expect(prompts[7]).not.toContain("export default async function");
 }
 
 function assertBuildMetrics(rows: GenerationMetrics[]): void {
@@ -268,6 +280,9 @@ function assertBuildMetrics(rows: GenerationMetrics[]): void {
     "item-renderer:item",
     "handler:create",
     "handler:read",
+    "handler:update",
+    "handler:delete",
+    "handler:search",
   ]);
 }
 
@@ -298,7 +313,14 @@ function assertCommitPreviewAndArtifacts(
   expect(commitPreview.artifactsPath).toBe(
     `${artifactsRootPath}/notes/${commitPreview.incarnationId}/v1/`,
   );
-  expect(commitPreview.files).toEqual(["item.ts", "create.ts", "read.ts"]);
+  expect(commitPreview.files).toEqual([
+    "item.ts",
+    "create.ts",
+    "read.ts",
+    "update.ts",
+    "delete.ts",
+    "search.ts",
+  ]);
 
   // The registry row landed at v1 with the artifacts pointer (the pointer flip)…
   const committed = getCapability("notes", databases.readonly);
@@ -306,10 +328,16 @@ function assertCommitPreviewAndArtifacts(
   expect(committed?.version).toBe(1);
   expect(committed?.artifacts_path).toBe(commitPreview.artifactsPath);
   expect(committed?.label).toBe("Notes");
-  expect(committed?.tools).toEqual(["create", "read"]);
-  expect(committed?.read_dependencies).toEqual({ create: [], read: [] });
+  expect(committed?.tools).toEqual(["create", "read", "update", "delete", "search"]);
+  expect(committed?.read_dependencies).toEqual({
+    create: [],
+    read: [],
+    update: [],
+    delete: [],
+    search: [],
+  });
 
-  // …and the exact three-file M4.1 transitional inventory is on disk.
+  // …and the exact six-file full-CRUD inventory is on disk.
   for (const file of commitPreview.files) {
     expect(existsSync(resolve(commitPreview.artifactsPath, file))).toBe(true);
   }
@@ -353,9 +381,9 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — route
     teardownScratchDbEnv({ dir, conns, artifactsRoot });
   });
 
-  test("commits a capability that immediately creates and reads through the router", async () => {
-    // The headline end-to-end proof (issue 07): prompt → committed capability →
-    // create/read through the deterministic router, all on a fake provider, no real
+  test("commits a capability that immediately exercises full CRUD and search", async () => {
+    // Prompt → committed capability → all five Actions through the deterministic
+    // router, all on a fake provider, no real
     // calls. The router shares the build's scratch db pair and resolves the committed
     // handler files from the temp artifacts directory.
     const { provider } = makeSpecProvider(NOTES_SPEC);
@@ -391,6 +419,42 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — route
     const read = await app.request("/capability/notes/read");
     expect(read.status).toBe(200);
     expect(await read.text()).toContain("Buy milk");
+
+    const target = conns.readonly
+      .query('SELECT "id" FROM "cap_notes" WHERE "text" = ?')
+      .get("Buy milk") as { id: string } | null;
+    expect(target?.id).toBeTruthy();
+
+    const updated = await app.request("/capability/notes/update", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams([
+        ["text", "Buy oat milk"],
+        ["__aluna_present", "text"],
+        ["__aluna_record_id", target?.id ?? ""],
+      ]).toString(),
+    });
+    expect(updated.status).toBe(200);
+    expect(await updated.text()).toContain("Buy oat milk");
+
+    const searched = await app.request("/capability/notes/search?q=oat");
+    expect(searched.status).toBe(200);
+    expect(await searched.text()).toContain("Buy oat milk");
+
+    const nonMatch = await app.request("/capability/notes/search?q=coffee");
+    expect(nonMatch.status).toBe(200);
+    expect(await nonMatch.text()).not.toContain("Buy oat milk");
+
+    const deleted = await app.request("/capability/notes/delete", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams([["__aluna_record_id", target?.id ?? ""]]).toString(),
+    });
+    expect(deleted.status).toBe(200);
+    expect(await deleted.text()).toBe("");
+
+    const afterDelete = await app.request("/capability/notes/read");
+    expect(await afterDelete.text()).not.toContain("Buy oat milk");
   });
 
   test("falls back to the default prompt when the field is empty", async () => {
