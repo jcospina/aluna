@@ -206,7 +206,7 @@ async function generateUnit(
     await partialsSettled;
     const usage = await result.usage;
     const durationMs = performance.now() - startedAt;
-    const failure = checkGeneratedUnit(spec, unit, generated.content);
+    const failure = checkGeneratedUnit(spec, unit, generated.content, dependencyCatalog);
     const attemptRecord = {
       attempt,
       durationMs,

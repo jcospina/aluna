@@ -187,11 +187,7 @@ export function assertScopedQuery(
     throw new CapabilityDataValidationError("The query port accepts one SELECT statement.");
   }
   assertNoAmbientSchemaReader(sql);
-  const allowedTables = new Set(
-    [scope.target, ...(scope.dependencies ?? [])].map(
-      (spec) => deriveCapabilityTableDdl(spec).tableName,
-    ),
-  );
+  const allowedTables = new Set(capabilityQueryScopeTableNames(scope));
   const roots = database
     .query(
       "SELECT type, name, rootpage, tbl_name FROM sqlite_master WHERE rootpage > 0 AND type IN ('table', 'index')",
@@ -212,6 +208,13 @@ export function assertScopedQuery(
     );
   }
   assertTargetColumnAccess(database, scope, opcodes, sourceByRoot, options);
+}
+
+/** The canonical physical tables admitted by one Action's target/dependency scope. */
+export function capabilityQueryScopeTableNames(scope: CapabilityQueryScope): readonly string[] {
+  return [scope.target, ...(scope.dependencies ?? [])].map(
+    (spec) => deriveCapabilityTableDdl(spec).tableName,
+  );
 }
 
 function assertNoAmbientSchemaReader(sql: string): void {

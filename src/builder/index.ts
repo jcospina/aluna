@@ -35,6 +35,11 @@ export {
   type ScratchCatalogCapability,
   type SmokeGateResult,
 } from "./gate.ts";
+export {
+  StructuralGateError,
+  type StructuralGateResult,
+  type StructuralUnitOutcome,
+} from "./gate-structural.ts";
 export { createCapabilityIncarnationId } from "./incarnation.ts";
 export {
   type ApplyCapabilityMigrationInput,

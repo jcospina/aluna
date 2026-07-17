@@ -197,7 +197,7 @@ describe("capability gate — five-Action reference scratch catalog", () => {
     ]);
   });
 
-  test("fails before Handler execution when a declared scratch schema is absent", async () => {
+  test("structural validation fails before Handler execution when a declared scratch schema is absent", async () => {
     if (!itemRenderer) throw new Error("reference item renderer missing");
     const error = await expectGateFailure(
       gateInput({
@@ -208,8 +208,8 @@ describe("capability gate — five-Action reference scratch catalog", () => {
         behavioralTier: { enabled: false },
       }),
     );
-    expect(error.failedRung).toBe("smoke");
-    expect(error.outcomes[1]?.error).toContain("exactly one synthetic fixture");
+    expect(error.failedRung).toBe("structural");
+    expect(error.outcomes[0]?.error).toContain("expected exactly one dependency");
   });
 
   test("the exact published five-Action reference inventory passes its applicable Gate", async () => {

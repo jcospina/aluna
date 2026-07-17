@@ -142,6 +142,7 @@ function queryPortContract(action: HandlerUnitName): string[] {
   const common = [
     "- `query` parameters are positional SQLite values only (`string | number | bigint | boolean | null | Uint8Array`) paired with `?` placeholders. Never use named placeholders or `{ name, value }` parameter objects.",
     "- `query.all({ sql, parameters, result })` runs parameterized SQL inside this Action's declared catalog. Extra result descriptors use exactly `{ alias, type }` and return only those aliases.",
+    "- Capability-table SQL may name only this capability's target table and the dependencies declared for this Action; the static checker rejects every other `cap_*` table before execution.",
   ];
   if (action !== "read" && action !== "search") return common;
 

@@ -8,6 +8,7 @@
 // records through the injected `present` adapter.
 
 // biome-ignore-all lint/nursery/noExcessiveLinesPerFile: the unit-generation contract remains one cohesive provider-loop suite.
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: fixtures intentionally embed generated template-literal source.
 
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import type { ZodType } from "zod";
@@ -491,6 +492,178 @@ describe("unit generation with bounded fix loop — attempt-cap exhaustion and s
     const allowedAlias = `export default function renderItem(record: Record<string, unknown>): string {\n  const item = record;\n  return String(item.text);\n}`;
     expect(
       checkGeneratedUnit(notesSpec(), { kind: "item-renderer", name: "item" }, allowedAlias),
+    ).toBeUndefined();
+  });
+});
+
+describe("unit generation with bounded fix loop — Action-scoped structural repair", () => {
+  test("repairs only the Handler whose Action queries outside its declared catalog", async () => {
+    const undeclaredRead = READ_HANDLER.replace("cap_notes", "cap_hidden");
+    const provider = makeQueuedProvider([
+      ITEM_RENDERER,
+      CREATE_HANDLER,
+      undeclaredRead,
+      READ_HANDLER,
+    ]);
+
+    const result = await generateCapabilityUnits({ provider, spec: notesSpec() });
+    const read = result.units.find((unit) => unit.kind === "handler" && unit.name === "read");
+
+    expect(result.handlers.read).toBe(READ_HANDLER);
+    expect(read?.attempts).toHaveLength(2);
+    expect(read?.attempts[0]?.error).toContain(
+      'Generated handler "read" queries undeclared capability table: cap_hidden',
+    );
+    expect(read?.attempts[1]?.error).toBeUndefined();
+    expect(provider.calls[3]?.prompt).toContain("Previous attempt failed");
+    expect(provider.calls[3]?.prompt).toContain("Allowed for this Action: cap_notes");
+  });
+
+  test("admits the same dependency SQL only for the Action that declares it", () => {
+    const { withDependencies, catalog } = projectedContextFixture();
+    const journalSql = [
+      "export default async function read({ query }: CapabilityContext): Promise<string> {",
+      "  const rows = query.all({",
+      '    sql: \'SELECT "public_text" FROM "cap_journals"\',',
+      '    result: [{ alias: "public_text", type: "string" }],',
+      "  });",
+      "  return String(rows.length);",
+      "}",
+    ].join("\n");
+
+    expect(
+      checkGeneratedUnit(withDependencies, { kind: "handler", name: "read" }, journalSql, catalog),
+    ).toBeUndefined();
+    expect(
+      checkGeneratedUnit(
+        withDependencies,
+        { kind: "handler", name: "search" },
+        journalSql.replace("function read", "function search"),
+        catalog,
+      )?.message,
+    ).toContain('Generated handler "search" queries undeclared capability table: cap_journals');
+  });
+});
+
+describe("unit generation with bounded fix loop — adversarial source syntax", () => {
+  test("rejects modified DDL forms as raw mutation SQL", () => {
+    for (const sql of [
+      'CREATE UNIQUE INDEX generated_idx ON "cap_notes" ("text")',
+      "CREATE TEMP TABLE generated_scratch (value TEXT)",
+      "CREATE VIRTUAL TABLE generated_search USING fts5(value)",
+    ]) {
+      const handler = [
+        "export default async function read(_context: CapabilityContext): Promise<string> {",
+        `  const sql = ${JSON.stringify(sql)};`,
+        "  void sql;",
+        '  return "";',
+        "}",
+      ].join("\n");
+      expect(
+        checkGeneratedUnit(notesSpec(), { kind: "handler", name: "read" }, handler)?.message,
+      ).toContain("raw mutation SQL");
+    }
+  });
+});
+
+describe("unit generation with bounded fix loop — adversarial toolbox syntax", () => {
+  test("resolves composed query SQL and ignores capability names outside query calls", () => {
+    const templateSql = [
+      "export default async function read({ query }: CapabilityContext): Promise<string> {",
+      '  const table = "hidden";',
+      "  const rows = query.all({",
+      "    sql: `SELECT text FROM cap_${table}` ,",
+      '    result: [{ alias: "text", type: "string" }],',
+      "  });",
+      "  return String(rows.length);",
+      "}",
+    ].join("\n");
+    const concatenatedSql = templateSql.replace(
+      "`SELECT text FROM cap_${table}`",
+      '"SELECT text FROM cap_" + table',
+    );
+    const aliasedQuery = templateSql
+      .replace("  const rows = query.all({", "  const q = query;\n  const rows = q.all({")
+      .replace("`SELECT text FROM cap_${table}`", '"SELECT text FROM cap_" + table');
+    const renamedQuery = concatenatedSql
+      .replace("{ query }", "{ query: q }")
+      .replace("query.all", "q.all");
+    const ordinaryCopy = [
+      "export default async function read(_context: CapabilityContext): Promise<string> {",
+      '  return "No records from cap_hidden are shown.";',
+      "}",
+    ].join("\n");
+
+    for (const content of [templateSql, concatenatedSql, aliasedQuery, renamedQuery]) {
+      expect(
+        checkGeneratedUnit(notesSpec(), { kind: "handler", name: "read" }, content)?.message,
+      ).toContain("undeclared capability table: cap_hidden");
+    }
+    expect(
+      checkGeneratedUnit(notesSpec(), { kind: "handler", name: "read" }, ordinaryCopy),
+    ).toBeUndefined();
+  });
+
+  test("rejects toolbox-derived connection access without reserving ordinary result fields", () => {
+    const destructured = [
+      "export default async function read({ query }: CapabilityContext): Promise<string> {",
+      "  const { connection } = query as unknown as { connection: unknown };",
+      "  void connection;",
+      '  return "";',
+      "}",
+    ].join("\n");
+    const computed = [
+      "export default async function read({ query }: CapabilityContext): Promise<string> {",
+      '  const key = "connection";',
+      "  void (query as unknown as Record<string, unknown>)[key];",
+      '  return "";',
+      "}",
+    ].join("\n");
+    const renamedContext = [
+      "export default async function read(ctx: CapabilityContext): Promise<string> {",
+      "  void (ctx as unknown as { db: unknown }).db;",
+      '  return "";',
+      "}",
+    ].join("\n");
+    const dynamicConnection = [
+      "export default async function read(ctx: CapabilityContext): Promise<string> {",
+      '  const key = String(ctx.input.values.key ?? "");',
+      "  void (ctx as unknown as Record<string, unknown>)[key];",
+      '  return "";',
+      "}",
+    ].join("\n");
+    for (const content of [destructured, computed, renamedContext, dynamicConnection]) {
+      expect(
+        checkGeneratedUnit(notesSpec(), { kind: "handler", name: "read" }, content)?.message,
+      ).toContain("must not access a database connection directly");
+    }
+
+    for (const field of ["database", "db", "sqlite", "connection"]) {
+      const resultField = [
+        "export default async function read({ query }: CapabilityContext): Promise<string> {",
+        "  const rows = query.all({",
+        `    sql: 'SELECT "text" AS "${field}" FROM "cap_notes"',`,
+        `    result: [{ alias: "${field}", type: "string" }],`,
+        "  });",
+        `  return String(rows[0]?.${field} ?? "");`,
+        "}",
+      ].join("\n");
+      expect(
+        checkGeneratedUnit(notesSpec(), { kind: "handler", name: "read" }, resultField),
+      ).toBeUndefined();
+    }
+  });
+
+  test("does not interpret SQL guidance in comments as executable mutation SQL", () => {
+    const guidance = [
+      "export default async function read(_context: CapabilityContext): Promise<string> {",
+      "  // Never INSERT INTO capability tables directly.",
+      "  // Never fetch https://example.com from a generated Handler.",
+      '  return "";',
+      "}",
+    ].join("\n");
+    expect(
+      checkGeneratedUnit(notesSpec(), { kind: "handler", name: "read" }, guidance),
     ).toBeUndefined();
   });
 });

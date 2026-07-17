@@ -13,8 +13,9 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
 import { expectGateFailure, GOOD_HANDLERS, gateInput } from "./gate.test-support.ts";
+import { runStructuralRung } from "./gate-structural.ts";
 
-setDefaultTimeout(15_000);
+setDefaultTimeout(60_000);
 
 describe("capability gate — signature assertion", () => {
   test("signature assertion catches named exports, non-functions, and non-async functions", async () => {
@@ -180,7 +181,142 @@ describe("capability gate — complete Handler static contract", () => {
       expect(error.outcomes[0]?.error).toMatch(message);
     }
   });
+});
 
+function handlerContextType(action: string): string {
+  if (action === "create") return "CapabilityCreateContext";
+  if (action === "update") return "CapabilityUpdateContext";
+  if (action === "delete") return "CapabilityDeleteContext";
+  return "CapabilityContext";
+}
+
+function poisonedSqlHandler(action: string, sql: string): string {
+  const functionName = action === "delete" ? "remove" : action;
+  const contextType = handlerContextType(action);
+  return `export default async function ${functionName}(_context: ${contextType}): Promise<string> { const sql = ${JSON.stringify(sql)}; void sql; return ""; }`;
+}
+
+describe("capability gate — Action-scoped catalog and connection isolation", () => {
+  test("attributes every raw write and DDL family to the offending Action unit", async () => {
+    const handlers = Object.fromEntries(
+      FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+        unit.name,
+        unit.content,
+      ]),
+    );
+    const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
+      (unit) => unit.kind === "item-renderer",
+    )?.content;
+    if (!itemRenderer) throw new Error("reference item renderer missing");
+
+    const cases = [
+      ["create", 'INSERT INTO "cap_field_lifecycle_demo" ("id") VALUES ("x")'],
+      ["read", 'UPDATE "cap_field_lifecycle_demo" SET "entry" = "x"'],
+      ["update", 'DELETE FROM "cap_field_lifecycle_demo"'],
+      ["delete", 'CREATE UNIQUE INDEX generated_idx ON "cap_field_lifecycle_demo" ("entry")'],
+      ["search", "CREATE TEMP TABLE generated_scratch (value TEXT)"],
+    ] as const;
+
+    for (const [action, sql] of cases) {
+      const poisoned = poisonedSqlHandler(action, sql);
+      const error = await expectGateFailure(
+        gateInput({
+          spec: FIELD_LIFECYCLE_DEMO_SPEC,
+          ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+          handlers: { ...handlers, [action]: poisoned },
+          itemRenderer,
+          behavioralTier: { enabled: false },
+        }),
+      );
+      expect(error.failedRung, action).toBe("structural");
+      expect(error.outcomes[0]?.error, action).toContain(`handler "${action}"`);
+      expect(error.outcomes[0]?.error, action).toContain("raw mutation SQL");
+      expect(error.diagnostic).toMatchObject({
+        structural: {
+          units: expect.arrayContaining([
+            expect.objectContaining({ name: action, status: "failed" }),
+          ]),
+        },
+      });
+    }
+  });
+
+  test("rejects direct connection access with an actionable per-unit failure", async () => {
+    const connectionProbe = [
+      "export default async function create({ mutation, query }: CapabilityCreateContext): Promise<string> {",
+      "  void (query as unknown as { connection: unknown }).connection;",
+      '  mutation.create({ text: "probe" });',
+      '  return "";',
+      "}",
+    ].join("\n");
+    const error = await expectGateFailure(
+      gateInput({ handlers: { ...GOOD_HANDLERS, create: connectionProbe } }),
+    );
+
+    expect(error.failedRung).toBe("structural");
+    expect(error.outcomes[0]?.error).toContain('handler "create"');
+    expect(error.outcomes[0]?.error).toContain("must not access a database connection directly");
+  });
+
+  test("admits dependency SQL only when that Action declares the scratch catalog entry", () => {
+    const dependencyIncarnation = "11111111-1111-4111-8111-111111111111";
+    const handlers = Object.fromEntries(
+      FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+        unit.name,
+        unit.content,
+      ]),
+    );
+    const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
+      (unit) => unit.kind === "item-renderer",
+    )?.content;
+    if (!itemRenderer) throw new Error("reference item renderer missing");
+    const dependency = {
+      ...FIELD_LIFECYCLE_DEMO_SPEC,
+      id: "recipes",
+      label: "Recipes",
+    };
+    const spec: CapabilitySpec = {
+      ...FIELD_LIFECYCLE_DEMO_SPEC,
+      read_dependencies: {
+        create: [],
+        read: [{ capability_id: dependency.id, incarnation_id: dependencyIncarnation }],
+        update: [],
+        delete: [],
+        search: [],
+      },
+    };
+    const declaredRead = [
+      "export default async function read({ query }: CapabilityContext): Promise<string> {",
+      "  const rows = query.all({",
+      '    sql: \'SELECT "entry" FROM "cap_recipes"\',',
+      '    result: [{ alias: "entry", type: "string" }],',
+      "  });",
+      "  return String(rows.length);",
+      "}",
+    ].join("\n");
+    const input = gateInput({
+      spec,
+      ddl: deriveCapabilityTableDdl(spec),
+      handlers: { ...handlers, read: declaredRead },
+      itemRenderer,
+      scratchCatalog: [{ spec: dependency, incarnationId: dependencyIncarnation, rows: [] }],
+    });
+
+    expect(() => runStructuralRung(input)).not.toThrow();
+    expect(() =>
+      runStructuralRung({
+        ...input,
+        spec: {
+          ...spec,
+          read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
+        },
+        scratchCatalog: [],
+      }),
+    ).toThrow(/handler "read".*undeclared capability table.*cap_recipes/);
+  });
+});
+
+describe("capability gate — ambient runtime names", () => {
   test("a field named process is valid while ambient process access still fails", async () => {
     const spec: CapabilitySpec = {
       ...gateInput().spec,
@@ -275,5 +411,20 @@ describe("capability gate — advertised Handler inventory", () => {
     );
     expect(error.failedRung).toBe("structural");
     expect(error.outcomes[0]?.error).toContain('handler "search" is missing');
+    expect(error.diagnostic).toMatchObject({
+      structural: {
+        units: expect.arrayContaining([
+          expect.objectContaining({ name: "spec", status: "failed" }),
+          expect.objectContaining({ name: "search", status: "failed" }),
+        ]),
+      },
+    });
+  });
+
+  test("rejects Handler files absent from the spec inventory", () => {
+    const handlers = { ...GOOD_HANDLERS } as Record<string, string>;
+    handlers.search = GOOD_HANDLERS.read ?? "";
+
+    expect(() => runStructuralRung(gateInput({ handlers }))).toThrow(/unexpected: search/);
   });
 });

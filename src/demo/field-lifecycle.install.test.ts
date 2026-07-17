@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +8,10 @@ import { openDatabase } from "../db.ts";
 import { runMigrations } from "../migrations.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import { installFieldLifecycleDemo } from "./field-lifecycle.ts";
+
+// This integration runs the complete five-Action Gate twice; leave headroom when
+// Bun executes compiler-heavy suites concurrently.
+setDefaultTimeout(15_000);
 
 describe("five-Action reference installer admission", () => {
   test("server-side refresh waits for shared mutation admission and gates before replacing live state", async () => {

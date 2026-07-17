@@ -34,6 +34,7 @@ export {
   type CapabilityRecordHandle,
   type CapabilityRecordQueryInput,
   type CapabilityRecordQueryRow,
+  capabilityQueryScopeTableNames,
   createCapabilityActionRecord,
   createCapabilityQueryPort,
   encodeCapabilityFieldForStorage,
