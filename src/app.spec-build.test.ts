@@ -179,7 +179,7 @@ function assertGatePreview(dataFor: (name: string) => string): void {
       tier: string;
       status: string;
       testGen: { outcome: string; testCount: number; usage: { totalTokens: number } };
-      testRun: { outcome: string; cases: Array<{ name: string; status: string }> };
+      testRun: { outcome: string; cases: Array<{ action: string; name: string; status: string }> };
     };
   };
   expect(gatePreview.kind).toBe("gate-preview");
@@ -211,12 +211,23 @@ function assertGatePreview(dataFor: (name: string) => string): void {
   expect(gatePreview.behavioral).toMatchObject({
     tier: "on",
     status: "passed",
-    testGen: { outcome: "passed", testCount: 1, usage: { totalTokens: 53 } },
-    testRun: {
-      outcome: "passed",
-      cases: [{ name: "stores and renders note text", status: "passed" }],
-    },
+    testGen: { outcome: "passed", testCount: 9, usage: { totalTokens: 53 } },
   });
+  expect(gatePreview.behavioral.testRun.outcome).toBe("passed");
+  expect(gatePreview.behavioral.testRun.cases.map((testCase) => testCase.action)).toEqual([
+    "create",
+    "read",
+    "update",
+    "delete",
+    "search",
+    "create",
+    "update",
+    "update",
+    "delete",
+  ]);
+  expect(
+    gatePreview.behavioral.testRun.cases.every((testCase) => testCase.status === "passed"),
+  ).toBe(true);
 }
 
 function assertNarrationCommitAndPrompts(
@@ -425,7 +436,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(prompts).toHaveLength(9);
     expect(prompts[7]).toContain("Previous attempt failed");
     expect(prompts[7]).toContain("Generate the search.ts handler");
-    expect(prompts[8]).toContain("Generate behavioral tests for this Aluna capability");
+    expect(prompts[8]).toContain("behavioral tests for every Action in this Aluna capability");
     expect(rows[0]?.outcome).toBe("success");
     expect(rows[0]?.unitAttempts?.find((unit) => unit.name === "search")?.attempts).toBe(2);
   });

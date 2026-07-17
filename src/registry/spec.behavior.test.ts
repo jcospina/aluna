@@ -129,6 +129,67 @@ describe("capability spec shape — Action tuple & read dependencies", () => {
         },
       }).success,
     ).toBe(false);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...full,
+        behavioral_errors: [
+          ...full.behavioral_errors,
+          {
+            action: "update",
+            trigger: "record_not_found",
+            code: "record_not_found",
+            fields: ["text"],
+            expected_markers: BEHAVIORAL_ERROR_MARKERS,
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("capability spec shape — behavioral error ownership", () => {
+  test("admits unique errors for present Actions and rejects malformed ownership", () => {
+    const base = validSpec();
+    const full = {
+      ...base,
+      tools: [...FULL_CAPABILITY_TOOLS],
+      read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
+      behavioral_errors: [
+        ...defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+        {
+          action: "search" as const,
+          trigger: "invalid_query",
+          code: "invalid_query",
+          fields: ["text"],
+          expected_markers: BEHAVIORAL_ERROR_MARKERS,
+        },
+      ],
+    };
+    expect(capabilitySpecSchema.safeParse(full).success).toBe(true);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...full,
+        behavioral_errors: [...full.behavioral_errors, full.behavioral_errors[2]],
+      }).success,
+    ).toBe(false);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...full,
+        behavioral_errors: full.behavioral_errors.map((errorCase, index) =>
+          index === 2 ? { ...errorCase, action: "unknown" } : errorCase,
+        ),
+      }).success,
+    ).toBe(false);
+    expect(
+      capabilitySpecSchema.safeParse({
+        ...full,
+        behavioral_errors: full.behavioral_errors.map((errorCase, index) => {
+          if (index !== 2) return errorCase;
+          const { action: _action, ...withoutAction } = errorCase;
+          return withoutAction;
+        }),
+      }).success,
+    ).toBe(false);
   });
 });
 

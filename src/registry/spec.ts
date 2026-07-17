@@ -227,8 +227,8 @@ export const behavioralErrorMarkersSchema = z.strictObject({
 export type BehavioralErrorMarkers = z.infer<typeof behavioralErrorMarkersSchema>;
 
 const behavioralErrorCaseShape = {
-  trigger: z.literal(MISSING_REQUIRED_FIELDS_ERROR_CODE),
-  code: z.literal(MISSING_REQUIRED_FIELDS_ERROR_CODE),
+  trigger: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
+  code: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
   fields: z
     .array(z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE))
     .min(1)
@@ -364,8 +364,32 @@ function validateBehavioralErrors(
     .filter((field) => field.lifecycle === "active" && field.required)
     .map((field) => field.name);
 
+  const seenOwnership = new Set<string>();
   for (const [index, errorCase] of spec.behavioral_errors.entries()) {
     validateBehavioralErrorFields(ctx, fieldsByName, errorCase, index);
+    if (errorCase.trigger === "record_not_found" || errorCase.code === "record_not_found") {
+      ctx.addIssue({
+        code: "custom",
+        message: "record_not_found is platform-owned and must not be authored by a capability",
+        path: ["behavioral_errors", index],
+      });
+    }
+    if (!spec.tools.includes(errorCase.action)) {
+      ctx.addIssue({
+        code: "custom",
+        message: `behavioral error Action "${errorCase.action}" is not present in tools`,
+        path: ["behavioral_errors", index, "action"],
+      });
+    }
+    const ownership = `${errorCase.action}\u0000${errorCase.trigger}\u0000${errorCase.code}`;
+    if (seenOwnership.has(ownership)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "behavioral error Action ownership must be unique per trigger/code",
+        path: ["behavioral_errors", index, "action"],
+      });
+    }
+    seenOwnership.add(ownership);
   }
 
   if (!hasExactRequiredFieldsErrors(spec.behavioral_errors, requiredFieldNames, spec.tools)) {
@@ -502,10 +526,6 @@ function validateBehavioralErrorFields(
       addBehavioralErrorFieldIssue(ctx, index, fieldName, "is not in schema.fields");
       continue;
     }
-    if (!field.required) {
-      addBehavioralErrorFieldIssue(ctx, index, fieldName, "must be required");
-      continue;
-    }
     if (field.lifecycle !== "active") {
       addBehavioralErrorFieldIssue(ctx, index, fieldName, "must be active");
     }
@@ -568,15 +588,21 @@ function hasExactRequiredFieldsErrors(
   requiredFieldNames: readonly string[],
   tools: readonly CapabilityTool[],
 ): boolean {
-  if (requiredFieldNames.length === 0) return errorCases.length === 0;
+  const requiredCases = errorCases.filter(
+    (errorCase) =>
+      errorCase.trigger === MISSING_REQUIRED_FIELDS_ERROR_CODE ||
+      errorCase.code === MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  );
+  if (requiredFieldNames.length === 0) return requiredCases.length === 0;
   const expectedActions = sameOrderedStrings(tools, FULL_CAPABILITY_TOOLS)
     ? (["create", "update"] as const)
     : (["create"] as const);
   return (
-    errorCases.length === expectedActions.length &&
-    errorCases.every(
+    requiredCases.length === expectedActions.length &&
+    requiredCases.every(
       (errorCase, index) =>
         errorCase.action === expectedActions[index] &&
+        errorCase.trigger === MISSING_REQUIRED_FIELDS_ERROR_CODE &&
         errorCase.code === MISSING_REQUIRED_FIELDS_ERROR_CODE &&
         sameOrderedStrings(errorCase.fields, requiredFieldNames),
     )
