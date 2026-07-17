@@ -335,6 +335,8 @@ describe("detail modal — controller contract parity (server ⇄ client)", () =
     expect(controller).toContain("refreshCommittedRead");
     expect(controller).toContain("setEditPending");
     expect(controller).toContain("setDeletePending");
+    expect(controller).toContain("setCreatePending");
+    expect(controller).toContain("[data-create-cancel]");
     expect(controller).toContain("close.disabled = pending");
     expect(controller).toContain("cancel.disabled = pending");
     expect(controller).toContain("ownsActiveModal");

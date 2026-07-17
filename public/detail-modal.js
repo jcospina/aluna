@@ -25,6 +25,7 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
   const EDIT_FORM_SELECTOR = "[data-modal-edit-form]";
   const DELETE_FORM_SELECTOR = "[data-modal-delete-form]";
   const MUTATION_REFRESH_FORM_SELECTOR = "[data-post-mutation-refresh]";
+  const CREATE_CANCEL_SELECTOR = "[data-create-cancel]";
   const SUBMIT_BUTTON_SELECTOR = 'button[type="submit"]';
   const ITEM_SELECTOR = "[data-detail-template]";
 
@@ -202,6 +203,13 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
     setModalMutationPending(form, pending, CANCEL_DELETE_SELECTOR);
   }
 
+  /** @param {HTMLFormElement} form @param {boolean} pending */
+  function setCreatePending(form, pending) {
+    setRequestPending(form, pending, "I’m adding…", "Add");
+    const cancel = form.querySelector(CREATE_CANCEL_SELECTOR);
+    if (cancel instanceof HTMLButtonElement) cancel.disabled = pending;
+  }
+
   document.addEventListener("htmx:beforeRequest", (event) => {
     const editForm = requestForm(event, EDIT_FORM_SELECTOR);
     if (editForm) {
@@ -215,7 +223,7 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
     }
     const createForm = requestForm(event, MUTATION_REFRESH_FORM_SELECTOR);
     if (createForm?.dataset.mutationKind === "create") {
-      setRequestPending(createForm, true, "I’m adding…", "Add");
+      setCreatePending(createForm, true);
     }
   });
 
@@ -280,7 +288,7 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
       window.location.reload();
       return;
     }
-    setRequestPending(form, false, "I’m adding…", "Add");
+    setCreatePending(form, false);
     form.reset();
     form.dispatchEvent(
       new CustomEvent("aluna:record-created", {
@@ -439,7 +447,7 @@ import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "./detail-modal-sta
       return;
     }
     if (outcomeUnknown && !(await reconcileUnknownMutation(form))) return;
-    setRequestPending(form, false, "I’m adding…", "Add");
+    setCreatePending(form, false);
     if (outcomeUnknown) showUnknownMutationFailure(form);
   }
 

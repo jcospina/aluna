@@ -3,7 +3,7 @@
 // capability's fields deterministically from its spec, in two modes:
 //
 //   • CREATE — the platform-owned <form> of input controls the "New X" button
-//     (3.2/02) opens, with its HTMX wiring and close-on-success behavior baked in.
+//     (3.2/02) opens, with its HTMX wiring and cancel/close behavior baked in.
 //   • EDIT — the same controls, prefilled for the shared modal and wired to update.
 //   • DETAIL — the read-only label/value display the shared modal (3.2/04) shows,
 //     prefilled from a record payload.
@@ -75,6 +75,13 @@ export interface RenderableCapability {
  */
 export const RECORD_CREATED_EVENT = "aluna:record-created";
 
+/**
+ * The local DOM event the create form dispatches when its Cancel button resets the
+ * draft. The owning list container listens on the nearest collection to close the
+ * disclosure and restore focus to its "New X" trigger.
+ */
+export const CREATE_CANCELLED_EVENT = "aluna:create-cancelled";
+
 /** The placeholder shown for an absent (null / undefined / empty) detail value. */
 const EMPTY_VALUE = "—";
 
@@ -117,8 +124,10 @@ function searchRefreshAttributes(capability: RenderableCapability): string {
 /**
  * Render the platform-owned create form: one input control per spec field, the
  * HTMX wiring that posts a new record and defers to the shared post-mutation
- * whole-region refresh, and the close-on-success behavior (reset the form, dispatch
- * {@link RECORD_CREATED_EVENT}). Deterministic from the spec — never generated.
+ * whole-region refresh, the close-on-success behavior (reset the form, dispatch
+ * {@link RECORD_CREATED_EVENT}), and a Cancel affordance that discards the local
+ * draft before asking the owning collection to close. Deterministic from the spec —
+ * never generated.
  */
 export function renderCreateForm(capability: RenderableCapability): string {
   const capabilityId = capability.id;
@@ -141,6 +150,10 @@ export function renderCreateForm(capability: RenderableCapability): string {
     `<div id="${errorId}" class="capability-create-form__error" aria-live="polite"></div>` +
     `<div class="capability-create-form__fields">${fields}</div>` +
     `<div class="capability-create-form__actions">` +
+    `<button class="btn btn--ghost" type="button" data-create-cancel` +
+    ` @click="$el.ownerDocument.defaultView.HTMLFormElement.prototype.reset.call($el.form);` +
+    ` $el.ownerDocument.getElementById('${errorId}').replaceChildren();` +
+    ` $dispatch('${CREATE_CANCELLED_EVENT}')">Cancel</button>` +
     `<button class="btn btn--primary" type="submit">Add</button>` +
     `</div>` +
     `</form>`

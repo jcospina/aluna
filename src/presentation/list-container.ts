@@ -33,6 +33,7 @@
 
 import { escapeHtml } from "../web/html.ts";
 import {
+  CREATE_CANCELLED_EVENT,
   capabilityRecordsRegionId,
   RECORD_CREATED_EVENT,
   type RenderableCapability,
@@ -199,7 +200,8 @@ function renderSearchFeedback(capability: RenderableCapability): string {
  * The records region carries `id="<id>-records"` ({@link capabilityRecordsRegionId}),
  * so the create form's `hx-target` and the empty-state CSS both agree with it by
  * construction. The disclosure closes itself when a create succeeds for *this*
- * capability (the bubbling {@link RECORD_CREATED_EVENT} carries `capabilityId`).
+ * capability (the bubbling {@link RECORD_CREATED_EVENT} carries `capabilityId`),
+ * or when its form dispatches the local {@link CREATE_CANCELLED_EVENT}.
  */
 export function renderCollection(options: CollectionOptions): string {
   const { capability } = options;
@@ -226,14 +228,17 @@ export function renderCollection(options: CollectionOptions): string {
   // Alpine expression. The event name is all-lowercase (colon + hyphens survive HTML
   // attribute-name folding), so the `@…​.window` listener matches the dispatched event.
   const closeOnCreated = `if ($event.detail?.capabilityId === '${capability.id}') createOpen = false`;
+  const closeOnCancelled = `createOpen = false; $nextTick(() => $refs.createTrigger.focus())`;
 
   return (
     `<section class="capability-collection" aria-label="${label}"` +
     (capability.actions.includes("search") ? ` data-search-state="idle"` : "") +
-    ` x-data="{ createOpen: false }" @${RECORD_CREATED_EVENT}.window="${closeOnCreated}">` +
+    ` x-data="{ createOpen: false }" @${RECORD_CREATED_EVENT}.window="${closeOnCreated}"` +
+    ` @${CREATE_CANCELLED_EVENT}="${closeOnCancelled}">` +
     `<header class="capability-collection__header">` +
     renderSearchChrome(capability, regionId) +
     `<button type="button" class="btn btn--primary capability-collection__new"` +
+    ` x-ref="createTrigger"` +
     ` @click="createOpen = !createOpen" :aria-expanded="createOpen ? 'true' : 'false'">` +
     `New ${label}</button>` +
     `</header>` +

@@ -153,6 +153,9 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain("window.history.replaceState");
     expect(js).toContain("[data-active-capability-id]");
     expect(js).toContain("dataset.previewTarget");
+    expect(js).toContain('addEventListener("aluna:create-cancelled"');
+    expect(js).toContain("collapseListFieldRows(form)");
+    expect(js).toContain("Element.prototype.querySelectorAll.call(form");
     expect(js).not.toContain("new EventSource");
     expect(js).not.toContain('fetch("/prompt"');
     expect(js).not.toContain('addEventListener("submit"');
@@ -210,6 +213,23 @@ describe("GET / (shell) — browser glue", () => {
       expect(detail.isError).toBe(true);
       expect(detail.successful).toBe(false);
     }
+  });
+});
+
+describe("GET /demo/list-container (create cancel living demo)", () => {
+  test("loads the real browser glue and exposes repeatable rows for cancel cleanup", async () => {
+    const app = createApp();
+    const body = await responseText(await app.request("/demo/list-container"));
+
+    expect(body).toContain('<script defer src="/static/app.js"></script>');
+    expect(body).toContain('<script defer src="/static/vendor/alpine.min.js"></script>');
+    expect(body.indexOf("/static/app.js")).toBeLessThan(
+      body.indexOf("/static/vendor/alpine.min.js"),
+    );
+    expect(body).toContain('data-list-field-label="Favorite quotes"');
+    expect(body).toContain('data-list-input-id="cap-reading-quotes"');
+    expect(body).toContain("data-list-field-add>Add another</button>");
+    expect(body).toContain("data-create-cancel");
   });
 });
 

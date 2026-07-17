@@ -191,14 +191,24 @@ function removeListFieldRow(button) {
   syncListFieldRows(field);
 }
 
-document.addEventListener("aluna:record-created", (event) => {
-  if (!(event.target instanceof HTMLFormElement)) return;
-  for (const field of event.target.querySelectorAll("[data-list-field]")) {
+/** @param {HTMLFormElement} form */
+function collapseListFieldRows(form) {
+  for (const field of Element.prototype.querySelectorAll.call(form, "[data-list-field]")) {
     if (!(field instanceof HTMLElement)) continue;
     const rows = [...field.querySelectorAll("[data-list-field-row]")];
     for (const row of rows.slice(1)) row.remove();
     syncListFieldRows(field);
   }
+}
+
+document.addEventListener("aluna:record-created", (event) => {
+  if (event.target instanceof HTMLFormElement) collapseListFieldRows(event.target);
+});
+
+document.addEventListener("aluna:create-cancelled", (event) => {
+  const trigger = event.target;
+  const form = trigger instanceof Element ? Element.prototype.closest.call(trigger, "form") : null;
+  if (form instanceof HTMLFormElement) collapseListFieldRows(form);
 });
 
 /** @param {HTMLElement} field */
