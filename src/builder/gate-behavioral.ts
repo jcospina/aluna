@@ -22,10 +22,8 @@ import type { PresentationAdapter } from "../presentation/index.ts";
 import type { Provider, TokenUsage } from "../provider/index.ts";
 import {
   activeSpecFields,
-  type BehavioralErrorCase,
   behavioralErrorMarkersSchema,
   type CapabilitySpec,
-  type SpecField,
 } from "../registry/index.ts";
 import type { CapabilityInput } from "../router/index.ts";
 import type {
@@ -34,52 +32,46 @@ import type {
   BehavioralTestRunMetrics,
   CapabilityGateInput,
 } from "./gate.ts";
+import { isFullCrudSpec, runFullBehavioralRung } from "./gate-behavioral-full.ts";
+import { buildFullBehavioralTestPrompt } from "./gate-behavioral-full-prompt.ts";
 import {
   type BehavioralScalar,
   fieldValuesToRecord,
   inputValuesToHandlerInput,
 } from "./gate-behavioral-input.ts";
 import {
+  ageSetupRows,
+  assertFragmentIncludes,
+  assertFragmentIncludesInOrder,
+  assertKnownFields,
+  assertValidationErrorMarkers,
+  behavioralFieldValueSchema,
+  behavioralInputValueSchema,
+  behavioralRowSchema,
+  nonEmptyStringSchema,
+  rowMatches,
+  sameBehavioralError,
+} from "./gate-behavioral-shared.ts";
+import {
   assertFragment,
   buildGatePresent,
   buildGateQueryPort,
   errorMessage,
-  fieldValueMatches,
   type LoadedHandlers,
   loadHandlers,
   openScratchDatabasePair,
   prepareScratchCatalog,
   sameSnapshot,
   snapshotCapabilityTables,
-  sqlIdentifier,
 } from "./gate-internal.ts";
 import type { HandlerUnitName } from "./units.ts";
 
-const behavioralScalarSchema = z.union([
-  z.string(),
-  z.number(),
-  z.boolean(),
-  z.array(z.string()),
-  z.null(),
-]);
-const nonEmptyStringSchema = z.string().min(1);
-const behavioralFieldValueSchema = z.strictObject({
-  field: nonEmptyStringSchema,
-  value: behavioralScalarSchema,
-});
-const behavioralInputValueSchema = z.strictObject({
-  field: nonEmptyStringSchema,
-  value: z.string(),
-});
 const behavioralExpectedErrorSchema = z.strictObject({
   action: z.literal("create"),
   trigger: z.literal("missing_required_fields"),
   code: z.literal("missing_required_fields"),
   fields: z.array(nonEmptyStringSchema).min(1),
   expected_markers: behavioralErrorMarkersSchema,
-});
-const behavioralRowSchema = z.strictObject({
-  values: z.array(behavioralFieldValueSchema),
 });
 const behavioralTestCaseSchema = z.strictObject({
   name: nonEmptyStringSchema,
@@ -128,6 +120,7 @@ class BehavioralCaseFailure extends Error {
 
 /** Run the behavioral rung: generate the test suite, then run every case. */
 export async function runBehavioralRung(input: CapabilityGateInput): Promise<BehavioralGateResult> {
+  if (isFullCrudSpec(input.spec)) return runFullBehavioralRung(input);
   if (!input.provider) {
     throw new Error(
       "Behavioral tier is on, but no provider was supplied for behavioral test generation.",
@@ -160,6 +153,7 @@ export async function runBehavioralRung(input: CapabilityGateInput): Promise<Beh
 
 /** The behavioral test-generation prompt: deterministic black-box cases from spec behavior. */
 export function buildBehavioralTestPrompt(spec: CapabilitySpec): string {
+  if (isFullCrudSpec(spec)) return buildFullBehavioralTestPrompt(spec);
   return [
     "Generate behavioral tests for this Aluna capability.",
     "",
@@ -199,8 +193,7 @@ async function generateBehavioralTests(
   const startedAt = performance.now();
   const result = provider.generate(buildBehavioralTestPrompt(spec), behavioralTestSuiteSchema);
   const suite = behavioralTestSuiteSchema.parse(await result.object);
-  const usage = await result.usage;
-  return { suite, usage, durationMs: performance.now() - startedAt };
+  return { suite, usage: await result.usage, durationMs: performance.now() - startedAt };
 }
 
 interface RunBehavioralTestsInput {
@@ -346,25 +339,6 @@ async function runBehavioralCase(
   }
 }
 
-// Stamp the setup rows with deterministic created_at values, **newest-first**:
-// setupRows[0] is the most recent preexisting row, each later entry older. Index 0
-// gets the largest second-offset and the final entry 00:00:00 — all in the year 2000,
-// so every setup row is older than the action's new row (stamped at the real `now`).
-// A newest-first read therefore renders as [new row, ...setupRows in array order],
-// which is the order the model authors `expectReadFragmentIncludesInOrder` in
-// (documented in buildBehavioralTestPrompt). The model picking the order and the gate
-// enforcing it must agree, or a correct handler fails a self-inconsistent test.
-function ageSetupRows(database: Database, tableName: string, setupIds: readonly string[]): void {
-  const update = database.query(
-    `UPDATE ${sqlIdentifier(tableName)} SET "created_at" = ? WHERE "id" = ?`,
-  );
-  const lastIndex = setupIds.length - 1;
-  for (const [index, id] of setupIds.entries()) {
-    const secondsFromOldest = lastIndex - index;
-    update.run(`2000-01-01 00:00:${String(secondsFromOldest).padStart(2, "0")}`, id);
-  }
-}
-
 function assertBehavioralCaseReferencesSpecFields(
   spec: CapabilitySpec,
   testCase: BehavioralTestCase,
@@ -393,44 +367,6 @@ function assertBehavioralCaseReferencesSpecFields(
   if (testCase.expectedError) {
     assertKnownFields(testCase.name, "expectedError.fields", testCase.expectedError.fields, fields);
     assertExpectedErrorMatchesSpecContract(spec, testCase.expectedError);
-  }
-}
-
-function assertKnownFields(
-  testName: string,
-  label: string,
-  names: readonly string[],
-  fields: ReadonlySet<string>,
-): void {
-  for (const name of names) {
-    if (!fields.has(name)) {
-      throw new Error(
-        `Behavioral test "${testName}" ${label} references unknown spec field "${name}".`,
-      );
-    }
-  }
-}
-
-function assertFragmentIncludes(
-  action: HandlerUnitName,
-  fragment: string,
-  expected: readonly string[],
-): void {
-  for (const text of expected) {
-    if (!fragment.includes(text)) {
-      throw new Error(`expected ${action} fragment to include ${JSON.stringify(text)}.`);
-    }
-  }
-}
-
-function assertFragmentIncludesInOrder(fragment: string, expected: readonly string[]): void {
-  let cursor = 0;
-  for (const text of expected) {
-    const index = fragment.indexOf(text, cursor);
-    if (index === -1) {
-      throw new Error(`expected read fragment to include ${JSON.stringify(text)} in order.`);
-    }
-    cursor = index + text.length;
   }
 }
 
@@ -466,92 +402,4 @@ function assertExpectedErrorMatchesSpecContract(
       `expectedError ${JSON.stringify(expected)} does not match the spec-owned behavioral_errors contract`,
     );
   }
-}
-
-function sameBehavioralError(
-  specCase: BehavioralErrorCase,
-  expected: BehavioralExpectedError,
-): boolean {
-  return (
-    specCase.action === expected.action &&
-    specCase.trigger === expected.trigger &&
-    specCase.code === expected.code &&
-    sameStringSet(specCase.fields, expected.fields) &&
-    JSON.stringify(specCase.expected_markers) === JSON.stringify(expected.expected_markers)
-  );
-}
-
-function assertValidationErrorMarkers(fragment: string, expected: BehavioralExpectedError): void {
-  const marker = expected.expected_markers;
-  const elements = parseHtmlStartTagAttributes(fragment).filter(
-    (attributes) => attributes[marker.role_attribute] === marker.role,
-  );
-  if (elements.length === 0) {
-    throw new Error(
-      `expected create fragment to include an error element with ${marker.role_attribute}="${marker.role}".`,
-    );
-  }
-
-  const actualSummary = elements.map((attributes) => ({
-    code: attributes[marker.code_attribute],
-    fields: attributes[marker.fields_attribute],
-  }));
-  const match = elements.find((attributes) => {
-    const fields = splitErrorFields(attributes[marker.fields_attribute], marker.fields_separator);
-    return (
-      attributes[marker.code_attribute] === expected.code && sameStringSet(fields, expected.fields)
-    );
-  });
-
-  if (!match) {
-    throw new Error(
-      `expected error markers code=${JSON.stringify(expected.code)} fields=${JSON.stringify(expected.fields)}, received ${JSON.stringify(actualSummary)}.`,
-    );
-  }
-}
-
-function parseHtmlStartTagAttributes(fragment: string): Array<Record<string, string>> {
-  const elements: Array<Record<string, string>> = [];
-  const tagPattern = /<[A-Za-z][A-Za-z0-9:-]*(?:\s+[^<>]*?)?>/g;
-  for (const [tag] of fragment.matchAll(tagPattern)) {
-    elements.push(parseAttributes(tag));
-  }
-  return elements;
-}
-
-function parseAttributes(tag: string): Record<string, string> {
-  const attributes: Record<string, string> = {};
-  const attributePattern =
-    /\s([A-Za-z_:][A-Za-z0-9_.:-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
-  for (const match of tag.matchAll(attributePattern)) {
-    const name = match[1];
-    if (!name) continue;
-    attributes[name] = match[2] ?? match[3] ?? match[4] ?? "";
-  }
-  return attributes;
-}
-
-function splitErrorFields(value: string | undefined, separator: string): string[] {
-  if (!value) return [];
-  return value
-    .split(separator)
-    .map((field) => field.trim())
-    .filter((field) => field.length > 0);
-}
-
-function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length !== right.length) return false;
-  const rightSet = new Set(right);
-  return left.every((value) => rightSet.has(value));
-}
-
-function rowMatches(
-  fields: readonly SpecField[],
-  row: ReturnType<typeof selectCapabilityRows>[number],
-  expected: Readonly<Record<string, BehavioralScalar>>,
-): boolean {
-  return Object.entries(expected).every(([field, value]) => {
-    const type = fields.find((candidate) => candidate.name === field)?.type;
-    return type ? fieldValueMatches(type, row[field], value) : row[field] === value;
-  });
 }

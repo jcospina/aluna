@@ -4,7 +4,16 @@
 // final verdict over generated strings, and must catch broken units independently.
 
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
-
+import {
+  BEHAVIORAL_SUITE as FULL_BEHAVIORAL_SUITE,
+  CREATE_HANDLER as FULL_CREATE_HANDLER,
+  DELETE_HANDLER as FULL_DELETE_HANDLER,
+  ITEM_RENDERER as FULL_ITEM_RENDERER,
+  NOTES_SPEC as FULL_NOTES_SPEC,
+  READ_HANDLER as FULL_READ_HANDLER,
+  SEARCH_HANDLER as FULL_SEARCH_HANDLER,
+  UPDATE_HANDLER as FULL_UPDATE_HANDLER,
+} from "../app.test-support.ts";
 import { deriveCapabilityTableDdl } from "../capability-data/index.ts";
 import { FIELD_LIFECYCLE_DEMO_SPEC, FIELD_LIFECYCLE_DEMO_UNITS } from "../demo/field-lifecycle.ts";
 import { type CapabilitySpec, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/index.ts";
@@ -22,8 +31,43 @@ import {
   resolveBehavioralTierEnabled,
   runCapabilityGate,
 } from "./gate.ts";
+import { runFullBehavioralRung } from "./gate-behavioral-full.ts";
 
 setDefaultTimeout(15_000);
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: compact fixture builder covers four Action shapes.
+function fullCase(
+  action: "read" | "update" | "delete" | "search",
+  name: string,
+  entry: string,
+  target: "first_setup_row" | "missing_record" | null = null,
+) {
+  const before = target === "first_setup_row" && action === "update" ? `${entry} before` : entry;
+  const missing = target === "missing_record";
+  const deleted = action === "delete" && !missing;
+  return {
+    action,
+    name,
+    setupRows: [{ values: [{ field: "entry", value: before }] }],
+    target,
+    input:
+      action === "update"
+        ? [{ field: "entry", value: entry }]
+        : action === "search"
+          ? [{ field: "q", value: entry.split(" ")[0] ?? entry }]
+          : [],
+    expectedRows: deleted
+      ? []
+      : [{ values: [{ field: "entry", value: missing ? before : entry }] }],
+    expectedRowCount: deleted ? 0 : 1,
+    expectFragmentIncludes:
+      !missing && (action === "read" || action === "update" || action === "search") ? [entry] : [],
+    expectFragmentExcludes: [],
+    expectFragmentIncludesInOrder: [],
+    expectedError: null,
+    expectedPlatformError: missing ? { action, code: "record_not_found" as const } : null,
+  };
+}
 
 describe("capability gate — behavioral test generation", () => {
   test("behavioral test generation sees only behavior and schema, never handler code", async () => {
@@ -64,6 +108,107 @@ describe("capability gate — behavioral test generation", () => {
     expect(caseSchema?.required).toContain("expectedError");
     expect(caseSchema?.required?.sort()).toEqual(Object.keys(caseSchema?.properties ?? {}).sort());
     expect(JSON.stringify(caseSchema?.properties?.expectedError)).toContain("null");
+  });
+});
+
+describe("capability gate — five-Action behavioral contract", () => {
+  const fullInput = (
+    suite: unknown = FULL_BEHAVIORAL_SUITE,
+    handlerOverrides: Partial<Record<"search", string>> = {},
+  ) =>
+    gateInput({
+      spec: FULL_NOTES_SPEC as CapabilitySpec,
+      ddl: deriveCapabilityTableDdl(FULL_NOTES_SPEC as CapabilitySpec),
+      itemRenderer: FULL_ITEM_RENDERER,
+      handlers: {
+        create: FULL_CREATE_HANDLER,
+        read: FULL_READ_HANDLER,
+        update: FULL_UPDATE_HANDLER,
+        delete: FULL_DELETE_HANDLER,
+        search: handlerOverrides.search ?? FULL_SEARCH_HANDLER,
+      },
+      provider: makeBehaviorProvider(suite).provider,
+    });
+
+  test("reports every Action plus authored and platform-stable errors independently", async () => {
+    const result = await runCapabilityGate(fullInput());
+    expect(result.behavioral.status).toBe("passed");
+    if (result.behavioral.tier !== "on") throw new Error("behavioral tier unexpectedly off");
+    expect(result.behavioral.testRun.cases.map((testCase) => testCase.action)).toEqual([
+      "create",
+      "read",
+      "update",
+      "delete",
+      "search",
+      "create",
+      "update",
+      "update",
+      "delete",
+    ]);
+  });
+
+  test("fails a search Handler that renders seeded non-matches", async () => {
+    const rendersEveryRow = [
+      "export default async function search({ query, present }: CapabilityContext): Promise<string> {",
+      "  return query.records({",
+      '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+      '  }).map(({ record }) => present(record)).join("");',
+      "}",
+    ].join("\n");
+    await expect(
+      runFullBehavioralRung(fullInput(FULL_BEHAVIORAL_SUITE, { search: rendersEveryRow })),
+    ).rejects.toThrow("unexpectedly included Other entry");
+  });
+
+  test("rejects missing Action coverage, false error triggers, and error-case product copy", async () => {
+    const missingSearch = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.filter((testCase) => testCase.action !== "search"),
+    };
+    const missing = await expectGateFailure(fullInput(missingSearch));
+    expect(missing.failedRung).toBe("behavioral");
+    expect(missing.outcomes.at(-1)?.error).toContain("normal search case");
+
+    const productCopy = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.expectedError
+          ? { ...testCase, expectFragmentIncludes: ["friendly generated wording"] }
+          : testCase,
+      ),
+    };
+    const wording = await expectGateFailure(fullInput(productCopy));
+    expect(wording.outcomes.at(-1)?.error).toContain("never product wording");
+
+    const falseErrorTrigger = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.expectedError
+          ? { ...testCase, input: [{ field: "text", value: "Definitely present" }] }
+          : testCase,
+      ),
+    };
+    const falseTrigger = await expectGateFailure(fullInput(falseErrorTrigger));
+    expect(falseTrigger.outcomes.at(-1)?.error).toContain("may not submit non-empty");
+
+    const malformedReadInput = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.action === "read"
+          ? { ...testCase, input: [{ field: "text", value: "copy" }] }
+          : testCase,
+      ),
+    };
+    const malformedRead = await expectGateFailure(fullInput(malformedReadInput));
+    expect(malformedRead.outcomes.at(-1)?.error).toContain(
+      'input references unknown spec field "text"',
+    );
+
+    const normalProductCopy = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.action === "read" && !testCase.expectedError
+          ? { ...testCase, expectFragmentIncludes: ["Welcome, friend!"] }
+          : testCase,
+      ),
+    };
+    const normalWording = await expectGateFailure(fullInput(normalProductCopy));
+    expect(normalWording.outcomes.at(-1)?.error).toContain("never product wording");
   });
 });
 
@@ -161,6 +306,13 @@ describe("capability gate — behavioral scratch catalog", () => {
     });
     const spec: CapabilitySpec = {
       ...FIELD_LIFECYCLE_DEMO_SPEC,
+      schema: {
+        fields: FIELD_LIFECYCLE_DEMO_SPEC.schema.fields.map((field) => ({
+          ...field,
+          required: false,
+        })),
+      },
+      behavioral_errors: [],
       read_dependencies: {
         ...FIELD_LIFECYCLE_DEMO_SPEC.read_dependencies,
         read: [
@@ -194,20 +346,29 @@ describe("capability gate — behavioral scratch catalog", () => {
     const suite = {
       cases: [
         {
+          action: "create",
           name: "declared dependency is present during behavior",
           setupRows: [],
+          target: null,
           input: [
             { field: "entry", value: "Behavioral entry" },
             { field: "reflection", value: "Synthetic reflection" },
             { field: "tags", value: "behavior" },
           ],
-          expectedCreatedRow: [{ field: "entry", value: "Behavioral entry" }],
+          expectedRows: [{ values: [{ field: "entry", value: "Behavioral entry" }] }],
           expectedRowCount: 1,
-          expectCreateFragmentIncludes: ["Behavioral entry"],
-          expectReadFragmentIncludes: ["Behavioral entry"],
-          expectReadFragmentIncludesInOrder: [],
+          expectFragmentIncludes: ["Behavioral entry"],
+          expectFragmentExcludes: [],
+          expectFragmentIncludesInOrder: [],
           expectedError: null,
+          expectedPlatformError: null,
         },
+        fullCase("read", "reads the synthetic row", "Read entry"),
+        fullCase("update", "updates the bound row", "Updated entry", "first_setup_row"),
+        fullCase("delete", "deletes the bound row", "Delete entry", "first_setup_row"),
+        fullCase("search", "searches the synthetic row", "Search entry"),
+        fullCase("update", "missing update target is stable", "Stable update", "missing_record"),
+        fullCase("delete", "missing delete target is stable", "Stable delete", "missing_record"),
       ],
     };
 

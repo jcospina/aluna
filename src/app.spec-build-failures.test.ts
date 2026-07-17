@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ZodType } from "zod";
 import {
+  BEHAVIORAL_SUITE,
   CREATE_HANDLER,
   collectSseEvents,
   createScratchDbEnv,
@@ -35,7 +36,6 @@ import type { PlatformDatabase } from "./db.ts";
 import type { GenerationMetrics } from "./metrics/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "./provider/index.ts";
 import {
-  BEHAVIORAL_ERROR_MARKERS,
   getCapability,
   insertCapability,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
@@ -103,25 +103,11 @@ const MISSING_MARKER_CREATE_HANDLER = [
 ].join("\n");
 
 const VALIDATION_ERROR_SUITE = {
-  cases: [
-    {
-      name: "missing note text emits stable validation markers",
-      setupRows: [],
-      input: [],
-      expectedCreatedRow: [],
-      expectedRowCount: 0,
-      expectCreateFragmentIncludes: [],
-      expectReadFragmentIncludes: [],
-      expectReadFragmentIncludesInOrder: [],
-      expectedError: {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["text"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-    },
-  ],
+  cases: BEHAVIORAL_SUITE.cases.map((testCase) =>
+    testCase.action === "create" && testCase.expectedError
+      ? { ...testCase, name: "missing note text emits stable validation markers" }
+      : testCase,
+  ),
 };
 
 describe("GET /demo/spec-build (builder-stage liveness, fake provider) — provider failure", () => {
@@ -200,19 +186,19 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
 
   test("a behavioral gate failure sends developer evidence without leaking into narration", async () => {
     const failingSuite = {
-      cases: [
-        {
-          name: "expects text that read never returns",
-          setupRows: [],
-          input: [{ field: "text", value: "Behavioral note" }],
-          expectedCreatedRow: [{ field: "text", value: "Behavioral note" }],
-          expectedRowCount: 1,
-          expectCreateFragmentIncludes: ["Behavioral note"],
-          expectReadFragmentIncludes: ["Definitely absent"],
-          expectReadFragmentIncludesInOrder: [],
-          expectedError: null,
-        },
-      ],
+      cases: BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.action === "read" && testCase.expectedError === null
+          ? {
+              ...testCase,
+              name: "expects text that read never returns",
+              expectFragmentIncludes: ["Definitely absent"],
+              expectedRows: [
+                ...testCase.expectedRows,
+                { values: [{ field: "text", value: "Definitely absent" }] },
+              ],
+            }
+          : testCase,
+      ),
     };
     const { provider } = makeSpecProvider(NOTES_SPEC, failingSuite);
     const { rows, recordMetrics } = makeMetricsRecorder();
@@ -228,7 +214,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
         failure: string;
         testCase: { name: string };
         scratchRows: Array<{ text: string }>;
-        readFragment: string;
+        fragment: string;
       };
     };
 
@@ -238,10 +224,8 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
     expect(preview.errorName).toBe("CapabilityGateError");
     expect(preview.diagnostic.testCase.name).toBe("expects text that read never returns");
     expect(preview.diagnostic.failure).toContain("Definitely absent");
-    expect(preview.diagnostic.scratchRows).toEqual([
-      expect.objectContaining({ text: "Behavioral note" }),
-    ]);
-    expect(preview.diagnostic.readFragment).toContain("Behavioral note");
+    expect(preview.diagnostic.scratchRows).toEqual([expect.objectContaining({ text: "Read me" })]);
+    expect(preview.diagnostic.fragment).toContain("Read me");
 
     // Failure is data: one metrics row, outcome failure, pinpointing the rung that
     // failed (the behavioral gate), with the timings up to that point present.
@@ -346,7 +330,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — valid
       diagnostic: {
         failure: string;
         testCase: { name: string; expectedError: { code: string; fields: string[] } };
-        createFragment: string;
+        fragment: string;
         scratchRows: unknown[];
       };
     };
@@ -363,7 +347,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — valid
       fields: ["text"],
     });
     expect(preview.diagnostic.failure).toContain('data-role="error"');
-    expect(preview.diagnostic.createFragment).toContain("Any friendly copy");
+    expect(preview.diagnostic.fragment).toContain("Any friendly copy");
     expect(preview.diagnostic.scratchRows).toEqual([]);
     // Recorded as a behavioral-gate failure.
     expect(rows[0]?.outcome).toBe("failure");

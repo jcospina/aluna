@@ -74,6 +74,7 @@ export interface BehavioralTestGenerationMetrics {
 }
 
 export interface BehavioralTestCaseOutcome {
+  readonly action?: HandlerUnitName;
   readonly name: string;
   readonly status: "passed";
   readonly durationMs: number;

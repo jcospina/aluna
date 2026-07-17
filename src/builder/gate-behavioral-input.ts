@@ -22,6 +22,9 @@ export function fieldValuesToRecord(
 export function inputValuesToHandlerInput(
   spec: CapabilitySpec,
   values: readonly BehavioralInputValue[],
+  submittedFieldNames: readonly string[] = activeSpecFields(spec.schema.fields).map(
+    (field) => field.name,
+  ),
 ): CapabilityInput {
   const fields = activeSpecFields(spec.schema.fields);
   const fieldsByName = new Map(fields.map((field) => [field.name, field]));
@@ -39,6 +42,6 @@ export function inputValuesToHandlerInput(
         fieldsByName.get(fieldName)?.type === "string[]" ? submitted : (submitted[0] ?? ""),
       ]),
     ),
-    submittedFields: new Set(fields.map((field) => field.name)),
+    submittedFields: new Set(submittedFieldNames),
   };
 }
