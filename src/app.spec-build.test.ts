@@ -17,6 +17,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  BEHAVIORAL_SUITE,
   collectSseEvents,
   createScratchDbEnv,
   eventData,
@@ -25,6 +26,7 @@ import {
   makeSpecProvider,
   NOTES_SPEC,
   readSse,
+  SEARCH_HANDLER,
   type SseEvent,
   teardownScratchDbEnv,
 } from "./app.test-support.ts";
@@ -383,6 +385,49 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     assertNarrationCommitAndPrompts(dataFor, prompts);
     assertBuildMetrics(rows);
     assertCommitPreviewAndArtifacts(dataFor, rows, artifactsRoot, conns);
+  });
+
+  test("commits the search Handler repaired by the always-on smoke fixture", async () => {
+    const poisonedSearch = SEARCH_HANDLER.replaceAll("platform_search_normalize", "lower");
+    const { provider, prompts } = makeSpecProvider(NOTES_SPEC, BEHAVIORAL_SUITE, {
+      search: poisonedSearch,
+      searchRepair: SEARCH_HANDLER,
+    });
+    const { rows, recordMetrics } = makeMetricsRecorder();
+    const app = committingApp(provider, recordMetrics);
+
+    const events = collectSseEvents(
+      await readSse(await app.request("/demo/spec-build?prompt=track%20my%20notes")),
+    );
+    expect(events.at(-1)).toEqual({ id: expect.any(String), event: "done", data: "ok" });
+    const preview = JSON.parse(eventData(events, "gate-preview")) as {
+      smoke: { fixed: boolean; attempts: Array<{ action?: string; error?: string }> };
+    };
+    expect(preview.smoke.fixed).toBe(true);
+    expect(preview.smoke.attempts).toHaveLength(2);
+    expect(preview.smoke.attempts[0]).toMatchObject({
+      action: "search",
+      error: expect.any(String),
+    });
+    const repairedUnits = JSON.parse(
+      events.filter((event) => event.event === "units-preview").at(-1)?.data ?? "",
+    ) as { units: Array<{ name: string; attempts: number; content: string }> };
+    expect(repairedUnits.units.find((unit) => unit.name === "search")).toMatchObject({
+      attempts: 2,
+      content: SEARCH_HANDLER,
+    });
+
+    const committed = getCapability("notes", conns.readonly);
+    if (!committed) throw new Error("repaired capability did not commit");
+    expect(await Bun.file(resolve(committed.artifacts_path, "search.ts")).text()).toBe(
+      SEARCH_HANDLER,
+    );
+    expect(prompts).toHaveLength(9);
+    expect(prompts[7]).toContain("Previous attempt failed");
+    expect(prompts[7]).toContain("Generate the search.ts handler");
+    expect(prompts[8]).toContain("Generate behavioral tests for this Aluna capability");
+    expect(rows[0]?.outcome).toBe("success");
+    expect(rows[0]?.unitAttempts?.find((unit) => unit.name === "search")?.attempts).toBe(2);
   });
 });
 

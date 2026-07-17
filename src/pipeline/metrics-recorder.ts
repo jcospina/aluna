@@ -151,6 +151,15 @@ export function recordUnitMetrics(
   acc: DemoBuildAccumulator,
   units: readonly GeneratedUnit[],
 ): void {
+  refreshUnitMetrics(acc, units);
+  for (const unit of units) acc.usages.push(unit.usage);
+}
+
+/** Refresh unit timings/attempts after Gate has folded repairs into the commit units. */
+export function refreshUnitMetrics(
+  acc: DemoBuildAccumulator,
+  units: readonly GeneratedUnit[],
+): void {
   acc.timings.codeGenMs = sumUnitDuration(units, "handler");
   acc.timings.presentationGenMs = sumUnitDuration(units, "item-renderer");
   acc.unitAttempts = units.map((unit) => ({
@@ -160,7 +169,6 @@ export function recordUnitMetrics(
     durationMs: unit.durationMs,
     usage: unit.usage,
   }));
-  for (const unit of units) acc.usages.push(unit.usage);
 }
 
 function sumUnitDuration(units: readonly GeneratedUnit[], kind: GeneratedUnit["kind"]): number {
@@ -184,5 +192,6 @@ export function recordGateMetrics(
     acc.timings.testRunMs = gateResult.behavioral.testRun.durationMs;
     acc.usages.push(gateResult.behavioral.testGen.usage);
   }
+  acc.usages.push(gateResult.smoke.usage);
   acc.usages.push(gateResult.designLint.usage);
 }

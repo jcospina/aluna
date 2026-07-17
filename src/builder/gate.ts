@@ -43,7 +43,23 @@ export interface SmokeGateResult {
   readonly insertedRowId: string;
   readonly createFragmentLength: number;
   readonly readFragmentLength: number;
+  readonly updateFragmentLength?: number;
+  readonly searchCaseCount?: number;
+  readonly deleteFragmentLength?: number;
+  readonly fixed: boolean;
+  readonly attempts: readonly SmokeGateAttempt[];
+  readonly usage: TokenUsage;
   readonly realDatabaseUnchanged?: boolean;
+}
+
+export interface SmokeGateAttempt {
+  readonly attempt: number;
+  readonly action?: HandlerUnitName;
+  readonly repairAction?: HandlerUnitName;
+  readonly durationMs: number;
+  readonly repairDurationMs?: number;
+  readonly usage?: TokenUsage;
+  readonly error?: string;
 }
 
 export interface BehavioralTierInput {
@@ -85,6 +101,10 @@ export type BehavioralGateResult =
 // The design-lint knob. The bounded fix loop reuses M2's `DEFAULT_UNIT_FIX_ATTEMPTS`
 // (default 2) unless overridden here — the same reused knob, not a new one.
 export interface DesignLintTierInput {
+  readonly maxAttempts?: number;
+}
+
+export interface SmokeGateInput {
   readonly maxAttempts?: number;
 }
 
@@ -131,6 +151,10 @@ export interface CapabilityGateInput {
   // Optional override for the design-lint rung's bounded fix loop (default
   // DEFAULT_UNIT_FIX_ATTEMPTS); tests set it to exercise fix-then-pass and cap exhaustion.
   readonly designLint?: DesignLintTierInput;
+  // The smoke rung reuses the same bounded unit-fix budget as generation/design lint.
+  // Attempt one executes the supplied snapshot; later attempts regenerate only the
+  // Handler attributed by the unchanged platform-owned fixture.
+  readonly smoke?: SmokeGateInput;
   // Optional assertion hook for the real db: the gate snapshots capability tables
   // before and after smoke and fails if they changed.
   readonly realDatabase?: Database;
@@ -153,6 +177,7 @@ export interface CapabilityGateResult {
   readonly smoke: SmokeGateResult;
   readonly behavioral: BehavioralGateResult;
   readonly designLint: DesignLintGateResult;
+  readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
 }
 
 export class CapabilityGateError extends Error {
@@ -188,11 +213,15 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   const outcomes: GateRungOutcome[] = [];
 
   const structural = await runGateRung(outcomes, "structural", () => runStructuralRung(input));
-  const smoke = await runGateRung(outcomes, "smoke", () => runSmokeRung(input));
+  const smokeRun = await runGateRung(outcomes, "smoke", () => runSmokeRung(input));
+  const smoke = smokeRun.result;
+  const repairedInput = { ...input, handlers: smokeRun.handlers };
   const behavioral = resolveBehavioralTierEnabledForInput(input)
-    ? await runGateRung(outcomes, "behavioral", () => runBehavioralRung(input))
+    ? await runGateRung(outcomes, "behavioral", () => runBehavioralRung(repairedInput))
     : skipGateRung(outcomes, "behavioral", "Behavioral tier is off for this run.");
-  const designLint = await runGateRung(outcomes, "design-lint", () => runDesignLintRung(input));
+  const designLint = await runGateRung(outcomes, "design-lint", () =>
+    runDesignLintRung(repairedInput),
+  );
 
   return {
     outcomes,
@@ -201,6 +230,7 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
     smoke,
     behavioral,
     designLint,
+    handlers: smokeRun.handlers,
   };
 }
 

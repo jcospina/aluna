@@ -10,10 +10,10 @@
 import type { ZodType } from "zod";
 
 import {
+  type CapabilityGateResult,
   type CommitCapabilityResult,
   commitCapability,
   createCapabilityIncarnationId,
-  type DesignLintGateResult,
   type GeneratedUnit,
   generateCapabilityUnits,
   generateSpec,
@@ -25,13 +25,14 @@ import {
 } from "../builder/index.ts";
 import type { PlatformDatabase } from "../db.ts";
 import type { IntentClassification } from "../intent-resolver/index.ts";
-import type { GenerateResult, Provider } from "../provider/index.ts";
+import type { GenerateResult, Provider, TokenUsage } from "../provider/index.ts";
 import type { CapabilitySpec } from "../registry/index.ts";
 import type { Send } from "../sse/index.ts";
 import {
   type DemoBuildAccumulator,
   recordGateMetrics,
   recordUnitMetrics,
+  refreshUnitMetrics,
 } from "./metrics-recorder.ts";
 import {
   buildGatePreview,
@@ -174,7 +175,15 @@ export async function runSpecBuildStages(
         realDatabase: database,
       });
       throwIfAborted(isAborted);
+      const commitUnits = applyGateFixes(unitResult.units, gateResult);
+      refreshUnitMetrics(acc, commitUnits);
       recordGateMetrics(acc, gateResult);
+      if (unitsChanged(unitResult.units, commitUnits)) {
+        await send(
+          "units-preview",
+          JSON.stringify(buildUnitsPreview(commitUnits.map(finalUnitPreview), "complete")),
+        );
+      }
       await send(
         "gate-preview",
         JSON.stringify(
@@ -193,7 +202,7 @@ export async function runSpecBuildStages(
       console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
         usage,
         spec,
-        units: unitResult.units.map((unit) => ({
+        units: commitUnits.map((unit) => ({
           kind: unit.kind,
           name: unit.name,
           attempts: unit.attempts.length,
@@ -212,7 +221,6 @@ export async function runSpecBuildStages(
       // them, inside this transaction (the pointer flip). Unreachable unless the gate
       // above passed every active rung. When the design-lint rung regenerated the item
       // renderer to clear a violation, `item.ts` must carry that fixed content.
-      const commitUnits = applyDesignLintFix(unitResult.units, gateResult.designLint);
       return commitCapability({
         spec,
         incarnationId,
@@ -293,17 +301,84 @@ async function generateUnitsWithPreview(
 }
 
 /**
- * Fold a design-lint fix back into the units the pipeline commits. When the design-lint
- * rung regenerated the item renderer to clear a violation, the committed `item.ts` must
- * carry the fixed content — not the original the gate was first handed. A clean pass
- * returns the units untouched.
+ * Fold Gate repairs back into the units the pipeline commits. Smoke may replace exactly
+ * one failing Handler per bounded turn, and design lint may replace item.ts. Behavioral
+ * execution has already consumed these repaired Handler bytes inside runCapabilityGate.
  */
-function applyDesignLintFix(
+function applyGateFixes(
   units: readonly GeneratedUnit[],
-  designLint: DesignLintGateResult,
+  gate: CapabilityGateResult,
 ): readonly GeneratedUnit[] {
-  if (!designLint.fixed) return units;
-  return units.map((unit) =>
-    unit.kind === "item-renderer" ? { ...unit, content: designLint.itemRenderer } : unit,
+  return units.map((unit) => {
+    const repairAttempts = gateRepairAttempts(unit, gate);
+    const durationMs =
+      unit.durationMs + repairAttempts.reduce((sum, attempt) => sum + attempt.durationMs, 0);
+    const usage = addTokenUsage(
+      unit.usage,
+      repairAttempts.map((attempt) => attempt.usage),
+    );
+    if (unit.kind === "item-renderer") {
+      return {
+        ...unit,
+        content: gate.designLint.fixed ? gate.designLint.itemRenderer : unit.content,
+        attempts: [...unit.attempts, ...repairAttempts],
+        durationMs,
+        usage,
+      };
+    }
+    const content = gate.handlers[unit.name];
+    return {
+      ...unit,
+      content: content ?? unit.content,
+      attempts: [...unit.attempts, ...repairAttempts],
+      durationMs,
+      usage,
+    };
+  });
+}
+
+function gateRepairAttempts(
+  unit: GeneratedUnit,
+  gate: CapabilityGateResult,
+): UnitGenerationAttempt[] {
+  const attempts =
+    unit.kind === "item-renderer"
+      ? gate.designLint.attempts.filter((attempt) => attempt.usage)
+      : gate.smoke.attempts.filter(
+          (attempt) => (attempt.repairAction ?? attempt.action) === unit.name && attempt.usage,
+        );
+  return attempts.map((attempt, index) => ({
+    attempt: unit.attempts.length + index + 1,
+    durationMs:
+      "repairDurationMs" in attempt && typeof attempt.repairDurationMs === "number"
+        ? attempt.repairDurationMs
+        : attempt.durationMs,
+    usage: attempt.usage ?? {
+      inputTokens: undefined,
+      outputTokens: undefined,
+      totalTokens: undefined,
+    },
+    ...(attempt.error ? { error: attempt.error } : {}),
+  }));
+}
+
+function addTokenUsage(base: TokenUsage, additions: readonly TokenUsage[]): TokenUsage {
+  return {
+    inputTokens: sumOptional([base.inputTokens, ...additions.map((usage) => usage.inputTokens)]),
+    outputTokens: sumOptional([base.outputTokens, ...additions.map((usage) => usage.outputTokens)]),
+    totalTokens: sumOptional([base.totalTokens, ...additions.map((usage) => usage.totalTokens)]),
+  };
+}
+
+function sumOptional(values: readonly (number | undefined)[]): number | undefined {
+  const present = values.filter((value): value is number => value !== undefined);
+  return present.length > 0 ? present.reduce((sum, value) => sum + value, 0) : undefined;
+}
+
+function unitsChanged(before: readonly GeneratedUnit[], after: readonly GeneratedUnit[]): boolean {
+  return before.some(
+    (unit, index) =>
+      unit.content !== after[index]?.content ||
+      unit.attempts.length !== after[index]?.attempts.length,
   );
 }

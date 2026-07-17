@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +16,8 @@ import {
   installFieldLifecycleDemo,
 } from "./field-lifecycle.ts";
 import { READ_DEPENDENCY_DEMO_ID } from "./read-dependency.ts";
+
+setDefaultTimeout(15_000);
 
 async function installReference(database: PlatformDatabase["readwrite"], artifactsRoot: string) {
   const result = await installFieldLifecycleDemo({

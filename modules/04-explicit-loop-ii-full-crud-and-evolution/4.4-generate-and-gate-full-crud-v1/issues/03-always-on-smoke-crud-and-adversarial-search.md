@@ -1,6 +1,6 @@
 # Always-on smoke: full CRUD cycle and the adversarial search fixture
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -35,20 +35,20 @@ The search baseline (decision 20) is complete and always-on:
 
 ## Acceptance criteria
 
-- [ ] The adversarial fixture proves: scalar and list inclusion; all exclusions
+- [x] The adversarial fixture proves: scalar and list inclusion; all exclusions
       (inactive, `extra`, platform columns, non-text); AND semantics across
       fields; literal `%`, `_`, and quotes; Latin-accented vs unaccented and composed
       vs decomposed non-ASCII text; preservation of non-Latin voicing/vowel/tone
       marks; case; repeated Unicode whitespace; complete target rows
       (rehydration); empty/whitespace-`q` ≡ read; no duplicates; stable default
       ordering — not merely “a field other than title participates”
-- [ ] Smoke executes a full CRUD cycle (create → read → update-merge → search →
+- [x] Smoke executes a full CRUD cycle (create → read → update-merge → search →
       delete) against scratch adapters on every candidate snapshot
-- [ ] A generated `search` using `NOCASE`/`lower()` instead of the platform
+- [x] A generated `search` using `NOCASE`/`lower()` instead of the platform
       function fails the fixture
-- [ ] Smoke failures repair per-unit within the bounded loop; the fixture
+- [x] Smoke failures repair per-unit within the bounded loop; the fixture
       itself is platform-owned and never weakened
-- [ ] `bun test`, `bun run typecheck`, `bun run lint` clean
+- [x] `bun test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -61,3 +61,73 @@ semantics hold live.
 ## Blocked by
 
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.4-generate-and-gate-full-crud-v1/issues/01-generate-five-handlers-and-item-renderer.md
+
+## Implementation notes
+
+- The always-on smoke now executes the complete five-Action lifecycle against a
+  fresh scratch catalog: create, canonical read, target-bound merge update,
+  adversarial search, then delete. The real capability database is snapshotted
+  around the run and must remain unchanged.
+- The platform-owned search fixture adapts to the candidate schema while keeping
+  its verdicts fixed. It exercises every active string field and both early and
+  later elements of every active string-list field, all non-text/inactive/platform
+  exclusions, cross-field AND matching, literal metacharacters and quotes, Latin
+  normalization, non-Latin marks, broad Unicode whitespace, duplicate suppression,
+  full rehydration, empty-query equivalence, and stable default ordering.
+- Search results must return every fragment produced by `present` in order; merely
+  querying or calling `present` and then discarding the visible HTML now fails.
+  Canonical-read failures inside the multi-row baseline are attributed to `read`,
+  so the bounded repair loop regenerates the responsible Action.
+- Smoke repair uses the existing unit-fix budget. It regenerates only the
+  attributed Handler, statically validates it, and reruns the unchanged fixture
+  from fresh scratch. A structurally invalid regeneration consumes one attempt
+  and feeds the next bounded turn instead of aborting early.
+- Gate-repaired Handler bytes, attempts, duration, and usage are folded back into
+  the final unit preview, generation metrics, and committed artifacts. The
+  existing five-Action reference search was updated to the same multi-term,
+  all-active-target-field contract so its living-demo installer continues to pass
+  the strengthened Gate.
+
+## Verification
+
+- `bun test` — 544 passing, 0 failing, 2 snapshots, 2,616 expectations
+- `bun run typecheck` — clean
+- `bun run lint` — 193 files checked, no fixes
+- `git diff --check` — clean
+- Focused Gate, repair, reference-demo, and build-preview/metrics suite — 25
+  passing, 0 failing, 361 expectations
+- Independent verification passed the focused smoke/app suite, 65 related
+  structural/behavioral/unit regressions, typecheck, targeted formatting, and
+  whitespace checks.
+- Independent quality and adversarial audits mutation-tested omitted active list
+  fields/elements, per-field `lower()`, active dates, narrow whitespace splitting,
+  discarded search HTML, wrong read attribution, and invalid first repairs. Each
+  reproduced blind spot now has implementation coverage and a regression test.
+- Browser verification reused the existing `http://localhost:3030` server and
+  generated **Notes** capability without reset. Three module-acceptance records
+  were intentionally left in place: one rich adversarial record plus
+  `crossalpha only` and `crossbeta` controls. Repeated Unicode-whitespace AND
+  search returned only the rich record; literal `%`, `_`, apostrophe and double
+  quote terms did the same; `cafe angstrom` matched composed/decomposed accented
+  values; `ば कि ก่า` preserved non-Latin marks; Clear restored all three in
+  newest-first order. The browser console reported no errors.
+
+## HITL test instructions
+
+1. Keep the existing app on port 3030 running; if it is not running, start it
+   with `bun run dev`. Do not reset because the Notes module-acceptance records
+   are intentionally ready for this check.
+2. Run
+   `bun test src/builder/gate.smoke.test.ts src/builder/gate.smoke-search.test.ts`.
+   Confirm all smoke, frozen-fixture, attribution, visible-fragment, and bounded-
+   repair tests pass.
+3. Open `http://localhost:3030/capability/notes`. Confirm three records are
+   visible, newest first: **beta only**, **crossalpha only**, then the rich
+   **CAFÉ percent% underscore_ O'Reilly...** record.
+4. Search `crossalpha` + several spaces (ordinary or Unicode) + `crossbeta`.
+   Confirm only the rich record remains; neither one-term control matches.
+5. Search `percent% underscore_ O'Reilly double"quote`. Confirm those characters
+   are treated literally and only the rich record remains.
+6. Search `cafe angstrom`, then `ば कि ก่า`. Confirm the rich record matches both
+   searches. Choose **Clear** and confirm all three records return in the same
+   newest-first order with no search-error message.

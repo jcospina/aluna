@@ -32,16 +32,30 @@ import type {
   FieldType,
   ReadDependency,
 } from "../registry/index.ts";
-import type { CapabilityCreateHandler, CapabilityReadHandler } from "../router/index.ts";
+import type {
+  CapabilityCreateHandler,
+  CapabilityDeleteHandler,
+  CapabilityReadHandler,
+  CapabilityUpdateHandler,
+} from "../router/index.ts";
 import type { ScratchCatalogCapability } from "./gate.ts";
 import type { HandlerUnitName } from "./units.ts";
 
-/** The two handlers the current smoke cycle executes; structural checks cover the full inventory. */
-export const SMOKE_HANDLER_NAMES = ["create", "read"] as const satisfies readonly HandlerUnitName[];
+/** The complete steady-state Handler inventory exercised by the full smoke cycle. */
+export const SMOKE_HANDLER_NAMES = [
+  "create",
+  "read",
+  "update",
+  "search",
+  "delete",
+] as const satisfies readonly HandlerUnitName[];
 
 export interface LoadedHandlers {
   readonly create: CapabilityCreateHandler;
   readonly read: CapabilityReadHandler;
+  readonly update?: CapabilityUpdateHandler;
+  readonly delete?: CapabilityDeleteHandler;
+  readonly search?: CapabilityReadHandler;
 }
 
 /**
@@ -189,8 +203,9 @@ function seedCompatibilityRow(
 /** Transpile + load the generated handler strings into live callable functions. */
 export async function loadHandlers(
   handlers: Readonly<Partial<Record<HandlerUnitName, string>>>,
+  names: readonly HandlerUnitName[] = ["create", "read"],
 ): Promise<LoadedHandlers> {
-  const loaded = SMOKE_HANDLER_NAMES.map(
+  const loaded = names.map(
     (name) => [name, loadDefaultExport(`handler "${name}"`, name, handlers[name] ?? "")] as const,
   );
 

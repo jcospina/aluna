@@ -251,10 +251,11 @@ export async function generateUnitContent(
   spec: CapabilitySpec,
   unit: UnitDescriptor,
   previousFailure?: UnitGenerationFailure,
+  dependencyCatalog?: readonly CapabilityRow[],
 ): Promise<UnitGenerationPass> {
   const startedAt = performance.now();
   const result = provider.generate(
-    buildUnitPrompt(spec, unit, previousFailure),
+    buildUnitPrompt(spec, unit, previousFailure, dependencyCatalog),
     generatedUnitSchema,
   );
   const { content } = generatedUnitSchema.parse(await result.object);
