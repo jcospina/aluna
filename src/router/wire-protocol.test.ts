@@ -51,8 +51,8 @@ function spec(): CapabilitySpec {
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
     ],
-    tools: ["create", "read"],
-    read_dependencies: { create: [], read: [] },
+    tools: ["create", "read", "update", "delete", "search"],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores notes.",
   };
 }

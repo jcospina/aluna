@@ -15,13 +15,15 @@ import {
   UPDATE_HANDLER as FULL_UPDATE_HANDLER,
 } from "../app.test-support.ts";
 import { deriveCapabilityTableDdl } from "../capability-data/index.ts";
-import { FIELD_LIFECYCLE_DEMO_SPEC, FIELD_LIFECYCLE_DEMO_UNITS } from "../demo/field-lifecycle.ts";
 import { type CapabilitySpec, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/index.ts";
 import {
   CREATE_HANDLER,
+  DEFAULT_BEHAVIORAL_SUITE,
   expectGateFailure,
+  fullBehavioralSuiteFor,
   GOOD_HANDLERS,
   gateInput,
+  generatedUnitsFor,
   makeBehaviorProvider,
   notesSpec,
 } from "./gate.test-support.ts";
@@ -35,39 +37,8 @@ import { runFullBehavioralRung } from "./gate-behavioral-full.ts";
 
 setDefaultTimeout(15_000);
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: compact fixture builder covers four Action shapes.
-function fullCase(
-  action: "read" | "update" | "delete" | "search",
-  name: string,
-  entry: string,
-  target: "first_setup_row" | "missing_record" | null = null,
-) {
-  const before = target === "first_setup_row" && action === "update" ? `${entry} before` : entry;
-  const missing = target === "missing_record";
-  const deleted = action === "delete" && !missing;
-  return {
-    action,
-    name,
-    setupRows: [{ values: [{ field: "entry", value: before }] }],
-    target,
-    input:
-      action === "update"
-        ? [{ field: "entry", value: entry }]
-        : action === "search"
-          ? [{ field: "q", value: entry.split(" ")[0] ?? entry }]
-          : [],
-    expectedRows: deleted
-      ? []
-      : [{ values: [{ field: "entry", value: missing ? before : entry }] }],
-    expectedRowCount: deleted ? 0 : 1,
-    expectFragmentIncludes:
-      !missing && (action === "read" || action === "update" || action === "search") ? [entry] : [],
-    expectFragmentExcludes: [],
-    expectFragmentIncludesInOrder: [],
-    expectedError: null,
-    expectedPlatformError: missing ? { action, code: "record_not_found" as const } : null,
-  };
-}
+const FIVE_ACTION_SPEC = notesSpec();
+const FIVE_ACTION_UNITS = generatedUnitsFor(FIVE_ACTION_SPEC);
 
 describe("capability gate — behavioral test generation", () => {
   test("behavioral test generation sees only behavior and schema, never handler code", async () => {
@@ -88,7 +59,7 @@ describe("capability gate — behavioral test generation", () => {
     expect(prompts[0]).toContain('"behavioral_errors"');
     expect(prompts[0]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
     expect(prompts[0]).toContain(
-      "For `setupRows` and `expectedCreatedRow`, a string[] field value must be an array of strings, never a scalar string",
+      "every Action in the source material needs at least one normal case",
     );
     expect(prompts[0]).not.toContain(createMarker);
     expect(prompts[0]).not.toContain("export default async function");
@@ -215,27 +186,24 @@ describe("capability gate — five-Action behavioral contract", () => {
 describe("capability gate — behavioral violations", () => {
   test("behavioral rung fails violating handlers and passes conforming handlers", async () => {
     const trimSpec = notesSpec({ behavior: "Text is trimmed before saving." });
-    const trimSuite = {
-      cases: [
-        {
-          name: "trims note text before saving",
-          setupRows: [],
-          input: [
-            { field: "text", value: "  Trim me  " },
-            { field: "pinned", value: "false" },
-          ],
-          expectedCreatedRow: [
-            { field: "text", value: "Trim me" },
-            { field: "pinned", value: false },
-          ],
-          expectedRowCount: 1,
-          expectCreateFragmentIncludes: ["Trim me"],
-          expectReadFragmentIncludes: ["Trim me"],
-          expectReadFragmentIncludesInOrder: [],
-          expectedError: null,
-        },
-      ],
-    };
+    const trimSuite = fullBehavioralSuiteFor(trimSpec, {
+      createValues: { text: "Trim me", pinned: false },
+      updateValues: { text: "Updated note", pinned: false },
+      readValues: { text: "Read note", pinned: false },
+      searchMatchValues: { text: "Matching note", pinned: false },
+      searchMissValues: { text: "Other entry", pinned: false },
+      markerField: "text",
+      searchQuery: "matching",
+    });
+    const normalCreate = trimSuite.cases.find(
+      (testCase) => testCase.action === "create" && !testCase.expectedError,
+    );
+    if (!normalCreate) throw new Error("trim suite is missing normal create coverage");
+    normalCreate.name = "trims note text before saving";
+    normalCreate.input = [
+      { field: "text", value: "  Trim me  " },
+      { field: "pinned", value: "false" },
+    ];
     const trimmingCreate = CREATE_HANDLER.replace(
       "text: input.values.text,",
       'text: String(input.values.text ?? "").trim(),',
@@ -275,12 +243,12 @@ describe("capability gate — behavioral violations", () => {
     expect(error.outcomes[2]?.error).toContain("did not find a scratch row matching");
     expect(error.diagnostic).toMatchObject({
       failure: expect.stringContaining("did not find a scratch row matching"),
-      createInput: {
+      actionInput: {
         values: { text: "  Trim me  ", pinned: "false" },
         submittedFields: expect.any(Set),
       },
       scratchRows: [expect.objectContaining({ text: "  Trim me  " })],
-      createFragment: expect.stringContaining("Trim me"),
+      fragment: expect.stringContaining("Trim me"),
     });
   });
 });
@@ -305,16 +273,16 @@ describe("capability gate — behavioral scratch catalog", () => {
       },
     });
     const spec: CapabilitySpec = {
-      ...FIELD_LIFECYCLE_DEMO_SPEC,
+      ...FIVE_ACTION_SPEC,
       schema: {
-        fields: FIELD_LIFECYCLE_DEMO_SPEC.schema.fields.map((field) => ({
+        fields: FIVE_ACTION_SPEC.schema.fields.map((field) => ({
           ...field,
           required: false,
         })),
       },
       behavioral_errors: [],
       read_dependencies: {
-        ...FIELD_LIFECYCLE_DEMO_SPEC.read_dependencies,
+        ...FIVE_ACTION_SPEC.read_dependencies,
         read: [
           {
             capability_id: dependencySpec.id,
@@ -325,7 +293,7 @@ describe("capability gate — behavioral scratch catalog", () => {
     };
     const handlers = {
       ...Object.fromEntries(
-        FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+        FIVE_ACTION_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
           unit.name,
           unit.content,
         ]),
@@ -333,44 +301,23 @@ describe("capability gate — behavioral scratch catalog", () => {
       read: [
         "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
         "  return query.records({",
-        '    sql: \'SELECT target."id" AS "target_id" FROM "cap_field_lifecycle_demo" AS target CROSS JOIN "cap_behavior_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
+        '    sql: \'SELECT target."id" AS "target_id" FROM "cap_notes" AS target CROSS JOIN "cap_behavior_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
         '    parameters: ["synthetic behavior", "compatible hidden value"],',
         '  }).map(({ record }) => present(record)).join("");',
         "}",
       ].join("\n"),
     };
-    const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
-      (unit) => unit.kind === "item-renderer",
-    )?.content;
-    if (!itemRenderer) throw new Error("reference item renderer missing");
-    const suite = {
-      cases: [
-        {
-          action: "create",
-          name: "declared dependency is present during behavior",
-          setupRows: [],
-          target: null,
-          input: [
-            { field: "entry", value: "Behavioral entry" },
-            { field: "reflection", value: "Synthetic reflection" },
-            { field: "tags", value: "behavior" },
-          ],
-          expectedRows: [{ values: [{ field: "entry", value: "Behavioral entry" }] }],
-          expectedRowCount: 1,
-          expectFragmentIncludes: ["Behavioral entry"],
-          expectFragmentExcludes: [],
-          expectFragmentIncludesInOrder: [],
-          expectedError: null,
-          expectedPlatformError: null,
-        },
-        fullCase("read", "reads the synthetic row", "Read entry"),
-        fullCase("update", "updates the bound row", "Updated entry", "first_setup_row"),
-        fullCase("delete", "deletes the bound row", "Delete entry", "first_setup_row"),
-        fullCase("search", "searches the synthetic row", "Search entry"),
-        fullCase("update", "missing update target is stable", "Stable update", "missing_record"),
-        fullCase("delete", "missing delete target is stable", "Stable delete", "missing_record"),
-      ],
-    };
+    const itemRenderer = FIVE_ACTION_UNITS.find((unit) => unit.kind === "item-renderer")?.content;
+    if (!itemRenderer) throw new Error("generated item renderer missing");
+    const suite = fullBehavioralSuiteFor(spec, {
+      createValues: { text: "Behavioral entry", pinned: false },
+      updateValues: { text: "Updated entry", pinned: false },
+      readValues: { text: "Read entry", pinned: false },
+      searchMatchValues: { text: "Search entry", pinned: false },
+      searchMissValues: { text: "Other entry", pinned: false },
+      markerField: "text",
+      searchQuery: "search",
+    });
 
     const result = await runCapabilityGate(
       gateInput({
@@ -400,24 +347,28 @@ describe("capability gate — behavioral scratch catalog", () => {
 
 describe("capability gate — setup-row ordering", () => {
   test("setup rows are deterministic older records for newest-first behavioral checks", async () => {
-    const orderSuite = {
-      cases: [
-        {
-          name: "new note appears before preexisting older note",
-          setupRows: [{ values: [{ field: "text", value: "Older note" }] }],
-          input: [
-            { field: "text", value: "Newest note" },
-            { field: "pinned", value: "false" },
-          ],
-          expectedCreatedRow: [{ field: "text", value: "Newest note" }],
-          expectedRowCount: 2,
-          expectCreateFragmentIncludes: ["Newest note"],
-          expectReadFragmentIncludes: ["Newest note", "Older note"],
-          expectReadFragmentIncludesInOrder: ["Newest note", "Older note"],
-          expectedError: null,
-        },
-      ],
-    };
+    const orderSuite = structuredClone(DEFAULT_BEHAVIORAL_SUITE);
+    const readCase = orderSuite.cases.find((testCase) => testCase.action === "read");
+    if (!readCase) throw new Error("order suite is missing read coverage");
+    readCase.name = "setup rows render newest first";
+    readCase.setupRows = [
+      {
+        values: [
+          { field: "text", value: "Newest setup note" },
+          { field: "pinned", value: false },
+        ],
+      },
+      {
+        values: [
+          { field: "text", value: "Older note" },
+          { field: "pinned", value: false },
+        ],
+      },
+    ];
+    readCase.expectedRows = readCase.setupRows;
+    readCase.expectedRowCount = 2;
+    readCase.expectFragmentIncludes = ["Newest setup note", "Older note"];
+    readCase.expectFragmentIncludesInOrder = ["Newest setup note", "Older note"];
 
     const result = await runCapabilityGate(
       gateInput({ provider: makeBehaviorProvider(orderSuite).provider }),
@@ -436,27 +387,34 @@ describe("capability gate — setup-row ordering", () => {
     // expectReadFragmentIncludesInOrder = [new row, ...setupRows]. The gate must age
     // them so setupRows[0] is the most recent preexisting row; otherwise a correct
     // newest-first handler fails a self-inconsistent test (the bug this guards).
-    const orderSuite = {
-      cases: [
-        {
-          name: "new note, then setup rows in listed (newest-first) order",
-          setupRows: [
-            { values: [{ field: "text", value: "Middle note" }] },
-            { values: [{ field: "text", value: "Oldest note" }] },
-          ],
-          input: [
-            { field: "text", value: "Newest note" },
-            { field: "pinned", value: "false" },
-          ],
-          expectedCreatedRow: [{ field: "text", value: "Newest note" }],
-          expectedRowCount: 3,
-          expectCreateFragmentIncludes: ["Newest note"],
-          expectReadFragmentIncludes: ["Newest note", "Middle note", "Oldest note"],
-          expectReadFragmentIncludesInOrder: ["Newest note", "Middle note", "Oldest note"],
-          expectedError: null,
-        },
-      ],
-    };
+    const orderSuite = structuredClone(DEFAULT_BEHAVIORAL_SUITE);
+    const readCase = orderSuite.cases.find((testCase) => testCase.action === "read");
+    if (!readCase) throw new Error("order suite is missing read coverage");
+    readCase.name = "setup row array order maps to newest-first read";
+    readCase.setupRows = [
+      {
+        values: [
+          { field: "text", value: "Newest setup note" },
+          { field: "pinned", value: false },
+        ],
+      },
+      {
+        values: [
+          { field: "text", value: "Middle note" },
+          { field: "pinned", value: false },
+        ],
+      },
+      {
+        values: [
+          { field: "text", value: "Oldest note" },
+          { field: "pinned", value: false },
+        ],
+      },
+    ];
+    readCase.expectedRows = readCase.setupRows;
+    readCase.expectedRowCount = 3;
+    readCase.expectFragmentIncludes = ["Newest setup note", "Middle note", "Oldest note"];
+    readCase.expectFragmentIncludesInOrder = ["Newest setup note", "Middle note", "Oldest note"];
 
     const result = await runCapabilityGate(
       gateInput({ provider: makeBehaviorProvider(orderSuite).provider }),

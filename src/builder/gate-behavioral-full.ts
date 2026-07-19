@@ -11,7 +11,7 @@ import {
 } from "../capability-data/index.ts";
 import type { PresentationAdapter } from "../presentation/index.ts";
 import type { Provider, TokenUsage } from "../provider/index.ts";
-import { activeSpecFields, type CapabilitySpec, FULL_CAPABILITY_TOOLS } from "../registry/index.ts";
+import { activeSpecFields, type CapabilitySpec } from "../registry/index.ts";
 import type { CapabilityInput } from "../router/index.ts";
 import type {
   BehavioralGateResult,
@@ -76,13 +76,6 @@ class FullBehavioralCaseFailure extends Error {
     super(`Behavioral test "${testName}" failed: ${diagnostic.failure}`);
     this.diagnostic = diagnostic;
   }
-}
-
-export function isFullCrudSpec(spec: CapabilitySpec): boolean {
-  return (
-    spec.tools.length === FULL_CAPABILITY_TOOLS.length &&
-    spec.tools.every((action, index) => action === FULL_CAPABILITY_TOOLS[index])
-  );
 }
 
 export async function runFullBehavioralRung(

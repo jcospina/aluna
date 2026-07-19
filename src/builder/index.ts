@@ -65,7 +65,6 @@ export {
   type HandlerUnitName,
   ITEM_RENDERER_UNIT_NAME,
   type ItemRendererUnitName,
-  type TransitionalHandlerUnitName,
   type UnitDescriptor,
   type UnitGenerationAttempt,
   type UnitGenerationAttemptEvent,

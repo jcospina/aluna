@@ -6,16 +6,25 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 
 import { deriveCapabilityTableDdl } from "../capability-data/index.ts";
-import { FIELD_LIFECYCLE_DEMO_SPEC, FIELD_LIFECYCLE_DEMO_UNITS } from "../demo/field-lifecycle.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
-import { expectGateFailure, GOOD_HANDLERS, gateInput } from "./gate.test-support.ts";
+import {
+  expectGateFailure,
+  fullHandlersFor,
+  GOOD_HANDLERS,
+  gateInput,
+  generatedUnitsFor,
+  notesSpec,
+} from "./gate.test-support.ts";
 import { runStructuralRung } from "./gate-structural.ts";
 
 setDefaultTimeout(60_000);
+
+const FIVE_ACTION_SPEC = notesSpec();
+const FIVE_ACTION_UNITS = generatedUnitsFor(FIVE_ACTION_SPEC);
 
 describe("capability gate — signature assertion", () => {
   test("signature assertion catches named exports, non-functions, and non-async functions", async () => {
@@ -146,14 +155,12 @@ describe("capability gate — structural rung", () => {
 describe("capability gate — complete Handler static contract", () => {
   test("structural checks apply raw HTTP and mutation-SQL rejection to every advertised Handler", async () => {
     const handlers = Object.fromEntries(
-      FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+      FIVE_ACTION_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
         unit.name,
         unit.content,
       ]),
     );
-    const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
-      (unit) => unit.kind === "item-renderer",
-    )?.content;
+    const itemRenderer = FIVE_ACTION_UNITS.find((unit) => unit.kind === "item-renderer")?.content;
     if (!itemRenderer) throw new Error("reference item renderer missing");
 
     for (const [label, search, message] of [
@@ -164,14 +171,14 @@ describe("capability gate — complete Handler static contract", () => {
       ],
       [
         "raw mutation SQL",
-        'export default async function search({ query }: CapabilityContext): Promise<string> { query.all({ sql: \'DELETE FROM "cap_field_lifecycle_demo"\', result: [] }); return "<p>nope</p>"; }',
+        'export default async function search({ query }: CapabilityContext): Promise<string> { query.all({ sql: \'DELETE FROM "cap_journal_entry_fixture"\', result: [] }); return "<p>nope</p>"; }',
         /raw mutation SQL/,
       ],
     ] as const) {
       const error = await expectGateFailure(
         gateInput({
-          spec: FIELD_LIFECYCLE_DEMO_SPEC,
-          ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+          spec: FIVE_ACTION_SPEC,
+          ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
           handlers: { ...handlers, search },
           itemRenderer,
           behavioralTier: { enabled: false },
@@ -199,21 +206,19 @@ function poisonedSqlHandler(action: string, sql: string): string {
 describe("capability gate — Action-scoped catalog and connection isolation", () => {
   test("attributes every raw write and DDL family to the offending Action unit", async () => {
     const handlers = Object.fromEntries(
-      FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+      FIVE_ACTION_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
         unit.name,
         unit.content,
       ]),
     );
-    const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
-      (unit) => unit.kind === "item-renderer",
-    )?.content;
+    const itemRenderer = FIVE_ACTION_UNITS.find((unit) => unit.kind === "item-renderer")?.content;
     if (!itemRenderer) throw new Error("reference item renderer missing");
 
     const cases = [
-      ["create", 'INSERT INTO "cap_field_lifecycle_demo" ("id") VALUES ("x")'],
-      ["read", 'UPDATE "cap_field_lifecycle_demo" SET "entry" = "x"'],
-      ["update", 'DELETE FROM "cap_field_lifecycle_demo"'],
-      ["delete", 'CREATE UNIQUE INDEX generated_idx ON "cap_field_lifecycle_demo" ("entry")'],
+      ["create", 'INSERT INTO "cap_journal_entry_fixture" ("id") VALUES ("x")'],
+      ["read", 'UPDATE "cap_journal_entry_fixture" SET "entry" = "x"'],
+      ["update", 'DELETE FROM "cap_journal_entry_fixture"'],
+      ["delete", 'CREATE UNIQUE INDEX generated_idx ON "cap_journal_entry_fixture" ("entry")'],
       ["search", "CREATE TEMP TABLE generated_scratch (value TEXT)"],
     ] as const;
 
@@ -221,8 +226,8 @@ describe("capability gate — Action-scoped catalog and connection isolation", (
       const poisoned = poisonedSqlHandler(action, sql);
       const error = await expectGateFailure(
         gateInput({
-          spec: FIELD_LIFECYCLE_DEMO_SPEC,
-          ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+          spec: FIVE_ACTION_SPEC,
+          ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
           handlers: { ...handlers, [action]: poisoned },
           itemRenderer,
           behavioralTier: { enabled: false },
@@ -261,22 +266,20 @@ describe("capability gate — Action-scoped catalog and connection isolation", (
   test("admits dependency SQL only when that Action declares the scratch catalog entry", () => {
     const dependencyIncarnation = "11111111-1111-4111-8111-111111111111";
     const handlers = Object.fromEntries(
-      FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+      FIVE_ACTION_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
         unit.name,
         unit.content,
       ]),
     );
-    const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
-      (unit) => unit.kind === "item-renderer",
-    )?.content;
+    const itemRenderer = FIVE_ACTION_UNITS.find((unit) => unit.kind === "item-renderer")?.content;
     if (!itemRenderer) throw new Error("reference item renderer missing");
     const dependency = {
-      ...FIELD_LIFECYCLE_DEMO_SPEC,
+      ...FIVE_ACTION_SPEC,
       id: "recipes",
       label: "Recipes",
     };
     const spec: CapabilitySpec = {
-      ...FIELD_LIFECYCLE_DEMO_SPEC,
+      ...FIVE_ACTION_SPEC,
       read_dependencies: {
         create: [],
         read: [{ capability_id: dependency.id, incarnation_id: dependencyIncarnation }],
@@ -345,6 +348,13 @@ describe("capability gate — ambient runtime names", () => {
           fields: ["process"],
           expected_markers: BEHAVIORAL_ERROR_MARKERS,
         },
+        {
+          action: "update" as const,
+          trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          fields: ["process"],
+          expected_markers: BEHAVIORAL_ERROR_MARKERS,
+        },
       ],
     };
     const create = [
@@ -365,7 +375,7 @@ describe("capability gate — ambient runtime names", () => {
         gateInput({
           spec,
           ddl: deriveCapabilityTableDdl(spec),
-          handlers: { create, read },
+          handlers: fullHandlersFor(spec, { create, read }),
           behavioralTier: { enabled: false },
         }),
       ),
@@ -377,7 +387,7 @@ describe("capability gate — ambient runtime names", () => {
       gateInput({
         spec,
         ddl: deriveCapabilityTableDdl(spec),
-        handlers: { create: ambient, read },
+        handlers: fullHandlersFor(spec, { create: ambient, read }),
         behavioralTier: { enabled: false },
       }),
     );
@@ -389,21 +399,19 @@ describe("capability gate — ambient runtime names", () => {
 describe("capability gate — advertised Handler inventory", () => {
   test("a five-Action row fails closed when any advertised Handler is absent", async () => {
     const handlers = Object.fromEntries(
-      FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+      FIVE_ACTION_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
         unit.name,
         unit.content,
       ]),
     );
     delete handlers.search;
-    const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
-      (unit) => unit.kind === "item-renderer",
-    )?.content;
+    const itemRenderer = FIVE_ACTION_UNITS.find((unit) => unit.kind === "item-renderer")?.content;
     if (!itemRenderer) throw new Error("reference item renderer missing");
 
     const error = await expectGateFailure(
       gateInput({
-        spec: FIELD_LIFECYCLE_DEMO_SPEC,
-        ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+        spec: FIVE_ACTION_SPEC,
+        ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
         handlers,
         itemRenderer,
         behavioralTier: { enabled: false },
@@ -423,8 +431,8 @@ describe("capability gate — advertised Handler inventory", () => {
 
   test("rejects Handler files absent from the spec inventory", () => {
     const handlers = { ...GOOD_HANDLERS } as Record<string, string>;
-    handlers.search = GOOD_HANDLERS.read ?? "";
+    handlers.bogus = GOOD_HANDLERS.read ?? "";
 
-    expect(() => runStructuralRung(gateInput({ handlers }))).toThrow(/unexpected: search/);
+    expect(() => runStructuralRung(gateInput({ handlers }))).toThrow(/unexpected: bogus/);
   });
 });

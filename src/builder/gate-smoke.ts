@@ -78,22 +78,12 @@ async function executeSmokeCycle(
   readwrite: Database,
   readonly: Database,
 ): Promise<Omit<SmokeGateResult, "fixed" | "attempts" | "usage" | "realDatabaseUnchanged">> {
-  const isFullCrud = input.spec.tools.length === SMOKE_HANDLER_NAMES.length;
-  const names = isFullCrud ? SMOKE_HANDLER_NAMES : (["create", "read"] as const);
-  const handlers = await loadHandlers(input.handlers, names);
+  // Every capability is five-Action (the structural rung rejects any other shape before
+  // smoke runs), so smoke always drives the complete CRUD lifecycle.
+  const handlers = await loadHandlers(input.handlers, SMOKE_HANDLER_NAMES);
   const recorder = recordingPresentation(input.spec, input.itemRenderer);
   const initial = await executeCreateRead(input, handlers, recorder, readwrite, readonly);
   const { beforeUpdate, createFragment, initialRows, insertedRow, readFragment } = initial;
-
-  if (!isFullCrud) {
-    return {
-      tableName: input.ddl.tableName,
-      rowCount: initialRows.length,
-      insertedRowId: insertedRow.id,
-      createFragmentLength: createFragment.length,
-      readFragmentLength: readFragment.length,
-    };
-  }
 
   const update = handlers.update;
   const search = handlers.search;

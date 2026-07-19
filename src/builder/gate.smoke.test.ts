@@ -7,7 +7,6 @@ import { Database } from "bun:sqlite";
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 
 import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../capability-data/index.ts";
-import { FIELD_LIFECYCLE_DEMO_SPEC, FIELD_LIFECYCLE_DEMO_UNITS } from "../demo/field-lifecycle.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
@@ -16,13 +15,18 @@ import {
 import {
   createCapabilityDataTool,
   expectGateFailure,
+  fullHandlersFor,
   GOOD_HANDLERS,
   gateInput,
+  generatedUnitsFor,
   notesSpec,
 } from "./gate.test-support.ts";
 import { runCapabilityGate } from "./gate.ts";
 
 setDefaultTimeout(15_000);
+
+const FIVE_ACTION_SPEC = notesSpec();
+const FIVE_ACTION_UNITS = generatedUnitsFor(FIVE_ACTION_SPEC);
 
 describe("capability gate — smoke rung", () => {
   test("runs structural before smoke and captures metrics for passing handlers", async () => {
@@ -60,7 +64,7 @@ describe("capability gate — smoke rung", () => {
         status: "passed",
         testGen: {
           outcome: "passed",
-          testCount: 1,
+          testCount: 9,
           usage: { inputTokens: 7, outputTokens: 11, totalTokens: 18 },
         },
         testRun: { outcome: "passed" },
@@ -71,9 +75,9 @@ describe("capability gate — smoke rung", () => {
       expect(
         result.behavioral.tier === "on" ? result.behavioral.testRun.durationMs : -1,
       ).toBeGreaterThanOrEqual(0);
-      expect(result.behavioral.tier === "on" ? result.behavioral.testRun.cases : []).toEqual([
-        expect.objectContaining({ name: "stores and renders note text", status: "passed" }),
-      ]);
+      expect(result.behavioral.tier === "on" ? result.behavioral.testRun.cases : []).toContainEqual(
+        expect.objectContaining({ action: "create", status: "passed" }),
+      );
 
       expect(realTool.select()).toMatchObject([{ text: "Real note", pinned: false }]);
     } finally {
@@ -120,7 +124,7 @@ describe("capability gate — smoke rung", () => {
   });
 });
 
-describe("capability gate — five-Action reference scratch catalog", () => {
+describe("capability gate — generated five-Action scratch catalog", () => {
   const dependencyIncarnation = "22222222-2222-4222-8222-222222222222";
   const dependencySpec = notesSpec({
     id: "scratch_catalog",
@@ -140,9 +144,9 @@ describe("capability gate — five-Action reference scratch catalog", () => {
     },
   });
   const referenceSpec: CapabilitySpec = {
-    ...FIELD_LIFECYCLE_DEMO_SPEC,
+    ...FIVE_ACTION_SPEC,
     read_dependencies: {
-      ...FIELD_LIFECYCLE_DEMO_SPEC.read_dependencies,
+      ...FIVE_ACTION_SPEC.read_dependencies,
       read: [
         {
           capability_id: dependencySpec.id,
@@ -153,7 +157,7 @@ describe("capability gate — five-Action reference scratch catalog", () => {
   };
   const referenceHandlers = {
     ...Object.fromEntries(
-      FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+      FIVE_ACTION_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
         unit.name,
         unit.content,
       ]),
@@ -161,19 +165,17 @@ describe("capability gate — five-Action reference scratch catalog", () => {
     read: [
       "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
       "  const rows = query.records({",
-      '    sql: \'SELECT target."id" AS "target_id" FROM "cap_field_lifecycle_demo" AS target CROSS JOIN "cap_scratch_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
+      '    sql: \'SELECT target."id" AS "target_id" FROM "cap_notes" AS target CROSS JOIN "cap_scratch_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
       '    parameters: ["synthetic only", "compatibility only"],',
       "  });",
       '  return rows.map(({ record }) => present(record)).join("");',
       "}",
     ].join("\n"),
   };
-  const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
-    (unit) => unit.kind === "item-renderer",
-  )?.content;
+  const itemRenderer = FIVE_ACTION_UNITS.find((unit) => unit.kind === "item-renderer")?.content;
 
   test("applies every declared schema and seeds only supplied synthetic rows", async () => {
-    if (!itemRenderer) throw new Error("reference item renderer missing");
+    if (!itemRenderer) throw new Error("generated item renderer missing");
     const result = await runCapabilityGate(
       gateInput({
         spec: referenceSpec,
@@ -201,7 +203,7 @@ describe("capability gate — five-Action reference scratch catalog", () => {
   });
 
   test("structural validation fails before Handler execution when a declared scratch schema is absent", async () => {
-    if (!itemRenderer) throw new Error("reference item renderer missing");
+    if (!itemRenderer) throw new Error("generated item renderer missing");
     const error = await expectGateFailure(
       gateInput({
         spec: referenceSpec,
@@ -217,14 +219,12 @@ describe("capability gate — five-Action reference scratch catalog", () => {
 });
 
 describe("capability gate — complete five-Action smoke", () => {
-  const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
-    (unit) => unit.kind === "item-renderer",
-  )?.content;
+  const itemRenderer = FIVE_ACTION_UNITS.find((unit) => unit.kind === "item-renderer")?.content;
 
-  test("the exact published five-Action reference inventory passes its applicable Gate", async () => {
-    if (!itemRenderer) throw new Error("reference item renderer missing");
+  test("the complete generated-shaped five-Action inventory passes its applicable Gate", async () => {
+    if (!itemRenderer) throw new Error("generated item renderer missing");
     const handlers = Object.fromEntries(
-      FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+      FIVE_ACTION_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
         unit.name,
         unit.content,
       ]),
@@ -232,8 +232,8 @@ describe("capability gate — complete five-Action smoke", () => {
 
     const result = await runCapabilityGate(
       gateInput({
-        spec: FIELD_LIFECYCLE_DEMO_SPEC,
-        ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+        spec: FIVE_ACTION_SPEC,
+        ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
         handlers,
         itemRenderer,
         behavioralTier: { enabled: false },
@@ -252,7 +252,7 @@ describe("capability gate — complete five-Action smoke", () => {
       attempts: [{ attempt: 1 }],
     });
     expect(result.smoke.updateFragmentLength).toBeGreaterThan(0);
-    expect(result.smoke.searchCaseCount).toBe(26);
+    expect(result.smoke.searchCaseCount).toBe(20);
     expect(result.smoke.deleteFragmentLength).toBeGreaterThanOrEqual(0);
   });
 });
@@ -349,6 +349,13 @@ describe("capability gate — string[] ordered-list samples", () => {
           fields: ["tags"],
           expected_markers: BEHAVIORAL_ERROR_MARKERS,
         },
+        {
+          action: "update",
+          trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          fields: ["tags"],
+          expected_markers: BEHAVIORAL_ERROR_MARKERS,
+        },
       ],
     });
     const create = [
@@ -382,7 +389,7 @@ describe("capability gate — string[] ordered-list samples", () => {
       gateInput({
         spec,
         ddl: deriveCapabilityTableDdl(spec),
-        handlers: { create, read },
+        handlers: fullHandlersFor(spec, { create, read }),
         itemRenderer: renderer,
         behavioralTier: { enabled: false },
       }),

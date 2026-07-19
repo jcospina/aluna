@@ -18,6 +18,7 @@ import {
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
+import { fullHandlersFor } from "./gate.test-support.ts";
 import { CapabilityGateError, type CapabilityGateInput, runCapabilityGate } from "./gate.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";
 import type { HandlerUnitName } from "./units.ts";
@@ -51,9 +52,16 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         fields: ["text"],
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
+      {
+        action: "update",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
     ],
-    tools: ["create", "read"],
-    read_dependencies: { create: [], read: [] },
+    tools: ["create", "read", "update", "delete", "search"],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -146,7 +154,7 @@ function gateInput(overrides: Partial<CapabilityGateInput> = {}): CapabilityGate
   return {
     spec,
     ddl: deriveCapabilityTableDdl(spec),
-    handlers: HANDLERS,
+    handlers: fullHandlersFor(spec, HANDLERS),
     itemRenderer: CLEAN_RENDERER,
     behavioralTier: { enabled: false },
     ...overrides,

@@ -104,10 +104,7 @@ export function resolveActionReadDependencies(
   action: CapabilityTool,
   database: Database = dbReadonly,
 ): CapabilityRow[] {
-  const dependencies: readonly ReadDependency[] =
-    action in row.read_dependencies
-      ? row.read_dependencies[action as keyof typeof row.read_dependencies]
-      : [];
+  const dependencies: readonly ReadDependency[] = row.read_dependencies[action];
   return dependencies.map((dependency) => resolveActiveDependency(dependency, database));
 }
 

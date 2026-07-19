@@ -154,9 +154,9 @@ export const SEARCH_DEBOUNCE_MS = 300;
  * owns request timing and the loading/clear/no-match presentation states.
  */
 function renderSearchChrome(capability: RenderableCapability, regionId: string): string {
-  // Prompt-built capabilities remain the approved two-Action shape. Do not
-  // advertise a route the committed row does not declare; every complete five-Action
-  // capability gets the chrome.
+  // Defensive: never advertise a route the View does not declare. Every registry-backed
+  // capability now carries the complete five-Action inventory, so this always renders in
+  // production; the guard keeps hand-built preview Views (which may omit an Action) honest.
   if (!capability.actions.includes("search")) return "";
   const label = escapeHtml(capability.label);
   const inputId = `${capability.id}-search`;

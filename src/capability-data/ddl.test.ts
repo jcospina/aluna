@@ -67,9 +67,16 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         fields: ["title", "done"],
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
+      {
+        action: "update",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["title", "done"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
     ],
-    tools: ["create", "read"],
-    read_dependencies: { create: [], read: [] },
+    tools: ["create", "read", "update", "delete", "search"],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores notes with optional amount metadata.",
     ...overrides,
   };

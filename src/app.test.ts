@@ -138,6 +138,16 @@ describe("GET / (shell)", () => {
   });
 });
 
+describe("removed transitional installer", () => {
+  test("the five-Action reference install route is gone", async () => {
+    const response = await createApp().request("/demo/five-action-reference/install", {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(404);
+  });
+});
+
 describe("GET / (shell) — browser glue", () => {
   test("browser prompt glue leaves the prompt request and stream connection to HTMX", async () => {
     const app = createApp();
@@ -383,7 +393,8 @@ describe("GET /demo/mutation-coordinator (Module 4.2 admission preview)", () => 
     expect(html).toContain('id="queue-list"');
     expect(html).toContain("/demo/mutation-coordinator/state");
     expect(html).toContain("/demo/mutation-coordinator/slow-build");
-    expect(html).toContain("/capability/field_lifecycle_demo");
+    expect(html).toContain("Second-tab check");
+    expect(html).toContain("build a capability");
   });
 
   test("the deliberately slow build is queued and leased by the shared coordinator", async () => {

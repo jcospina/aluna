@@ -179,14 +179,14 @@ describe("container scaffolding", () => {
     expect(feed).not.toContain("I couldn’t find a match. Try another word.");
   });
 
-  test("does not advertise search on the approved transitional two-Action View", () => {
-    const transitional = renderCollection({
+  test("defensively omits search chrome for a View that does not declare search", () => {
+    const withoutSearch = renderCollection({
       capability: { ...SAMPLE, actions: ["create", "read"] },
       loadThroughRead: true,
     });
-    expect(transitional).not.toContain("data-capability-search");
-    expect(transitional).not.toContain("/capability/tasks/search");
-    expect(transitional).toContain('hx-get="/capability/tasks/read"');
+    expect(withoutSearch).not.toContain("data-capability-search");
+    expect(withoutSearch).not.toContain("/capability/tasks/search");
+    expect(withoutSearch).toContain('hx-get="/capability/tasks/read"');
   });
 
   test("closes the create disclosure only when THIS capability reports a created record", () => {

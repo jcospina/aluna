@@ -48,7 +48,6 @@ export {
   SCALAR_FIELD_TYPES,
   type SpecField,
   specFieldSchema,
-  TRANSITIONAL_CAPABILITY_TOOLS,
   type UiCollectionLayout,
   type UiFormIntent,
   type UiIntent,
