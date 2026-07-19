@@ -170,15 +170,15 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0007 closes the M4.1 authored transition around the exact two-Action shape.
-  // Existing greenfield rows receive the only admitted dependency object; the
-  // registry validator rejects missing/future keys and non-empty arrays.
+  // 0007 adds the per-Action read-dependency object. The column default carries the
+  // complete fixed five-Action inventory (decision 16) with every list empty; the
+  // registry validator rejects any row whose keys are not exactly that shape.
   {
     id: "0007_capability_registry_read_dependencies",
     up: (database) => {
       database.exec(
         `ALTER TABLE ${REGISTRY_TABLE}
-         ADD COLUMN read_dependencies TEXT NOT NULL DEFAULT '{"create":[],"read":[]}';`,
+         ADD COLUMN read_dependencies TEXT NOT NULL DEFAULT '{"create":[],"read":[],"update":[],"delete":[],"search":[]}';`,
       );
     },
   },

@@ -37,8 +37,9 @@ import {
 } from "../registry/index.ts";
 import type { GeneratedUnit } from "./units.ts";
 
-const TRANSITIONAL_ARTIFACT_INVENTORY = ["item.ts", "create.ts", "read.ts"] as const;
-const REFERENCE_ARTIFACT_INVENTORY = [
+// The complete fixed inventory every committed capability carries: the item renderer
+// plus one Handler per fixed Action, in canonical order (decision 16).
+const REQUIRED_ARTIFACT_INVENTORY = [
   "item.ts",
   "create.ts",
   "read.ts",
@@ -62,9 +63,8 @@ export interface CommitCapabilityInput {
   // Opaque lifetime identity assigned by platform code before commit. It is never
   // part of the generated spec and therefore never model-authored.
   readonly incarnationId: string;
-  // The generated units to write to disk. M3 produces the item renderer (`item.ts`)
-  // and the create/read handlers; commit writes whatever the unit stage produced,
-  // keyed by each unit's own filename.
+  // The generated units to write to disk: item.ts plus the fixed five Handlers.
+  // Commit writes the complete inventory keyed by each unit's own filename.
   readonly units: readonly GeneratedUnit[];
   // The read-write connection carrying the migration's open transaction. The
   // registry insert rides this so the row and the `cap_<id>` table commit together
@@ -95,7 +95,7 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   // commit is the last authority before those values become filesystem paths.
   const spec = capabilitySpecSchema.parse(input.spec);
   const incarnationId = incarnationIdSchema.parse(input.incarnationId);
-  assertArtifactInventory(spec, input.units);
+  assertArtifactInventory(input.units);
   const version = FIRST_CAPABILITY_VERSION;
   const root = input.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   // The pointer stored on the row and resolved by the router. The trailing slash
@@ -125,9 +125,8 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   return { row, artifactsPath, incarnationId, version, files };
 }
 
-function assertArtifactInventory(spec: CapabilitySpec, units: readonly GeneratedUnit[]): void {
-  const expected =
-    spec.tools.length === 5 ? REFERENCE_ARTIFACT_INVENTORY : TRANSITIONAL_ARTIFACT_INVENTORY;
+function assertArtifactInventory(units: readonly GeneratedUnit[]): void {
+  const expected = REQUIRED_ARTIFACT_INVENTORY;
   const actual = units.map((unit) => unit.filename);
   const exact =
     actual.length === expected.length &&

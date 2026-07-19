@@ -36,9 +36,16 @@ export function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
         fields: ["text"],
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
+      {
+        action: "update",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
     ],
-    tools: ["create", "read"],
-    read_dependencies: { create: [], read: [] },
+    tools: ["create", "read", "update", "delete", "search"],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };

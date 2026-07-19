@@ -56,15 +56,28 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
         fields: ["text"],
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
+      {
+        action: "update",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
     ],
-    tools: ["create", "read"],
-    read_dependencies: { create: [], read: [] },
+    tools: ["create", "read", "update", "delete", "search"],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
 }
 
 export function recipesSpec(): CapabilitySpec {
+  const requiredError: Omit<CapabilitySpec["behavioral_errors"][number], "action"> = {
+    trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+    code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+    fields: ["title"],
+    expected_markers: BEHAVIORAL_ERROR_MARKERS,
+  };
   return notesSpec({
     id: "recipes",
     label: "Recipes",
@@ -83,13 +96,8 @@ export function recipesSpec(): CapabilitySpec {
       detail: { shows: ["title"] },
     },
     behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["title"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
+      { action: "create", ...requiredError },
+      { action: "update", ...requiredError },
     ],
     prompt_context: "Stores the user's recipes.",
   });
@@ -118,6 +126,12 @@ export function requirednessSpec(): CapabilitySpec {
     },
   ];
   const required = ["title", "count", "enabled", "due_on", "happens_at"];
+  const requiredError: Omit<CapabilitySpec["behavioral_errors"][number], "action"> = {
+    trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+    code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+    fields: required,
+    expected_markers: BEHAVIORAL_ERROR_MARKERS,
+  };
   return notesSpec({
     schema: { fields },
     ui_intent: {
@@ -127,18 +141,19 @@ export function requirednessSpec(): CapabilitySpec {
       detail: { shows: ["title", "count", "enabled", "due_on", "happens_at", "note"] },
     },
     behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: required,
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
+      { action: "create", ...requiredError },
+      { action: "update", ...requiredError },
     ],
   });
 }
 
 export function stringListSpec(): CapabilitySpec {
+  const requiredError: Omit<CapabilitySpec["behavioral_errors"][number], "action"> = {
+    trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+    code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+    fields: ["tags"],
+    expected_markers: BEHAVIORAL_ERROR_MARKERS,
+  };
   return notesSpec({
     schema: {
       fields: [
@@ -164,13 +179,8 @@ export function stringListSpec(): CapabilitySpec {
       detail: { shows: ["tags", "aliases"] },
     },
     behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["tags"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
+      { action: "create", ...requiredError },
+      { action: "update", ...requiredError },
     ],
   });
 }

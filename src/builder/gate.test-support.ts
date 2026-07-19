@@ -3,6 +3,8 @@
 // Extracted verbatim from the original gate.test.ts so the split suites share one
 // source of truth. `.test-support.ts` is not discovered as a test file by bun.
 
+// biome-ignore-all lint/nursery/noExcessiveLinesPerFile: the shared Gate fixture builders remain one test-only contract surface.
+
 import { expect } from "bun:test";
 import { type ZodType, z } from "zod";
 
@@ -16,12 +18,14 @@ import {
 import type { PlatformDatabase } from "../db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
 import {
+  activeSpecFields,
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
 import { CapabilityGateError, runCapabilityGate } from "./gate.ts";
-import type { HandlerUnitName } from "./units.ts";
+import type { FullBehavioralTestSuite } from "./gate-behavioral-full-schema.ts";
+import type { GeneratedUnit, HandlerUnitName } from "./units.ts";
 
 export function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
   const mutation = createCapabilityMutationPort(spec, databases.readwrite);
@@ -58,9 +62,16 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
         fields: ["text"],
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
+      {
+        action: "update",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
     ],
-    tools: ["create", "read"],
-    read_dependencies: { create: [], read: [] },
+    tools: ["create", "read", "update", "delete", "search"],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -71,6 +82,7 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
 // drift. `text: input.values.text,` is kept verbatim so the trim test can patch it.
 export const CREATE_HANDLER = [
   "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
+  '  if (String(input.values.text ?? "").trim().length === 0) return \'<div data-role="error" data-error-code="missing_required_fields" data-error-fields="text">Required.</div>\';',
   "  const note = mutation.create({",
   "    text: input.values.text,",
   '    pinned: input.values.pinned === "on" || input.values.pinned === "true",',
@@ -104,10 +116,131 @@ export function itemRendererFor(spec: CapabilitySpec): string {
   ].join("\n");
 }
 
-export const GOOD_HANDLERS: Readonly<Partial<Record<HandlerUnitName, string>>> = {
-  create: CREATE_HANDLER,
-  read: READ_HANDLER,
-};
+// Generic five-Action Handler builders. From the 4.4 cutover every capability is
+// five-Action, so a gate test composes a complete Handler set: a per-test create/read
+// plus these deterministic update/delete/search Handlers derived from the spec. The
+// search Handler mirrors the frozen normalized-substring, AND-across-terms contract the
+// smoke rung's adversarial baseline asserts.
+export const DELETE_HANDLER = [
+  "export default async function remove({ mutation }: CapabilityDeleteContext): Promise<string> {",
+  "  mutation.delete();",
+  "  return '<p class=\"notice\">Removed.</p>';",
+  "}",
+].join("\n");
+
+export function updateHandlerFor(spec: CapabilitySpec): string {
+  const lines = [
+    "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
+    "  const missing: string[] = [];",
+    "  const patch: Record<string, unknown> = {};",
+  ];
+  for (const field of activeSpecFields(spec.schema.fields)) {
+    const name = field.name;
+    if (field.required) {
+      lines.push(
+        `  if (input.submittedFields.has("${name}") && String(input.values.${name} ?? "").trim().length === 0) missing.push("${name}");`,
+      );
+    }
+    if (field.type === "boolean") {
+      lines.push(
+        `  if (input.submittedFields.has("${name}")) patch.${name} = input.values.${name} === "on" || input.values.${name} === "true";`,
+      );
+    } else if (field.type === "string[]") {
+      lines.push(
+        `  if ("${name}" in input.values) { const value = input.values.${name}; patch.${name} = Array.isArray(value) ? [...value] : value; }`,
+      );
+    } else {
+      lines.push(`  if ("${name}" in input.values) patch.${name} = input.values.${name};`);
+    }
+  }
+  lines.push(
+    '  if (missing.length > 0) return \'<div data-role="error" data-error-code="missing_required_fields" data-error-fields="\' + missing.join(" ") + \'">Required.</div>\';',
+    "  return present(mutation.update(patch));",
+    "}",
+  );
+  return lines.join("\n");
+}
+
+export function searchHandlerFor(spec: CapabilitySpec): string {
+  const clauses = activeSpecFields(spec.schema.fields)
+    .filter((field) => field.type === "string" || field.type === "string[]")
+    .map((field) =>
+      field.type === "string[]"
+        ? `EXISTS (SELECT 1 FROM json_each("target"."${field.name}") AS "${field.name}_element" WHERE coalesce(instr(platform_search_normalize("${field.name}_element"."value"), platform_search_normalize("search_term"."term")), 0) > 0)`
+        : `(coalesce(instr(platform_search_normalize("target"."${field.name}"), platform_search_normalize("search_term"."term")), 0) > 0)`,
+    )
+    .join(" OR ");
+  const sql =
+    `WITH "search_terms" AS (SELECT "value" AS "term" FROM json_each(?)) ` +
+    `SELECT "target"."id" AS "target_id" FROM "cap_${spec.id}" AS "target" ` +
+    `WHERE NOT EXISTS (SELECT 1 FROM "search_terms" AS "search_term" WHERE NOT (${clauses})) ` +
+    `ORDER BY "target"."created_at" DESC, "target"."id" DESC`;
+  return [
+    "export default async function search({ input, query, present }: CapabilityContext): Promise<string> {",
+    "  const raw = input.values.q;",
+    '  const q = typeof raw === "string" ? raw : "";',
+    "  const terms = q.trim().split(/\\s+/u).filter(Boolean);",
+    "  return query.records({",
+    `    sql: '${sql}',`,
+    "    parameters: [JSON.stringify(terms)],",
+    '  }).map(({ record }) => present(record)).join("");',
+    "}",
+  ].join("\n");
+}
+
+// Compose a complete five-Action Handler set: the caller's create/read (plus any
+// override) over the generic update/delete/search derived from the spec.
+export function fullHandlersFor(
+  spec: CapabilitySpec,
+  base: Readonly<Partial<Record<HandlerUnitName, string>>>,
+): Readonly<Record<HandlerUnitName, string>> {
+  return {
+    create: base.create ?? CREATE_HANDLER,
+    read: base.read ?? READ_HANDLER,
+    update: base.update ?? updateHandlerFor(spec),
+    delete: base.delete ?? DELETE_HANDLER,
+    search: base.search ?? searchHandlerFor(spec),
+  };
+}
+
+export const GOOD_HANDLERS: Readonly<Record<HandlerUnitName, string>> = fullHandlersFor(
+  notesSpec(),
+  {
+    create: CREATE_HANDLER,
+    read: READ_HANDLER,
+  },
+);
+
+/** Package deterministic generated-shaped units for Gate/commit tests without a reference installer. */
+export function generatedUnitsFor(
+  spec: CapabilitySpec,
+  handlers: Readonly<Record<HandlerUnitName, string>> = fullHandlersFor(spec, {
+    create: CREATE_HANDLER,
+    read: READ_HANDLER,
+  }),
+): readonly GeneratedUnit[] {
+  const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 } as const;
+  return [
+    {
+      kind: "item-renderer",
+      name: "item",
+      filename: "item.ts",
+      content: itemRendererFor(spec),
+      attempts: [],
+      durationMs: 0,
+      usage,
+    },
+    ...Object.entries(handlers).map(([name, content]) => ({
+      kind: "handler" as const,
+      name: name as HandlerUnitName,
+      filename: `${name}.ts` as `${HandlerUnitName}.ts`,
+      content,
+      attempts: [],
+      durationMs: 0,
+      usage,
+    })),
+  ];
+}
 
 export function articlesSpec(): CapabilitySpec {
   return notesSpec({
@@ -132,6 +265,13 @@ export function articlesSpec(): CapabilitySpec {
     behavioral_errors: [
       {
         action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["title", "body"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+      {
+        action: "update",
         trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
         code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
         fields: ["title", "body"],
@@ -163,54 +303,210 @@ export const ARTICLE_READ_HANDLER = [
   "}",
 ].join("\n");
 
-export const ARTICLE_HANDLERS: Readonly<Partial<Record<HandlerUnitName, string>>> = {
-  create: MARKED_ARTICLE_CREATE_HANDLER,
-  read: ARTICLE_READ_HANDLER,
-};
+export const ARTICLE_HANDLERS: Readonly<Record<HandlerUnitName, string>> = fullHandlersFor(
+  articlesSpec(),
+  {
+    create: MARKED_ARTICLE_CREATE_HANDLER,
+    read: ARTICLE_READ_HANDLER,
+  },
+);
 
-export const DEFAULT_BEHAVIORAL_SUITE = {
-  cases: [
-    {
-      name: "stores and renders note text",
-      setupRows: [],
-      input: [
-        { field: "text", value: "Behavioral note" },
-        { field: "pinned", value: "false" },
-      ],
-      expectedCreatedRow: [
-        { field: "text", value: "Behavioral note" },
-        { field: "pinned", value: false },
-      ],
-      expectedRowCount: 1,
-      expectCreateFragmentIncludes: ["Behavioral note"],
-      expectReadFragmentIncludes: ["Behavioral note"],
-      expectReadFragmentIncludesInOrder: [],
-      expectedError: null,
-    },
-  ],
-};
+type FixtureScalar = string | number | boolean | string[] | null;
 
-export const MULTI_REQUIRED_VALIDATION_SUITE = {
-  cases: [
-    {
-      name: "missing title and body emits stable validation markers",
-      setupRows: [],
-      input: [],
-      expectedCreatedRow: [],
-      expectedRowCount: 0,
-      expectCreateFragmentIncludes: [],
-      expectReadFragmentIncludes: [],
-      expectReadFragmentIncludesInOrder: [],
-      expectedError: {
+interface FullBehavioralFixture {
+  readonly createValues: Readonly<Record<string, FixtureScalar>>;
+  readonly updateValues: Readonly<Record<string, FixtureScalar>>;
+  readonly readValues: Readonly<Record<string, FixtureScalar>>;
+  readonly searchMatchValues: Readonly<Record<string, FixtureScalar>>;
+  readonly searchMissValues: Readonly<Record<string, FixtureScalar>>;
+  readonly markerField: string;
+  readonly searchQuery: string;
+  readonly createName?: string;
+}
+
+/** Build the sole steady-state behavioral-suite shape from deterministic row values. */
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: the explicit case inventory mirrors the provider schema field-for-field.
+export function fullBehavioralSuiteFor(
+  spec: CapabilitySpec,
+  fixture: FullBehavioralFixture,
+): FullBehavioralTestSuite {
+  const create = rowValues(fixture.createValues);
+  const updated = rowValues(fixture.updateValues);
+  const read = rowValues(fixture.readValues);
+  const searchMatch = rowValues(fixture.searchMatchValues);
+  const searchMiss = rowValues(fixture.searchMissValues);
+  const createMarker = marker(fixture.createValues, fixture.markerField);
+  const updateMarker = marker(fixture.updateValues, fixture.markerField);
+  const readMarker = marker(fixture.readValues, fixture.markerField);
+  const searchMatchMarker = marker(fixture.searchMatchValues, fixture.markerField);
+  const searchMissMarker = marker(fixture.searchMissValues, fixture.markerField);
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one mapper owns the Action-specific error fixture shape.
+  const authoredErrors = spec.behavioral_errors.map((expectedError) => {
+    const isUpdate = expectedError.action === "update";
+    return {
+      action: expectedError.action,
+      name:
+        expectedError.action === "create" && fixture.createName
+          ? fixture.createName
+          : `${expectedError.action} emits ${expectedError.code}`,
+      setupRows: isUpdate ? [{ values: create }] : [],
+      target: isUpdate ? ("first_setup_row" as const) : null,
+      input: isUpdate ? expectedError.fields.map((field) => ({ field, value: "" })) : [],
+      expectedRows: isUpdate ? [{ values: create }] : [],
+      expectedRowCount: isUpdate ? 1 : 0,
+      expectFragmentIncludes: [],
+      expectFragmentExcludes: [],
+      expectFragmentIncludesInOrder: [],
+      expectedError,
+      expectedPlatformError: null,
+    };
+  });
+
+  return {
+    cases: [
+      {
         action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["title", "body"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+        name: "stores and renders the submitted row",
+        setupRows: [],
+        target: null,
+        input: inputValues(fixture.createValues),
+        expectedRows: [{ values: create }],
+        expectedRowCount: 1,
+        expectFragmentIncludes: [createMarker],
+        expectFragmentExcludes: [],
+        expectFragmentIncludesInOrder: [],
+        expectedError: null,
+        expectedPlatformError: null,
       },
-    },
-  ],
-};
+      {
+        action: "read",
+        name: "reads stored rows",
+        setupRows: [{ values: read }],
+        target: null,
+        input: [],
+        expectedRows: [{ values: read }],
+        expectedRowCount: 1,
+        expectFragmentIncludes: [readMarker],
+        expectFragmentExcludes: [],
+        expectFragmentIncludesInOrder: [readMarker],
+        expectedError: null,
+        expectedPlatformError: null,
+      },
+      {
+        action: "update",
+        name: "updates the bound row",
+        setupRows: [{ values: create }],
+        target: "first_setup_row",
+        input: inputValues(fixture.updateValues),
+        expectedRows: [{ values: updated }],
+        expectedRowCount: 1,
+        expectFragmentIncludes: [updateMarker],
+        expectFragmentExcludes: [],
+        expectFragmentIncludesInOrder: [],
+        expectedError: null,
+        expectedPlatformError: null,
+      },
+      {
+        action: "delete",
+        name: "deletes the bound row",
+        setupRows: [{ values: create }],
+        target: "first_setup_row",
+        input: [],
+        expectedRows: [],
+        expectedRowCount: 0,
+        expectFragmentIncludes: [],
+        expectFragmentExcludes: [],
+        expectFragmentIncludesInOrder: [],
+        expectedError: null,
+        expectedPlatformError: null,
+      },
+      {
+        action: "search",
+        name: "filters stored rows",
+        setupRows: [{ values: searchMatch }, { values: searchMiss }],
+        target: null,
+        input: [{ field: "q", value: fixture.searchQuery }],
+        expectedRows: [{ values: searchMatch }, { values: searchMiss }],
+        expectedRowCount: 2,
+        expectFragmentIncludes: [searchMatchMarker],
+        expectFragmentExcludes: [searchMissMarker],
+        expectFragmentIncludesInOrder: [],
+        expectedError: null,
+        expectedPlatformError: null,
+      },
+      ...authoredErrors,
+      {
+        action: "update",
+        name: "missing update target is stable",
+        setupRows: [{ values: create }],
+        target: "missing_record",
+        input: inputValues(fixture.updateValues),
+        expectedRows: [{ values: create }],
+        expectedRowCount: 1,
+        expectFragmentIncludes: [],
+        expectFragmentExcludes: [],
+        expectFragmentIncludesInOrder: [],
+        expectedError: null,
+        expectedPlatformError: { action: "update", code: "record_not_found" },
+      },
+      {
+        action: "delete",
+        name: "missing delete target is stable",
+        setupRows: [{ values: create }],
+        target: "missing_record",
+        input: [],
+        expectedRows: [{ values: create }],
+        expectedRowCount: 1,
+        expectFragmentIncludes: [],
+        expectFragmentExcludes: [],
+        expectFragmentIncludesInOrder: [],
+        expectedError: null,
+        expectedPlatformError: { action: "delete", code: "record_not_found" },
+      },
+    ],
+  };
+}
+
+function rowValues(values: Readonly<Record<string, FixtureScalar>>) {
+  return Object.entries(values).map(([field, value]) => ({ field, value }));
+}
+
+function inputValues(values: Readonly<Record<string, FixtureScalar>>) {
+  return Object.entries(values).flatMap(([field, value]) =>
+    Array.isArray(value)
+      ? value.map((entry) => ({ field, value: entry }))
+      : [{ field, value: value === null ? "" : String(value) }],
+  );
+}
+
+function marker(values: Readonly<Record<string, FixtureScalar>>, field: string): string {
+  const value = values[field];
+  if (value === null || value === undefined || Array.isArray(value)) {
+    throw new Error(`Behavioral marker ${field} must be a scalar value.`);
+  }
+  return String(value);
+}
+
+export const DEFAULT_BEHAVIORAL_SUITE = fullBehavioralSuiteFor(notesSpec(), {
+  createValues: { text: "Behavioral note", pinned: false },
+  updateValues: { text: "Updated note", pinned: false },
+  readValues: { text: "Read me", pinned: false },
+  searchMatchValues: { text: "Matching note", pinned: false },
+  searchMissValues: { text: "Other entry", pinned: false },
+  markerField: "text",
+  searchQuery: "matching",
+});
+
+export const MULTI_REQUIRED_VALIDATION_SUITE = fullBehavioralSuiteFor(articlesSpec(), {
+  createValues: { title: "Draft title", body: "Draft body" },
+  updateValues: { title: "Revised title", body: "Revised body" },
+  readValues: { title: "Read title", body: "Read body" },
+  searchMatchValues: { title: "Matching article", body: "Useful body" },
+  searchMissValues: { title: "Other article", body: "Different body" },
+  markerField: "title",
+  searchQuery: "matching",
+  createName: "missing title and body emits stable validation markers",
+});
 
 export function makeBehaviorProvider(suite: unknown = DEFAULT_BEHAVIORAL_SUITE): {
   provider: Provider;

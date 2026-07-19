@@ -2,6 +2,7 @@
   "name": "omni-crud",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "description": "Omni-CRUD platform — Bun runtime spine",
   "type": "module",
   "module": "src/index.ts",
@@ -10,8 +11,6 @@
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "demo:field-lifecycle": "bun scripts/install-field-lifecycle-demo.ts",
-    "demo:five-action-reference": "bun scripts/install-field-lifecycle-demo.ts",
     "test": "bun test",
     "build": "bun build src/index.ts --target=bun --outdir=dist",
     "reset": "bun scripts/reset-runtime.ts",

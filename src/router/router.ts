@@ -103,9 +103,9 @@ export interface CapabilityRouterDeps {
   readonly mutationCoordinator?: MutationCoordinator;
 }
 
-// The fixed route and complete M4 method/Action matrix. The matrix is independent
-// of what one capability advertises: prompt-built transitional capabilities still
-// declare only create/read until the steady-state cutover.
+// The fixed route and complete M4 method/Action matrix. Every capability declares
+// the complete fixed five-Action inventory (decision 16), and this matrix admits
+// exactly the method/Action pairs below; any other pair fails before code loads.
 const CAPABILITY_ROUTE = "/capability/:id/:action";
 const CAPABILITY_VIEW_ROUTE = "/capability/:id";
 const METHOD_BY_ACTION = {

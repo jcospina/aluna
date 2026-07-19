@@ -3,9 +3,9 @@
 // Every provider here is fake. The stage still drives the real loop: structured
 // generation through the Provider contract, the item-renderer + handler static checks
 // (export shape, no imports, isolated type-checks against the ADR-0004/0005 contracts),
-// feedback prompts, and attempt metrics. The three generated units are the item
-// renderer (first, the creative surface) then the create/read handlers that render
-// records through the injected `present` adapter.
+// feedback prompts, and attempt metrics. The six generated units are the item
+// renderer (first, the creative surface) then all five Handlers, with record-rendering
+// Actions using the injected `present` adapter.
 
 // biome-ignore-all lint/nursery/noExcessiveLinesPerFile: the unit-generation contract remains one cohesive provider-loop suite.
 // biome-ignore-all lint/suspicious/noTemplateCurlyInString: fixtures intentionally embed generated template-literal source.
@@ -67,9 +67,16 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         fields: ["text"],
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
+      {
+        action: "update",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
     ],
-    tools: ["create", "read"],
-    read_dependencies: { create: [], read: [] },
+    tools: ["create", "read", "update", "delete", "search"],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -80,7 +87,7 @@ function fullNotesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec 
   return {
     ...base,
     tools: [...FULL_CAPABILITY_TOOLS],
-    behavioral_errors: defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+    behavioral_errors: defaultBehavioralErrorsForSchema(base.schema),
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     ...overrides,
   };
@@ -149,7 +156,7 @@ function projectedContextFixture(): {
   });
   const spec = {
     ...base,
-    behavioral_errors: defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+    behavioral_errors: defaultBehavioralErrorsForSchema(base.schema),
   };
   const firstIncarnation = "11111111-1111-4111-8111-111111111111";
   const secondIncarnation = "22222222-2222-4222-8222-222222222222";
@@ -329,21 +336,17 @@ describe("unit generation with bounded fix loop — generation and fix-loop rege
     });
   });
 
-  test("generates one item renderer + create/read handlers, validates contracts, records metrics", async () => {
-    const provider = makeQueuedProvider([ITEM_RENDERER, CREATE_HANDLER, READ_HANDLER]);
+  test("records one clean attempt per unit and keeps handlers import-free", async () => {
+    const provider = makeQueuedProvider([
+      ITEM_RENDERER,
+      CREATE_HANDLER,
+      READ_HANDLER,
+      UPDATE_HANDLER,
+      DELETE_HANDLER,
+      SEARCH_HANDLER,
+    ]);
 
     const result = await generateCapabilityUnits({ provider, spec: notesSpec() });
-
-    expect(provider.calls).toHaveLength(3);
-    expect(result.units.map((unit) => `${unit.kind}:${unit.name}`)).toEqual([
-      "item-renderer:item",
-      "handler:create",
-      "handler:read",
-    ]);
-    expect(result.units.map((unit) => unit.filename)).toEqual(["item.ts", "create.ts", "read.ts"]);
-    expect(result.itemRenderer).toBe(ITEM_RENDERER);
-    expect(result.handlers.create).toBe(CREATE_HANDLER);
-    expect(result.handlers.read).toBe(READ_HANDLER);
 
     for (const unit of result.units) {
       expect(unit.attempts).toHaveLength(1);
@@ -370,11 +373,14 @@ describe("unit generation with bounded fix loop — generation and fix-loop rege
       ITEM_RENDERER,
       CREATE_HANDLER,
       READ_HANDLER,
+      UPDATE_HANDLER,
+      DELETE_HANDLER,
+      SEARCH_HANDLER,
     ]);
 
     const result = await generateCapabilityUnits({ provider, spec: notesSpec() });
 
-    expect(provider.calls).toHaveLength(4);
+    expect(provider.calls).toHaveLength(7);
     expect(result.itemRenderer).toBe(ITEM_RENDERER);
     const rendererUnit = result.units.find((unit) => unit.kind === "item-renderer");
     expect(rendererUnit?.attempts).toHaveLength(2);
@@ -393,11 +399,14 @@ describe("unit generation with bounded fix loop — generation and fix-loop rege
       BAD_CREATE_HANDLER,
       CREATE_HANDLER,
       READ_HANDLER,
+      UPDATE_HANDLER,
+      DELETE_HANDLER,
+      SEARCH_HANDLER,
     ]);
 
     const result = await generateCapabilityUnits({ provider, spec: notesSpec() });
 
-    expect(provider.calls).toHaveLength(4);
+    expect(provider.calls).toHaveLength(7);
     expect(result.handlers.create).toBe(CREATE_HANDLER);
     const createUnit = result.units.find(
       (unit) => unit.kind === "handler" && unit.name === "create",
@@ -504,6 +513,9 @@ describe("unit generation with bounded fix loop — Action-scoped structural rep
       CREATE_HANDLER,
       undeclaredRead,
       READ_HANDLER,
+      UPDATE_HANDLER,
+      DELETE_HANDLER,
+      SEARCH_HANDLER,
     ]);
 
     const result = await generateCapabilityUnits({ provider, spec: notesSpec() });
@@ -735,6 +747,13 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
           fields: ["text"],
           expected_markers: BEHAVIORAL_ERROR_MARKERS,
         },
+        {
+          action: "update",
+          trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          fields: ["text"],
+          expected_markers: BEHAVIORAL_ERROR_MARKERS,
+        },
       ],
     });
 
@@ -861,7 +880,7 @@ describe("unit generation with bounded fix loop — dependency projection", () =
     const target: CapabilitySpec = {
       ...base,
       tools: [...FULL_CAPABILITY_TOOLS],
-      behavioral_errors: defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+      behavioral_errors: defaultBehavioralErrorsForSchema(base.schema),
       read_dependencies: {
         create: [],
         read: [{ capability_id: dependency.id, incarnation_id }],

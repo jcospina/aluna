@@ -17,7 +17,7 @@
 // spine's, so even a lax provider cannot smuggle a bad spec past it.
 //
 // The field/action pantry and M3 presentation intent contract are enforced twice
-// over: the prompt steers the model inside them (create+read tools, the field
+// over: the prompt steers the model inside them (the fixed five Actions, the field
 // types, reshaped `ui_intent`, platform-owned columns excluded) and
 // `capabilitySpecSchema` is the hard wall that rejects anything outside it.
 

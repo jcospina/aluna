@@ -1,0 +1,54 @@
+name: Deploy architecture tour to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/pages.yml"
+      - "docs/aluna-architecture.html"
+      - "public/fonts/OFL.txt"
+      - "public/fonts/outfit-variable.woff2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare architecture site
+        run: |
+          mkdir -p _site/assets
+          sed 's#../public/fonts/outfit-variable.woff2#assets/outfit-variable.woff2#' docs/aluna-architecture.html > _site/index.html
+          cp public/fonts/outfit-variable.woff2 _site/assets/outfit-variable.woff2
+          cp public/fonts/OFL.txt _site/assets/OFL.txt
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

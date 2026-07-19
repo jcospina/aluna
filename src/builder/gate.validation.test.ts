@@ -12,6 +12,8 @@ import {
   ARTICLE_HANDLERS,
   articlesSpec,
   expectGateFailure,
+  fullBehavioralSuiteFor,
+  fullHandlersFor,
   gateInput,
   MARKED_ARTICLE_CREATE_HANDLER,
   MULTI_REQUIRED_VALIDATION_SUITE,
@@ -40,12 +42,12 @@ describe("capability gate — validation-error markers", () => {
       "behavioral:passed",
       "design-lint:passed",
     ]);
-    expect(result.behavioral.tier === "on" ? result.behavioral.testRun.cases : []).toEqual([
+    expect(result.behavioral.tier === "on" ? result.behavioral.testRun.cases : []).toContainEqual(
       expect.objectContaining({
         name: "missing title and body emits stable validation markers",
         status: "passed",
       }),
-    ]);
+    );
   });
 
   test("validation-error behavioral cases fail when markers are missing or wrong", async () => {
@@ -85,7 +87,7 @@ describe("capability gate — validation-error markers", () => {
       expect(error.diagnostic).toMatchObject({
         testCase: { name: "missing title and body emits stable validation markers" },
         failure: expect.stringMatching(entry.message),
-        createFragment: expect.any(String),
+        fragment: expect.any(String),
         scratchRows: [],
       });
     }
@@ -131,11 +133,19 @@ describe("capability gate — datetime instant matching", () => {
           fields: ["title", "happens_at"],
           expected_markers: BEHAVIORAL_ERROR_MARKERS,
         },
+        {
+          action: "update",
+          trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+          fields: ["title", "happens_at"],
+          expected_markers: BEHAVIORAL_ERROR_MARKERS,
+        },
       ],
       prompt_context: "Stores the user's events.",
     });
     const canonicalizingCreate = [
       "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
+      '  if (String(input.values.title ?? "").trim().length === 0 || String(input.values.happens_at ?? "").trim().length === 0) return \'<div data-role="error" data-error-code="missing_required_fields" data-error-fields="title happens_at">Required.</div>\';',
       "  const rawHappensAt = input.values.happens_at;",
       '  const happensAt = new Date(typeof rawHappensAt === "string" ? rawHappensAt : "").toISOString();',
       "  const event = mutation.create({ title: input.values.title, happens_at: happensAt });",
@@ -150,36 +160,22 @@ describe("capability gate — datetime instant matching", () => {
       '  return events.map(({ record }) => present(record)).join("");',
       "}",
     ].join("\n");
-    const datetimeSuite = {
-      cases: [
-        {
-          name: "stores the event at the given instant",
-          setupRows: [],
-          input: [
-            { field: "title", value: "Launch" },
-            { field: "happens_at", value: "2025-06-01T12:00:00Z" },
-          ],
-          // Expected datetime in the raw input form — the stored value is the
-          // canonicalized "...T12:00:00.000Z", a different string for the same instant.
-          expectedCreatedRow: [
-            { field: "title", value: "Launch" },
-            { field: "happens_at", value: "2025-06-01T12:00:00Z" },
-          ],
-          expectedRowCount: 1,
-          expectCreateFragmentIncludes: ["Launch"],
-          expectReadFragmentIncludes: ["Launch"],
-          expectReadFragmentIncludesInOrder: [],
-          expectedError: null,
-        },
-      ],
-    };
+    const datetimeSuite = fullBehavioralSuiteFor(eventsSpec, {
+      createValues: { title: "Launch", happens_at: "2025-06-01T12:00:00Z" },
+      updateValues: { title: "Updated launch", happens_at: "2025-06-02T12:00:00Z" },
+      readValues: { title: "Read launch", happens_at: "2025-06-03T12:00:00Z" },
+      searchMatchValues: { title: "Matching launch", happens_at: "2025-06-04T12:00:00Z" },
+      searchMissValues: { title: "Other event", happens_at: "2025-06-05T12:00:00Z" },
+      markerField: "title",
+      searchQuery: "matching",
+    });
 
     const result = await runCapabilityGate(
       gateInput({
         spec: eventsSpec,
         ddl: deriveCapabilityTableDdl(eventsSpec),
         provider: makeBehaviorProvider(datetimeSuite).provider,
-        handlers: { create: canonicalizingCreate, read: eventsRead },
+        handlers: fullHandlersFor(eventsSpec, { create: canonicalizingCreate, read: eventsRead }),
       }),
     );
 

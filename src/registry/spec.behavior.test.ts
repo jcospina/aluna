@@ -1,5 +1,5 @@
-// Behavioral and structural contract slices of the capability spec shape: the
-// canonical transitional Action tuple, empty M4.1 read dependencies, the stable
+// Behavioral and structural contract slices of the capability spec shape: the fixed
+// five-Action tuple, the complete per-Action read_dependencies shape, the stable
 // missing-required behavioral error markers, top-level key strictness, and the
 // separate capability row shape. Field-type and field-name shape live in
 // `spec.test.ts`; presentation lives in `spec.presentation.test.ts`. The shared
@@ -18,58 +18,56 @@ import {
 } from "./spec.ts";
 
 describe("capability spec shape — Action tuple & read dependencies", () => {
-  test("requires the exact canonical transitional Action tuple", () => {
+  test("admits only the exact ordered five-Action inventory", () => {
+    // The transitional two-Action shape and every subset, superset, and misordering
+    // are rejected — from the 4.4 cutover the only admitted tuple is the fixed five.
     for (const tools of [
       ["create"],
       ["read"],
+      ["create", "read"],
       ["read", "create"],
       ["create", "read", "update"],
       ["create", "read", "delete"],
       ["create", "read", "search"],
+      ["create", "read", "update", "delete"],
+      ["read", "create", "update", "delete", "search"],
+      ["create", "read", "update", "delete", "search", "create"],
       [],
     ]) {
       expect(capabilitySpecSchema.safeParse({ ...validSpec(), tools }).success).toBe(false);
     }
+    expect(
+      capabilitySpecSchema.safeParse({ ...validSpec(), tools: [...FULL_CAPABILITY_TOOLS] }).success,
+    ).toBe(true);
   });
 
-  test("requires exactly empty create/read dependency arrays during M4.1", () => {
+  test("requires the complete per-Action read_dependencies key shape", () => {
     const spec = validSpec();
-    expect(spec.read_dependencies).toEqual({ create: [], read: [] });
+    expect(spec.read_dependencies).toEqual({
+      create: [],
+      read: [],
+      update: [],
+      delete: [],
+      search: [],
+    });
 
     for (const read_dependencies of [
-      { create: [] },
-      { read: [] },
-      { create: [], read: [], update: [] },
-      {
-        create: [
-          {
-            capability_id: "recipes",
-            incarnation_id: "11111111-1111-4111-8111-111111111111",
-          },
-        ],
-        read: [],
-      },
-      {
-        create: [],
-        read: [
-          {
-            capability_id: "recipes",
-            incarnation_id: "11111111-1111-4111-8111-111111111111",
-          },
-        ],
-      },
+      { create: [], read: [] }, // the removed transitional two-key shape
+      { create: [], read: [], update: [], delete: [] }, // missing search
+      { create: [], read: [], update: [], delete: [], search: {} }, // non-array value
+      { create: [], read: [], update: [], delete: [], search: [], extra: [] }, // unknown key
     ]) {
       expect(capabilitySpecSchema.safeParse({ ...spec, read_dependencies }).success).toBe(false);
     }
   });
 
-  test("admits only the complete five-Action reference pair", () => {
+  test("admits only the complete five-Action shape pair", () => {
     const base = validSpec();
     const full = {
       ...base,
       tools: [...FULL_CAPABILITY_TOOLS],
       read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
-      behavioral_errors: defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+      behavioral_errors: defaultBehavioralErrorsForSchema(base.schema),
     };
     expect(capabilitySpecSchema.parse(full)).toEqual(full);
 
@@ -104,7 +102,7 @@ describe("capability spec shape — Action tuple & read dependencies", () => {
     const full = {
       ...base,
       tools: [...FULL_CAPABILITY_TOOLS],
-      behavioral_errors: defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+      behavioral_errors: defaultBehavioralErrorsForSchema(base.schema),
       read_dependencies: { create: [], read: [a, b], update: [], delete: [], search: [] },
     };
     expect(capabilitySpecSchema.safeParse(full).success).toBe(true);
@@ -155,7 +153,7 @@ describe("capability spec shape — behavioral error ownership", () => {
       tools: [...FULL_CAPABILITY_TOOLS],
       read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
       behavioral_errors: [
-        ...defaultBehavioralErrorsForSchema(base.schema, FULL_CAPABILITY_TOOLS),
+        ...defaultBehavioralErrorsForSchema(base.schema),
         {
           action: "search" as const,
           trigger: "invalid_query",

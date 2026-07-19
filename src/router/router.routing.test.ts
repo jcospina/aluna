@@ -1,14 +1,13 @@
 // Routing-refusal and failure slices of the deterministic capability router (Epic 2.3):
 // unknown capabilities, undeclared actions, wrong HTTP method/action pairs, a throwing
-// handler kept friendly, and the hand-written fixture's transitional inventory. Shared
-// setup and fixtures live in router.test-support.ts.
+// handler kept friendly, and the hand-written fixture's complete five-Action inventory.
+// Shared setup and fixtures live in router.test-support.ts.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createApp } from "../app.ts";
 import type { PlatformDatabase } from "../db.ts";
-import type { CapabilityRow } from "../registry/index.ts";
 import type { CapabilityContext, CapabilityInput } from "./contract.ts";
 import {
   boomRow,
@@ -23,21 +22,6 @@ import {
 import type { HandlerLoader } from "./router.ts";
 
 const FULL_ACTIONS = ["create", "read", "update", "delete", "search"] as const;
-
-// Issue 4.2/03 owns the router matrix before 4.2/04 admits the second persisted
-// authored shape. This lookup-only row lets the route boundary be exercised now
-// without weakening the registry's exact transitional two-Action validation.
-function fullActionRouteRow(): CapabilityRow {
-  const base = notesRow();
-  const createRequired = base.behavioral_errors[0];
-  if (!createRequired) throw new Error("notes fixture is missing its required-fields case");
-  return {
-    ...base,
-    tools: [...FULL_ACTIONS],
-    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
-    behavioral_errors: [createRequired, { ...createRequired, action: "update" }],
-  } as CapabilityRow;
-}
 
 function urlEncoded(entries: readonly [string, string][]): RequestInit {
   return {
@@ -73,17 +57,18 @@ describe("deterministic capability router — routing refusals and failures", ()
     expect(spy.calls).toHaveLength(0);
   });
 
-  test("a transitional capability refuses every unadvertised future Action before any code loads", async () => {
-    // The transitional row declares exactly create/read; a future Action must be
-    // refused before any corresponding file could be loaded.
+  test("refuses actions outside the fixed method/Action matrix before any code loads", async () => {
+    // Every capability declares the fixed five Actions; an action name outside the matrix
+    // or a valid Action reached with the wrong method is refused before any file loads.
     install(conns, notesRow());
     const spy = makeSpyLoader();
     const app = createApp({ capabilityRouter: { databases: conns, loadHandler: spy.loadHandler } });
 
     for (const [action, method] of [
-      ["update", "POST"],
-      ["delete", "POST"],
-      ["search", "GET"],
+      ["frobnicate", "POST"], // not one of the five Actions
+      ["read", "POST"], // valid Action, wrong method
+      ["create", "GET"], // valid Action, wrong method
+      ["search", "POST"], // valid Action, wrong method
     ] as const) {
       const res = await app.request(`/capability/notes/${action}`, { method });
       expect(res.status).toBe(404);
@@ -123,7 +108,7 @@ describe("deterministic capability router — admitted method/Action matrix", ()
     const fullActionApp = createApp({
       capabilityRouter: {
         ...routerDeps,
-        lookupCapability: () => fullActionRouteRow(),
+        lookupCapability: () => notesRow(),
       },
     });
 
@@ -199,7 +184,7 @@ describe("deterministic capability router — rejected method/Action matrix", ()
         databases: conns,
         lookupCapability: () => {
           lookupCalls += 1;
-          return fullActionRouteRow();
+          return notesRow();
         },
         loadHandler: async () => {
           handlerLoads += 1;
@@ -254,7 +239,7 @@ describe("deterministic capability router — reserved marker boundary", () => {
     const app = createApp({
       capabilityRouter: {
         databases: conns,
-        lookupCapability: () => fullActionRouteRow(),
+        lookupCapability: () => notesRow(),
         loadHandler: async () => {
           handlerLoads += 1;
           return async () => "<p>never</p>";
@@ -311,7 +296,7 @@ describe("deterministic capability router — reserved marker boundary", () => {
   });
 });
 
-describe("deterministic capability router — failures and transitional inventory", () => {
+describe("deterministic capability router — failures and complete inventory", () => {
   let dir: string;
   let conns: PlatformDatabase;
 
@@ -337,17 +322,24 @@ describe("deterministic capability router — failures and transitional inventor
     expect(body).not.toMatch(/internal|stack|\bError\b/);
   });
 
-  test("the hand-written fixture is exactly the M4.1 transitional inventory and every unit honors its boundary", () => {
+  test("the router fixture has the complete five-Action inventory and every unit honors its boundary", () => {
     expect(readdirSync(resolve(NOTES_ARTIFACTS)).sort()).toEqual([
       "create.ts",
+      "delete.ts",
       "item.ts",
       "read.ts",
+      "search.ts",
+      "update.ts",
     ]);
 
-    for (const file of ["item.ts", "create.ts", "read.ts"]) {
+    for (const file of ["item.ts", "create.ts", "read.ts", "update.ts", "delete.ts", "search.ts"]) {
       const source = readFileSync(resolve(NOTES_ARTIFACTS, file), "utf8");
       expect(source).not.toMatch(/^\s*import\b/m); // no module imports
-      expect(source).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|DROP|ALTER)\b/i); // no mutation SQL
+      // No raw mutation SQL — writes go through the scoped mutation port, never SQL
+      // statements. (Matched as SQL syntax so a `mutation.update(...)` call is fine.)
+      expect(source).not.toMatch(
+        /\bINSERT\s+INTO\b|\bDELETE\s+FROM\b|\bUPDATE\s+"|\bDROP\s+TABLE\b|\bALTER\s+TABLE\b/i,
+      );
       // no raw HTTP — the handler never sees the request, a response, or parsing
       expect(source).not.toContain("c.req");
       expect(source).not.toContain("parseBody");

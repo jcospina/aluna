@@ -1,24 +1,26 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 
 import { deriveCapabilityTableDdl } from "../capability-data/index.ts";
-import { FIELD_LIFECYCLE_DEMO_SPEC, FIELD_LIFECYCLE_DEMO_UNITS } from "../demo/field-lifecycle.ts";
 import {
   expectGateFailure,
   gateInput,
+  generatedUnitsFor,
   makeBehaviorProvider,
   makeSequenceProvider,
+  notesSpec,
 } from "./gate.test-support.ts";
 import { runCapabilityGate } from "./gate.ts";
 
 setDefaultTimeout(15_000);
 
-const itemRenderer = FIELD_LIFECYCLE_DEMO_UNITS.find(
-  (unit) => unit.kind === "item-renderer",
-)?.content;
+const FIVE_ACTION_SPEC = notesSpec();
+const FIVE_ACTION_UNITS = generatedUnitsFor(FIVE_ACTION_SPEC);
+
+const itemRenderer = FIVE_ACTION_UNITS.find((unit) => unit.kind === "item-renderer")?.content;
 
 function referenceHandlers(): Record<string, string> {
   return Object.fromEntries(
-    FIELD_LIFECYCLE_DEMO_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
+    FIVE_ACTION_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
       unit.name,
       unit.content,
     ]),
@@ -29,7 +31,7 @@ describe("capability gate — frozen adversarial search and repair", () => {
   test.each([
     [
       "lower()",
-      FIELD_LIFECYCLE_DEMO_UNITS.find(
+      FIVE_ACTION_UNITS.find(
         (unit) => unit.kind === "handler" && unit.name === "search",
       )?.content.replaceAll("platform_search_normalize", "lower"),
     ],
@@ -40,7 +42,7 @@ describe("capability gate — frozen adversarial search and repair", () => {
         "  const raw = input.values.q;",
         '  const terms = (typeof raw === "string" ? raw : "").trim().split(/\\s+/u).filter(Boolean);',
         "  const rows = query.records({",
-        '    sql: \'WITH "search_terms" AS (SELECT "value" AS "term" FROM json_each(?)) SELECT "target"."id" AS "target_id" FROM "cap_field_lifecycle_demo" AS "target" WHERE NOT EXISTS (SELECT 1 FROM "search_terms" AS "search_term" WHERE coalesce(instr("target"."entry" COLLATE NOCASE, "search_term"."term" COLLATE NOCASE), 0) = 0) ORDER BY "target"."created_at" DESC, "target"."id" DESC\',',
+        '    sql: \'WITH "search_terms" AS (SELECT "value" AS "term" FROM json_each(?)) SELECT "target"."id" AS "target_id" FROM "cap_notes" AS "target" WHERE NOT EXISTS (SELECT 1 FROM "search_terms" AS "search_term" WHERE coalesce(instr("target"."text" COLLATE NOCASE, "search_term"."term" COLLATE NOCASE), 0) = 0) ORDER BY "target"."created_at" DESC, "target"."id" DESC\',',
         "    parameters: [JSON.stringify(terms)],",
         "  });",
         '  return rows.map(({ record }) => present(record)).join("");',
@@ -49,17 +51,17 @@ describe("capability gate — frozen adversarial search and repair", () => {
     ],
     [
       "a narrow whitespace splitter",
-      FIELD_LIFECYCLE_DEMO_UNITS.find(
+      FIVE_ACTION_UNITS.find(
         (unit) => unit.kind === "handler" && unit.name === "search",
       )?.content.replace(/\\s\+\/u/, "[ \\t\\n\\u2003\\u2009]+/u"),
     ],
   ])("rejects search implemented with %s", async (_label, poisonedSearch) => {
-    if (!itemRenderer || !poisonedSearch) throw new Error("reference fixture unit missing");
+    if (!itemRenderer || !poisonedSearch) throw new Error("generated Gate unit missing");
     const handlers = referenceHandlers();
     const error = await expectGateFailure(
       gateInput({
-        spec: FIELD_LIFECYCLE_DEMO_SPEC,
-        ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+        spec: FIVE_ACTION_SPEC,
+        ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
         handlers: { ...handlers, search: poisonedSearch },
         itemRenderer,
         provider: undefined,
@@ -78,8 +80,8 @@ describe("capability gate — frozen adversarial search and repair", () => {
     const { provider, prompts } = makeBehaviorProvider({ content: goodSearch });
     const result = await runCapabilityGate(
       gateInput({
-        spec: FIELD_LIFECYCLE_DEMO_SPEC,
-        ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+        spec: FIVE_ACTION_SPEC,
+        ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
         handlers: {
           ...handlers,
           search: goodSearch.replaceAll("platform_search_normalize", "lower"),
@@ -113,8 +115,8 @@ describe("capability gate — adversarial search failure integrity", () => {
       );
     const error = await expectGateFailure(
       gateInput({
-        spec: FIELD_LIFECYCLE_DEMO_SPEC,
-        ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+        spec: FIVE_ACTION_SPEC,
+        ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
         handlers: { ...handlers, search: discardedSearch },
         itemRenderer,
         provider: undefined,
@@ -131,14 +133,14 @@ describe("capability gate — adversarial search failure integrity", () => {
     const shortRead = [
       "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
       "  return query.records({",
-      '    sql: \'SELECT "id" AS "target_id" FROM "cap_field_lifecycle_demo" ORDER BY "created_at" DESC, "id" DESC LIMIT 1\',',
+      '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC LIMIT 1\',',
       '  }).map(({ record }) => present(record)).join("");',
       "}",
     ].join("\n");
     const error = await expectGateFailure(
       gateInput({
-        spec: FIELD_LIFECYCLE_DEMO_SPEC,
-        ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+        spec: FIVE_ACTION_SPEC,
+        ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
         handlers: { ...handlers, read: shortRead },
         itemRenderer,
         provider: undefined,
@@ -160,8 +162,8 @@ describe("capability gate — adversarial search failure integrity", () => {
     ]);
     const result = await runCapabilityGate(
       gateInput({
-        spec: FIELD_LIFECYCLE_DEMO_SPEC,
-        ddl: deriveCapabilityTableDdl(FIELD_LIFECYCLE_DEMO_SPEC),
+        spec: FIVE_ACTION_SPEC,
+        ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
         handlers: {
           ...handlers,
           search: goodSearch.replaceAll("platform_search_normalize", "lower"),

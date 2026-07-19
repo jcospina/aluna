@@ -16,7 +16,6 @@ import { join, resolve } from "node:path";
 
 import { applyCapabilityTableDdl } from "../capability-data/index.ts";
 import { openDatabase, type PlatformDatabase, withWriteTransaction } from "../db.ts";
-import { FIELD_LIFECYCLE_DEMO_SPEC, FIELD_LIFECYCLE_DEMO_UNITS } from "../demo/field-lifecycle.ts";
 import { runMigrations } from "../migrations.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -26,7 +25,7 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
 import { commitCapability, FIRST_CAPABILITY_VERSION } from "./commit.ts";
-import type { GeneratedUnit } from "./units.ts";
+import type { GeneratedUnit, HandlerUnitName } from "./units.ts";
 
 const TOKENS = { inputTokens: 1, outputTokens: 1, totalTokens: 2 } as const;
 const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
@@ -55,15 +54,22 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         fields: ["text"],
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
+      {
+        action: "update",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
     ],
-    tools: ["create", "read"],
-    read_dependencies: { create: [], read: [] },
+    tools: ["create", "read", "update", "delete", "search"],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
 }
 
-function handlerUnit(name: "create" | "read", content: string): GeneratedUnit {
+function handlerUnit(name: HandlerUnitName, content: string): GeneratedUnit {
   return {
     kind: "handler",
     name,
@@ -87,8 +93,9 @@ function itemRendererUnit(content: string): GeneratedUnit {
   };
 }
 
-// The three M4.1 transitional artifacts, with just enough content to assert they were written, in the
-// order unit generation produces them (item renderer first, then the handlers).
+// The complete five-Action artifact inventory, with just enough content to assert each
+// was written, in the order unit generation produces them (item renderer first, then the
+// Handlers in canonical Action order).
 function notesUnits(): GeneratedUnit[] {
   return [
     itemRendererUnit(
@@ -99,6 +106,12 @@ function notesUnits(): GeneratedUnit[] {
       "export default async function create() { return '<article></article>'; }",
     ),
     handlerUnit("read", "export default async function read() { return '<ul></ul>'; }"),
+    handlerUnit(
+      "update",
+      "export default async function update() { return '<article></article>'; }",
+    ),
+    handlerUnit("delete", "export default async function remove() { return '<p></p>'; }"),
+    handlerUnit("search", "export default async function search() { return '<ul></ul>'; }"),
   ];
 }
 
@@ -140,7 +153,14 @@ describe("commitCapability — commit and pre-registration guards", () => {
     expect(result.version).toBe(FIRST_CAPABILITY_VERSION);
     expect(result.incarnationId).toBe(INCARNATION_ID);
     expect(result.artifactsPath).toBe(`${root}/notes/${INCARNATION_ID}/v1/`);
-    expect(result.files).toEqual(["item.ts", "create.ts", "read.ts"]);
+    expect(result.files).toEqual([
+      "item.ts",
+      "create.ts",
+      "read.ts",
+      "update.ts",
+      "delete.ts",
+      "search.ts",
+    ]);
 
     // The three artifacts really landed in the version directory, with their content.
     for (const file of result.files) {
@@ -161,8 +181,14 @@ describe("commitCapability — commit and pre-registration guards", () => {
     expect(row?.version).toBe(1);
     expect(row?.artifacts_path).toBe(result.artifactsPath);
     expect(row?.label).toBe("Notes");
-    expect(row?.tools).toEqual(["create", "read"]);
-    expect(row?.read_dependencies).toEqual({ create: [], read: [] });
+    expect(row?.tools).toEqual(["create", "read", "update", "delete", "search"]);
+    expect(row?.read_dependencies).toEqual({
+      create: [],
+      read: [],
+      update: [],
+      delete: [],
+      search: [],
+    });
   });
 
   test("rejects any partial or extra artifact inventory before registration", () => {
@@ -183,7 +209,7 @@ describe("commitCapability — commit and pre-registration guards", () => {
           database: conns.readwrite,
           artifactsRoot: root,
         }),
-      ).toThrow("Capability artifacts must be exactly item.ts, create.ts, read.ts");
+      ).toThrow(/item\.ts, create\.ts, read\.ts, update\.ts, delete\.ts, search\.ts/);
       expect(getCapability("notes", conns.readonly)).toBeNull();
       expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1"))).toBe(false);
     }
@@ -215,17 +241,19 @@ describe("commitCapability — commit and pre-registration guards", () => {
   });
 });
 
-describe("commitCapability — five-Action reference inventory", () => {
+describe("commitCapability — complete five-Action inventory", () => {
   test("commits only the complete inventory", () => {
     const dir = mkdtempSync(join(tmpdir(), "omni-crud-reference-commit-"));
     const conns = openDatabase(join(dir, "test.db"));
     try {
       runMigrations(conns.readwrite);
-      const root = join(dir, "reference-artifacts");
+      const root = join(dir, "complete-artifacts");
+      const spec = notesSpec();
+      const units = notesUnits();
       const result = commitCapability({
-        spec: FIELD_LIFECYCLE_DEMO_SPEC,
+        spec,
         incarnationId: INCARNATION_ID,
-        units: FIELD_LIFECYCLE_DEMO_UNITS,
+        units,
         database: conns.readwrite,
         artifactsRoot: root,
       });
@@ -240,9 +268,9 @@ describe("commitCapability — five-Action reference inventory", () => {
       ]);
       expect(() =>
         commitCapability({
-          spec: FIELD_LIFECYCLE_DEMO_SPEC,
+          spec,
           incarnationId: "22222222-2222-4222-8222-222222222222",
-          units: FIELD_LIFECYCLE_DEMO_UNITS.slice(0, -1),
+          units: units.slice(0, -1),
           database: conns.readwrite,
           artifactsRoot: root,
         }),

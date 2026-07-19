@@ -21,7 +21,6 @@ import {
   type CapabilityRow,
   type CapabilitySpec,
   FULL_CAPABILITY_TOOLS,
-  TRANSITIONAL_CAPABILITY_TOOLS,
 } from "../registry/index.ts";
 
 import { checkGeneratedUnit } from "./unit-checks.ts";
@@ -37,7 +36,6 @@ const generatedUnitSchema = z.strictObject({ content: z.string().min(1) });
 type GeneratedUnitObject = z.infer<typeof generatedUnitSchema>;
 
 export type HandlerUnitName = (typeof FULL_CAPABILITY_TOOLS)[number];
-export type TransitionalHandlerUnitName = (typeof TRANSITIONAL_CAPABILITY_TOOLS)[number];
 export type ItemRendererUnitName = typeof ITEM_RENDERER_UNIT_NAME;
 
 export type GeneratedUnit =
@@ -137,11 +135,11 @@ export { buildUnitPrompt } from "./unit-prompts.ts";
 /**
  * Generate the complete unit inventory declared by `spec`, in fixed order — the item
  * renderer first (the creative surface, generated knowing `collection.layout`), then
- * each canonical Action Handler through its bounded write→check→fix loop. During the
- * reset-bounded transition this still accepts the exact two-Action shape; prompt-built
- * 4.4 specs always declare all five. Returns the
- * generated units plus the handler map and item-renderer content the gate and commit
- * consume. Throws {@link UnitGenerationError} if any unit never passes its checks.
+ * each canonical Action Handler through its bounded write→check→fix loop. Every spec
+ * declares the fixed five Actions (decision 16), so this always generates item.ts plus
+ * all five Handlers. Returns the generated units plus the handler map and item-renderer
+ * content the gate and commit consume. Throws {@link UnitGenerationError} if any unit
+ * never passes its checks.
  */
 export async function generateCapabilityUnits(
   input: GenerateCapabilityUnitsInput,
@@ -325,15 +323,11 @@ function itemRendererContent(units: readonly GeneratedUnit[]): string {
 }
 
 function assertHandlerSpec(spec: CapabilitySpec): void {
-  const expected =
-    spec.tools.length === FULL_CAPABILITY_TOOLS.length
-      ? FULL_CAPABILITY_TOOLS
-      : TRANSITIONAL_CAPABILITY_TOOLS;
   if (
-    spec.tools.length !== expected.length ||
-    !spec.tools.every((action, index) => action === expected[index])
+    spec.tools.length !== FULL_CAPABILITY_TOOLS.length ||
+    !spec.tools.every((action, index) => action === FULL_CAPABILITY_TOOLS[index])
   ) {
-    throw new Error("Unit generation requires one complete admitted Action shape.");
+    throw new Error("Unit generation requires the complete fixed five-Action shape.");
   }
 }
 

@@ -141,10 +141,10 @@ describe("deterministic capability router — presentation adapter and empty rea
     expect(body).toContain("data-item=");
     expect(body).toContain('data-detail-template="detail-notes-');
     expect(body).toContain('<span class="text-lg truncate">Buy milk</span>');
-    expect(body).not.toContain("data-detail-edit");
-    expect(body).not.toContain("data-detail-delete");
-    expect(body).not.toContain("/capability/notes/update");
-    expect(body).not.toContain("/capability/notes/delete");
+    expect(body).toContain("data-detail-edit");
+    expect(body).toContain("data-detail-delete");
+    expect(body).toContain("/capability/notes/update");
+    expect(body).toContain("/capability/notes/delete");
   });
 
   test("a missing required item renderer fails cleanly before the handler loads", async () => {
@@ -206,7 +206,8 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain("data-post-mutation-refresh");
     expect(body).toContain('data-records-target-id="notes-records"');
     expect(body).toContain('data-read-url="/capability/notes/read"');
-    expect(body).not.toContain("data-capability-search");
+    expect(body).toContain("data-capability-search");
+    expect(body).toContain('data-search-url="/capability/notes/search"');
     expect(body).not.toContain("<!doctype html>");
     expect(body).not.toContain("/static/app.css");
   });

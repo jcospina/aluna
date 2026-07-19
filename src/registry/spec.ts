@@ -22,11 +22,9 @@
 //     item direction, the closed collection layout (`feed | grid`), the
 //     detail fields/order, and one closed input mode for every active `string[]`.
 //     It never stores `views` or `modal: true`; the shared
-//     modal is a platform invariant (ADR-0005 §6). `tools` is either the exact
-//     reset-bounded M4.1 Action tuple (`create`, `read`) or the development-only
-//     complete five-Action reference tuple; `read_dependencies` carries exactly
-//     the matching keys;
-//     `behavior` is free text the behavioral tier
+//     modal is a platform invariant (ADR-0005 §6). `tools` is the fixed
+//     five-Action tuple (decision 16); `read_dependencies` carries exactly one
+//     array per Action; `behavior` is free text the behavioral tier
 //     generates tests from; `behavioral_errors` is the stable validation error
 //     contract product copy must not stand in for.
 //   - The platform trio — `id`, `created_at`, `extra` — is platform-owned, never
@@ -153,15 +151,18 @@ export const uiIntentSchema = z.strictObject({
 });
 export type UiIntent = z.infer<typeof uiIntentSchema>;
 
-// M4.1's exact reset-bounded two-Action transition. `update`/`delete`/`search`
-// arrive through the complete five-Action reference shape in 4.2, not as
-// optional or empty keys here.
-export const TRANSITIONAL_CAPABILITY_TOOLS = ["create", "read"] as const;
+// From the 4.4 steady-state cutover the five Actions are mandatory and fixed
+// (decision 16): every capability is born with the complete ordered inventory and
+// no evolution can drop one. There is no longer any narrower admitted shape.
 export const FULL_CAPABILITY_TOOLS = ["create", "read", "update", "delete", "search"] as const;
 export const capabilityToolSchema = z.enum(FULL_CAPABILITY_TOOLS);
 export type CapabilityTool = z.infer<typeof capabilityToolSchema>;
 
-const fullCapabilityToolsSchema = z
+// Model this as a homogeneous fixed-length array for provider JSON Schema: OpenAI
+// rejects tuple-style positional `items: [...]`. The refinement keeps the authored
+// contract narrow — only the exact ordered five-Action value crosses the local hard
+// gate — while the emitted wire schema uses one item object.
+const capabilityToolsSchema = z
   .array(capabilityToolSchema)
   .length(FULL_CAPABILITY_TOOLS.length)
   .refine(
@@ -169,43 +170,21 @@ const fullCapabilityToolsSchema = z
     `must be exactly [${FULL_CAPABILITY_TOOLS.join(", ")}] in canonical order`,
   );
 
-// Model this as a homogeneous fixed-length array for provider JSON Schema:
-// OpenAI rejects tuple-style positional `items: [...]`. The refinement keeps the
-// authored contract just as narrow — only the exact ordered [create, read] value
-// crosses the local hard gate — while the emitted wire schema uses one item object.
-const capabilityToolsSchema = z
-  .array(capabilityToolSchema)
-  .refine(
-    (tools) =>
-      sameOrderedStrings(tools, TRANSITIONAL_CAPABILITY_TOOLS) ||
-      sameOrderedStrings(tools, FULL_CAPABILITY_TOOLS),
-    `must be exactly [${TRANSITIONAL_CAPABILITY_TOOLS.join(", ")}] or [${FULL_CAPABILITY_TOOLS.join(", ")}] in canonical order`,
-  );
-
-// The pair shape is defined now so 4.2 can admit validated dependency identities
-// without recutting the authored property. M4.1 deliberately requires both
-// arrays to be empty.
+// One read-dependency identity: which prior capability incarnation an Action reads.
 export const readDependencySchema = z.strictObject({
   capability_id: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
   incarnation_id: incarnationIdSchema,
 });
 export type ReadDependency = z.infer<typeof readDependencySchema>;
 
-const transitionalReadDependenciesSchema = z.strictObject({
-  create: z.array(readDependencySchema).length(0, "must be empty during the M4.1 transition"),
-  read: z.array(readDependencySchema).length(0, "must be empty during the M4.1 transition"),
-});
-const fullReadDependenciesSchema = z.strictObject({
+// One key per fixed Action — the same complete five-Action inventory as `tools`.
+export const readDependenciesSchema = z.strictObject({
   create: z.array(readDependencySchema),
   read: z.array(readDependencySchema),
   update: z.array(readDependencySchema),
   delete: z.array(readDependencySchema),
   search: z.array(readDependencySchema),
 });
-export const readDependenciesSchema = z.union([
-  transitionalReadDependenciesSchema,
-  fullReadDependenciesSchema,
-]);
 export type ReadDependencies = z.infer<typeof readDependenciesSchema>;
 
 export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
@@ -287,18 +266,10 @@ export const capabilitySpecSchema = z
   .superRefine(validateSpecSemantics);
 export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 
-// From 4.4 onward every prompt-built capability is born with the complete fixed
-// five-Action authored shape. The broader registry schema still admits the exact
-// two-Action transition until 4.4/05 removes that reset-bounded allowance.
-export const promptCapabilitySpecSchema = z
-  .strictObject({
-    ...commonSpecShape,
-    behavioral_errors: z.array(behavioralErrorCaseSchema).max(8),
-    tools: fullCapabilityToolsSchema,
-    read_dependencies: fullReadDependenciesSchema,
-    label: capabilityNameText,
-  })
-  .superRefine(validateSpecSemantics);
+// The prompt Builder and the registry now admit exactly one shape. `capabilitySpecSchema`
+// already pins the complete fixed five-Action inventory (decision 16), so the prompt-build
+// path validates against that same schema — there is no separate, looser registry shape.
+export const promptCapabilitySpecSchema = capabilitySpecSchema;
 
 // One registry row (ARCH §6.3): the spec plus the platform-assigned incarnation,
 // version, and artifact pointer. The opaque incarnation identifies one complete
@@ -336,16 +307,15 @@ export function capabilitySpecFromRow(row: CapabilityRow): CapabilitySpec {
 
 export function defaultBehavioralErrorsForSchema(
   schema: CapabilitySpec["schema"],
-  tools: readonly CapabilityTool[] = TRANSITIONAL_CAPABILITY_TOOLS,
 ): BehavioralErrorCase[] {
   const fields = schema.fields
     .filter((field) => field.lifecycle === "active" && field.required)
     .map((field) => field.name);
   if (fields.length === 0) return [];
 
-  const actions = sameOrderedStrings(tools, FULL_CAPABILITY_TOOLS)
-    ? (["create", "update"] as const)
-    : (["create"] as const);
+  // The fixed five-Action shape owns a missing_required_fields case on each writing
+  // Action that revalidates required fields: create and update.
+  const actions = ["create", "update"] as const;
   return actions.map((action) => ({
     action,
     trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
@@ -392,7 +362,7 @@ function validateBehavioralErrors(
     seenOwnership.add(ownership);
   }
 
-  if (!hasExactRequiredFieldsErrors(spec.behavioral_errors, requiredFieldNames, spec.tools)) {
+  if (!hasExactRequiredFieldsErrors(spec.behavioral_errors, requiredFieldNames)) {
     ctx.addIssue({
       code: "custom",
       message:
@@ -571,13 +541,10 @@ function validateActionShapePair(
   ctx: z.RefinementCtx,
 ): void {
   const dependencyKeys = Object.keys(spec.read_dependencies);
-  const expectedKeys = sameOrderedStrings(spec.tools, FULL_CAPABILITY_TOOLS)
-    ? FULL_CAPABILITY_TOOLS
-    : TRANSITIONAL_CAPABILITY_TOOLS;
-  if (!sameOrderedStrings(dependencyKeys, expectedKeys)) {
+  if (!sameOrderedStrings(dependencyKeys, FULL_CAPABILITY_TOOLS)) {
     ctx.addIssue({
       code: "custom",
-      message: "tools and read_dependencies must be one complete admitted Action shape",
+      message: "tools and read_dependencies must be the complete fixed five-Action shape",
       path: ["read_dependencies"],
     });
   }
@@ -586,7 +553,6 @@ function validateActionShapePair(
 function hasExactRequiredFieldsErrors(
   errorCases: readonly BehavioralErrorCase[],
   requiredFieldNames: readonly string[],
-  tools: readonly CapabilityTool[],
 ): boolean {
   const requiredCases = errorCases.filter(
     (errorCase) =>
@@ -594,9 +560,8 @@ function hasExactRequiredFieldsErrors(
       errorCase.code === MISSING_REQUIRED_FIELDS_ERROR_CODE,
   );
   if (requiredFieldNames.length === 0) return requiredCases.length === 0;
-  const expectedActions = sameOrderedStrings(tools, FULL_CAPABILITY_TOOLS)
-    ? (["create", "update"] as const)
-    : (["create"] as const);
+  // The writing Actions that revalidate required fields, in canonical order.
+  const expectedActions = ["create", "update"] as const;
   return (
     requiredCases.length === expectedActions.length &&
     requiredCases.every(

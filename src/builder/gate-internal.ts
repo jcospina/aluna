@@ -203,7 +203,7 @@ function seedCompatibilityRow(
 /** Transpile + load the generated handler strings into live callable functions. */
 export async function loadHandlers(
   handlers: Readonly<Partial<Record<HandlerUnitName, string>>>,
-  names: readonly HandlerUnitName[] = ["create", "read"],
+  names: readonly HandlerUnitName[] = SMOKE_HANDLER_NAMES,
 ): Promise<LoadedHandlers> {
   const loaded = names.map(
     (name) => [name, loadDefaultExport(`handler "${name}"`, name, handlers[name] ?? "")] as const,

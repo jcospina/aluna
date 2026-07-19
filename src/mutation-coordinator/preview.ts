@@ -194,10 +194,10 @@ export function renderMutationCoordinatorPreviewPage(holdMs: number): string {
       <section class="test-note">
         <h2>Second-tab check</h2>
         <p>
-          First install the field-lifecycle demo. While the build lease is active, open
-          <a href="/capability/field_lifecycle_demo" target="_blank" rel="noreferrer">Field lifecycle in a second tab</a>
-          and submit a new entry. The form stays put and shows the warm retry message. Reloading
-          or reading existing entries still works.
+          First build a capability from the <a href="/" target="_blank" rel="noreferrer">home page</a>.
+          While the build lease is active, open that capability in a second tab and submit a new
+          record. The form stays put and shows the warm retry message. Reloading or reading existing
+          records still works.
         </p>
       </section>
     </main>
