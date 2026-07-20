@@ -1,4 +1,9 @@
-import { type CapabilitySpec, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/index.ts";
+import {
+  activeSpecFields,
+  type CapabilitySpec,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "../registry/index.ts";
+import { normalizeSearchText } from "../sqlite-functions.ts";
 import type {
   FullBehavioralTestCase,
   FullBehavioralTestSuite,
@@ -65,7 +70,133 @@ function assertCaseContract(spec: CapabilitySpec, testCase: FullBehavioralTestCa
   }
   if (!testCase.expectedError && !testCase.expectedPlatformError) {
     assertAssertionsUseSyntheticValues(testCase);
+    assertSearchOrderingCoverage(spec, testCase);
   }
+}
+
+function assertSearchOrderingCoverage(
+  spec: CapabilitySpec,
+  testCase: FullBehavioralTestCase,
+): void {
+  if (testCase.action !== "search") return;
+  const query = requiredSearchQuery(testCase);
+  const ordered = testCase.expectFragmentIncludesInOrder;
+  if (!hasSearchableFields(spec)) {
+    if (
+      testCase.expectFragmentIncludes.length > 0 ||
+      testCase.expectFragmentExcludes.length > 0 ||
+      ordered.length > 0
+    ) {
+      throw new Error(
+        "normal search case cannot assert fragment matches when the capability has no active searchable fields",
+      );
+    }
+    return;
+  }
+  if (testCase.setupRows.length < 2 || ordered.length < 2) {
+    throw new Error(
+      "normal search case must prove ordering with at least two matching setup rows and ordered synthetic fragment assertions",
+    );
+  }
+
+  const rowIndexes = ordered.map((assertion) =>
+    uniqueSetupRowIndex(testCase, assertion, "ordered"),
+  );
+  if (new Set(rowIndexes).size < 2) {
+    throw new Error(
+      "normal search case must prove ordering across at least two distinct matching setup rows",
+    );
+  }
+  assertOrderedRowsMatchQuery(spec, testCase, query, ordered, rowIndexes);
+  assertExcludedRowsDoNotMatchQuery(spec, testCase, query);
+}
+
+function hasSearchableFields(spec: CapabilitySpec): boolean {
+  return activeSpecFields(spec.schema.fields).some(
+    (field) => field.type === "string" || field.type === "string[]",
+  );
+}
+
+function requiredSearchQuery(testCase: FullBehavioralTestCase): string {
+  const queries = testCase.input.filter((entry) => entry.field === "q");
+  const query = queries[0]?.value;
+  if (queries.length !== 1 || !query || query.trim().length === 0) {
+    throw new Error(
+      "normal search case must exercise primary ordering with exactly one nonblank q",
+    );
+  }
+  return query;
+}
+
+function assertOrderedRowsMatchQuery(
+  spec: CapabilitySpec,
+  testCase: FullBehavioralTestCase,
+  query: string,
+  ordered: readonly string[],
+  rowIndexes: readonly number[],
+): void {
+  for (const [index, rowIndex] of rowIndexes.entries()) {
+    if (!setupRowMatchesSearchQuery(spec, testCase, rowIndex, query)) {
+      throw new Error(
+        `ordered setup row identified by ${JSON.stringify(ordered[index])} does not mechanically match q`,
+      );
+    }
+  }
+}
+
+function assertExcludedRowsDoNotMatchQuery(
+  spec: CapabilitySpec,
+  testCase: FullBehavioralTestCase,
+  query: string,
+): void {
+  for (const excluded of testCase.expectFragmentExcludes) {
+    const rowIndex = uniqueSetupRowIndex(testCase, excluded, "excluded");
+    if (setupRowMatchesSearchQuery(spec, testCase, rowIndex, query)) {
+      throw new Error(
+        `excluded setup row identified by ${JSON.stringify(excluded)} mechanically matches q`,
+      );
+    }
+  }
+}
+
+function uniqueSetupRowIndex(
+  testCase: FullBehavioralTestCase,
+  assertion: string,
+  role: "ordered" | "excluded",
+): number {
+  const matches = testCase.setupRows.flatMap((row, index) =>
+    row.values.flatMap(scalarStrings).includes(assertion) ? [index] : [],
+  );
+  if (matches.length !== 1 || matches[0] === undefined) {
+    throw new Error(
+      `normal search ${role} assertions must each identify exactly one synthetic setup row`,
+    );
+  }
+  return matches[0];
+}
+
+function setupRowMatchesSearchQuery(
+  spec: CapabilitySpec,
+  testCase: FullBehavioralTestCase,
+  rowIndex: number,
+  query: string,
+): boolean {
+  const row = testCase.setupRows[rowIndex];
+  if (!row) return false;
+  const searchableFields = new Set(
+    activeSpecFields(spec.schema.fields)
+      .filter((field) => field.type === "string" || field.type === "string[]")
+      .map((field) => field.name),
+  );
+  const normalizedValues = row.values
+    .filter((entry) => searchableFields.has(entry.field))
+    .flatMap(scalarStrings)
+    .map(normalizeSearchText);
+  return query
+    .trim()
+    .split(/\s+/u)
+    .map(normalizeSearchText)
+    .every((term) => normalizedValues.some((value) => value.includes(term)));
 }
 
 function assertMissingRequiredTrigger(testCase: FullBehavioralTestCase): void {

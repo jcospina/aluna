@@ -50,6 +50,7 @@ import {
   prepareScratchCatalog,
   sameSnapshot,
   snapshotCapabilityTables,
+  sqlIdentifier,
 } from "./gate-internal.ts";
 import type { HandlerUnitName } from "./units.ts";
 
@@ -170,7 +171,7 @@ async function runFullBehavioralCase(
   let scratchRows: ReturnType<typeof selectCapabilityRows> | undefined;
   try {
     prepareScratchCatalog(input.spec, input.ddl, input.scratchCatalog, scratch);
-    const setupIds = seedRows(input.spec, setupRows, scratch.readwrite);
+    const setupIds = seedRows(input.spec, input.ddl.tableName, setupRows, scratch.readwrite);
     ageSetupRows(scratch.readwrite, input.ddl.tableName, setupIds);
     const targetId = resolveTargetId(testCase, setupIds);
     fragment = await invokeExpectedAction(
@@ -206,11 +207,21 @@ async function runFullBehavioralCase(
 
 function seedRows(
   spec: CapabilitySpec,
+  tableName: string,
   rows: readonly Record<string, BehavioralScalar>[],
   database: Database,
 ): string[] {
   const create = createCapabilityMutationPort(spec, database);
-  return rows.map((row) => String(materializeCapabilityActionRecord(create.create(row)).id));
+  return rows.map((row, index) => {
+    const generatedId = String(materializeCapabilityActionRecord(create.create(row)).id);
+    // Setup order is semantic input to the generated test. Stable ids ensure an
+    // id-only Handler cannot pass or fail ordering assertions by random UUID luck.
+    const deterministicId = `behavior_setup_${String(index).padStart(4, "0")}`;
+    database
+      .query(`UPDATE ${sqlIdentifier(tableName)} SET "id" = ? WHERE "id" = ?`)
+      .run(deterministicId, generatedId);
+    return deterministicId;
+  });
 }
 
 function resolveTargetId(testCase: FullBehavioralTestCase, setupIds: readonly string[]) {

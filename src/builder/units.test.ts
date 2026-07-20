@@ -305,6 +305,83 @@ const BAD_ITEM_RENDERER = `export default function renderItem(record: Record<str
   return record.text;
 }`;
 
+// Mirrors the live Claude failure: the object itself is narrowed, but its optional
+// `fields` property remains `unknown` when an array method is called on it.
+const UNKNOWN_ERROR_FIELDS_UPDATE_HANDLER = [
+  "export default async function update({ mutation, present }: CapabilityUpdateContext): Promise<string> {",
+  "  try {",
+  '    return present(mutation.update({ text: "updated" }));',
+  "  } catch (failure: unknown) {",
+  "    const candidate = failure as { code?: unknown; fields?: unknown };",
+  '    if (candidate.code === "missing_required_fields" && candidate.fields.includes("text")) {',
+  '      return \'<p data-role="error" data-error-code="missing_required_fields" data-error-fields="text">Text is required.</p>\';',
+  "    }",
+  "    throw failure;",
+  "  }",
+  "}",
+].join("\n");
+
+const NARROWED_ERROR_FIELDS_UPDATE_HANDLER = [
+  "export default async function update({ mutation, present }: CapabilityUpdateContext): Promise<string> {",
+  "  try {",
+  '    return present(mutation.update({ text: "updated" }));',
+  "  } catch (failure: unknown) {",
+  '    if (typeof failure !== "object" || failure === null) throw failure;',
+  "    const candidate = failure as { code?: unknown; fields?: unknown };",
+  "    const rawFields = candidate.fields;",
+  "    if (",
+  '      candidate.code === "missing_required_fields" &&',
+  "      Array.isArray(rawFields) &&",
+  '      rawFields.every((field): field is string => typeof field === "string") &&',
+  '      rawFields.includes("text")',
+  "    ) {",
+  '      return \'<p data-role="error" data-error-code="missing_required_fields" data-error-fields="text">Text is required.</p>\';',
+  "    }",
+  "    throw failure;",
+  "  }",
+  "}",
+].join("\n");
+
+// Mirrors the two coffee-diary failures. `Array.isArray` narrows mutable arrays,
+// so its false branch does not prove that a `readonly string[]` union member is a string.
+const READONLY_FALSE_BRANCH_UPDATE_HANDLER = [
+  "function scalarValue(value: string | readonly string[]): string {",
+  '  if (Array.isArray(value)) return value[0] ?? "";',
+  "  return value;",
+  "}",
+  "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
+  "  const patch: Record<string, unknown> = {};",
+  '  if (input.submittedFields.has("text")) patch.text = scalarValue(input.values.text ?? "");',
+  "  return present(mutation.update(patch));",
+  "}",
+].join("\n");
+
+// `noUncheckedIndexedAccess` adds `undefined` to every dynamic `input.values` read,
+// even though the record's declared value type names only scalar and list values.
+const UNDEFINED_INDEXED_INPUT_UPDATE_HANDLER = [
+  "function scalarValue(value: string | readonly string[]): string {",
+  '  if (typeof value === "string") return value;',
+  '  return value[0] ?? "";',
+  "}",
+  "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
+  "  const patch: Record<string, unknown> = {};",
+  '  if (input.submittedFields.has("text")) patch.text = scalarValue(input.values.text);',
+  "  return present(mutation.update(patch));",
+  "}",
+].join("\n");
+
+const SAFE_INDEXED_INPUT_UPDATE_HANDLER = [
+  "function scalarValue(value: string | readonly string[] | undefined): string {",
+  '  if (typeof value === "string") return value;',
+  '  return "";',
+  "}",
+  "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
+  "  const patch: Record<string, unknown> = {};",
+  '  if (input.submittedFields.has("text")) patch.text = scalarValue(input.values.text);',
+  "  return present(mutation.update(patch));",
+  "}",
+].join("\n");
+
 describe("unit generation with bounded fix loop — generation and fix-loop regeneration", () => {
   test("generates item.ts and all five canonical Action handlers for a full spec", async () => {
     const provider = makeQueuedProvider([
@@ -421,6 +498,70 @@ describe("unit generation with bounded fix loop — generation and fix-loop rege
   });
 });
 
+describe("unit generation with bounded fix loop — strict unknown-property repair", () => {
+  test("feeds an unknown object-property failure back and accepts a locally narrowed fix", async () => {
+    const provider = makeQueuedProvider([
+      ITEM_RENDERER,
+      CREATE_HANDLER,
+      READ_HANDLER,
+      UNKNOWN_ERROR_FIELDS_UPDATE_HANDLER,
+      NARROWED_ERROR_FIELDS_UPDATE_HANDLER,
+      DELETE_HANDLER,
+      SEARCH_HANDLER,
+    ]);
+
+    const result = await generateCapabilityUnits({ provider, spec: notesSpec() });
+    const update = result.units.find((unit) => unit.kind === "handler" && unit.name === "update");
+
+    expect(update?.attempts).toHaveLength(2);
+    expect(update?.attempts[0]?.error).toContain("'candidate.fields' is of type 'unknown'");
+    expect(update?.attempts[1]?.error).toBeUndefined();
+    expect(provider.calls[4]?.prompt).toContain("Previous attempt failed");
+    expect(provider.calls[4]?.prompt).toContain("'candidate.fields' is of type 'unknown'");
+    expect(result.handlers.update).toBe(NARROWED_ERROR_FIELDS_UPDATE_HANDLER);
+  });
+});
+
+describe("unit generation with bounded fix loop — indexed update input repair", () => {
+  test.each([
+    {
+      name: "readonly list remains in an Array.isArray false branch",
+      broken: READONLY_FALSE_BRANCH_UPDATE_HANDLER,
+      diagnostic: "Type 'readonly string[]' is not assignable to type 'string'",
+    },
+    {
+      name: "indexed input may be undefined under noUncheckedIndexedAccess",
+      broken: UNDEFINED_INDEXED_INPUT_UPDATE_HANDLER,
+      diagnostic:
+        "CapabilityInputValue | undefined' is not assignable to parameter of type 'string | readonly string[]'",
+    },
+  ])("repairs $name within the default two-attempt budget", async ({ broken, diagnostic }) => {
+    const provider = makeQueuedProvider([
+      ITEM_RENDERER,
+      CREATE_HANDLER,
+      READ_HANDLER,
+      broken,
+      SAFE_INDEXED_INPUT_UPDATE_HANDLER,
+      DELETE_HANDLER,
+      SEARCH_HANDLER,
+    ]);
+
+    const result = await generateCapabilityUnits({ provider, spec: notesSpec() });
+    const update = result.units.find((unit) => unit.kind === "handler" && unit.name === "update");
+    const retryPrompt = provider.calls[4]?.prompt ?? "";
+
+    expect(update?.attempts).toHaveLength(DEFAULT_UNIT_FIX_ATTEMPTS);
+    expect(update?.attempts[0]?.error).toContain(diagnostic);
+    expect(update?.attempts[1]?.error).toBeUndefined();
+    expect(retryPrompt).toContain("Previous attempt failed");
+    expect(retryPrompt).toContain("Every indexed `input.values[name]` read may be `undefined`");
+    expect(retryPrompt).toContain('if (typeof value === "string") return value');
+    expect(retryPrompt).toContain('return ""');
+    expect(retryPrompt).toContain("Required repair for indexed input values");
+    expect(result.handlers.update).toBe(SAFE_INDEXED_INPUT_UPDATE_HANDLER);
+  });
+});
+
 describe("unit generation with bounded fix loop — attempt-cap exhaustion and static checks", () => {
   test("exhausts the default two-attempt cap on the item renderer and fails cleanly", async () => {
     await expect(
@@ -460,6 +601,34 @@ describe("unit generation with bounded fix loop — attempt-cap exhaustion and s
       expect(unitError.attempts[0]?.error).toContain(
         "Binding element 'input' implicitly has an 'any' type",
       );
+    }
+  });
+
+  test("preserves the exact unknown-property history in the terminal generation error", async () => {
+    try {
+      await generateCapabilityUnits({
+        provider: makeQueuedProvider([
+          ITEM_RENDERER,
+          CREATE_HANDLER,
+          READ_HANDLER,
+          UNKNOWN_ERROR_FIELDS_UPDATE_HANDLER,
+          UNKNOWN_ERROR_FIELDS_UPDATE_HANDLER,
+        ]),
+        spec: notesSpec(),
+      });
+      throw new Error("expected unit generation to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(UnitGenerationError);
+      const unitError = error as UnitGenerationError;
+      expect(unitError.unit).toEqual({ kind: "handler", name: "update" });
+      expect(unitError.attempts).toHaveLength(DEFAULT_UNIT_FIX_ATTEMPTS);
+      expect(unitError.attempts[0]?.error).toContain("'candidate.fields' is of type 'unknown'");
+      expect(unitError.attempts[1]?.error).toContain("'candidate.fields' is of type 'unknown'");
+      expect(unitError.message).toContain("'candidate.fields' is of type 'unknown'");
+      expect(unitError.diagnostic).toEqual({
+        unit: { kind: "handler", name: "update" },
+        attempts: unitError.attempts,
+      });
     }
   });
 
@@ -921,6 +1090,25 @@ describe("unit generation with bounded fix loop — per-Action context projectio
     expect(search).toContain("Search SQL must normalize");
   });
 
+  test("search generation preserves authored ranking without weakening the default", () => {
+    const search = buildUnitPrompt(
+      fullNotesSpec({
+        behavior: "Matching search results are ordered oldest first.",
+      }),
+      { kind: "handler", name: "search" },
+    );
+
+    expect(search).toContain(
+      "When behavior explicitly authors a deterministic search-specific ranking",
+    );
+    expect(search).toContain("For a behavior-neutral search");
+    expect(search).toContain("created_at DESC, id DESC");
+    expect(search).toContain("behavioral tier must prove that authored ranking");
+    expect(search).not.toContain(
+      "ordered by `created_at DESC, id DESC`; omit `result` unless projecting",
+    );
+  });
+
   test("assigns update validation translation to the generated Handler", () => {
     const update = buildUnitPrompt(fullNotesSpec(), { kind: "handler", name: "update" });
 
@@ -1031,6 +1219,44 @@ describe("unit generation with bounded fix loop — retry, strict-index, and val
     );
   });
 
+  test("update prompts teach a stable local narrowing pattern for unknown error properties", () => {
+    const prompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "update" });
+
+    expect(prompt).toContain("store each `unknown` property in a local variable");
+    expect(prompt).toContain('typeof failure !== "object" || failure === null');
+    expect(prompt).toContain("const rawFields = candidate.fields");
+    expect(prompt).toContain("Array.isArray(rawFields)");
+    expect(prompt).toContain(
+      'rawFields.every((field): field is string => typeof field === "string")',
+    );
+    expect(prompt).toContain('rawFields.includes("field_name")');
+  });
+
+  test("handler prompts teach the exact indexed input type and readonly-safe extractors", () => {
+    const prompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "update" });
+
+    expect(prompt).toContain(
+      "Every indexed `input.values[name]` read may be `undefined` under `noUncheckedIndexedAccess`",
+    );
+    expect(prompt).toContain(
+      "Do not use `Array.isArray` and then return the unchecked false branch as a string",
+    );
+    expect(prompt).toContain(
+      "`input.submittedFields.has(name)` is runtime presence information; it does not narrow",
+    );
+    expect(prompt).toContain(
+      "function scalarValue(value: string | readonly string[] | undefined): string",
+    );
+    expect(prompt).toContain('if (typeof value === "string") return value');
+    expect(prompt).toContain('return ""');
+    expect(prompt).toContain(
+      "Only add a field to an update patch when `input.submittedFields.has(fieldName)`",
+    );
+    expect(prompt).toContain("For a string[] field");
+    expect(prompt).toContain("Array.isArray(value) ? [...value] : []");
+    expect(prompt).toContain("A submitted unchecked boolean may have no `input.values` entry");
+  });
+
   test("handler prompts include the stable validation error marker contract", () => {
     const prompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "create" });
 
@@ -1046,5 +1272,44 @@ describe("unit generation with bounded fix loop — retry, strict-index, and val
     expect(prompt).not.toContain(
       "required empty values must reach the platform mutation validation and fail",
     );
+  });
+});
+
+describe("unit generation retry guidance — Action isolation", () => {
+  test("indexed-input repair remains Action-specific", () => {
+    const failure = {
+      kind: "handler" as const,
+      name: "create" as const,
+      message:
+        "CapabilityInputValue | undefined is not assignable to parameter of type string | readonly string[]",
+    };
+    const createRetry = buildUnitPrompt(notesSpec(), failure, failure);
+    const searchUnit = { kind: "handler" as const, name: "search" as const };
+    const searchRetry = buildUnitPrompt(notesSpec(), searchUnit, {
+      ...failure,
+      name: "search",
+    });
+    const updateUnit = { kind: "handler" as const, name: "update" as const };
+    const updateRetry = buildUnitPrompt(notesSpec(), updateUnit, {
+      ...failure,
+      name: "update",
+    });
+
+    expect(createRetry).toContain("Required repair for indexed input values");
+    expect(searchRetry).toContain("Required repair for indexed input values");
+    expect(createRetry).not.toContain("Keep update field admission separate");
+    expect(searchRetry).not.toContain("Keep update field admission separate");
+    expect(updateRetry).toContain("Keep update field admission separate");
+  });
+
+  test("unrelated compiler failures do not activate indexed-input repair guidance", () => {
+    const unit = { kind: "handler" as const, name: "create" as const };
+    const prompt = buildUnitPrompt(notesSpec(), unit, {
+      ...unit,
+      message: "Type 'number' is not assignable to type 'string'.",
+    });
+
+    expect(prompt).toContain("Previous attempt failed");
+    expect(prompt).not.toContain("Required repair for indexed input values");
   });
 });

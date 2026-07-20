@@ -166,7 +166,7 @@ async function streamNewCapabilityBuild({
         "failure",
         classifyBuildFailure(error, acc),
       );
-      await deliverFailedPresentation(send, terminalPresenterTimeoutMs);
+      await deliverFailedPresentation(send, error, terminalPresenterTimeoutMs);
       return "terminal-sent";
     }
     return;

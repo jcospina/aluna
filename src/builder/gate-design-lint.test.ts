@@ -5,8 +5,9 @@
 // survive the platform enforcer, within the declared layout?) exercised directly across
 // every forbidden category, and the rung inside the real gate (`runCapabilityGate`) proving
 // a clean pass, a violation-then-fix through the bounded loop, and cap exhaustion. Every
-// provider is fake; the behavioral tier is off so the only provider calls are the rung's own
-// item-renderer regenerations — no real provider call anywhere.
+// provider is fake. Most cases keep the behavioral tier off; the final-renderer regression
+// includes one fake frozen suite to prove the active tier runs once against repaired bytes.
+// No real provider call occurs anywhere.
 
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import type { ZodType } from "zod";
@@ -18,7 +19,7 @@ import {
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
-import { fullHandlersFor } from "./gate.test-support.ts";
+import { DEFAULT_BEHAVIORAL_SUITE, fullHandlersFor, GOOD_HANDLERS } from "./gate.test-support.ts";
 import { CapabilityGateError, type CapabilityGateInput, runCapabilityGate } from "./gate.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";
 import type { HandlerUnitName } from "./units.ts";
@@ -102,6 +103,19 @@ const TOKEN_STYLE_RENDERER = renderer(
   '`<div class="stack" style="padding: var(--space-1); color: var(--color-text);"><span class="text-bold">${text}</span></div>`',
 );
 
+// Structurally valid and clean for design lint's fixed probe id, but unusable for any real
+// record. This is the regression candidate that proves a design repair must re-enter the
+// executable Gate rungs before its bytes can be committed.
+const EXECUTABLY_BROKEN_RENDERER = [
+  "export default function renderItem(record: Record<string, unknown>): string {",
+  '  if (String(record.text ?? "").startsWith("gate ")) throw new Error("presentation exploded");',
+  '  const text = escapeHtml(record.text ?? "");',
+  '  return `<div class="stack">${text}</div>`;',
+  "}",
+  "",
+  ESCAPE_HELPER,
+].join("\n");
+
 const HANDLERS: Readonly<Partial<Record<HandlerUnitName, string>>> = {
   create: [
     "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
@@ -147,6 +161,43 @@ function makeRendererProvider(contents: readonly string[]): {
     },
   };
   return { provider, calls };
+}
+
+/** A provider that can serve both item-renderer repair and the one frozen behavioral suite.
+ * Schema parsing identifies which generated object the Gate requested. */
+function makeRendererAndBehaviorProvider(content: string): {
+  provider: Provider;
+  rendererCalls: string[];
+  behavioralCalls: string[];
+} {
+  const rendererCalls: string[] = [];
+  const behavioralCalls: string[] = [];
+  let rendererServed = false;
+  const provider: Provider = {
+    generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
+      const rendererCandidate = schema.safeParse({ content });
+      const raw = rendererCandidate.success
+        ? (() => {
+            if (rendererServed) throw new Error("fake renderer repair requested more than once");
+            rendererServed = true;
+            rendererCalls.push(prompt);
+            return rendererCandidate.data;
+          })()
+        : (() => {
+            behavioralCalls.push(prompt);
+            return schema.parse(DEFAULT_BEHAVIORAL_SUITE);
+          })();
+      async function* stream(): AsyncGenerator<DeepPartial<T>> {
+        yield raw as DeepPartial<T>;
+      }
+      return {
+        partialStream: stream(),
+        object: Promise.resolve(raw),
+        usage: Promise.resolve(STUB_USAGE),
+      };
+    },
+  };
+  return { provider, rendererCalls, behavioralCalls };
 }
 
 function gateInput(overrides: Partial<CapabilityGateInput> = {}): CapabilityGateInput {
@@ -298,6 +349,62 @@ describe("design-lint gate rung", () => {
     expect(calls[0]).toContain("Design contract violation");
     expect(result.designLint.usage).toMatchObject({ inputTokens: 3 });
   });
+});
+
+describe("design-lint final-renderer integrity", () => {
+  test("runs one frozen behavioral suite against the repaired final renderer", async () => {
+    const offToken = renderer('`<div style="color: red;">${text}</div>`');
+    const { provider, rendererCalls, behavioralCalls } =
+      makeRendererAndBehaviorProvider(CLEAN_RENDERER);
+
+    const result = await runCapabilityGate(
+      gateInput({
+        handlers: GOOD_HANDLERS,
+        itemRenderer: offToken,
+        provider,
+        behavioralTier: { enabled: true },
+      }),
+    );
+
+    expect(result.outcomes.map((o) => `${o.rung}:${o.status}`)).toEqual([
+      "structural:passed",
+      "smoke:passed",
+      "behavioral:passed",
+      "design-lint:passed",
+    ]);
+    expect(result.designLint.itemRenderer).toBe(CLEAN_RENDERER);
+    expect(result.smoke.attempts).toHaveLength(2);
+    expect(result.behavioral.tier).toBe("on");
+    expect(rendererCalls).toHaveLength(1);
+    expect(behavioralCalls).toHaveLength(1);
+  });
+
+  test("keeps the passed design verdict when final behavioral execution fails", async () => {
+    const offToken = renderer('`<div style="color: red;">${text}</div>`');
+    const { provider, rendererCalls, behavioralCalls } =
+      makeRendererAndBehaviorProvider(CLEAN_RENDERER);
+
+    const error = await expectGateFailure(
+      gateInput({
+        // These structurally/smoke-valid local handlers intentionally lack the authored
+        // missing-field behavior required by DEFAULT_BEHAVIORAL_SUITE.
+        handlers: fullHandlersFor(notesSpec(), HANDLERS),
+        itemRenderer: offToken,
+        provider,
+        behavioralTier: { enabled: true },
+      }),
+    );
+
+    expect(error.failedRung).toBe("behavioral");
+    expect(error.outcomes.map((o) => `${o.rung}:${o.status}`)).toEqual([
+      "structural:passed",
+      "smoke:passed",
+      "behavioral:failed",
+      "design-lint:passed",
+    ]);
+    expect(rendererCalls).toHaveLength(1);
+    expect(behavioralCalls).toHaveLength(1);
+  });
 
   test("re-validates a regenerated renderer's type/shape before accepting it", async () => {
     // First fix regenerates a renderer that does not type-check; it must feed back (not
@@ -319,6 +426,32 @@ describe("design-lint gate rung", () => {
     expect(result.designLint.attempts).toHaveLength(3);
     expect(result.designLint.attempts[1]?.error).toContain("not assignable to type 'string'");
     expect(calls).toHaveLength(2);
+  });
+
+  test("rejects a design repair whose final renderer fails executable presentation", async () => {
+    const offToken = renderer('`<div style="color: red;">${text}</div>`');
+    const { provider, calls } = makeRendererProvider([EXECUTABLY_BROKEN_RENDERER]);
+
+    // The conditional renderer clears structural and design-specific checks. Only a fresh
+    // executable pass against the repaired bytes can prove it is not publishable.
+    expect(findDesignViolation(notesSpec(), EXECUTABLY_BROKEN_RENDERER)).toBeUndefined();
+    const error = await expectGateFailure(
+      gateInput({
+        itemRenderer: offToken,
+        provider,
+        smoke: { maxAttempts: 1 },
+      }),
+    );
+
+    expect(error.failedRung).toBe("smoke");
+    expect(error.outcomes.map((o) => `${o.rung}:${o.status}`)).toEqual([
+      "structural:passed",
+      "smoke:failed",
+      "behavioral:skipped",
+      "design-lint:passed",
+    ]);
+    expect(error.outcomes[1]?.error).toContain("presentation exploded");
+    expect(calls).toHaveLength(1);
   });
 
   test("fails the build closed when the fix loop exhausts (no version bump / no pointer flip)", async () => {

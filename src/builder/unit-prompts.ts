@@ -47,7 +47,32 @@ export function buildUnitPrompt(
     "Previous attempt failed. Return a complete corrected unit, not a patch.",
     "Failure to fix:",
     previousFailure.message,
+    ...indexedInputRepairGuidance(unit, previousFailure.message),
   ].join("\n");
+}
+
+function indexedInputRepairGuidance(unit: UnitDescriptor, message: string): string[] {
+  if (
+    unit.kind !== "handler" ||
+    (!message.includes("CapabilityInputValue | undefined") &&
+      !(
+        message.includes("readonly string[]") && message.includes("not assignable to type 'string'")
+      ))
+  ) {
+    return [];
+  }
+
+  return [
+    "",
+    "Required repair for indexed input values:",
+    "- Replace the unsafe scalar extraction with this readonly-safe shape; do not preserve or rearrange the failed narrowing:",
+    '  `function scalarValue(value: string | readonly string[] | undefined): string { if (typeof value === "string") return value; return ""; }`',
+    ...(unit.name === "update"
+      ? [
+          "- Keep update field admission separate: test `input.submittedFields.has(fieldName)` before adding that field to the patch.",
+        ]
+      : []),
+  ];
 }
 
 function buildHandlerPrompt(
@@ -91,7 +116,7 @@ function buildHandlerPrompt(
       : []),
     "Available global types in the isolated type-check:",
     contextContract(action),
-    "- `input.values` is a record of parsed `string | readonly string[]` values; repeated keys keep arrival order and spec-known list fields are always arrays.",
+    ...inputValueContract(action),
     "- `input.submittedFields` is a platform-validated `ReadonlySet<string>`; reserved `__aluna_` markers never reach generated code.",
     ...queryPortContract(action),
     "- Canonical ids, platform-owned `extra`, and inactive target fields are unavailable and must never be read or written.",
@@ -111,6 +136,32 @@ function buildHandlerPrompt(
   ].join("\n");
 }
 
+function inputValueContract(action: HandlerUnitName): string[] {
+  const declared =
+    "- `input.values` is a `Readonly<Record<string, string | readonly string[]>>`; repeated keys keep arrival order and spec-known list fields are arrays when a value exists.";
+  if (action === "read" || action === "delete") return [declared];
+
+  const scalarRules = [
+    declared,
+    "- Every indexed `input.values[name]` read may be `undefined` under `noUncheckedIndexedAccess`—including a direct known-field read such as `input.values.title`. Its real indexed type is `string | readonly string[] | undefined`.",
+    "- `input.submittedFields.has(name)` is runtime presence information; it does not narrow a separate `input.values[name]` expression for TypeScript. Read and narrow the value independently.",
+    '- For scalar fields, narrow with `typeof value === "string"` first. Do not use `Array.isArray` and then return the unchecked false branch as a string: TypeScript may retain the `readonly string[]` member there.',
+    '- Safe scalar extractor: `function scalarValue(value: string | readonly string[] | undefined): string { if (typeof value === "string") return value; return ""; }`.',
+  ];
+  if (action === "search") return scalarRules;
+
+  return [
+    ...scalarRules,
+    "- Use the scalar extractor only for scalar schema fields. For a string[] field, use `Array.isArray(value) ? [...value] : []`; do not take only its first element.",
+    "- A submitted unchecked boolean may have no `input.values` entry. Interpret that `undefined` as false only after `input.submittedFields` proves the boolean was submitted.",
+    ...(action === "update"
+      ? [
+          "- Only add a field to an update patch when `input.submittedFields.has(fieldName)`; the extracted fallback is a submitted value, never evidence that an omitted field should be patched.",
+        ]
+      : []),
+  ];
+}
+
 function buildValidationErrorContract(
   action: HandlerUnitName,
   errorCases: readonly BehavioralErrorCase[],
@@ -125,6 +176,7 @@ function buildValidationErrorContract(
           "- Build the submitted merge patch without inventing omitted values. The target-bound update adapter validates the complete merged record and raises a typed failure whose `code` and `fields` match one case below.",
           "- Catch only that matching typed failure, translate it into variable product-voice copy, and return the declared validation-error fragment. Rethrow every other failure.",
           "- Narrow the caught `unknown` structurally before reading its `code` or `fields`; do not import a platform error class.",
+          '- Guard the caught value before reading any property, then store each `unknown` property in a local variable before narrowing it. Safe catch-block pattern: `if (typeof failure !== "object" || failure === null) throw failure; const candidate = failure as { code?: unknown; fields?: unknown }; const rawFields = candidate.fields; if (Array.isArray(rawFields) && rawFields.every((field): field is string => typeof field === "string") && rawFields.includes("field_name")) { /* handle the known failure */ }`.',
         ];
   return [
     ...enforcement,
@@ -228,7 +280,9 @@ function actionBehavior(spec: CapabilitySpec, action: HandlerUnitName): string {
     "- Use parameterized SQL and `instr(platform_search_normalize(stored_value), platform_search_normalize(term))`; do not use `LIKE`, `lower`, or `NOCASE`. Quotes and SQL wildcard characters are literal data.",
     '- Pass all terms as one JSON array parameter: `parameters: [JSON.stringify(terms)]`, then expand them in SQL with `WITH "search_terms" AS (SELECT "value" AS "term" FROM json_each(?))`. Do not generate dynamic placeholders or parameter objects.',
     "- For string[] fields, search elements through `json_each`. Exclude non-text fields, inactive fields, platform columns, and undeclared dependency data.",
-    `- Return ordered unique target ids from "${tableName}" through \`query.records\`, ordered by \`created_at DESC, id DESC\`; omit \`result\` unless projecting additional declared dependency values, map records through \`present\`, and join them.`,
+    `- Return ordered unique target ids from "${tableName}" through \`query.records\`; omit \`result\` unless projecting additional declared dependency values, map records through \`present\`, and join them.`,
+    "- When behavior explicitly authors a deterministic search-specific ranking for nonblank matches, implement it instead of the default; the behavioral tier must prove that authored ranking. A general collection/read ordering that agrees with the default is behavior-neutral, not a search-specific rerank.",
+    "- For a behavior-neutral search, order nonblank matches by `created_at DESC, id DESC`.",
     "- Destructure `{ input, query, present }`: `export default async function search({ input, query, present }: CapabilityContext): Promise<string>`.",
   ].join("\n");
 }

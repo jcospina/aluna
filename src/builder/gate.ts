@@ -203,26 +203,78 @@ export class CapabilityGateError extends Error {
 export { buildBehavioralTestPrompt } from "./gate-behavioral.ts";
 
 /**
- * Run the gate's rungs in order — structural, smoke, the behavioral tier (when enabled,
- * else skipped), then the always-on design-lint rung — accumulating each rung's outcome.
+ * Run the layered Gate and report outcomes in canonical order — structural, smoke, the
+ * behavioral tier (when enabled, else skipped), then the always-on design-lint rung.
  * The first failing rung throws {@link CapabilityGateError}; a full pass returns the smoke,
  * behavioral, and design-lint results (the last carrying the final, possibly-fixed item
- * renderer the pipeline commits) alongside the per-rung outcomes.
+ * renderer the pipeline commits) alongside the per-rung outcomes. Design lint runs before
+ * behavioral execution so the generated suite freezes and runs exactly once against the
+ * final renderer. When design lint changes bytes, they first re-enter smoke without Handler
+ * repair; repeated smoke duration/usage is folded into the same public rung result.
  */
 export async function runCapabilityGate(input: CapabilityGateInput): Promise<CapabilityGateResult> {
   const startedAt = performance.now();
   const outcomes: GateRungOutcome[] = [];
+  const behavioralTierEnabled = resolveBehavioralTierEnabledForInput(input);
 
   const structural = await runGateRung(outcomes, "structural", () => runStructuralRung(input));
-  const smokeRun = await runGateRung(outcomes, "smoke", () => runSmokeRung(input));
-  const smoke = smokeRun.result;
+  let smokeRun = await runGateRung(outcomes, "smoke", () => runSmokeRung(input));
+  let smoke = smokeRun.result;
   const repairedInput = { ...input, handlers: smokeRun.handlers };
-  const behavioral = resolveBehavioralTierEnabledForInput(input)
-    ? await runGateRung(outcomes, "behavioral", () => runBehavioralRung(repairedInput))
+  const skippedBehavioral = behavioralTierEnabled
+    ? undefined
     : skipGateRung(outcomes, "behavioral", "Behavioral tier is off for this run.");
   const designLint = await runGateRung(outcomes, "design-lint", () =>
     runDesignLintRung(repairedInput),
   );
+
+  if (designLint.fixed) {
+    // Design lint is the final rung and may replace item.ts. Its own fix loop proves the
+    // regenerated unit's structural shape/type and design contract, but those new bytes
+    // have not yet executed through presentation. Re-enter the executable rungs so the
+    // exact renderer the pipeline commits has cleared every active check. The revalidation
+    // gets no provider and one attempt: an item-renderer-caused failure must fail closed,
+    // never consume the Handler repair budget or rewrite an innocent Handler.
+    const finalRendererInput = {
+      ...repairedInput,
+      itemRenderer: designLint.itemRenderer,
+      provider: undefined,
+      smoke: { maxAttempts: 1 },
+    };
+    const finalSmokeRun = await rerunPassedGateRung(outcomes, "smoke", () =>
+      runSmokeRung(finalRendererInput),
+    );
+    smoke = mergeSmokeResults(smoke, finalSmokeRun.result);
+    smokeRun = { ...finalSmokeRun, result: smoke };
+  }
+
+  // Design has now fixed/frozen the renderer and smoke has executed its final bytes. Only
+  // now generate the behavioral suite, once, and execute it against that exact snapshot.
+  // Its outcome is inserted before design-lint to preserve the Gate's documented public
+  // rung order even though design preparation necessarily happened first.
+  const designOutcome = outcomes.pop();
+  if (designOutcome?.rung !== "design-lint") {
+    throw new Error("Design-lint outcome was not recorded at the Gate boundary.");
+  }
+  const finalInput = {
+    ...repairedInput,
+    handlers: smokeRun.handlers,
+    itemRenderer: designLint.itemRenderer,
+  };
+  let behavioral: BehavioralGateResult | undefined;
+  try {
+    behavioral = behavioralTierEnabled
+      ? await runGateRung(outcomes, "behavioral", () => runBehavioralRung(finalInput))
+      : skippedBehavioral;
+  } catch (error) {
+    // Design already passed against this exact renderer. Restore its deferred verdict so
+    // the failure preview remains a complete canonical inventory rather than implying the
+    // final rung never ran.
+    outcomes.push(designOutcome);
+    throw error;
+  }
+  outcomes.push(designOutcome);
+  if (!behavioral) throw new Error("Behavioral Gate result was not resolved.");
 
   return {
     outcomes,
@@ -233,6 +285,73 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
     designLint,
     handlers: smokeRun.handlers,
   };
+}
+
+/** Re-run a rung that already passed while preserving the public one-outcome-per-rung
+ * shape. Duration is cumulative; a final-candidate failure replaces the stale pass so the
+ * fail-closed preview names the bytes that were actually rejected. */
+async function rerunPassedGateRung<T>(
+  outcomes: GateRungOutcome[],
+  rung: GateRungName,
+  body: () => T | Promise<T>,
+): Promise<T> {
+  const outcomeIndex = outcomes.findIndex((outcome) => outcome.rung === rung);
+  const previous = outcomes[outcomeIndex];
+  if (outcomeIndex < 0 || previous?.status !== "passed") {
+    throw new Error(`Cannot re-run ${rung} before its first successful Gate pass.`);
+  }
+
+  const startedAt = performance.now();
+  try {
+    const result = await body();
+    outcomes[outcomeIndex] = {
+      ...previous,
+      durationMs: previous.durationMs + (performance.now() - startedAt),
+    };
+    return result;
+  } catch (error) {
+    outcomes[outcomeIndex] = {
+      rung,
+      status: "failed",
+      durationMs: previous.durationMs + (performance.now() - startedAt),
+      error: errorMessage(error),
+    };
+    throw new CapabilityGateError(rung, outcomes, error);
+  }
+}
+
+/** Fold the original and final-renderer smoke executions into the one public result. The
+ * final run owns observable fixture values; attempts and provider cost cover both runs so
+ * previews, commit-unit repair accounting, and metrics remain honest. */
+function mergeSmokeResults(original: SmokeGateResult, final: SmokeGateResult): SmokeGateResult {
+  const attemptOffset = original.attempts.length;
+  return {
+    ...final,
+    fixed: original.fixed || final.fixed,
+    attempts: [
+      ...original.attempts,
+      ...final.attempts.map((attempt) => ({
+        ...attempt,
+        attempt: attempt.attempt + attemptOffset,
+      })),
+    ],
+    usage: addTokenUsage(original.usage, final.usage),
+  };
+}
+
+function addTokenUsage(left: TokenUsage, right: TokenUsage): TokenUsage {
+  return {
+    inputTokens: addOptionalNumber(left.inputTokens, right.inputTokens),
+    outputTokens: addOptionalNumber(left.outputTokens, right.outputTokens),
+    totalTokens: addOptionalNumber(left.totalTokens, right.totalTokens),
+  };
+}
+
+function addOptionalNumber(
+  left: number | undefined,
+  right: number | undefined,
+): number | undefined {
+  return left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
 }
 
 /**

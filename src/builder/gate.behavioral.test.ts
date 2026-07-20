@@ -3,6 +3,8 @@
 // These bypass the provider and unit-generation loop on purpose: the gate is the
 // final verdict over generated strings, and must catch broken units independently.
 
+// biome-ignore-all lint/nursery/noExcessiveLinesPerFile: the five-Action behavioral Gate remains one integration surface.
+
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import {
   BEHAVIORAL_SUITE as FULL_BEHAVIORAL_SUITE,
@@ -34,11 +36,31 @@ import {
   runCapabilityGate,
 } from "./gate.ts";
 import { runFullBehavioralRung } from "./gate-behavioral-full.ts";
+import { assertFullSuiteContract } from "./gate-behavioral-full-contract.ts";
 
 setDefaultTimeout(15_000);
 
 const FIVE_ACTION_SPEC = notesSpec();
 const FIVE_ACTION_UNITS = generatedUnitsFor(FIVE_ACTION_SPEC);
+
+function fullInput(
+  suite: unknown = FULL_BEHAVIORAL_SUITE,
+  handlerOverrides: Partial<Record<"search", string>> = {},
+) {
+  return gateInput({
+    spec: FULL_NOTES_SPEC as CapabilitySpec,
+    ddl: deriveCapabilityTableDdl(FULL_NOTES_SPEC as CapabilitySpec),
+    itemRenderer: FULL_ITEM_RENDERER,
+    handlers: {
+      create: FULL_CREATE_HANDLER,
+      read: FULL_READ_HANDLER,
+      update: FULL_UPDATE_HANDLER,
+      delete: FULL_DELETE_HANDLER,
+      search: handlerOverrides.search ?? FULL_SEARCH_HANDLER,
+    },
+    provider: makeBehaviorProvider(suite).provider,
+  });
+}
 
 describe("capability gate — behavioral test generation", () => {
   test("behavioral test generation sees only behavior and schema, never handler code", async () => {
@@ -80,27 +102,72 @@ describe("capability gate — behavioral test generation", () => {
     expect(caseSchema?.required?.sort()).toEqual(Object.keys(caseSchema?.properties ?? {}).sort());
     expect(JSON.stringify(caseSchema?.properties?.expectedError)).toContain("null");
   });
+
+  test("requires non-vacuous ordered search evidence from generated suites", () => {
+    const prompt = buildBehavioralTestPrompt(notesSpec());
+
+    expect(prompt).toContain("Every normal search case must seed at least two matching rows");
+    expect(prompt).toContain(
+      "`expectFragmentIncludesInOrder` must list one unique synthetic marker from each matching row",
+    );
+    expect(prompt).not.toContain("should exclude at least one seeded non-match");
+    expect(prompt).not.toContain("add a seeded non-match");
+  });
+
+  test("describes an honest nonblank search case when the schema has no searchable fields", () => {
+    const numericSpec: CapabilitySpec = {
+      ...(FULL_NOTES_SPEC as CapabilitySpec),
+      schema: {
+        fields: [
+          {
+            name: "reading",
+            label: "Reading",
+            type: "number",
+            required: false,
+            lifecycle: "active",
+          },
+        ],
+      },
+      ui_intent: {
+        form: { list_inputs: [] },
+        item: { direction: "Show the reading.", shows: ["reading"] },
+        collection: { layout: "feed" },
+        detail: { shows: ["reading", "created_at"] },
+      },
+      behavioral_errors: [],
+    };
+    const suite = fullBehavioralSuiteFor(numericSpec, {
+      createValues: { reading: 1 },
+      updateValues: { reading: 2 },
+      readValues: { reading: 3 },
+      searchMatchValues: { reading: 4 },
+      searchOlderMatchValues: { reading: 5 },
+      searchMissValues: { reading: 6 },
+      markerField: "reading",
+      searchQuery: "anything",
+    });
+    const noTextSearchSuite = {
+      cases: suite.cases.map((testCase) =>
+        testCase.action === "search"
+          ? {
+              ...testCase,
+              expectFragmentIncludes: [],
+              expectFragmentExcludes: [],
+              expectFragmentIncludesInOrder: [],
+            }
+          : testCase,
+      ),
+    };
+
+    expect(() => assertFullSuiteContract(numericSpec, noTextSearchSuite)).not.toThrow();
+    const prompt = buildBehavioralTestPrompt(numericSpec);
+    expect(prompt).toContain("has no active string/string[] fields");
+    expect(prompt).toContain("behavioral ordering is honestly inapplicable");
+    expect(prompt).not.toContain("must seed at least two matching rows");
+  });
 });
 
 describe("capability gate — five-Action behavioral contract", () => {
-  const fullInput = (
-    suite: unknown = FULL_BEHAVIORAL_SUITE,
-    handlerOverrides: Partial<Record<"search", string>> = {},
-  ) =>
-    gateInput({
-      spec: FULL_NOTES_SPEC as CapabilitySpec,
-      ddl: deriveCapabilityTableDdl(FULL_NOTES_SPEC as CapabilitySpec),
-      itemRenderer: FULL_ITEM_RENDERER,
-      handlers: {
-        create: FULL_CREATE_HANDLER,
-        read: FULL_READ_HANDLER,
-        update: FULL_UPDATE_HANDLER,
-        delete: FULL_DELETE_HANDLER,
-        search: handlerOverrides.search ?? FULL_SEARCH_HANDLER,
-      },
-      provider: makeBehaviorProvider(suite).provider,
-    });
-
   test("reports every Action plus authored and platform-stable errors independently", async () => {
     const result = await runCapabilityGate(fullInput());
     expect(result.behavioral.status).toBe("passed");
@@ -118,6 +185,162 @@ describe("capability gate — five-Action behavioral contract", () => {
     ]);
   });
 
+  test("rejects missing Action coverage, false error triggers, and error-case product copy", async () => {
+    const missingSearch = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.filter((testCase) => testCase.action !== "search"),
+    };
+    const missing = await expectGateFailure(fullInput(missingSearch));
+    expect(missing.failedRung).toBe("behavioral");
+    expect(missing.outcomes.find((outcome) => outcome.rung === "behavioral")?.error).toContain(
+      "normal search case",
+    );
+
+    const productCopy = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.expectedError
+          ? { ...testCase, expectFragmentIncludes: ["friendly generated wording"] }
+          : testCase,
+      ),
+    };
+    const wording = await expectGateFailure(fullInput(productCopy));
+    expect(wording.outcomes.find((outcome) => outcome.rung === "behavioral")?.error).toContain(
+      "never product wording",
+    );
+
+    const falseErrorTrigger = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.expectedError
+          ? { ...testCase, input: [{ field: "text", value: "Definitely present" }] }
+          : testCase,
+      ),
+    };
+    const falseTrigger = await expectGateFailure(fullInput(falseErrorTrigger));
+    expect(falseTrigger.outcomes.find((outcome) => outcome.rung === "behavioral")?.error).toContain(
+      "may not submit non-empty",
+    );
+
+    const malformedReadInput = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.action === "read"
+          ? { ...testCase, input: [{ field: "text", value: "copy" }] }
+          : testCase,
+      ),
+    };
+    const malformedRead = await expectGateFailure(fullInput(malformedReadInput));
+    expect(
+      malformedRead.outcomes.find((outcome) => outcome.rung === "behavioral")?.error,
+    ).toContain('input references unknown spec field "text"');
+
+    const normalProductCopy = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.action === "read" && !testCase.expectedError
+          ? { ...testCase, expectFragmentIncludes: ["Welcome, friend!"] }
+          : testCase,
+      ),
+    };
+    const normalWording = await expectGateFailure(fullInput(normalProductCopy));
+    expect(
+      normalWording.outcomes.find((outcome) => outcome.rung === "behavioral")?.error,
+    ).toContain("never product wording");
+  });
+});
+
+describe("capability gate — search behavioral contract", () => {
+  test("accepts ordered rows that match every q term through platform normalization", async () => {
+    const normalizedSearch = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.action === "search" && !testCase.expectedError
+          ? {
+              ...testCase,
+              setupRows: [
+                { values: [{ field: "text", value: "CAFÉ newest tasting" }] },
+                { values: [{ field: "text", value: "Cafe\u0301 older tasting" }] },
+                { values: [{ field: "text", value: "Other entry" }] },
+              ],
+              input: [{ field: "q", value: "cafe tasting" }],
+              expectedRows: [
+                { values: [{ field: "text", value: "CAFÉ newest tasting" }] },
+                { values: [{ field: "text", value: "Cafe\u0301 older tasting" }] },
+                { values: [{ field: "text", value: "Other entry" }] },
+              ],
+              expectFragmentIncludes: ["CAFÉ newest tasting", "Cafe\u0301 older tasting"],
+              expectFragmentIncludesInOrder: ["CAFÉ newest tasting", "Cafe\u0301 older tasting"],
+              expectFragmentExcludes: ["Other entry"],
+            }
+          : testCase,
+      ),
+    };
+
+    const result = await runCapabilityGate(fullInput(normalizedSearch));
+
+    expect(result.behavioral.status).toBe("passed");
+  });
+});
+
+describe("capability gate — search behavioral fixture validation", () => {
+  test("rejects ordered evidence from a setup row that does not mechanically match q", async () => {
+    const nonmatchingOrderedRow = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.action === "search" && !testCase.expectedError
+          ? {
+              ...testCase,
+              setupRows: testCase.setupRows.map((row, index) =>
+                index === 1 ? { values: [{ field: "text", value: "Unrelated ordered row" }] } : row,
+              ),
+              expectFragmentIncludes: ["Matching note newest", "Unrelated ordered row"],
+              expectFragmentIncludesInOrder: ["Matching note newest", "Unrelated ordered row"],
+            }
+          : testCase,
+      ),
+    };
+
+    const error = await expectGateFailure(fullInput(nonmatchingOrderedRow));
+
+    expect(error.failedRung).toBe("behavioral");
+    expect(error.outcomes.find((outcome) => outcome.rung === "behavioral")?.error).toContain(
+      'ordered setup row identified by "Unrelated ordered row" does not mechanically match q',
+    );
+  });
+
+  test("rejects a generated exclusion row that mechanically matches its own search query", async () => {
+    const selfMatchingNonmatch = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.action === "search" && !testCase.expectedError
+          ? {
+              ...testCase,
+              input: [{ field: "q", value: "search" }],
+              setupRows: testCase.setupRows.map((row, index) =>
+                index === 2
+                  ? { values: [{ field: "text", value: "Search Nonmatch Marker" }] }
+                  : {
+                      values: row.values.map((entry) => ({
+                        ...entry,
+                        value:
+                          entry.field === "text" ? `Search ${String(entry.value)}` : entry.value,
+                      })),
+                    },
+              ),
+              expectFragmentIncludes: ["Search Matching note newest", "Search Matching note older"],
+              expectFragmentIncludesInOrder: [
+                "Search Matching note newest",
+                "Search Matching note older",
+              ],
+              expectFragmentExcludes: ["Search Nonmatch Marker"],
+            }
+          : testCase,
+      ),
+    };
+
+    const error = await expectGateFailure(fullInput(selfMatchingNonmatch));
+
+    expect(error.failedRung).toBe("behavioral");
+    expect(error.outcomes.find((outcome) => outcome.rung === "behavioral")?.error).toContain(
+      'excluded setup row identified by "Search Nonmatch Marker" mechanically matches q',
+    );
+  });
+});
+
+describe("capability gate — search behavioral execution", () => {
   test("fails a search Handler that renders seeded non-matches", async () => {
     const rendersEveryRow = [
       "export default async function search({ query, present }: CapabilityContext): Promise<string> {",
@@ -131,55 +354,71 @@ describe("capability gate — five-Action behavioral contract", () => {
     ).rejects.toThrow("unexpectedly included Other entry");
   });
 
-  test("rejects missing Action coverage, false error triggers, and error-case product copy", async () => {
-    const missingSearch = {
-      cases: FULL_BEHAVIORAL_SUITE.cases.filter((testCase) => testCase.action !== "search"),
-    };
-    const missing = await expectGateFailure(fullInput(missingSearch));
-    expect(missing.failedRung).toBe("behavioral");
-    expect(missing.outcomes.at(-1)?.error).toContain("normal search case");
-
-    const productCopy = {
-      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
-        testCase.expectedError
-          ? { ...testCase, expectFragmentIncludes: ["friendly generated wording"] }
-          : testCase,
-      ),
-    };
-    const wording = await expectGateFailure(fullInput(productCopy));
-    expect(wording.outcomes.at(-1)?.error).toContain("never product wording");
-
-    const falseErrorTrigger = {
-      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
-        testCase.expectedError
-          ? { ...testCase, input: [{ field: "text", value: "Definitely present" }] }
-          : testCase,
-      ),
-    };
-    const falseTrigger = await expectGateFailure(fullInput(falseErrorTrigger));
-    expect(falseTrigger.outcomes.at(-1)?.error).toContain("may not submit non-empty");
-
-    const malformedReadInput = {
-      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
-        testCase.action === "read"
-          ? { ...testCase, input: [{ field: "text", value: "copy" }] }
-          : testCase,
-      ),
-    };
-    const malformedRead = await expectGateFailure(fullInput(malformedReadInput));
-    expect(malformedRead.outcomes.at(-1)?.error).toContain(
-      'input references unknown spec field "text"',
+  test("fails id-only nonblank ordering when behavior requires newest-first matches", async () => {
+    const idOnlyNonblankSearch = FULL_SEARCH_HANDLER.replace(
+      'ORDER BY "target"."created_at" DESC, "target"."id" DESC',
+      'ORDER BY "target"."id" DESC',
     );
 
-    const normalProductCopy = {
+    const error = await expectGateFailure(
+      fullInput(FULL_BEHAVIORAL_SUITE, { search: idOnlyNonblankSearch }),
+    );
+
+    expect(error.failedRung).toBe("behavioral");
+    expect(error.outcomes.find((outcome) => outcome.rung === "behavioral")?.error).toContain(
+      'include "Matching note older" in order',
+    );
+  });
+
+  test("tier-off explicitly skips primary search-order semantics", async () => {
+    const idOnlyNonblankSearch = FULL_SEARCH_HANDLER.replace(
+      'ORDER BY "target"."created_at" DESC, "target"."id" DESC',
+      'ORDER BY "target"."id" DESC',
+    );
+
+    const result = await runCapabilityGate({
+      ...fullInput(FULL_BEHAVIORAL_SUITE, { search: idOnlyNonblankSearch }),
+      provider: undefined,
+      behavioralTier: { enabled: false },
+    });
+
+    expect(result.outcomes).toContainEqual(
+      expect.objectContaining({ rung: "behavioral", status: "skipped" }),
+    );
+  });
+
+  test("rejects a normal search case with vacuous ordering coverage", async () => {
+    const vacuousSearchOrder = {
       cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
-        testCase.action === "read" && !testCase.expectedError
-          ? { ...testCase, expectFragmentIncludes: ["Welcome, friend!"] }
+        testCase.action === "search" && !testCase.expectedError
+          ? { ...testCase, expectFragmentIncludesInOrder: [] }
           : testCase,
       ),
     };
-    const normalWording = await expectGateFailure(fullInput(normalProductCopy));
-    expect(normalWording.outcomes.at(-1)?.error).toContain("never product wording");
+
+    const error = await expectGateFailure(fullInput(vacuousSearchOrder));
+
+    expect(error.failedRung).toBe("behavioral");
+    expect(error.outcomes.find((outcome) => outcome.rung === "behavioral")?.error).toContain(
+      "normal search case must prove ordering with at least two",
+    );
+  });
+
+  test("rejects a search-order case that exercises only blank-query canonical read", async () => {
+    const blankQueryOrder = {
+      cases: FULL_BEHAVIORAL_SUITE.cases.map((testCase) =>
+        testCase.action === "search" && !testCase.expectedError
+          ? { ...testCase, input: [{ field: "q", value: "   " }] }
+          : testCase,
+      ),
+    };
+
+    const error = await expectGateFailure(fullInput(blankQueryOrder));
+
+    expect(error.failedRung).toBe("behavioral");
+    expect(error.outcomes.find((outcome) => outcome.rung === "behavioral")?.error).toContain(
+      "one nonblank q",
+    );
   });
 });
 
@@ -190,7 +429,8 @@ describe("capability gate — behavioral violations", () => {
       createValues: { text: "Trim me", pinned: false },
       updateValues: { text: "Updated note", pinned: false },
       readValues: { text: "Read note", pinned: false },
-      searchMatchValues: { text: "Matching note", pinned: false },
+      searchMatchValues: { text: "Matching note newest", pinned: false },
+      searchOlderMatchValues: { text: "Matching note older", pinned: false },
       searchMissValues: { text: "Other entry", pinned: false },
       markerField: "text",
       searchQuery: "matching",
@@ -238,6 +478,7 @@ describe("capability gate — behavioral violations", () => {
       "structural:passed",
       "smoke:passed",
       "behavioral:failed",
+      "design-lint:passed",
     ]);
     expect(error.outcomes[2]?.error).toContain("trims note text before saving");
     expect(error.outcomes[2]?.error).toContain("did not find a scratch row matching");
@@ -313,7 +554,8 @@ describe("capability gate — behavioral scratch catalog", () => {
       createValues: { text: "Behavioral entry", pinned: false },
       updateValues: { text: "Updated entry", pinned: false },
       readValues: { text: "Read entry", pinned: false },
-      searchMatchValues: { text: "Search entry", pinned: false },
+      searchMatchValues: { text: "Search entry newest", pinned: false },
+      searchOlderMatchValues: { text: "Search entry older", pinned: false },
       searchMissValues: { text: "Other entry", pinned: false },
       markerField: "text",
       searchQuery: "search",

@@ -252,8 +252,82 @@ describe("capability gate — complete five-Action smoke", () => {
       attempts: [{ attempt: 1 }],
     });
     expect(result.smoke.updateFragmentLength).toBeGreaterThan(0);
-    expect(result.smoke.searchCaseCount).toBe(20);
+    expect(result.smoke.searchCaseCount).toBe(21);
     expect(result.smoke.deleteFragmentLength).toBeGreaterThanOrEqual(0);
+  });
+
+  test("create must return the fragment produced by the presentation adapter", async () => {
+    const create = [
+      "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
+      "  const record = mutation.create({",
+      "    text: input.values.text,",
+      '    pinned: input.values.pinned === "on" || input.values.pinned === "true",',
+      "  });",
+      "  present(record);",
+      "  return '<p class=\"notice\">Saved.</p>';",
+      "}",
+    ].join("\n");
+
+    const error = await expectGateFailure(
+      gateInput({
+        handlers: { ...GOOD_HANDLERS, create },
+        behavioralTier: { enabled: false },
+        provider: undefined,
+      }),
+    );
+
+    expect(error.failedRung).toBe("smoke");
+    expect(error.outcomes[1]?.error).toContain(
+      "create Handler discarded or reordered a presented record fragment",
+    );
+  });
+
+  test("update must return the fragment produced by the presentation adapter", async () => {
+    const update = [
+      "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
+      "  const patch: Record<string, unknown> = {};",
+      '  if (input.submittedFields.has("text")) patch.text = input.values.text;',
+      '  if (input.submittedFields.has("pinned")) patch.pinned = input.values.pinned === "on" || input.values.pinned === "true";',
+      "  present(mutation.update(patch));",
+      "  return '<p class=\"notice\">Saved.</p>';",
+      "}",
+    ].join("\n");
+
+    const error = await expectGateFailure(
+      gateInput({
+        handlers: { ...GOOD_HANDLERS, update },
+        behavioralTier: { enabled: false },
+        provider: undefined,
+      }),
+    );
+
+    expect(error.failedRung).toBe("smoke");
+    expect(error.outcomes[1]?.error).toContain(
+      "update Handler discarded or reordered a presented record fragment",
+    );
+  });
+
+  test("update smoke exercises every active field independently", async () => {
+    const update = [
+      "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
+      "  const patch: Record<string, unknown> = {};",
+      '  if (input.submittedFields.has("text")) patch.text = input.values.text;',
+      "  return present(mutation.update(patch));",
+      "}",
+    ].join("\n");
+
+    const error = await expectGateFailure(
+      gateInput({
+        handlers: { ...GOOD_HANDLERS, update },
+        behavioralTier: { enabled: false },
+        provider: undefined,
+      }),
+    );
+
+    expect(error.failedRung).toBe("smoke");
+    expect(error.outcomes[1]?.error).toContain(
+      "updated field pinned did not persist the submitted value",
+    );
   });
 });
 
@@ -289,7 +363,7 @@ describe("capability gate — item renderer samples", () => {
     const renderer = [
       "export default function renderItem(record: Record<string, unknown>): string {",
       '  if (typeof record.created_at !== "string") return "";',
-      "  return '<div class=\"stack\"><span class=\"text-lg\">' + escapeHtml(record.text) + '</span></div>';",
+      "  return '<div class=\"stack\"><span class=\"text-lg\">' + escapeHtml(record.text) + '</span><time>' + escapeHtml(record.created_at) + '</time></div>';",
       "}",
       "function escapeHtml(value: unknown): string {",
       '  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");',

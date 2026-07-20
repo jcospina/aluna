@@ -114,17 +114,29 @@ export interface UnitGenerationObserver {
   readonly onUnitGenerated?: (unit: GeneratedUnit) => void | Promise<void>;
 }
 
+/** Terminal evidence for a unit whose bounded write-check-fix loop exhausted. */
+export interface UnitGenerationDiagnostic {
+  readonly unit: UnitDescriptor;
+  readonly attempts: readonly UnitGenerationAttempt[];
+}
+
 export class UnitGenerationError extends Error {
   override readonly name = "UnitGenerationError";
   readonly unit: UnitDescriptor;
   readonly attempts: readonly UnitGenerationAttempt[];
+  readonly diagnostic: UnitGenerationDiagnostic;
 
   constructor(unit: UnitDescriptor, attempts: readonly UnitGenerationAttempt[]) {
+    const lastFailure = attempts.at(-1)?.error;
     super(
-      `Generated ${unit.kind} "${unit.name}" did not pass after ${attempts.length} attempt(s).`,
+      [
+        `Generated ${unit.kind} "${unit.name}" did not pass after ${attempts.length} attempt(s).`,
+        ...(lastFailure ? ["Last failure:", lastFailure] : []),
+      ].join("\n"),
     );
     this.unit = unit;
     this.attempts = attempts;
+    this.diagnostic = { unit, attempts };
   }
 }
 

@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
-import { deliverActivatedPresentation } from "./terminal-presentation.ts";
+import {
+  deliverActivatedPresentation,
+  deliverFailedPresentation,
+} from "./terminal-presentation.ts";
 
 describe("deliverActivatedPresentation", () => {
   test("delivers the complete terminal presenter sequence", async () => {
@@ -50,5 +53,32 @@ describe("deliverActivatedPresentation", () => {
 
     expect(delivered).toBe(false);
     expect(performance.now() - startedAt).toBeLessThan(100);
+  });
+});
+
+describe("deliverFailedPresentation", () => {
+  test("delivers developer evidence before the product-safe terminal failure", async () => {
+    const events: Array<{ event: string; data: string }> = [];
+    const failure = new Error("Behavioral gate exposed internal evidence.");
+
+    const delivered = await deliverFailedPresentation(
+      async (event, data) => {
+        events.push({ event, data });
+      },
+      failure,
+      20,
+    );
+
+    expect(delivered).toBe(true);
+    expect(events.map(({ event }) => event)).toEqual(["build-error-preview", "narration", "done"]);
+    expect(JSON.parse(events[0]?.data ?? "")).toMatchObject({
+      kind: "build-error-preview",
+      status: "failed",
+      errorName: "Error",
+      message: failure.message,
+    });
+    expect(events[1]?.data).toMatch(/mind trying again/i);
+    expect(events[1]?.data).not.toMatch(/behavioral|gate|internal/i);
+    expect(events[2]?.data).toBe("error");
   });
 });

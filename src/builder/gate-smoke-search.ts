@@ -2,6 +2,8 @@
 // These cases are platform-owned: Handler repair reruns this exact fixture and can
 // never regenerate or weaken its expected match sets.
 
+// biome-ignore-all lint/nursery/noExcessiveLinesPerFile: the schema-adaptive fixture remains one frozen contract.
+
 import type { Database } from "bun:sqlite";
 
 import {
@@ -39,6 +41,7 @@ interface SearchFixtureCase {
   readonly label: string;
   readonly q: string;
   readonly expectedIds: readonly string[];
+  readonly ordering?: "ranking-neutral-tie";
 }
 
 interface SearchFixture {
@@ -93,11 +96,12 @@ export async function runAdversarialSearchBaseline(input: SearchBaselineInput): 
       input.recorder,
       buildGateQueryPort(input.spec, "search", input.scratchCatalog, input.readonly),
     );
-    assertSameIdSet(
-      searchCase.label,
-      observed.map((row) => row.id),
-      searchCase.expectedIds,
-    );
+    const observedIds = observed.map((row) => row.id);
+    if (searchCase.ordering === "ranking-neutral-tie") {
+      assertIdsEqual(searchCase.label, observedIds, searchCase.expectedIds);
+    } else {
+      assertSameIdSet(searchCase.label, observedIds, searchCase.expectedIds);
+    }
     assertRowsComplete(input.spec, observed);
   }
 
@@ -143,7 +147,7 @@ function seedAdversarialSearchFixture(input: SearchBaselineInput): SearchFixture
   }
 
   addExclusionCases(state);
-  addOrderRows(state);
+  addBehaviorNeutralOrderRows(state, locations[0]);
   for (const row of state.rows) insertFixtureRow(input.spec, input.tableName, row, input.readwrite);
   return { cases: state.cases };
 }
@@ -355,11 +359,27 @@ function addExclusionCases(state: FixtureState): void {
   }
 }
 
-function addOrderRows(state: FixtureState): void {
-  state.rows.push(
-    state.row("search_order_a", "2038-08-08T08:08:08.000Z"),
-    state.row("search_order_b", "2038-08-08T08:08:08.000Z"),
-  );
+function addBehaviorNeutralOrderRows(
+  state: FixtureState,
+  location: TextLocation | undefined,
+): void {
+  if (!location) return;
+  // These rows have identical active values and share a creation time. Authored
+  // ranking therefore ties without interpreting free-text behavior; the platform's
+  // deterministic id-desc fallback remains independently provable.
+  const tiedC = state.row("search_order_c", "2038-08-08T08:08:08.000Z");
+  setText(tiedC, location, "stabledefaultordering");
+  const tiedA = state.row("search_order_a", "2038-08-08T08:08:08.000Z");
+  const tiedB = state.row("search_order_b", "2038-08-08T08:08:08.000Z");
+  Object.assign(tiedA.values, structuredClone(tiedC.values));
+  Object.assign(tiedB.values, structuredClone(tiedC.values));
+  state.rows.push(tiedC, tiedA, tiedB);
+  state.cases.push({
+    label: "deterministic ranking-neutral tie fallback",
+    q: "stabledefaultordering",
+    expectedIds: [tiedC.id, tiedB.id, tiedA.id],
+    ordering: "ranking-neutral-tie",
+  });
 }
 
 export function fixtureFieldValue(field: SpecField, seed: number): unknown {

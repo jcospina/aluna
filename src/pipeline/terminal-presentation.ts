@@ -1,4 +1,5 @@
 import type { Send } from "../sse/index.ts";
+import { buildDemoErrorPreview } from "./previews.ts";
 
 export const DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS = 2_000;
 
@@ -52,9 +53,11 @@ export async function deliverActivatedPresentation(
 /** Present a pre-activation failure completely while the build lease is held. */
 export async function deliverFailedPresentation(
   send: Send,
+  error: unknown,
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
 ): Promise<boolean> {
   return runBoundedTerminalPresentation(async () => {
+    await send("build-error-preview", JSON.stringify(buildDemoErrorPreview(error)));
     await send("narration", "Hmm, that didn't work. Mind trying again?");
     await send("done", "error");
   }, timeoutMs);
