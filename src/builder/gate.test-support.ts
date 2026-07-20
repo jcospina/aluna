@@ -318,6 +318,7 @@ interface FullBehavioralFixture {
   readonly updateValues: Readonly<Record<string, FixtureScalar>>;
   readonly readValues: Readonly<Record<string, FixtureScalar>>;
   readonly searchMatchValues: Readonly<Record<string, FixtureScalar>>;
+  readonly searchOlderMatchValues: Readonly<Record<string, FixtureScalar>>;
   readonly searchMissValues: Readonly<Record<string, FixtureScalar>>;
   readonly markerField: string;
   readonly searchQuery: string;
@@ -334,11 +335,13 @@ export function fullBehavioralSuiteFor(
   const updated = rowValues(fixture.updateValues);
   const read = rowValues(fixture.readValues);
   const searchMatch = rowValues(fixture.searchMatchValues);
+  const searchOlderMatch = rowValues(fixture.searchOlderMatchValues);
   const searchMiss = rowValues(fixture.searchMissValues);
   const createMarker = marker(fixture.createValues, fixture.markerField);
   const updateMarker = marker(fixture.updateValues, fixture.markerField);
   const readMarker = marker(fixture.readValues, fixture.markerField);
   const searchMatchMarker = marker(fixture.searchMatchValues, fixture.markerField);
+  const searchOlderMatchMarker = marker(fixture.searchOlderMatchValues, fixture.markerField);
   const searchMissMarker = marker(fixture.searchMissValues, fixture.markerField);
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one mapper owns the Action-specific error fixture shape.
   const authoredErrors = spec.behavioral_errors.map((expectedError) => {
@@ -423,14 +426,18 @@ export function fullBehavioralSuiteFor(
       {
         action: "search",
         name: "filters stored rows",
-        setupRows: [{ values: searchMatch }, { values: searchMiss }],
+        setupRows: [{ values: searchMatch }, { values: searchOlderMatch }, { values: searchMiss }],
         target: null,
         input: [{ field: "q", value: fixture.searchQuery }],
-        expectedRows: [{ values: searchMatch }, { values: searchMiss }],
-        expectedRowCount: 2,
-        expectFragmentIncludes: [searchMatchMarker],
+        expectedRows: [
+          { values: searchMatch },
+          { values: searchOlderMatch },
+          { values: searchMiss },
+        ],
+        expectedRowCount: 3,
+        expectFragmentIncludes: [searchMatchMarker, searchOlderMatchMarker],
         expectFragmentExcludes: [searchMissMarker],
-        expectFragmentIncludesInOrder: [],
+        expectFragmentIncludesInOrder: [searchMatchMarker, searchOlderMatchMarker],
         expectedError: null,
         expectedPlatformError: null,
       },
@@ -491,7 +498,8 @@ export const DEFAULT_BEHAVIORAL_SUITE = fullBehavioralSuiteFor(notesSpec(), {
   createValues: { text: "Behavioral note", pinned: false },
   updateValues: { text: "Updated note", pinned: false },
   readValues: { text: "Read me", pinned: false },
-  searchMatchValues: { text: "Matching note", pinned: false },
+  searchMatchValues: { text: "Matching note newest", pinned: false },
+  searchOlderMatchValues: { text: "Matching note older", pinned: false },
   searchMissValues: { text: "Other entry", pinned: false },
   markerField: "text",
   searchQuery: "matching",
@@ -501,7 +509,8 @@ export const MULTI_REQUIRED_VALIDATION_SUITE = fullBehavioralSuiteFor(articlesSp
   createValues: { title: "Draft title", body: "Draft body" },
   updateValues: { title: "Revised title", body: "Revised body" },
   readValues: { title: "Read title", body: "Read body" },
-  searchMatchValues: { title: "Matching article", body: "Useful body" },
+  searchMatchValues: { title: "Matching article newest", body: "Useful body" },
+  searchOlderMatchValues: { title: "Matching article older", body: "Useful body" },
   searchMissValues: { title: "Other article", body: "Different body" },
   markerField: "title",
   searchQuery: "matching",

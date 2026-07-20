@@ -83,7 +83,7 @@ async function executeSmokeCycle(
   const handlers = await loadHandlers(input.handlers, SMOKE_HANDLER_NAMES);
   const recorder = recordingPresentation(input.spec, input.itemRenderer);
   const initial = await executeCreateRead(input, handlers, recorder, readwrite, readonly);
-  const { beforeUpdate, createFragment, initialRows, insertedRow, readFragment } = initial;
+  const { createFragment, initialRows, insertedRow, readFragment } = initial;
 
   const update = handlers.update;
   const search = handlers.search;
@@ -92,47 +92,58 @@ async function executeSmokeCycle(
     throw new Error("Five-Action smoke requires update, search, and delete Handlers.");
   }
 
-  const updateSample = buildUpdateInput(input.spec);
-  const updateFragment = await runAction("update", async () => {
-    recorder.clear();
-    const fragment = await update({
-      input: updateSample.input,
-      mutation: createCapabilityUpdateMutationPort(
+  const updateSamples = buildUpdateInputs(input.spec);
+  const updateFragments: string[] = [];
+  for (const updateSample of updateSamples) {
+    const fragment = await runAction("update", async () => {
+      const beforeUpdate = rawRow(input.ddl.tableName, insertedRow.id, readwrite);
+      recorder.clear();
+      const rendered = await update({
+        input: updateSample.input,
+        mutation: createCapabilityUpdateMutationPort(
+          input.spec,
+          insertedRow.id,
+          updateSample.input.submittedFields,
+          readwrite,
+        ),
+        query: buildGateQueryPort(input.spec, "update", input.scratchCatalog, readonly),
+        present: recorder.present,
+      });
+      assertFragment("update", rendered);
+      assertPresentedFragmentsReturned("update", rendered, recorder.fragments());
+      const rows = selectCapabilityRows(
         input.spec,
-        insertedRow.id,
-        updateSample.input.submittedFields,
-        readwrite,
-      ),
-      query: buildGateQueryPort(input.spec, "update", input.scratchCatalog, readonly),
-      present: recorder.present,
-    });
-    assertFragment("update", fragment);
-    const rows = selectCapabilityRows(
-      input.spec,
-      buildGateQueryPort(input.spec, "read", input.scratchCatalog, readonly),
-    );
-    const updated = rows.find((row) => row.id === insertedRow.id);
-    if (!updated) throw new Error("updated target disappeared from scratch");
-    if (
-      !fieldValueMatches(
-        updateSample.field.type,
-        updated[updateSample.field.name],
-        updateSample.expected,
-      )
-    ) {
-      throw new Error(
-        `updated field ${updateSample.field.name} did not persist the submitted value`,
+        buildGateQueryPort(input.spec, "read", input.scratchCatalog, readonly),
       );
-    }
-    assertObservedRows(input.spec, recorder.rows(), [updated]);
-    assertMergePreserved(
-      input.spec,
-      beforeUpdate,
-      rawRow(input.ddl.tableName, insertedRow.id, readwrite),
-      updateSample.field.name,
-    );
-    return fragment;
-  });
+      const updated = rows.find((row) => row.id === insertedRow.id);
+      if (!updated) throw new Error("updated target disappeared from scratch");
+      if (
+        !fieldValueMatches(
+          updateSample.field.type,
+          updated[updateSample.field.name],
+          updateSample.expected,
+        )
+      ) {
+        throw new Error(
+          `updated field ${updateSample.field.name} did not persist the submitted value`,
+        );
+      }
+      assertObservedRows(input.spec, recorder.rows(), [updated]);
+      assertMergePreserved(
+        input.spec,
+        beforeUpdate,
+        rawRow(input.ddl.tableName, insertedRow.id, readwrite),
+        updateSample.field.name,
+      );
+      return rendered;
+    });
+    updateFragments.push(fragment);
+  }
+
+  const searchUpdatedField =
+    updateSamples.find(({ field }) => field.type === "string" || field.type === "string[]")
+      ?.field ?? updateSamples[0]?.field;
+  if (!searchUpdatedField) throw new Error("Smoke update requires at least one active field.");
 
   const searchCaseCount = await runAction("search", () =>
     runAdversarialSearchBaseline({
@@ -144,7 +155,7 @@ async function executeSmokeCycle(
       read: handlers.read,
       search,
       recorder,
-      updatedField: updateSample.field,
+      updatedField: searchUpdatedField,
       updatedId: insertedRow.id,
     }),
   );
@@ -157,14 +168,13 @@ async function executeSmokeCycle(
     insertedRowId: insertedRow.id,
     createFragmentLength: createFragment.length,
     readFragmentLength: readFragment.length,
-    updateFragmentLength: updateFragment.length,
+    updateFragmentLength: updateFragments.reduce((total, fragment) => total + fragment.length, 0),
     searchCaseCount,
     deleteFragmentLength: deleteFragment.length,
   };
 }
 
 interface CreateReadResult {
-  readonly beforeUpdate: Record<string, unknown>;
   readonly createFragment: string;
   readonly initialRows: readonly CapabilityDataRow[];
   readonly insertedRow: CapabilityDataRow;
@@ -188,6 +198,7 @@ async function executeCreateRead(
       present: recorder.present,
     });
     assertFragment("create", fragment);
+    assertPresentedFragmentsReturned("create", fragment, recorder.fragments());
     return fragment;
   });
   const initialRows = selectCapabilityRows(
@@ -201,9 +212,8 @@ async function executeCreateRead(
   const insertedRow = initialRows[0];
   if (!insertedRow) throw new SmokeActionFailure("create", "scratch insert produced no row");
   seedProtectedUpdateState(input.spec, input.ddl.tableName, insertedRow.id, readwrite);
-  const beforeUpdate = rawRow(input.ddl.tableName, insertedRow.id, readwrite);
   const readFragment = await runRead(input, handlers, recorder, readonly);
-  return { beforeUpdate, createFragment, initialRows, insertedRow, readFragment };
+  return { createFragment, initialRows, insertedRow, readFragment };
 }
 
 async function runRead(
@@ -294,26 +304,24 @@ function buildSmokeInput(spec: CapabilitySpec): SmokeInput {
   };
 }
 
-function buildUpdateInput(spec: CapabilitySpec): {
+function buildUpdateInputs(spec: CapabilitySpec): readonly {
   readonly field: SpecField;
   readonly input: CapabilityInput;
   readonly expected: CapabilityDataColumnValue;
-} {
+}[] {
   const fields = activeSpecFields(spec.schema.fields);
-  const field =
-    fields.find((candidate) => candidate.type === "string" || candidate.type === "string[]") ??
-    fields.find((candidate) => candidate.type !== "boolean") ??
-    fields[0];
-  if (!field) throw new Error("Smoke update requires at least one active field.");
-  const sample = sampleValue(field, "update");
-  return {
-    field,
-    input: {
-      values: sample.input === undefined ? {} : { [field.name]: sample.input },
-      submittedFields: new Set([field.name]),
-    },
-    expected: sample.expected,
-  };
+  if (fields.length === 0) throw new Error("Smoke update requires at least one active field.");
+  return fields.map((field) => {
+    const sample = sampleValue(field, "update");
+    return {
+      field,
+      input: {
+        values: sample.input === undefined ? {} : { [field.name]: sample.input },
+        submittedFields: new Set([field.name]),
+      },
+      expected: sample.expected,
+    };
+  });
 }
 
 function sampleValue(
@@ -329,7 +337,7 @@ function sampleValue(
         ? { input: "42.5", expected: 42.5 }
         : { input: "84.25", expected: 84.25 };
     case "boolean":
-      return phase === "create" ? { input: "on", expected: true } : { expected: false };
+      return phase === "create" ? { expected: false } : { input: "on", expected: true };
     case "datetime":
       return phase === "create"
         ? { input: "2026-06-23T00:00:00.000Z", expected: "2026-06-23T00:00:00.000Z" }
@@ -454,6 +462,21 @@ function assertIdsEqual(
     throw new Error(
       `${label} expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`,
     );
+  }
+}
+
+function assertPresentedFragmentsReturned(
+  action: "create" | "update",
+  fragment: string,
+  presented: readonly string[],
+): void {
+  let cursor = 0;
+  for (const item of presented) {
+    const index = fragment.indexOf(item, cursor);
+    if (index < 0) {
+      throw new Error(`${action} Handler discarded or reordered a presented record fragment`);
+    }
+    cursor = index + item.length;
   }
 }
 

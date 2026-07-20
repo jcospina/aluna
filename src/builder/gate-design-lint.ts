@@ -16,6 +16,8 @@
 // closes the one documented enforcer residual — a *named* CSS color inside a mixed
 // shorthand (`background: white`), which is inert at render time but still off-token — with
 // a build-time raw-color scan (3.1/02 "caught at build time by the design-lint gate rung").
+// Controlled benign contrasts also prove every declared item field affects perceivable
+// composition; AST access alone cannot prove that the value reaches the user.
 //
 // On a violation the affected unit — the item renderer — re-enters the *same* bounded fix
 // loop as the type-check rung: regenerate it with the precise failure fed back
@@ -39,6 +41,7 @@ import type { Provider, TokenUsage } from "../provider/index.ts";
 import type { CapabilitySpec, SpecField } from "../registry/index.ts";
 import type { CapabilityGateInput, DesignLintAttempt, DesignLintGateResult } from "./gate.ts";
 import { errorMessage, loadItemRenderer } from "./gate-internal.ts";
+import { observableItemRecordContent } from "./gate-item-content.ts";
 import { checkGeneratedUnit } from "./unit-checks.ts";
 import {
   DEFAULT_UNIT_FIX_ATTEMPTS,
@@ -186,6 +189,7 @@ export function findDesignViolation(
     detail: spec.ui_intent.detail,
   };
   const records = buildProbeRecords(spec);
+  const rendered: { readonly probe: DesignProbe; readonly inner: string }[] = [];
 
   for (const probe of records) {
     let inner: string;
@@ -213,7 +217,12 @@ export function findDesignViolation(
         probe,
       );
     }
+
+    rendered.push({ probe, inner });
   }
+
+  const contentViolation = findRecordContentViolation(spec, rendered);
+  if (contentViolation) return contentViolation;
 
   // Prove the clean composition renders within the *declared* collection layout — the real
   // adapter path (record → enforced inner → accessible wrapper → detail template) arranged
@@ -240,9 +249,12 @@ interface DesignProbe {
 }
 
 /**
- * Build the probe records the rung renders: one benign **synthetic** record (which catches
- * hard-coded off-token styling and fabricated classes — no interpolation needed) plus a
- * **hostile** record per injection family, each stuffing every user field with a payload
+ * Build the probe records the rung renders: one benign **synthetic** baseline plus one
+ * benign contrast per declared item field. Each contrast changes only that field, proving
+ * every `item.shows` value affects perceivable composition without prescribing its format.
+ * Undeclared platform fields stay identical. These probes also catch hard-coded off-token
+ * styling and fabricated classes. A **hostile** record per injection family stuffs every
+ * user field with a payload
  * that probes a different interpolation context (HTML text, attribute breakout, event
  * handler, `style` injection, URL scheme, class smuggling). A correct renderer escapes every
  * value, so all probes render clean; an unsafe one lets a payload through, which the enforcer
@@ -251,6 +263,10 @@ interface DesignProbe {
 function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
   const probes: DesignProbe[] = [
     { label: "synthetic", record: recordWith(spec, (field) => syntheticValue(field)) },
+    ...spec.ui_intent.item.shows.map((fieldName) => ({
+      label: `synthetic contrast for ${fieldName}`,
+      record: contrastingRecord(spec, fieldName),
+    })),
   ];
   for (const [index, payload] of HOSTILE_FIELD_VALUES.entries()) {
     probes.push({
@@ -259,6 +275,15 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
     });
   }
   return probes;
+}
+
+function contrastingRecord(spec: CapabilitySpec, fieldName: string): PresentableRecord {
+  const baseline = recordWith(spec, (field) => syntheticValue(field));
+  if (fieldName === "created_at") {
+    return { ...baseline, created_at: "2031-06-15T09:30:00.000Z" };
+  }
+  const field = spec.schema.fields.find((candidate) => candidate.name === fieldName);
+  return field ? { ...baseline, [fieldName]: contrastingValue(field) } : baseline;
 }
 
 /** Assemble a data-tool-shaped record — the platform trio plus every spec field valued by
@@ -294,6 +319,54 @@ function syntheticValue(field: SpecField): string | number | boolean | readonly 
     case "string[]":
       return [`Sample ${field.name} first`, `Sample ${field.name} second`];
   }
+}
+
+/** A second benign value with the same runtime type but different semantic content. The
+ * pair proves composition depends on record data without prescribing wording or format. */
+function contrastingValue(field: SpecField): string | number | boolean | readonly string[] {
+  switch (field.type) {
+    case "string":
+      return `Different ${field.name}`;
+    case "number":
+      return 84;
+    case "boolean":
+      return false;
+    case "datetime":
+      return "2031-06-15T09:30:00.000Z";
+    case "date":
+      return "2031-06-15";
+    case "string[]":
+      return [`Different ${field.name} first`, `Different ${field.name} second`];
+  }
+}
+
+function findRecordContentViolation(
+  spec: CapabilitySpec,
+  rendered: readonly { readonly probe: DesignProbe; readonly inner: string }[],
+): string | undefined {
+  const baseline = rendered[0];
+  const contrasts = rendered.slice(1, 1 + spec.ui_intent.item.shows.length);
+  if (!baseline || contrasts.length !== spec.ui_intent.item.shows.length) {
+    return "The design-lint record-dependency probes could not be assembled.";
+  }
+  const baselineContent = observableItemRecordContent(baseline.inner);
+  if (baselineContent.length === 0) {
+    return offContractMessage(
+      "the item renderer did not produce meaningful, record-dependent content for each benign record. Empty containers and presentation-only styling do not tell the user what the record contains.",
+      baseline.probe,
+    );
+  }
+  for (const [index, contrast] of contrasts.entries()) {
+    const contrastContent = observableItemRecordContent(contrast.inner);
+    const fieldName = spec.ui_intent.item.shows[index] ?? "unknown";
+    if (contrastContent.length === 0 || baselineContent === contrastContent) {
+      return offContractMessage(
+        `the item renderer did not produce meaningful, record-dependent content for declared item field "${fieldName}": changing only that field did not change the perceivable text or media content.`,
+        contrast.probe,
+      );
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -518,6 +591,7 @@ function offContractMessage(detail: string, probe: DesignProbe): string {
     `Field values used: ${clip(JSON.stringify(probe.record))}`,
     "",
     "Return a corrected item renderer whose output survives the platform enforcer unchanged:",
+    "- Make every field declared by `ui_intent.item.shows` affect perceivable text, media, or accessible content; empty containers and styling-only differences are not record composition.",
     "- Escape every record value before placing it in markup; never interpolate a field into a `style` attribute (styles must be literal).",
     "- Use only the allow-listed primitive classes — no fabricated class names.",
     "- Inline `style` may set only token values on the owned axes: color `var(--color-*)`, spacing `var(--space-*)`, type scale `var(--type-*)`, border weight `var(--border-thin|--border-regular|--border-thick)`. No raw colors (named, hex, or color functions), no `url(...)`, no `position: fixed|absolute|sticky`.",

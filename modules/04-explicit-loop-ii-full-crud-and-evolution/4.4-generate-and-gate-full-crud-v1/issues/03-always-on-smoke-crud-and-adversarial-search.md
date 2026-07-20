@@ -41,7 +41,8 @@ The search baseline (decision 20) is complete and always-on:
       vs decomposed non-ASCII text; preservation of non-Latin voicing/vowel/tone
       marks; case; repeated Unicode whitespace; complete target rows
       (rehydration); empty/whitespace-`q` ≡ read; no duplicates; stable default
-      ordering — not merely “a field other than title participates”
+      ranking-neutral tie fallback — not merely “a field other than title
+      participates”
 - [x] Smoke executes a full CRUD cycle (create → read → update-merge → search →
       delete) against scratch adapters on every candidate snapshot
 - [x] A generated `search` using `NOCASE`/`lower()` instead of the platform
@@ -68,12 +69,20 @@ semantics hold live.
   fresh scratch catalog: create, canonical read, target-bound merge update,
   adversarial search, then delete. The real capability database is snapshotted
   around the run and must remain unchanged.
+- Create and update must return the complete sequence of fragments produced by
+  `present`; calling the adapter and discarding or replacing its bytes fails.
+  Update runs one isolated patch per active field and proves both persistence
+  and preservation of every omitted field, including unchecked-to-checked
+  boolean transitions.
 - The platform-owned search fixture adapts to the candidate schema while keeping
   its verdicts fixed. It exercises every active string field and both early and
   later elements of every active string-list field, all non-text/inactive/platform
   exclusions, cross-field AND matching, literal metacharacters and quotes, Latin
   normalization, non-Latin marks, broad Unicode whitespace, duplicate suppression,
-  full rehydration, empty-query equivalence, and stable default ordering.
+  full rehydration, empty-query equivalence, and a deterministic id fallback
+  across equal active values and equal creation timestamps. This smoke proof is
+  deliberately ranking-neutral; authored primary ordering belongs to the
+  behavioral rung.
 - Search results must return every fragment produced by `present` in order; merely
   querying or calling `present` and then discarding the visible HTML now fails.
   Canonical-read failures inside the multi-row baseline are attributed to `read`,
@@ -90,9 +99,10 @@ semantics hold live.
 
 ## Verification
 
-- `bun test` — 544 passing, 0 failing, 2 snapshots, 2,616 expectations
+- `bun test` — 577 passing, 0 failing, 2 snapshots, 2,678 expectations
 - `bun run typecheck` — clean
-- `bun run lint` — 193 files checked, no fixes
+- `bun run lint` — 201 files checked, no fixes
+- `bun run build` — clean
 - `git diff --check` — clean
 - Focused Gate, repair, reference-demo, and build-preview/metrics suite — 25
   passing, 0 failing, 361 expectations
@@ -115,19 +125,12 @@ semantics hold live.
 ## HITL test instructions
 
 1. Keep the existing app on port 3030 running; if it is not running, start it
-   with `bun run dev`. Do not reset because the Notes module-acceptance records
-   are intentionally ready for this check.
+   with `bun run dev`. Do not reset or start a fallback port.
 2. Run
    `bun test src/builder/gate.smoke.test.ts src/builder/gate.smoke-search.test.ts`.
    Confirm all smoke, frozen-fixture, attribution, visible-fragment, and bounded-
    repair tests pass.
-3. Open `http://localhost:3030/capability/notes`. Confirm three records are
-   visible, newest first: **beta only**, **crossalpha only**, then the rich
-   **CAFÉ percent% underscore_ O'Reilly...** record.
-4. Search `crossalpha` + several spaces (ordinary or Unicode) + `crossbeta`.
-   Confirm only the rich record remains; neither one-term control matches.
-5. Search `percent% underscore_ O'Reilly double"quote`. Confirm those characters
-   are treated literally and only the rich record remains.
-6. Search `cafe angstrom`, then `ば कि ก่า`. Confirm the rich record matches both
-   searches. Choose **Clear** and confirm all three records return in the same
-   newest-first order with no search-error message.
+3. Open `http://localhost:3030/capability/reading_log`. Search **Juramentada**
+   and confirm the stored book remains visible with “I updated the results.”
+4. Search **coffee** and confirm the centered no-match message appears. Choose
+   **Clear** and confirm **Juramentada** returns with no search-error message.

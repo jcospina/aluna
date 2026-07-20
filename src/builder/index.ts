@@ -68,6 +68,7 @@ export {
   type UnitDescriptor,
   type UnitGenerationAttempt,
   type UnitGenerationAttemptEvent,
+  type UnitGenerationDiagnostic,
   UnitGenerationError,
   type UnitGenerationObserver,
   type UnitGenerationPartialEvent,

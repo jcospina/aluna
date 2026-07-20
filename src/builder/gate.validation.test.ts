@@ -164,7 +164,14 @@ describe("capability gate — datetime instant matching", () => {
       createValues: { title: "Launch", happens_at: "2025-06-01T12:00:00Z" },
       updateValues: { title: "Updated launch", happens_at: "2025-06-02T12:00:00Z" },
       readValues: { title: "Read launch", happens_at: "2025-06-03T12:00:00Z" },
-      searchMatchValues: { title: "Matching launch", happens_at: "2025-06-04T12:00:00Z" },
+      searchMatchValues: {
+        title: "Matching launch newest",
+        happens_at: "2025-06-04T12:00:00Z",
+      },
+      searchOlderMatchValues: {
+        title: "Matching launch older",
+        happens_at: "2025-06-03T12:00:00Z",
+      },
       searchMissValues: { title: "Other event", happens_at: "2025-06-05T12:00:00Z" },
       markerField: "title",
       searchQuery: "matching",

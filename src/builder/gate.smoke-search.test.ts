@@ -27,6 +27,28 @@ function referenceHandlers(): Record<string, string> {
   );
 }
 
+function reverseOnlyNonblankSearch(source: string): string {
+  return source
+    .replace("  return query.records({", "  const records = query.records({")
+    .replace(
+      '  }).map(({ record }) => present(record)).join("");',
+      [
+        "  });",
+        "  const ordered = terms.length === 0 ? records : [...records].reverse();",
+        '  return ordered.map(({ record }) => present(record)).join("");',
+      ].join("\n"),
+    );
+}
+
+function rankPinnedFirstOnlyNonblank(source: string): string {
+  const reranked = source.replace(
+    'ORDER BY "target"."created_at" DESC, "target"."id" DESC',
+    'ORDER BY CASE WHEN EXISTS (SELECT 1 FROM "search_terms") THEN "target"."pinned" ELSE 0 END DESC, "target"."created_at" DESC, "target"."id" DESC',
+  );
+  if (reranked === source) throw new Error("reference search ordering clause missing");
+  return reranked;
+}
+
 describe("capability gate — frozen adversarial search and repair", () => {
   test.each([
     [
@@ -98,6 +120,56 @@ describe("capability gate — frozen adversarial search and repair", () => {
     expect(result.handlers.create).toBe(handlers.create);
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toContain("Generate the search.ts handler");
+  });
+});
+
+describe("capability gate — search ordering", () => {
+  test("rejects reversing the ranking-neutral tie fallback", async () => {
+    if (!itemRenderer) throw new Error("reference item renderer missing");
+    const handlers = referenceHandlers();
+    const goodSearch = handlers.search;
+    if (!goodSearch) throw new Error("reference search Handler missing");
+
+    const error = await expectGateFailure(
+      gateInput({
+        spec: FIVE_ACTION_SPEC,
+        ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
+        handlers: { ...handlers, search: reverseOnlyNonblankSearch(goodSearch) },
+        itemRenderer,
+        provider: undefined,
+        behavioralTier: { enabled: false },
+      }),
+    );
+
+    expect(error.failedRung).toBe("smoke");
+    expect(error.outcomes.at(-1)?.error).toContain("deterministic ranking-neutral tie fallback");
+  });
+
+  test("preserves an explicit deterministic nonblank search reranking", async () => {
+    if (!itemRenderer) throw new Error("reference item renderer missing");
+    const handlers = referenceHandlers();
+    const goodSearch = handlers.search;
+    if (!goodSearch) throw new Error("reference search Handler missing");
+    const rerankedSpec = notesSpec({
+      behavior: "Matching search results show pinned notes first, then newest notes.",
+    });
+    const rerankedSearch = rankPinnedFirstOnlyNonblank(goodSearch);
+
+    const result = await runCapabilityGate(
+      gateInput({
+        spec: rerankedSpec,
+        ddl: deriveCapabilityTableDdl(rerankedSpec),
+        handlers: { ...handlers, search: rerankedSearch },
+        itemRenderer,
+        provider: undefined,
+        behavioralTier: { enabled: false },
+      }),
+    );
+
+    expect(result.outcomes).toContainEqual(
+      expect.objectContaining({ rung: "smoke", status: "passed" }),
+    );
+    expect(result.handlers.search).toBe(rerankedSearch);
   });
 });
 

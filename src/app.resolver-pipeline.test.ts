@@ -249,13 +249,33 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     );
 
     const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
+    const terminalEvents = events.filter((event) =>
+      ["build-error-preview", "narration", "done"].includes(event.event),
+    );
+    const errorPreview = JSON.parse(eventData(events, "build-error-preview")) as {
+      kind: string;
+      status: string;
+      errorName: string;
+      message: string;
+    };
 
+    expect(terminalEvents.slice(-3).map((event) => event.event)).toEqual([
+      "build-error-preview",
+      "narration",
+      "done",
+    ]);
+    expect(errorPreview).toMatchObject({
+      kind: "build-error-preview",
+      status: "failed",
+      errorName: "ZodError",
+    });
+    expect(errorPreview.message).not.toBe("");
     expect(events.filter((event) => event.event === "done")).toEqual([
       expect.objectContaining({ data: "error" }),
     ]);
-    expect(events.filter((event) => event.event === "narration").at(-1)?.data).toMatch(
-      /mind trying again/i,
-    );
+    const narration = events.filter((event) => event.event === "narration").at(-1)?.data ?? "";
+    expect(narration).toMatch(/mind trying again/i);
+    expect(narration).not.toMatch(/Zod|spec|schema|provider|handler|gate/i);
     expect(rows[0]?.outcome).toBe("failure");
     expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
   });

@@ -1,6 +1,6 @@
 # Final greenfield reset: remove the two-Action allowance and the reference fixture
 
-Status: ready-for-human
+Status: done
 
 ## Epic
 
@@ -65,12 +65,17 @@ search chrome, records region), create, read, search (hit + miss), update
 (persisted), and delete (gone). The removed reference installer has a regression
 test proving `POST /demo/five-action-reference/install` returns 404.
 
-Final automated verification on Bun 1.3.12:
+Final integrity verification on Bun 1.3.12:
 
-- `bun test` → 545 pass, 0 fail across 54 files
+- `bun test` → 577 pass, 0 fail across 56 files, 2 snapshots
 - `bun run typecheck` → clean
-- `bun run lint` → clean
+- `bun run lint` → 201 files checked, no findings
+- `bun run build` → clean
 - `git diff --check` → clean
+- Gate review additionally proves final repaired renderer bytes re-enter smoke,
+  every declared item field affects perceivable output, create/update return
+  presentation-adapter bytes, update covers each active field independently,
+  and authored search ordering receives non-vacuous behavioral proof.
 
 ## Living demo
 
@@ -80,15 +85,15 @@ does everything it did.
 
 ## HITL test instructions
 
-1. Run `bun run reset`, then `bun run dev`.
-2. Open `http://localhost:3030`.
-3. Submit: `I want to keep track of books I've read, with title, author, rating, and notes.`
-4. Confirm the build completes all four gate rungs and commits a capability
-   whose toolbar exposes Search and New.
-5. Create a book, search for it, open and update it, then delete it. Confirm the
+1. Keep the existing app on port 3030 running; if needed, run `bun run dev`.
+   Do not reset: the current **Reading log** is the prompt-built post-reset
+   acceptance capability.
+2. Open `http://localhost:3030/capability/reading_log` and confirm the toolbar
+   exposes Search and **New Reading log** with no reference capability present.
+3. Create a book, search for it, open and update it, then delete it. Confirm the
    records region refreshes after each mutation, the search hit/miss states are
    visible, and the deleted record stays gone.
-6. Refresh the page and confirm the generated capability remains usable and no
+4. Refresh the page and confirm the generated capability remains usable and no
    reference-fixture installer or reference capability appears.
 
 ## Blocked by
