@@ -4,7 +4,7 @@
 // This is the shared engine both the production `/prompt` pipeline and the
 // `/demo/spec-build` route drive: from a resolved `new_capability` intent it
 // generates the spec, derives + applies the migration, generates the units, runs the
-// fail-closed gate, and commits — streaming developer previews and product-voice
+// fail-closed gate, publishes a verified snapshot, and commits — streaming developer previews and product-voice
 // narration along the way, and filling the metrics accumulator as each stage lands.
 
 import type { ZodType } from "zod";
@@ -14,9 +14,11 @@ import {
   type CommitCapabilityResult,
   commitCapability,
   createCapabilityIncarnationId,
+  FIRST_CAPABILITY_VERSION,
   type GeneratedUnit,
   generateCapabilityUnits,
   generateSpec,
+  publishCapabilitySnapshot,
   runCapabilityGate,
   type UnitDescriptor,
   type UnitGenerationAttempt,
@@ -105,14 +107,16 @@ export function previewingProvider(
  * stream was aborted mid-build (the transaction having rolled back). Throws on a build
  * failure; the caller records the failure metrics row and surfaces the warm apology.
  *
- * The terminal stages — migration, unit generation, the fail-closed gate, and commit
+ * The terminal stages — migration, unit generation, the fail-closed Gate, publication,
+ * and commit
  * — run inside ONE write transaction on the real connection (ARCH §6.2, db.ts
- * `withWriteTransaction`). The migration creates the `cap_<id>` table; commit writes
- * the artifacts and inserts the registry row; the transaction's COMMIT makes them
- * real together. Any throw — a failed gate rung, a commit error, an abort — rolls the
+ * `withWriteTransaction`). The migration creates the `cap_<id>` table; publication
+ * atomically lands only a verified final directory, then commit inserts the registry
+ * row. The transaction's COMMIT makes the database state live. Any throw — a failed
+ * Gate rung, a publication/commit error, an abort — rolls the
  * whole thing back, so a failed build leaves no `cap_<id>` table and no registry row,
- * with any written files orphaned for GC. Commit is sequenced strictly after the gate,
- * so it is unreachable unless every active rung passed.
+ * with any post-publication files left as a complete never-activated candidate for
+ * later reconciliation. Publication is sequenced strictly after the Gate.
  */
 export async function runSpecBuildStages(
   send: Send,
@@ -120,6 +124,7 @@ export async function runSpecBuildStages(
   provider: Provider,
   prompt: string,
   intent: IntentClassification,
+  buildId: string,
   acc: DemoBuildAccumulator,
   buildDatabases: PlatformDatabase,
   artifactsRoot: string,
@@ -146,10 +151,10 @@ export async function runSpecBuildStages(
   await settled; // every spec-preview is on the wire before the confirmation
   if (isAborted()) return;
 
-  // Migration → unit-gen → gate → commit, all inside the one rollbackable write
+  // Migration → unit-gen → Gate → publication → commit, all inside the one rollbackable write
   // transaction on the real connection. `afterApply` runs after the migration is
-  // applied; its return value (the commit result) is what makes the build real when
-  // the transaction commits.
+  // applied; its return value (the commit result) is what becomes live when the
+  // transaction commits.
   const database = buildDatabases.readwrite;
   const { value: commit } = await withCapabilityMigrationTransaction(
     { database, spec },
@@ -221,13 +226,16 @@ export async function runSpecBuildStages(
       // them, inside this transaction (the pointer flip). Unreachable unless the gate
       // above passed every active rung. When the design-lint rung regenerated the item
       // renderer to clear a violation, `item.ts` must carry that fixed content.
-      return commitCapability({
+      const publication = publishCapabilitySnapshot({
+        buildId,
         spec,
         incarnationId,
+        version: FIRST_CAPABILITY_VERSION,
         units: commitUnits,
-        database,
+        gate: gateResult,
         artifactsRoot,
       });
+      return commitCapability({ spec, publication, database });
     },
   );
 

@@ -72,6 +72,7 @@ export async function streamSpecBuildDemo(
           );
           return;
         }
+        const buildId = `demo-${crypto.randomUUID()}`;
         const builtAt = performance.now();
         const acc: DemoBuildAccumulator = { usages: [], timings: {} };
         let commit: CommitCapabilityResult | undefined;
@@ -82,6 +83,7 @@ export async function streamSpecBuildDemo(
             provider,
             prompt,
             intent,
+            buildId,
             acc,
             buildDatabases,
             artifactsRoot,
@@ -92,7 +94,7 @@ export async function streamSpecBuildDemo(
           if (!isAborted()) {
             writeBuildMetrics(
               recordMetrics,
-              `demo-${crypto.randomUUID()}`,
+              buildId,
               intent,
               acc,
               builtAt,
@@ -113,14 +115,7 @@ export async function streamSpecBuildDemo(
 
         // The row lands before the build's `done` — PLAN flow step 8 ("written before
         // the job ends"). The build genuinely committed, so this records a success.
-        writeBuildMetrics(
-          recordMetrics,
-          `demo-${crypto.randomUUID()}`,
-          intent,
-          acc,
-          builtAt,
-          "success",
-        );
+        writeBuildMetrics(recordMetrics, buildId, intent, acc, builtAt, "success");
         await runBoundedTerminalPresentation(async () => {
           await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
           await send("commit", renderCachedCapabilityCommitSwap(commit.row));

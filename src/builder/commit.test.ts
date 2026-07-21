@@ -1,16 +1,10 @@
-// Tests for the commit stage (Epic 2.5g) — the terminal "becomes real" step.
-//
-// Commit writes the version-1 artifacts to the capability's version directory and
-// inserts the registry row pointing at them, inside the caller's open transaction.
-// These tests drive it against a throwaway file db + temp artifacts dir, never the
-// real data file, and prove both halves of "single atomic step": a clean commit
-// lands the files plus a v1 row whose pointer they sit behind, and a rollback (a
-// transaction that throws after commit) leaves nothing in the registry and no
-// cap_<id> table — with the written files harmlessly orphaned, never half-registered.
+// Registry commit tests for the Module 4.5 publication boundary. Artifact bytes
+// must already be a complete verified final snapshot before a registry pointer can
+// consume them.
 
 import type { Database } from "bun:sqlite";
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -24,10 +18,12 @@ import {
   insertCapability,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
+import { publishCapabilitySnapshot } from "./artifact-lifecycle.ts";
 import { commitCapability, FIRST_CAPABILITY_VERSION } from "./commit.ts";
-import type { GeneratedUnit, HandlerUnitName } from "./units.ts";
+import { gateInput, generatedUnitsFor } from "./gate.test-support.ts";
+import { type CapabilityGateResult, runCapabilityGate } from "./gate.ts";
+import type { GeneratedUnit } from "./units.ts";
 
-const TOKENS = { inputTokens: 1, outputTokens: 1, totalTokens: 2 } as const;
 const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
 
 function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
@@ -37,6 +33,13 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     schema: {
       fields: [
         { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+        {
+          name: "pinned",
+          label: "Pinned",
+          type: "boolean",
+          required: false,
+          lifecycle: "active",
+        },
       ],
     },
     ui_intent: {
@@ -69,50 +72,39 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   };
 }
 
-function handlerUnit(name: HandlerUnitName, content: string): GeneratedUnit {
-  return {
-    kind: "handler",
-    name,
-    filename: `${name}.ts`,
-    content,
-    attempts: [],
-    durationMs: 0,
-    usage: TOKENS,
-  };
-}
-
-function itemRendererUnit(content: string): GeneratedUnit {
-  return {
-    kind: "item-renderer",
-    name: "item",
-    filename: "item.ts",
-    content,
-    attempts: [],
-    durationMs: 0,
-    usage: TOKENS,
-  };
-}
-
-// The complete five-Action artifact inventory, with just enough content to assert each
-// was written, in the order unit generation produces them (item renderer first, then the
-// Handlers in canonical Action order).
 function notesUnits(): GeneratedUnit[] {
-  return [
-    itemRendererUnit(
-      "export default function renderItem(record: Record<string, unknown>): string { return String(record.text); }",
-    ),
-    handlerUnit(
-      "create",
-      "export default async function create() { return '<article></article>'; }",
-    ),
-    handlerUnit("read", "export default async function read() { return '<ul></ul>'; }"),
-    handlerUnit(
-      "update",
-      "export default async function update() { return '<article></article>'; }",
-    ),
-    handlerUnit("delete", "export default async function remove() { return '<p></p>'; }"),
-    handlerUnit("search", "export default async function search() { return '<ul></ul>'; }"),
-  ];
+  return [...generatedUnitsFor(notesSpec())];
+}
+
+let tierOffGate: CapabilityGateResult;
+
+beforeAll(async () => {
+  const units = notesUnits();
+  const handlers = Object.fromEntries(
+    units.filter((unit) => unit.kind === "handler").map((unit) => [unit.name, unit.content]),
+  );
+  const itemRenderer = units.find((unit) => unit.kind === "item-renderer")?.content;
+  if (!itemRenderer) throw new Error("Expected the item renderer fixture.");
+  tierOffGate = await runCapabilityGate(
+    gateInput({
+      spec: notesSpec(),
+      handlers,
+      itemRenderer,
+      behavioralTier: { enabled: false },
+    }),
+  );
+});
+
+function publish(root: string, incarnationId = INCARNATION_ID) {
+  return publishCapabilitySnapshot({
+    buildId: `build-${incarnationId}`,
+    spec: notesSpec(),
+    incarnationId,
+    version: FIRST_CAPABILITY_VERSION,
+    units: notesUnits(),
+    gate: tierOffGate,
+    artifactsRoot: root,
+  });
 }
 
 function capTableExists(database: Database, tableName: string): boolean {
@@ -123,7 +115,7 @@ function capTableExists(database: Database, tableName: string): boolean {
   );
 }
 
-describe("commitCapability — commit and pre-registration guards", () => {
+describe("commitCapability — verified publication boundary", () => {
   let dir: string;
   let conns: PlatformDatabase;
 
@@ -139,200 +131,99 @@ describe("commitCapability — commit and pre-registration guards", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  test("commits version 1: writes the artifacts and inserts the row pointing at them", () => {
+  test("registers version 1 only after the complete published snapshot verifies", () => {
     const root = join(dir, "artifacts");
+    const publication = publish(root);
     const result = commitCapability({
       spec: notesSpec(),
-      incarnationId: INCARNATION_ID,
-      units: notesUnits(),
+      publication,
       database: conns.readwrite,
-      artifactsRoot: root,
     });
 
-    // Version 1, with the artifacts pointer the registry row will carry.
     expect(result.version).toBe(FIRST_CAPABILITY_VERSION);
     expect(result.incarnationId).toBe(INCARNATION_ID);
     expect(result.artifactsPath).toBe(`${root}/notes/${INCARNATION_ID}/v1/`);
+    expect(result.snapshotVerified).toBe(true);
+    expect(result.buildId).toBe(`build-${INCARNATION_ID}`);
     expect(result.files).toEqual([
-      "item.ts",
       "create.ts",
-      "read.ts",
-      "update.ts",
       "delete.ts",
+      "item.ts",
+      "read.ts",
       "search.ts",
+      "snapshot.json",
+      "spec.json",
+      "update.ts",
     ]);
-
-    // The three artifacts really landed in the version directory, with their content.
     for (const file of result.files) {
       expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1", file))).toBe(true);
     }
-    expect(readFileSync(resolve(root, "notes", INCARNATION_ID, "v1/create.ts"), "utf8")).toContain(
-      "export default async function create",
-    );
-    expect(readFileSync(resolve(root, "notes", INCARNATION_ID, "v1/item.ts"), "utf8")).toContain(
-      "export default function renderItem",
-    );
 
-    // The registry row is present at v1 with the pointer — a capability the router
-    // can now resolve. Read back through the read-only connection (post-autocommit).
     const row = getCapability("notes", conns.readonly);
     expect(row).not.toBeNull();
     expect(row?.incarnation_id).toBe(INCARNATION_ID);
     expect(row?.version).toBe(1);
     expect(row?.artifacts_path).toBe(result.artifactsPath);
-    expect(row?.label).toBe("Notes");
     expect(row?.tools).toEqual(["create", "read", "update", "delete", "search"]);
-    expect(row?.read_dependencies).toEqual({
-      create: [],
-      read: [],
-      update: [],
-      delete: [],
-      search: [],
-    });
   });
 
-  test("rejects any partial or extra artifact inventory before registration", () => {
-    const root = join(dir, "artifacts");
-    const validUnits = notesUnits();
-    const invalidInventories = [
-      validUnits.slice(0, 2),
-      [validUnits[1], validUnits[0], validUnits[2]],
-      [...validUnits, validUnits[2]],
-    ] as readonly (readonly GeneratedUnit[])[];
-
-    for (const units of invalidInventories) {
-      expect(() =>
-        commitCapability({
-          spec: notesSpec(),
-          incarnationId: INCARNATION_ID,
-          units,
-          database: conns.readwrite,
-          artifactsRoot: root,
-        }),
-      ).toThrow(/item\.ts, create\.ts, read\.ts, update\.ts, delete\.ts, search\.ts/);
-      expect(getCapability("notes", conns.readonly)).toBeNull();
-      expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1"))).toBe(false);
-    }
-  });
-
-  test("validates filesystem path components before creating artifact directories", () => {
-    const root = join(dir, "untrusted-artifacts");
+  test("reverification rejects tampered published bytes before registry insertion", () => {
+    const publication = publish(join(dir, "artifacts"));
+    writeFileSync(join(publication.directory, "create.ts"), "tampered");
 
     expect(() =>
-      commitCapability({
-        spec: notesSpec({ id: "../escape" }),
-        incarnationId: INCARNATION_ID,
-        units: notesUnits(),
-        database: conns.readwrite,
-        artifactsRoot: root,
-      }),
-    ).toThrow();
+      commitCapability({ spec: notesSpec(), publication, database: conns.readwrite }),
+    ).toThrow(/failed content verification/);
+    expect(getCapability("notes", conns.readonly)).toBeNull();
+  });
+
+  test("rejects a registry pointer that does not resolve to the verified final directory", () => {
+    const publication = publish(join(dir, "artifacts"));
+    (publication as { artifactsPath: string }).artifactsPath = join(dir, "wrong");
+
     expect(() =>
       commitCapability({
         spec: notesSpec(),
-        incarnationId: "../../escape",
-        units: notesUnits(),
+        publication,
         database: conns.readwrite,
-        artifactsRoot: root,
       }),
-    ).toThrow();
-    expect(existsSync(root)).toBe(false);
+    ).toThrow(/evidence changed after issuance/);
     expect(getCapability("notes", conns.readonly)).toBeNull();
   });
-});
 
-describe("commitCapability — complete five-Action inventory", () => {
-  test("commits only the complete inventory", () => {
-    const dir = mkdtempSync(join(tmpdir(), "omni-crud-reference-commit-"));
-    const conns = openDatabase(join(dir, "test.db"));
-    try {
-      runMigrations(conns.readwrite);
-      const root = join(dir, "complete-artifacts");
-      const spec = notesSpec();
-      const units = notesUnits();
-      const result = commitCapability({
-        spec,
-        incarnationId: INCARNATION_ID,
-        units,
+  test("rejects a same-id registry spec that differs from authoritative spec.json", () => {
+    const publication = publish(join(dir, "artifacts"));
+
+    expect(() =>
+      commitCapability({
+        spec: notesSpec({ label: "Different Notes" }),
+        publication,
         database: conns.readwrite,
-        artifactsRoot: root,
-      });
-
-      expect(result.files).toEqual([
-        "item.ts",
-        "create.ts",
-        "read.ts",
-        "update.ts",
-        "delete.ts",
-        "search.ts",
-      ]);
-      expect(() =>
-        commitCapability({
-          spec,
-          incarnationId: "22222222-2222-4222-8222-222222222222",
-          units: units.slice(0, -1),
-          database: conns.readwrite,
-          artifactsRoot: root,
-        }),
-      ).toThrow(/item\.ts, create\.ts, read\.ts, update\.ts, delete\.ts, search\.ts/);
-    } finally {
-      conns.readwrite.close();
-      conns.readonly.close();
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
-
-describe("commitCapability — transactional integrity and duplicate registration", () => {
-  let dir: string;
-  let conns: PlatformDatabase;
-
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-commit-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+      }),
+    ).toThrow(/identity does not match/);
+    expect(getCapability("notes", conns.readonly)).toBeNull();
   });
 
-  afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  test("a rollback after commit leaves no row and no table, orphaning the written files for GC", async () => {
+  test("a SQLite rollback leaves no row/table but retains a complete published candidate", async () => {
     const root = join(dir, "artifacts");
+    const publication = publish(root);
 
-    // Compose commit the way the real pipeline does — inside the migration's open
-    // transaction. A downstream throw rolls the whole thing back.
     await expect(
       withWriteTransaction(conns.readwrite, () => {
-        applyCapabilityTableDdl(notesSpec(), conns.readwrite); // the migration, in-tx
-        commitCapability({
-          spec: notesSpec(),
-          incarnationId: INCARNATION_ID,
-          units: notesUnits(),
-          database: conns.readwrite,
-          artifactsRoot: root,
-        });
+        applyCapabilityTableDdl(notesSpec(), conns.readwrite);
+        commitCapability({ spec: notesSpec(), publication, database: conns.readwrite });
         throw new Error("downstream boom after commit");
       }),
     ).rejects.toThrow("downstream boom after commit");
 
-    // Nothing in the registry, and no cap_<id> table survived — a failed build never
-    // creates a capability (ARCH §6.2 failure path).
     expect(getCapability("notes", conns.readonly)).toBeNull();
     expect(capTableExists(conns.readwrite, "cap_notes")).toBe(false);
-
-    // The files written before the rollback are left orphaned for GC — never deleted
-    // here, never half-registered.
-    expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1/create.ts"))).toBe(true);
-    expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1/item.ts"))).toBe(true);
+    expect(existsSync(join(publication.directory, "snapshot.json"))).toBe(true);
+    expect(existsSync(join(publication.directory, "spec.json"))).toBe(true);
   });
 
-  test("a duplicate id throws the primary-key violation and adds no second row", () => {
+  test("a duplicate registry id leaves the prior row untouched and the new candidate complete", () => {
     const root = join(dir, "artifacts");
-    // A capability already registered at this id (the resolver's job is to prevent
-    // this; reaching commit with a collision is a bug — it must fail loudly).
     insertCapability(
       {
         ...notesSpec(),
@@ -342,23 +233,16 @@ describe("commitCapability — transactional integrity and duplicate registratio
       },
       conns.readwrite,
     );
+    const secondIncarnation = "22222222-2222-4222-8222-222222222222";
+    const publication = publish(root, secondIncarnation);
 
     expect(() =>
-      commitCapability({
-        spec: notesSpec(),
-        incarnationId: "22222222-2222-4222-8222-222222222222",
-        units: notesUnits(),
-        database: conns.readwrite,
-        artifactsRoot: root,
-      }),
+      commitCapability({ spec: notesSpec(), publication, database: conns.readwrite }),
     ).toThrow();
 
-    // The pre-existing row is untouched (the failed insert wrote nothing); the files
-    // commit wrote before the insert are orphaned.
-    const row = getCapability("notes", conns.readonly);
-    expect(row?.artifacts_path).toBe(`capabilities/notes/${INCARNATION_ID}/v1/`);
-    expect(
-      existsSync(resolve(root, "notes", "22222222-2222-4222-8222-222222222222", "v1/create.ts")),
-    ).toBe(true);
+    expect(getCapability("notes", conns.readonly)?.artifacts_path).toBe(
+      `capabilities/notes/${INCARNATION_ID}/v1/`,
+    );
+    expect(existsSync(join(publication.directory, "snapshot.json"))).toBe(true);
   });
 });

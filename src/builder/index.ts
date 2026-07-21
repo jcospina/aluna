@@ -7,6 +7,19 @@
 // entry point.
 
 export {
+  assertVerifiedPublishedSnapshot,
+  type PublishCapabilitySnapshotInput,
+  publishCapabilitySnapshot,
+  type SnapshotFileEntry,
+  type SnapshotManifest,
+  SnapshotVerificationError,
+  snapshotManifestSchema,
+  type UnitGenerationProvenance,
+  type VerifiedCapabilitySnapshot,
+  type VerifiedPublishedSnapshot,
+  verifyCapabilitySnapshot,
+} from "./artifact-lifecycle.ts";
+export {
   type CommitCapabilityInput,
   type CommitCapabilityResult,
   commitCapability,

@@ -328,7 +328,11 @@ function assertCommitPreviewAndArtifacts(
     capabilityId: string;
     incarnationId: string;
     version: number;
+    buildId: string;
     artifactsPath: string;
+    snapshotVerified: boolean;
+    snapshotContentDigest: string;
+    behavioralTier: string;
     files: string[];
   };
   expect(commitPreview.kind).toBe("commit-preview");
@@ -337,16 +341,23 @@ function assertCommitPreviewAndArtifacts(
   expect(commitPreview.incarnationId).toMatch(/^[0-9a-f-]{36}$/);
   expect(metrics?.incarnationId).toBe(commitPreview.incarnationId);
   expect(commitPreview.version).toBe(1);
+  expect(metrics?.id).toBe(commitPreview.buildId);
+  expect(commitPreview.snapshotVerified).toBe(true);
+  expect(commitPreview.snapshotContentDigest).toMatch(/^sha256:[a-f0-9]{64}$/);
+  expect(commitPreview.behavioralTier).toBe("on");
   expect(commitPreview.artifactsPath).toBe(
     `${artifactsRootPath}/notes/${commitPreview.incarnationId}/v1/`,
   );
   expect(commitPreview.files).toEqual([
-    "item.ts",
     "create.ts",
-    "read.ts",
-    "update.ts",
     "delete.ts",
+    "item.ts",
+    "read.ts",
     "search.ts",
+    "snapshot.json",
+    "spec.json",
+    "tests/behavioral.json",
+    "update.ts",
   ]);
 
   // The registry row landed at v1 with the artifacts pointer (the pointer flip)…
@@ -364,7 +375,7 @@ function assertCommitPreviewAndArtifacts(
     search: [],
   });
 
-  // …and the exact six-file full-CRUD inventory is on disk.
+  // …and the exact manifest-backed tier-on inventory is on disk.
   for (const file of commitPreview.files) {
     expect(existsSync(resolve(commitPreview.artifactsPath, file))).toBe(true);
   }

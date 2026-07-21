@@ -14,6 +14,7 @@ import type { CapabilityCreateValues, CapabilityTableDdl } from "../capability-d
 import type { Provider, TokenUsage } from "../provider/index.ts";
 import type { CapabilitySpec } from "../registry/index.ts";
 import { runBehavioralRung } from "./gate-behavioral.ts";
+import type { FullBehavioralTestSuite } from "./gate-behavioral-full-schema.ts";
 import { runDesignLintRung } from "./gate-design-lint.ts";
 import { diagnosticForError, errorMessage } from "./gate-internal.ts";
 import { runSmokeRung } from "./gate-smoke.ts";
@@ -92,6 +93,7 @@ export type BehavioralGateResult =
       readonly status: "passed";
       readonly testGen: BehavioralTestGenerationMetrics;
       readonly testRun: BehavioralTestRunMetrics;
+      readonly frozenTests: FullBehavioralTestSuite;
     }
   | {
       readonly tier: "off";
@@ -181,6 +183,16 @@ export interface CapabilityGateResult {
   readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
 }
 
+const issuedGateEvidence = new WeakMap<CapabilityGateResult, string>();
+
+/** Refuse caller-constructed or post-verdict-mutated Gate objects. */
+export function assertIssuedCapabilityGateResult(result: CapabilityGateResult): void {
+  const issued = issuedGateEvidence.get(result);
+  if (issued === undefined || issued !== JSON.stringify(result)) {
+    throw new Error("Capability publication requires immutable evidence issued by the Gate.");
+  }
+}
+
 export class CapabilityGateError extends Error {
   override readonly name = "CapabilityGateError";
   readonly failedRung: GateRungName;
@@ -201,6 +213,7 @@ export class CapabilityGateError extends Error {
 // Re-exported so the public builder surface (src/builder/index.ts) and the gate's
 // own tests reach the behavioral prompt without depending on the rung file directly.
 export { buildBehavioralTestPrompt } from "./gate-behavioral.ts";
+export type { FullBehavioralTestSuite } from "./gate-behavioral-full-schema.ts";
 
 /**
  * Run the layered Gate and report outcomes in canonical order — structural, smoke, the
@@ -276,7 +289,7 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   outcomes.push(designOutcome);
   if (!behavioral) throw new Error("Behavioral Gate result was not resolved.");
 
-  return {
+  const result: CapabilityGateResult = {
     outcomes,
     durationMs: performance.now() - startedAt,
     structural,
@@ -285,6 +298,8 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
     designLint,
     handlers: smokeRun.handlers,
   };
+  issuedGateEvidence.set(result, JSON.stringify(result));
+  return result;
 }
 
 /** Re-run a rung that already passed while preserving the public one-outcome-per-rung

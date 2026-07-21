@@ -672,6 +672,15 @@ describe("capability gate — setup-row ordering", () => {
 });
 
 describe("capability gate — behavioral tier", () => {
+  test("tier-on retains the exact validated suite for snapshot publication", async () => {
+    const result = await runCapabilityGate(fullInput());
+
+    expect(result.behavioral.tier).toBe("on");
+    if (result.behavioral.tier !== "on") throw new Error("Behavioral tier unexpectedly skipped.");
+    expect(result.behavioral.frozenTests as unknown).toEqual(FULL_BEHAVIORAL_SUITE);
+    expect(result.behavioral.frozenTests.cases).toHaveLength(result.behavioral.testGen.testCount);
+  });
+
   test("behavioral tier defaults on and can be globally skipped for baseline runs", async () => {
     expect(resolveBehavioralTierEnabled({})).toBe(true);
     expect(resolveBehavioralTierEnabled({ [BEHAVIORAL_TIER_ENV_VAR]: "off" })).toBe(false);
@@ -696,5 +705,6 @@ describe("capability gate — behavioral tier", () => {
       status: "skipped",
       reason: "Behavioral tier is off for this run.",
     });
+    expect("frozenTests" in result.behavioral).toBe(false);
   });
 });
