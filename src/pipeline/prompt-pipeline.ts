@@ -151,6 +151,7 @@ async function streamNewCapabilityBuild({
       provider,
       prompt,
       intent,
+      generationId,
       acc,
       buildDatabases,
       artifactsRoot,

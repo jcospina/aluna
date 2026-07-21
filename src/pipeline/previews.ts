@@ -86,7 +86,11 @@ export interface DemoCommitPreview {
   readonly capabilityId: string;
   readonly incarnationId: string;
   readonly version: number;
+  readonly buildId: string;
   readonly artifactsPath: string;
+  readonly snapshotVerified: true;
+  readonly snapshotContentDigest: string;
+  readonly behavioralTier: "on" | "off";
   readonly files: readonly string[];
 }
 
@@ -152,7 +156,11 @@ export function buildCommitPreview(commit: CommitCapabilityResult): DemoCommitPr
     capabilityId: commit.row.id,
     incarnationId: commit.incarnationId,
     version: commit.version,
+    buildId: commit.buildId,
     artifactsPath: commit.artifactsPath,
+    snapshotVerified: commit.snapshotVerified,
+    snapshotContentDigest: commit.snapshotContentDigest,
+    behavioralTier: commit.manifest.behavioral_tier,
     files: commit.files,
   };
 }

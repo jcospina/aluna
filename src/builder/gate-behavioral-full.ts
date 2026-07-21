@@ -99,6 +99,7 @@ export async function runFullBehavioralRung(
       testCount: generated.suite.cases.length,
     },
     testRun,
+    frozenTests: generated.suite,
   };
 }
 
