@@ -119,6 +119,9 @@ export function renderRehydratedShellPage(database: Database): string {
  * Render the commit-time SSE payload: the committed capability's platform list
  * scaffolding plus its canonical toolbar entry as an out-of-band sidecar.
  */
-export function renderCachedCapabilityCommitSwap(row: CapabilityRow): string {
-  return renderCapabilityCommitSwap(row, renderCapabilityCollection(row));
+export function renderCachedCapabilityCommitSwap(
+  row: CapabilityRow,
+  previousLabel?: string,
+): string {
+  return renderCapabilityCommitSwap(row, renderCapabilityCollection(row), previousLabel);
 }

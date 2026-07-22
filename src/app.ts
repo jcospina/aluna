@@ -33,6 +33,7 @@ import {
   type RecordMetrics,
   streamSpecBuildDemo,
 } from "./pipeline/index.ts";
+import { captureRestorationDescriptor } from "./pipeline/restoration.ts";
 import { renderDetailInteractionPreviewPage } from "./presentation/detail-interaction-preview.ts";
 import { renderDetailModalPreviewPage } from "./presentation/detail-modal-preview.ts";
 import { renderFieldRendererPreviewPage } from "./presentation/field-renderer-preview.ts";
@@ -40,7 +41,11 @@ import { renderListContainerPreviewPage } from "./presentation/list-container-pr
 import { createProvider, type Provider } from "./provider/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "./sse/index.ts";
-import { readPrompt, renderBuildSubscriber, renderRehydratedShellPage } from "./web/index.ts";
+import {
+  readPromptSubmission,
+  renderBuildSubscriber,
+  renderRehydratedShellPage,
+} from "./web/index.ts";
 
 /**
  * Dependencies the app is built with. Everything is injected (defaulting to the real
@@ -344,20 +349,25 @@ function registerPreviewDemoRoutes(app: Hono, ctx: ResolvedAppDeps): void {
  * stream it hands back.
  */
 function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
-  const { buildJobs, sseHeartbeatMs } = ctx;
+  const { buildJobs, sseHeartbeatMs, registryReadonly } = ctx;
 
   // Prompt submission enters the build-job lifecycle (Epic 2.5). The POST does
   // only synchronous ephemeral job creation and returns the per-build SSE subscriber
   // fragment immediately; intent resolution and later builder stages run from
   // `/build/:id/stream`, never on the POST path.
   app.post("/prompt", async (c) => {
-    const prompt = await readPrompt(c);
-    const result = buildJobs.create(prompt);
+    const submission = await readPromptSubmission(c);
+    const restoration = captureRestorationDescriptor(submission.restoration, registryReadonly);
+    const result = buildJobs.create(submission.prompt, restoration);
 
     return c.html(renderBuildSubscriber(result.job.id), 200, {
       "cache-control": "no-store",
     });
   });
+
+  app.post("/build/:id/cancel", (c) =>
+    buildJobs.cancel(c.req.param("id")) ? c.body(null, 202) : c.body(null, 404),
+  );
 
   // Per-build ephemeral stream ("phone call", ADR-0002 update). App event ids are
   // monotonic per stream via the transport writer; heartbeat events are id-less

@@ -5,7 +5,11 @@
 // full spec → migration → units → gate → commit build for a `new_capability`. The
 // `/build/:id/stream` route drives this; the POST `/prompt` path only admits the job.
 
-import type { BuildPipeline, BuildPipelineCompletion } from "../build-jobs.ts";
+import type {
+  BuildPipeline,
+  BuildPipelineCompletion,
+  BuildPipelineContext,
+} from "../build-jobs.ts";
 import {
   type CommitCapabilityResult,
   createCapabilityIncarnationId,
@@ -23,6 +27,7 @@ import {
   deflectDuplicateNewCapability,
   deflectionNarration,
   duplicateIntentForPrompt,
+  existingCapabilityNarration,
   NO_TOKEN_USAGE,
 } from "./deflection.ts";
 import {
@@ -36,11 +41,13 @@ import {
   writeDeflectionMetrics,
 } from "./metrics-recorder.ts";
 import { buildCommitPreview } from "./previews.ts";
+import { type RestorationDescriptor, renderRestorationFragment } from "./restoration.ts";
 import {
   DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
   deliverActivatedPresentation,
   deliverActivatedRecoveryPresentation,
   deliverFailedPresentation,
+  deliverRestoredPresentation,
 } from "./terminal-presentation.ts";
 
 /** What {@link createPromptBuildPipeline} needs to run a build against the real db/disk. */
@@ -60,8 +67,14 @@ interface DeflectionPipelineInput {
   readonly recordMetrics: RecordMetrics;
   readonly send: Send;
   readonly isAborted: () => boolean;
+  readonly canPresent: () => boolean;
   readonly signal?: AbortSignal;
   readonly mutationCoordinator: MutationCoordinator;
+  readonly restoration: RestorationDescriptor;
+  readonly buildDatabases: PlatformDatabase;
+  readonly terminalPresenterTimeoutMs: number;
+  readonly narration?: string;
+  readonly preserveActiveView?: boolean;
 }
 
 /** Record the deflection metrics row and narrate the warm "not yet" line. */
@@ -72,9 +85,15 @@ async function streamDeflection({
   recordMetrics,
   send,
   isAborted,
+  canPresent,
   signal,
   mutationCoordinator,
-}: DeflectionPipelineInput): Promise<void> {
+  restoration,
+  buildDatabases,
+  terminalPresenterTimeoutMs,
+  narration,
+  preserveActiveView,
+}: DeflectionPipelineInput): Promise<BuildPipelineCompletion> {
   // Non-build resolver metrics are best-effort: the write still queues behind any
   // build reservation, but the user-visible deflection never waits for experiment data.
   void mutationCoordinator
@@ -88,8 +107,20 @@ async function streamDeflection({
         error instanceof Error ? error.message : error,
       );
     });
-  if (!isAborted()) {
-    await send("narration", deflectionNarration(intent));
+  if (canPresent()) {
+    const explanation = narration ?? deflectionNarration(intent);
+    await deliverRestoredPresentation(
+      send,
+      renderRestorationFragment(
+        restoration,
+        buildDatabases.readonly,
+        explanation,
+        preserveActiveView ? "preserve" : "replace",
+      ),
+      isAborted() ? "cancelled" : "ok",
+      terminalPresenterTimeoutMs,
+    );
+    return "terminal-sent";
   }
 }
 
@@ -106,20 +137,118 @@ interface NewCapabilityPipelineInput {
   readonly artifactsRoot: string;
   readonly send: Send;
   readonly isAborted: () => boolean;
+  readonly canPresent: () => boolean;
   readonly terminalPresenterTimeoutMs: number;
+  readonly restoration: RestorationDescriptor;
+}
+
+interface AdmittedBuildInput extends NewCapabilityPipelineInput {
+  readonly incarnationId: string;
+  readonly acc: DemoBuildAccumulator;
+}
+
+function restorationFor(input: NewCapabilityPipelineInput): string {
+  return renderRestorationFragment(input.restoration, input.buildDatabases.readonly);
+}
+
+async function cancelAdmittedBuild(input: AdmittedBuildInput): Promise<BuildPipelineCompletion> {
+  input.recordMetrics.fail({
+    buildId: input.generationId,
+    incarnationId: input.incarnationId,
+    outcome: "cancelled",
+    stages: lifecycleStages(input.acc, "cancelled"),
+    measurement: lifecycleMeasurement(input.acc, input.builtAt),
+  });
+  if (!input.canPresent()) return;
+  const metricsPreview = JSON.stringify(
+    input.recordMetrics.get(input.generationId, input.incarnationId),
+  );
+  await deliverRestoredPresentation(
+    input.send,
+    restorationFor(input),
+    "cancelled",
+    input.terminalPresenterTimeoutMs,
+    { metricsPreview },
+  );
+  return "terminal-sent";
+}
+
+async function failAdmittedBuild(
+  input: AdmittedBuildInput,
+  error: unknown,
+): Promise<BuildPipelineCompletion> {
+  const failure = classifyBuildFailure(error, input.acc);
+  input.recordMetrics.fail({
+    buildId: input.generationId,
+    incarnationId: input.incarnationId,
+    outcome: lifecycleFailureOutcome(failure),
+    stages: lifecycleStages(input.acc, "failed"),
+    measurement: lifecycleMeasurement(input.acc, input.builtAt, failure),
+  });
+  const metricsPreview = JSON.stringify(
+    input.recordMetrics.get(input.generationId, input.incarnationId),
+  );
+  await deliverFailedPresentation(
+    input.send,
+    error,
+    restorationFor(input),
+    input.terminalPresenterTimeoutMs,
+    metricsPreview,
+  );
+  return "terminal-sent";
+}
+
+async function runAdmittedBuildStages(input: AdmittedBuildInput): Promise<BuildPipelineCompletion> {
+  let commit: CommitCapabilityResult | undefined;
+  try {
+    commit = await runSpecBuildStages(
+      input.send,
+      input.isAborted,
+      input.provider,
+      input.prompt,
+      input.intent,
+      input.generationId,
+      input.incarnationId,
+      input.acc,
+      input.buildDatabases,
+      input.artifactsRoot,
+      (capabilityId) =>
+        input.recordMetrics.identify(input.generationId, input.incarnationId, capabilityId),
+      () =>
+        input.recordMetrics.succeed({
+          buildId: input.generationId,
+          incarnationId: input.incarnationId,
+          outcome: "activated",
+          stages: lifecycleStages(input.acc, "activated"),
+          measurement: lifecycleMeasurement(input.acc, input.builtAt),
+        }),
+    );
+  } catch (error) {
+    return error instanceof AbortedBuildError || input.isAborted()
+      ? cancelAdmittedBuild(input)
+      : failAdmittedBuild(input, error);
+  }
+
+  if (commit === undefined) return cancelAdmittedBuild(input);
+  await deliverActivatedBuild(commit, input.send, input.terminalPresenterTimeoutMs, () =>
+    JSON.stringify(input.recordMetrics.get(input.generationId, input.incarnationId)),
+  );
+  return "terminal-sent";
 }
 
 async function deliverActivatedBuild(
   commit: CommitCapabilityResult,
   send: Send,
   timeoutMs: number,
+  getMetricsPreview: () => string,
 ): Promise<void> {
   try {
     await deliverActivatedPresentation(
       send,
       JSON.stringify(buildCommitPreview(commit)),
-      renderCachedCapabilityCommitSwap(commit.row),
+      renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel),
       timeoutMs,
+      getMetricsPreview(),
     );
   } catch (error) {
     console.error(
@@ -149,7 +278,9 @@ async function streamNewCapabilityBuild({
   artifactsRoot,
   send,
   isAborted,
+  canPresent,
   terminalPresenterTimeoutMs,
+  restoration,
 }: NewCapabilityPipelineInput): Promise<BuildPipelineCompletion> {
   // Lease-head recovery cannot race this process's next publication. It validates
   // every committed version before removing any proven never-activated candidate.
@@ -164,64 +295,7 @@ async function streamNewCapabilityBuild({
   });
   try {
     await send("metrics-preview", JSON.stringify(recordMetrics.get(generationId, incarnationId)));
-  } catch {
-    recordMetrics.fail({
-      buildId: generationId,
-      incarnationId,
-      outcome: "cancelled",
-      stages: lifecycleStages(acc, "cancelled"),
-      measurement: lifecycleMeasurement(acc, builtAt),
-    });
-    return;
-  }
-  let commit: CommitCapabilityResult | undefined;
-  try {
-    commit = await runSpecBuildStages(
-      send,
-      isAborted,
-      provider,
-      prompt,
-      intent,
-      generationId,
-      incarnationId,
-      acc,
-      buildDatabases,
-      artifactsRoot,
-      (capabilityId) => recordMetrics.identify(generationId, incarnationId, capabilityId),
-      () =>
-        recordMetrics.succeed({
-          buildId: generationId,
-          incarnationId,
-          outcome: "activated",
-          stages: lifecycleStages(acc, "activated"),
-          measurement: lifecycleMeasurement(acc, builtAt),
-        }),
-    );
   } catch (error) {
-    if (error instanceof AbortedBuildError || isAborted()) {
-      recordMetrics.fail({
-        buildId: generationId,
-        incarnationId,
-        outcome: "cancelled",
-        stages: lifecycleStages(acc, "cancelled"),
-        measurement: lifecycleMeasurement(acc, builtAt),
-      });
-      return;
-    }
-    const failure = classifyBuildFailure(error, acc);
-    recordMetrics.fail({
-      buildId: generationId,
-      incarnationId,
-      outcome: lifecycleFailureOutcome(failure),
-      stages: lifecycleStages(acc, "failed"),
-      measurement: lifecycleMeasurement(acc, builtAt, failure),
-    });
-    await send("metrics-preview", JSON.stringify(recordMetrics.get(generationId, incarnationId)));
-    await deliverFailedPresentation(send, error, terminalPresenterTimeoutMs);
-    return "terminal-sent";
-  }
-
-  if (commit === undefined) {
     recordMetrics.fail({
       buildId: generationId,
       incarnationId,
@@ -229,74 +303,104 @@ async function streamNewCapabilityBuild({
       stages: lifecycleStages(acc, "cancelled"),
       measurement: lifecycleMeasurement(acc, builtAt),
     });
+    if (canPresent()) {
+      await deliverRestoredPresentation(
+        send,
+        renderRestorationFragment(restoration, buildDatabases.readonly),
+        "cancelled",
+        terminalPresenterTimeoutMs,
+      );
+      return "terminal-sent";
+    }
+    console.error(
+      "Aluna initial build presentation did not complete:",
+      error instanceof Error ? error.message : error,
+    );
     return;
   }
-
-  await send("metrics-preview", JSON.stringify(recordMetrics.get(generationId, incarnationId)));
-  await deliverActivatedBuild(commit, send, terminalPresenterTimeoutMs);
-  return "terminal-sent";
+  return runAdmittedBuildStages({
+    generationId,
+    prompt,
+    provider,
+    intent,
+    usage,
+    resolverDurationMs,
+    builtAt,
+    recordMetrics,
+    buildDatabases,
+    artifactsRoot,
+    send,
+    isAborted,
+    canPresent,
+    terminalPresenterTimeoutMs,
+    restoration,
+    incarnationId,
+    acc,
+  });
 }
 
-/**
- * The build-job pipeline: classify the job's prompt (short-circuiting on a detected
- * duplicate before any provider call), then deflect an unsupported intent or build a
- * `new_capability`. Returned as a {@link BuildPipeline} the queue invokes per job.
- */
-export function createPromptBuildPipeline({
-  getProvider,
-  recordMetrics,
-  buildDatabases,
-  artifactsRoot,
-  mutationCoordinator,
-  terminalPresenterTimeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
-}: PromptBuildPipelineDeps): BuildPipeline {
-  return async ({ job, send, isAborted, signal }) => {
-    const builtAt = performance.now();
-    const capabilities = listCapabilities(buildDatabases.readonly);
-    const duplicateIntent = duplicateIntentForPrompt(job.prompt, capabilities);
-    if (duplicateIntent) {
-      await streamDeflection({
-        generationId: job.id,
-        intent: duplicateIntent,
-        usage: NO_TOKEN_USAGE,
-        recordMetrics,
-        send,
-        isAborted,
-        signal,
-        mutationCoordinator,
-      });
-      return;
-    }
+interface ResolvedPromptPipelineDeps extends PromptBuildPipelineDeps {
+  readonly terminalPresenterTimeoutMs: number;
+}
 
-    const provider = abortableProvider(getProvider(), signal);
-    const classification = await classifyIntentWithUsage({
-      provider,
-      prompt: job.prompt,
-      database: buildDatabases.readonly,
+async function runPromptJob(
+  { job, send, isAborted, canPresent, signal }: BuildPipelineContext,
+  deps: ResolvedPromptPipelineDeps,
+): Promise<BuildPipelineCompletion> {
+  const builtAt = performance.now();
+  const capabilities = listCapabilities(deps.buildDatabases.readonly);
+  const duplicateIntent = duplicateIntentForPrompt(job.prompt, capabilities);
+  if (duplicateIntent) {
+    return streamDeflection({
+      generationId: job.id,
+      intent: duplicateIntent,
+      usage: NO_TOKEN_USAGE,
+      recordMetrics: deps.recordMetrics,
       send,
+      isAborted,
+      canPresent,
+      signal,
+      mutationCoordinator: deps.mutationCoordinator,
+      restoration: job.restoration,
+      buildDatabases: deps.buildDatabases,
+      terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
+      narration: existingCapabilityNarration(duplicateIntent, capabilities),
+      preserveActiveView: true,
     });
-    const intent = deflectDuplicateNewCapability(classification.intent, job.prompt, capabilities);
-    const { usage, durationMs: resolverDurationMs } = classification;
+  }
 
-    if (intent.type !== "new_capability") {
-      await streamDeflection({
-        generationId: job.id,
-        intent,
-        usage,
-        recordMetrics,
-        send,
-        isAborted,
-        signal,
-        mutationCoordinator,
-      });
-      return;
-    }
+  const provider = abortableProvider(deps.getProvider(), signal);
+  const classification = await classifyIntentWithUsage({
+    provider,
+    prompt: job.prompt,
+    database: deps.buildDatabases.readonly,
+    send,
+  });
+  const intent = deflectDuplicateNewCapability(classification.intent, job.prompt, capabilities);
+  const { usage, durationMs: resolverDurationMs } = classification;
+  if (intent.type !== "new_capability") {
+    return streamDeflection({
+      generationId: job.id,
+      intent,
+      usage,
+      recordMetrics: deps.recordMetrics,
+      send,
+      isAborted,
+      canPresent,
+      signal,
+      mutationCoordinator: deps.mutationCoordinator,
+      restoration: job.restoration,
+      buildDatabases: deps.buildDatabases,
+      terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
+    });
+  }
 
-    const reservation = mutationCoordinator.reserveBuild();
-    return mutationCoordinator.withBuildLease(
-      reservation,
-      () =>
-        streamNewCapabilityBuild({
+  const reservation = deps.mutationCoordinator.reserveBuild();
+  return deps.mutationCoordinator.withBuildLease(
+    reservation,
+    async () => {
+      try {
+        return await streamNewCapabilityBuild({
           generationId: job.id,
           prompt: job.prompt,
           provider,
@@ -304,14 +408,57 @@ export function createPromptBuildPipeline({
           usage,
           resolverDurationMs,
           builtAt,
-          recordMetrics,
-          buildDatabases,
-          artifactsRoot,
+          recordMetrics: deps.recordMetrics,
+          buildDatabases: deps.buildDatabases,
+          artifactsRoot: deps.artifactsRoot,
           send,
           isAborted,
-          terminalPresenterTimeoutMs,
-        }),
-      signal ? { signal } : {},
-    );
+          canPresent,
+          terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
+          restoration: job.restoration,
+        });
+      } catch (error) {
+        await deliverFailedPresentation(
+          send,
+          error,
+          renderRestorationFragment(job.restoration, deps.buildDatabases.readonly),
+          deps.terminalPresenterTimeoutMs,
+        );
+        return "terminal-sent";
+      }
+    },
+    signal ? { signal } : {},
+  );
+}
+
+/** Classify one prompt job, then deflect or run the admitted build under its lease. */
+export function createPromptBuildPipeline(input: PromptBuildPipelineDeps): BuildPipeline {
+  const deps: ResolvedPromptPipelineDeps = {
+    ...input,
+    terminalPresenterTimeoutMs:
+      input.terminalPresenterTimeoutMs ?? DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
+  };
+  return async (context) => {
+    try {
+      return await runPromptJob(context, deps);
+    } catch (error) {
+      if (context.isAborted() && !context.canPresent()) return;
+      if (context.isAborted()) {
+        await deliverRestoredPresentation(
+          context.send,
+          renderRestorationFragment(context.job.restoration, deps.buildDatabases.readonly),
+          "cancelled",
+          deps.terminalPresenterTimeoutMs,
+        );
+        return "terminal-sent";
+      }
+      await deliverFailedPresentation(
+        context.send,
+        error,
+        renderRestorationFragment(context.job.restoration, deps.buildDatabases.readonly),
+        deps.terminalPresenterTimeoutMs,
+      );
+      return "terminal-sent";
+    }
   };
 }

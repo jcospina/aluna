@@ -181,7 +181,7 @@
           id="spec-build-form"
           hx-post="/prompt"
           hx-target="#spec-build-output"
-          hx-swap="innerHTML"
+          hx-swap="beforeend"
           :class="{ 'prompt--busy': promptBusy }"
           :aria-busy="promptBusy ? 'true' : 'false'"
         >

@@ -353,11 +353,12 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       .map((event) => event.data)
       .join("");
 
-    expect(events.map((event) => event.event)).toEqual(["narration", "narration", "done"]);
+    expect(events.map((event) => event.event)).toEqual(["narration", "fragment", "done"]);
+    expect(eventData(events, "fragment")).toContain('data-build-restoration="neutral"');
+    expect(eventData(events, "fragment")).toContain("what you&#39;ve saved");
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
     expect(events.at(-1)).toEqual({ id: "2", event: "done", data: "ok" });
-    expect(narration).toContain("what you've saved");
     expect(narration).not.toMatch(
       /capability|intent|data_query|registry|schema|migration|handler|artifact|metrics|provider/i,
     );
@@ -405,9 +406,10 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       .join("");
 
     expect(prompts).toHaveLength(0);
-    expect(events.map((event) => event.event)).toEqual(["narration", "done"]);
-    expect(narration).toContain("already started");
-    expect(narration).toContain("soon");
+    expect(events.map((event) => event.event)).toEqual(["fragment", "done"]);
+    expect(eventData(events, "fragment")).toContain("already have Notes");
+    expect(eventData(events, "fragment")).toContain('data-build-restoration-behavior="preserve"');
+    expect(eventData(events, "fragment")).toContain('id="prompt-notice" hx-swap-oob="innerHTML"');
     expect(narration).not.toMatch(
       /capability|intent|extend_capability|registry|schema|migration|handler|artifact/i,
     );
@@ -435,8 +437,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     insertCapability(
       notesCapabilityRow({
         id: "personal_notes",
-        label:
-          "We’ll set you up to capture and organize your notes so you can quickly find them later.",
+        label: '<img src=x onerror="alert(1)">',
         incarnation_id: "22222222-2222-4222-8222-222222222222",
         artifacts_path: "capabilities/personal_notes/22222222-2222-4222-8222-222222222222/v1/",
         prompt_context: PERSONAL_NOTES_SPEC.prompt_context,
@@ -456,8 +457,10 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       .map((event) => event.data)
       .join("");
 
-    expect(events.map((event) => event.event)).toEqual(["narration", "done"]);
-    expect(narration).toContain("already started");
+    expect(events.map((event) => event.event)).toEqual(["fragment", "done"]);
+    expect(narration).toBe("");
+    expect(eventData(events, "fragment")).toContain("&lt;img");
+    expect(eventData(events, "fragment")).not.toContain("<img");
     expect(prompts).toHaveLength(0);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -511,7 +514,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toContain("I want to keep track of my recipes");
-    expect(events.map((event) => event.event)).toEqual(["narration", "narration", "done"]);
+    expect(events.map((event) => event.event)).toEqual(["narration", "fragment", "done"]);
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
     expect(rows[0]).toMatchObject({

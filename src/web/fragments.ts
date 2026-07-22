@@ -58,6 +58,7 @@ export function renderBuildSubscriber(jobId: string): string {
   return [
     `<section class="build-stream" data-build-job-id="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}" sse-close="done">`,
     '  <div class="build-stream__narration" aria-live="polite" sse-swap="narration" hx-swap="beforeend"></div>',
+    `  <button class="btn btn--ghost build-stream__cancel" type="button" hx-post="/build/${encodeURIComponent(jobId)}/cancel" hx-swap="none">Cancel</button>`,
     '  <div class="build-stream__fragment" sse-swap="fragment" hx-swap="beforeend"></div>',
     '  <div class="build-stream__commit" aria-live="polite" sse-swap="commit" hx-swap="innerHTML"></div>',
     ...PREVIEW_TARGETS.map(
@@ -81,6 +82,7 @@ export function renderCapabilityToolbarEntry(row: Pick<CapabilityRow, "id" | "la
   const url = `/capability/${id}`;
   return [
     "<button",
+    `  id="capability-toolbar-entry-${id}"`,
     '  type="button"',
     '  class="toolbar__entry"',
     "  data-capability-entry",
@@ -104,6 +106,14 @@ function renderCapabilityToolbarOobEntry(row: Pick<CapabilityRow, "id" | "label"
   ].join("\n");
 }
 
+function renderCapabilityToolbarReplacement(row: Pick<CapabilityRow, "id" | "label">): string {
+  const targetId = `capability-toolbar-entry-${escapeHtml(row.id)}`;
+  return renderCapabilityToolbarEntry(row).replace(
+    "<button",
+    `<button hx-swap-oob="outerHTML:#${targetId}"`,
+  );
+}
+
 /**
  * The content-area surface for an active capability: the platform list scaffolding
  * (rendered live from the spec by the list container, 3.2/02–03) wrapped in the marker
@@ -113,11 +123,13 @@ function renderCapabilityToolbarOobEntry(row: Pick<CapabilityRow, "id" | "label"
  * so this marker carries no redundant landmark name of its own.
  */
 export function renderCapabilitySurface(
-  row: Pick<CapabilityRow, "id">,
+  row: Pick<CapabilityRow, "id" | "incarnation_id" | "version">,
   collectionHtml: string,
 ): string {
   return [
-    `<section class="capability-surface" data-active-capability-id="${escapeHtml(row.id)}">`,
+    `<section class="capability-surface" data-active-capability-id="${escapeHtml(row.id)}"` +
+      ` data-active-capability-incarnation="${escapeHtml(row.incarnation_id)}"` +
+      ` data-active-capability-version="${row.version}">`,
     collectionHtml,
     "</section>",
   ].join("\n");
@@ -135,7 +147,7 @@ export function renderCapabilitySurface(
  * URL dropped every other entry, so the toolbar looked like the registry had lost them.
  */
 export function renderCapabilityShell(
-  activeRow: Pick<CapabilityRow, "id" | "label">,
+  activeRow: Pick<CapabilityRow, "id" | "label" | "incarnation_id" | "version">,
   allRows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>,
   collectionHtml: string,
   shellHtml: string,
@@ -222,12 +234,17 @@ function injectDetailModal(shellHtml: string): string {
  * while the `hx-swap-oob` sidecar appends the same canonical toolbar entry.
  */
 export function renderCapabilityCommitSwap(
-  row: Pick<CapabilityRow, "id" | "label">,
+  row: Pick<CapabilityRow, "id" | "label" | "incarnation_id" | "version">,
   collectionHtml: string,
+  previousLabel?: string,
 ): string {
-  return [renderCapabilitySurface(row, collectionHtml), renderCapabilityToolbarOobEntry(row)].join(
-    "\n",
-  );
+  const toolbar =
+    previousLabel === undefined
+      ? renderCapabilityToolbarOobEntry(row)
+      : previousLabel === row.label
+        ? ""
+        : renderCapabilityToolbarReplacement(row);
+  return [renderCapabilitySurface(row, collectionHtml), toolbar].filter(Boolean).join("\n");
 }
 
 function indent(value: string, spaces: number): string {

@@ -9,7 +9,7 @@
 
 import type { IntentClassification } from "../intent-resolver/index.ts";
 import type { TokenUsage } from "../provider/index.ts";
-import type { CapabilityRow } from "../registry/index.ts";
+import { type CapabilityRow, canonicalCapabilityLabel } from "../registry/index.ts";
 
 /**
  * The product-voice narration for a deflected intent — understood, not yet
@@ -143,6 +143,16 @@ export function duplicateIntentForPrompt(
 ): IntentClassification | undefined {
   const overlap = findPromptOverlapCapability(prompt, capabilities);
   return overlap ? duplicateIntentForCapability(overlap) : undefined;
+}
+
+/** Explain a deterministic duplicate in the language of the place already on screen. */
+export function existingCapabilityNarration(
+  intent: IntentClassification,
+  capabilities: readonly CapabilityRow[],
+): string {
+  const target = capabilities.find((capability) => capability.id === intent.target_capability);
+  const label = target ? canonicalCapabilityLabel(target) : "this place";
+  return `You already have ${label}, so I didn't create another one.`;
 }
 
 /**

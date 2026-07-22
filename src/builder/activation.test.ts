@@ -2,7 +2,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:te
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
+import { createApp } from "../app.ts";
 import { applyCapabilityTableDdl } from "../capability-data/index.ts";
 import { openDatabase, type PlatformDatabase } from "../db.ts";
 import {
@@ -12,7 +12,10 @@ import {
   startGenerationLifecycle,
 } from "../metrics/index.ts";
 import { runMigrations } from "../migrations.ts";
+import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
+import { deliverActivatedPresentation } from "../pipeline/terminal-presentation.ts";
 import { getCapability } from "../registry/index.ts";
+import { renderCachedCapabilityCommitSwap } from "../web/index.ts";
 import { activatePublishedSnapshot, expectedActiveCapability } from "./activation.ts";
 import { publishCapabilitySnapshot } from "./artifact-lifecycle.ts";
 import { gateInput, generatedUnitsFor, notesSpec } from "./gate.test-support.ts";
@@ -134,6 +137,51 @@ describe("activatePublishedSnapshot — point of no return", () => {
         conns.readwrite,
       ),
     ).toThrow(/Running generation lifecycle not found/);
+
+    const coordinator = createMutationCoordinator();
+    const reservation = coordinator.reserveBuild();
+    const delivered = await coordinator.withBuildLease(reservation, () =>
+      deliverActivatedPresentation(
+        (event) => (event === "commit" ? new Promise(() => undefined) : Promise.resolve()),
+        "preview",
+        "complete View",
+        10,
+      ),
+    );
+    expect(delivered).toBe(false);
+    expect(coordinator.snapshot().activeLease).toBeNull();
+
+    const app = createApp({ capabilityRouter: { databases: conns } });
+    const rehydrated = await app.request("/capability/notes", {
+      headers: { "HX-Request": "true" },
+    });
+    const rehydratedView = await rehydrated.text();
+    expect(rehydratedView).toContain(`data-active-capability-incarnation="${INCARNATION_ID}"`);
+    expect(rehydratedView).toContain('hx-get="/capability/notes/read"');
+  });
+
+  test("successful evolution carries its prior label into complete-View delivery", async () => {
+    const buildId = "build-v2-toolbar-context";
+    const publication = publish(artifactsRoot, buildId, INCARNATION_ID, 2);
+    startLifecycle(conns, buildId, INCARNATION_ID);
+
+    const commit = await activatePublishedSnapshot({
+      database: conns.readwrite,
+      spec: notesSpec(),
+      publication,
+      expected: expectedActiveCapability({
+        capabilityId: "notes",
+        incarnationId: INCARNATION_ID,
+        version: 1,
+      }),
+      applyMigration: addEvolutionMarker,
+      finalizeMetrics: () => finalizeSuccess(conns, buildId, INCARNATION_ID),
+    });
+
+    expect(commit.previousLabel).toBe("Notes");
+    expect(renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel)).not.toContain(
+      "hx-swap-oob",
+    );
   });
 
   test("wrong expected incarnation and version are stale CAS writes that touch no pointer", async () => {

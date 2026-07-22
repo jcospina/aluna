@@ -16,4 +16,4 @@ export {
   renderRehydratedShell,
 } from "./fragments.ts";
 export { escapeHtml } from "./html.ts";
-export { readPrompt } from "./prompt-request.ts";
+export { readPrompt, readPromptSubmission } from "./prompt-request.ts";

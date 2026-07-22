@@ -25,6 +25,7 @@ import {
   type CapabilitySpec,
   capabilitySpecSchema,
   compareAndSwapCapability,
+  getCapability,
   incarnationIdSchema,
 } from "../registry/index.ts";
 import {
@@ -55,6 +56,8 @@ export interface CommitCapabilityInput {
 
 export interface CommitCapabilityResult {
   readonly row: CapabilityRow;
+  /** Previous active label for evolution toolbar diffing; absent for a new capability. */
+  readonly previousLabel?: string;
   // The pointer the registry row stores and the router resolves handlers against.
   readonly artifactsPath: string;
   readonly incarnationId: string;
@@ -78,6 +81,10 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   const artifactsPath = input.publication.artifactsPath;
   const manifest = verified.manifest;
   const expected = input.expected ?? { state: "absent" };
+  const previousLabel =
+    expected.state === "active"
+      ? getCapability(expected.capabilityId, input.database)?.label
+      : undefined;
   if (
     JSON.stringify(verified.spec) !== JSON.stringify(spec) ||
     manifest.capability_id !== spec.id ||
@@ -98,6 +105,7 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
 
   return {
     row,
+    previousLabel,
     artifactsPath,
     incarnationId,
     version,

@@ -8,15 +8,19 @@ import { describe, expect, test } from "bun:test";
 
 import {
   collectSseEvents,
+  createScratchDbEnv,
   makeFakeProvider,
+  notesCapabilityRow,
   postPrompt,
   readSse,
   responseText,
+  teardownScratchDbEnv,
   wait,
 } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
-import { type BuildPipeline, createBuildJobQueue } from "./build-jobs.ts";
+import { type BuildJob, type BuildPipeline, createBuildJobQueue } from "./build-jobs.ts";
 import { createMutationCoordinator } from "./mutation-coordinator/index.ts";
+import { insertCapability } from "./registry/index.ts";
 
 function createIdSequence(ids: readonly string[]): () => string {
   let index = 0;
@@ -77,6 +81,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
     expect(fragment).toContain('sse-swap="narration"');
     expect(fragment).toContain('sse-swap="fragment"');
     expect(fragment).toContain('sse-swap="commit"');
+    expect(fragment).toContain('hx-post="/build/job-one/cancel"');
     expect(fragment).toContain('sse-swap="metrics-preview"');
     expect(fragment).toContain('data-preview-target="spec-metrics-preview"');
     expect(fragment).toContain('sse-swap="spec-preview"');
@@ -89,6 +94,42 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
     // (the htmx analogue of the raw path's source.close()) or the build re-runs.
     expect(fragment).toContain('sse-close="done"');
     expect(providerCalls).toBe(0);
+  });
+
+  test("POST records the active id/incarnation before the subscriber joins the View", async () => {
+    const env = createScratchDbEnv("omni-crud-prompt-restoration-");
+    let capturedJob: BuildJob | undefined;
+    try {
+      insertCapability(notesCapabilityRow(), env.conns.readwrite);
+      const buildJobs = createBuildJobQueue({
+        createId: createIdSequence(["job-restoration"]),
+        pipeline: async ({ job, send }) => {
+          capturedJob = job;
+          await send("done", "ok");
+          return "terminal-sent";
+        },
+      });
+      const app = createApp({
+        buildJobs,
+        capabilityRouter: { databases: env.conns },
+      });
+      const body = new URLSearchParams({
+        prompt: "track recipes",
+        __aluna_restore_capability_id: "notes",
+        __aluna_restore_incarnation_id: "11111111-1111-4111-8111-111111111111",
+      });
+
+      await app.request("/prompt", { method: "POST", body });
+      await readSse(await app.request("/build/job-restoration/stream"));
+
+      expect(capturedJob?.restoration).toEqual({
+        kind: "capability",
+        capabilityId: "notes",
+        incarnationId: "11111111-1111-4111-8111-111111111111",
+      });
+    } finally {
+      teardownScratchDbEnv(env);
+    }
   });
 
   test("the job stream emits typed monotonic SSE events and closes on done", async () => {

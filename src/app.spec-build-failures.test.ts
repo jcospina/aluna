@@ -137,9 +137,9 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — provi
     expect(dataFor("done")).toBe("error");
     expect(dataFor("build-error-preview")).toContain("Missing OMNI_API_KEY");
     expect(dataFor("build-error-preview")).toContain("Error");
-    // No product commit/fragment on the failure path, and no internals leak through
-    // product copy.
-    expect(payload).not.toContain("event: fragment");
+    // Failure restores the neutral canonical surface through `fragment`; only real
+    // activation may use `commit`.
+    expect(dataFor("fragment")).toContain('data-build-restoration="neutral"');
     expect(payload).not.toContain("event: commit");
     expect(dataFor("narration")).not.toMatch(/OMNI_API_KEY|api key|provider/i);
     // Admission already happened under the active lease. Provider construction is
@@ -256,7 +256,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
     // nothing committed — no registry row, no cap_<id> table, no artifacts on disk —
     // and no commit-preview or commit swap was streamed.
     expect(events.map((event) => event.event)).not.toContain("commit-preview");
-    expect(events.map((event) => event.event)).not.toContain("fragment");
+    expect(dataFor("fragment")).toContain('data-build-restoration="neutral"');
     expect(events.map((event) => event.event)).not.toContain("commit");
     expect(getCapability("notes", conns.readonly)).toBeNull();
     expect(
@@ -297,7 +297,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — commi
     // announced, just the warm apology and a `done` error.
     expect(eventNames).toContain("gate-preview");
     expect(eventNames).not.toContain("commit-preview");
-    expect(eventNames).not.toContain("fragment");
+    expect(dataFor("fragment")).toContain('data-build-restoration="neutral"');
     expect(eventNames).not.toContain("commit");
     expect(dataFor("narration")).toMatch(/mind trying again/i);
     expect(dataFor("done")).toBe("error");

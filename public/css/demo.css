@@ -25,13 +25,21 @@
   justify-content: center;
   padding: var(--space-4);
 }
-.content__active:has(#spec-build-output:empty) {
+.content__active:has(#spec-build-output:empty),
+.content__active:has(
+  #spec-build-output
+    > .build-stream:only-child:not(:has(.build-stream__narration:not(:empty))):not(
+      :has(.build-stream__commit:not(:empty))
+    )
+) {
   display: none;
 }
 .shell.has-capabilities .cold-start {
   display: none;
 }
-.content:has(#spec-build-output:not(:empty)) .cold-start {
+.content:has(#spec-build-output > [data-active-capability-id]) .cold-start,
+.content:has(#spec-build-output > .build-stream > .build-stream__narration:not(:empty)) .cold-start,
+.content:has(#spec-build-output > .build-stream > .build-stream__commit:not(:empty)) .cold-start {
   display: none;
 }
 .cold-start .wordmark {
@@ -95,6 +103,27 @@
 .intro__output .intro__invitation {
   margin: var(--space-1) 0 0;
   color: var(--color-text-subtle);
+}
+
+.build-stream {
+  display: none;
+}
+.build-stream:has(> .build-stream__narration:not(:empty)),
+.build-stream:has(> .build-stream__commit:not(:empty)) {
+  display: block;
+}
+#spec-build-output:has(> .build-stream > .build-stream__narration:not(:empty))
+  > [data-active-capability-id],
+#spec-build-output:has(> .build-stream > .build-stream__commit:not(:empty))
+  > [data-active-capability-id] {
+  display: none;
+}
+
+.build-stream > .build-stream__cancel {
+  display: flex;
+  width: fit-content;
+  margin-top: var(--space-2);
+  margin-left: auto;
 }
 
 /* Commit swap: once the capability surface lands, the build narration is no
