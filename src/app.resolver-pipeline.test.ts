@@ -35,8 +35,8 @@ import {
 import { createApp } from "./app.ts";
 import type { PlatformDatabase } from "./db.ts";
 import type { IntentClassification } from "./intent-resolver/index.ts";
-import type { GenerationMetrics } from "./metrics/index.ts";
 import { createMutationCoordinator } from "./mutation-coordinator/index.ts";
+import type { RecordMetrics } from "./pipeline/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "./provider/index.ts";
 import { getCapability, insertCapability, listCapabilities } from "./registry/index.ts";
 
@@ -44,7 +44,7 @@ let dir: string;
 let conns: PlatformDatabase;
 let artifactsRoot: string;
 
-function defaultPipelineApp(provider: Provider, recordMetrics: (m: GenerationMetrics) => void) {
+function defaultPipelineApp(provider: Provider, recordMetrics: RecordMetrics) {
   return makeScratchApp({ dir, conns, artifactsRoot }, provider, recordMetrics);
 }
 
@@ -147,8 +147,17 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(dataFor("done")).toBe("ok");
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
-    expect(events[1]?.event).toBe("narration");
-    expect(events[1]?.data).toBe(newCapabilityIntent.user_facing_label);
+    const narrations = events.filter((event) => event.event === "narration");
+    expect(narrations[1]?.data).toBe(newCapabilityIntent.user_facing_label);
+    const metricEvents = events.filter((event) => event.event === "metrics-preview");
+    expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
+      lifecycleStatus: "running",
+      outcome: null,
+    });
+    expect(JSON.parse(metricEvents.at(-1)?.data ?? "null")).toMatchObject({
+      lifecycleStatus: "success",
+      outcome: "activated",
+    });
 
     // intent + spec + 6 units (item renderer + five Actions) + behavioral test-gen.
     expect(prompts).toHaveLength(9);
@@ -282,12 +291,16 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 
   test("a failed metrics write cannot move failure presentation outside the lease", async () => {
     const mutationCoordinator = createMutationCoordinator();
-    const { provider } = makePromptBuildProvider(newCapabilityIntent, {});
-    const app = createApp({
-      getProvider: () => provider,
-      recordMetrics: () => {
+    const { provider, prompts } = makePromptBuildProvider(newCapabilityIntent, {});
+    const { recordMetrics } = makeMetricsRecorder();
+    const failingMetrics = Object.assign(recordMetrics, {
+      start() {
         throw new Error("metrics unavailable");
       },
+    }) satisfies RecordMetrics;
+    const app = createApp({
+      getProvider: () => provider,
+      recordMetrics: failingMetrics,
       buildDatabases: conns,
       artifactsRoot,
       capabilityRouter: { databases: conns },
@@ -302,6 +315,9 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(events.filter((event) => event.event === "done")).toEqual([
       expect.objectContaining({ data: "error" }),
     ]);
+    // The resolver call is pre-admission; the failed durable row prevents every
+    // Builder-owned spec/unit/test provider call.
+    expect(prompts).toHaveLength(1);
     expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
   });
 });

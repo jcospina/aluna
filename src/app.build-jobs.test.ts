@@ -77,6 +77,8 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
     expect(fragment).toContain('sse-swap="narration"');
     expect(fragment).toContain('sse-swap="fragment"');
     expect(fragment).toContain('sse-swap="commit"');
+    expect(fragment).toContain('sse-swap="metrics-preview"');
+    expect(fragment).toContain('data-preview-target="spec-metrics-preview"');
     expect(fragment).toContain('sse-swap="spec-preview"');
     expect(fragment).toContain('data-preview-target="spec-build-preview"');
     expect(fragment).toContain('sse-swap="build-error-preview"');

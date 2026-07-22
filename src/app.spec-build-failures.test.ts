@@ -33,7 +33,8 @@ import {
 } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
 import type { PlatformDatabase } from "./db.ts";
-import type { GenerationMetrics } from "./metrics/index.ts";
+import { listGenerationLifecycles } from "./metrics/index.ts";
+import { createMetricsRecorder, type RecordMetrics } from "./pipeline/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "./provider/index.ts";
 import {
   getCapability,
@@ -47,7 +48,7 @@ let dir: string;
 let conns: PlatformDatabase;
 let artifactsRoot: string;
 
-function committingApp(provider: Provider, recordMetrics: (m: GenerationMetrics) => void) {
+function committingApp(provider: Provider, recordMetrics: RecordMetrics) {
   return makeScratchApp({ dir, conns, artifactsRoot }, provider, recordMetrics);
 }
 
@@ -141,9 +142,22 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — provi
     expect(payload).not.toContain("event: fragment");
     expect(payload).not.toContain("event: commit");
     expect(dataFor("narration")).not.toMatch(/OMNI_API_KEY|api key|provider/i);
-    // The build never started (the provider threw before any stage), so no metrics
-    // row is written — the demo records generations, not failed admissions.
-    expect(rows).toHaveLength(0);
+    // Admission already happened under the active lease. Provider construction is
+    // therefore measured as a typed spec-generation failure, not silently lost.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      outcome: "failure",
+      failure: { stage: "spec_gen" },
+    });
+    const metricEvents = events.filter((event) => event.event === "metrics-preview");
+    expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
+      lifecycleStatus: "running",
+      outcome: null,
+    });
+    expect(JSON.parse(metricEvents.at(-1)?.data ?? "null")).toMatchObject({
+      lifecycleStatus: "failed",
+      outcome: "spec_generation_failed",
+    });
   });
 
   test("a behavioral test-generation provider error is captured in the developer preview", async () => {
@@ -201,7 +215,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
       ),
     };
     const { provider } = makeSpecProvider(NOTES_SPEC, failingSuite);
-    const { rows, recordMetrics } = makeMetricsRecorder();
+    const { lifecycles, rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
     const events = collectSseEvents(
@@ -234,6 +248,9 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
     expect(rows[0]?.failure).toMatchObject({ stage: "gate", rung: "behavioral" });
     expect(rows[0]?.capabilityId).toBe("notes");
     expect(rows[0]?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
+    expect(
+      lifecycles.at(-1)?.stages.find((stage) => stage.stage === "gate_behavioral"),
+    ).toMatchObject({ state: "executed" });
 
     // Commit is unreachable when a gate rung fails: the transaction rolled back, so
     // nothing committed — no registry row, no cap_<id> table, no artifacts on disk —
@@ -267,7 +284,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — commi
     // failure path directly.)
     insertCapability(notesCapabilityRow(), conns.readwrite);
     const { provider } = makeSpecProvider(NOTES_SPEC);
-    const { rows, recordMetrics } = makeMetricsRecorder();
+    const recordMetrics = createMetricsRecorder(conns.readwrite);
     const app = committingApp(provider, recordMetrics);
 
     const events = collectSseEvents(
@@ -287,15 +304,24 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — commi
 
     // Failure is data: recorded as a commit-stage failure, carrying the full
     // pre-commit measurements (every gate rung passed).
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.outcome).toBe("failure");
-    expect(rows[0]?.failure).toMatchObject({ stage: "commit" });
-    expect(rows[0]?.gateRungs?.map((rung) => rung.rung)).toEqual([
+    const lifecycle = listGenerationLifecycles(conns.readonly)[0];
+    expect(lifecycle).toMatchObject({
+      lifecycleStatus: "failed",
+      outcome: "activation_failed",
+      measurement: { failure: { stage: "commit" } },
+    });
+    expect(lifecycle?.measurement?.gateRungs?.map((rung) => rung.rung)).toEqual([
       "structural",
       "smoke",
       "behavioral",
       "design-lint",
     ]);
+    expect(lifecycle?.stages.find((stage) => stage.stage === "publication")).toMatchObject({
+      state: "executed",
+    });
+    expect(lifecycle?.stages.find((stage) => stage.stage === "activation")).toMatchObject({
+      state: "executed",
+    });
 
     // The transaction rolled back: the prior capability is untouched (still its
     // original pointer), and the build committed nothing new.

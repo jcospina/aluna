@@ -6,7 +6,7 @@
 // `/build/:id/stream` route drives this; the POST `/prompt` path only admits the job.
 
 import type { BuildPipeline, BuildPipelineCompletion } from "../build-jobs.ts";
-import type { CommitCapabilityResult } from "../builder/index.ts";
+import { type CommitCapabilityResult, createCapabilityIncarnationId } from "../builder/index.ts";
 import type { PlatformDatabase } from "../db.ts";
 import { classifyIntentWithUsage, type IntentClassification } from "../intent-resolver/index.ts";
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
@@ -14,7 +14,7 @@ import { abortableProvider, type Provider, type TokenUsage } from "../provider/i
 import { listCapabilities } from "../registry/index.ts";
 import type { Send } from "../sse/index.ts";
 import { renderCachedCapabilityCommitSwap } from "../web/index.ts";
-import { runSpecBuildStages } from "./build-run.ts";
+import { AbortedBuildError, runSpecBuildStages } from "./build-run.ts";
 import {
   deflectDuplicateNewCapability,
   deflectionNarration,
@@ -22,10 +22,13 @@ import {
   NO_TOKEN_USAGE,
 } from "./deflection.ts";
 import {
+  carriedResolverMeasurement,
   classifyBuildFailure,
   type DemoBuildAccumulator,
+  lifecycleFailureOutcome,
+  lifecycleMeasurement,
+  lifecycleStages,
   type RecordMetrics,
-  writeBuildMetrics,
   writeDeflectionMetrics,
 } from "./metrics-recorder.ts";
 import { buildCommitPreview } from "./previews.ts";
@@ -92,6 +95,7 @@ interface NewCapabilityPipelineInput {
   readonly provider: Provider;
   readonly intent: IntentClassification;
   readonly usage: TokenUsage;
+  readonly resolverDurationMs: number;
   readonly builtAt: number;
   readonly recordMetrics: RecordMetrics;
   readonly buildDatabases: PlatformDatabase;
@@ -126,7 +130,7 @@ async function deliverActivatedBuild(
  * Run the full build for a `new_capability` intent, then announce the committed
  * capability (developer commit preview + product commit swap). On failure it records
  * the failure metrics row and rethrows for the queue's apology; an abort mid-build
- * (commit `undefined`) records nothing — the transaction rolled back.
+ * rolls product work back and durably finalizes the admitted row as cancelled.
  */
 async function streamNewCapabilityBuild({
   generationId,
@@ -134,6 +138,7 @@ async function streamNewCapabilityBuild({
   provider,
   intent,
   usage,
+  resolverDurationMs,
   builtAt,
   recordMetrics,
   buildDatabases,
@@ -142,7 +147,26 @@ async function streamNewCapabilityBuild({
   isAborted,
   terminalPresenterTimeoutMs,
 }: NewCapabilityPipelineInput): Promise<BuildPipelineCompletion> {
+  const incarnationId = createCapabilityIncarnationId();
   const acc: DemoBuildAccumulator = { usages: [usage], timings: {} };
+  recordMetrics.start({
+    buildId: generationId,
+    incarnationId,
+    resolver: carriedResolverMeasurement(intent, usage, resolverDurationMs),
+    stages: [],
+  });
+  try {
+    await send("metrics-preview", JSON.stringify(recordMetrics.get(generationId, incarnationId)));
+  } catch {
+    recordMetrics.fail({
+      buildId: generationId,
+      incarnationId,
+      outcome: "cancelled",
+      stages: lifecycleStages(acc, "cancelled"),
+      measurement: lifecycleMeasurement(acc, builtAt),
+    });
+    return;
+  }
   let commit: CommitCapabilityResult | undefined;
   try {
     commit = await runSpecBuildStages(
@@ -152,30 +176,56 @@ async function streamNewCapabilityBuild({
       prompt,
       intent,
       generationId,
+      incarnationId,
       acc,
       buildDatabases,
       artifactsRoot,
+      (capabilityId) => recordMetrics.identify(generationId, incarnationId, capabilityId),
+      () =>
+        recordMetrics.succeed({
+          buildId: generationId,
+          incarnationId,
+          outcome: "activated",
+          stages: lifecycleStages(acc, "activated"),
+          measurement: lifecycleMeasurement(acc, builtAt),
+        }),
     );
   } catch (error) {
-    if (!isAborted()) {
-      writeBuildMetrics(
-        recordMetrics,
-        generationId,
-        intent,
-        acc,
-        builtAt,
-        "failure",
-        classifyBuildFailure(error, acc),
-      );
-      await deliverFailedPresentation(send, error, terminalPresenterTimeoutMs);
-      return "terminal-sent";
+    if (error instanceof AbortedBuildError || isAborted()) {
+      recordMetrics.fail({
+        buildId: generationId,
+        incarnationId,
+        outcome: "cancelled",
+        stages: lifecycleStages(acc, "cancelled"),
+        measurement: lifecycleMeasurement(acc, builtAt),
+      });
+      return;
     }
+    const failure = classifyBuildFailure(error, acc);
+    recordMetrics.fail({
+      buildId: generationId,
+      incarnationId,
+      outcome: lifecycleFailureOutcome(failure),
+      stages: lifecycleStages(acc, "failed"),
+      measurement: lifecycleMeasurement(acc, builtAt, failure),
+    });
+    await send("metrics-preview", JSON.stringify(recordMetrics.get(generationId, incarnationId)));
+    await deliverFailedPresentation(send, error, terminalPresenterTimeoutMs);
+    return "terminal-sent";
+  }
+
+  if (commit === undefined) {
+    recordMetrics.fail({
+      buildId: generationId,
+      incarnationId,
+      outcome: "cancelled",
+      stages: lifecycleStages(acc, "cancelled"),
+      measurement: lifecycleMeasurement(acc, builtAt),
+    });
     return;
   }
 
-  if (commit === undefined) return;
-
-  writeBuildMetrics(recordMetrics, generationId, intent, acc, builtAt, "success");
+  await send("metrics-preview", JSON.stringify(recordMetrics.get(generationId, incarnationId)));
   await deliverActivatedBuild(commit, send, terminalPresenterTimeoutMs);
   return "terminal-sent";
 }
@@ -219,7 +269,7 @@ export function createPromptBuildPipeline({
       send,
     });
     const intent = deflectDuplicateNewCapability(classification.intent, job.prompt, capabilities);
-    const { usage } = classification;
+    const { usage, durationMs: resolverDurationMs } = classification;
 
     if (intent.type !== "new_capability") {
       await streamDeflection({
@@ -245,6 +295,7 @@ export function createPromptBuildPipeline({
           provider,
           intent,
           usage,
+          resolverDurationMs,
           builtAt,
           recordMetrics,
           buildDatabases,

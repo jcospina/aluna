@@ -10,10 +10,10 @@
 import type { ZodType } from "zod";
 
 import {
+  CapabilityGateError,
   type CapabilityGateResult,
   type CommitCapabilityResult,
   commitCapability,
-  createCapabilityIncarnationId,
   FIRST_CAPABILITY_VERSION,
   type GeneratedUnit,
   generateCapabilityUnits,
@@ -50,8 +50,8 @@ import {
 /**
  * An aborted stream mid-build, thrown from inside the build's open transaction so it
  * rolls back (a half-built capability must never commit). Distinct from a build
- * failure: the caller suppresses it — no failure metrics, no apology — because the
- * client is already gone (the abort guards key off `isAborted()`, not this type).
+ * failure: the caller rolls product work back and finalizes the admitted lifecycle as
+ * cancelled, without attempting an apology because the client is already gone.
  */
 export class AbortedBuildError extends Error {
   override readonly name = "AbortedBuildError";
@@ -125,9 +125,12 @@ export async function runSpecBuildStages(
   prompt: string,
   intent: IntentClassification,
   buildId: string,
+  incarnationId: string,
   acc: DemoBuildAccumulator,
   buildDatabases: PlatformDatabase,
   artifactsRoot: string,
+  onCapabilityIdentified: (capabilityId: string) => void,
+  onActivated: () => void,
 ): Promise<CommitCapabilityResult | undefined> {
   // Wrap the provider so the spec streams to the shell as it builds (demo preview),
   // while the stage itself runs unchanged.
@@ -142,10 +145,10 @@ export async function runSpecBuildStages(
     send,
   });
   acc.capabilityId = spec.id;
-  // Incarnation is assigned by platform code only after the model-authored spec
-  // validates. It then stays stable across migration, Gate, commit, and metrics.
-  const incarnationId = createCapabilityIncarnationId();
   acc.incarnationId = incarnationId;
+  // Admission assigns the incarnation before Builder provider work. Once the
+  // validated authored spec supplies the semantic id, enrich the same durable row.
+  onCapabilityIdentified(spec.id);
   acc.timings.specGenMs = durationMs;
   acc.usages.push(usage);
   await settled; // every spec-preview is on the wire before the confirmation
@@ -171,14 +174,20 @@ export async function runSpecBuildStages(
       await send("units-preview", JSON.stringify(buildUnitsPreview(finalUnits, "complete")));
 
       await send("narration", " I'm checking the first version now.");
-      const gateResult = await runCapabilityGate({
-        spec,
-        ddl: migration.ddl,
-        handlers: unitResult.handlers,
-        itemRenderer: unitResult.itemRenderer,
-        provider,
-        realDatabase: database,
-      });
+      let gateResult: CapabilityGateResult;
+      try {
+        gateResult = await runCapabilityGate({
+          spec,
+          ddl: migration.ddl,
+          handlers: unitResult.handlers,
+          itemRenderer: unitResult.itemRenderer,
+          provider,
+          realDatabase: database,
+        });
+      } catch (error) {
+        if (error instanceof CapabilityGateError) acc.gateRungs = error.outcomes;
+        throw error;
+      }
       throwIfAborted(isAborted);
       const commitUnits = applyGateFixes(unitResult.units, gateResult);
       refreshUnitMetrics(acc, commitUnits);
@@ -226,6 +235,7 @@ export async function runSpecBuildStages(
       // them, inside this transaction (the pointer flip). Unreachable unless the gate
       // above passed every active rung. When the design-lint rung regenerated the item
       // renderer to clear a violation, `item.ts` must carry that fixed content.
+      acc.publicationAttempted = true;
       const publication = publishCapabilitySnapshot({
         buildId,
         spec,
@@ -235,7 +245,12 @@ export async function runSpecBuildStages(
         gate: gateResult,
         artifactsRoot,
       });
-      return commitCapability({ spec, publication, database });
+      acc.activationAttempted = true;
+      const committed = commitCapability({ spec, publication, database });
+      // This update uses the already-open transaction: pointer activation and
+      // success/activated metrics are one SQLite commit point.
+      onActivated();
+      return committed;
     },
   );
 

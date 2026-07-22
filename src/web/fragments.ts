@@ -20,6 +20,7 @@ const SHELL_TOOLBAR_PLACEHOLDER = "        <!-- Capability entries render here l
 const SHELL_DETAIL_MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here. -->";
 
 const PREVIEW_TARGETS = [
+  ["metrics-preview", "spec-metrics-preview"],
   ["spec-preview", "spec-build-preview"],
   ["migration-preview", "spec-migration-preview"],
   ["units-preview", "spec-units-preview"],
@@ -30,6 +31,7 @@ const PREVIEW_TARGETS = [
 
 const CLEAR_ON_ACCEPT_TARGETS = [
   ["div", "prompt-notice"],
+  ["pre", "spec-metrics-preview"],
   ["pre", "spec-build-preview"],
   ["pre", "spec-migration-preview"],
   ["pre", "spec-units-preview"],
