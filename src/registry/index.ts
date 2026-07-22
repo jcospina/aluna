@@ -56,6 +56,8 @@ export {
   uiIntentSchema,
 } from "./spec.ts";
 export {
+  type CapabilityRegistryExpectation,
+  compareAndSwapCapability,
   getCapability,
   insertCapability,
   isRegistryInitialized,
@@ -63,4 +65,5 @@ export {
   listCapabilityDependents,
   REGISTRY_TABLE,
   resolveActionReadDependencies,
+  StaleCapabilityRegistryError,
 } from "./store.ts";

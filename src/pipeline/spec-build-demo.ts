@@ -17,6 +17,7 @@ import {
   type CommitCapabilityResult,
   createCapabilityIncarnationId,
   hardcodedNewCapabilityIntent,
+  reconcileCapabilityArtifacts,
 } from "../builder/index.ts";
 import type { PlatformDatabase } from "../db.ts";
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
@@ -68,6 +69,7 @@ export async function streamSpecBuildDemo(
     await mutationCoordinator.withBuildLease(
       reservation,
       async () => {
+        reconcileCapabilityArtifacts({ database: buildDatabases.readwrite, artifactsRoot });
         const buildId = `demo-${crypto.randomUUID()}`;
         const incarnationId = createCapabilityIncarnationId();
         const builtAt = performance.now();

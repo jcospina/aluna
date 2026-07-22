@@ -6,7 +6,11 @@
 // `/build/:id/stream` route drives this; the POST `/prompt` path only admits the job.
 
 import type { BuildPipeline, BuildPipelineCompletion } from "../build-jobs.ts";
-import { type CommitCapabilityResult, createCapabilityIncarnationId } from "../builder/index.ts";
+import {
+  type CommitCapabilityResult,
+  createCapabilityIncarnationId,
+  reconcileCapabilityArtifacts,
+} from "../builder/index.ts";
 import type { PlatformDatabase } from "../db.ts";
 import { classifyIntentWithUsage, type IntentClassification } from "../intent-resolver/index.ts";
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
@@ -147,6 +151,9 @@ async function streamNewCapabilityBuild({
   isAborted,
   terminalPresenterTimeoutMs,
 }: NewCapabilityPipelineInput): Promise<BuildPipelineCompletion> {
+  // Lease-head recovery cannot race this process's next publication. It validates
+  // every committed version before removing any proven never-activated candidate.
+  reconcileCapabilityArtifacts({ database: buildDatabases.readwrite, artifactsRoot });
   const incarnationId = createCapabilityIncarnationId();
   const acc: DemoBuildAccumulator = { usages: [usage], timings: {} };
   recordMetrics.start({

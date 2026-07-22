@@ -26,6 +26,19 @@ import {
 // SQL below is safe — same convention as the migrations ledger.
 export const REGISTRY_TABLE = "capability_registry";
 
+export type CapabilityRegistryExpectation =
+  | { readonly state: "absent" }
+  | {
+      readonly state: "active";
+      readonly capabilityId: string;
+      readonly incarnationId: string;
+      readonly version: number;
+    };
+
+export class StaleCapabilityRegistryError extends Error {
+  override readonly name = "StaleCapabilityRegistryError";
+}
+
 // The row as SQLite stores it: the structured parts (`schema`, `ui_intent`,
 // `tools`, `read_dependencies`) serialized as JSON text, everything else a scalar column.
 interface StoredRow {
@@ -96,6 +109,77 @@ export function insertCapability(row: CapabilityRow, database: Database = db): C
   );
 
   return valid;
+}
+
+/**
+ * Atomically install a new v1 row or replace one exact active incarnation/version.
+ * A caller that classified against stale registry state changes nothing.
+ */
+export function compareAndSwapCapability(
+  row: CapabilityRow,
+  expected: CapabilityRegistryExpectation,
+  database: Database = db,
+): CapabilityRow {
+  const valid = capabilityRowSchema.parse(row);
+  assertActiveReadDependencies(valid, database);
+
+  const result =
+    expected.state === "absent"
+      ? database.run(
+          `INSERT INTO ${REGISTRY_TABLE} (${ROW_COLUMNS})
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO NOTHING`,
+          storedValues(valid),
+        )
+      : database.run(
+          `UPDATE ${REGISTRY_TABLE}
+           SET label = ?, incarnation_id = ?, version = ?, schema = ?, ui_intent = ?,
+               behavior = ?, behavioral_errors = ?, tools = ?, read_dependencies = ?,
+               artifacts_path = ?, prompt_context = ?
+           WHERE id = ? AND incarnation_id = ? AND version = ?`,
+          [
+            valid.label,
+            valid.incarnation_id,
+            valid.version,
+            JSON.stringify(valid.schema),
+            JSON.stringify(valid.ui_intent),
+            valid.behavior,
+            JSON.stringify(valid.behavioral_errors),
+            JSON.stringify(valid.tools),
+            JSON.stringify(valid.read_dependencies),
+            valid.artifacts_path,
+            valid.prompt_context,
+            expected.capabilityId,
+            expected.incarnationId,
+            expected.version,
+          ],
+        );
+
+  if (result.changes !== 1) {
+    const target =
+      expected.state === "absent"
+        ? `${valid.id} expected absent`
+        : `${expected.capabilityId}/${expected.incarnationId}@v${expected.version}`;
+    throw new StaleCapabilityRegistryError(`Capability registry CAS failed: ${target}.`);
+  }
+  return valid;
+}
+
+function storedValues(row: CapabilityRow): (string | number)[] {
+  return [
+    row.id,
+    row.label,
+    row.incarnation_id,
+    row.version,
+    JSON.stringify(row.schema),
+    JSON.stringify(row.ui_intent),
+    row.behavior,
+    JSON.stringify(row.behavioral_errors),
+    JSON.stringify(row.tools),
+    JSON.stringify(row.read_dependencies),
+    row.artifacts_path,
+    row.prompt_context,
+  ];
 }
 
 /** Resolve one Action's exact committed dependency catalog or fail closed. */

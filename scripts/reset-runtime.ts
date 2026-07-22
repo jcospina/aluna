@@ -6,7 +6,12 @@ const GENERATED_DIRS = ["capabilities", "storage"] as const;
 const TRACKED_PLACEHOLDER = "README.md";
 const DATABASE_PATH = join("data", "omni-crud.db");
 const CAPABILITY_TABLE_PREFIX = "cap_";
-const PLATFORM_DATA_TABLES = ["capability_registry", "generation_metrics", "event_log"] as const;
+const PLATFORM_DATA_TABLES = [
+  "capability_registry",
+  "generation_metrics",
+  "generation_lifecycle_metrics",
+  "event_log",
+] as const;
 
 export interface ResetRuntimeOptions {
   readonly root?: string;

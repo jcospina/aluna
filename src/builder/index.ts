@@ -7,6 +7,14 @@
 // entry point.
 
 export {
+  type ActivatePublishedSnapshotInput,
+  type ActivationFaultHooks,
+  activatePublishedSnapshot,
+  expectedAbsentCapability,
+  expectedActiveCapability,
+  nextCapabilityVersion,
+} from "./activation.ts";
+export {
   assertVerifiedPublishedSnapshot,
   type PublishCapabilitySnapshotInput,
   publishCapabilitySnapshot,
@@ -19,6 +27,14 @@ export {
   type VerifiedPublishedSnapshot,
   verifyCapabilitySnapshot,
 } from "./artifact-lifecycle.ts";
+export {
+  ArtifactReconciliationError,
+  type ArtifactReconciliationResult,
+  type CommittedCapabilityVersions,
+  type ReconcileCapabilityArtifactsInput,
+  reconcileCapabilityArtifacts,
+  type TombstonedCapabilityIncarnation,
+} from "./artifact-reconciliation.ts";
 export {
   type CommitCapabilityInput,
   type CommitCapabilityResult,
