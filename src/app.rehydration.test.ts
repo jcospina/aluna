@@ -19,6 +19,7 @@ import {
 } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
 import type { PlatformDatabase } from "./db.ts";
+import { reconcileRunningGenerationLifecycles, startGenerationLifecycle } from "./metrics/index.ts";
 import { insertCapability } from "./registry/index.ts";
 
 // Reassemble the text of every `narration` event, in order — the greeting as the
@@ -110,6 +111,25 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     // The load path restores chrome only — no capability view is pre-served into the
     // content area (a toolbar click serves it).
     expect(html).not.toContain("capability-surface");
+  });
+
+  test("an interrupted build is visible in the developer metrics preview after restart", async () => {
+    startGenerationLifecycle(
+      {
+        buildId: "build-interrupted-preview",
+        incarnationId: "33333333-3333-4333-8333-333333333333",
+      },
+      conns.readwrite,
+    );
+    reconcileRunningGenerationLifecycles(conns.readwrite);
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const html = await responseText(await app.request("/"));
+
+    expect(html).toContain('id="spec-metrics-preview"');
+    expect(html).toContain("build-interrupted-preview");
+    expect(html).toContain("&quot;lifecycleStatus&quot;: &quot;interrupted&quot;");
+    expect(html).toContain("&quot;outcome&quot;: &quot;interrupted&quot;");
   });
 
   test("serving a committed capability reads the collection layout from ui_intent", async () => {

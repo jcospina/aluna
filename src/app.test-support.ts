@@ -14,8 +14,8 @@ import type { ZodType } from "zod";
 
 import { createApp } from "./app.ts";
 import { openDatabase, type PlatformDatabase } from "./db.ts";
-import type { GenerationMetrics } from "./metrics/index.ts";
 import { runMigrations } from "./migrations.ts";
+import type { RecordMetrics } from "./pipeline/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "./provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -35,16 +35,7 @@ export interface ScratchDbEnv {
   artifactsRoot: string;
 }
 
-// A capturing metrics recorder: the demo path writes its generation-metrics row
-// (Epic 2.7) through AppDeps.recordMetrics, so the demo tests inject this to assert
-// the wiring without touching the real data file. Always injected on the demo path.
-export function makeMetricsRecorder(): {
-  rows: GenerationMetrics[];
-  recordMetrics: (m: GenerationMetrics) => void;
-} {
-  const rows: GenerationMetrics[] = [];
-  return { rows, recordMetrics: (m) => void rows.push(m) };
-}
+export { makeMetricsRecorder } from "./metrics-test-recorder.ts";
 
 // A fake provider: streams `greeting` one character at a time (like the real
 // partialStream building up), then resolves the validated object carrying both
@@ -167,7 +158,7 @@ export function teardownScratchDbEnv(env: ScratchDbEnv): void {
 export function makeScratchApp(
   env: ScratchDbEnv,
   provider: Provider,
-  recordMetrics: (m: GenerationMetrics) => void,
+  recordMetrics: RecordMetrics,
 ) {
   return createApp({
     getProvider: () => provider,

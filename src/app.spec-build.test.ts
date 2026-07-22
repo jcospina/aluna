@@ -32,6 +32,7 @@ import {
 } from "./app.test-support.ts";
 import type { PlatformDatabase } from "./db.ts";
 import type { GenerationMetrics } from "./metrics/index.ts";
+import type { RecordMetrics } from "./pipeline/index.ts";
 import type { Provider } from "./provider/index.ts";
 import { getCapability, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "./registry/index.ts";
 
@@ -43,13 +44,22 @@ let artifactsRoot: string;
 
 // Build the demo app wired to commit against the scratch db + temp artifacts root,
 // sharing the scratch pair with the router so a committed capability is routable.
-function committingApp(provider: Provider, recordMetrics: (m: GenerationMetrics) => void) {
+function committingApp(provider: Provider, recordMetrics: RecordMetrics) {
   return makeScratchApp({ dir, conns, artifactsRoot }, provider, recordMetrics);
 }
 
 function assertBuildEventOrder(events: SseEvent[]): void {
   const eventNames = events.map((event) => event.event);
-  expect(eventNames[0]).toBe("narration");
+  expect(eventNames[0]).toBe("metrics-preview");
+  const metricEvents = events.filter((event) => event.event === "metrics-preview");
+  expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
+    lifecycleStatus: "running",
+    outcome: null,
+  });
+  expect(JSON.parse(metricEvents.at(-1)?.data ?? "null")).toMatchObject({
+    lifecycleStatus: "success",
+    outcome: "activated",
+  });
   expect(eventNames).toContain("spec-preview");
   expect(eventNames).toContain("migration-preview");
   expect(eventNames).toContain("units-preview");

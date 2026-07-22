@@ -20,6 +20,10 @@
 
 import type { Database } from "bun:sqlite";
 import { db } from "./db.ts";
+import {
+  GENERATION_LIFECYCLE_TABLE,
+  reconcileRunningGenerationLifecycles,
+} from "./metrics/lifecycle-store.ts";
 import { GENERATION_METRICS_TABLE } from "./metrics/store.ts";
 import { REGISTRY_TABLE } from "./registry/store.ts";
 
@@ -182,6 +186,49 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
+  // 0008 adds the durable admitted-build lifecycle without rewriting the M2
+  // terminal metrics table. The terminal outcome is honestly nullable while a
+  // build runs, and the JSON measurement groups remain additive as M4 evolves.
+  {
+    id: "0008_generation_metrics_lifecycle",
+    up: (database) => {
+      database.exec(
+        `CREATE TABLE IF NOT EXISTS ${GENERATION_LIFECYCLE_TABLE} (
+           build_id             TEXT NOT NULL,
+           incarnation_id       TEXT NOT NULL,
+           capability_id        TEXT,
+           lifecycle_status     TEXT NOT NULL
+             CHECK (lifecycle_status IN ('running', 'success', 'failed', 'interrupted')),
+           outcome              TEXT
+             CHECK (outcome IS NULL OR outcome IN (
+               'activated', 'no_change', 'stale', 'spec_generation_failed',
+               'migration_failed', 'unit_generation_failed', 'gate_failed',
+               'publication_failed', 'activation_failed', 'cancelled', 'interrupted'
+             )),
+           resolver_measurement TEXT CHECK (
+             resolver_measurement IS NULL OR json_valid(resolver_measurement)
+           ),
+           build_measurement    TEXT CHECK (
+             build_measurement IS NULL OR json_valid(build_measurement)
+           ),
+           stage_measurements   TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(stage_measurements)),
+           created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+           updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
+           PRIMARY KEY (build_id, incarnation_id),
+           CHECK (
+             (lifecycle_status = 'running' AND outcome IS NULL) OR
+             (lifecycle_status = 'success' AND outcome IN ('activated', 'no_change')) OR
+             (lifecycle_status = 'failed' AND outcome IN (
+               'stale', 'spec_generation_failed', 'migration_failed',
+               'unit_generation_failed', 'gate_failed', 'publication_failed',
+               'activation_failed', 'cancelled'
+             )) OR
+             (lifecycle_status = 'interrupted' AND outcome = 'interrupted')
+           )
+         ) STRICT;`,
+      );
+    },
+  },
 ];
 
 // The set of migration ids already recorded in the ledger. Returns empty when the
@@ -219,6 +266,10 @@ export function runMigrations(database: Database = db): string[] {
 
     newlyApplied.push(migration.id);
   }
+
+  // Every boot closes admitted work abandoned by the previous process. This is
+  // idempotent and runs after schema setup on both fresh and existing databases.
+  reconcileRunningGenerationLifecycles(database);
 
   return newlyApplied;
 }

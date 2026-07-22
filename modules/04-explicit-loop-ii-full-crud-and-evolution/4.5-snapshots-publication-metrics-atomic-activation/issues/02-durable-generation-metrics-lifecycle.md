@@ -1,6 +1,6 @@
 # Durable generation-metrics lifecycle
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -37,16 +37,16 @@ issue builds the row lifecycle they finalize into.)
 
 ## Acceptance criteria
 
-- [ ] Ordering pinned by test: no provider call before the durable `running`
+- [x] Ordering pinned by test: no provider call before the durable `running`
       row exists; a failed row write aborts the build before provider work
-- [ ] Failure path: product changes roll back, row finalizes
+- [x] Failure path: product changes roll back, row finalizes
       `failed` + typed outcome in its own short transaction
-- [ ] Kill the process mid-build; boot reconciliation marks the row
+- [x] Kill the process mid-build; boot reconciliation marks the row
       `interrupted` (plan acceptance: recovery of interrupted `running`
       metrics)
-- [ ] Row keyed by build id + incarnation with stage states
+- [x] Row keyed by build id + incarnation with stage states
       generated/copied/executed/skipped/absent
-- [ ] `bun test`, `bun run typecheck`, `bun run lint` clean
+- [x] `bun test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -57,3 +57,47 @@ after a forced restart.
 ## Blocked by
 
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.5-snapshots-publication-metrics-atomic-activation/issues/01-staging-manifest-and-atomic-publication.md
+
+## Implementation notes
+
+- Added the compound `(build_id, incarnation_id)` lifecycle store with content-free
+  resolver measurements, typed transport/outcome states, semantic per-stage states,
+  loud writes, and an additive platform migration.
+- Both the queued prompt pipeline and the direct spec-build demo durably admit the
+  row before Builder provider construction/calls. Activation and `success/activated`
+  share the capability transaction; failures finalize only after rollback in an
+  independent short transaction.
+- Cancellation, stream disconnect, Gate failure, publication attempt, and activation
+  attempt paths retain truthful terminal and stage evidence. Startup migration
+  reconciliation changes abandoned `running` rows to `interrupted` idempotently.
+- The homepage developer panel now streams the lifecycle row and preloads recent
+  rows after boot, so interrupted and terminal evidence survives the connection and
+  process that produced it.
+- Follow-up quality repair removed the improper file-length suppression: historical
+  metrics, lifecycle persistence, and shared schemas now have separate modules, all
+  below 500 physical lines. Codex post-edit hooks now resolve and check every file in
+  direct and nested multi-file `apply_patch` payloads, backed by a hook regression suite.
+
+## Verification record
+
+- `bun test`: 614 pass, 0 fail, 2 snapshots, 2827 expectations across 60 files.
+- `bun run typecheck`: clean.
+- `bun run lint`: clean across 213 files.
+- `bun run build`: successful production bundle.
+- `git diff --check`: clean.
+- Existing user-owned `localhost:3030` returned HTTP 200, rendered the Metrics
+  lifecycle developer preview, and the live database reported the required compound
+  primary key plus durable typed failure rows.
+
+## HITL test
+
+1. Run `bun run dev` if the existing user-owned server is not already running.
+2. Open `http://localhost:3030`, expand the developer panel, and submit a unique
+   build prompt such as `I want to keep track of garden harvests`.
+3. Confirm Metrics lifecycle first shows `lifecycleStatus: running`, then either
+   `success` + `activated` or `failed` + a typed outcome, with the reached stages
+   marked generated/executed and unreached stages skipped/absent.
+4. To exercise recovery, start another unique build, wait until the panel shows
+   `running`, stop that server with Ctrl-C, restart `bun run dev`, and reload `/`.
+   Confirm the preloaded row now shows `interrupted` + `interrupted`; no capability
+   from that interrupted build should be live.

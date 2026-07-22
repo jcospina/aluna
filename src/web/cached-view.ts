@@ -12,7 +12,7 @@
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-
+import { GENERATION_LIFECYCLE_TABLE, listGenerationLifecycles } from "../metrics/index.ts";
 import type { RenderableCapability } from "../presentation/field-renderer.ts";
 import { type CollectionLayout, renderCollection } from "../presentation/list-container.ts";
 import {
@@ -27,6 +27,10 @@ import {
   renderCapabilitySurface,
   renderRehydratedShell,
 } from "./fragments.ts";
+import { escapeHtml } from "./html.ts";
+
+const METRICS_PREVIEW_TARGET =
+  '<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true"></pre>';
 
 /**
  * The collection layout the container arranges a capability's records in. The
@@ -91,7 +95,18 @@ export function renderCachedCapabilityShell(row: CapabilityRow, database: Databa
 export function renderRehydratedShellPage(database: Database): string {
   const rows = isRegistryInitialized(database) ? listCapabilities(database) : [];
   const shellHtml = readFileSync(resolve(process.cwd(), "public/index.html"), "utf8");
-  return renderRehydratedShell(rows, shellHtml);
+  const lifecycleReady = database
+    .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(GENERATION_LIFECYCLE_TABLE);
+  const latest = lifecycleReady ? listGenerationLifecycles(database).slice(0, 5) : [];
+  const withMetrics =
+    latest.length === 0
+      ? shellHtml
+      : shellHtml.replace(
+          METRICS_PREVIEW_TARGET,
+          `<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true">${escapeHtml(JSON.stringify(latest, null, 2))}</pre>`,
+        );
+  return renderRehydratedShell(rows, withMetrics);
 }
 
 /**

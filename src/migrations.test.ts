@@ -12,6 +12,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { openDatabase, type PlatformDatabase } from "./db.ts";
+import {
+  GENERATION_LIFECYCLE_TABLE,
+  getGenerationLifecycle,
+  startGenerationLifecycle,
+} from "./metrics/lifecycle-store.ts";
 import { GENERATION_METRICS_TABLE } from "./metrics/store.ts";
 import { MIGRATIONS, MIGRATIONS_TABLE, runMigrations } from "./migrations.ts";
 import { REGISTRY_TABLE } from "./registry/store.ts";
@@ -57,6 +62,16 @@ describe("platform migrations runner", () => {
     for (const row of rows) {
       expect(row.applied_at).toBeTruthy();
     }
+
+    const lifecyclePrimaryKey = conns.readwrite
+      .query("PRAGMA table_info(generation_lifecycle_metrics)")
+      .all()
+      .filter((column) => Number((column as { pk: number }).pk) > 0)
+      .sort(
+        (left, right) => Number((left as { pk: number }).pk) - Number((right as { pk: number }).pk),
+      )
+      .map((column) => (column as { name: string }).name);
+    expect(lifecyclePrimaryKey).toEqual(["build_id", "incarnation_id"]);
   });
 
   test("re-running is a no-op (idempotent)", () => {
@@ -76,6 +91,18 @@ describe("platform migrations runner", () => {
     expect(after).toEqual(before);
   });
 
+  test("a later boot reconciles an abandoned running generation", () => {
+    runMigrations(conns.readwrite);
+    const incarnationId = "11111111-1111-4111-8111-111111111111";
+    startGenerationLifecycle({ buildId: "abandoned", incarnationId }, conns.readwrite);
+
+    expect(runMigrations(conns.readwrite)).toEqual([]);
+    expect(getGenerationLifecycle("abandoned", incarnationId, conns.readonly)).toMatchObject({
+      lifecycleStatus: "interrupted",
+      outcome: "interrupted",
+    });
+  });
+
   test("creates platform schema only — no capability data tables", () => {
     runMigrations(conns.readwrite);
 
@@ -84,7 +111,12 @@ describe("platform migrations runner", () => {
     // data tables (`cap_<id>`) are never migrated here — the builder derives them from
     // specs at runtime.
     expect(userTables(conns.readwrite)).toEqual(
-      [REGISTRY_TABLE, MIGRATIONS_TABLE, GENERATION_METRICS_TABLE].sort(),
+      [
+        REGISTRY_TABLE,
+        MIGRATIONS_TABLE,
+        GENERATION_METRICS_TABLE,
+        GENERATION_LIFECYCLE_TABLE,
+      ].sort(),
     );
   });
 

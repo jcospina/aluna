@@ -13,18 +13,24 @@
 // GET EventSource directly. The terminal commit event is shared with the production
 // prompt flow so the homepage demo exercises the real content/toolbar swap.
 
-import { type CommitCapabilityResult, hardcodedNewCapabilityIntent } from "../builder/index.ts";
+import {
+  type CommitCapabilityResult,
+  createCapabilityIncarnationId,
+  hardcodedNewCapabilityIntent,
+} from "../builder/index.ts";
 import type { PlatformDatabase } from "../db.ts";
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import { abortableProvider, type Provider } from "../provider/index.ts";
 import type { Send } from "../sse/index.ts";
 import { renderCachedCapabilityCommitSwap } from "../web/index.ts";
-import { runSpecBuildStages } from "./build-run.ts";
+import { AbortedBuildError, runSpecBuildStages } from "./build-run.ts";
 import {
   classifyBuildFailure,
   type DemoBuildAccumulator,
+  lifecycleFailureOutcome,
+  lifecycleMeasurement,
+  lifecycleStages,
   type RecordMetrics,
-  writeBuildMetrics,
 } from "./metrics-recorder.ts";
 import { buildCommitPreview, buildDemoErrorPreview } from "./previews.ts";
 import {
@@ -37,11 +43,11 @@ export const DEMO_SPEC_PROMPT = "I want to keep track of my notes";
 
 /**
  * Run the full build demo for `prompt`: build the capability through commit, record
- * the one metrics row (success, failure, or — on abort — nothing), then announce the
+ * one admitted lifecycle row, then announce the
  * committed capability with a developer commit preview and the product commit swap.
  * The resolved demo intent reserves the shared coordinator before provider work. A
  * failure records its row and presents the bounded warm terminal branch while the
- * lease is still owned; an abort rolls the transaction back and records nothing.
+ * lease is still owned; an abort rolls product work back and finalizes as cancelled.
  */
 export async function streamSpecBuildDemo(
   send: Send,
@@ -62,21 +68,29 @@ export async function streamSpecBuildDemo(
     await mutationCoordinator.withBuildLease(
       reservation,
       async () => {
-        let provider: Provider;
-        try {
-          provider = abortableProvider(getProvider(), signal);
-        } catch (error) {
-          await runBoundedTerminalPresentation(
-            () => handleSpecBuildError(send, isAborted, error),
-            terminalPresenterTimeoutMs,
-          );
-          return;
-        }
         const buildId = `demo-${crypto.randomUUID()}`;
+        const incarnationId = createCapabilityIncarnationId();
         const builtAt = performance.now();
         const acc: DemoBuildAccumulator = { usages: [], timings: {} };
+        // Admission is durable before provider construction/calls. This call is
+        // intentionally not guarded: a failed insert aborts the build at the lease head.
+        recordMetrics.start({ buildId, incarnationId, resolver: null, stages: [] });
+        try {
+          await send("metrics-preview", JSON.stringify(recordMetrics.get(buildId, incarnationId)));
+        } catch {
+          recordMetrics.fail({
+            buildId,
+            incarnationId,
+            outcome: "cancelled",
+            stages: lifecycleStages(acc, "cancelled"),
+            measurement: lifecycleMeasurement(acc, builtAt),
+          });
+          return;
+        }
+
         let commit: CommitCapabilityResult | undefined;
         try {
+          const provider: Provider = abortableProvider(getProvider(), signal);
           commit = await runSpecBuildStages(
             send,
             isAborted,
@@ -84,38 +98,61 @@ export async function streamSpecBuildDemo(
             prompt,
             intent,
             buildId,
+            incarnationId,
             acc,
             buildDatabases,
             artifactsRoot,
+            (capabilityId) => recordMetrics.identify(buildId, incarnationId, capabilityId),
+            () =>
+              recordMetrics.succeed({
+                buildId,
+                incarnationId,
+                outcome: "activated",
+                stages: lifecycleStages(acc, "activated"),
+                measurement: lifecycleMeasurement(acc, builtAt),
+              }),
           );
         } catch (error) {
-          // An aborted stream is not a build failure — and the transaction already
-          // rolled back, so nothing committed. Don't record a failure row for it.
-          if (!isAborted()) {
-            writeBuildMetrics(
-              recordMetrics,
+          if (error instanceof AbortedBuildError || isAborted()) {
+            recordMetrics.fail({
               buildId,
-              intent,
-              acc,
-              builtAt,
-              "failure",
-              classifyBuildFailure(error, acc),
-            );
-            await runBoundedTerminalPresentation(
-              () => handleSpecBuildError(send, isAborted, error),
-              terminalPresenterTimeoutMs,
-            );
+              incarnationId,
+              outcome: "cancelled",
+              stages: lifecycleStages(acc, "cancelled"),
+              measurement: lifecycleMeasurement(acc, builtAt),
+            });
+            return;
           }
+          const failure = classifyBuildFailure(error, acc);
+          recordMetrics.fail({
+            buildId,
+            incarnationId,
+            outcome: lifecycleFailureOutcome(failure),
+            stages: lifecycleStages(acc, "failed"),
+            measurement: lifecycleMeasurement(acc, builtAt, failure),
+          });
+          await send("metrics-preview", JSON.stringify(recordMetrics.get(buildId, incarnationId)));
+          await runBoundedTerminalPresentation(
+            () => handleSpecBuildError(send, isAborted, error),
+            terminalPresenterTimeoutMs,
+          );
           return;
         }
 
-        // Aborted mid-build (commit undefined): the transaction rolled back, nothing
-        // committed, nothing recorded.
-        if (commit === undefined) return;
+        // A client abort is still an admitted measured build. Product work has
+        // rolled back; close it durably rather than leaving a false crash marker.
+        if (commit === undefined) {
+          recordMetrics.fail({
+            buildId,
+            incarnationId,
+            outcome: "cancelled",
+            stages: lifecycleStages(acc, "cancelled"),
+            measurement: lifecycleMeasurement(acc, builtAt),
+          });
+          return;
+        }
 
-        // The row lands before the build's `done` — PLAN flow step 8 ("written before
-        // the job ends"). The build genuinely committed, so this records a success.
-        writeBuildMetrics(recordMetrics, buildId, intent, acc, builtAt, "success");
+        await send("metrics-preview", JSON.stringify(recordMetrics.get(buildId, incarnationId)));
         await runBoundedTerminalPresentation(async () => {
           await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
           await send("commit", renderCachedCapabilityCommitSwap(commit.row));

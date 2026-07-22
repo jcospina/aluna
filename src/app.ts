@@ -17,7 +17,6 @@ import { renderFewShotGalleryPreviewPage } from "./builder/few-shot-gallery-prev
 import { DEFAULT_ARTIFACTS_ROOT } from "./builder/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "./db.ts";
 import { handleStreamError, streamGreeting } from "./greeting.ts";
-import { writeGenerationMetrics } from "./metrics/index.ts";
 import {
   createMutationCoordinator,
   type MutationCoordinator,
@@ -28,6 +27,7 @@ import {
   renderMutationCoordinatorPreviewPage,
 } from "./mutation-coordinator/preview.ts";
 import {
+  createMetricsRecorder,
   createPromptBuildPipeline,
   DEMO_SPEC_PROMPT,
   type RecordMetrics,
@@ -117,9 +117,9 @@ interface ResolvedAppDeps {
 function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
   const getProvider = deps.getProvider ?? (() => createProvider());
   const sseHeartbeatMs = deps.sseHeartbeatMs ?? DEFAULT_SSE_HEARTBEAT_MS;
-  const recordMetrics: RecordMetrics =
-    deps.recordMetrics ?? ((metrics) => void writeGenerationMetrics(metrics, db));
   const buildDatabases = deps.buildDatabases ?? { readwrite: db, readonly: dbReadonly };
+  const recordMetrics: RecordMetrics =
+    deps.recordMetrics ?? createMetricsRecorder(buildDatabases.readwrite);
   const artifactsRoot = deps.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
   const mutationPreviewHoldMs = deps.mutationPreviewHoldMs ?? DEFAULT_MUTATION_PREVIEW_HOLD_MS;

@@ -23,10 +23,18 @@
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
 
-import type { GateRungName, GateRungOutcome, GateRungStatus } from "../builder/index.ts";
+import type { GateRungName, GateRungOutcome } from "../builder/index.ts";
 import { db, dbReadonly } from "../db.ts";
 import { intentTypeSchema } from "../intent-resolver/index.ts";
 import type { TokenUsage } from "../provider/index.ts";
+import {
+  type FailureStage,
+  type GenerationFailure,
+  gateRungOutcomeSchema,
+  generationFailureSchema,
+  tokenUsageSchema,
+  unitAttemptSummarySchema,
+} from "./shared-schema.ts";
 
 // The metrics table, created by platform migration 0004 (src/migrations.ts). A
 // fixed platform constant (never user input), so interpolating it into the SQL
@@ -40,65 +48,6 @@ export const GENERATION_METRICS_TABLE = "generation_metrics";
 export const GENERATION_OUTCOMES = ["success", "failure", "deflected"] as const;
 export const generationOutcomeSchema = z.enum(GENERATION_OUTCOMES);
 export type GenerationOutcome = z.infer<typeof generationOutcomeSchema>;
-
-// The pipeline stage a failure stopped at. Gate failures additionally name the
-// rung (`failure.rung`); the non-gate stages fail before any rung runs.
-export const FAILURE_STAGES = [
-  "spec_gen",
-  "migration",
-  "unit_generation",
-  "gate",
-  "commit",
-] as const;
-export const failureStageSchema = z.enum(FAILURE_STAGES);
-export type FailureStage = z.infer<typeof failureStageSchema>;
-
-// Rung name/status enums kept faithful to the gate's own vocabulary. The
-// `satisfies` guards turn a future rename in the gate into a compile error here,
-// so the metrics schema can never silently drift from what it records. A new rung
-// (like M3's `design-lint`) must be added here too, or its outcome fails validation
-// on write; `assertAllRungNames` below makes that a compile error, not a runtime one.
-const GATE_RUNG_NAMES = [
-  "structural",
-  "smoke",
-  "behavioral",
-  "design-lint",
-] as const satisfies readonly GateRungName[];
-
-// Exhaustiveness guard: every GateRungName must appear in GATE_RUNG_NAMES above, so adding
-// a rung to the gate without recording it here is a compile error rather than a metrics
-// write that throws at runtime.
-type ListedRungName = (typeof GATE_RUNG_NAMES)[number];
-const assertAllRungNames: (name: GateRungName) => ListedRungName = (name) => name;
-void assertAllRungNames;
-const GATE_RUNG_STATUSES = [
-  "passed",
-  "failed",
-  "skipped",
-] as const satisfies readonly GateRungStatus[];
-const gateRungNameSchema = z.enum(GATE_RUNG_NAMES);
-const gateRungStatusSchema = z.enum(GATE_RUNG_STATUSES);
-
-// One rung's verdict, mirroring the gate's GateRungOutcome. Stored inside the
-// `gate_rungs` JSON column: the per-rung structural/smoke/behavioral durations and
-// any failure detail live here, while the headline test-gen/test-run timings get
-// their own columns (PLAN step 8) for M8 to query directly.
-const gateRungOutcomeSchema = z.strictObject({
-  rung: gateRungNameSchema,
-  status: gateRungStatusSchema,
-  durationMs: z.number().nonnegative(),
-  error: z.string().optional(),
-  reason: z.string().optional(),
-});
-
-// Token counts for the generation. Each is `number | undefined` at the contract
-// (TokenUsage): not every provider reports every figure, so the writer stores a
-// missing count as SQL NULL rather than fabricating a zero (provider/contract.ts).
-const tokenUsageSchema = z.strictObject({
-  inputTokens: z.number().int().nonnegative().optional(),
-  outputTokens: z.number().int().nonnegative().optional(),
-  totalTokens: z.number().int().nonnegative().optional(),
-});
 
 // The intent classification behind this generation (PLAN decision 6). Present on
 // every row — a deflection's whole point is to log its classification. Carries the
@@ -128,29 +77,6 @@ const generationTimingsSchema = z.strictObject({
   totalMs: z.number().nonnegative().optional(),
 });
 export type GenerationTimings = z.infer<typeof generationTimingsSchema>;
-
-// One unit's fix-loop summary (PLAN decision 5: "every attempt recorded in
-// metrics"). `attempts` is the total tries that unit took — anything above one
-// means the bounded type-check fix loop kicked in. Stored as the `unit_attempts`
-// JSON column.
-const unitAttemptSummarySchema = z.strictObject({
-  kind: z.enum(["handler", "item-renderer"]),
-  name: z.string().min(1),
-  attempts: z.number().int().positive(),
-  durationMs: z.number().nonnegative(),
-  usage: tokenUsageSchema,
-});
-export type UnitAttemptSummary = z.infer<typeof unitAttemptSummarySchema>;
-
-// Which stage (and, for the gate, which rung) a failed build stopped at — the
-// "failure is data" record (ARCH §6.2). `message` is the developer-facing reason;
-// it never reaches a user.
-const generationFailureSchema = z.strictObject({
-  stage: failureStageSchema,
-  rung: gateRungNameSchema.optional(),
-  message: z.string().optional(),
-});
-export type GenerationFailure = z.infer<typeof generationFailureSchema>;
 
 // The metrics row as a caller assembles it — the writer's input. Everything past
 // the always-known identity/intent/model block is optional so the writer is
