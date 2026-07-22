@@ -74,7 +74,12 @@ async function inspectToolbarOob(fragment: string): Promise<OobInspection> {
 describe("web fragments", () => {
   test("commit-time toolbar OOB wraps the canonical entry for htmx beforeend insertion", async () => {
     const fragment = renderCapabilityCommitSwap(
-      { id: "notes", label: "Notes" },
+      {
+        id: "notes",
+        label: "Notes",
+        incarnation_id: "11111111-1111-4111-8111-111111111111",
+        version: 1,
+      },
       '<section class="capability-collection"><div id="notes-records" hx-get="/capability/notes/read"></div></section>',
     );
 
@@ -88,6 +93,33 @@ describe("web fragments", () => {
     expect(fragment).toContain("data-capability-toolbar-oob");
     expect(fragment).toContain("data-capability-entry");
     expect(fragment).toContain('hx-push-url="/capability/notes"');
+    expect(fragment).toContain(
+      'data-active-capability-incarnation="11111111-1111-4111-8111-111111111111"',
+    );
+    expect(fragment).toContain('data-active-capability-version="1"');
+  });
+
+  test("evolution replaces a changed label but emits no toolbar sidecar when unchanged", async () => {
+    const evolved = {
+      id: "notes",
+      label: "Journal",
+      incarnation_id: "11111111-1111-4111-8111-111111111111",
+      version: 2,
+    };
+    const collection = '<section class="capability-collection"></section>';
+
+    const changed = renderCapabilityCommitSwap(evolved, collection, "Notes");
+    expect(await inspectToolbarOob(changed)).toMatchObject({
+      entryCount: 1,
+      oobCount: 1,
+      oobIsCapabilityEntry: true,
+      oobValue: "outerHTML:#capability-toolbar-entry-notes",
+    });
+    expect(changed).not.toContain("beforeend:#capability-toolbar");
+
+    const unchanged = renderCapabilityCommitSwap(evolved, collection, "Journal");
+    expect(await inspectToolbarOob(unchanged)).toMatchObject({ entryCount: 0, oobCount: 0 });
+    expect(unchanged).toContain('data-active-capability-id="notes"');
   });
 });
 

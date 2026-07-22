@@ -34,13 +34,170 @@ import {
   type RecordMetrics,
 } from "./metrics-recorder.ts";
 import { buildCommitPreview, buildDemoErrorPreview } from "./previews.ts";
+import { renderRestorationFragment } from "./restoration.ts";
 import {
   DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
-  runBoundedTerminalPresentation,
+  deliverActivatedPresentation,
+  deliverActivatedRecoveryPresentation,
+  deliverFailedPresentation,
 } from "./terminal-presentation.ts";
 
 /** The default prompt the bare demo button builds when none is typed. */
 export const DEMO_SPEC_PROMPT = "I want to keep track of my notes";
+
+interface DemoLeaseInput {
+  readonly send: Send;
+  readonly isAborted: () => boolean;
+  readonly getProvider: () => Provider;
+  readonly prompt: string;
+  readonly recordMetrics: RecordMetrics;
+  readonly buildDatabases: PlatformDatabase;
+  readonly artifactsRoot: string;
+  readonly signal?: AbortSignal;
+  readonly terminalPresenterTimeoutMs: number;
+}
+
+function neutralRestoration(input: DemoLeaseInput): string {
+  return renderRestorationFragment({ kind: "neutral" }, input.buildDatabases.readonly);
+}
+
+async function presentDemoFailure(
+  input: DemoLeaseInput,
+  error: unknown,
+  metricsPreview?: string,
+): Promise<void> {
+  console.error("Aluna spec-build demo failed:", error instanceof Error ? error.message : error);
+  await deliverFailedPresentation(
+    input.send,
+    error,
+    neutralRestoration(input),
+    input.terminalPresenterTimeoutMs,
+    metricsPreview,
+  );
+}
+
+interface AdmittedDemoInput extends DemoLeaseInput {
+  readonly buildId: string;
+  readonly incarnationId: string;
+  readonly builtAt: number;
+  readonly acc: DemoBuildAccumulator;
+  readonly intent: ReturnType<typeof hardcodedNewCapabilityIntent>;
+}
+
+async function runDemoStages(
+  input: AdmittedDemoInput,
+): Promise<CommitCapabilityResult | "terminal-sent" | undefined> {
+  try {
+    const provider = abortableProvider(input.getProvider(), input.signal);
+    return await runSpecBuildStages(
+      input.send,
+      input.isAborted,
+      provider,
+      input.prompt,
+      input.intent,
+      input.buildId,
+      input.incarnationId,
+      input.acc,
+      input.buildDatabases,
+      input.artifactsRoot,
+      (capabilityId) =>
+        input.recordMetrics.identify(input.buildId, input.incarnationId, capabilityId),
+      () =>
+        input.recordMetrics.succeed({
+          buildId: input.buildId,
+          incarnationId: input.incarnationId,
+          outcome: "activated",
+          stages: lifecycleStages(input.acc, "activated"),
+          measurement: lifecycleMeasurement(input.acc, input.builtAt),
+        }),
+    );
+  } catch (error) {
+    const cancelled = error instanceof AbortedBuildError || input.isAborted();
+    input.recordMetrics.fail({
+      buildId: input.buildId,
+      incarnationId: input.incarnationId,
+      outcome: cancelled
+        ? "cancelled"
+        : lifecycleFailureOutcome(classifyBuildFailure(error, input.acc)),
+      stages: lifecycleStages(input.acc, cancelled ? "cancelled" : "failed"),
+      measurement: lifecycleMeasurement(
+        input.acc,
+        input.builtAt,
+        cancelled ? undefined : classifyBuildFailure(error, input.acc),
+      ),
+    });
+    if (cancelled) return "terminal-sent";
+    await presentDemoFailure(
+      input,
+      error,
+      JSON.stringify(input.recordMetrics.get(input.buildId, input.incarnationId)),
+    );
+    return "terminal-sent";
+  }
+}
+
+async function runDemoUnderLease(input: DemoLeaseInput): Promise<void> {
+  try {
+    reconcileCapabilityArtifacts({
+      database: input.buildDatabases.readwrite,
+      artifactsRoot: input.artifactsRoot,
+    });
+    const buildId = `demo-${crypto.randomUUID()}`;
+    const incarnationId = createCapabilityIncarnationId();
+    const builtAt = performance.now();
+    const acc: DemoBuildAccumulator = { usages: [], timings: {} };
+    input.recordMetrics.start({ buildId, incarnationId, resolver: null, stages: [] });
+    try {
+      await input.send(
+        "metrics-preview",
+        JSON.stringify(input.recordMetrics.get(buildId, incarnationId)),
+      );
+    } catch {
+      input.recordMetrics.fail({
+        buildId,
+        incarnationId,
+        outcome: "cancelled",
+        stages: lifecycleStages(acc, "cancelled"),
+        measurement: lifecycleMeasurement(acc, builtAt),
+      });
+      return;
+    }
+
+    const commit = await runDemoStages({
+      ...input,
+      buildId,
+      incarnationId,
+      builtAt,
+      acc,
+      intent: hardcodedNewCapabilityIntent(input.prompt),
+    });
+    if (commit === "terminal-sent") return;
+    if (commit === undefined) {
+      input.recordMetrics.fail({
+        buildId,
+        incarnationId,
+        outcome: "cancelled",
+        stages: lifecycleStages(acc, "cancelled"),
+        measurement: lifecycleMeasurement(acc, builtAt),
+      });
+      return;
+    }
+
+    try {
+      await deliverActivatedPresentation(
+        input.send,
+        JSON.stringify(buildCommitPreview(commit)),
+        renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel),
+        input.terminalPresenterTimeoutMs,
+        JSON.stringify(input.recordMetrics.get(buildId, incarnationId)),
+      );
+    } catch {
+      await deliverActivatedRecoveryPresentation(input.send, input.terminalPresenterTimeoutMs);
+    }
+  } catch (error) {
+    await presentDemoFailure(input, error);
+  }
+}
 
 /**
  * Run the full build demo for `prompt`: build the capability through commit, record
@@ -62,109 +219,27 @@ export async function streamSpecBuildDemo(
   signal?: AbortSignal,
   terminalPresenterTimeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
 ) {
-  const intent = hardcodedNewCapabilityIntent(prompt);
   const reservation = mutationCoordinator.reserveBuild();
+  const input: DemoLeaseInput = {
+    send,
+    isAborted,
+    getProvider,
+    prompt,
+    recordMetrics,
+    buildDatabases,
+    artifactsRoot,
+    signal,
+    terminalPresenterTimeoutMs,
+  };
 
   try {
     await mutationCoordinator.withBuildLease(
       reservation,
-      async () => {
-        reconcileCapabilityArtifacts({ database: buildDatabases.readwrite, artifactsRoot });
-        const buildId = `demo-${crypto.randomUUID()}`;
-        const incarnationId = createCapabilityIncarnationId();
-        const builtAt = performance.now();
-        const acc: DemoBuildAccumulator = { usages: [], timings: {} };
-        // Admission is durable before provider construction/calls. This call is
-        // intentionally not guarded: a failed insert aborts the build at the lease head.
-        recordMetrics.start({ buildId, incarnationId, resolver: null, stages: [] });
-        try {
-          await send("metrics-preview", JSON.stringify(recordMetrics.get(buildId, incarnationId)));
-        } catch {
-          recordMetrics.fail({
-            buildId,
-            incarnationId,
-            outcome: "cancelled",
-            stages: lifecycleStages(acc, "cancelled"),
-            measurement: lifecycleMeasurement(acc, builtAt),
-          });
-          return;
-        }
-
-        let commit: CommitCapabilityResult | undefined;
-        try {
-          const provider: Provider = abortableProvider(getProvider(), signal);
-          commit = await runSpecBuildStages(
-            send,
-            isAborted,
-            provider,
-            prompt,
-            intent,
-            buildId,
-            incarnationId,
-            acc,
-            buildDatabases,
-            artifactsRoot,
-            (capabilityId) => recordMetrics.identify(buildId, incarnationId, capabilityId),
-            () =>
-              recordMetrics.succeed({
-                buildId,
-                incarnationId,
-                outcome: "activated",
-                stages: lifecycleStages(acc, "activated"),
-                measurement: lifecycleMeasurement(acc, builtAt),
-              }),
-          );
-        } catch (error) {
-          if (error instanceof AbortedBuildError || isAborted()) {
-            recordMetrics.fail({
-              buildId,
-              incarnationId,
-              outcome: "cancelled",
-              stages: lifecycleStages(acc, "cancelled"),
-              measurement: lifecycleMeasurement(acc, builtAt),
-            });
-            return;
-          }
-          const failure = classifyBuildFailure(error, acc);
-          recordMetrics.fail({
-            buildId,
-            incarnationId,
-            outcome: lifecycleFailureOutcome(failure),
-            stages: lifecycleStages(acc, "failed"),
-            measurement: lifecycleMeasurement(acc, builtAt, failure),
-          });
-          await send("metrics-preview", JSON.stringify(recordMetrics.get(buildId, incarnationId)));
-          await runBoundedTerminalPresentation(
-            () => handleSpecBuildError(send, isAborted, error),
-            terminalPresenterTimeoutMs,
-          );
-          return;
-        }
-
-        // A client abort is still an admitted measured build. Product work has
-        // rolled back; close it durably rather than leaving a false crash marker.
-        if (commit === undefined) {
-          recordMetrics.fail({
-            buildId,
-            incarnationId,
-            outcome: "cancelled",
-            stages: lifecycleStages(acc, "cancelled"),
-            measurement: lifecycleMeasurement(acc, builtAt),
-          });
-          return;
-        }
-
-        await send("metrics-preview", JSON.stringify(recordMetrics.get(buildId, incarnationId)));
-        await runBoundedTerminalPresentation(async () => {
-          await send("commit-preview", JSON.stringify(buildCommitPreview(commit)));
-          await send("commit", renderCachedCapabilityCommitSwap(commit.row));
-          await send("done", "ok");
-        }, terminalPresenterTimeoutMs);
-      },
+      () => runDemoUnderLease(input),
       signal ? { signal } : {},
     );
   } catch (error) {
-    if (!isAborted()) await handleSpecBuildError(send, isAborted, error);
+    if (!isAborted()) await presentDemoFailure(input, error);
   }
 }
 
@@ -173,10 +248,16 @@ export async function streamSpecBuildDemo(
  * the UI (the build-failure voice). A non-conforming model output (the spec-gen gate
  * throwing) or a missing key both reach here.
  */
-export async function handleSpecBuildError(send: Send, isAborted: () => boolean, err: unknown) {
+export async function handleSpecBuildError(
+  send: Send,
+  isAborted: () => boolean,
+  err: unknown,
+  restorationFragment?: string,
+) {
   console.error("Aluna spec-build demo failed:", err instanceof Error ? err.message : err);
   if (isAborted()) return;
   await send("build-error-preview", JSON.stringify(buildDemoErrorPreview(err)));
   await send("narration", "Hmm, that didn't work. Mind trying again?");
+  if (restorationFragment !== undefined) await send("fragment", restorationFragment);
   await send("done", "error");
 }

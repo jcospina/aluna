@@ -6,19 +6,46 @@
 
 import type { Context } from "hono";
 
+import {
+  RESTORATION_CAPABILITY_ID_FIELD,
+  RESTORATION_INCARNATION_ID_FIELD,
+  type RestorationIdentityInput,
+} from "../pipeline/restoration.ts";
+
+export interface PromptSubmission {
+  readonly prompt: string;
+  readonly restoration: RestorationIdentityInput;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function readPromptFromJson(c: Context): Promise<string> {
-  const body: unknown = await c.req.json().catch(() => ({}));
-  return isRecord(body) && typeof body.prompt === "string" ? body.prompt.trim() : "";
+function stringField(body: Record<string, unknown>, field: string): string | undefined {
+  const value = body[field];
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
-async function readPromptFromForm(c: Context): Promise<string> {
+function submissionFromRecord(body: Record<string, unknown>): PromptSubmission {
+  return {
+    prompt: stringField(body, "prompt") ?? "",
+    restoration: {
+      capabilityId: stringField(body, RESTORATION_CAPABILITY_ID_FIELD),
+      incarnationId: stringField(body, RESTORATION_INCARNATION_ID_FIELD),
+    },
+  };
+}
+
+async function readPromptFromJson(c: Context): Promise<PromptSubmission> {
+  const body: unknown = await c.req.json().catch(() => ({}));
+  return submissionFromRecord(isRecord(body) ? body : {});
+}
+
+async function readPromptFromForm(c: Context): Promise<PromptSubmission> {
   const body = await c.req.parseBody();
-  const prompt = body.prompt;
-  return typeof prompt === "string" ? prompt.trim() : "";
+  return submissionFromRecord(body);
 }
 
 /**
@@ -26,7 +53,7 @@ async function readPromptFromForm(c: Context): Promise<string> {
  * form (urlencoded or multipart), or — as a fallback — the raw request text. Always
  * returns a trimmed string, empty when no usable `prompt` is present.
  */
-export async function readPrompt(c: Context): Promise<string> {
+export async function readPromptSubmission(c: Context): Promise<PromptSubmission> {
   const contentType = c.req.header("content-type") ?? "";
   if (contentType.includes("application/json")) {
     return readPromptFromJson(c);
@@ -37,5 +64,10 @@ export async function readPrompt(c: Context): Promise<string> {
   ) {
     return readPromptFromForm(c);
   }
-  return (await c.req.text()).trim();
+  return { prompt: (await c.req.text()).trim(), restoration: {} };
+}
+
+/** Prompt-only compatibility reader for non-job callers and focused parser tests. */
+export async function readPrompt(c: Context): Promise<string> {
+  return (await readPromptSubmission(c)).prompt;
 }

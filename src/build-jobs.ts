@@ -1,8 +1,12 @@
+import type { RestorationDescriptor } from "./pipeline/restoration.ts";
+
 export type BuildJobStatus = "pending" | "running" | "done";
 
 export interface BuildJob {
   readonly id: string;
   readonly prompt: string;
+  /** Data-free identity of the content displaced by this foreground job. */
+  readonly restoration: RestorationDescriptor;
   status: BuildJobStatus;
 }
 
@@ -12,6 +16,9 @@ export type SendBuildEvent = (event: BuildEvent, data: string) => Promise<void>;
 export interface BuildPipelineContext {
   readonly job: BuildJob;
   readonly send: SendBuildEvent;
+  /** True while the connected subscriber can still receive a terminal restoration. */
+  readonly canPresent: () => boolean;
+  /** True for either transport disconnect or an explicit connected cancellation. */
   readonly isAborted: () => boolean;
   readonly signal?: AbortSignal;
 }
@@ -38,9 +45,11 @@ export interface BuildJobQueueOptions {
 const DEFAULT_BUILD_NARRATION = "Got it. I'm putting that together now.";
 const BUILD_FAILURE_NARRATION = "Hmm, that didn't work. Mind trying again?";
 const DEFAULT_PENDING_JOB_TTL_MS = 60_000;
+const NEUTRAL_RESTORATION: RestorationDescriptor = { kind: "neutral" };
 
 interface StoredBuildJob extends BuildJob {
   readonly createdAt: number;
+  readonly cancelController: AbortController;
 }
 
 async function placeholderBuildPipeline({ send, isAborted }: BuildPipelineContext) {
@@ -66,16 +75,29 @@ export class BuildJobQueue {
     this.pendingJobTtlMs = options.pendingJobTtlMs ?? DEFAULT_PENDING_JOB_TTL_MS;
   }
 
-  create(prompt: string): CreateBuildJobResult {
+  create(
+    prompt: string,
+    restoration: RestorationDescriptor = NEUTRAL_RESTORATION,
+  ): CreateBuildJobResult {
     this.pruneExpiredPendingJobs();
     const job: StoredBuildJob = {
       id: this.createId(),
       prompt,
+      restoration,
       status: "pending",
       createdAt: this.now(),
+      cancelController: new AbortController(),
     };
     this.jobs.set(job.id, job);
     return { accepted: true, job };
+  }
+
+  /** Request cancellation without conflating it with an SSE disconnect. */
+  cancel(jobId: string): boolean {
+    const job = this.jobs.get(jobId);
+    if (!job) return false;
+    job.cancelController.abort();
+    return true;
   }
 
   async stream(
@@ -92,28 +114,39 @@ export class BuildJobQueue {
     }
 
     if (job.status === "running") {
-      await send("done", "already-streaming");
+      await send("done", "error");
       return;
     }
 
     await this.runPendingJob(job, send, isAborted, signal);
   }
 
-  private findStreamableJob(jobId: string): BuildJob | undefined {
+  private findStreamableJob(jobId: string): StoredBuildJob | undefined {
     const job = this.jobs.get(jobId);
     return job?.status !== "done" ? job : undefined;
   }
 
   private async runPendingJob(
-    job: BuildJob,
+    job: StoredBuildJob,
     send: SendBuildEvent,
     isAborted: () => boolean,
     signal?: AbortSignal,
   ): Promise<void> {
     job.status = "running";
+    const { cancelController } = job;
+    const combinedSignal = signal
+      ? AbortSignal.any([signal, cancelController.signal])
+      : cancelController.signal;
+    const workAborted = () => isAborted() || cancelController.signal.aborted;
     try {
-      const completion = await this.pipeline({ job, send, isAborted, signal });
-      if (!isAborted() && completion !== "terminal-sent") {
+      const completion = await this.pipeline({
+        job,
+        send,
+        canPresent: () => !isAborted(),
+        isAborted: workAborted,
+        signal: combinedSignal,
+      });
+      if (!workAborted() && completion !== "terminal-sent") {
         await send("done", "ok");
       }
     } catch (err) {

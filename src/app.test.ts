@@ -21,7 +21,7 @@ describe("GET / (shell)", () => {
     expect(html).toContain('id="spec-build-form"');
     expect(html).toContain('hx-post="/prompt"');
     expect(html).toContain('hx-target="#spec-build-output"');
-    expect(html).toContain('hx-swap="innerHTML"');
+    expect(html).toContain('hx-swap="beforeend"');
     expect(html).not.toContain("@htmx:sseOpen.window");
     expect(html).not.toContain("@htmx:sseClose.window");
     expect(html).not.toContain("@htmx:sseError.window");
@@ -161,6 +161,27 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain('document.addEventListener("htmx:oobAfterSwap"');
     expect(js).toContain("syncCapabilityPresentationState");
     expect(js).toContain("syncActiveCapabilityUrl");
+    expect(js).toContain('document.addEventListener("htmx:configRequest"');
+    expect(js).toContain("__aluna_restore_capability_id");
+    expect(js).toContain("__aluna_restore_incarnation_id");
+    expect(js).toContain("finishTerminalPresentation");
+    expect(js).toContain("data-build-restoration-behavior");
+    expect(js).toContain("preserveActiveView");
+    expect(js).toContain("activeViewIsCanonical");
+    expect(js).toContain("outputHasOnlyDormantSubscriber");
+    expect(js).toContain("promoteElement");
+    expect(js).toContain("subscriber.remove()");
+    expect(js).toContain("output.replaceChildren(...terminal.element.childNodes)");
+    expect(js).toContain("commit.childNodes.length > 0");
+    expect(js).toContain('subscriber.querySelector(".build-stream__narration")');
+    expect(js).toContain('.ajax("GET", readUrl');
+    expect(js).toContain("source: records, target: records");
+    expect(js).toContain('htmx.trigger(records, "htmx:abort")');
+    expect(js).toContain('records.removeAttribute("hx-get")');
+    expect(js).toContain('records.removeAttribute("hx-trigger")');
+    expect(js).toContain(".catch(() => undefined)");
+    expect(js).toContain('closeType !== "message"');
+    expect(js).toContain("modal.close()");
     expect(js).toContain("window.history.replaceState");
     expect(js).toContain("[data-active-capability-id]");
     expect(js).toContain("dataset.previewTarget");
@@ -170,6 +191,24 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).not.toContain("new EventSource");
     expect(js).not.toContain('fetch("/prompt"');
     expect(js).not.toContain('addEventListener("submit"');
+  });
+
+  test("build cancellation is right-aligned", async () => {
+    const app = createApp();
+    const css = await responseText(await app.request("/static/css/demo.css"));
+
+    expect(css).toMatch(/\.build-stream__cancel\s*\{[^}]*margin-left:\s*auto/s);
+  });
+
+  test("keeps a pending stream dormant until foreground narration begins", async () => {
+    const app = createApp();
+    const css = await responseText(await app.request("/static/css/demo.css"));
+
+    expect(css).toMatch(/\.build-stream\s*\{[^}]*display:\s*none/s);
+    expect(css).toContain(".build-stream__narration:not(:empty)");
+    expect(css).toContain("#spec-build-output:has(> .build-stream");
+    expect(css).toContain(".build-stream:only-child:not(:has");
+    expect(css).toMatch(/only-child[^{}]+build-stream__commit:not\(:empty\)/s);
   });
 
   test("structured create validation swaps into its retarget without becoming a successful create", () => {
@@ -224,6 +263,91 @@ describe("GET / (shell) — browser glue", () => {
       expect(detail.isError).toBe(true);
       expect(detail.successful).toBe(false);
     }
+  });
+});
+
+describe("GET / (shell) — prompt admission", () => {
+  test("preserves only an exact canonical revision or a truly neutral output", () => {
+    const appScript = readFileSync(resolve("public/app.js"), "utf8");
+    const shouldPreserve = Function(
+      "document",
+      "window",
+      "requestAnimationFrame",
+      `${appScript}\nreturn shouldPreserveRestoration;`,
+    )({ addEventListener() {}, querySelector() {}, getElementById() {} }, {}, () => undefined);
+    const v1 = { id: "notes", incarnation: "inc-1", version: "1" };
+
+    expect(shouldPreserve("capability", v1, { ...v1 }, true, false)).toBe(true);
+    expect(shouldPreserve("capability", v1, { ...v1, version: "2" }, true, false)).toBe(false);
+    expect(shouldPreserve("capability", v1, { ...v1 }, false, false)).toBe(false);
+    expect(shouldPreserve("neutral", null, null, false, true)).toBe(true);
+    expect(shouldPreserve("neutral", null, null, false, false)).toBe(false);
+  });
+
+  test("prompt admission clears an old notice and rejects a queued sibling subscriber", () => {
+    const listeners = new Map<
+      string,
+      (event: { detail: Record<string, unknown>; preventDefault(): void }) => void
+    >();
+    class FormStub {
+      id = "spec-build-form";
+    }
+    let hasSubscriber = false;
+    let noticeClears = 0;
+    const output = {
+      querySelector() {
+        return hasSubscriber ? {} : null;
+      },
+    };
+    const documentStub = {
+      addEventListener(
+        name: string,
+        listener: (event: { detail: Record<string, unknown>; preventDefault(): void }) => void,
+      ) {
+        listeners.set(name, listener);
+      },
+      querySelector(selector: string) {
+        return selector === "#spec-build-output" ? output : null;
+      },
+      getElementById(id: string) {
+        return id === "prompt-notice" ? { replaceChildren: () => (noticeClears += 1) } : null;
+      },
+    };
+    const windowStub = {
+      Alpine: { data() {} },
+      matchMedia() {
+        return { matches: true, addEventListener() {} };
+      },
+    };
+    const appScript = readFileSync(resolve("public/app.js"), "utf8");
+    Function(
+      "document",
+      "window",
+      "requestAnimationFrame",
+      "HTMLInputElement",
+      "HTMLFormElement",
+      appScript,
+    )(documentStub, windowStub, () => undefined, class InputStub {}, FormStub);
+
+    let prevented = false;
+    listeners.get("htmx:beforeRequest")?.({
+      detail: { elt: new FormStub() },
+      preventDefault: () => {
+        prevented = true;
+      },
+    });
+    expect(prevented).toBe(false);
+    expect(noticeClears).toBe(1);
+
+    hasSubscriber = true;
+    listeners.get("htmx:beforeRequest")?.({
+      detail: { elt: new FormStub() },
+      preventDefault: () => {
+        prevented = true;
+      },
+    });
+    expect(prevented).toBe(true);
+    expect(noticeClears).toBe(1);
   });
 });
 
