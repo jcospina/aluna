@@ -14,11 +14,11 @@ Single-context repo — one `CONTEXT.md` and `docs/adr/` at the root. See `docs/
 
 ### Delivery summaries
 
-Lead every final delivery summary with clear, plain-English product outcomes:
-what changed for the product, what users can now accomplish or what problem is
-solved, and how the work moves the product or project forward. Put technical
-implementation details and verification in a separate section afterward; they
-must not lead or obscure the product outcome.
+Lead every final delivery summary with clear, non-technical plain-English product 
+outcomes: what changed for the product, what users can now accomplish or what 
+problem is solved, and how the work moves the product or project forward. Put 
+technical implementation details and verification in the separate section afterward; 
+they must not lead or obscure the product outcome.
 
 Format:
 

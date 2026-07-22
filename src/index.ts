@@ -9,6 +9,8 @@
 // before serving, so the db is ready the moment the first request arrives.
 
 import { app } from "./app.ts";
+import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
+import { db } from "./db.ts";
 import { runMigrations } from "./migrations.ts";
 
 // Apply platform migrations before accepting traffic. Idempotent: a no-op once the
@@ -16,6 +18,15 @@ import { runMigrations } from "./migrations.ts";
 const applied = runMigrations();
 if (applied.length > 0) {
   console.log(`omni-crud applied ${applied.length} migration(s): ${applied.join(", ")}`);
+}
+const reconciliation = reconcileCapabilityArtifacts({
+  database: db,
+  artifactsRoot: DEFAULT_ARTIFACTS_ROOT,
+});
+if (reconciliation.removed.length > 0) {
+  console.log(
+    `omni-crud reconciled ${reconciliation.removed.length} never-activated artifact candidate(s)`,
+  );
 }
 
 const DEFAULT_PORT = 3030;

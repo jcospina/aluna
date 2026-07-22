@@ -8,10 +8,9 @@
 //
 //   1. Reverify the artifact-lifecycle module's published snapshot evidence.
 //   2. Insert the registry row pointing at that directory (`artifacts_path`), at
-//      version 1, *inside the same transaction*. For a brand-new capability that
-//      insert **is** the pointer flip: the row's existence is what makes the
-//      version live, and the `cap_<id>` table (created by the migration in this
-//      same transaction) and the row become real together when it commits.
+//      the candidate version, *inside the same transaction*. For a brand-new
+//      capability the insert is the pointer flip; for evolution an exact
+//      incarnation/version compare-and-swap replaces the live row.
 //
 // Atomicity is the SQLite transaction's, not the filesystem's: a failed registry
 // insert rolls back the table/row and leaves a complete verified, never-activated
@@ -21,11 +20,12 @@
 import type { Database } from "bun:sqlite";
 
 import {
+  type CapabilityRegistryExpectation,
   type CapabilityRow,
   type CapabilitySpec,
   capabilitySpecSchema,
+  compareAndSwapCapability,
   incarnationIdSchema,
-  insertCapability,
 } from "../registry/index.ts";
 import {
   assertVerifiedPublishedSnapshot,
@@ -49,6 +49,8 @@ export interface CommitCapabilityInput {
   // registry insert rides this so the row and the `cap_<id>` table commit together
   // (and roll back together on any failure).
   readonly database: Database;
+  /** New v1 expects absence; evolution binds the exact active incarnation/version. */
+  readonly expected?: CapabilityRegistryExpectation;
 }
 
 export interface CommitCapabilityResult {
@@ -75,22 +77,22 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   const version = input.publication.version;
   const artifactsPath = input.publication.artifactsPath;
   const manifest = verified.manifest;
+  const expected = input.expected ?? { state: "absent" };
   if (
     JSON.stringify(verified.spec) !== JSON.stringify(spec) ||
     manifest.capability_id !== spec.id ||
     manifest.incarnation_id !== incarnationId ||
     manifest.version !== version ||
-    version !== FIRST_CAPABILITY_VERSION
+    !isExpectedNextVersion(spec.id, incarnationId, version, expected)
   ) {
     throw new Error("Published snapshot identity does not match the capability registry commit.");
   }
 
-  // Insert the registry row inside the migration's open transaction. The insert
-  // re-validates the row; a malformed row or duplicate id writes nothing. Either
-  // way the transaction rolls back and the published directory remains a complete
-  // never-activated candidate for later reconciliation.
-  const row = insertCapability(
+  // The CAS runs inside activation's open transaction. A stale target changes
+  // nothing; any later failure rolls this back with DDL and lifecycle success.
+  const row = compareAndSwapCapability(
     rowFromSpec(spec, incarnationId, version, artifactsPath),
+    expected,
     input.database,
   );
 
@@ -105,6 +107,20 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
     snapshotContentDigest: manifest.snapshot_content_digest,
     manifest,
   };
+}
+
+function isExpectedNextVersion(
+  capabilityId: string,
+  incarnationId: string,
+  version: number,
+  expected: CapabilityRegistryExpectation,
+): boolean {
+  if (expected.state === "absent") return version === FIRST_CAPABILITY_VERSION;
+  return (
+    expected.capabilityId === capabilityId &&
+    expected.incarnationId === incarnationId &&
+    version === expected.version + 1
+  );
 }
 
 // The registry row the platform assigns at commit: the AI-authored spec plus the

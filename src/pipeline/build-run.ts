@@ -7,13 +7,15 @@
 // fail-closed gate, publishes a verified snapshot, and commits — streaming developer previews and product-voice
 // narration along the way, and filling the metrics accumulator as each stage lands.
 
+import { Database } from "bun:sqlite";
 import type { ZodType } from "zod";
 
 import {
+  activatePublishedSnapshot,
+  applyCapabilityMigration,
   CapabilityGateError,
   type CapabilityGateResult,
   type CommitCapabilityResult,
-  commitCapability,
   FIRST_CAPABILITY_VERSION,
   type GeneratedUnit,
   generateCapabilityUnits,
@@ -23,8 +25,8 @@ import {
   type UnitDescriptor,
   type UnitGenerationAttempt,
   type UnitGenerationObserver,
-  withCapabilityMigrationTransaction,
 } from "../builder/index.ts";
+import { deriveCapabilityTableDdl } from "../capability-data/index.ts";
 import type { PlatformDatabase } from "../db.ts";
 import type { IntentClassification } from "../intent-resolver/index.ts";
 import type { GenerateResult, Provider, TokenUsage } from "../provider/index.ts";
@@ -48,10 +50,10 @@ import {
 } from "./previews.ts";
 
 /**
- * An aborted stream mid-build, thrown from inside the build's open transaction so it
- * rolls back (a half-built capability must never commit). Distinct from a build
- * failure: the caller rolls product work back and finalizes the admitted lifecycle as
- * cancelled, without attempting an apology because the client is already gone.
+ * An aborted stream mid-build, thrown before activation. Distinct from a build
+ * failure: the caller finalizes the admitted lifecycle as cancelled without an
+ * apology because the client is already gone. If publication already landed, the
+ * complete candidate remains for guarded reconciliation.
  */
 export class AbortedBuildError extends Error {
   override readonly name = "AbortedBuildError";
@@ -107,16 +109,11 @@ export function previewingProvider(
  * stream was aborted mid-build (the transaction having rolled back). Throws on a build
  * failure; the caller records the failure metrics row and surfaces the warm apology.
  *
- * The terminal stages — migration, unit generation, the fail-closed Gate, publication,
- * and commit
- * — run inside ONE write transaction on the real connection (ARCH §6.2, db.ts
- * `withWriteTransaction`). The migration creates the `cap_<id>` table; publication
- * atomically lands only a verified final directory, then commit inserts the registry
- * row. The transaction's COMMIT makes the database state live. Any throw — a failed
- * Gate rung, a publication/commit error, an abort — rolls the
- * whole thing back, so a failed build leaves no `cap_<id>` table and no registry row,
- * with any post-publication files left as a complete never-activated candidate for
- * later reconciliation. Publication is sequenced strictly after the Gate.
+ * Unit generation and the fail-closed Gate finish before publication. Only after the
+ * complete snapshot is atomically published does one short SQLite transaction apply
+ * DDL, CAS the registry, and finalize success metrics. Its COMMIT is the sole point of
+ * no return; any earlier throw leaves the prior registry state live plus, at most, a
+ * complete never-activated candidate for reconciliation.
  */
 export async function runSpecBuildStages(
   send: Send,
@@ -154,107 +151,111 @@ export async function runSpecBuildStages(
   await settled; // every spec-preview is on the wire before the confirmation
   if (isAborted()) return;
 
-  // Migration → unit-gen → Gate → publication → commit, all inside the one rollbackable write
-  // transaction on the real connection. `afterApply` runs after the migration is
-  // applied; its return value (the commit result) is what becomes live when the
-  // transaction commits.
+  // Preview the deterministic migration plan against scratch SQLite. The real data
+  // store must remain untouched until Gate success and filesystem publication.
   const database = buildDatabases.readwrite;
-  const { value: commit } = await withCapabilityMigrationTransaction(
-    { database, spec },
-    async (migration) => {
-      acc.timings.migrationMs = migration.durationMs;
-      throwIfAborted(isAborted);
-      await send("migration-preview", JSON.stringify(buildMigrationPreview(database, migration)));
+  const previewDatabase = new Database(":memory:");
+  try {
+    const migration = applyCapabilityMigration({ database: previewDatabase, spec });
+    await send(
+      "migration-preview",
+      JSON.stringify(buildMigrationPreview(previewDatabase, migration)),
+    );
+  } finally {
+    previewDatabase.close();
+  }
+  throwIfAborted(isAborted);
 
-      await send("narration", " I'm shaping it into something you can use.");
-      const unitResult = await generateUnitsWithPreview(send, isAborted, provider, spec);
-      throwIfAborted(isAborted);
-      recordUnitMetrics(acc, unitResult.units);
-      const finalUnits = unitResult.units.map(finalUnitPreview);
-      await send("units-preview", JSON.stringify(buildUnitsPreview(finalUnits, "complete")));
+  await send("narration", " I'm shaping it into something you can use.");
+  const unitResult = await generateUnitsWithPreview(send, isAborted, provider, spec);
+  throwIfAborted(isAborted);
+  recordUnitMetrics(acc, unitResult.units);
+  const finalUnits = unitResult.units.map(finalUnitPreview);
+  await send("units-preview", JSON.stringify(buildUnitsPreview(finalUnits, "complete")));
 
-      await send("narration", " I'm checking the first version now.");
-      let gateResult: CapabilityGateResult;
-      try {
-        gateResult = await runCapabilityGate({
-          spec,
-          ddl: migration.ddl,
-          handlers: unitResult.handlers,
-          itemRenderer: unitResult.itemRenderer,
-          provider,
-          realDatabase: database,
-        });
-      } catch (error) {
-        if (error instanceof CapabilityGateError) acc.gateRungs = error.outcomes;
-        throw error;
-      }
-      throwIfAborted(isAborted);
-      const commitUnits = applyGateFixes(unitResult.units, gateResult);
-      refreshUnitMetrics(acc, commitUnits);
-      recordGateMetrics(acc, gateResult);
-      if (unitsChanged(unitResult.units, commitUnits)) {
-        await send(
-          "units-preview",
-          JSON.stringify(buildUnitsPreview(commitUnits.map(finalUnitPreview), "complete")),
-        );
-      }
-      await send(
-        "gate-preview",
-        JSON.stringify(
-          buildGatePreview(
-            gateResult.durationMs,
-            gateResult.outcomes,
-            gateResult.structural,
-            gateResult.smoke,
-            gateResult.behavioral,
-          ),
-        ),
-      );
-
-      // The developer's verification surface: the full validated spec and the
-      // duration + token usage the metrics row records (Epic 2.7). Console only.
-      console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
-        usage,
-        spec,
-        units: commitUnits.map((unit) => ({
-          kind: unit.kind,
-          name: unit.name,
-          attempts: unit.attempts.length,
-          durationMs: Math.round(unit.durationMs),
-          usage: unit.usage,
-        })),
-        gate: {
-          durationMs: Math.round(gateResult.durationMs),
-          rungs: gateResult.outcomes,
-          smoke: gateResult.smoke,
-          behavioral: gateResult.behavioral,
-        },
-      });
-
-      // Commit: write the version-1 artifacts and insert the registry row pointing at
-      // them, inside this transaction (the pointer flip). Unreachable unless the gate
-      // above passed every active rung. When the design-lint rung regenerated the item
-      // renderer to clear a violation, `item.ts` must carry that fixed content.
-      acc.publicationAttempted = true;
-      const publication = publishCapabilitySnapshot({
-        buildId,
-        spec,
-        incarnationId,
-        version: FIRST_CAPABILITY_VERSION,
-        units: commitUnits,
-        gate: gateResult,
-        artifactsRoot,
-      });
-      acc.activationAttempted = true;
-      const committed = commitCapability({ spec, publication, database });
-      // This update uses the already-open transaction: pointer activation and
-      // success/activated metrics are one SQLite commit point.
-      onActivated();
-      return committed;
-    },
+  await send("narration", " I'm checking the first version now.");
+  let gateResult: CapabilityGateResult;
+  const plannedDdl = deriveCapabilityTableDdl(spec);
+  try {
+    gateResult = await runCapabilityGate({
+      spec,
+      ddl: plannedDdl,
+      handlers: unitResult.handlers,
+      itemRenderer: unitResult.itemRenderer,
+      provider,
+      realDatabase: database,
+    });
+  } catch (error) {
+    if (error instanceof CapabilityGateError) acc.gateRungs = error.outcomes;
+    throw error;
+  }
+  throwIfAborted(isAborted);
+  const commitUnits = applyGateFixes(unitResult.units, gateResult);
+  refreshUnitMetrics(acc, commitUnits);
+  recordGateMetrics(acc, gateResult);
+  if (unitsChanged(unitResult.units, commitUnits)) {
+    await send(
+      "units-preview",
+      JSON.stringify(buildUnitsPreview(commitUnits.map(finalUnitPreview), "complete")),
+    );
+  }
+  await send(
+    "gate-preview",
+    JSON.stringify(
+      buildGatePreview(
+        gateResult.durationMs,
+        gateResult.outcomes,
+        gateResult.structural,
+        gateResult.smoke,
+        gateResult.behavioral,
+      ),
+    ),
   );
 
-  return commit;
+  // The developer's verification surface: the full validated spec and the duration
+  // + token usage the metrics row records. Console only.
+  console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
+    usage,
+    spec,
+    units: commitUnits.map((unit) => ({
+      kind: unit.kind,
+      name: unit.name,
+      attempts: unit.attempts.length,
+      durationMs: Math.round(unit.durationMs),
+      usage: unit.usage,
+    })),
+    gate: {
+      durationMs: Math.round(gateResult.durationMs),
+      rungs: gateResult.outcomes,
+      smoke: gateResult.smoke,
+      behavioral: gateResult.behavioral,
+    },
+  });
+
+  // Publish first. Activation then keeps only DDL + registry CAS + lifecycle success
+  // inside SQLite's short transaction.
+  acc.publicationAttempted = true;
+  const publication = publishCapabilitySnapshot({
+    buildId,
+    spec,
+    incarnationId,
+    version: FIRST_CAPABILITY_VERSION,
+    units: commitUnits,
+    gate: gateResult,
+    artifactsRoot,
+  });
+  throwIfAborted(isAborted);
+  acc.activationAttempted = true;
+  return activatePublishedSnapshot({
+    database,
+    spec,
+    publication,
+    applyMigration: (activationDatabase) => {
+      const migration = applyCapabilityMigration({ database: activationDatabase, spec });
+      acc.timings.migrationMs = migration.durationMs;
+    },
+    finalizeMetrics: () => onActivated(),
+  });
 }
 
 /**

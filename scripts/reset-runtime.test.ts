@@ -26,17 +26,23 @@ describe("runtime reset script", () => {
       CREATE TABLE schema_migrations (id TEXT PRIMARY KEY) STRICT;
       CREATE TABLE capability_registry (id TEXT PRIMARY KEY) STRICT;
       CREATE TABLE generation_metrics (id TEXT PRIMARY KEY) STRICT;
+      CREATE TABLE generation_lifecycle_metrics (build_id TEXT PRIMARY KEY) STRICT;
       CREATE TABLE cap_notes (id TEXT PRIMARY KEY, text TEXT) STRICT;
       INSERT INTO schema_migrations (id) VALUES ('0001_platform_migrations_ledger');
       INSERT INTO capability_registry (id) VALUES ('notes');
       INSERT INTO generation_metrics (id) VALUES ('build-notes-1');
+      INSERT INTO generation_lifecycle_metrics (build_id) VALUES ('build-notes-1');
       INSERT INTO cap_notes (id, text) VALUES ('note-1', 'old data');
     `);
     database.close();
 
     const result = resetRuntime({ root });
 
-    expect(result.clearedTables).toEqual(["capability_registry", "generation_metrics"]);
+    expect(result.clearedTables).toEqual([
+      "capability_registry",
+      "generation_metrics",
+      "generation_lifecycle_metrics",
+    ]);
     expect(result.droppedTables).toEqual(["cap_notes"]);
     expect(result.deletedPaths.length).toBe(2);
     expect(readdirSync(join(root, "capabilities"))).toEqual(["README.md"]);
@@ -49,6 +55,9 @@ describe("runtime reset script", () => {
     ]);
     expect(wipedDatabase.query("SELECT id FROM capability_registry").all()).toEqual([]);
     expect(wipedDatabase.query("SELECT id FROM generation_metrics").all()).toEqual([]);
+    expect(wipedDatabase.query("SELECT build_id FROM generation_lifecycle_metrics").all()).toEqual(
+      [],
+    );
     expect(
       wipedDatabase
         .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cap_notes'")

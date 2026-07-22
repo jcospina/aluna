@@ -99,12 +99,18 @@ export function renderRehydratedShellPage(database: Database): string {
     .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
     .get(GENERATION_LIFECYCLE_TABLE);
   const latest = lifecycleReady ? listGenerationLifecycles(database).slice(0, 5) : [];
+  const committedVersions = rows.map((row) => ({
+    capabilityId: row.id,
+    incarnationId: row.incarnation_id,
+    liveVersion: row.version,
+    versions: Array.from({ length: row.version }, (_, index) => index + 1),
+  }));
   const withMetrics =
-    latest.length === 0
+    latest.length === 0 && committedVersions.length === 0
       ? shellHtml
       : shellHtml.replace(
           METRICS_PREVIEW_TARGET,
-          `<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true">${escapeHtml(JSON.stringify(latest, null, 2))}</pre>`,
+          `<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true">${escapeHtml(JSON.stringify({ lifecycles: latest, committedVersions }, null, 2))}</pre>`,
         );
   return renderRehydratedShell(rows, withMetrics);
 }

@@ -10,6 +10,7 @@ import {
   makeFakeProvider,
   makeMetricsRecorder,
   makeSpecProvider,
+  NOTES_INCARNATION_ID,
   NOTES_SPEC,
   notesCapabilityRow,
   readSse,
@@ -200,6 +201,28 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     const read = await app.request("/capability/notes/read");
     expect(await read.text()).toContain("Buy milk");
   });
+});
+
+test("GET / lists committed versions per capability in the developer preview", async () => {
+  const env = createScratchDbEnv("omni-crud-version-preview-");
+  try {
+    insertCapability(
+      notesCapabilityRow({
+        version: 2,
+        artifacts_path: `capabilities/notes/${NOTES_INCARNATION_ID}/v2/`,
+      }),
+      env.conns.readwrite,
+    );
+    const app = createApp({ capabilityRouter: { databases: env.conns } });
+
+    const html = await responseText(await app.request("/"));
+
+    expect(html).toContain("&quot;committedVersions&quot;");
+    expect(html).toContain("&quot;liveVersion&quot;: 2");
+    expect(html).toContain("&quot;versions&quot;: [");
+  } finally {
+    teardownScratchDbEnv(env);
+  }
 });
 
 describe("GET /stream (provider liveness, fake provider)", () => {
