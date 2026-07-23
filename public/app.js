@@ -436,7 +436,14 @@ function terminalPresentationContent(subscriber) {
     : null;
 }
 
-/** @param {HTMLElement} output @param {string | undefined} restorationKind */
+/**
+ * Re-load a restored capability's records after promotion. Commit promotions are
+ * left alone: HTMX already processed the commit content inside the subscriber (the
+ * records region's `load` trigger fired there), so re-fetching would only re-render
+ * records that are already live — a visible flicker on every successful build.
+ * @param {HTMLElement} output
+ * @param {string | undefined} restorationKind
+ */
 function reloadRestoredRecords(output, restorationKind) {
   if (restorationKind !== "capability") return;
   const records = output.querySelector('[hx-get][hx-trigger~="load"]');

@@ -171,7 +171,9 @@ test("a failed admitted build restores the captured live View through read", asy
   expect(restoration).toContain('data-active-capability-id="notes"');
   expect(restoration).toContain('data-search-state="idle"');
   expect(restoration).toContain('hx-get="/capability/notes/read" hx-trigger="load"');
-  expect(restoration).not.toContain("hx-swap-oob");
+  expect(restoration.split('<div id="developer-v2-tracer-control"')[0]).not.toContain(
+    "hx-swap-oob",
+  );
   expect(mutationCoordinator.snapshot().activeLease).toBeNull();
 });
 

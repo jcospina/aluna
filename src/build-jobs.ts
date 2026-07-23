@@ -40,6 +40,8 @@ export interface BuildJobQueueOptions {
   readonly createId?: CreateBuildId;
   readonly pendingJobTtlMs?: number;
   readonly now?: Now;
+  /** Releases request-side metadata retained only until a pending job begins. */
+  readonly onExpiredPendingJob?: (job: BuildJob) => void;
 }
 
 const DEFAULT_BUILD_NARRATION = "Got it. I'm putting that together now.";
@@ -67,12 +69,14 @@ export class BuildJobQueue {
   private readonly jobs = new Map<string, StoredBuildJob>();
   private readonly now: Now;
   private readonly pendingJobTtlMs: number;
+  private readonly onExpiredPendingJob?: (job: BuildJob) => void;
 
   constructor(options: BuildJobQueueOptions = {}) {
     this.pipeline = options.pipeline ?? placeholderBuildPipeline;
     this.createId = options.createId ?? defaultBuildId;
     this.now = options.now ?? Date.now;
     this.pendingJobTtlMs = options.pendingJobTtlMs ?? DEFAULT_PENDING_JOB_TTL_MS;
+    this.onExpiredPendingJob = options.onExpiredPendingJob;
   }
 
   create(
@@ -166,6 +170,7 @@ export class BuildJobQueue {
     for (const [jobId, job] of this.jobs) {
       if (job.status === "pending" && job.createdAt <= cutoff) {
         this.jobs.delete(jobId);
+        this.onExpiredPendingJob?.(job);
       }
     }
   }

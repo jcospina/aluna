@@ -197,6 +197,11 @@
 .capability-records:not(:empty) ~ .capability-empty {
   display: none;
 }
+/* While the region's own read request is in flight it is loading, not empty —
+   without this the commit swap flashes "Nothing here yet" before records land. */
+.capability-records.htmx-request:empty ~ .capability-empty {
+  display: none;
+}
 
 @media (max-width: 639.98px) {
   .capability-collection__header {

@@ -1,7 +1,11 @@
 import type { Send } from "../sse/index.ts";
+import { escapeHtml } from "../web/html.ts";
 import { buildDemoErrorPreview } from "./previews.ts";
 
 export const DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS = 2_000;
+
+/** The product-voice failure line: narrated live, and left behind as the notice. */
+export const FAILED_BUILD_NOTICE = "Hmm, that didn't work. Mind trying again?";
 
 export async function runBoundedTerminalPresentation(
   send: Send,
@@ -66,7 +70,12 @@ export async function deliverActivatedPresentation(
   );
 }
 
-/** Present a pre-activation failure completely while the build lease is held. */
+/**
+ * Present a pre-activation failure completely while the build lease is held.
+ * The narration is transient — terminal promotion replaces the subscriber with the
+ * restored View — so the same product-voice line also rides the fragment as an
+ * out-of-band `#prompt-notice` swap and stays visible after the View is restored.
+ */
 export async function deliverFailedPresentation(
   send: Send,
   error: unknown,
@@ -74,13 +83,14 @@ export async function deliverFailedPresentation(
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
   metricsPreview?: string,
 ): Promise<boolean> {
+  const persistentNotice = `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(FAILED_BUILD_NOTICE)}</div>`;
   return runBoundedTerminalPresentation(
     send,
     async (sendWhileActive) => {
       if (metricsPreview !== undefined) await sendWhileActive("metrics-preview", metricsPreview);
       await sendWhileActive("build-error-preview", JSON.stringify(buildDemoErrorPreview(error)));
-      await sendWhileActive("narration", "Hmm, that didn't work. Mind trying again?");
-      await sendWhileActive("fragment", restorationFragment);
+      await sendWhileActive("narration", FAILED_BUILD_NOTICE);
+      await sendWhileActive("fragment", `${restorationFragment}\n${persistentNotice}`);
       await sendWhileActive("done", "error");
     },
     timeoutMs,

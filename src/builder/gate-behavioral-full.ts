@@ -160,7 +160,9 @@ async function runFullBehavioralCase(
 ): Promise<void> {
   assertCaseFields(input.spec, testCase);
   const scratch = openScratchDatabasePair();
-  const setupRows = testCase.setupRows.map((row) => fieldValuesToRecord(row.values));
+  const setupRows = testCase.setupRows.map((row) =>
+    fieldValuesToRecord(activeSpecFields(input.spec.schema.fields), row.values),
+  );
   const submittedFields =
     testCase.action === "create"
       ? activeSpecFields(input.spec.schema.fields).map((field) => field.name)
@@ -371,7 +373,7 @@ function assertExpectedRows(
     );
   }
   for (const expectedRow of testCase.expectedRows) {
-    const expected = fieldValuesToRecord(expectedRow.values);
+    const expected = fieldValuesToRecord(activeSpecFields(spec.schema.fields), expectedRow.values);
     if (!rows.some((row) => rowMatches(spec.schema.fields, row, expected))) {
       throw new Error(`did not find a scratch row matching ${JSON.stringify(expected)}.`);
     }
