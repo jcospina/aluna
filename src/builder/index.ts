@@ -36,12 +36,30 @@ export {
   type TombstonedCapabilityIncarnation,
 } from "./artifact-reconciliation.ts";
 export {
+  buildCandidateSpecPrompt,
+  type CandidateSpecGenResult,
+  type GenerateCandidateSpecInput,
+  generateCandidateSpec,
+  handSuppliedEvolutionIntent,
+} from "./candidate-spec-gen.ts";
+export {
+  CandidateValidationError,
+  type CandidateValidationIssue,
+  committedSpecView,
+  type ValidateCandidateSpecInput,
+  validateCandidateSpec,
+} from "./candidate-validation.ts";
+export {
   type CommitCapabilityInput,
   type CommitCapabilityResult,
   commitCapability,
   DEFAULT_ARTIFACTS_ROOT,
   FIRST_CAPABILITY_VERSION,
 } from "./commit.ts";
+export {
+  buildDependencyGenerationCatalog,
+  type DependencyGenerationCatalogEntry,
+} from "./dependency-catalog.ts";
 export {
   BEHAVIORAL_TIER_ENV_VAR,
   type BehavioralGateResult,
