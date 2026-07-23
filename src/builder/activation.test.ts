@@ -179,9 +179,11 @@ describe("activatePublishedSnapshot — point of no return", () => {
     });
 
     expect(commit.previousLabel).toBe("Notes");
-    expect(renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel)).not.toContain(
-      "hx-swap-oob",
-    );
+    expect(
+      renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel).split(
+        '<div id="developer-v2-tracer-control"',
+      )[0],
+    ).not.toContain("hx-swap-oob");
   });
 
   test("wrong expected incarnation and version are stale CAS writes that touch no pointer", async () => {

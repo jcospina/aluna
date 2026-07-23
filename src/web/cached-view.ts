@@ -80,7 +80,32 @@ export function renderCachedCapabilityShell(row: CapabilityRow, database: Databa
     row,
     listCapabilities(database),
     renderCapabilityCollection(row),
-    shellHtml,
+    withLifecycleMetricsPreview(shellHtml, database),
+  );
+}
+
+/**
+ * Seed the developer panel's lifecycle preview into a full-shell page: the latest
+ * generation lifecycles plus the committed-version list per capability. Both
+ * full-page paths (`GET /` and direct `GET /capability/:id`) share this, so the
+ * version history the developer panel shows survives a refresh on either URL.
+ */
+function withLifecycleMetricsPreview(shellHtml: string, database: Database): string {
+  const lifecycleReady = database
+    .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(GENERATION_LIFECYCLE_TABLE);
+  const latest = lifecycleReady ? listGenerationLifecycles(database).slice(0, 5) : [];
+  const rows = isRegistryInitialized(database) ? listCapabilities(database) : [];
+  const committedVersions = rows.map((row) => ({
+    capabilityId: row.id,
+    incarnationId: row.incarnation_id,
+    liveVersion: row.version,
+    versions: Array.from({ length: row.version }, (_, index) => index + 1),
+  }));
+  if (latest.length === 0 && committedVersions.length === 0) return shellHtml;
+  return shellHtml.replace(
+    METRICS_PREVIEW_TARGET,
+    `<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true">${escapeHtml(JSON.stringify({ lifecycles: latest, committedVersions }, null, 2))}</pre>`,
   );
 }
 
@@ -95,24 +120,7 @@ export function renderCachedCapabilityShell(row: CapabilityRow, database: Databa
 export function renderRehydratedShellPage(database: Database): string {
   const rows = isRegistryInitialized(database) ? listCapabilities(database) : [];
   const shellHtml = readFileSync(resolve(process.cwd(), "public/index.html"), "utf8");
-  const lifecycleReady = database
-    .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
-    .get(GENERATION_LIFECYCLE_TABLE);
-  const latest = lifecycleReady ? listGenerationLifecycles(database).slice(0, 5) : [];
-  const committedVersions = rows.map((row) => ({
-    capabilityId: row.id,
-    incarnationId: row.incarnation_id,
-    liveVersion: row.version,
-    versions: Array.from({ length: row.version }, (_, index) => index + 1),
-  }));
-  const withMetrics =
-    latest.length === 0 && committedVersions.length === 0
-      ? shellHtml
-      : shellHtml.replace(
-          METRICS_PREVIEW_TARGET,
-          `<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true">${escapeHtml(JSON.stringify({ lifecycles: latest, committedVersions }, null, 2))}</pre>`,
-        );
-  return renderRehydratedShell(rows, withMetrics);
+  return renderRehydratedShell(rows, withLifecycleMetricsPreview(shellHtml, database));
 }
 
 /**

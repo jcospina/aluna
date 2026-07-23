@@ -102,6 +102,10 @@ describe("deliverFailedPresentation", () => {
       message: failure.message,
     });
     expect(events[1]?.data).toMatch(/mind trying again/i);
+    // The restored View replaces the narration at promotion, so the same product
+    // voice must persist through the fragment's out-of-band prompt notice.
+    expect(events[2]?.data).toContain('id="prompt-notice" hx-swap-oob="innerHTML"');
+    expect(events[2]?.data).toMatch(/mind trying again/i);
     expect(events[1]?.data).not.toMatch(/behavioral|gate|internal/i);
     expect(events[2]?.data).toContain('data-build-restoration="neutral"');
     expect(events[3]?.data).toBe("error");

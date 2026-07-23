@@ -62,7 +62,7 @@
   flex-direction: column;
   gap: var(--space-0_5);
 }
-.devbar__block:has(.spec-build__preview:empty) {
+.devbar__block:has(.spec-build__preview:empty):not(:has(.capability-v2-tracer)) {
   display: none;
 }
 .devbar__block-label {

@@ -47,8 +47,11 @@ async function inspectToolbarOob(fragment: string): Promise<OobInspection> {
         const insideOob = hasOob || insideOobStack.includes(true);
 
         if (hasOob) {
-          oobCount += 1;
-          oobValue = element.getAttribute("hx-swap-oob");
+          const value = element.getAttribute("hx-swap-oob");
+          if (value?.includes("capability-toolbar")) {
+            oobCount += 1;
+            oobValue = value;
+          }
         }
 
         if (element.canHaveContent) {

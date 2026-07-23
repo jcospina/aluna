@@ -26,6 +26,8 @@ import {
   DEFAULT_MUTATION_PREVIEW_HOLD_MS,
   renderMutationCoordinatorPreviewPage,
 } from "./mutation-coordinator/preview.ts";
+import { handAuthoredV2Candidate } from "./pipeline/hand-authored-v2-candidate.ts";
+import { runHandAuthoredV2Tracer } from "./pipeline/hand-authored-v2-tracer.ts";
 import {
   createMetricsRecorder,
   createPromptBuildPipeline,
@@ -33,17 +35,26 @@ import {
   type RecordMetrics,
   streamSpecBuildDemo,
 } from "./pipeline/index.ts";
-import { captureRestorationDescriptor } from "./pipeline/restoration.ts";
+import { buildCommitPreview } from "./pipeline/previews.ts";
+import { captureRestorationDescriptor, renderRestorationFragment } from "./pipeline/restoration.ts";
+import {
+  deliverActivatedPresentation,
+  deliverActivatedRecoveryPresentation,
+  deliverFailedPresentation,
+  deliverRestoredPresentation,
+} from "./pipeline/terminal-presentation.ts";
 import { renderDetailInteractionPreviewPage } from "./presentation/detail-interaction-preview.ts";
 import { renderDetailModalPreviewPage } from "./presentation/detail-modal-preview.ts";
 import { renderFieldRendererPreviewPage } from "./presentation/field-renderer-preview.ts";
 import { renderListContainerPreviewPage } from "./presentation/list-container-preview.ts";
 import { createProvider, type Provider } from "./provider/index.ts";
+import { getCapability } from "./registry/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "./router/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "./sse/index.ts";
 import {
   readPromptSubmission,
   renderBuildSubscriber,
+  renderCachedCapabilityCommitSwap,
   renderRehydratedShellPage,
 } from "./web/index.ts";
 
@@ -174,6 +185,8 @@ function registerShellAndLivenessRoutes(app: Hono, ctx: ResolvedAppDeps): void {
     mutationCoordinator,
     registryReadonly,
   } = ctx;
+  const tracerExpected = new Map<string, NonNullable<ReturnType<typeof getCapability>>>();
+  const tracerJobs = createHandAuthoredV2TracerJobs(ctx, tracerExpected);
 
   // Root route — the fixed shell (ARCH §6.1), with its capability toolbar rehydrated
   // from the registry on load (Epic 2.1): one canonical entry per row, and the shell
@@ -248,6 +261,154 @@ function registerShellAndLivenessRoutes(app: Hono, ctx: ResolvedAppDeps): void {
       });
     }),
   );
+
+  // TEMPORARY — Module 4.6/05 removes this hand-authored regenerate-all tracer.
+  // It owns a distinct endpoint but deliberately uses the shared build subscriber,
+  // SSE terminal vocabulary, and presenter; it is not a second evolution delivery path.
+  app.post("/demo/hand-authored-v2/:id", (c) => {
+    const id = c.req.param("id");
+    const active = getCapability(id, buildDatabases.readonly);
+    if (!active) return c.html('<p class="notice">Hmm — I can\'t find that here.</p>', 404);
+    if (active.version !== 1) {
+      return c.html(
+        '<p class="notice">This temporary v2 trace has already been completed.</p>',
+        409,
+      );
+    }
+    const result = tracerJobs.create(id, {
+      kind: "capability",
+      capabilityId: active.id,
+      incarnationId: active.incarnation_id,
+    });
+    tracerExpected.set(result.job.id, active);
+    const encodedJobId = encodeURIComponent(result.job.id);
+    return c.html(
+      renderBuildSubscriber(result.job.id, {
+        streamPath: `/demo/hand-authored-v2/build/${encodedJobId}/stream`,
+        cancelPath: `/demo/hand-authored-v2/build/${encodedJobId}/cancel`,
+      }),
+      200,
+      { "cache-control": "no-store" },
+    );
+  });
+
+  app.post("/demo/hand-authored-v2/build/:id/cancel", (c) =>
+    tracerJobs.cancel(c.req.param("id")) ? c.body(null, 202) : c.body(null, 404),
+  );
+  app.get("/demo/hand-authored-v2/build/:id/stream", (c) =>
+    streamSSE(c, async (stream) => {
+      const transport = sseTransport(stream);
+      await withSseHeartbeat(transport, sseHeartbeatMs, async () => {
+        let aborted = false;
+        const abortController = new AbortController();
+        stream.onAbort(() => {
+          aborted = true;
+          abortController.abort();
+        });
+        await tracerJobs.stream(
+          c.req.param("id"),
+          transport.send,
+          () => aborted,
+          abortController.signal,
+        );
+      });
+    }),
+  );
+}
+
+function createHandAuthoredV2TracerJobs(
+  ctx: ResolvedAppDeps,
+  expectedByJob: Map<string, NonNullable<ReturnType<typeof getCapability>>>,
+): BuildJobQueue {
+  const { artifactsRoot, buildDatabases, mutationCoordinator, recordMetrics } = ctx;
+  return createBuildJobQueue({
+    onExpiredPendingJob: (job) => expectedByJob.delete(job.id),
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: this single temporary pipeline makes the v2 PONR and terminal recovery order explicit.
+    pipeline: async ({ canPresent, isAborted, job, send, signal }) => {
+      const active = expectedByJob.get(job.id);
+      expectedByJob.delete(job.id);
+      if (!active) throw new Error("Selected capability no longer exists.");
+      const reservation = mutationCoordinator.reserveBuild();
+      try {
+        const result = await mutationCoordinator.withBuildLease(
+          reservation,
+          // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one lease must visibly own the v2 PONR through terminal delivery.
+          async () => {
+            if (isAborted()) return "cancelled" as const;
+            await send("narration", "I’m refreshing this view now.");
+            const current = getCapability(active.id, buildDatabases.readonly);
+            if (
+              current?.incarnation_id !== active.incarnation_id ||
+              current.version !== active.version
+            ) {
+              throw new Error("Selected capability changed before its v2 tracer began.");
+            }
+            if (isAborted()) return "cancelled" as const;
+            const traced = await runHandAuthoredV2Tracer({
+              active,
+              candidate: () => handAuthoredV2Candidate(active),
+              buildId: job.id,
+              database: buildDatabases,
+              artifactsRoot,
+              recordMetrics,
+            });
+            if (!canPresent() || isAborted()) return "activated-undelivered" as const;
+            const delivered = await deliverActivatedPresentation(
+              send,
+              JSON.stringify(buildCommitPreview(traced.commit)),
+              renderCachedCapabilityCommitSwap(traced.commit.row, traced.commit.previousLabel),
+              undefined,
+              JSON.stringify(recordMetrics.get(job.id, active.incarnation_id)),
+            );
+            if (!delivered) await deliverActivatedRecoveryPresentation(send);
+            return "terminal-sent" as const;
+          },
+          signal ? { signal } : {},
+        );
+        if (result === "cancelled") {
+          if (canPresent()) {
+            await deliverRestoredPresentation(
+              send,
+              renderRestorationFragment(job.restoration, buildDatabases.readonly),
+              "cancelled",
+            );
+          }
+          return "terminal-sent";
+        }
+        if (result === "activated-undelivered") {
+          if (canPresent()) await deliverActivatedRecoveryPresentation(send);
+          return "terminal-sent";
+        }
+        return "terminal-sent";
+      } catch (error) {
+        const live = getCapability(active.id, buildDatabases.readonly);
+        if (live?.incarnation_id === active.incarnation_id && live.version > active.version) {
+          await deliverActivatedRecoveryPresentation(send);
+          return "terminal-sent";
+        }
+        if (isAborted()) {
+          if (canPresent()) {
+            await deliverRestoredPresentation(
+              send,
+              renderRestorationFragment(job.restoration, buildDatabases.readonly),
+              "cancelled",
+            );
+            return "terminal-sent";
+          }
+          return;
+        }
+        if (!canPresent()) return;
+        await deliverFailedPresentation(
+          send,
+          error,
+          renderRestorationFragment(job.restoration, buildDatabases.readonly),
+          undefined,
+          JSON.stringify(recordMetrics.get(job.id, active.incarnation_id)),
+        );
+        return "terminal-sent";
+      }
+    },
+  });
 }
 
 /**

@@ -1,4 +1,4 @@
-import { activeSpecFields, type CapabilitySpec } from "../registry/index.ts";
+import { activeSpecFields, type CapabilitySpec, type SpecField } from "../registry/index.ts";
 import type { CapabilityInput } from "../router/index.ts";
 
 export type BehavioralScalar = string | number | boolean | readonly string[] | null;
@@ -13,10 +13,34 @@ interface BehavioralInputValue {
   readonly value: string;
 }
 
+/**
+ * Materialize model-authored field/value pairs into a record, normalized by the
+ * spec's field types the same way {@link inputValuesToHandlerInput} shapes the
+ * handler input: a `string[]` field collects every entry into one list (a single
+ * scalar becomes a one-element list), so setup seeding and expected-row matching
+ * compare against the same list representation the data ports store. A `null`
+ * stays `null` — it asserts the field's absence, not an empty list.
+ */
 export function fieldValuesToRecord(
+  fields: readonly SpecField[],
   values: readonly BehavioralFieldValue[],
 ): Record<string, BehavioralScalar> {
-  return Object.fromEntries(values.map((entry) => [entry.field, entry.value]));
+  const listFields = new Set(
+    fields.filter((field) => field.type === "string[]").map((field) => field.name),
+  );
+  const record: Record<string, BehavioralScalar> = {};
+  for (const entry of values) {
+    if (!listFields.has(entry.field) || entry.value === null) {
+      record[entry.field] = entry.value;
+      continue;
+    }
+    const existing = record[entry.field];
+    const list = Array.isArray(existing) ? [...existing] : [];
+    if (Array.isArray(entry.value)) list.push(...entry.value);
+    else list.push(String(entry.value));
+    record[entry.field] = list;
+  }
+  return record;
 }
 
 export function inputValuesToHandlerInput(

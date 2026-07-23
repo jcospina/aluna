@@ -53,12 +53,17 @@ const CLEAR_ON_ACCEPT_TARGETS = [
  * re-run the build. The `commit` region receives the terminal success swap:
  * committed content in the content area plus the toolbar entry as an OOB sidecar.
  */
-export function renderBuildSubscriber(jobId: string): string {
-  const streamPath = `/build/${encodeURIComponent(jobId)}/stream`;
+export function renderBuildSubscriber(
+  jobId: string,
+  paths: { readonly streamPath?: string; readonly cancelPath?: string } = {},
+): string {
+  const encodedJobId = encodeURIComponent(jobId);
+  const streamPath = paths.streamPath ?? `/build/${encodedJobId}/stream`;
+  const cancelPath = paths.cancelPath ?? `/build/${encodedJobId}/cancel`;
   return [
     `<section class="build-stream" data-build-job-id="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}" sse-close="done">`,
     '  <div class="build-stream__narration" aria-live="polite" sse-swap="narration" hx-swap="beforeend"></div>',
-    `  <button class="btn btn--ghost build-stream__cancel" type="button" hx-post="/build/${encodeURIComponent(jobId)}/cancel" hx-swap="none">Cancel</button>`,
+    `  <button class="btn btn--ghost build-stream__cancel" type="button" hx-post="${escapeHtml(cancelPath)}" hx-swap="none">Cancel</button>`,
     '  <div class="build-stream__fragment" sse-swap="fragment" hx-swap="beforeend"></div>',
     '  <div class="build-stream__commit" aria-live="polite" sse-swap="commit" hx-swap="innerHTML"></div>',
     ...PREVIEW_TARGETS.map(
@@ -125,6 +130,7 @@ function renderCapabilityToolbarReplacement(row: Pick<CapabilityRow, "id" | "lab
 export function renderCapabilitySurface(
   row: Pick<CapabilityRow, "id" | "incarnation_id" | "version">,
   collectionHtml: string,
+  includeDeveloperControl = true,
 ): string {
   return [
     `<section class="capability-surface" data-active-capability-id="${escapeHtml(row.id)}"` +
@@ -132,6 +138,29 @@ export function renderCapabilitySurface(
       ` data-active-capability-version="${row.version}">`,
     collectionHtml,
     "</section>",
+    ...(includeDeveloperControl ? [renderDeveloperV2TracerControl(row, true)] : []),
+  ].join("\n");
+}
+
+function renderDeveloperV2TracerControl(
+  row: Pick<CapabilityRow, "id" | "incarnation_id" | "version">,
+  outOfBand: boolean,
+): string {
+  // This issue deliberately proves exactly one v1 → v2 transition. Keep the
+  // temporary affordance absent once v2 is live so it cannot masquerade as a
+  // general evolution path before Module 4.6 owns that responsibility.
+  const form =
+    row.version === 1
+      ? [
+          `  <form class="capability-v2-tracer" data-dev-only hx-post="/demo/hand-authored-v2/${encodeURIComponent(row.id)}" hx-target="#spec-build-output" hx-swap="beforeend">`,
+          '    <button type="submit" class="btn btn--ghost">Trace next version</button>',
+          "  </form>",
+        ]
+      : [];
+  return [
+    `<div id="developer-v2-tracer-control"${outOfBand ? ' hx-swap-oob="innerHTML"' : ""}>`,
+    ...form,
+    "</div>",
   ].join("\n");
 }
 
@@ -152,7 +181,7 @@ export function renderCapabilityShell(
   collectionHtml: string,
   shellHtml: string,
 ): string {
-  const surface = renderCapabilitySurface(activeRow, collectionHtml);
+  const surface = renderCapabilitySurface(activeRow, collectionHtml, false);
   const contentPlaceholder =
     '<div class="intro__output" id="spec-build-output" aria-live="polite"></div>';
 
@@ -165,7 +194,11 @@ export function renderCapabilityShell(
     throw new Error("The shell content target placeholder is missing.");
   }
 
-  return injectToolbarEntries(withContent, renderToolbarEntries(allRows));
+  const withDeveloperControl = withContent.replace(
+    '<div id="developer-v2-tracer-control"></div>',
+    renderDeveloperV2TracerControl(activeRow, false),
+  );
+  return injectToolbarEntries(withDeveloperControl, renderToolbarEntries(allRows));
 }
 
 /**

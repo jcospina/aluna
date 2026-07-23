@@ -174,6 +174,7 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain("output.replaceChildren(...terminal.element.childNodes)");
     expect(js).toContain("commit.childNodes.length > 0");
     expect(js).toContain('subscriber.querySelector(".build-stream__narration")');
+    expect(js).toContain("reloadRestoredRecords(output, terminal.restorationKind)");
     expect(js).toContain('.ajax("GET", readUrl');
     expect(js).toContain("source: records, target: records");
     expect(js).toContain('htmx.trigger(records, "htmx:abort")');
@@ -209,6 +210,15 @@ describe("GET / (shell) — browser glue", () => {
     expect(css).toContain("#spec-build-output:has(> .build-stream");
     expect(css).toContain(".build-stream:only-child:not(:has");
     expect(css).toMatch(/only-child[^{}]+build-stream__commit:not\(:empty\)/s);
+  });
+
+  test("devbar surfaces the temporary v2 tracer and loading records are not empty", async () => {
+    const app = createApp();
+    const devbar = await responseText(await app.request("/static/css/devbar.css"));
+    const collection = await responseText(await app.request("/static/css/collection.css"));
+
+    expect(devbar).toContain(":not(:has(.capability-v2-tracer))");
+    expect(collection).toContain(".capability-records.htmx-request:empty ~ .capability-empty");
   });
 
   test("structured create validation swaps into its retarget without becoming a successful create", () => {
