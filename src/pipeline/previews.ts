@@ -12,6 +12,7 @@ import type { Database } from "bun:sqlite";
 import type {
   BehavioralGateResult,
   CandidateValidationIssue,
+  CapabilityDiff,
   CapabilityMigrationResult,
   CommitCapabilityResult,
   GateRungOutcome,
@@ -232,26 +233,29 @@ export function buildGatePreview(
   };
 }
 
-// The evolution-candidate preview — Module 4.6/01. The dev tracer's one
-// developer-panel payload: the accepted validated candidate, or the total
-// rejection with every contract violation. 4.6/02 extends this with the
-// emitted typed change facts and their unioned work plan.
+// The evolution-candidate preview — Module 4.6/01–02. The dev tracer's one
+// developer-panel payload: the validated candidate plus the Diff Engine's typed
+// change facts and unioned work plan, the measured no-op when the Diff finds zero
+// facts, or the total rejection with every contract violation.
 export interface EvolutionCandidatePreview {
   readonly kind: "evolution-candidate-preview";
-  readonly status: "accepted" | "rejected";
+  readonly status: "accepted" | "no_change" | "rejected";
   readonly capabilityId: string;
   readonly incarnationId: string;
   readonly committedVersion: number;
   readonly proposedAction: string;
   readonly candidate?: CapabilitySpec;
+  /** The typed change facts and unioned work plan (present on accepted + no_change). */
+  readonly diff?: CapabilityDiff;
   readonly issues?: readonly CandidateValidationIssue[];
 }
 
-/** The accepted half: the validated canonical candidate the Diff stage receives. */
+/** The accepted half: the validated candidate with the change facts the Diff emitted. */
 export function buildEvolutionCandidateAcceptedPreview(
   committed: Pick<CapabilityRow, "id" | "incarnation_id" | "version">,
   proposedAction: string,
   candidate: CapabilitySpec,
+  diff: CapabilityDiff,
 ): EvolutionCandidatePreview {
   return {
     kind: "evolution-candidate-preview",
@@ -261,6 +265,26 @@ export function buildEvolutionCandidateAcceptedPreview(
     committedVersion: committed.version,
     proposedAction,
     candidate,
+    diff,
+  };
+}
+
+/** The measured no-op: a semantically identical candidate, zero facts (decision 37). */
+export function buildEvolutionCandidateNoChangePreview(
+  committed: Pick<CapabilityRow, "id" | "incarnation_id" | "version">,
+  proposedAction: string,
+  candidate: CapabilitySpec,
+  diff: CapabilityDiff,
+): EvolutionCandidatePreview {
+  return {
+    kind: "evolution-candidate-preview",
+    status: "no_change",
+    capabilityId: committed.id,
+    incarnationId: committed.incarnation_id,
+    committedVersion: committed.version,
+    proposedAction,
+    candidate,
+    diff,
   };
 }
 

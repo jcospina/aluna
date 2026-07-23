@@ -133,6 +133,8 @@ export const CANDIDATE_ACCEPTED_NOTICE =
   "Here's how I'd shape that change — take a look whenever you're ready.";
 export const CANDIDATE_REJECTED_NOTICE =
   "Hmm, I couldn't quite shape that change safely. Mind telling me again, a little differently?";
+export const CANDIDATE_NO_CHANGE_NOTICE =
+  "That's already exactly how this works — nothing to change.";
 
 /**
  * Deliver an evolution-candidate trace outcome: the developer-panel candidate
@@ -155,6 +157,34 @@ export async function deliverCandidateOutcomePresentation(
       await sendWhileActive("narration", notice);
       await sendWhileActive("fragment", `${restorationFragment}\n${persistentNotice}`);
       await sendWhileActive("done", outcome === "accepted" ? "ok" : "error");
+    },
+    timeoutMs,
+  );
+}
+
+/**
+ * Deliver the measured no-op (decision 37): the developer-panel candidate preview
+ * carrying the zero-fact Diff, the `success/no_change` metrics row's preview, one
+ * warm narration line kept as the persistent prompt notice, the committed View
+ * restored through `fragment`, and a warm `done=ok`. No version bumped, no unit or
+ * DDL work ran — the candidate was semantically identical.
+ */
+export async function deliverCandidateNoChangePresentation(
+  send: Send,
+  candidatePreview: string,
+  restorationFragment: string,
+  metricsPreview: string,
+  timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
+): Promise<boolean> {
+  const persistentNotice = `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(CANDIDATE_NO_CHANGE_NOTICE)}</div>`;
+  return runBoundedTerminalPresentation(
+    send,
+    async (sendWhileActive) => {
+      await sendWhileActive("metrics-preview", metricsPreview);
+      await sendWhileActive("candidate-preview", candidatePreview);
+      await sendWhileActive("narration", CANDIDATE_NO_CHANGE_NOTICE);
+      await sendWhileActive("fragment", `${restorationFragment}\n${persistentNotice}`);
+      await sendWhileActive("done", "ok");
     },
     timeoutMs,
   );

@@ -61,6 +61,20 @@ export {
   type DependencyGenerationCatalogEntry,
 } from "./dependency-catalog.ts";
 export {
+  type BehavioralTestPlan,
+  type CapabilityDiff,
+  type ChangeFact,
+  type ChangeFactKind,
+  type DiffGatePlan,
+  type DiffWorkPlan,
+  diffCapabilitySpec,
+  GENERATED_UNITS,
+  type GeneratedUnitName,
+  PLATFORM_WORK_KINDS,
+  type PlatformWorkKind,
+  UnmappedChangeFactError,
+} from "./diff-engine.ts";
+export {
   BEHAVIORAL_TIER_ENV_VAR,
   type BehavioralGateResult,
   type BehavioralTestCaseOutcome,

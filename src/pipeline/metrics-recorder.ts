@@ -151,9 +151,14 @@ const UNIT_STAGES = [
   { kind: "handler", name: "search" },
 ] as const;
 
+// The terminal shapes the stage vector is read for: an activated build, a
+// failure, a cancellation, and the measured no-op (decision 37) whose downstream
+// stages are all skipped exactly like a never-activated build.
+type LifecycleTerminal = "activated" | "failed" | "cancelled" | "no_change";
+
 function activationStageState(
   acc: DemoBuildAccumulator,
-  terminal: "activated" | "failed" | "cancelled",
+  terminal: LifecycleTerminal,
 ): GenerationStageMeasurement["state"] {
   return terminal === "activated" || acc.activationAttempted ? "executed" : "skipped";
 }
@@ -161,7 +166,7 @@ function activationStageState(
 /** A complete semantic state vector; later evolution can mark individual entries copied. */
 export function lifecycleStages(
   acc: DemoBuildAccumulator,
-  terminal: "activated" | "failed" | "cancelled",
+  terminal: LifecycleTerminal,
 ): readonly GenerationStageMeasurement[] {
   const generatedUnits = new Set(acc.unitAttempts?.map((unit) => `${unit.kind}:${unit.name}`));
   const gateByName = new Map(acc.gateRungs?.map((rung) => [rung.rung, rung.status]));
@@ -208,6 +213,43 @@ export function lifecycleStages(
       state: activationStageState(acc, terminal),
     },
   ];
+}
+
+/**
+ * Finalize a measured no-op (decision 37). The candidate was authored and totally
+ * validated, then the Diff Engine found zero change facts — so this opens a running
+ * lifecycle row for the evolving capability's incarnation and immediately resolves
+ * it `success/no_change` with every downstream stage skipped. Spec generation is
+ * `generated` (the candidate was authored); nothing after the Diff ran, so no DDL,
+ * unit, gate, or publication work is recorded. The generation's duration and token
+ * usage are the only real measurement.
+ */
+export function finalizeMeasuredNoChange(
+  recordMetrics: RecordMetrics,
+  input: {
+    readonly buildId: string;
+    readonly incarnationId: string;
+    readonly capabilityId: string;
+    readonly durationMs: number;
+    readonly usage: TokenUsage;
+  },
+): void {
+  const acc: DemoBuildAccumulator = {
+    usages: [input.usage],
+    timings: { specGenMs: input.durationMs },
+  };
+  recordMetrics.start({
+    buildId: input.buildId,
+    incarnationId: input.incarnationId,
+    capabilityId: input.capabilityId,
+  });
+  recordMetrics.succeed({
+    buildId: input.buildId,
+    incarnationId: input.incarnationId,
+    outcome: "no_change",
+    stages: lifecycleStages(acc, "no_change"),
+    measurement: lifecycleMeasurement(acc, performance.now() - input.durationMs),
+  });
 }
 
 export function lifecycleFailureOutcome(failure: GenerationFailure): GenerationFailureOutcome {

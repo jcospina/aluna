@@ -1,10 +1,12 @@
-// The evolution-candidate dev tracer — Module 4.6/01 (PLAN decisions 1, 2, 4,
-// 22; ADR-0006). The first visible half of evolution: target a live capability
-// with a hand-typed intent, author one complete candidate spec, validate it
-// totally, and surface the accepted candidate (or the warm rejection) in the
-// developer preview. It deliberately stops before the Diff stage — 4.6/02 owns
-// typed change facts, and nothing here performs DDL, unit work, publication,
-// activation, a version bump, or a View swap.
+// The evolution-candidate dev tracer — Module 4.6/01–02 (PLAN decisions 1, 2, 4,
+// 21, 22, 37; ADR-0006). The first visible half of evolution: target a live
+// capability with a hand-typed intent, author one complete candidate spec,
+// validate it totally, then run the Diff Engine (4.6/02) over the committed and
+// candidate specs. It surfaces the validated candidate with its typed change
+// facts and unioned work plan — or, when the Diff finds zero facts, reports the
+// canonical no-op. It still performs no DDL, unit work, publication, activation,
+// or version bump; the measured no-op's only durable effect is its own
+// `success/no_change` metrics row (decision 37), finalized by the caller.
 //
 // TEMPORARY SEAM — the hand-supplied resolved intent. Epic 4.8 wires the real
 // Intent Resolver (and stale-target admission) in front of evolution; until
@@ -19,11 +21,14 @@ import type { Database } from "bun:sqlite";
 import type { SendBuildEvent } from "../build-jobs.ts";
 import {
   buildDependencyGenerationCatalog,
+  type CapabilityDiff,
+  committedSpecView,
   type DependencyGenerationCatalogEntry,
+  diffCapabilitySpec,
   generateCandidateSpec,
   handSuppliedEvolutionIntent,
 } from "../builder/index.ts";
-import type { Provider } from "../provider/index.ts";
+import type { Provider, TokenUsage } from "../provider/index.ts";
 import { type CapabilityRow, type CapabilitySpec, listCapabilities } from "../registry/index.ts";
 import { previewingProvider } from "./build-run.ts";
 
@@ -39,17 +44,24 @@ export interface EvolutionCandidateTracerInput {
 }
 
 export interface EvolutionCandidateTracerResult {
-  /** The validated canonical candidate — exactly what the Diff stage (4.6/02) receives. */
+  /** The validated canonical candidate — exactly what the Diff stage compared. */
   readonly candidate: CapabilitySpec;
+  /** The typed change facts and unioned work plan (or the no-op) the Diff produced. */
+  readonly diff: CapabilityDiff;
   /** The lease-frozen catalog the candidate was generated and validated against. */
   readonly dependencyCatalog: readonly DependencyGenerationCatalogEntry[];
+  /** The candidate authoring duration — the measured no-op's only real timing. */
+  readonly durationMs: number;
+  /** The candidate authoring token usage — the measured no-op's only real spend. */
+  readonly usage: TokenUsage;
 }
 
 /**
- * Run candidate generation + total validation under the caller-held build
- * lease. Streams the authoring preview (`spec-preview`) while the candidate
- * assembles; throws `CandidateValidationError` upward on rejection so the route
- * delivers the warm rejection presentation.
+ * Run candidate generation + total validation, then the Diff Engine, under the
+ * caller-held build lease. Streams the authoring preview (`spec-preview`) while
+ * the candidate assembles; throws `CandidateValidationError` on a rejected
+ * candidate (the warm rejection) and `UnmappedChangeFactError` on a difference
+ * the matrix cannot map (fails closed, decision 21) — both upward to the route.
  */
 export async function runEvolutionCandidateTracer(
   input: EvolutionCandidateTracerInput,
@@ -74,7 +86,16 @@ export async function runEvolutionCandidateTracer(
       dependencyCatalog,
       send: input.send,
     });
-    return { candidate: generated.candidate, dependencyCatalog };
+    // The Diff Engine (4.6/02): the committed row's authored view against the
+    // validated candidate. Total and monotone — an unmapped difference throws.
+    const diff = diffCapabilitySpec(committedSpecView(input.active), generated.candidate);
+    return {
+      candidate: generated.candidate,
+      diff,
+      dependencyCatalog,
+      durationMs: generated.durationMs,
+      usage: generated.usage,
+    };
   } finally {
     // Every preview is on the wire before the terminal presentation either way.
     await settled;

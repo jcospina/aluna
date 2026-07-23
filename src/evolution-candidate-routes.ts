@@ -1,16 +1,20 @@
-// The evolution-candidate dev tracer routes — Module 4.6/01 (PLAN decisions 1,
-// 2, 4, 22; ADR-0006). The first visible half of evolution on the homepage: the
-// developer-panel affordance posts a live capability id plus a hand-typed
-// intent; the trace authors one complete candidate spec, validates it totally,
-// and shows the accepted candidate (or the warm rejection) in the developer
-// preview. It stops before the Diff stage — nothing durable changes: no DDL,
-// no publication, no version bump, no metrics lifecycle row.
+// The evolution-candidate dev tracer routes — Module 4.6/01–02 (PLAN decisions
+// 1, 2, 4, 21, 22, 37; ADR-0006). The first visible half of evolution on the
+// homepage: the developer-panel affordance posts a live capability id plus a
+// hand-typed intent; the trace authors one complete candidate spec, validates it
+// totally, and runs the Diff Engine over the committed and candidate specs. It
+// shows the accepted candidate with its typed change facts and unioned work plan,
+// the measured no-op when the Diff finds zero facts, or the warm rejection. A
+// real change stops after the Diff (4.6/03 owns the additive DDL and unit work);
+// the only durable effect here is the measured no-op's own `success/no_change`
+// metrics row — still no DDL, publication, version bump, or View swap.
 //
-// The trace still runs under the exclusive build lease: decision 1 freezes the
+// The trace runs under the exclusive build lease: decision 1 freezes the
 // dependency-generation catalog "while mutation ownership is held", and the
-// lease is what makes that freeze real. The resolved intent stays hand-supplied
-// through this seam until epic 4.8 wires the real resolver in front; 4.6/05
-// owns removing what remains of the temporary tracer seams.
+// lease is what makes that freeze real (and what the no-op's metrics row is
+// finalized under). The resolved intent stays hand-supplied through this seam
+// until epic 4.8 wires the real resolver in front; 4.6/05 owns removing what
+// remains of the temporary tracer seams.
 
 import type { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -22,16 +26,19 @@ import {
   createBuildJobQueue,
   type SendBuildEvent,
 } from "./build-jobs.ts";
-import { CandidateValidationError } from "./builder/index.ts";
+import { CandidateValidationError, type CapabilityDiff } from "./builder/index.ts";
 import type { PlatformDatabase } from "./db.ts";
 import type { MutationCoordinator } from "./mutation-coordinator/index.ts";
 import { runEvolutionCandidateTracer } from "./pipeline/evolution-candidate-tracer.ts";
+import { finalizeMeasuredNoChange, type RecordMetrics } from "./pipeline/index.ts";
 import {
   buildEvolutionCandidateAcceptedPreview,
+  buildEvolutionCandidateNoChangePreview,
   buildEvolutionCandidateRejectedPreview,
 } from "./pipeline/previews.ts";
 import { renderRestorationFragment } from "./pipeline/restoration.ts";
 import {
+  deliverCandidateNoChangePresentation,
   deliverCandidateOutcomePresentation,
   deliverFailedPresentation,
   deliverRestoredPresentation,
@@ -47,6 +54,8 @@ export interface EvolutionCandidateTracerDeps {
   readonly getProvider: () => Provider;
   readonly mutationCoordinator: MutationCoordinator;
   readonly sseHeartbeatMs: number;
+  /** The lifecycle writer the measured no-op finalizes `success/no_change` through. */
+  readonly recordMetrics: RecordMetrics;
 }
 
 /** One admitted evolution-candidate trace: the target row and the typed intent. */
@@ -57,7 +66,11 @@ interface EvolutionCandidateAdmission {
 
 type EvolutionTraceOutcome =
   | { readonly kind: "cancelled" }
-  | { readonly kind: "accepted"; readonly candidate: CapabilitySpec };
+  | {
+      readonly kind: "accepted";
+      readonly candidate: CapabilitySpec;
+      readonly diff: CapabilityDiff;
+    };
 
 /** Register the tracer's admit/cancel/stream trio, mirroring the 4.5 tracer shape. */
 export function registerEvolutionCandidateTracerRoutes(
@@ -128,7 +141,7 @@ function createEvolutionCandidateTracerJobs(
       try {
         const outcome = await mutationCoordinator.withBuildLease(
           reservation,
-          () => traceEvolutionCandidate(deps, admitted, send, isAborted, signal),
+          () => traceEvolutionCandidate(deps, admitted, job.id, send, isAborted, signal),
           signal ? { signal } : {},
         );
         return await presentTraceOutcome(deps, admitted, job, send, canPresent, outcome);
@@ -140,10 +153,14 @@ function createEvolutionCandidateTracerJobs(
 }
 
 // The lease-held work: re-check the admitted target is unchanged, then generate
-// and validate the candidate. Rejections throw CandidateValidationError upward.
+// and validate the candidate and run the Diff Engine. A rejected candidate throws
+// CandidateValidationError; an unmapped difference throws UnmappedChangeFactError —
+// both the failure path. A zero-fact Diff is the measured no-op: it finalizes a
+// `success/no_change` metrics row under this lease (decision 37) before presenting.
 async function traceEvolutionCandidate(
   deps: EvolutionCandidateTracerDeps,
   admitted: EvolutionCandidateAdmission,
+  buildId: string,
   send: SendBuildEvent,
   isAborted: () => boolean,
   signal: AbortSignal | undefined,
@@ -165,7 +182,19 @@ async function traceEvolutionCandidate(
     send,
   });
   if (isAborted()) return { kind: "cancelled" };
-  return { kind: "accepted", candidate: traced.candidate };
+  // The measured no-op's durable effect: its own `success/no_change` row. It runs
+  // under the held lease, before presentation, so the record survives a dropped
+  // client exactly like an activation does.
+  if (traced.diff.isNoop) {
+    finalizeMeasuredNoChange(deps.recordMetrics, {
+      buildId,
+      incarnationId: current.incarnation_id,
+      capabilityId: current.id,
+      durationMs: traced.durationMs,
+      usage: traced.usage,
+    });
+  }
+  return { kind: "accepted", candidate: traced.candidate, diff: traced.diff };
 }
 
 async function presentTraceOutcome(
@@ -182,6 +211,22 @@ async function presentTraceOutcome(
     return "terminal-sent";
   }
   if (!canPresent()) return undefined;
+  if (outcome.diff.isNoop) {
+    await deliverCandidateNoChangePresentation(
+      send,
+      JSON.stringify(
+        buildEvolutionCandidateNoChangePreview(
+          admitted.active,
+          admitted.intentText,
+          outcome.candidate,
+          outcome.diff,
+        ),
+      ),
+      restoration,
+      JSON.stringify(deps.recordMetrics.get(job.id, admitted.active.incarnation_id)),
+    );
+    return "terminal-sent";
+  }
   await deliverCandidateOutcomePresentation(
     send,
     JSON.stringify(
@@ -189,6 +234,7 @@ async function presentTraceOutcome(
         admitted.active,
         admitted.intentText,
         outcome.candidate,
+        outcome.diff,
       ),
     ),
     restoration,
