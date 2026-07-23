@@ -11,6 +11,7 @@ import type { Database } from "bun:sqlite";
 
 import type {
   BehavioralGateResult,
+  CandidateValidationIssue,
   CapabilityMigrationResult,
   CommitCapabilityResult,
   GateRungOutcome,
@@ -19,6 +20,7 @@ import type {
   StructuralGateResult,
   UnitDescriptor,
 } from "../builder/index.ts";
+import type { CapabilityRow, CapabilitySpec } from "../registry/index.ts";
 
 export interface DemoMigrationColumnPreview {
   readonly name: string;
@@ -227,6 +229,55 @@ export function buildGatePreview(
     structural,
     smoke,
     behavioral,
+  };
+}
+
+// The evolution-candidate preview — Module 4.6/01. The dev tracer's one
+// developer-panel payload: the accepted validated candidate, or the total
+// rejection with every contract violation. 4.6/02 extends this with the
+// emitted typed change facts and their unioned work plan.
+export interface EvolutionCandidatePreview {
+  readonly kind: "evolution-candidate-preview";
+  readonly status: "accepted" | "rejected";
+  readonly capabilityId: string;
+  readonly incarnationId: string;
+  readonly committedVersion: number;
+  readonly proposedAction: string;
+  readonly candidate?: CapabilitySpec;
+  readonly issues?: readonly CandidateValidationIssue[];
+}
+
+/** The accepted half: the validated canonical candidate the Diff stage receives. */
+export function buildEvolutionCandidateAcceptedPreview(
+  committed: Pick<CapabilityRow, "id" | "incarnation_id" | "version">,
+  proposedAction: string,
+  candidate: CapabilitySpec,
+): EvolutionCandidatePreview {
+  return {
+    kind: "evolution-candidate-preview",
+    status: "accepted",
+    capabilityId: committed.id,
+    incarnationId: committed.incarnation_id,
+    committedVersion: committed.version,
+    proposedAction,
+    candidate,
+  };
+}
+
+/** The rejected half: every violation the candidate validator found. */
+export function buildEvolutionCandidateRejectedPreview(
+  committed: Pick<CapabilityRow, "id" | "incarnation_id" | "version">,
+  proposedAction: string,
+  issues: readonly CandidateValidationIssue[],
+): EvolutionCandidatePreview {
+  return {
+    kind: "evolution-candidate-preview",
+    status: "rejected",
+    capabilityId: committed.id,
+    incarnationId: committed.incarnation_id,
+    committedVersion: committed.version,
+    proposedAction,
+    issues,
   };
 }
 

@@ -212,12 +212,12 @@ describe("GET / (shell) — browser glue", () => {
     expect(css).toMatch(/only-child[^{}]+build-stream__commit:not\(:empty\)/s);
   });
 
-  test("devbar surfaces the temporary v2 tracer and loading records are not empty", async () => {
+  test("devbar surfaces the tracer controls and loading records are not empty", async () => {
     const app = createApp();
     const devbar = await responseText(await app.request("/static/css/devbar.css"));
     const collection = await responseText(await app.request("/static/css/collection.css"));
 
-    expect(devbar).toContain(":not(:has(.capability-v2-tracer))");
+    expect(devbar).toContain(":has(.capability-v2-tracer, .capability-evolution-candidate)");
     expect(collection).toContain(".capability-records.htmx-request:empty ~ .capability-empty");
   });
 

@@ -22,6 +22,7 @@ const SHELL_DETAIL_MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here
 const PREVIEW_TARGETS = [
   ["metrics-preview", "spec-metrics-preview"],
   ["spec-preview", "spec-build-preview"],
+  ["candidate-preview", "spec-candidate-preview"],
   ["migration-preview", "spec-migration-preview"],
   ["units-preview", "spec-units-preview"],
   ["gate-preview", "spec-gate-preview"],
@@ -33,6 +34,7 @@ const CLEAR_ON_ACCEPT_TARGETS = [
   ["div", "prompt-notice"],
   ["pre", "spec-metrics-preview"],
   ["pre", "spec-build-preview"],
+  ["pre", "spec-candidate-preview"],
   ["pre", "spec-migration-preview"],
   ["pre", "spec-units-preview"],
   ["pre", "spec-gate-preview"],
@@ -138,7 +140,34 @@ export function renderCapabilitySurface(
       ` data-active-capability-version="${row.version}">`,
     collectionHtml,
     "</section>",
-    ...(includeDeveloperControl ? [renderDeveloperV2TracerControl(row, true)] : []),
+    ...(includeDeveloperControl
+      ? [
+          renderDeveloperV2TracerControl(row, true),
+          renderDeveloperEvolutionCandidateControl(row, true),
+        ]
+      : []),
+  ].join("\n");
+}
+
+/**
+ * The evolution-candidate dev tracer affordance — Module 4.6/01. A developer
+ * targets the open capability with a hand-typed intent; the trace shows the
+ * accepted candidate (or the warm rejection) in the panel's Evolution candidate
+ * block. Unlike the one-shot v2 tracer above, any live version is a valid
+ * target. The typed text stands in for the resolved intent until epic 4.8.
+ */
+function renderDeveloperEvolutionCandidateControl(
+  row: Pick<CapabilityRow, "id">,
+  outOfBand: boolean,
+): string {
+  return [
+    `<div id="developer-evolution-candidate-control"${outOfBand ? ' hx-swap-oob="innerHTML"' : ""}>`,
+    `  <form class="capability-evolution-candidate" data-dev-only hx-post="/demo/evolution-candidate/${encodeURIComponent(row.id)}" hx-target="#spec-build-output" hx-swap="beforeend">`,
+    '    <label class="devbar__block-label" for="evolution-candidate-intent">Describe a change</label>',
+    '    <input id="evolution-candidate-intent" name="intent" type="text" required autocomplete="off" placeholder="Add a rating field" />',
+    '    <button type="submit" class="btn btn--ghost">Trace candidate</button>',
+    "  </form>",
+    "</div>",
   ].join("\n");
 }
 
@@ -198,7 +227,11 @@ export function renderCapabilityShell(
     '<div id="developer-v2-tracer-control"></div>',
     renderDeveloperV2TracerControl(activeRow, false),
   );
-  return injectToolbarEntries(withDeveloperControl, renderToolbarEntries(allRows));
+  const withEvolutionControl = withDeveloperControl.replace(
+    '<div id="developer-evolution-candidate-control"></div>',
+    renderDeveloperEvolutionCandidateControl(activeRow, false),
+  );
+  return injectToolbarEntries(withEvolutionControl, renderToolbarEntries(allRows));
 }
 
 /**

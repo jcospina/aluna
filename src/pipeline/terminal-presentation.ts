@@ -125,6 +125,41 @@ export async function deliverRestoredPresentation(
   );
 }
 
+// Module 4.6/01 — the evolution-candidate trace's two terminal outcomes, in
+// product voice with zero internals (ARCH §9.7). The trace changes nothing
+// durable either way: the developer preview carries the accepted candidate or
+// the total rejection, and the displaced View is restored beneath the notice.
+export const CANDIDATE_ACCEPTED_NOTICE =
+  "Here's how I'd shape that change — take a look whenever you're ready.";
+export const CANDIDATE_REJECTED_NOTICE =
+  "Hmm, I couldn't quite shape that change safely. Mind telling me again, a little differently?";
+
+/**
+ * Deliver an evolution-candidate trace outcome: the developer-panel candidate
+ * preview, one warm narration line (kept visible as the persistent prompt
+ * notice), and the restored View. `done=ok` only for an accepted candidate.
+ */
+export async function deliverCandidateOutcomePresentation(
+  send: Send,
+  candidatePreview: string,
+  restorationFragment: string,
+  outcome: "accepted" | "rejected",
+  timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
+): Promise<boolean> {
+  const notice = outcome === "accepted" ? CANDIDATE_ACCEPTED_NOTICE : CANDIDATE_REJECTED_NOTICE;
+  const persistentNotice = `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(notice)}</div>`;
+  return runBoundedTerminalPresentation(
+    send,
+    async (sendWhileActive) => {
+      await sendWhileActive("candidate-preview", candidatePreview);
+      await sendWhileActive("narration", notice);
+      await sendWhileActive("fragment", `${restorationFragment}\n${persistentNotice}`);
+      await sendWhileActive("done", outcome === "accepted" ? "ok" : "error");
+    },
+    timeoutMs,
+  );
+}
+
 /** Activation is durable; tell the user to refresh if its View could not be prepared. */
 export async function deliverActivatedRecoveryPresentation(
   send: Send,

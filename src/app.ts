@@ -16,6 +16,7 @@ import { type BuildJobQueue, createBuildJobQueue } from "./build-jobs.ts";
 import { renderFewShotGalleryPreviewPage } from "./builder/few-shot-gallery-preview.ts";
 import { DEFAULT_ARTIFACTS_ROOT } from "./builder/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "./db.ts";
+import { registerEvolutionCandidateTracerRoutes } from "./evolution-candidate-routes.ts";
 import { handleStreamError, streamGreeting } from "./greeting.ts";
 import {
   createMutationCoordinator,
@@ -565,6 +566,9 @@ export function createApp(deps: AppDeps = {}): Hono {
   const app = new Hono();
 
   registerShellAndLivenessRoutes(app, ctx);
+  // Module 4.6/01 — the evolution-candidate dev tracer (its own module so this
+  // wiring sheet stays thin; the hand-supplied intent seam ends with epic 4.8).
+  registerEvolutionCandidateTracerRoutes(app, ctx);
   registerPreviewDemoRoutes(app, ctx);
   registerBuildJobRoutes(app, ctx);
 
