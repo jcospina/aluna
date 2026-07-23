@@ -28,6 +28,7 @@ import {
 } from "./builder/candidate.test-support.ts";
 import {
   CANDIDATE_ACCEPTED_NOTICE,
+  CANDIDATE_NO_CHANGE_NOTICE,
   CANDIDATE_REJECTED_NOTICE,
 } from "./pipeline/terminal-presentation.ts";
 import { compareAndSwapCapability, getCapability, insertCapability } from "./registry/index.ts";
@@ -161,6 +162,15 @@ describe("an accepted candidate", () => {
     expect(preview.candidate).toEqual(JSON.parse(JSON.stringify(authored)));
     expect(preview.issues).toBeUndefined();
 
+    // The dev preview now carries the Diff Engine's typed facts and unioned work
+    // plan: a new active string field selects create/update/search.
+    expect(preview.diff.isNoop).toBe(false);
+    expect(preview.diff.facts).toEqual([
+      { kind: "new_active_field", field: "mood", fieldType: "string" },
+    ]);
+    expect(preview.diff.workPlan.regeneratedUnits).toEqual(["create", "update", "search"]);
+    expect(preview.diff.workPlan.platformWork).toEqual(["add_column", "platform_form_detail"]);
+
     // The displaced View is restored and the stream closes warm.
     expect(eventData(events, "fragment")).toContain("capability-surface");
     expect(eventData(events, "done")).toBe("ok");
@@ -174,6 +184,45 @@ describe("an accepted candidate", () => {
     expect(rows).toHaveLength(0);
     expect(lifecycles).toHaveLength(0);
     expect(jobId.length).toBeGreaterThan(0);
+  });
+});
+
+describe("a measured no-op", () => {
+  test("a semantically identical candidate is success/no_change with the View restored", async () => {
+    // The provider re-authors the exact committed spec — a semantic no-op.
+    const identical = candidateFrom(journalCapabilityRow());
+    const { app, rows, lifecycles } = scratchApp(identical);
+    const { streamPath } = await admitTrace(app, "Keep it exactly as it is");
+
+    const events = collectSseEvents(await readSse(await app.request(streamPath)));
+
+    // The dev preview reports the zero-fact Diff as the measured no-op.
+    const preview = JSON.parse(eventData(events, "candidate-preview"));
+    expect(preview.status).toBe("no_change");
+    expect(preview.diff.isNoop).toBe(true);
+    expect(preview.diff.facts).toEqual([]);
+    expect(preview.diff.workPlan.regeneratedUnits).toEqual([]);
+
+    // Metrics finalize success/no_change with every downstream stage skipped.
+    const metrics = JSON.parse(eventData(events, "metrics-preview"));
+    expect(metrics.lifecycleStatus).toBe("success");
+    expect(metrics.outcome).toBe("no_change");
+    expect(metrics.stages).toEqual(
+      expect.arrayContaining([{ stage: "activation", state: "skipped" }]),
+    );
+    const finalLifecycle = lifecycles.at(-1);
+    expect(finalLifecycle?.lifecycleStatus).toBe("success");
+    expect(finalLifecycle?.outcome).toBe("no_change");
+
+    // Warm close in product voice, committed View restored, no version bump.
+    expect(eventData(events, "narration")).toContain(CANDIDATE_NO_CHANGE_NOTICE);
+    expect(eventData(events, "fragment")).toContain("capability-surface");
+    expect(eventData(events, "done")).toBe("ok");
+    expect(eventData(events, "commit")).toBe("");
+    expect(getCapability("journal", env.conns.readonly)?.version).toBe(1);
+    // The legacy terminal row and the running→success lifecycle are both recorded.
+    expect(rows).toHaveLength(1);
+    expect(finalLifecycle).toBeDefined();
   });
 });
 

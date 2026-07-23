@@ -6,6 +6,10 @@
 // wires its writer through. The app depends only on this barrel; the stage-running,
 // preview, deflection, and metrics internals stay private to the folder.
 
-export { createMetricsRecorder, type RecordMetrics } from "./metrics-recorder.ts";
+export {
+  createMetricsRecorder,
+  finalizeMeasuredNoChange,
+  type RecordMetrics,
+} from "./metrics-recorder.ts";
 export { createPromptBuildPipeline, type PromptBuildPipelineDeps } from "./prompt-pipeline.ts";
 export { DEMO_SPEC_PROMPT, handleSpecBuildError, streamSpecBuildDemo } from "./spec-build-demo.ts";
