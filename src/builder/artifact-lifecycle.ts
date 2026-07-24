@@ -24,13 +24,17 @@ import {
 } from "./artifact-digests.ts";
 import { assertContained, listSnapshotFiles } from "./artifact-inventory.ts";
 import {
+  DERIVED_UNIT_FILES,
+  unitProvenance,
+  unitProvenanceManifestSchema,
+} from "./artifact-provenance.ts";
+import {
   createSafeStagingParent,
   publishDirectoryWithoutOverwrite,
 } from "./artifact-publication.ts";
 import { assertIssuedCapabilityGateResult, type CapabilityGateResult } from "./gate.ts";
 import { SnapshotVerificationError } from "./snapshot-error.ts";
-import { buildUnitPrompt } from "./unit-prompts.ts";
-import type { GeneratedUnit, UnitDescriptor } from "./units.ts";
+import type { GeneratedUnit } from "./units.ts";
 
 export { SnapshotVerificationError } from "./snapshot-error.ts";
 
@@ -38,14 +42,6 @@ const SNAPSHOT_MANIFEST_VERSION = 1;
 const SNAPSHOT_MANIFEST_FILE = "snapshot.json";
 const SPEC_FILE = "spec.json";
 const FROZEN_BEHAVIORAL_TEST_FILE = "tests/behavioral.json";
-const DERIVED_UNIT_FILES = [
-  "item.ts",
-  "create.ts",
-  "read.ts",
-  "update.ts",
-  "delete.ts",
-  "search.ts",
-] as const;
 
 export const DEFAULT_ARTIFACTS_ROOT = "capabilities";
 
@@ -71,18 +67,6 @@ const snapshotFileEntrySchema = z.strictObject({
   content_digest: digestSchema.optional(),
 });
 
-const dependencyGenerationProvenanceSchema = z.strictObject({
-  capability_id: z.string().min(1),
-  incarnation_id: incarnationIdSchema,
-  version: z.number().int().positive(),
-  snapshot_content_digest: digestSchema,
-});
-
-const unitGenerationProvenanceSchema = z.strictObject({
-  active_context_digest: digestSchema,
-  dependencies: z.array(dependencyGenerationProvenanceSchema),
-});
-
 export const snapshotManifestSchema = z.strictObject({
   manifest_version: z.literal(SNAPSHOT_MANIFEST_VERSION),
   capability_id: z.string().min(1),
@@ -92,19 +76,12 @@ export const snapshotManifestSchema = z.strictObject({
   behavioral_tier: z.enum(["on", "off"]),
   snapshot_content_digest: digestSchema,
   files: z.array(snapshotFileEntrySchema).min(1),
-  unit_provenance: z.strictObject({
-    "item.ts": unitGenerationProvenanceSchema,
-    "create.ts": unitGenerationProvenanceSchema,
-    "read.ts": unitGenerationProvenanceSchema,
-    "update.ts": unitGenerationProvenanceSchema,
-    "delete.ts": unitGenerationProvenanceSchema,
-    "search.ts": unitGenerationProvenanceSchema,
-  }),
+  unit_provenance: unitProvenanceManifestSchema,
 });
 
 export type SnapshotManifest = z.infer<typeof snapshotManifestSchema>;
 export type SnapshotFileEntry = z.infer<typeof snapshotFileEntrySchema>;
-export type UnitGenerationProvenance = z.infer<typeof unitGenerationProvenanceSchema>;
+export type { UnitGenerationProvenance } from "./artifact-provenance.ts";
 
 export interface PublishCapabilitySnapshotInput {
   readonly buildId: string;
@@ -432,46 +409,6 @@ function writeSnapshotManifest(input: {
   });
   writeFileSync(join(input.stagingDirectory, SNAPSHOT_MANIFEST_FILE), canonicalJson(manifest));
   return manifest;
-}
-
-function unitProvenance(
-  spec: CapabilitySpec,
-  units: readonly GeneratedUnit[],
-): SnapshotManifest["unit_provenance"] {
-  // Fresh v1 capabilities cannot declare external dependencies. Later evolution
-  // work will either regenerate with a verified dependency catalog or carry prior
-  // provenance forward; silently inventing dependency evidence here would be false.
-  for (const dependencies of Object.values(spec.read_dependencies)) {
-    if (dependencies.length > 0) {
-      throw new SnapshotVerificationError(
-        "Dependency provenance requires a verified dependency snapshot catalog.",
-      );
-    }
-  }
-
-  const provenanceFor = (
-    filename: (typeof DERIVED_UNIT_FILES)[number],
-  ): UnitGenerationProvenance => {
-    const unit = units.find((candidate) => candidate.filename === filename);
-    if (!unit) throw new SnapshotVerificationError(`Missing derived unit ${filename}.`);
-    const descriptor: UnitDescriptor =
-      unit.kind === "handler"
-        ? { kind: "handler", name: unit.name }
-        : { kind: "item-renderer", name: "item" };
-    return {
-      active_context_digest: contentDigest(buildUnitPrompt(spec, descriptor)),
-      dependencies: [],
-    };
-  };
-
-  return {
-    "item.ts": provenanceFor("item.ts"),
-    "create.ts": provenanceFor("create.ts"),
-    "read.ts": provenanceFor("read.ts"),
-    "update.ts": provenanceFor("update.ts"),
-    "delete.ts": provenanceFor("delete.ts"),
-    "search.ts": provenanceFor("search.ts"),
-  };
 }
 
 function assertSuccessfulGate(gate: CapabilityGateResult): void {

@@ -210,11 +210,11 @@ function validateDependenciesAgainstCatalog(
   issues: CandidateValidationIssue[],
 ): void {
   const admissible = new Set(
-    catalog.map((entry) => `${entry.capability_id} ${entry.incarnation_id}`),
+    catalog.map((entry) => `${entry.capability_id}\u0000${entry.incarnation_id}`),
   );
   for (const [action, dependencies] of Object.entries(candidate.read_dependencies)) {
     for (const [index, dependency] of dependencies.entries()) {
-      const key = `${dependency.capability_id} ${dependency.incarnation_id}`;
+      const key = `${dependency.capability_id}\u0000${dependency.incarnation_id}`;
       if (!admissible.has(key)) {
         issues.push({
           path: `read_dependencies.${action}[${index}]`,

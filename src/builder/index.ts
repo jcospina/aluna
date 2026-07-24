@@ -28,6 +28,14 @@ export {
   verifyCapabilitySnapshot,
 } from "./artifact-lifecycle.ts";
 export {
+  DERIVED_UNIT_FILES,
+  type DerivedUnitFile,
+  type EvolutionUnitProvenanceInput,
+  evolutionUnitProvenance,
+  type UnitProvenanceManifest,
+  unitProvenanceManifestSchema,
+} from "./artifact-provenance.ts";
+export {
   ArtifactReconciliationError,
   type ArtifactReconciliationResult,
   type CommittedCapabilityVersions,
@@ -119,9 +127,11 @@ export {
 export {
   buildUnitPrompt,
   DEFAULT_UNIT_FIX_ATTEMPTS,
+  type GenerateCapabilityUnitInput,
   type GenerateCapabilityUnitsInput,
   type GenerateCapabilityUnitsResult,
   type GeneratedUnit,
+  generateCapabilityUnit,
   generateCapabilityUnits,
   type HandlerUnitName,
   ITEM_RENDERER_UNIT_NAME,

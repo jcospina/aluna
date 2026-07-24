@@ -509,7 +509,7 @@ function isSearchableTextType(type: FieldType): boolean {
 // covers. Regions left un-neutralized are the immutable invariants (id, tools,
 // each committed field's name/type) plus anything a future spec adds without a
 // matrix row — those must be identical, or the difference is unmapped.
-const RESIDUAL_SENTINEL = " diff-covered ";
+const RESIDUAL_SENTINEL = "\u0000diff-covered\u0000";
 
 function assertTotalCoverage(committed: CapabilitySpec, candidate: CapabilitySpec): void {
   const committedNames = new Set(committed.schema.fields.map((field) => field.name));
@@ -583,7 +583,7 @@ function canonicalDependencyKeys(
   dependencies: CapabilitySpec["read_dependencies"][CapabilityTool],
 ): readonly string[] {
   return dependencies
-    .map((dependency) => `${dependency.capability_id} ${dependency.incarnation_id}`)
+    .map((dependency) => `${dependency.capability_id}\u0000${dependency.incarnation_id}`)
     .sort(compareStrings);
 }
 

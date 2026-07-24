@@ -1,9 +1,12 @@
 // Capability data-table infrastructure.
 
 export {
+  type AdditiveCapabilityMigration,
+  applyAdditiveCapabilityMigration,
   applyCapabilityTableDdl,
   CAPABILITY_TABLE_PREFIX,
   type CapabilityTableDdl,
+  deriveAdditiveCapabilityMigration,
   deriveCapabilityTableDdl,
   SQLITE_TYPE_BY_FIELD_TYPE,
 } from "./ddl.ts";
