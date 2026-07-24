@@ -1,9 +1,12 @@
 // Capability data-table infrastructure — Module 2, Epic 2.2.
 
 export {
+  type AdditiveCapabilityMigration,
+  applyAdditiveCapabilityMigration,
   applyCapabilityTableDdl,
   CAPABILITY_TABLE_PREFIX,
   type CapabilityTableDdl,
+  deriveAdditiveCapabilityMigration,
   deriveCapabilityTableDdl,
   SQLITE_TYPE_BY_FIELD_TYPE,
 } from "./ddl.ts";

@@ -193,6 +193,36 @@ export async function generateCapabilityUnits(
   };
 }
 
+export interface GenerateCapabilityUnitInput {
+  readonly provider: Provider;
+  readonly spec: CapabilitySpec;
+  readonly unit: UnitDescriptor;
+  readonly maxAttempts?: number;
+  readonly observer?: UnitGenerationObserver;
+  readonly dependencyCatalog?: readonly CapabilityRow[];
+}
+
+/**
+ * Generate exactly one unit through the same bounded write→check→fix loop
+ * {@link generateCapabilityUnits} drives, in isolation. Evolution regenerates only
+ * the units the Diff work plan selects (copying the rest byte-for-byte), so it needs
+ * per-unit generation rather than the whole fixed inventory. The projected `spec` and
+ * `dependencyCatalog` are the unit's generation context — the caller passes the
+ * candidate spec so the regenerated unit sees only the candidate's active projection.
+ * Throws {@link UnitGenerationError} if the unit never passes its checks.
+ */
+export function generateCapabilityUnit(input: GenerateCapabilityUnitInput): Promise<GeneratedUnit> {
+  if (input.unit.kind === "handler") assertHandlerSpec(input.spec);
+  return generateUnit(
+    input.provider,
+    input.spec,
+    input.unit,
+    normalizeMaxAttempts(input.maxAttempts),
+    input.observer,
+    input.dependencyCatalog,
+  );
+}
+
 async function generateUnit(
   provider: Provider,
   spec: CapabilitySpec,

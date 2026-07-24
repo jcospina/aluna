@@ -108,6 +108,13 @@ export function eventData(events: SseEvent[], name: string): string {
     .join("\n");
 }
 
+// The data of the *last* event of one type — the terminal snapshot of a preview that
+// streams repeatedly (units, and from 4.6/03 the evolution candidate). Joining those
+// with `eventData` yields concatenated JSON no test can parse.
+export function lastEventData(events: SseEvent[], name: string): string {
+  return events.filter((event) => event.event === name).at(-1)?.data ?? "";
+}
+
 export function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

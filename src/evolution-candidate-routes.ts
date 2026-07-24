@@ -29,12 +29,14 @@ import {
 import { CandidateValidationError, type CapabilityDiff } from "./builder/index.ts";
 import type { PlatformDatabase } from "./db.ts";
 import type { MutationCoordinator } from "./mutation-coordinator/index.ts";
+import type { AssembledEvolutionCandidate } from "./pipeline/evolution-assembly.ts";
 import { runEvolutionCandidateTracer } from "./pipeline/evolution-candidate-tracer.ts";
 import { finalizeMeasuredNoChange, type RecordMetrics } from "./pipeline/index.ts";
 import {
   buildEvolutionCandidateAcceptedPreview,
   buildEvolutionCandidateNoChangePreview,
   buildEvolutionCandidateRejectedPreview,
+  type EvolutionAssemblySummary,
 } from "./pipeline/previews.ts";
 import { renderRestorationFragment } from "./pipeline/restoration.ts";
 import {
@@ -70,6 +72,8 @@ type EvolutionTraceOutcome =
       readonly kind: "accepted";
       readonly candidate: CapabilitySpec;
       readonly diff: CapabilityDiff;
+      /** The assembled + Gate-cleared candidate for a real change (absent on the no-op). */
+      readonly assembly?: AssembledEvolutionCandidate;
     };
 
 /** Register the tracer's admit/cancel/stream trio, mirroring the 4.5 tracer shape. */
@@ -180,6 +184,7 @@ async function traceEvolutionCandidate(
     provider: abortableProvider(getProvider(), signal),
     registry: buildDatabases.readonly,
     send,
+    isAborted,
   });
   if (isAborted()) return { kind: "cancelled" };
   // The measured no-op's durable effect: its own `success/no_change` row. It runs
@@ -194,7 +199,29 @@ async function traceEvolutionCandidate(
       usage: traced.usage,
     });
   }
-  return { kind: "accepted", candidate: traced.candidate, diff: traced.diff };
+  return {
+    kind: "accepted",
+    candidate: traced.candidate,
+    diff: traced.diff,
+    ...(traced.assembly ? { assembly: traced.assembly } : {}),
+  };
+}
+
+// The developer-visible summary of the assembled candidate: which units regenerated
+// vs. byte-copied, the additive DDL, and the Gate verdict over the assembled snapshot.
+// The terminal one — it replaces the `running` plan the tracer streamed while the units
+// were being written, and is the only summary that carries a Gate verdict.
+function summarizeAssembly(assembly: AssembledEvolutionCandidate): EvolutionAssemblySummary {
+  return {
+    status: "complete",
+    regeneratedUnits: assembly.regeneratedUnits,
+    copiedUnits: assembly.copiedUnits,
+    additiveMigration: assembly.additiveMigration.statements,
+    gate: assembly.gate.outcomes.map((outcome) => ({
+      rung: outcome.rung,
+      status: outcome.status,
+    })),
+  };
 }
 
 async function presentTraceOutcome(
@@ -235,6 +262,7 @@ async function presentTraceOutcome(
         admitted.intentText,
         outcome.candidate,
         outcome.diff,
+        outcome.assembly ? summarizeAssembly(outcome.assembly) : undefined,
       ),
     ),
     restoration,

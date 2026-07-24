@@ -22,9 +22,7 @@ import {
   generateSpec,
   publishCapabilitySnapshot,
   runCapabilityGate,
-  type UnitDescriptor,
   type UnitGenerationAttempt,
-  type UnitGenerationObserver,
 } from "../builder/index.ts";
 import { deriveCapabilityTableDdl } from "../capability-data/index.ts";
 import type { PlatformDatabase } from "../db.ts";
@@ -42,12 +40,9 @@ import {
   buildGatePreview,
   buildMigrationPreview,
   buildUnitsPreview,
-  type DemoUnitPreview,
-  type DemoUnitsPreview,
   finalUnitPreview,
-  unitPreviewFilename,
-  unitPreviewKey,
 } from "./previews.ts";
+import { createUnitPreviewStream } from "./unit-preview-stream.ts";
 
 /**
  * An aborted stream mid-build, thrown before activation. Distinct from a build
@@ -70,13 +65,20 @@ export function throwIfAborted(isAborted: () => boolean): void {
  * assemble live. This deliberately surfaces internals — that is the whole point of a
  * liveness check. `generateSpec` only awaits `object` (self-driven by the spine), so
  * consuming `partialStream` here for previews doesn't starve the stage. The returned
- * `settled` promise lets the route flush every preview before the warm confirmation,
+ * `flushPreviews()` lets the route drain every preview before the warm confirmation,
  * keeping the wire order narration → preview* → confirmation.
+ *
+ * It is a function rather than a promise because a stage can throw *before* it ever calls
+ * the provider (a rejected candidate, a failed prompt build). A promise settled only by
+ * the streaming loop would never resolve on that path, and a caller draining it in a
+ * `finally` would hang forever — holding the exclusive build lease and the SSE connection
+ * with it. With nothing started there is nothing to drain, so this resolves immediately.
  */
 export function previewingProvider(
   real: Provider,
   send: Send,
-): { provider: Provider; settled: Promise<void> } {
+): { provider: Provider; flushPreviews: () => Promise<void> } {
+  let streaming = false;
   let settle!: () => void;
   const settled = new Promise<void>((resolve) => {
     settle = resolve;
@@ -84,7 +86,9 @@ export function previewingProvider(
 
   const provider: Provider = {
     generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
+      // A throw here means no stream was ever opened — leave `streaming` false.
       const result = real.generate(prompt, schema);
+      streaming = true;
       void (async () => {
         try {
           for await (const partial of result.partialStream) {
@@ -100,7 +104,7 @@ export function previewingProvider(
     },
   };
 
-  return { provider, settled };
+  return { provider, flushPreviews: () => (streaming ? settled : Promise.resolve()) };
 }
 
 /**
@@ -131,7 +135,7 @@ export async function runSpecBuildStages(
 ): Promise<CommitCapabilityResult | undefined> {
   // Wrap the provider so the spec streams to the shell as it builds (demo preview),
   // while the stage itself runs unchanged.
-  const { provider: observed, settled } = previewingProvider(provider, send);
+  const { provider: observed, flushPreviews } = previewingProvider(provider, send);
   // `generateSpec` narrates the intent's `user_facing_label` over `send` and returns
   // the validated spec plus the build's measurements. Spec generation runs before the
   // transaction opens — a spec failure has nothing to roll back.
@@ -148,7 +152,7 @@ export async function runSpecBuildStages(
   onCapabilityIdentified(spec.id);
   acc.timings.specGenMs = durationMs;
   acc.usages.push(usage);
-  await settled; // every spec-preview is on the wire before the confirmation
+  await flushPreviews(); // every spec-preview is on the wire before the confirmation
   if (isAborted()) return;
 
   // Preview the deterministic migration plan against scratch SQLite. The real data
@@ -261,66 +265,16 @@ export async function runSpecBuildStages(
 /**
  * Run unit generation with the demo's live preview observer. The observer streams a
  * `units-preview` snapshot as each unit starts, streams partials, fixes, and lands —
- * the developer watches the item renderer and handlers assemble.
+ * the developer watches the item renderer and handlers assemble. The evolution
+ * assembler (4.6/03) drives the same stream for the units it regenerates.
  */
-async function generateUnitsWithPreview(
+function generateUnitsWithPreview(
   send: Send,
   isAborted: () => boolean,
   provider: Provider,
   spec: CapabilitySpec,
 ): Promise<Awaited<ReturnType<typeof generateCapabilityUnits>>> {
-  const liveUnits = new Map<string, DemoUnitPreview>();
-  let lastPreviewAt = 0;
-  const sendUnitsPreview = async (status: DemoUnitsPreview["status"], force = false) => {
-    if (isAborted()) return;
-    const now = performance.now();
-    if (!force && now - lastPreviewAt < 500) return;
-    lastPreviewAt = now;
-    await send("units-preview", JSON.stringify(buildUnitsPreview([...liveUnits.values()], status)));
-  };
-  const updateLiveUnit = (
-    unit: UnitDescriptor,
-    patch: Partial<Omit<DemoUnitPreview, "kind" | "name" | "filename">>,
-  ) => {
-    const key = unitPreviewKey(unit);
-    const current = liveUnits.get(key);
-    liveUnits.set(key, {
-      kind: unit.kind,
-      name: unit.name,
-      filename: unitPreviewFilename(unit),
-      status: current?.status ?? "generating",
-      attempts: current?.attempts ?? 0,
-      content: current?.content ?? "",
-      ...patch,
-    });
-  };
-  const recordAttempt = (unit: UnitDescriptor, attempt: UnitGenerationAttempt) => {
-    updateLiveUnit(unit, {
-      status: attempt.error ? "fixing" : "generating",
-      attempts: attempt.attempt,
-      durationMs: attempt.durationMs,
-      usage: attempt.usage,
-      ...(attempt.error ? { error: attempt.error } : {}),
-    });
-  };
-  const observer: UnitGenerationObserver = {
-    async onUnitStart({ unit, attempt }) {
-      updateLiveUnit(unit, { status: "generating", attempts: attempt });
-      await sendUnitsPreview("running", true);
-    },
-    async onUnitPartial({ unit, attempt, content }) {
-      updateLiveUnit(unit, { status: "generating", attempts: attempt, content });
-      await sendUnitsPreview("running");
-    },
-    async onUnitAttempt({ unit, attempt }) {
-      recordAttempt(unit, attempt);
-      await sendUnitsPreview("running", true);
-    },
-    async onUnitGenerated(unit) {
-      liveUnits.set(unitPreviewKey(unit), finalUnitPreview(unit));
-      await sendUnitsPreview("running", true);
-    },
-  };
+  const { observer } = createUnitPreviewStream(send, isAborted);
   return generateCapabilityUnits({ provider, spec, observer });
 }
 
@@ -328,8 +282,10 @@ async function generateUnitsWithPreview(
  * Fold Gate repairs back into the units the pipeline commits. Smoke may replace exactly
  * one failing Handler per bounded turn, and design lint may replace item.ts. Behavioral
  * execution has already consumed these repaired Handler bytes inside runCapabilityGate.
+ * Shared with the evolution assembler so a v1 build and an evolution reconcile Gate
+ * repairs identically.
  */
-function applyGateFixes(
+export function applyGateFixes(
   units: readonly GeneratedUnit[],
   gate: CapabilityGateResult,
 ): readonly GeneratedUnit[] {
@@ -399,7 +355,15 @@ function sumOptional(values: readonly (number | undefined)[]): number | undefine
   return present.length > 0 ? present.reduce((sum, value) => sum + value, 0) : undefined;
 }
 
-function unitsChanged(before: readonly GeneratedUnit[], after: readonly GeneratedUnit[]): boolean {
+/**
+ * Whether folding the Gate's repairs changed the bytes (or attempt record) a developer is
+ * looking at. Both pipelines re-send their units view when it does, so the panel never
+ * shows a "complete" unit whose source is not the one the candidate actually carries.
+ */
+export function unitsChanged(
+  before: readonly GeneratedUnit[],
+  after: readonly GeneratedUnit[],
+): boolean {
   return before.some(
     (unit, index) =>
       unit.content !== after[index]?.content ||

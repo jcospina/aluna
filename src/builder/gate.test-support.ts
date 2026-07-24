@@ -128,6 +128,54 @@ export const DELETE_HANDLER = [
   "}",
 ].join("\n");
 
+// A generic create Handler over the spec's active fields — required active fields are
+// validated, every submitted active field is written. Mirrors `updateHandlerFor` for
+// specs the constant CREATE_HANDLER (notes-shaped) does not fit.
+export function createHandlerFor(spec: CapabilitySpec): string {
+  const lines = [
+    "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
+    "  const missing: string[] = [];",
+    "  const values: Record<string, unknown> = {};",
+  ];
+  for (const field of activeSpecFields(spec.schema.fields)) {
+    const name = field.name;
+    if (field.required) {
+      lines.push(
+        `  if (String(input.values.${name} ?? "").trim().length === 0) missing.push("${name}");`,
+      );
+    }
+    if (field.type === "boolean") {
+      lines.push(
+        `  values.${name} = input.values.${name} === "on" || input.values.${name} === "true";`,
+      );
+    } else if (field.type === "string[]") {
+      lines.push(
+        `  { const value = input.values.${name}; if (Array.isArray(value)) values.${name} = [...value]; }`,
+      );
+    } else {
+      lines.push(`  if ("${name}" in input.values) values.${name} = input.values.${name};`);
+    }
+  }
+  lines.push(
+    '  if (missing.length > 0) return \'<div data-role="error" data-error-code="missing_required_fields" data-error-fields="\' + missing.join(" ") + \'">Required.</div>\';',
+    "  return present(mutation.create(values));",
+    "}",
+  );
+  return lines.join("\n");
+}
+
+// A generic read Handler for any capability: newest records first, target ids only.
+export function readHandlerFor(spec: CapabilitySpec): string {
+  return [
+    "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+    "  const records = query.records({",
+    `    sql: 'SELECT "id" AS "target_id" FROM "cap_${spec.id}" ORDER BY "created_at" DESC, "id" DESC',`,
+    "  });",
+    '  return records.map(({ record }) => present(record)).join("");',
+    "}",
+  ].join("\n");
+}
+
 export function updateHandlerFor(spec: CapabilitySpec): string {
   const lines = [
     "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
@@ -541,6 +589,12 @@ export function makeBehaviorProvider(suite: unknown = DEFAULT_BEHAVIORAL_SUITE):
   return { provider, prompts, jsonSchemas };
 }
 
+/**
+ * A provider that hands back one queued response per call, in order. It throws once the
+ * queue is exhausted rather than replaying the last response: a test that asserts "these
+ * units were copied, never generated" is only proof if an unexpected extra generation
+ * fails loudly instead of being silently answered with stale bytes.
+ */
 export function makeSequenceProvider(responses: readonly unknown[]): {
   provider: Provider;
   prompts: string[];
@@ -550,7 +604,12 @@ export function makeSequenceProvider(responses: readonly unknown[]): {
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
       prompts.push(prompt);
-      const response = responses[Math.min(index, responses.length - 1)];
+      if (index >= responses.length) {
+        throw new Error(
+          `Sequence provider exhausted after ${responses.length} response(s); an unexpected generation was requested with prompt: ${prompt.slice(0, 200)}`,
+        );
+      }
+      const response = responses[index];
       index += 1;
       async function* stream(): AsyncGenerator<DeepPartial<T>> {
         yield response as DeepPartial<T>;

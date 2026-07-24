@@ -15,8 +15,10 @@ import {
   PLATFORM_COLUMNS,
 } from "../registry/index.ts";
 import {
+  applyAdditiveCapabilityMigration,
   applyCapabilityTableDdl,
   CAPABILITY_TABLE_PREFIX,
+  deriveAdditiveCapabilityMigration,
   deriveCapabilityTableDdl,
   SQLITE_TYPE_BY_FIELD_TYPE,
 } from "./index.ts";
@@ -273,5 +275,199 @@ describe("capability table DDL mapper", () => {
       scratchDatabase.close();
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// A committed field with its lifecycle flipped — the hide/reactivate transitions.
+function withLifecycle(
+  spec: CapabilitySpec,
+  fieldName: string,
+  lifecycle: "active" | "inactive",
+): CapabilitySpec {
+  return notesSpec({
+    schema: {
+      fields: spec.schema.fields.map((field) =>
+        field.name === fieldName ? { ...field, lifecycle } : field,
+      ),
+    },
+  });
+}
+
+// The committed spec with one new active field appended — the `new_active_field`
+// row the additive migration turns into a nullable ADD COLUMN.
+function withNewField(
+  spec: CapabilitySpec,
+  field: CapabilitySpec["schema"]["fields"][number],
+): CapabilitySpec {
+  return notesSpec({ schema: { fields: [...spec.schema.fields, field] } });
+}
+
+describe("additive capability migration", () => {
+  test("a new active field derives exactly one nullable ADD COLUMN", () => {
+    const committed = notesSpec();
+    const candidate = withNewField(committed, {
+      name: "mood",
+      label: "Mood",
+      type: "string",
+      required: false,
+      lifecycle: "active",
+    });
+
+    const migration = deriveAdditiveCapabilityMigration(committed, candidate);
+
+    expect(migration.tableName).toBe(`${CAPABILITY_TABLE_PREFIX}notes`);
+    expect(migration.statements).toEqual(['ALTER TABLE "cap_notes" ADD COLUMN "mood" TEXT;']);
+    // Additive-only: nothing destructive, and no NOT NULL (so historical rows read null).
+    const statement = migration.statements[0] ?? "";
+    expect(statement.toUpperCase()).not.toContain("NOT NULL");
+    for (const destructiveToken of ["DROP", "RENAME", "DELETE ", "UPDATE "]) {
+      expect(statement.toUpperCase()).not.toContain(destructiveToken);
+    }
+  });
+
+  test("historical rows read the added column back as null", () => {
+    const database = new Database(":memory:");
+    try {
+      const committed = notesSpec();
+      applyCapabilityTableDdl(committed, database);
+      database.run('INSERT INTO "cap_notes" ("id", "title", "done") VALUES (?, ?, ?)', [
+        "note-1",
+        "before the field existed",
+        1,
+      ]);
+
+      const candidate = withNewField(committed, {
+        name: "mood",
+        label: "Mood",
+        type: "string",
+        required: false,
+        lifecycle: "active",
+      });
+      applyAdditiveCapabilityMigration(
+        deriveAdditiveCapabilityMigration(committed, candidate),
+        database,
+      );
+
+      expect(database.query('SELECT "mood" FROM "cap_notes" WHERE "id" = ?').get("note-1")).toEqual(
+        { mood: null },
+      );
+    } finally {
+      database.close();
+    }
+  });
+
+  test("a new string[] field keeps the nullable JSON-array CHECK", () => {
+    const committed = notesSpec();
+    // An active string[] field also declares its closed list-input mode — a valid
+    // candidate the DDL deriver still reduces to one nullable ADD COLUMN.
+    const activeNames = [...committed.schema.fields.map((field) => field.name), "tags"];
+    const candidate = notesSpec({
+      schema: {
+        fields: [
+          ...committed.schema.fields,
+          { name: "tags", label: "Tags", type: "string[]", required: false, lifecycle: "active" },
+        ],
+      },
+      ui_intent: {
+        form: { list_inputs: [{ field: "tags", mode: "repeatable" }] },
+        item: { direction: "A title-forward card with tags.", shows: activeNames },
+        collection: { layout: "feed" },
+        detail: { shows: activeNames },
+      },
+    });
+
+    const migration = deriveAdditiveCapabilityMigration(committed, candidate);
+
+    expect(migration.statements).toEqual([
+      `ALTER TABLE "cap_notes" ADD COLUMN "tags" TEXT CHECK ("tags" IS NULL OR (json_valid("tags") AND json_type("tags") = 'array'));`,
+    ]);
+  });
+
+  test("multiple new fields add columns in candidate schema order", () => {
+    const committed = notesSpec();
+    const candidate = notesSpec({
+      schema: {
+        fields: [
+          ...committed.schema.fields,
+          { name: "mood", label: "Mood", type: "string", required: false, lifecycle: "active" },
+          { name: "score", label: "Score", type: "number", required: false, lifecycle: "active" },
+        ],
+      },
+    });
+
+    const migration = deriveAdditiveCapabilityMigration(committed, candidate);
+
+    expect(migration.statements).toEqual([
+      'ALTER TABLE "cap_notes" ADD COLUMN "mood" TEXT;',
+      'ALTER TABLE "cap_notes" ADD COLUMN "score" REAL;',
+    ]);
+  });
+});
+
+describe("additive migration: lifecycle transitions and the fail-closed guard", () => {
+  test("hide and reactivate perform no DDL and preserve the stored column value", () => {
+    const database = new Database(":memory:");
+    try {
+      const committed = notesSpec();
+      applyCapabilityTableDdl(committed, database);
+      database.run(
+        'INSERT INTO "cap_notes" ("id", "title", "amount", "done") VALUES (?, ?, ?, ?)',
+        ["note-1", "keep me", 5, 1],
+      );
+
+      // Soft-hide is lifecycle-only: no DDL, so the column and its value are untouched.
+      const hidden = withLifecycle(committed, "amount", "inactive");
+      const hideMigration = deriveAdditiveCapabilityMigration(committed, hidden);
+      expect(hideMigration.statements).toEqual([]);
+      applyAdditiveCapabilityMigration(hideMigration, database);
+      expect(
+        database.query('SELECT "amount" FROM "cap_notes" WHERE "id" = ?').get("note-1"),
+      ).toEqual({ amount: 5 });
+
+      // Reactivation reuses the original column and its stored value — still no DDL.
+      const reactivated = withLifecycle(hidden, "amount", "active");
+      const reactivateMigration = deriveAdditiveCapabilityMigration(hidden, reactivated);
+      expect(reactivateMigration.statements).toEqual([]);
+      applyAdditiveCapabilityMigration(reactivateMigration, database);
+      expect(
+        database.query('SELECT "amount" FROM "cap_notes" WHERE "id" = ?').get("note-1"),
+      ).toEqual({ amount: 5 });
+    } finally {
+      database.close();
+    }
+  });
+
+  test("a field-label change touches no columns", () => {
+    const committed = notesSpec();
+    const relabeled = notesSpec({
+      schema: {
+        fields: committed.schema.fields.map((field) =>
+          field.name === "amount" ? { ...field, label: "Total" } : field,
+        ),
+      },
+    });
+
+    expect(deriveAdditiveCapabilityMigration(committed, relabeled).statements).toEqual([]);
+  });
+
+  test("fails closed rather than dropping or retyping a committed column", () => {
+    const committed = notesSpec();
+    const dropped = notesSpec({
+      schema: { fields: committed.schema.fields.filter((field) => field.name !== "amount") },
+    });
+    const retyped = notesSpec({
+      schema: {
+        fields: committed.schema.fields.map((field) =>
+          field.name === "amount" ? { ...field, type: "string" } : field,
+        ),
+      },
+    });
+
+    expect(() => deriveAdditiveCapabilityMigration(committed, dropped)).toThrow(
+      /drop committed column "amount"/,
+    );
+    expect(() => deriveAdditiveCapabilityMigration(committed, retyped)).toThrow(
+      /change the type of committed column "amount"/,
+    );
   });
 });

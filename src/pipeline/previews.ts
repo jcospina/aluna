@@ -17,6 +17,7 @@ import type {
   CommitCapabilityResult,
   GateRungOutcome,
   GeneratedUnit,
+  GeneratedUnitName,
   SmokeGateResult,
   StructuralGateResult,
   UnitDescriptor,
@@ -247,15 +248,37 @@ export interface EvolutionCandidatePreview {
   readonly candidate?: CapabilitySpec;
   /** The typed change facts and unioned work plan (present on accepted + no_change). */
   readonly diff?: CapabilityDiff;
+  /** The executed-work summary the assembler produced (present on accepted, 4.6/03). */
+  readonly assembly?: EvolutionAssemblySummary;
   readonly issues?: readonly CandidateValidationIssue[];
 }
 
-/** The accepted half: the validated candidate with the change facts the Diff emitted. */
+// The developer-visible summary of the assembled candidate (4.6/03): which units the
+// matrix regenerated vs. byte-copied, the additive DDL derived, and the Gate verdict
+// over the assembled snapshot. The full unit source stays out of the preview payload —
+// the regenerated units stream into the panel's Units block as they are written.
+//
+// The plan half (units + DDL) is deterministic and known before any unit work, so it is
+// sent once as `running` the moment the Diff lands and again as `complete` with the Gate
+// verdict. `running` therefore means "this is the work being done", not a partial result.
+// A trace that does not finish its assembly closes the running plan out — `cancelled` when
+// the developer stopped it, `failed` otherwise — rather than leaving the panel showing work
+// nothing is doing. A failure itself is still reported through `build-error-preview`.
+export interface EvolutionAssemblySummary {
+  readonly status: "running" | "complete" | "failed" | "cancelled";
+  readonly regeneratedUnits: readonly GeneratedUnitName[];
+  readonly copiedUnits: readonly GeneratedUnitName[];
+  readonly additiveMigration: readonly string[];
+  readonly gate: readonly { readonly rung: string; readonly status: string }[];
+}
+
+/** The accepted half: the validated candidate, the Diff facts, and the assembled work. */
 export function buildEvolutionCandidateAcceptedPreview(
   committed: Pick<CapabilityRow, "id" | "incarnation_id" | "version">,
   proposedAction: string,
   candidate: CapabilitySpec,
   diff: CapabilityDiff,
+  assembly?: EvolutionAssemblySummary,
 ): EvolutionCandidatePreview {
   return {
     kind: "evolution-candidate-preview",
@@ -266,6 +289,7 @@ export function buildEvolutionCandidateAcceptedPreview(
     proposedAction,
     candidate,
     diff,
+    ...(assembly ? { assembly } : {}),
   };
 }
 
