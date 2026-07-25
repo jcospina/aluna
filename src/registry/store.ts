@@ -13,7 +13,7 @@
 // enter the registry nor come back out of it unnoticed.
 
 import type { Database } from "bun:sqlite";
-import { db, dbReadonly } from "../db.ts";
+import { db, dbReadonly } from "../persistence/db.ts";
 import {
   type CapabilityRow,
   type CapabilityTool,
@@ -21,7 +21,7 @@ import {
   type ReadDependency,
 } from "./spec.ts";
 
-// The registry table, created by platform migration 0002 (src/migrations.ts).
+// The registry table, created by platform migration 0002 (src/persistence/migrations.ts).
 // A fixed platform constant (never user input), so interpolating it into the
 // SQL below is safe — same convention as the migrations ledger.
 export const REGISTRY_TABLE = "capability_registry";

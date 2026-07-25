@@ -1,6 +1,6 @@
 // Dev preview for the item click-to-open → read-only detail modal — the
 // human visual check surface, now driven by the real
-// presentation adapter. Served at `/demo/detail-interaction` (src/app.ts), it
+// presentation adapter. Served at `/demo/detail-interaction` (src/app/app.ts), it
 // runs the WHOLE real path end to end, no stand-in: a hand-written item renderer composes
 // each record's inner markup → the capability-scoped `present` adapter runs the runtime
 // enforcer on it, frames it in the platform trigger with its escaped `data-item` + detail

@@ -4,7 +4,8 @@
 // use a distinct arbitrary-SQL port backed only by the physically read-only SQLite
 // connection. Live and Gate scratch execution construct these same interfaces.
 
-import type { dbReadonly } from "../db.ts";
+import type { dbReadonly } from "../persistence/db.ts";
+import { registerPlatformSqlFunctions } from "../persistence/sqlite-functions.ts";
 import {
   type CapabilitySpec,
   capabilitySpecSchema,
@@ -13,7 +14,6 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   type SpecField,
 } from "../registry/index.ts";
-import { registerPlatformSqlFunctions } from "../sqlite-functions.ts";
 import { deriveCapabilityTableDdl } from "./ddl.ts";
 import { CapabilityDataValidationError, sqlIdentifier } from "./internal.ts";
 import {
@@ -22,7 +22,7 @@ import {
   materializeCapabilityActionRecord,
 } from "./query-runtime.ts";
 
-export { normalizeSearchText } from "../sqlite-functions.ts";
+export { normalizeSearchText } from "../persistence/sqlite-functions.ts";
 export { CapabilityDataValidationError } from "./internal.ts";
 export {
   capabilityQueryScopeTableNames,

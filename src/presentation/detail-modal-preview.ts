@@ -1,6 +1,6 @@
 // Dev preview for the shared read-only detail modal — the human visual
 // check surface. Served at `/demo/detail-modal`
-// (src/app.ts), it runs the REAL modal module: renderDetailModal() emits the one shared
+// (src/app/app.ts), it runs the REAL modal module: renderDetailModal() emits the one shared
 // <dialog>, renderDetailContentTemplate() materializes each record's detail through the
 // centralized field renderer, and the REAL controller (/static/detail-modal.js)
 // prefills + opens it — so a reviewer eyeballs exactly what the platform will emit.

@@ -92,13 +92,46 @@ Bun loads `.env` automatically. The checked-in [.env.example](.env.example) docu
 | Command | What it does |
 | --- | --- |
 | `bun run dev` | Starts Aluna with watch mode on port 3030 by default. |
-| `bun test` | Runs the test suite. |
+| `bun run test` | Runs the test suite, sharded across processes. Accepts paths and `--shards`, `--seed`, `--rerun-each`, `--junit`. See [Testing](#testing). |
+| `bun run test:serial` | Runs the whole suite in one process (`bun test`). Slower; useful when debugging. |
 | `bun run typecheck` | Checks server and browser TypeScript. |
 | `bun run lint` | Runs Biome checks. |
 | `bun run format` | Formats supported files with Biome. |
 | `bun run build` | Builds the Bun server into `dist/`. |
 | `bun run start` | Starts the built server. Run `bun run build` first. |
 | `bun run reset` | **Deletes local runtime content:** generated capabilities, records, metrics/events, and stored blobs. It keeps the database file and tracked directory placeholders. |
+
+## Testing
+
+```bash
+bun run test
+```
+
+Test files are sharded across worker processes. Each shard is a fresh process, so
+one file cannot leak state into another through a module singleton — cross-file
+order dependence is structurally impossible rather than merely unlikely.
+
+| Flag | What it does |
+| --- | --- |
+| `bun run test src/router` | Only the files under a path. |
+| `--shards=N` | Worker count. Defaults to one less than the available cores, capped at 8. |
+| `--seed=N` | Randomizes order within each shard, reproducibly. |
+| `--rerun-each=N` | Re-runs every file N times to hunt flakes. |
+| `--junit=out.xml` | Writes a merged JUnit report for CI. |
+| `--write-durations` | Refreshes the shard-balancing weights. |
+
+**The run is deterministic.** Files are sorted, then packed longest-first using
+the recorded weights in `scripts/test-durations.json`, so the same files and the
+same `--shards` produce the same assignment on every machine. Refresh the weights
+with `--write-durations` after adding slow tests; balance affects speed only,
+never results.
+
+A worker that dies without reporting — segfault, out-of-memory — is surfaced as a
+first-class failure with its tail output, so a crash can never be misread as a
+pass.
+
+No test may call a real AI provider. Every test drives the Builder through fake
+providers, so the suite costs nothing to run.
 
 ## Repository map
 

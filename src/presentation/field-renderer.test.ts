@@ -86,8 +86,27 @@ describe("create form — platform wiring + close-on-success", () => {
   });
 
   test("holds no record data — the create surface is data-free", () => {
-    // Nothing but the spec goes in; there is no argument through which a value could.
-    expect(renderCreateForm.length).toBe(1);
+    // The arity alone proves nothing: a form could still bake values in over a
+    // closure. Assert the rendered markup instead — no control arrives pre-filled
+    // and no checkbox arrives pre-checked.
+    const form = renderCreateForm(SAMPLE);
+    const prefilled = [...form.matchAll(/<(?:input|option)\b[^>]*>/g)]
+      .map(([element]) => element)
+      // The `__aluna_present` markers legitimately carry a value: it is the field's
+      // own name, telling the server which controls the form submitted. Everything
+      // else arriving with a value would be record data.
+      .filter((element) => !element.includes('name="__aluna_present"'))
+      .filter((element) => /\svalue="[^"]+"/.test(element) || /\schecked\b/.test(element));
+
+    expect(prefilled).toEqual([]);
+
+    // Every control is an input today, but a textarea would carry its value as a
+    // text node rather than an attribute and slip past the sweep above. Guard that
+    // shape now so adding one later cannot quietly reintroduce record data.
+    const textareaBodies = [...form.matchAll(/<textarea\b[^>]*>([\s\S]*?)<\/textarea>/g)].map(
+      ([, body]) => body,
+    );
+    expect(textareaBodies.filter((body) => body !== "")).toEqual([]);
   });
 });
 

@@ -180,56 +180,10 @@ describe("renderDetailContent — read-only body via the centralized field rende
     expect(read.match(/type="submit"/g)).toHaveLength(1);
   });
 
-  test("without detail.shows, falls back to every spec field in spec order", () => {
-    // SAMPLE carries no detail.shows, so the body shows the whole record in spec order —
-    // the fallback that keeps a demo/test (or a pre-reshape row) rendering everything.
-    const body = renderDetailContent(SAMPLE, RECORD, "detail-tasks-task-1");
-    const order = ["Title", "Priority", "Urgent", "Due on", "Remind at", "Note"];
-    const positions = order.map((label) => body.indexOf(label));
-    expect(positions.every((p) => p >= 0)).toBe(true);
-    expect(positions).toEqual([...positions].sort((a, b) => a - b));
-  });
-
-  test("honors detail.shows — exactly those fields, in that order (3.3/02)", () => {
-    // The reshaped ui_intent's detail.shows drives the read-only surface: a reordered
-    // subset must show exactly its fields, in its order, dropping the rest.
-    const scoped: RenderableCapability = {
-      ...SAMPLE,
-      detail: { shows: ["note", "title", "urgent"] },
-    };
-    const body = renderDetailContent(scoped, RECORD, "detail-tasks-task-1");
-
-    // The three named fields show, in the named order.
-    const shown = ["Note", "Title", "Urgent"].map((label) => body.indexOf(label));
-    expect(shown.every((p) => p >= 0)).toBe(true);
-    expect(shown).toEqual([...shown].sort((a, b) => a - b));
-
-    // The dropped fields do not appear at all, and the <dl> holds exactly three rows.
-    for (const dropped of ["Priority", "Due on", "Remind at"]) {
-      expect(body).not.toContain(`>${dropped}</dt>`);
-    }
-    expect([...body.matchAll(/<dt class="detail-field__label">/g)]).toHaveLength(3);
-  });
-
-  test("formats by type and shows the placeholder for an absent value", () => {
-    const body = renderDetailContent(SAMPLE, RECORD, "detail-tasks-task-1");
-    expect(body).toContain("Yes"); // boolean urgent=true
-    expect(body).toContain('<time datetime="2026-07-05">'); // date due_on
-    expect(body).toContain("—"); // absent note
-  });
-
-  test("escapes a hostile record value — it can never become live markup", () => {
-    const body = renderDetailContent(
-      SAMPLE,
-      {
-        ...RECORD,
-        title: '"><script>alert(1)</script>',
-      },
-      "detail-tasks-task-1",
-    );
-    expect(body).not.toContain("<script>alert(1)</script>");
-    expect(body).toContain("&lt;script&gt;");
-  });
+  // Field selection, ordering, per-type formatting, and escaping are proven once
+  // against `renderDetailFields` in field-renderer.detail.test.ts. The delegation
+  // test above pins this body to that renderer byte-for-byte, so re-testing them
+  // through the wrapper would only duplicate that suite.
 });
 
 describe("renderDetailContentTemplate — inert, cloneable detail", () => {

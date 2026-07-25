@@ -242,14 +242,19 @@ describe("enforcer — hostile field-value smuggling comes out inert", () => {
 });
 
 describe("enforcer — deterministic and dependency-free", () => {
-  test("is a pure synchronous string→string transform", () => {
-    const out = enforceItemMarkup('<div class="stack">x</div>');
-    expect(typeof out).toBe("string");
-  });
-
-  test("produces identical output for identical input", () => {
+  test("carries no parser state between calls", () => {
     const hostile = '<a href="x" onclick="e()"><script>e()</script><b style="color:red">Hi</b></a>';
-    expect(enforceItemMarkup(hostile)).toBe(enforceItemMarkup(hostile));
+    const first = enforceItemMarkup(hostile);
+
+    // Interleave different markup: a rewriter that leaked state across calls would
+    // return something different the second time. Comparing a call to itself back
+    // to back could not detect that.
+    enforceItemMarkup('<section id="other"><img src="x" onerror="e()"></section>');
+
+    expect(enforceItemMarkup(hostile)).toBe(first);
+    // The anchor and script are dropped outright; only the allowed inline element
+    // survives, stripped of its style attribute.
+    expect(first).toBe("<b>Hi</b>");
   });
 
   test("passes element-free text through untouched", () => {

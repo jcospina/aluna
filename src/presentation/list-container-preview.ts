@@ -1,6 +1,6 @@
 // Dev preview for the list scaffolding container + accessible item wrapper —
 // the human visual check surface. Served
-// at `/demo/list-container` (src/app.ts), it runs the REAL platform modules
+// at `/demo/list-container` (src/app/app.ts), it runs the REAL platform modules
 // (renderCollection / renderItemWrapper) so a reviewer eyeballs exactly what the
 // platform will emit, in BOTH closed collection layouts.
 //
