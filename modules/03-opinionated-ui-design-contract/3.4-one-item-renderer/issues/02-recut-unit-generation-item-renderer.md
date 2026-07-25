@@ -16,7 +16,7 @@ ADR-0004 amended, PLAN decision 2 & flow steps 4 & 7:
 
 ## What to build
 
-Re-cut unit generation (`src/builder/units.ts`) so a capability's generated
+Re-cut unit generation (`src/builder/units/units.ts`) so a capability's generated
 artifacts are **one item renderer + `create` + `read` Handlers** instead of M2's
 four units (`handler:create`, `handler:read`, `view:list`, `view:create`). The
 item renderer turns one record into capability-specific inner markup, generated
@@ -53,14 +53,14 @@ create/read drift by construction.
 
 ## Delivered
 
-- `src/builder/units.ts` — re-cut. `generateCapabilityUnits` now produces three
+- `src/builder/units/units.ts` — re-cut. `generateCapabilityUnits` now produces three
   units in fixed order — **item renderer first** (`kind: "item-renderer"`,
   `item.ts` = `ITEM_RENDERER_FILE`), then the `create`/`read` handlers — each
   through the reused bounded fix loop (`DEFAULT_UNIT_FIX_ATTEMPTS`, default 2). The
   result exposes `{ units, handlers, itemRenderer }` (the `views` map is gone). The
   `GeneratedUnit`/`UnitDescriptor` union drops the `view` variant for
   `item-renderer`.
-- `src/builder/unit-prompts.ts` — the **item-renderer prompt** injects the closed
+- `src/builder/units/unit-prompts.ts` — the **item-renderer prompt** injects the closed
   primitive class vocabulary (sourced from `presentation/vocabulary.ts`, one source
   of truth), the token-discipline escape-hatch rules, and the capability's chosen
   `collection.layout` with feed-vs-grid composition guidance, so the item is
@@ -68,7 +68,7 @@ create/read drift by construction.
   tells the model to render every record through the injected `present(record)`
   adapter and emit no row markup of its own. (The `list`/`create` View prompts are
   gone.) The few-shot gallery + "vary, don't copy" harness stays 3.5.
-- `src/builder/unit-checks.ts` — item-renderer static check (one **synchronous**
+- `src/builder/units/unit-checks.ts` — item-renderer static check (one **synchronous**
   `export default function`, one param, no imports, type-checked against
   `ItemRenderer`); the handler contract's `CapabilityContext` gains `present`.
   `checkListView`/`checkCreateView` retired.
@@ -79,7 +79,7 @@ create/read drift by construction.
   generated renderer (`buildGatePresent`) and run handlers through it — so the
   throw-on-call `GATE_PRACTICE_PRESENT` (3.4/01's placeholder) is gone and the smoke
   rung proves create + read render identical item markup by construction.
-- `src/pipeline/build-run.ts` passes `itemRenderer` into the gate;
+- `src/pipeline/build/build-run.ts` passes `itemRenderer` into the gate;
   `metrics-recorder.ts` + `metrics/store.ts` measure item-renderer generation as the
   **presentation-gen** leg (`presentationGenMs`/`presentation_gen_ms`; M2's
   `html_gen_ms` remains a historical database column); `unitAttempts.kind` is

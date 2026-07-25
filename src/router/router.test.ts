@@ -15,9 +15,9 @@
 // real data file is never touched, mirroring the registry and data-tool tests.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createApp } from "../app.ts";
-import type { PlatformDatabase } from "../db.ts";
+import { createApp } from "../app/app.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
+import type { PlatformDatabase } from "../persistence/db.ts";
 import type { CapabilityCreateContext } from "./contract.ts";
 import {
   createCapabilityDataTool,

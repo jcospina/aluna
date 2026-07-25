@@ -70,7 +70,7 @@ None — can start immediately (this is the first M4 issue).
 ## Verification
 
 - `bun run reset`
-- `bun test src/router/router.test.ts src/app.test.ts src/metrics/store.test.ts src/builder/commit.test.ts src/registry/store.test.ts src/registry/spec.test.ts src/migrations.test.ts`
+- `bun test src/router/router.test.ts src/app/app.test.ts src/metrics/store.test.ts src/builder/commit/commit.test.ts src/registry/store.test.ts src/registry/spec.test.ts src/persistence/migrations.test.ts`
 - `bun test` — 365 pass, 0 fail
 - `bun run typecheck`
 - `bun run lint`

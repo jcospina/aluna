@@ -1,20 +1,16 @@
 // Routing-refusal and failure slices of the deterministic capability router (Epic 2.3):
 // unknown capabilities, undeclared actions, wrong HTTP method/action pairs, a throwing
-// handler kept friendly, and the hand-written fixture's complete five-Action inventory.
-// Shared setup and fixtures live in router.test-support.ts.
+// handler kept friendly. Shared setup and fixtures live in router.test-support.ts.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { createApp } from "../app.ts";
-import type { PlatformDatabase } from "../db.ts";
+import { createApp } from "../app/app.ts";
+import type { PlatformDatabase } from "../persistence/db.ts";
 import type { CapabilityContext, CapabilityInput } from "./contract.ts";
 import {
   boomRow,
   formBody,
   install,
   makeSpyLoader,
-  NOTES_ARTIFACTS,
   notesRow,
   setupRouterTest,
   teardownRouterTest,
@@ -322,34 +318,9 @@ describe("deterministic capability router — failures and complete inventory", 
     expect(body).not.toMatch(/internal|stack|\bError\b/);
   });
 
-  test("the router fixture has the complete five-Action inventory and every unit honors its boundary", () => {
-    expect(readdirSync(resolve(NOTES_ARTIFACTS)).sort()).toEqual([
-      "create.ts",
-      "delete.ts",
-      "item.ts",
-      "read.ts",
-      "search.ts",
-      "update.ts",
-    ]);
-
-    for (const file of ["item.ts", "create.ts", "read.ts", "update.ts", "delete.ts", "search.ts"]) {
-      const source = readFileSync(resolve(NOTES_ARTIFACTS, file), "utf8");
-      expect(source).not.toMatch(/^\s*import\b/m); // no module imports
-      // No raw mutation SQL — writes go through the scoped mutation port, never SQL
-      // statements. (Matched as SQL syntax so a `mutation.update(...)` call is fine.)
-      expect(source).not.toMatch(
-        /\bINSERT\s+INTO\b|\bDELETE\s+FROM\b|\bUPDATE\s+"|\bDROP\s+TABLE\b|\bALTER\s+TABLE\b/i,
-      );
-      // no raw HTTP — the handler never sees the request, a response, or parsing
-      expect(source).not.toContain("c.req");
-      expect(source).not.toContain("parseBody");
-      expect(source).not.toContain("Request");
-      expect(source).not.toContain("Response");
-    }
-
-    expect(readFileSync(resolve(NOTES_ARTIFACTS, "create.ts"), "utf8")).toContain(
-      "return present(note)",
-    );
-    expect(readFileSync(resolve(NOTES_ARTIFACTS, "read.ts"), "utf8")).toContain("present(record)");
-  });
+  // No unit-boundary test over `__fixtures__` here: those files are hand-written
+  // test inputs, so asserting they contain no imports, SQL, or HTTP only restates
+  // how they were typed. The same boundary is enforced against real generated units
+  // by the structural gate — see gate.structural.test.ts, which additionally
+  // attributes each violation to the offending Action.
 });

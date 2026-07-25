@@ -10,7 +10,7 @@ step 5: `modules/03-opinionated-ui-design-contract/PLAN.md`)
 
 ## What to build
 
-Add the fail-closed **design-lint rung** to the **Gate** (`src/builder/gate.ts`):
+Add the fail-closed **design-lint rung** to the **Gate** (`src/builder/gate/gate.ts`):
 render the generated **item renderer** with **synthetic and hostile** field values
 *within the capability's declared collection layout* and reject off-token
 styling (raw values on the token-owned color/font/type/spacing/border axes, forbidden
@@ -61,7 +61,7 @@ The gate is where generated code is *executed* (`unit-checks.ts` explicitly rese
 design-lint for the gate, not the static generation loop), so the rung renders rather
 than statically inspects.
 
-- `src/builder/gate-design-lint.ts` — new. `runDesignLintRung` renders the item
+- `src/builder/gate/design-lint/gate-design-lint.ts` — new. `runDesignLintRung` renders the item
   renderer against a **synthetic** probe (catches hard-coded off-token styling /
   fabricated classes) plus one **hostile** probe per injection family (HTML/script,
   attribute breakout, `style` injection, `javascript:` URL, quote/markup soup — each
@@ -97,7 +97,7 @@ than statically inspects.
 
 ## Verification
 
-- `bun test src/builder/gate-design-lint.test.ts` — 17 pass. Detector coverage: clean
+- `bun test src/builder/gate/design-lint/gate-design-lint.test.ts` — 17 pass. Detector coverage: clean
   + token-disciplined `style` + an escaped field flowing into `<img src>` (the media
   pattern) all pass; off-token color, named-color shorthand (the residual), `url(...)`,
   item-escaping `position`, fabricated class, interactive descendant, field-into-`style`,

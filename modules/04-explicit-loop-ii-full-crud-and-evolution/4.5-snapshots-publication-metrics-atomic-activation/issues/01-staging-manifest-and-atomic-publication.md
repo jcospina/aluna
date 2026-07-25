@@ -124,6 +124,6 @@ text and `snapshot`, `verified` tags. That record remains in the demo for HITL.
 3. Open the developer panel and inspect Commit. Confirm `snapshotVerified` is
    `true`, behavioral tier is `on`, and the nine-file inventory above is shown.
 4. From the repository root, run:
-   `bun -e 'import { verifyCapabilitySnapshot } from "./src/builder/artifact-lifecycle.ts"; console.log(verifyCapabilitySnapshot("capabilities/notes/53c94692-960e-4b3d-b1a6-6b12ad1863b7/v1"))'`
+   `bun -e 'import { verifyCapabilitySnapshot } from "./src/builder/artifacts/artifact-lifecycle.ts"; console.log(verifyCapabilitySnapshot("capabilities/notes/53c94692-960e-4b3d-b1a6-6b12ad1863b7/v1"))'`
 5. Confirm the command returns the same build id, fingerprint, tier, spec id,
    and exact inventory without a verification error.

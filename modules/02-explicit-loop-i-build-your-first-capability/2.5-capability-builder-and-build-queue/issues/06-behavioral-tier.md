@@ -54,7 +54,7 @@ The third gate rung — the one that lifts "validated" from *compiles and runs* 
 
 _2026-06-24 — implemented and verified._
 
-- Extended [`src/builder/gate.ts`](../../../../src/builder/gate.ts) with the
+- Extended [`src/builder/gate/gate.ts`](../../../../src/builder/gate/gate.ts) with the
   default-on behavioral rung after structural and smoke. The rung generates a
   structured test suite through the existing provider contract, using a prompt
   built only from `{ behavior, schema }`; handler source is not accepted by the
@@ -75,8 +75,8 @@ _2026-06-24 — implemented and verified._
   provider into `runCapabilityGate` and include the behavioral metrics object in
   the developer-only `gate-preview` pane.
 - Added fake-provider coverage in
-  [`src/builder/gate.test.ts`](../../../../src/builder/gate.test.ts) and
-  [`src/app.test.ts`](../../../../src/app.test.ts) for prompt independence,
+  [`src/builder/gate/`](../../../../src/builder/gate/) and
+  [`src/app/app.test.ts`](../../../../src/app/app.test.ts) for prompt independence,
   conforming/violating handler behavior, default-on/off toggle behavior, and the
   expanded demo preview. No test calls a real provider.
 - Follow-up from live HITL: OpenAI Responses rejected the first generated test
@@ -102,12 +102,12 @@ _2026-06-24 — implemented and verified._
 
 ## Verification
 
-- `bun test src/builder/gate.test.ts`
-- `bun test src/app.test.ts`
+- `bun test src/builder/gate/`
+- `bun test src/app/app.test.ts`
 - `bun run typecheck`
-- `bunx biome check --write src/builder/gate.ts src/builder/gate.test.ts src/builder/index.ts src/app.ts src/app.test.ts`
-- `bunx biome check --write src/builder/gate.ts src/builder/gate.test.ts src/builder/index.ts src/app.ts src/app.test.ts public/app.js`
-- `bunx biome check src/builder/gate.ts src/builder/gate.test.ts src/builder/index.ts src/app.ts src/app.test.ts public/app.js`
+- `bunx biome check --write src/builder/gate/gate.ts src/builder/gate/ src/builder/index.ts src/app/app.ts src/app/app.test.ts`
+- `bunx biome check --write src/builder/gate/gate.ts src/builder/gate/ src/builder/index.ts src/app/app.ts src/app/app.test.ts public/app.js`
+- `bunx biome check src/builder/gate/gate.ts src/builder/gate/ src/builder/index.ts src/app/app.ts src/app/app.test.ts public/app.js`
 - `bun test`
 - `git diff --check`
 

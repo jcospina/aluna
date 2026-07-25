@@ -9,7 +9,7 @@ Module 1 — Platform Scaffold & Runtime Spine · Epic 1.2 — Hono server + the
 
 ## What to build
 
-Create and serve the single static HTML page that is the platform's one fixed UI surface — the shell (ARCH §6.1). It is authored as a real static file, `public/index.html`, and served at `GET /` by an explicit route in `src/app.ts` that returns the file via `Bun.file` (replacing the plain-text stub issue 01 left at the root route).
+Create and serve the single static HTML page that is the platform's one fixed UI surface — the shell (ARCH §6.1). It is authored as a real static file, `public/index.html`, and served at `GET /` by an explicit route in `src/app/app.ts` that returns the file via `Bun.file` (replacing the plain-text stub issue 01 left at the root route).
 
 The page loads HTMX and Alpine.js — both **vendored locally** (committed files under `public/vendor/`, exact versions pinned, served from `/static/vendor/…`; no CDN, no build step, ARCH §4) — and lays out the three shell regions as **inert, semantic placeholders**:
 
@@ -27,7 +27,7 @@ This issue owns **structure, the static shell layout, and asset plumbing.** Buil
 
 ## Acceptance criteria
 
-- [x] `GET /` returns the shell HTML page, served by an explicit `app.get("/")` in `src/app.ts` that returns `public/index.html` via `Bun.file` (the issue-01 text stub is replaced)
+- [x] `GET /` returns the shell HTML page, served by an explicit `app.get("/")` in `src/app/app.ts` that returns `public/index.html` via `Bun.file` (the issue-01 text stub is replaced)
 - [x] HTMX (2.x) and Alpine.js (3.x) are **vendored under `public/vendor/`** — committed, exact patch versions pinned (not floating, not CDN) — and loaded on the page from `/static/vendor/…`
 - [x] The three regions render as clearly delineated, inert **semantic landmarks**: prompt bar (`<form>`), capability toolbar (`<nav>`, empty), content area (`<main>`, empty)
 - [x] The regions are arranged in the **static shell layout** — left sidebar (toolbar) + content column with the prompt bar pinned to the bottom and the content area filling the rest (structural only; visual styling, collapse, and responsive behavior are issue 03)
@@ -56,7 +56,7 @@ Files:
 - `public/index.html` — the fixed shell, laid out in the **Claude/ChatGPT shape**. An empty Alpine `x-data` root (`div.shell`, `display:flex`, `height:100vh`) holds the `<nav class="toolbar">` as a fixed-width **left sidebar** and a `.content-column` (flex column) that stacks `<main class="content">` (fills the remaining height) over the **bottom-pinned** `<form class="prompt">`. All three regions are empty/inert: the form has no `hx-post` and `onsubmit="return false"` (no reload, no orchestrator call); the toolbar and content area are empty. The inline `<style>` is **structural layout only** (flex/sizing) plus 1px borders for delineation — no colors, fonts, theme, or collapse/responsive behavior; issue 03 replaces the whole block with `public/app.css`. An empty `<link rel="icon" href="data:,">` suppresses the automatic favicon 404. `<title>` is a neutral placeholder (no branding — "omni-crud" is an engineering name, ARCH §9.7).
 - `public/vendor/htmx.min.js` — **HTMX 2.0.10**, the upstream prebuilt minified `dist/htmx.min.js` (exact patch version, committed).
 - `public/vendor/alpine.min.js` — **Alpine.js 3.15.12**, the upstream `dist/cdn.min.js` auto-initializing build (exact patch version, committed).
-- `src/app.ts` — `app.get("/")` now returns `public/index.html` via `Bun.file` (per-request read; stays live under `--watch`), replacing the issue-01 text stub. `Content-Type: text/html; charset=utf-8` is set **explicitly** — Bun infers it from the file, but that lazily-computed header is dropped when the Response passes through Hono's router (confirmed: `app.request("/")` returned a `null` content-type without it).
+- `src/app/app.ts` — `app.get("/")` now returns `public/index.html` via `Bun.file` (per-request read; stays live under `--watch`), replacing the issue-01 text stub. `Content-Type: text/html; charset=utf-8` is set **explicitly** — Bun infers it from the file, but that lazily-computed header is dropped when the Response passes through Hono's router (confirmed: `app.request("/")` returned a `null` content-type without it).
 - `biome.json` — excludes `public/vendor` so the third-party minified blobs aren't linted/formatted (also keeps the lint-staged commit hook off them).
 
 Verification (`PORT=8731`):

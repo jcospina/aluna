@@ -59,7 +59,7 @@ No functional onboarding/welcome flow here — that depends on the prompt actual
 
 ## Implementation plan
 
-Order is deliberate: write the durable references first (so the build follows them), then tokens/fonts, then layout, then interactions, then cold-start/responsive, then a11y. All output is static and build-free; assets are served by Hono's `/static/*` → `public/*` mapping (`src/app.ts`).
+Order is deliberate: write the durable references first (so the build follows them), then tokens/fonts, then layout, then interactions, then cold-start/responsive, then a11y. All output is static and build-free; assets are served by Hono's `/static/*` → `public/*` mapping (`src/app/app.ts`).
 
 ### Phase 0 — Durable docs (the references future agents consult)
 
@@ -168,7 +168,7 @@ Extend issue 02's markup — do **not** restructure it. Replace the inline `<sty
 
 ### Phase 3 — Basic interactions
 
-**Browser JS is `.js`, not `.ts` — by design.** `public/app.js` is served verbatim as a static asset (`serveStatic`, `src/app.ts`) and executed by the *browser*, which runs JavaScript, not TypeScript — `serveStatic` does no transpilation. Authoring it in TS would require a transpile/bundle step and break the **no-build-step** rule. TypeScript stays on the server, where Bun is the executor (`bun --watch src/index.ts`). To keep type safety without a build, author `public/app.js` as plain JS with `// @ts-check` at the top + **JSDoc** type annotations; the existing `typecheck` script (`tsc --noEmit`, `package.json`) then checks it with no runtime change. (Same applies to the future `public/pet.js`.)
+**Browser JS is `.js`, not `.ts` — by design.** `public/app.js` is served verbatim as a static asset (`serveStatic`, `src/app/app.ts`) and executed by the *browser*, which runs JavaScript, not TypeScript — `serveStatic` does no transpilation. Authoring it in TS would require a transpile/bundle step and break the **no-build-step** rule. TypeScript stays on the server, where Bun is the executor (`bun --watch src/index.ts`). To keep type safety without a build, author `public/app.js` as plain JS with `// @ts-check` at the top + **JSDoc** type annotations; the existing `typecheck` script (`tsc --noEmit`, `package.json`) then checks it with no runtime change. (Same applies to the future `public/pet.js`.)
 
 **3.1 Sidebar collapse (chrome) — `public/app.js` (Alpine).** Put an `open` boolean on the existing `x-data` root.
 - **Desktop (≥ ~768px):** toggling `open=false` **fully collapses** the sidebar (width → 0 / removed from flow) to reclaim content width. No icon rail — entries are text labels with no icons yet. A visible toggle control lives in the content column.

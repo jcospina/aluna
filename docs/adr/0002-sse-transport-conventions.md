@@ -25,7 +25,7 @@ deletion of the throwaway demo that established it.
   without producing user-visible output.
 - **Route namespacing.** `/demo/*` is throwaway and freely removable. The
   **production SSE channel**, the capability router `/capability/:id/:action`,
-  and `/files/:key` are reserved real routes (see `src/app.ts`). The demo must
+  and `/files/:key` are reserved real routes (see `src/app/app.ts`). The demo must
   never colonize a reserved path.
 
 **Historical questions from the Module 1 seed (all resolved by the updates below):**
@@ -68,7 +68,7 @@ deletion of the throwaway demo that established it.
 - M2/M4 may rename or extend the event vocabulary; when they do, **update or
   supersede this ADR**. The names here are a starting convention, not a frozen
   contract.
-- Deleting the 1.3 demo (`/demo/stream` in `src/app.ts`; `initSseDemo`/`sseData`
+- Deleting the 1.3 demo (`/demo/stream` in `src/app/app.ts`; `initSseDemo`/`sseData`
   in `public/app.js`; the demo trigger/output in `public/index.html`; the
   `.sse-demo` block in `public/app.css`) removes **no** decision recorded here.
 - At the Module 1 seed point, the **HTMX-driven client path** and **channel
@@ -147,7 +147,7 @@ So a server-closed `done` is **not** enough under htmx: without intervention the
 browser reconnects and the per-build stream re-runs. The extension's
 `sse-close="<event>"` attribute closes the source on a named event; wiring
 `sse-close="done"` on the subscriber is the htmx analogue of the raw-EventSource
-path's `source.close()` on `done`. `renderBuildSubscriber` (`src/app.ts`) now
+path's `source.close()` on `done`. `renderBuildSubscriber` (`src/app/app.ts`) now
 sets it. This *sharpens* — does not contradict — the original "server-closed
 `done` avoids auto-reconnect" note above, which silently assumed the raw-
 EventSource client that closes its own source; the htmx client must be told to.
@@ -168,7 +168,7 @@ EventSource client that closes its own source; the htmx client must be told to.
   roll back or relabel the build; terminal presenter work is bounded, ownership
   releases in `finally`, and normal shell/toolbar registry rehydration recovers the
   activated View.
-- The proving scaffold (`/demo/swap-proof/*`, `renderSwapProof*` in `src/app.ts`,
+- The proving scaffold (`/demo/swap-proof/*`, `renderSwapProof*` in `src/app/app.ts`,
   the `.swap-proof` block in `public/app.css`, the shell `<section>`, and its
   tests) was **disposable** and has been **removed** now that the wire is proven
   and the vocabulary recorded here. Its removal took no decision with it (the 1.3
@@ -181,7 +181,7 @@ This paragraph records the state at the end of Module 1. Its open-question
 language is superseded by the Module 2 planning and Epic 2.6a updates above.
 
 The throwaway `/demo/stream` was **replaced, not just deleted**, by the real
-provider-backed `/stream` (`src/app.ts`): the shell's `Meet Aluna` trigger streams a
+provider-backed `/stream` (`src/app/app.ts`): the shell's `Meet Aluna` trigger streams a
 live AI-provider greeting into the content area (`narration` for the greeting,
 `fragment` for the invitation, `done` to close). It reused the seed vocabulary and
 kept the **raw `EventSource` + manual DOM** client path; at that historical point

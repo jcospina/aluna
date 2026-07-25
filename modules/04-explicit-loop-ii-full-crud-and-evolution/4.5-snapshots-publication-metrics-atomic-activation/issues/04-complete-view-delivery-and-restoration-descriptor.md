@@ -147,7 +147,7 @@ Verified 2026-07-22 (America/Bogota):
 
 ## HITL
 
-1. Run `bun test src/app.complete-view-restoration.test.ts src/pipeline/terminal-presentation.test.ts src/builder/activation.test.ts`. The focused restoration, cancellation, timeout, point-of-no-return, and reload cases should all pass.
+1. Run `bun test src/app/app.complete-view-restoration.test.ts src/pipeline/streaming/terminal-presentation.test.ts src/builder/artifacts/activation.test.ts`. The focused restoration, cancellation, timeout, point-of-no-return, and reload cases should all pass.
 2. Keep the existing dev server on port 3030. If none is running, run
    `bun run dev` from the repository root; do not start a second port.
 3. Open `http://localhost:3030`, choose **Notes**, and enter `track my notes` in

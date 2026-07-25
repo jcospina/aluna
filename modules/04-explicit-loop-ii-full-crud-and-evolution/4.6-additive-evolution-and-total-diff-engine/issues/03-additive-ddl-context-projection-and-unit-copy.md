@@ -79,10 +79,10 @@ records, with unchanged Handlers visibly copied (work plan in the dev preview).
   is missing or re-typed rather than ever emitting a destructive statement.
 
 - **Per-unit regeneration vs. byte-copy.** `assembleEvolutionCandidate(...)`
-  (`src/pipeline/evolution-assembly.ts`) walks the six units in canonical
+  (`src/pipeline/evolution/evolution-assembly.ts`) walks the six units in canonical
   snapshot order and, for each, either regenerates it (when
   `diff.workPlan.regeneratedUnits` selects it) through the new public
-  `generateCapabilityUnit(...)` (`src/builder/units.ts`, the same bounded
+  `generateCapabilityUnit(...)` (`src/builder/units/units.ts`, the same bounded
   write→check→fix loop a v1 build uses) or byte-copies it verbatim from the
   committed on-disk snapshot. Copied units never enter a generation prompt.
   Context projection is inherited from the existing per-unit prompt builder,
@@ -91,7 +91,7 @@ records, with unchanged Handlers visibly copied (work plan in the dev preview).
   exposed to the change, and a regenerated unit never sees an inactive field.
 
 - **Provenance carry-forward / refresh (audit-only).** Provenance moved into a
-  new `src/builder/artifact-provenance.ts` (keeping `artifact-lifecycle.ts`
+  new `src/builder/artifacts/artifact-provenance.ts` (keeping `artifact-lifecycle.ts`
   under the 500-line ceiling) with the schemas plus two builders:
   `unitProvenance` (the fresh v1 path) and `evolutionUnitProvenance` — a
   regenerated unit gets a fresh `active_context_digest`; a byte-copied unit
@@ -123,7 +123,7 @@ records, with unchanged Handlers visibly copied (work plan in the dev preview).
   as `assembly.status: "running"`; the regenerated units then assemble in the
   Units block (copied units join it already complete) and the Gate verdict lands
   in the Gate block, before the terminal `complete` summary. The live units view
-  itself moved to a shared `src/pipeline/unit-preview-stream.ts` so a v1 build and
+  itself moved to a shared `src/pipeline/streaming/unit-preview-stream.ts` so a v1 build and
   an evolution cannot drift.
 
 - **Hardening found by the adversarial pass.** A Gate repair rewrites bytes the
@@ -147,10 +147,10 @@ records, with unchanged Handlers visibly copied (work plan in the dev preview).
   last response, which is what makes the copy-is-proof assertions proof.
 
 - **Dev tracer wiring.** The tracer runs the assembler on a real (non-no-op)
-  change (`src/pipeline/evolution-candidate-tracer.ts`) and surfaces an
+  change (`src/pipeline/demo/evolution-candidate-tracer.ts`) and surfaces an
   `EvolutionAssemblySummary` — regenerated vs. copied units, the additive DDL,
   and the Gate verdict — in the accepted `candidate-preview`
-  (`src/pipeline/previews.ts`, `src/evolution-candidate-routes.ts`). Still no
+  (`src/pipeline/streaming/previews.ts`, `src/app/evolution-candidate-routes.ts`). Still no
   durable effect: no metrics row, no version bump, no `commit`.
 
 ## Living demo — as delivered
@@ -178,15 +178,15 @@ Follow-up round, 2026-07-24 (the streamed assembly + the hardening above):
 
 - `bun run typecheck` and `bun run lint`: clean.
 - Two new pure suites run on any platform and are green locally:
-  `src/pipeline/unit-preview-stream.test.ts` (lifecycle sends vs. throttled
+  `src/pipeline/streaming/unit-preview-stream.test.ts` (lifecycle sends vs. throttled
   partials, a recorded copy landing complete, an aborted stream going quiet) and
-  `src/pipeline/previewing-provider.test.ts` (the drain resolves even when the
+  `src/pipeline/build/previewing-provider.test.ts` (the drain resolves even when the
   stage never reached the provider — the lease-stranding hazard).
 - New container-only coverage: the assembly-liveness suite in
-  `src/pipeline/evolution-assembly.test.ts` (the plan reported with zero model
+  `src/pipeline/evolution/evolution-assembly.test.ts` (the plan reported with zero model
   calls spent, the copy/regenerate/Gate ordering, the reconciled inventory after
   a Gate repair, and a cancel stopping before the Gate) and two route tests in
-  `src/app.evolution-candidate.test.ts` (the full streamed sequence, a failed
+  `src/app/app.evolution-candidate.test.ts` (the full streamed sequence, a failed
   assembly closing out its running plan, and a cancel mid-assembly closing it out
   as `cancelled` with the Gate never run).
 - Two adversarial review rounds (SOTA model) over the change; every finding fixed,
@@ -200,11 +200,11 @@ Original round, verified 2026-07-24 (America/Bogota):
   pre-existing SQLite-FFI Bun bug for any smoke-loading suite):
   `src/capability-data/ddl.test.ts` (additive `ADD COLUMN`, historical-null
   readback, no-DDL + value-preserving hide/reactivate, fail-closed drop/retype
-  guard), `src/pipeline/evolution-assembly.test.ts` (byte-copy identity +
+  guard), `src/pipeline/evolution/evolution-assembly.test.ts` (byte-copy identity +
   provider-call assertion that copies never entered model context,
   active-projection of regenerated units, provenance carry/refresh,
   structural+smoke over the assembled snapshot), and
-  `src/app.evolution-candidate.test.ts` (the accepted route now surfaces the
+  `src/app/app.evolution-candidate.test.ts` (the accepted route now surfaces the
   assembly summary while nothing durable changes). The provenance extraction
   keeps the `snapshot.json`/publish surface byte-identical, so no existing
   suite regressed.
@@ -243,7 +243,7 @@ Original round, verified 2026-07-24 (America/Bogota):
    work stops instead of finishing the Gate.
 7. Deterministic proof of the additive DDL, the copy/regenerate/provenance
    split, the Gate over the assembled snapshot, and the streamed liveness: run
-   `bun test src/capability-data/ddl.test.ts src/pipeline/evolution-assembly.test.ts src/app.evolution-candidate.test.ts`
+   `bun test src/capability-data/ddl.test.ts src/pipeline/evolution/evolution-assembly.test.ts src/app/app.evolution-candidate.test.ts`
    in the Linux container (the smoke rung segfaults `bun test` on macOS). The
    two pure suites run anywhere:
-   `bun test src/pipeline/unit-preview-stream.test.ts src/pipeline/previewing-provider.test.ts`.
+   `bun test src/pipeline/streaming/unit-preview-stream.test.ts src/pipeline/build/previewing-provider.test.ts`.

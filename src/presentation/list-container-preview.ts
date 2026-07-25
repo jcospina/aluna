@@ -1,6 +1,6 @@
 // Dev preview for the list scaffolding container + accessible item wrapper (epic
 // 3.2/02) — the human visual sign-off surface this issue's HITL gate requires. Served
-// at `/demo/list-container` (src/app.ts), it runs the REAL platform modules
+// at `/demo/list-container` (src/app/app.ts), it runs the REAL platform modules
 // (renderCollection / renderItemWrapper) so a reviewer eyeballs exactly what the
 // platform will emit, in BOTH closed collection layouts.
 //

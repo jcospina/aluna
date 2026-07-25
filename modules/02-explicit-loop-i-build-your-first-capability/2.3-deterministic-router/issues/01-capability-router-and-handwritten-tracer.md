@@ -65,7 +65,7 @@ toolbox → data table → HTML fragment back.
   wraps the returned fragment via `c.html` — the platform owns status/headers.
   Unknown capability / undeclared action → friendly 404; a throwing handler →
   friendly 500 with the precise cause logged server-side, never leaked.
-- Wired into the one route file (`src/app.ts`, `createApp`); db pair + handler
+- Wired into the one route file (`src/app/app.ts`, `createApp`); db pair + handler
   loader are injectable for tests, defaulting to the platform singletons + the real
   file loader.
 

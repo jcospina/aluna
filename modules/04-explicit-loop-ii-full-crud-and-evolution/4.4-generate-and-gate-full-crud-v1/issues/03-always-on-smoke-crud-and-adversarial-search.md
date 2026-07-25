@@ -127,7 +127,7 @@ semantics hold live.
 1. Keep the existing app on port 3030 running; if it is not running, start it
    with `bun run dev`. Do not reset or start a fallback port.
 2. Run
-   `bun test src/builder/gate.smoke.test.ts src/builder/gate.smoke-search.test.ts`.
+   `bun test src/builder/gate/smoke/gate.smoke.test.ts src/builder/gate/smoke/gate.smoke-search.test.ts`.
    Confirm all smoke, frozen-fixture, attribution, visible-fragment, and bounded-
    repair tests pass.
 3. Open `http://localhost:3030/capability/reading_log`. Search **Juramentada**

@@ -31,7 +31,7 @@ The read-only connection is the *deterministic* guarantee that a write is physic
 
 ## Comments
 
-**2026-06-09 — implemented.** Both connections live in [`src/db.ts`](../../../../src/db.ts),
+**2026-06-09 — implemented.** Both connections live in [`src/persistence/db.ts`](../../../../src/persistence/db.ts),
 opening against the Epic 1.1 convention `data/omni-crud.db`. No domain tables —
 this only stands up the two access points the later epics reuse.
 
@@ -58,7 +58,7 @@ writes the read-only open fails with "unable to open database file". A
 even before the first migration writes. `busy_timeout = 5000` on both absorbs
 momentary checkpoint contention instead of surfacing a spurious `SQLITE_BUSY`.
 
-**Tests** ([`src/db.test.ts`](../../../../src/db.test.ts), 5 cases, all green):
+**Tests** ([`src/persistence/db.test.ts`](../../../../src/persistence/db.test.ts), 5 cases, all green):
 file is created if absent; a write on `db` succeeds; a write on `dbReadonly` fails
 (asserted for both DML **and** DDL — the boundary holds regardless of the SQL);
 the read-only connection still reads rows committed by the read-write one; and the

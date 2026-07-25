@@ -56,7 +56,7 @@ rendered to the user.** No runtime "read the design system" tool (ADR-0005 §5).
 Completed 2026-07-10. Automated verification is green, and the human completed
 the fresh multi-capability visual sign-off as part of epic 3.7's full acceptance.
 
-- `src/builder/few-shot-gallery.ts` adds three repo-only item-renderer exemplars:
+- `src/builder/units/few-shot-gallery.ts` adds three repo-only item-renderer exemplars:
   a text-forward `feed`, a media-forward `grid`, and a compact metadata `feed`.
   The compact metadata example demonstrates the inline `style` escape hatch while
   keeping gap, padding, color, border width, and border color on tokens.
@@ -71,11 +71,11 @@ the fresh multi-capability visual sign-off as part of epic 3.7's full acceptance
 - 2026-07-09 richness iteration: each exemplar now renders two preview records,
   so the media-forward example shows a real two-item grid and the feed examples
   show multiple rows without changing the LLM-facing renderer source shape.
-- `src/builder/unit-prompts.ts` now routes item-renderer generation through the
+- `src/builder/units/unit-prompts.ts` now routes item-renderer generation through the
   gallery injection harness. The prompt includes the closed primitive class list,
   inline-style discipline, the chosen `collection.layout`, and explicit
   "Vary, don't copy" framing before the capability spec JSON.
-- `src/builder/few-shot-gallery-preview.ts` adds the deterministic developer
+- `src/builder/units/few-shot-gallery-preview.ts` adds the deterministic developer
   preview served at `/demo/few-shot-gallery`. It renders the same sample
   exemplars through the real presentation adapter, runtime enforcer, item
   wrapper, collection container, detail templates, and shared modal. It also
@@ -86,10 +86,10 @@ the fresh multi-capability visual sign-off as part of epic 3.7's full acceptance
 
 ## Verification
 
-- `bun test src/builder/units.test.ts` — 12 pass / 0 fail.
-- `bun test src/app.test.ts` — 35 pass / 0 fail.
+- `bun test src/builder/units/units.test.ts` — 12 pass / 0 fail.
+- `bun test src/app/app.test.ts` — 35 pass / 0 fail.
 - `bun run typecheck` — clean.
-- `bunx biome check src/app.ts src/app.test.ts src/builder/few-shot-gallery.ts src/builder/few-shot-gallery-preview.ts src/builder/unit-prompts.ts src/builder/units.test.ts` — clean.
+- `bunx biome check src/app/app.ts src/app/app.test.ts src/builder/units/few-shot-gallery.ts src/builder/units/few-shot-gallery-preview.ts src/builder/units/unit-prompts.ts src/builder/units/units.test.ts` — clean.
 - `bun test` — 343 pass / 0 fail.
 - `git diff --check` — clean.
 - Existing server on `:3030`: `GET http://localhost:3030/demo/few-shot-gallery`
@@ -99,9 +99,9 @@ the fresh multi-capability visual sign-off as part of epic 3.7's full acceptance
   three example headings and `feed/grid/feed` layout classes, clicked the
   research-note item, and verified the shared modal opened with title
   `Research notes` and the sample record details.
-- HITL feedback iteration check: reran `bun test src/builder/units.test.ts`,
-  `bun test src/app.test.ts`, `bun run typecheck`,
-  `bunx biome check src/app.ts src/app.test.ts src/builder/few-shot-gallery.ts src/builder/few-shot-gallery-preview.ts src/builder/unit-prompts.ts src/builder/units.test.ts`,
+- HITL feedback iteration check: reran `bun test src/builder/units/units.test.ts`,
+  `bun test src/app/app.test.ts`, `bun run typecheck`,
+  `bunx biome check src/app/app.ts src/app/app.test.ts src/builder/units/few-shot-gallery.ts src/builder/units/few-shot-gallery-preview.ts src/builder/units/unit-prompts.ts src/builder/units/units.test.ts`,
   and `git diff --check`; all passed.
 - Browser visual check after the feedback iteration: reloaded
   `http://localhost:3030/demo/few-shot-gallery`, confirmed the source/tag chips
@@ -110,9 +110,9 @@ the fresh multi-capability visual sign-off as part of epic 3.7's full acceptance
   the compact topic chip no longer stretches across the row, and the `later` chip
   uses the warmer accent-token fill/shadow instead of the dark blue secondary
   treatment.
-- Two-sample richness iteration check: reran `bun test src/builder/units.test.ts`,
-  `bun test src/app.test.ts`, `bun run typecheck`,
-  `bunx biome check src/app.ts src/app.test.ts src/builder/few-shot-gallery.ts src/builder/few-shot-gallery-preview.ts src/builder/unit-prompts.ts src/builder/units.test.ts`,
+- Two-sample richness iteration check: reran `bun test src/builder/units/units.test.ts`,
+  `bun test src/app/app.test.ts`, `bun run typecheck`,
+  `bunx biome check src/app/app.ts src/app/app.test.ts src/builder/units/few-shot-gallery.ts src/builder/units/few-shot-gallery-preview.ts src/builder/units/unit-prompts.ts src/builder/units/units.test.ts`,
   `git diff --check`, and `GET http://localhost:3030/demo/few-shot-gallery`; all
   passed, and the route now renders six wrapped preview items.
 - Browser check after the two-sample iteration: the preview renders two

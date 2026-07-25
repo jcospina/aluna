@@ -48,7 +48,7 @@ platform owns schema; no AI-generated SQL exists anywhere on this path.
 _2026-06-23 — implemented and verified._
 
 - Added the migration apply stage in
-  [`src/builder/migration.ts`](../../../../src/builder/migration.ts), exported
+  [`src/builder/migration/migration.ts`](../../../../src/builder/migration/migration.ts), exported
   through [`src/builder/index.ts`](../../../../src/builder/index.ts).
   `applyCapabilityMigration({ database, spec })` delegates DDL derivation and
   application to the deterministic mapper (`applyCapabilityTableDdl`) and returns
@@ -58,13 +58,13 @@ _2026-06-23 — implemented and verified._
   stage throws, the transaction rolls back and the `cap_` table disappears; if
   the continuation completes, the table commits.
 - Added the generic async write-transaction helper in
-  [`src/db.ts`](../../../../src/db.ts). This is needed because Bun's built-in
+  [`src/persistence/db.ts`](../../../../src/persistence/db.ts). This is needed because Bun's built-in
   `Database.transaction` helper commits before an awaited continuation settles;
   the builder needs rollback scope to survive later async gate/commit work.
 - Added focused tests in
-  [`src/builder/migration.test.ts`](../../../../src/builder/migration.test.ts)
+  [`src/builder/migration/migration.test.ts`](../../../../src/builder/migration/migration.test.ts)
   with a snapshot sidecar
-  [`src/builder/__snapshots__/migration.test.ts.snap`](../../../../src/builder/__snapshots__/migration.test.ts.snap).
+  [`src/builder/migration/__snapshots__/migration.test.ts.snap`](../../../../src/builder/migration/__snapshots__/migration.test.ts.snap).
   The tests assert mapper-derived DDL, the applied table's platform trio and
   spec fields, successful commit visibility, duration capture, and the
   rollback-leaves-no-trace property after a simulated gate failure.
@@ -87,11 +87,11 @@ _2026-06-23 — added after implementation, at the owner's request._
 
 ## Verification
 
-- `bun test --update-snapshots src/builder/migration.test.ts`
-- `bun test src/builder/migration.test.ts`
+- `bun test --update-snapshots src/builder/migration/migration.test.ts`
+- `bun test src/builder/migration/migration.test.ts`
 - `bun test`
 - `bun run typecheck`
-- `bunx biome check src/db.ts src/builder/index.ts src/builder/migration.ts src/builder/migration.test.ts`
+- `bunx biome check src/persistence/db.ts src/builder/index.ts src/builder/migration/migration.ts src/builder/migration/migration.test.ts`
 - `bun run lint`
 - `git diff --check`
 - Browser smoke at `http://localhost:3030/`: submitting the prompt streamed

@@ -7,7 +7,7 @@
 
    This file is the entry point only: it @imports the authored pieces below in
    cascade order. Each @import path is relative to /static/app.css, so it
-   resolves under /static/css/* → ./public/css/* (Hono serveStatic, src/app.ts).
+   resolves under /static/css/* → ./public/css/* (Hono serveStatic, src/app/app.ts).
    Order matters: tokens first (every rule reads them), then base/layout, then
    the components, then accessibility last (its reduced-motion resets must
    override every component's hover/press transition).

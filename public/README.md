@@ -1,7 +1,7 @@
 # public/ — static assets
 
 Authored static assets served by the Hono server under the `/static/*` URL
-prefix (see `src/app.ts`). A request to `/static/<file>` is served from
+prefix (see `src/app/app.ts`). A request to `/static/<file>` is served from
 `public/<file>`.
 
 Contents:

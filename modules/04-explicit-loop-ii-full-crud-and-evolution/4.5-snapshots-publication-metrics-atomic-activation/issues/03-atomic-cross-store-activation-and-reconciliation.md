@@ -112,7 +112,7 @@ Verified 2026-07-21 (America/Bogota):
 
 ## HITL
 
-1. Run `bun test src/builder/activation.test.ts src/builder/artifact-reconciliation.test.ts`.
+1. Run `bun test src/builder/artifacts/activation.test.ts src/builder/artifacts/artifact-reconciliation.test.ts`.
    The command should finish with all focused fault-injection and recovery tests
    passing.
 2. Keep the existing dev server on port 3030. If none is running, run

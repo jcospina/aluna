@@ -57,7 +57,7 @@ committed (held at the developer's request)._
 
 ### What shipped
 
-- **Spec-gen stage** — `src/builder/spec-gen.ts` (+ `src/builder/index.ts`):
+- **Spec-gen stage** — `src/builder/spec/spec-gen.ts` (+ `src/builder/index.ts`):
   - `generateSpec({ provider, prompt, intent, send })` → `{ spec, durationMs, usage }`.
     Narrates the intent's `user_facing_label` in product voice, generates through the
     provider contract, then **re-validates** with `capabilitySpecSchema.parse(await

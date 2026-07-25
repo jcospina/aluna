@@ -98,11 +98,11 @@ gains its entry — no reload, no second round-trip.
   contains the canonical toolbar entry instead of marking the button itself
 - `bun test src/router/router.test.ts` — 8 pass, including the direct-view
   visibility and legacy sentence-label regressions
-- `bun test src/registry/spec.test.ts src/builder/spec-gen.test.ts` — 22 pass
-- `bun test src/app.test.ts` — 25 pass
+- `bun test src/registry/spec.test.ts src/builder/spec/spec-gen.test.ts` — 22 pass
+- `bun test src/app/app.test.ts` — 25 pass
 - `bun test` — 163 pass
 - `bun run typecheck`
-- `./node_modules/.bin/biome check src/registry/labels.ts src/registry/index.ts src/registry/spec.ts src/registry/spec.test.ts src/web/fragments.ts src/builder/spec-gen.ts src/builder/spec-gen.test.ts src/router/router.test.ts public/index.html public/css/demo.css`
+- `./node_modules/.bin/biome check src/registry/labels.ts src/registry/index.ts src/registry/spec.ts src/registry/spec.test.ts src/web/fragments.ts src/builder/spec/spec-gen.ts src/builder/spec/spec-gen.test.ts src/router/router.test.ts public/index.html public/css/demo.css`
 - `git diff --check`
 - Fresh runtime smoke on `localhost:3030`: after reset, built Recipes from the
   prompt. The committed artifacts have one create form, no native

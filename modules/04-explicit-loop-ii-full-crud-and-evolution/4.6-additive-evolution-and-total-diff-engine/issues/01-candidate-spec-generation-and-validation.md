@@ -74,13 +74,13 @@ visible half of evolution.
 ## Implementation notes
 
 - The AI authors one complete candidate; the platform owns every rule. Three new
-  builder modules keep the concern layered: `src/builder/dependency-catalog.ts`
+  builder modules keep the concern layered: `src/builder/evolution/dependency-catalog.ts`
   freezes the immutable active dependency-generation catalog
   (`{ capability_id, incarnation_id, label, prompt_context, active_schema }` per
   other capability, active fields only — inactive externals and the evolving
-  capability itself excluded); `src/builder/candidate-spec-gen.ts` assembles the
+  capability itself excluded); `src/builder/evolution/candidate-spec-gen.ts` assembles the
   four decision-1 inputs into the generation prompt and runs generate→validate as
-  the stage's own gate; `src/builder/candidate-validation.ts` is the total
+  the stage's own gate; `src/builder/evolution/candidate-validation.ts` is the total
   pre-DDL contract.
 - Validation is three layers in order: the registry's own strict spec gate
   (`promptCapabilitySpecSchema` — structural shape, fixed five-Action set, Action
@@ -106,7 +106,7 @@ visible half of evolution.
   resolved intent is hand-supplied through `handSuppliedEvolutionIntent`
   (`extend_capability` classification stand-in) until the real resolver lands in
   4.8; the developer-panel affordance and its `/demo/evolution-candidate/*`
-  routes (`src/evolution-candidate-routes.ts`) run candidate generation +
+  routes (`src/app/evolution-candidate-routes.ts`) run candidate generation +
   validation under the exclusive build lease — which is what makes the catalog
   freeze real — and deliver the accepted candidate or the warm rejection through
   the shared build subscriber, SSE vocabulary, and terminal presenter.
@@ -127,10 +127,10 @@ version.
 Verified 2026-07-23 (America/Bogota):
 
 - `bun run typecheck` and `bun run lint`: clean.
-- New suites pass: `src/builder/candidate-validation.test.ts` (45, incl. the
-  legacy-label regression), `src/builder/candidate-spec-gen.test.ts` (8, incl.
-  the pinned context test), `src/app.evolution-candidate.test.ts` (9). The
-  touched shell/fragment tests (`src/app.test.ts`, `src/web/fragments.test.ts`)
+- New suites pass: `src/builder/evolution/candidate-validation.test.ts` (45, incl. the
+  legacy-label regression), `src/builder/evolution/candidate-spec-gen.test.ts` (8, incl.
+  the pinned context test), `src/app/app.evolution-candidate.test.ts` (9). The
+  touched shell/fragment tests (`src/app/app.test.ts`, `src/web/fragments.test.ts`)
   stay green.
 - Full suite in the `oven/bun:1.3.12` Linux container (local `bun test`
   segfaults on the pre-existing SQLite-FFI Bun bug): **712 pass**. The only

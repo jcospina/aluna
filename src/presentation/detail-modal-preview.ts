@@ -1,6 +1,6 @@
 // Dev preview for the shared read-only detail modal (epic 3.2/04) — the human visual
 // sign-off surface this issue's HITL gate requires. Served at `/demo/detail-modal`
-// (src/app.ts), it runs the REAL modal module: renderDetailModal() emits the one shared
+// (src/app/app.ts), it runs the REAL modal module: renderDetailModal() emits the one shared
 // <dialog>, renderDetailContentTemplate() materializes each record's detail through the
 // centralized field renderer (3.2/01), and the REAL controller (/static/detail-modal.js)
 // prefills + opens it — so a reviewer eyeballs exactly what the platform will emit.

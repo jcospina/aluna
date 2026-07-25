@@ -27,7 +27,7 @@ Module 1 ships **no domain tables** — those are created at runtime by the modu
 
 ## Comments
 
-**2026-06-09 — implemented.** The runner lives in [`src/migrations.ts`](../../../../src/migrations.ts)
+**2026-06-09 — implemented.** The runner lives in [`src/persistence/migrations.ts`](../../../../src/persistence/migrations.ts)
 and runs on boot from [`src/index.ts`](../../../../src/index.ts), before `Bun.serve`,
 through the read-write connection (`db`) from Epic 1.4.01.
 
@@ -51,7 +51,7 @@ through the read-write connection (`db`) from Epic 1.4.01.
 - **No domain/capability tables.** After boot, `data/omni-crud.db` contains exactly
   `schema_migrations` and nothing else.
 
-**Tests** ([`src/migrations.test.ts`](../../../../src/migrations.test.ts), 5 cases,
+**Tests** ([`src/persistence/migrations.test.ts`](../../../../src/persistence/migrations.test.ts), 5 cases,
 all green): applies + records the ordered migrations through the rw connection;
 re-running is a byte-identical no-op (no duplicate rows, no re-stamped `applied_at`);
 only `schema_migrations` exists (no domain/capability tables); the row is durable

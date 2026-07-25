@@ -81,7 +81,7 @@ list in the dev preview shows v1 (history) and v2 (live).
 
 Verified 2026-07-22 (America/Bogota):
 
-- `bun test src/pipeline/hand-authored-v2-tracer.test.ts`: 8 passed.
+- `bun test src/pipeline/demo/hand-authored-v2-tracer.test.ts`: 8 passed.
 - Focused tracer, build-job, activation, terminal-presentation, and complete View
   suite: 61 passed. An unsandboxed repository-wide `bun test` rerun passed,
   including the local boot-server and artifact-reconciliation tests.

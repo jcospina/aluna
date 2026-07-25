@@ -80,7 +80,7 @@ tests, metrics, comments, and current architecture docs with the mandatory M3 sh
 
 ## Verification
 
-- `bun test src/router/router.test.ts src/presentation/adapter.test.ts src/metrics/store.test.ts src/migrations.test.ts src/app.test.ts` — 76 pass / 0 fail.
+- `bun test src/router/router.test.ts src/presentation/adapter.test.ts src/metrics/store.test.ts src/persistence/migrations.test.ts src/app/app.test.ts` — 76 pass / 0 fail.
 - `bun test` — 362 pass / 0 fail across 28 files; 2 snapshots.
 - `bun run typecheck` — clean (server and browser configs).
 - `bun run lint` — clean (128 files).

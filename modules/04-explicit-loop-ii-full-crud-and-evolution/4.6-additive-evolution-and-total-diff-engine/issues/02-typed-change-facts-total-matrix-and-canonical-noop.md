@@ -64,7 +64,7 @@ the measured no-op on the live surface (View restored, no version bump).
 
 ## Implementation notes
 
-- **One pure module owns the contract.** `src/builder/diff-engine.ts` exposes
+- **One pure module owns the contract.** `src/builder/evolution/diff-engine.ts` exposes
   `diffCapabilitySpec(committed, candidate) → { facts, workPlan, isNoop }`. Both
   inputs are the validated canonical `CapabilitySpec` (the committed row's
   label-tolerant `committedSpecView`, and the 4.6/01-validated candidate), so the
@@ -108,7 +108,7 @@ the measured no-op on the live surface (View restored, no version bump).
   opens a running row and immediately resolves it success/`no_change` with spec-gen
   `generated` and every downstream stage `skipped`, under the held build lease so
   the record survives a dropped client. `deliverCandidateNoChangePresentation`
-  (`src/pipeline/terminal-presentation.ts`) restores the committed View through
+  (`src/pipeline/streaming/terminal-presentation.ts`) restores the committed View through
   `fragment`, keeps a warm product-voice notice, and closes `done=ok` — no DDL,
   unit copy/gen, publication, or version bump.
 - **Scope boundary.** A *real* change stops after the Diff, showing the facts +
@@ -136,10 +136,10 @@ route surface was needed — the enriched JSON payloads render through the wirin
 Verified 2026-07-23 (America/Bogota):
 
 - `bun run typecheck` and `bun run lint`: clean.
-- New/updated suites pass: `src/builder/diff-engine.test.ts` (31 — every matrix
+- New/updated suites pass: `src/builder/evolution/diff-engine.test.ts` (31 — every matrix
   row incl. the None columns, multi-fact union, key/set-reorder no-op vs.
   ordered-product diffs, and the fail-closed unknown-difference path) and
-  `src/app.evolution-candidate.test.ts` (10 — now incl. the accepted preview's
+  `src/app/app.evolution-candidate.test.ts` (10 — now incl. the accepted preview's
   facts + work plan and the measured-no-op route test). 41 pass together.
 - Full suite in the `oven/bun:1.3.12` Linux container (local `bun test` segfaults
   on the pre-existing SQLite-FFI Bun bug): **the new code adds zero failures.**
@@ -172,4 +172,4 @@ Verified 2026-07-23 (America/Bogota):
    panel showing `success` / `no_change`, the committed View restored unchanged,
    and **no version bump**.
 5. Deterministic proof of every matrix row, the reorder no-op, and the fail-closed
-   guard: `bun test src/builder/diff-engine.test.ts` in your terminal.
+   guard: `bun test src/builder/evolution/diff-engine.test.ts` in your terminal.

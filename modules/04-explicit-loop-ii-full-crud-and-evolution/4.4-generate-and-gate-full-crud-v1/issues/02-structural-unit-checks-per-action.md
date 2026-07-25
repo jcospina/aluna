@@ -116,6 +116,6 @@ redefined by this structural issue.
    `status: "passed"`, before the smoke/behavior/design results. The capability
    should commit only after all seven structural outcomes pass.
 5. For the fail-closed proof, run
-   `bun test src/builder/gate.structural.test.ts -t "attributes every raw write"`.
+   `bun test src/builder/gate/structural/gate.structural.test.ts -t "attributes every raw write"`.
    Confirm all five Action fixtures pass the test because Gate reports the
    poisoned Handler as `failed` with an actionable raw-mutation message.

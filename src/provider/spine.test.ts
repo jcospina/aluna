@@ -5,7 +5,7 @@
 // There is deliberately **no test here that calls a real AI provider** — that
 // would spend money on every `bun test` run. The real streamed, structured
 // round-trip is proven by *running the app*: the shell's "Meet Aluna" trigger
-// streams a live provider greeting into the content area (src/app.ts `/stream`,
+// streams a live provider greeting into the content area (src/app/app.ts `/stream`,
 // the Module-1 finalized place). The route's own wiring is covered without spend
 // in app.test.ts, which drives it through a fake `Provider` — the same fakeability
 // the contract was built for (contract.test.ts). Non-conforming output surfacing
@@ -54,7 +54,22 @@ describe("createProvider (failure modes surface clearly)", () => {
 
   test("constructs without a network call once a key is present", () => {
     // Building the provider is pure wiring; nothing is sent until `generate` runs.
-    expect(() => createProvider({ [API_KEY_ENV_VAR]: "sk-test-not-used" })).not.toThrow();
+    // `not.toThrow()` alone would not notice a request going out, and this is the
+    // test standing between a refactor and a billed call on every suite run — so
+    // count the requests rather than trusting the construction to be quiet.
+    const originalFetch = globalThis.fetch;
+    let requests = 0;
+    globalThis.fetch = ((...args: Parameters<typeof originalFetch>) => {
+      requests += 1;
+      return originalFetch(...args);
+    }) as typeof fetch;
+
+    try {
+      expect(() => createProvider({ [API_KEY_ENV_VAR]: "sk-test-not-used" })).not.toThrow();
+      expect(requests).toBe(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 

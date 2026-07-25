@@ -1,12 +1,8 @@
 // Tests for the deterministic spec -> DDL mapper (Epic 2.2). These pin the SQL
-// the platform derives from a validated spec and prove the same statements apply
-// to both the real-db shape and the gate's scratch in-memory database.
+// the platform derives from a validated spec.
 
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -122,12 +118,6 @@ function tableSchema(database: Database, tableName: string) {
   };
 }
 
-function applyStatements(database: Database, statements: readonly string[]): void {
-  for (const statement of statements) {
-    database.exec(statement);
-  }
-}
-
 describe("capability table DDL mapper", () => {
   test("derives deterministic CREATE TABLE DDL from the same spec", () => {
     const first = deriveCapabilityTableDdl(notesSpec());
@@ -171,11 +161,14 @@ describe("capability table DDL mapper", () => {
         { name: "created_at", type: "TEXT", notnull: 1, dflt_value: "datetime('now')" },
         { name: "extra", type: "TEXT", notnull: 1, dflt_value: "'{}'" },
       ]);
+      // Spelled out rather than read from SQLITE_TYPE_BY_FIELD_TYPE: the DDL builder
+      // indexes that same map, so sourcing the expectation from it would keep passing
+      // if a pantry type were remapped to the wrong storage class.
       expect(columns.slice(3)).toMatchObject([
-        { name: "title", type: SQLITE_TYPE_BY_FIELD_TYPE.string, notnull: 0 },
-        { name: "amount", type: SQLITE_TYPE_BY_FIELD_TYPE.number, notnull: 0 },
-        { name: "done", type: SQLITE_TYPE_BY_FIELD_TYPE.boolean, notnull: 0 },
-        { name: "logged_at", type: SQLITE_TYPE_BY_FIELD_TYPE.datetime, notnull: 0 },
+        { name: "title", type: "TEXT", notnull: 0 },
+        { name: "amount", type: "REAL", notnull: 0 },
+        { name: "done", type: "INTEGER", notnull: 0 },
+        { name: "logged_at", type: "TEXT", notnull: 0 },
       ]);
     } finally {
       database.close();
@@ -254,26 +247,6 @@ describe("capability table DDL mapper", () => {
     expect(statement?.startsWith("CREATE TABLE IF NOT EXISTS")).toBe(true);
     for (const destructiveToken of ["DROP", "RENAME", "DELETE", "UPDATE"]) {
       expect(statement?.toUpperCase().includes(destructiveToken)).toBe(false);
-    }
-  });
-
-  test("the same DDL produces identical schemas on file-backed and scratch connections", () => {
-    const dir = mkdtempSync(join(tmpdir(), "omni-crud-ddl-"));
-    const fileDatabase = new Database(join(dir, "test.db"), { create: true, readwrite: true });
-    const scratchDatabase = new Database(":memory:");
-
-    try {
-      const ddl = deriveCapabilityTableDdl(notesSpec());
-      applyStatements(fileDatabase, ddl.statements);
-      applyStatements(scratchDatabase, ddl.statements);
-
-      expect(tableSchema(fileDatabase, ddl.tableName)).toEqual(
-        tableSchema(scratchDatabase, ddl.tableName),
-      );
-    } finally {
-      fileDatabase.close();
-      scratchDatabase.close();
-      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

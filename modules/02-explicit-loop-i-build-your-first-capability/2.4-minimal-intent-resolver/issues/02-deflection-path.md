@@ -54,7 +54,7 @@ everything M2 doesn't act on with warmth instead of failure.
 ## Comments
 
 **2026-06-25 - implemented.** Wired the full-enum resolver into the default
-build-job pipeline in `src/app.ts`. `POST /prompt` still only admits a job and
+build-job pipeline in `src/app/app.ts`. `POST /prompt` still only admits a job and
 returns the per-build stream subscriber; `GET /build/:id/stream` now calls the
 provider to classify, records the classification in generation metrics, and only
 continues into the builder for `new_capability`.
@@ -71,17 +71,17 @@ continues into the builder for `new_capability`.
   `/demo/spec-build`, so the resolver/deflection path is exercised from `/`.
 - `src/intent-resolver/resolver.ts` keeps `classifyIntent()` stable and adds
   `classifyIntentWithUsage()` for job metrics.
-- `src/app.test.ts` adds fake-provider coverage for the proceed path, a
+- `src/app/app.test.ts` adds fake-provider coverage for the proceed path, a
   `data_query` deflection, and the duplicate `"track my notes"` overlap case
   with Notes already in the registry.
 
 **Verification:**
 
-- `bun test src/app.test.ts`
+- `bun test src/app/app.test.ts`
 - `bun test src/intent-resolver/resolver.test.ts`
 - `bun test`
 - `bun run typecheck`
-- `bunx biome check src/app.ts src/app.test.ts src/intent-resolver/resolver.ts src/intent-resolver/index.ts public/app.js public/app.css public/index.html`
+- `bunx biome check src/app/app.ts src/app/app.test.ts src/intent-resolver/resolver.ts src/intent-resolver/index.ts public/app.js public/app.css public/index.html`
 - `git diff --check`
 
 ## HITL test instructions
@@ -111,10 +111,10 @@ unit generation, gate, commit, registry writes, and artifact writes.
 
 **Follow-up verification:**
 
-- `bun test src/app.test.ts -t "existing registry row deflects"`
-- `bun test src/app.test.ts -t "resolver-driven default pipeline"`
+- `bun test src/app/app.test.ts -t "existing registry row deflects"`
+- `bun test src/app/app.test.ts -t "resolver-driven default pipeline"`
 - `bun run typecheck`
-- `bunx biome check src/app.ts src/app.test.ts`
+- `bunx biome check src/app/app.ts src/app/app.test.ts`
 - `git diff --check`
 
 **2026-06-25 - robustness tightening.** The provider contract has no model-side

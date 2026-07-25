@@ -10,7 +10,7 @@ import {
   RESTORATION_CAPABILITY_ID_FIELD,
   RESTORATION_INCARNATION_ID_FIELD,
   type RestorationIdentityInput,
-} from "../pipeline/restoration.ts";
+} from "../pipeline/jobs/restoration.ts";
 
 export interface PromptSubmission {
   readonly prompt: string;

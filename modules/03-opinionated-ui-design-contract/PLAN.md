@@ -200,7 +200,7 @@ Suggested cut — `/to-issues` finalizes:
   generation to author it; (b) wire the item wrapper's click-to-open to the
   prefilled **read-only** modal from the escaped payload.
 - **3.4 One item renderer + presentation adapter** — (a) re-cut unit generation
-  ([`src/builder/units.ts`](../../src/builder/units.ts)): replace the four M2
+  ([`src/builder/units/units.ts`](../../src/builder/units/units.ts)): replace the four M2
   units with one item-renderer unit through the bounded fix loop, plus
   `create`/`read` handlers that receive the adapter; (b) the capability-scoped
   presentation adapter in the router's injected toolbox (record → safe wrapped
@@ -212,7 +212,7 @@ Suggested cut — `/to-issues` finalizes:
   `collection.layout` into the item-renderer prompt with *"vary, don't copy"*
   framing. LLM-facing only.
 - **3.6 Design-lint gate rung** — add the fail-closed rung to
-  [`src/builder/gate.ts`](../../src/builder/gate.ts): render the item with
+  [`src/builder/gate/gate.ts`](../../src/builder/gate/gate.ts): render the item with
   synthetic + hostile values within the declared collection layout; detect
   off-token styling / fabricated classes / executable markup / unsafe
   interpolation; feed

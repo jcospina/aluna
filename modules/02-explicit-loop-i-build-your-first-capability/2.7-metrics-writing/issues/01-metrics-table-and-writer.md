@@ -47,7 +47,7 @@ None - can start immediately
 ## Implementation notes
 
 - **Migration** `0004_generation_metrics` appended to the ordered list in
-  [src/migrations.ts](../../../../src/migrations.ts), additive and `STRICT`, in
+  [src/persistence/migrations.ts](../../../../src/persistence/migrations.ts), additive and `STRICT`, in
   the same style as the registry migration. Creates `generation_metrics` with 23
   columns: identity (`id` PK, `created_at` defaulted via `datetime('now')`),
   `outcome`, `capability_id`, the intent classification (`intent_type`,
@@ -68,7 +68,7 @@ None - can start immediately
   aggregates per-stage usage into the row's single total, keeping a figure
   `undefined` (→ NULL) unless a call reported it.
 - **Living demo**: the homepage prompt bar's `/demo/spec-build` stream
-  ([src/app.ts](../../../../src/app.ts)) now writes one metrics row per run
+  ([src/app/app.ts](../../../../src/app/app.ts)) now writes one metrics row per run
   through an injected `recordMetrics` dep (default = real writer on `db`):
   `success` after the gate passes (before `done`), or `failure` with the failing
   stage/rung on a thrown build error. Tests inject a capturing recorder so the
@@ -79,8 +79,8 @@ None - can start immediately
 - `bun run typecheck` — clean
 - `bun run lint` — clean
 - `bun test` — 138 pass / 0 fail (new: `src/metrics/store.test.ts`, plus
-  demo metrics assertions in `src/app.test.ts` and the platform-table-set update
-  in `src/migrations.test.ts`)
+  demo metrics assertions in `src/app/app.test.ts` and the platform-table-set update
+  in `src/persistence/migrations.test.ts`)
 - Boot twice in a temp dir: first boot logs `applied 4 migration(s): … ,
   0004_generation_metrics`; second boot logs no `applied` line (clean no-op); a
   read-only connection lists all 23 `generation_metrics` columns and `SELECT

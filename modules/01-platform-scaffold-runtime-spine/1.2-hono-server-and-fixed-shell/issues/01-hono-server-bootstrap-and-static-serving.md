@@ -34,7 +34,7 @@ just an HTTP server that responds and serves files. Those land in later epics.
 Dependency: added `hono@^4.12.23` (the only runtime dep so far).
 
 Files:
-- `src/app.ts` — the platform's one route file (ARCH §4). Exports a `Hono`
+- `src/app/app.ts` — the platform's one route file (ARCH §4). Exports a `Hono`
   instance. `GET /` returns a plain `text/plain` 200 stub (`omni-crud platform —
   server up`); issue 02 replaces this with the shell HTML. Static assets are
   mounted with `serveStatic` from `hono/bun` under the **`/static/*`** prefix,

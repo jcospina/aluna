@@ -118,7 +118,7 @@ status remains tracked in issue 4.4/01.
 
 ## HITL test instructions
 
-1. Run `bun test src/builder/gate.behavioral.test.ts` and confirm all five-Action,
+1. Run `bun test src/builder/gate/behavioral/gate.behavioral.test.ts` and confirm all five-Action,
    stable-error, and multi-row search-order cases pass.
 2. Keep the existing app on port 3030 running; if needed, run `bun run dev`.
 3. Open `http://localhost:3030/capability/reading_log`, search **Juramentada**,

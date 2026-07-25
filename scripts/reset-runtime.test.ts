@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { resetRuntime } from "./reset-runtime.ts";
 
 describe("runtime reset script", () => {
@@ -44,7 +44,12 @@ describe("runtime reset script", () => {
       "generation_lifecycle_metrics",
     ]);
     expect(result.droppedTables).toEqual(["cap_notes"]);
-    expect(result.deletedPaths.length).toBe(2);
+    // Naming the paths, not counting them: deleting two of the wrong things would
+    // satisfy a length check just as well.
+    expect(result.deletedPaths.map((path: string) => relative(root, path)).sort()).toEqual([
+      join("capabilities", "notes"),
+      join("storage", "blob-key"),
+    ]);
     expect(readdirSync(join(root, "capabilities"))).toEqual(["README.md"]);
     expect(readdirSync(join(root, "storage"))).toEqual(["README.md"]);
     expect(existsSync(databasePath)).toBe(true);

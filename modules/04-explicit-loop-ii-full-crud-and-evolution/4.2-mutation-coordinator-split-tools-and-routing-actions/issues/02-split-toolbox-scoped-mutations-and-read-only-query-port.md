@@ -73,7 +73,7 @@ read-only failure in tests).
 ## Verification
 
 - `bun test src/capability-data/tool.test.ts`
-- `bun test src/router/router.test.ts src/builder/units.test.ts src/builder/gate.test.ts src/builder/gate-design-lint.test.ts`
+- `bun test src/router/router.test.ts src/builder/units/units.test.ts src/builder/gate/ src/builder/gate/design-lint/gate-design-lint.test.ts`
 - `bun test` (438 passing)
 - `bun run typecheck`
 - `bun run lint`

@@ -87,7 +87,7 @@ toolbar rehydrates → the note is still there.
   byte-for-byte; rows render one canonical entry each, flip `has-capabilities`,
   preserve the placeholder, and never inject a content surface; missing placeholder
   throws)
-- `bun test src/app.test.ts` — 28 pass (new `GET /` block: cold-start for an empty
+- `bun test src/app/app.test.ts` — 28 pass (new `GET /` block: cold-start for an empty
   registry; rows rehydrate + flip; the M2 closing beat — build → create a note →
   refresh rehydrates the toolbar → click serves the cached view → `read` returns
   the persisted note)
@@ -95,7 +95,7 @@ toolbar rehydrates → the note is still there.
   — 8 pass
 - `bun test` — 169 pass
 - `bun run typecheck`
-- `./node_modules/.bin/biome check src/app.ts src/web/fragments.ts src/web/cached-view.ts src/web/index.ts src/web/fragments.test.ts src/registry/store.ts src/registry/index.ts src/app.test.ts`
+- `./node_modules/.bin/biome check src/app/app.ts src/web/fragments.ts src/web/cached-view.ts src/web/index.ts src/web/fragments.test.ts src/registry/store.ts src/registry/index.ts src/app/app.test.ts`
 - `git diff --check`
 - Resilience smoke: `GET /` against a db with no migrations (registry table
   missing) and against a migrated-but-empty registry both return the cold-start

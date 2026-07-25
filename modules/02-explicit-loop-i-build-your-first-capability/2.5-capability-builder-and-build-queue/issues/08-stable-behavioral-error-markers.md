@@ -133,26 +133,26 @@ _2026-06-24 — implemented and verified._
   test schema when `expectedError` was optional, because its structured response
   format requires every object property to appear in `required`. Behavioral test
   cases now require `expectedError` on every case and define it with
-  `.nullable()`, using `null` for normal success cases. `src/builder/gate.test.ts`
+  `.nullable()`, using `null` for normal success cases. `src/builder/gate/`
   asserts the generated JSON Schema's `cases.items.required` includes every
   property, including `expectedError`, and that the field accepts `null`.
 
 ## Verification
 
 - `bun test src/registry/spec.test.ts`
-- `bun test src/builder/gate.test.ts`
-- `bun test src/builder/spec-gen.test.ts src/builder/units.test.ts`
-- `bun test src/app.test.ts`
-- `bun test src/registry/store.test.ts src/migrations.test.ts src/router/router.test.ts src/intent-resolver/resolver.test.ts`
-- `bun test src/capability-data/ddl.test.ts src/capability-data/tool.test.ts src/builder/migration.test.ts`
-- `bunx biome check --write src/registry/spec.ts src/registry/index.ts src/registry/store.ts src/migrations.ts src/registry/spec.test.ts src/registry/store.test.ts src/builder/spec-gen.ts src/builder/units.ts src/builder/gate.ts src/builder/gate.test.ts src/builder/spec-gen.test.ts src/builder/units.test.ts src/app.test.ts src/router/router.ts src/router/router.test.ts src/intent-resolver/resolver.test.ts src/capability-data/ddl.test.ts src/capability-data/tool.test.ts src/builder/migration.test.ts`
+- `bun test src/builder/gate/`
+- `bun test src/builder/spec/spec-gen.test.ts src/builder/units/units.test.ts`
+- `bun test src/app/app.test.ts`
+- `bun test src/registry/store.test.ts src/persistence/migrations.test.ts src/router/router.test.ts src/intent-resolver/resolver.test.ts`
+- `bun test src/capability-data/ddl.test.ts src/capability-data/tool.test.ts src/builder/migration/migration.test.ts`
+- `bunx biome check --write src/registry/spec.ts src/registry/index.ts src/registry/store.ts src/persistence/migrations.ts src/registry/spec.test.ts src/registry/store.test.ts src/builder/spec/spec-gen.ts src/builder/units/units.ts src/builder/gate/gate.ts src/builder/gate/ src/builder/spec/spec-gen.test.ts src/builder/units/units.test.ts src/app/app.test.ts src/router/router.ts src/router/router.test.ts src/intent-resolver/resolver.test.ts src/capability-data/ddl.test.ts src/capability-data/tool.test.ts src/builder/migration/migration.test.ts`
 - `bun run typecheck`
 - `bun test`
 - `git diff --check`
 - Follow-up regression fix:
-  - `bun test src/builder/gate.test.ts`
-  - `bun test src/app.test.ts`
-  - `bunx biome check --write src/builder/gate.ts src/builder/gate.test.ts src/app.test.ts`
+  - `bun test src/builder/gate/`
+  - `bun test src/app/app.test.ts`
+  - `bunx biome check --write src/builder/gate/gate.ts src/builder/gate/ src/app/app.test.ts`
   - `bun run typecheck`
   - `bun test`
 

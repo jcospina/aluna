@@ -4244,12 +4244,12 @@
     const fieldStates = {
       new: {
         spec: `{
-                  "name": "due_date",
-                  "label": "Due date",
-                  "type": "date",
-                  "required": false,
-                  "lifecycle": "active"
-                }`,
+                          "name": "due_date",
+                          "label": "Due date",
+                          "type": "date",
+                          "required": false,
+                          "lifecycle": "active"
+                        }`,
         title: "Add the field without breaking old records.",
         copy: "A new field starts visible. Its database column allows empty values so records created before the field existed remain readable.",
         effects: [
@@ -4261,12 +4261,12 @@
       },
       hidden: {
         spec: `{
-                  "name": "due_date",
-                  "label": "Due date",
-                  "type": "date",
-                  "required": false,
-                  "lifecycle": "inactive"
-                }`,
+                          "name": "due_date",
+                          "label": "Due date",
+                          "type": "date",
+                          "required": false,
+                          "lifecycle": "inactive"
+                        }`,
         title: "Stop showing it, keep the column and values.",
         copy: "Aluna marks the field hidden instead of removing it from the capability definition. The original column and saved values remain.",
         effects: [
@@ -4278,12 +4278,12 @@
       },
       reactivated: {
         spec: `{
-                  "name": "due_date",
-                  "label": "Target day",
-                  "type": "date",
-                  "required": true,
-                  "lifecycle": "active"
-                }`,
+                          "name": "due_date",
+                          "label": "Target day",
+                          "type": "date",
+                          "required": true,
+                          "lifecycle": "active"
+                        }`,
         title: "Reveal the original field and stored values.",
         copy: "Aluna shows the same field again. The proposal may also change its visible label or make it required, and Aluna combines all work those changes need.",
         effects: [

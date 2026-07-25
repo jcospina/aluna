@@ -75,10 +75,10 @@ orchestrator.
 
 ## Verification
 
-- `bun test src/app.test.ts`
+- `bun test src/app/app.test.ts`
 - `bun run typecheck`
 - `bun test`
-- `bunx biome check public/index.html public/app.js public/css/prompt.css src/web/fragments.ts src/app.test.ts`
+- `bunx biome check public/index.html public/app.js public/css/prompt.css src/web/fragments.ts src/app/app.test.ts`
 - `git diff --check`
 - Browser plugin live check on `http://localhost:3030/`: submitting a prompt
   made the form `aria-busy="true"`, disabled the prompt controls, changed the

@@ -13,7 +13,7 @@ export {
   expectedAbsentCapability,
   expectedActiveCapability,
   nextCapabilityVersion,
-} from "./activation.ts";
+} from "./artifacts/activation.ts";
 export {
   assertVerifiedPublishedSnapshot,
   type PublishCapabilitySnapshotInput,
@@ -26,7 +26,7 @@ export {
   type VerifiedCapabilitySnapshot,
   type VerifiedPublishedSnapshot,
   verifyCapabilitySnapshot,
-} from "./artifact-lifecycle.ts";
+} from "./artifacts/artifact-lifecycle.ts";
 export {
   DERIVED_UNIT_FILES,
   type DerivedUnitFile,
@@ -34,7 +34,7 @@ export {
   evolutionUnitProvenance,
   type UnitProvenanceManifest,
   unitProvenanceManifestSchema,
-} from "./artifact-provenance.ts";
+} from "./artifacts/artifact-provenance.ts";
 export {
   ArtifactReconciliationError,
   type ArtifactReconciliationResult,
@@ -42,32 +42,32 @@ export {
   type ReconcileCapabilityArtifactsInput,
   reconcileCapabilityArtifacts,
   type TombstonedCapabilityIncarnation,
-} from "./artifact-reconciliation.ts";
-export {
-  buildCandidateSpecPrompt,
-  type CandidateSpecGenResult,
-  type GenerateCandidateSpecInput,
-  generateCandidateSpec,
-  handSuppliedEvolutionIntent,
-} from "./candidate-spec-gen.ts";
-export {
-  CandidateValidationError,
-  type CandidateValidationIssue,
-  committedSpecView,
-  type ValidateCandidateSpecInput,
-  validateCandidateSpec,
-} from "./candidate-validation.ts";
+} from "./artifacts/artifact-reconciliation.ts";
 export {
   type CommitCapabilityInput,
   type CommitCapabilityResult,
   commitCapability,
   DEFAULT_ARTIFACTS_ROOT,
   FIRST_CAPABILITY_VERSION,
-} from "./commit.ts";
+} from "./commit/commit.ts";
+export {
+  buildCandidateSpecPrompt,
+  type CandidateSpecGenResult,
+  type GenerateCandidateSpecInput,
+  generateCandidateSpec,
+  handSuppliedEvolutionIntent,
+} from "./evolution/candidate-spec-gen.ts";
+export {
+  CandidateValidationError,
+  type CandidateValidationIssue,
+  committedSpecView,
+  type ValidateCandidateSpecInput,
+  validateCandidateSpec,
+} from "./evolution/candidate-validation.ts";
 export {
   buildDependencyGenerationCatalog,
   type DependencyGenerationCatalogEntry,
-} from "./dependency-catalog.ts";
+} from "./evolution/dependency-catalog.ts";
 export {
   type BehavioralTestPlan,
   type CapabilityDiff,
@@ -81,7 +81,7 @@ export {
   PLATFORM_WORK_KINDS,
   type PlatformWorkKind,
   UnmappedChangeFactError,
-} from "./diff-engine.ts";
+} from "./evolution/diff-engine.ts";
 export {
   BEHAVIORAL_TIER_ENV_VAR,
   type BehavioralGateResult,
@@ -103,12 +103,12 @@ export {
   runCapabilityGate,
   type ScratchCatalogCapability,
   type SmokeGateResult,
-} from "./gate.ts";
+} from "./gate/gate.ts";
 export {
   StructuralGateError,
   type StructuralGateResult,
   type StructuralUnitOutcome,
-} from "./gate-structural.ts";
+} from "./gate/structural/gate-structural.ts";
 export { createCapabilityIncarnationId } from "./incarnation.ts";
 export {
   type ApplyCapabilityMigrationInput,
@@ -116,14 +116,14 @@ export {
   type CapabilityMigrationResult,
   type CapabilityMigrationTransactionResult,
   withCapabilityMigrationTransaction,
-} from "./migration.ts";
+} from "./migration/migration.ts";
 export {
   buildSpecPrompt,
   type GenerateSpecInput,
   generateSpec,
   hardcodedNewCapabilityIntent,
   type SpecGenResult,
-} from "./spec-gen.ts";
+} from "./spec/spec-gen.ts";
 export {
   buildUnitPrompt,
   DEFAULT_UNIT_FIX_ATTEMPTS,
@@ -144,4 +144,4 @@ export {
   type UnitGenerationObserver,
   type UnitGenerationPartialEvent,
   type UnitGenerationStartEvent,
-} from "./units.ts";
+} from "./units/units.ts";

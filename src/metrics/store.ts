@@ -24,8 +24,8 @@ import type { Database } from "bun:sqlite";
 import { z } from "zod";
 
 import type { GateRungName, GateRungOutcome } from "../builder/index.ts";
-import { db, dbReadonly } from "../db.ts";
 import { intentTypeSchema } from "../intent-resolver/index.ts";
+import { db, dbReadonly } from "../persistence/db.ts";
 import type { TokenUsage } from "../provider/index.ts";
 import {
   type FailureStage,
@@ -36,7 +36,7 @@ import {
   unitAttemptSummarySchema,
 } from "./shared-schema.ts";
 
-// The metrics table, created by platform migration 0004 (src/migrations.ts). A
+// The metrics table, created by platform migration 0004 (src/persistence/migrations.ts). A
 // fixed platform constant (never user input), so interpolating it into the SQL
 // below is safe — same convention as the registry and the migrations ledger.
 export const GENERATION_METRICS_TABLE = "generation_metrics";

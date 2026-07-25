@@ -55,7 +55,7 @@ units (ADR-0003; never a roaming agent).
 _2026-06-23 — implemented and verified._
 
 - Added the unit-generation stage in
-  [`src/builder/units.ts`](../../../../src/builder/units.ts), exported through
+  [`src/builder/units/units.ts`](../../../../src/builder/units/units.ts), exported through
   [`src/builder/index.ts`](../../../../src/builder/index.ts).
   `generateCapabilityUnits({ provider, spec, maxAttempts })` deterministically
   generates the four M2 units in order: `handler:create`, `handler:read`,
@@ -81,11 +81,11 @@ _2026-06-23 — implemented and verified._
   metrics, and `generateCapabilityUnits` returns no partial artifact result on
   that path. A broken unit therefore cannot flow downstream from this stage.
 - Added focused tests in
-  [`src/builder/units.test.ts`](../../../../src/builder/units.test.ts) covering
+  [`src/builder/units/units.test.ts`](../../../../src/builder/units/units.test.ts) covering
   clean four-unit generation, fail-once-then-fix with type-check feedback, default
   cap exhaustion, data-free view rejection, and retry prompt construction.
 - Wired the homepage builder-stage demo through
-  [`/demo/spec-build`](../../../../src/app.ts): after spec generation and scratch
+  [`/demo/spec-build`](../../../../src/app/app.ts): after spec generation and scratch
   migration preview, it now runs unit generation and streams a `units-preview`
   event containing the four generated units, attempt counts, durations, token
   usage, and generated content. The shell displays this in a third developer-only
@@ -104,10 +104,10 @@ _2026-06-23 — implemented and verified._
 
 ## Verification
 
-- `bun test src/builder/units.test.ts`
-- `bun test src/app.test.ts`
+- `bun test src/builder/units/units.test.ts`
+- `bun test src/app/app.test.ts`
 - `bun run typecheck`
-- `bunx biome check src/app.ts src/app.test.ts public/index.html public/app.js public/app.css src/builder/index.ts src/builder/units.ts src/builder/units.test.ts docs/adr/0002-sse-transport-conventions.md docs/agents/issue-tracker.md docs/modules.md AGENTS.md modules/02-explicit-loop-i-build-your-first-capability/2.5-capability-builder-and-build-queue/issues/02-spec-generation.md modules/02-explicit-loop-i-build-your-first-capability/2.5-capability-builder-and-build-queue/issues/04-unit-generation-with-bounded-fix-loop.md`
+- `bunx biome check src/app/app.ts src/app/app.test.ts public/index.html public/app.js public/app.css src/builder/index.ts src/builder/units/units.ts src/builder/units/units.test.ts docs/adr/0002-sse-transport-conventions.md docs/agents/issue-tracker.md docs/modules.md AGENTS.md modules/02-explicit-loop-i-build-your-first-capability/2.5-capability-builder-and-build-queue/issues/02-spec-generation.md modules/02-explicit-loop-i-build-your-first-capability/2.5-capability-builder-and-build-queue/issues/04-unit-generation-with-bounded-fix-loop.md`
 - `bun test`
 
 ## HITL test instructions

@@ -65,7 +65,7 @@ carry their own row markup (ADR-0004 unchanged — Handlers still import nothing
   - Epic 3.7 removed the temporary missing-renderer compatibility adapter: `item.ts` is now
     mandatory, and a missing or malformed renderer fails through the router's warm,
     internals-free error boundary before any Handler runs. There is no M2 dual-serving path.
-- `src/builder/gate-internal.ts` + `gate-smoke.ts` + `gate-behavioral.ts` — the gate's
+- `src/builder/gate/gate-internal.ts` + `gate-smoke.ts` + `gate-behavioral.ts` — the gate's
   practice toolbox (ADR-0004 "the smoke test runs it") builds the real presentation adapter
   from the generated item renderer, so the smoke rung proves create and read render identical
   item markup.

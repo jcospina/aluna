@@ -12,8 +12,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { openDatabase, type PlatformDatabase } from "../db.ts";
-import { runMigrations } from "../migrations.ts";
+import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
+import { runMigrations } from "../persistence/migrations.ts";
 import {
   GENERATION_METRICS_TABLE,
   type GenerationMetrics,

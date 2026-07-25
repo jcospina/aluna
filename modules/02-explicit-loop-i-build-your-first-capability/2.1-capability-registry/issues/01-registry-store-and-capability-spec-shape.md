@@ -66,7 +66,7 @@ module in [`store.ts`](../../../../src/registry/store.ts), the public surface in
 [`index.ts`](../../../../src/registry/index.ts).
 
 - **Migration `0002_capability_registry`** appended to the existing runner
-  ([`src/migrations.ts`](../../../../src/migrations.ts)): a STRICT table with
+  ([`src/persistence/migrations.ts`](../../../../src/persistence/migrations.ts)): a STRICT table with
   exactly the nine lean columns (`id, label, version, schema, ui_intent,
   behavior, tools, artifacts_path, prompt_context`); `schema`/`ui_intent`/`tools`
   are JSON text, (de)serialized only by the store. Idempotency rides the

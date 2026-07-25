@@ -35,11 +35,11 @@ import {
   MissingRequiredFieldsError,
   RecordNotFoundError,
 } from "../capability-data/index.ts";
-import { db, dbReadonly, type PlatformDatabase } from "../db.ts";
 import {
   createMutationCoordinator,
   type MutationCoordinator,
 } from "../mutation-coordinator/index.ts";
+import { db, dbReadonly, type PlatformDatabase } from "../persistence/db.ts";
 import {
   capabilityCreateErrorId,
   capabilityDeleteErrorId,

@@ -72,7 +72,7 @@ Two course corrections after review:
   network-free.
 - **The round-trip is proven where Module 1 actually finalizes — the running shell,
   not a test.** The throwaway `/demo/stream` (fixed strings) is replaced by
-  [`/stream`](../../../../src/app.ts), which asks the **real provider** for a short,
+  [`/stream`](../../../../src/app/app.ts), which asks the **real provider** for a short,
   product-voice greeting and streams it into the content area: `greeting` narrated
   as it builds (the contract's `partialStream`), then `invitation` from the
   *validated* object (the contract's `object`) as an escaped HTML `fragment`, then
@@ -81,7 +81,7 @@ Two course corrections after review:
   persisted, or routed (the prompt-bar → capability build is Module 2).
 - **The route is tested without spend** via dependency injection:
   `createApp({ getProvider })` takes a `Provider`, so
-  [`app.test.ts`](../../../../src/app.test.ts) drives the stream through a **fake**
+  [`app.test.ts`](../../../../src/app/app.test.ts) drives the stream through a **fake**
   provider (the same fakeability `contract.test.ts` was built for) — asserting the
   narration reassembles to the greeting, the invitation fragment is escaped, the
   stream closes, and a thrown-from-`getProvider` (missing key) surfaces a

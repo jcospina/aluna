@@ -12,8 +12,8 @@ import {
   materializeCapabilityActionRecord,
   selectCapabilityRows,
 } from "../capability-data/index.ts";
-import { openDatabase, type PlatformDatabase } from "../db.ts";
-import { runMigrations } from "../migrations.ts";
+import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
+import { runMigrations } from "../persistence/migrations.ts";
 import type { CapabilityRow, CapabilitySpec } from "../registry/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,

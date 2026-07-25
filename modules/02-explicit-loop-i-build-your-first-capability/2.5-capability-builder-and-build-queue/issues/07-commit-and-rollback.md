@@ -56,7 +56,7 @@ clean exit when it doesn't.
 
 ## Implementation notes
 
-- **Commit stage** — new `src/builder/commit.ts` (`commitCapability`). It writes
+- **Commit stage** — new `src/builder/commit/commit.ts` (`commitCapability`). It writes
   the version-1 artifacts (handler `.ts` + view `.html` files) to
   `capabilities/<id>/v1/`, then inserts the registry row pointing at it
   (`artifacts_path`, version 1) **inside the caller's open transaction**. For a
@@ -64,7 +64,7 @@ clean exit when it doesn't.
   by the migration in the same transaction) and the row become real together at
   COMMIT. Files are written before the insert, so a failed insert leaves them
   orphaned, never half-registered. Exported through `src/builder/index.ts`.
-- **One transaction, migration → commit** — `src/app.ts` `runSpecBuildStages` now
+- **One transaction, migration → commit** — `src/app/app.ts` `runSpecBuildStages` now
   runs migration, unit-gen, the fail-closed gate, and commit inside one
   `withCapabilityMigrationTransaction` on the **real** read-write connection
   (db.ts's helper, built for exactly this). Any throw — a failed gate rung, a
@@ -94,9 +94,9 @@ clean exit when it doesn't.
 
 ## Verification
 
-- `bun test` — full suite (143 pass). Focused: `bun test src/builder/commit.test.ts`
+- `bun test` — full suite (143 pass). Focused: `bun test src/builder/commit/commit.test.ts`
   (commit unit: success / rollback-orphans-files / duplicate-id) and
-  `bun test src/app.test.ts` (E2E: prompt → committed capability → create/read
+  `bun test src/app/app.test.ts` (E2E: prompt → committed capability → create/read
   through the router with a fake provider; gate-failure and commit-failure
   rollback; metrics on both outcomes). No test calls a real provider.
 - `bun run typecheck` and `bunx biome check src public` are clean.

@@ -53,7 +53,7 @@ live until every active rung passes; any rung failing fails the whole build.
 _2026-06-23 — implemented and verified._
 
 - Added the layered gate stage in
-  [`src/builder/gate.ts`](../../../../src/builder/gate.ts), exported through
+  [`src/builder/gate/gate.ts`](../../../../src/builder/gate/gate.ts), exported through
   [`src/builder/index.ts`](../../../../src/builder/index.ts).
   `runCapabilityGate({ spec, ddl, handlers, realDatabase })` runs the always-on
   rungs in order and throws `CapabilityGateError` on the first failure with the
@@ -79,12 +79,12 @@ _2026-06-23 — implemented and verified._
   (`tableName`, `rowCount`, fragment lengths, inserted row id, and real-db
   unchanged flag) for the future metrics row.
 - Added focused tests in
-  [`src/builder/gate.test.ts`](../../../../src/builder/gate.test.ts) covering
+  [`src/builder/gate/`](../../../../src/builder/gate/) covering
   the passing path, named-export/non-function/non-async signature failures,
   structural type-check failure short-circuiting before smoke, smoke failure when
   no row lands, and the scratch-isolation property.
 - Wired the homepage builder-stage demo through
-  [`/demo/spec-build`](../../../../src/app.ts): after spec, scratch migration,
+  [`/demo/spec-build`](../../../../src/app/app.ts): after spec, scratch migration,
   and unit generation previews, the demo now runs the gate before the final
   confirmation and streams a developer-only `gate-preview` event. The shell
   displays it in a fourth preview pane
@@ -98,10 +98,10 @@ _2026-06-23 — implemented and verified._
 
 ## Verification
 
-- `bun test src/builder/gate.test.ts`
-- `bun test src/app.test.ts`
+- `bun test src/builder/gate/`
+- `bun test src/app/app.test.ts`
 - `bun run typecheck`
-- `bunx biome check src/builder/gate.ts src/builder/gate.test.ts src/builder/index.ts src/app.ts src/app.test.ts public/app.js public/index.html`
+- `bunx biome check src/builder/gate/gate.ts src/builder/gate/ src/builder/index.ts src/app/app.ts src/app/app.test.ts public/app.js public/index.html`
 - `bun test`
 - Browser HITL against `bun --watch` with a fake provider replaying captured
   generated units: fourth gate pane appeared.

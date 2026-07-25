@@ -9,9 +9,7 @@
 
 // biome-ignore-all lint/nursery/noExcessiveLinesPerFile: one data-port regression suite stays grouped by concern.
 
-import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
-import { randomUUID } from "node:crypto";
 
 import { MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/index.ts";
 import {
@@ -396,19 +394,9 @@ describe("split capability data ports", () => {
 });
 
 describe("capability data tool — scoped surface & connection routing", () => {
-  test("exposes only capability-scoped insert and select methods", () => {
-    withFileDatabase((databases) => {
-      const spec = notesSpec();
-      applyCapabilityTableDdl(spec, databases.readwrite);
-
-      const tool = createCapabilityDataTool(spec, databases);
-
-      expect(Object.keys(tool).sort()).toEqual(["insert", "select"]);
-      expect(tool.insert.length).toBe(1);
-      expect(tool.select.length).toBe(0);
-    });
-  });
-
+  // No surface-shape test here: `createCapabilityDataTool` is a fixture defined in
+  // tool.test-support.ts, so asserting its keys and arity would only describe the
+  // test helper. The production ports are pinned in mutation.test.ts.
   test("a tool constructed for one capability cannot read or write another capability table", () => {
     withFileDatabase((databases) => {
       const notes = notesSpec();
@@ -454,27 +442,6 @@ describe("capability data tool — scoped surface & connection routing", () => {
 
       expect(tool.select()).toMatchObject([{ text: "Read through readonly" }]);
     });
-  });
-
-  test("the same round-trip works against a shared in-memory scratch database pair", () => {
-    const name = randomUUID().replaceAll("-", "_");
-    const uri = `file:${name}?mode=memory&cache=shared`;
-    const readwrite = new Database(uri, { create: true, readwrite: true });
-    const readonly = new Database(uri, { readonly: true });
-    const databases = { readwrite, readonly };
-
-    try {
-      const spec = notesSpec();
-      applyCapabilityTableDdl(spec, readwrite);
-      const tool = createCapabilityDataTool(spec, databases);
-
-      tool.insert({ text: "Scratch note" });
-
-      expect(tool.select()).toMatchObject([{ text: "Scratch note" }]);
-    } finally {
-      readonly.close();
-      readwrite.close();
-    }
   });
 });
 

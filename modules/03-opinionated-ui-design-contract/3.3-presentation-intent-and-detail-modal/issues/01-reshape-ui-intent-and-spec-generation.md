@@ -47,7 +47,7 @@ None - can start immediately
   { layout }, detail: { shows } }`; `collection.layout` is the closed
   `feed | grid` enum, `detail.shows` must reference real schema fields, and strict
   object validation rejects the retired `views` shape and any stored `modal` flag.
-- `src/builder/spec-gen.ts` now prompts the provider to author the reshaped
+- `src/builder/spec/spec-gen.ts` now prompts the provider to author the reshaped
   presentation intent alongside schema/behavior while keeping the existing
   product-voice narration unchanged.
 - `src/web/cached-view.ts` reads the validated `ui_intent.collection.layout` when
@@ -61,10 +61,10 @@ None - can start immediately
 
 ## Verification
 
-- `bun test src/registry/spec.test.ts src/builder/spec-gen.test.ts src/app.test.ts src/capability-data/ddl.test.ts src/builder/migration.test.ts src/builder/gate.test.ts src/router/router.test.ts src/capability-data/tool.test.ts src/intent-resolver/resolver.test.ts src/registry/store.test.ts src/builder/units.test.ts src/builder/commit.test.ts`
+- `bun test src/registry/spec.test.ts src/builder/spec/spec-gen.test.ts src/app/app.test.ts src/capability-data/ddl.test.ts src/builder/migration/migration.test.ts src/builder/gate/ src/router/router.test.ts src/capability-data/tool.test.ts src/intent-resolver/resolver.test.ts src/registry/store.test.ts src/builder/units/units.test.ts src/builder/commit/commit.test.ts`
 - `bun test`
 - `bun run typecheck`
-- `bunx biome check src/registry/spec.ts src/registry/index.ts src/builder/spec-gen.ts src/builder/units.ts src/web/cached-view.ts src/presentation/detail-modal.ts src/presentation/field-renderer.ts src/registry/spec.test.ts src/builder/spec-gen.test.ts src/app.test.ts src/router/router.test.ts src/builder/units.test.ts src/builder/commit.test.ts src/builder/migration.test.ts src/builder/gate.test.ts src/registry/store.test.ts src/intent-resolver/resolver.test.ts src/capability-data/tool.test.ts src/capability-data/ddl.test.ts src/presentation/detail-modal.test.ts`
+- `bunx biome check src/registry/spec.ts src/registry/index.ts src/builder/spec/spec-gen.ts src/builder/units/units.ts src/web/cached-view.ts src/presentation/detail-modal.ts src/presentation/field-renderer.ts src/registry/spec.test.ts src/builder/spec/spec-gen.test.ts src/app/app.test.ts src/router/router.test.ts src/builder/units/units.test.ts src/builder/commit/commit.test.ts src/builder/migration/migration.test.ts src/builder/gate/ src/registry/store.test.ts src/intent-resolver/resolver.test.ts src/capability-data/tool.test.ts src/capability-data/ddl.test.ts src/presentation/detail-modal.test.ts`
 - `git diff --check`
 
 ## HITL test instructions
@@ -87,4 +87,4 @@ None - can start immediately
   generated handler returned a regex capture (`m[1]`) without narrowing under the
   isolated checker's `noUncheckedIndexedAccess` setting. Hardened the handler
   prompt and retry feedback to explicitly call out strict unchecked-index/regex
-  capture failures, with a focused regression in `src/builder/units.test.ts`.
+  capture failures, with a focused regression in `src/builder/units/units.test.ts`.

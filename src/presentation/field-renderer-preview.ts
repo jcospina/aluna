@@ -1,6 +1,6 @@
 // Dev preview for the centralized field renderer (epic 3.2/01) — the human visual
 // sign-off surface this issue's HITL gate requires. Served at `/demo/field-renderer`
-// (src/app.ts), it runs the REAL renderer (renderCreateForm / renderDetailFields)
+// (src/app/app.ts), it runs the REAL renderer (renderCreateForm / renderDetailFields)
 // against a sample spec exercising every admitted pantry type, so what a reviewer eyeballs
 // is exactly what the platform will emit — not a hand-copied mock that could drift.
 //

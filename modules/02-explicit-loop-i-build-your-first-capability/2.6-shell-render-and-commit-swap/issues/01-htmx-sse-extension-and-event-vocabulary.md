@@ -59,7 +59,7 @@ None - can start immediately
 - **Proving scaffold (now removed):** a disposable scaffold proved the wire in a
   real browser, then was deleted once the proof held and the vocabulary was
   recorded (the 1.3 pattern; ADR-0002 consequences). It was: `/demo/swap-proof/*`
-  routes + `renderSwapProof*` (`src/app.ts`), a `.swap-proof` `<section>`
+  routes + `renderSwapProof*` (`src/app/app.ts`), a `.swap-proof` `<section>`
   (`public/index.html`) + CSS block (`public/app.css`), and two wire tests. The
   `commit` event carried the targeted content fragment **and** an `hx-swap-oob`
   toolbar sidecar in one response; the live commit swap is re-exercised by the
@@ -69,8 +69,8 @@ None - can start immediately
 - **Finding fixed in the production wire (durable):** `htmx-ext-sse` wraps a
   native `EventSource` that auto-reconnects on a server-closed stream, so the
   per-build subscriber needs `sse-close="done"` or the build re-runs.
-  `renderBuildSubscriber` (`src/app.ts`) sets it; covered by an assertion in
-  `src/app.test.ts`.
+  `renderBuildSubscriber` (`src/app/app.ts`) sets it; covered by an assertion in
+  `src/app/app.test.ts`.
 
 What stays in the codebase from 2.6a: the vendored extension + its `<script>`
 load, and the `sse-close="done"` fix. The scaffold is gone.
@@ -79,8 +79,8 @@ Verification commands:
 
 ```
 bun run typecheck
-bunx biome check public/index.html public/app.css src/app.ts src/app.test.ts
-bun test src/app.test.ts      # 17 pass
+bunx biome check public/index.html public/app.css src/app/app.ts src/app/app.test.ts
+bun test src/app/app.test.ts      # 17 pass
 bun test                      # full suite: 123 pass
 ```
 

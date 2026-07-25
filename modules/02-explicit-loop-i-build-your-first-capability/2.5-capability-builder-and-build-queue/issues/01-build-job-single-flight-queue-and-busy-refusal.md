@@ -54,18 +54,18 @@ None - can start immediately
 
 ## Implementation notes
 
-- Added `src/build-jobs.ts`: an injectable in-memory single-flight build queue
+- Added `src/pipeline/jobs/build-jobs.ts`: an injectable in-memory single-flight build queue
   with deterministic test ids, a placeholder product-voice pipeline, terminal
   `done` semantics, and clean handling for unknown/completed job streams.
-- Wired `POST /prompt` and `GET /build/:id/stream` in `src/app.ts`. The POST
+- Wired `POST /prompt` and `GET /build/:id/stream` in `src/app/app.ts`. The POST
   only admits the job and returns the SSE subscriber fragment; busy refusals
   retarget `#prompt-notice` with friendly copy and do not touch the content area.
-- Extended `src/app.test.ts` to drive the lifecycle through HTTP/SSE, including
+- Extended `src/app/app.test.ts` to drive the lifecycle through HTTP/SSE, including
   a paused active stream proving busy refusal does not disturb the running job.
 
 ## Verification
 
-- `bun test src/app.test.ts`
+- `bun test src/app/app.test.ts`
 - `bun run typecheck`
 - `bun test`
-- `bunx biome check src/app.ts src/app.test.ts src/build-jobs.ts`
+- `bunx biome check src/app/app.ts src/app/app.test.ts src/pipeline/jobs/build-jobs.ts`

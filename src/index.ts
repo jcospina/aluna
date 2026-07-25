@@ -1,6 +1,6 @@
 // Platform entrypoint — Module 1, Epic 1.2: boot the Hono server on Bun.
 //
-// Starts Bun's built-in HTTP server with the Hono app (src/app.ts) and logs the
+// Starts Bun's built-in HTTP server with the Hono app (src/app/app.ts) and logs the
 // URL it is listening on. The port is configurable via the PORT environment
 // variable, defaulting to 3030. Started by `bun run dev` (bun --watch).
 //
@@ -8,10 +8,10 @@
 // migrations runner (Epic 1.4) against the read-write connection — synchronously,
 // before serving, so the db is ready the moment the first request arrives.
 
-import { app } from "./app.ts";
+import { app } from "./app/app.ts";
 import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
-import { db } from "./db.ts";
-import { runMigrations } from "./migrations.ts";
+import { db } from "./persistence/db.ts";
+import { runMigrations } from "./persistence/migrations.ts";
 
 // Apply platform migrations before accepting traffic. Idempotent: a no-op once the
 // ledger is up to date, so steady-state restarts pay nothing.
