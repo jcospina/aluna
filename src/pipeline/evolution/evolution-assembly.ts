@@ -46,6 +46,7 @@ import {
   type UnitDescriptor,
   type UnitGenerationObserver,
   type UnitProvenanceManifest,
+  type VerifiedDependencySnapshot,
   verifyCapabilitySnapshot,
 } from "../../builder/index.ts";
 import {
@@ -54,7 +55,11 @@ import {
   deriveCapabilityTableDdl,
 } from "../../capability-data/index.ts";
 import type { Provider, TokenUsage } from "../../provider/index.ts";
-import type { CapabilityRow, CapabilitySpec } from "../../registry/index.ts";
+import {
+  type CapabilityRow,
+  type CapabilitySpec,
+  capabilitySpecFromRow,
+} from "../../registry/index.ts";
 import { applyGateFixes, throwIfAborted, unitsChanged } from "../build/build-run.ts";
 
 const ZERO_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
@@ -70,6 +75,8 @@ export interface AssembleEvolutionCandidateInput {
   readonly provider: Provider;
   /** Active dependency rows a regenerated Handler's projected context may reference. */
   readonly dependencyCatalog?: readonly CapabilityRow[];
+  /** Verified immutable identities for the same dependency rows, used only by provenance. */
+  readonly dependencySnapshots?: readonly VerifiedDependencySnapshot[];
   /** Override the global `OMNI_BEHAVIORAL_TIER` toggle; omitted, the Gate resolves it. */
   readonly behavioralTierEnabled?: boolean;
   /**
@@ -182,6 +189,7 @@ export async function assembleEvolutionCandidate(
     handlers: handlersFrom(units),
     itemRenderer: itemRendererFrom(units),
     provider: input.provider,
+    scratchCatalog: dependencyScratchCatalog(candidate, input.dependencyCatalog ?? []),
     // Omitted, the Gate resolves the global `OMNI_BEHAVIORAL_TIER` toggle exactly as a
     // v1 build does — the tier is one experiment-wide knob, not a per-path default.
     ...(input.behavioralTierEnabled === undefined
@@ -204,6 +212,8 @@ export async function assembleEvolutionCandidate(
   const written = writtenUnitNames(regenerated, units, finalUnits);
   const unitProvenance = evolutionUnitProvenance({
     candidateSpec: candidate,
+    dependencyCatalog: input.dependencyCatalog ?? [],
+    dependencySnapshots: input.dependencySnapshots ?? [],
     committedProvenance: verified.manifest.unit_provenance,
     regeneratedFilenames: regeneratedFilenamesOf(written),
   });
@@ -220,6 +230,21 @@ export async function assembleEvolutionCandidate(
     handlers: handlersFrom(finalUnits),
     itemRenderer: itemRendererFrom(finalUnits),
   };
+}
+
+function dependencyScratchCatalog(spec: CapabilitySpec, catalog: readonly CapabilityRow[]) {
+  const declared = new Set(
+    Object.values(spec.read_dependencies)
+      .flat()
+      .map((dependency) => `${dependency.capability_id}/${dependency.incarnation_id}`),
+  );
+  return catalog
+    .filter((row) => declared.has(`${row.id}/${row.incarnation_id}`))
+    .map((row) => ({
+      spec: capabilitySpecFromRow(row),
+      incarnationId: row.incarnation_id,
+      rows: [],
+    }));
 }
 
 /**

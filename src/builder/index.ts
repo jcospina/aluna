@@ -8,6 +8,7 @@
 
 export {
   type ActivatePublishedSnapshotInput,
+  ActivationCancelledError,
   type ActivationFaultHooks,
   activatePublishedSnapshot,
   expectedAbsentCapability,
@@ -34,6 +35,7 @@ export {
   evolutionUnitProvenance,
   type UnitProvenanceManifest,
   unitProvenanceManifestSchema,
+  type VerifiedDependencySnapshot,
 } from "./artifacts/artifact-provenance.ts";
 export {
   ArtifactReconciliationError,
@@ -68,6 +70,10 @@ export {
   buildDependencyGenerationCatalog,
   type DependencyGenerationCatalogEntry,
 } from "./evolution/dependency-catalog.ts";
+export {
+  assertVerifiedDependencySnapshotCatalog,
+  buildVerifiedDependencySnapshotCatalog,
+} from "./evolution/dependency-snapshot-catalog.ts";
 export {
   type BehavioralTestPlan,
   type CapabilityDiff,

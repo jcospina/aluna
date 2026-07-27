@@ -254,6 +254,7 @@ export async function runSpecBuildStages(
     database,
     spec,
     publication,
+    isAborted,
     applyMigration: (activationDatabase) => {
       const migration = applyCapabilityMigration({ database: activationDatabase, spec });
       acc.timings.migrationMs = migration.durationMs;

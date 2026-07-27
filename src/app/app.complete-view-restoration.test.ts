@@ -170,8 +170,9 @@ test("a failed admitted build restores the captured live View through read", asy
   expect(restoration).toContain('data-active-capability-id="notes"');
   expect(restoration).toContain('data-search-state="idle"');
   expect(restoration).toContain('hx-get="/capability/notes/read" hx-trigger="load"');
-  expect(restoration.split('<div id="developer-evolution-control"')[0]).not.toContain(
-    "hx-swap-oob",
+  expect(restoration).toContain('data-living-demo="evolution"');
+  expect(restoration).not.toMatch(
+    /class="capability-evolution"[^>]*hx-swap-oob|hx-swap-oob[^>]*class="capability-evolution"/,
   );
   expect(mutationCoordinator.snapshot().activeLease).toBeNull();
 });

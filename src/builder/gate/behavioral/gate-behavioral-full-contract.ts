@@ -69,8 +69,21 @@ function assertCaseContract(spec: CapabilitySpec, testCase: FullBehavioralTestCa
     assertMissingRequiredTrigger(testCase);
   }
   if (!testCase.expectedError && !testCase.expectedPlatformError) {
+    assertActionFragmentScope(testCase);
     assertAssertionsUseSyntheticValues(testCase);
     assertSearchOrderingCoverage(spec, testCase);
+  }
+}
+
+function assertActionFragmentScope(testCase: FullBehavioralTestCase): void {
+  if (
+    testCase.action !== "read" &&
+    testCase.action !== "search" &&
+    testCase.expectFragmentIncludesInOrder.length > 0
+  ) {
+    throw new Error(
+      `${testCase.action} fragment ordering is invalid: only read/search return ordered collections`,
+    );
   }
 }
 
@@ -215,29 +228,50 @@ function assertMissingRequiredTrigger(testCase: FullBehavioralTestCase): void {
 }
 
 function assertAssertionsUseSyntheticValues(testCase: FullBehavioralTestCase): void {
-  const actionValues =
-    testCase.action === "create" || testCase.action === "update"
-      ? [
-          ...testCase.input.map((entry) => entry.value),
-          ...testCase.expectedRows.flatMap((row) => row.values.flatMap(scalarStrings)),
-        ]
-      : testCase.action === "read" || testCase.action === "search"
-        ? [
-            ...testCase.setupRows.flatMap((row) => row.values.flatMap(scalarStrings)),
-            ...testCase.expectedRows.flatMap((row) => row.values.flatMap(scalarStrings)),
-          ]
-        : [];
+  const actionValues = syntheticFragmentValues(testCase);
   const syntheticValues = new Set(actionValues.filter((value) => value.length > 0));
   const assertions = [
     ...testCase.expectFragmentIncludes,
     ...testCase.expectFragmentExcludes,
     ...testCase.expectFragmentIncludesInOrder,
   ];
-  if (assertions.some((assertion) => !syntheticValues.has(assertion))) {
-    throw new Error(
-      "behavioral fragment assertions must use synthetic case values, never product wording",
-    );
+  if (assertions.every((assertion) => syntheticValues.has(assertion))) return;
+  throw new Error(invalidFragmentAssertionMessage(testCase));
+}
+
+function syntheticFragmentValues(testCase: FullBehavioralTestCase): string[] {
+  if (testCase.action === "create" || testCase.action === "update") {
+    return mutationFragmentValues(testCase);
   }
+  if (testCase.action === "read" || testCase.action === "search") {
+    return [
+      ...testCase.setupRows.flatMap((row) => row.values.flatMap(scalarStrings)),
+      ...testCase.expectedRows.flatMap((row) => row.values.flatMap(scalarStrings)),
+    ];
+  }
+  return [];
+}
+
+function mutationFragmentValues(testCase: FullBehavioralTestCase): string[] {
+  const resultValues =
+    testCase.expectedRows.length === 1
+      ? (testCase.expectedRows[0]?.values.flatMap(scalarStrings) ?? [])
+      : [];
+  const unrelatedRows =
+    testCase.action === "create" ? testCase.setupRows : testCase.setupRows.slice(1);
+  const unrelatedValues = new Set(
+    unrelatedRows.flatMap((row) => row.values.flatMap(scalarStrings)),
+  );
+  return [...testCase.input.map((entry) => entry.value), ...resultValues].filter(
+    (value) => !unrelatedValues.has(value),
+  );
+}
+
+function invalidFragmentAssertionMessage(testCase: FullBehavioralTestCase): string {
+  if (testCase.action === "create" || testCase.action === "update") {
+    return `${testCase.action} fragment assertions may use submitted input or one affected expected row only; unrelated preserved rows are not part of the response`;
+  }
+  return "behavioral fragment assertions must use synthetic case values, never product wording";
 }
 
 function scalarStrings(entry: { readonly value: BehavioralScalar }): string[] {

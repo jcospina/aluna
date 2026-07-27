@@ -36,7 +36,22 @@ export interface ActivatePublishedSnapshotInput {
   readonly applyMigration: (database: Database) => void;
   /** Finalize this publication's already-running lifecycle as success/activated. */
   readonly finalizeMetrics: (database: Database) => void;
+  /**
+   * Optional cancellation predicate. It is checked after the test seam and again
+   * immediately before SQLite COMMIT, so any cancellation observed before the point of
+   * no return rolls migration, pointer CAS, and lifecycle success back together.
+   */
+  readonly isAborted?: () => boolean;
+  /** Synchronous integrity assertions run after transactional writes, before COMMIT. */
+  readonly verifyBeforeCommit?: () => void;
   readonly faults?: ActivationFaultHooks;
+}
+
+export class ActivationCancelledError extends Error {
+  constructor() {
+    super("Capability activation was cancelled before commit.");
+    this.name = "ActivationCancelledError";
+  }
 }
 
 /**
@@ -50,26 +65,38 @@ export async function activatePublishedSnapshot(
   // Reverify before SQLite begins so corrupt or substituted bytes never cause DDL.
   assertVerifiedPublishedSnapshot(input.publication);
   input.faults?.beforeTransaction?.();
+  throwIfActivationCancelled(input.isAborted);
 
-  const committed = await withWriteTransaction(input.database, () => {
-    input.applyMigration(input.database);
-    input.faults?.afterMigration?.();
+  const committed = await withWriteTransaction(
+    input.database,
+    () => {
+      input.applyMigration(input.database);
+      input.faults?.afterMigration?.();
 
-    const result = commitCapability({
-      spec: input.spec,
-      publication: input.publication,
-      database: input.database,
-      expected: input.expected ?? { state: "absent" },
-    });
-    input.faults?.afterRegistryCas?.();
+      const result = commitCapability({
+        spec: input.spec,
+        publication: input.publication,
+        database: input.database,
+        expected: input.expected ?? { state: "absent" },
+      });
+      input.faults?.afterRegistryCas?.();
 
-    input.finalizeMetrics(input.database);
-    input.faults?.afterMetricsFinalized?.();
-    return result;
-  });
+      input.finalizeMetrics(input.database);
+      input.faults?.afterMetricsFinalized?.();
+      return result;
+    },
+    () => {
+      input.verifyBeforeCommit?.();
+      throwIfActivationCancelled(input.isAborted);
+    },
+  );
 
   input.faults?.afterCommit?.();
   return committed;
+}
+
+function throwIfActivationCancelled(isAborted: (() => boolean) | undefined): void {
+  if (isAborted?.()) throw new ActivationCancelledError();
 }
 
 export function expectedAbsentCapability(): CapabilityRegistryExpectation {
