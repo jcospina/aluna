@@ -140,55 +140,29 @@ export function renderCapabilitySurface(
       ` data-active-capability-version="${row.version}">`,
     collectionHtml,
     "</section>",
-    ...(includeDeveloperControl
-      ? [
-          renderDeveloperV2TracerControl(row, true),
-          renderDeveloperEvolutionCandidateControl(row, true),
-        ]
-      : []),
+    ...(includeDeveloperControl ? [renderDeveloperEvolutionControl(row, true)] : []),
   ].join("\n");
 }
 
 /**
- * The evolution-candidate dev tracer affordance — Module 4.6/01. A developer
- * targets the open capability with a hand-typed intent; the trace shows the
- * accepted candidate (or the warm rejection) in the panel's Evolution candidate
- * block. Unlike the one-shot v2 tracer above, any live version is a valid
- * target. The typed text stands in for the resolved intent until epic 4.8.
+ * The evolution dev tracer affordance — Module 4.6/05. A developer targets the open
+ * capability with a hand-typed intent and the whole engine runs on it: the candidate,
+ * its typed change facts and work plan, the Gate, and — for a real change — one complete
+ * View swap onto the next version. Any live version is a valid target, and this is the
+ * platform's only evolution path. The typed text stands in for the resolved intent
+ * until epic 4.8 wires the real resolver in front of it.
  */
-function renderDeveloperEvolutionCandidateControl(
+function renderDeveloperEvolutionControl(
   row: Pick<CapabilityRow, "id">,
   outOfBand: boolean,
 ): string {
   return [
-    `<div id="developer-evolution-candidate-control"${outOfBand ? ' hx-swap-oob="innerHTML"' : ""}>`,
-    `  <form class="capability-evolution-candidate" data-dev-only hx-post="/demo/evolution-candidate/${encodeURIComponent(row.id)}" hx-target="#spec-build-output" hx-swap="beforeend">`,
-    '    <label class="devbar__block-label" for="evolution-candidate-intent">Describe a change</label>',
-    '    <input id="evolution-candidate-intent" name="intent" type="text" required autocomplete="off" placeholder="Add a rating field" />',
-    '    <button type="submit" class="btn btn--ghost">Trace candidate</button>',
+    `<div id="developer-evolution-control"${outOfBand ? ' hx-swap-oob="innerHTML"' : ""}>`,
+    `  <form class="capability-evolution" data-dev-only hx-post="/demo/evolution/${encodeURIComponent(row.id)}" hx-target="#spec-build-output" hx-swap="beforeend">`,
+    '    <label class="devbar__block-label" for="evolution-intent">Describe a change</label>',
+    '    <input id="evolution-intent" name="intent" type="text" required autocomplete="off" placeholder="Add a due date and make it stand out" />',
+    '    <button type="submit" class="btn btn--ghost">Evolve</button>',
     "  </form>",
-    "</div>",
-  ].join("\n");
-}
-
-function renderDeveloperV2TracerControl(
-  row: Pick<CapabilityRow, "id" | "incarnation_id" | "version">,
-  outOfBand: boolean,
-): string {
-  // This issue deliberately proves exactly one v1 → v2 transition. Keep the
-  // temporary affordance absent once v2 is live so it cannot masquerade as a
-  // general evolution path before Module 4.6 owns that responsibility.
-  const form =
-    row.version === 1
-      ? [
-          `  <form class="capability-v2-tracer" data-dev-only hx-post="/demo/hand-authored-v2/${encodeURIComponent(row.id)}" hx-target="#spec-build-output" hx-swap="beforeend">`,
-          '    <button type="submit" class="btn btn--ghost">Trace next version</button>',
-          "  </form>",
-        ]
-      : [];
-  return [
-    `<div id="developer-v2-tracer-control"${outOfBand ? ' hx-swap-oob="innerHTML"' : ""}>`,
-    ...form,
     "</div>",
   ].join("\n");
 }
@@ -223,13 +197,9 @@ export function renderCapabilityShell(
     throw new Error("The shell content target placeholder is missing.");
   }
 
-  const withDeveloperControl = withContent.replace(
-    '<div id="developer-v2-tracer-control"></div>',
-    renderDeveloperV2TracerControl(activeRow, false),
-  );
-  const withEvolutionControl = withDeveloperControl.replace(
-    '<div id="developer-evolution-candidate-control"></div>',
-    renderDeveloperEvolutionCandidateControl(activeRow, false),
+  const withEvolutionControl = withContent.replace(
+    '<div id="developer-evolution-control"></div>',
+    renderDeveloperEvolutionControl(activeRow, false),
   );
   return injectToolbarEntries(withEvolutionControl, renderToolbarEntries(allRows));
 }

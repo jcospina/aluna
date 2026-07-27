@@ -106,6 +106,12 @@ export interface DemoBuildAccumulator {
   incarnationId?: string;
   gateRungs?: readonly GateRungOutcome[];
   unitAttempts?: UnitAttemptSummary[];
+  /**
+   * The units an evolution byte-copied from the committed snapshot. They are part of the
+   * assembled inventory, so they carry unit attempts like any other — but they were never
+   * generated, and the stage vector says so (decision 21's copy is a claim about bytes).
+   */
+  copiedUnits?: ReadonlySet<string>;
   publicationAttempted?: boolean;
   activationAttempted?: boolean;
 }
@@ -182,9 +188,11 @@ export function lifecycleStages(
     },
     ...UNIT_STAGES.map((unit) => ({
       stage: "unit_generation",
-      state: generatedUnits.has(`${unit.kind}:${unit.name}`)
-        ? ("generated" as const)
-        : ("skipped" as const),
+      state: acc.copiedUnits?.has(unit.name)
+        ? ("copied" as const)
+        : generatedUnits.has(`${unit.kind}:${unit.name}`)
+          ? ("generated" as const)
+          : ("skipped" as const),
       unit,
     })),
     {
@@ -217,38 +225,33 @@ export function lifecycleStages(
 
 /**
  * Finalize a measured no-op (decision 37). The candidate was authored and totally
- * validated, then the Diff Engine found zero change facts — so this opens a running
- * lifecycle row for the evolving capability's incarnation and immediately resolves
- * it `success/no_change` with every downstream stage skipped. Spec generation is
- * `generated` (the candidate was authored); nothing after the Diff ran, so no DDL,
- * unit, gate, or publication work is recorded. The generation's duration and token
- * usage are the only real measurement.
+ * validated, then the Diff Engine found zero change facts — so the run's already-running
+ * lifecycle row resolves straight to `success/no_change` with every downstream stage
+ * skipped. Spec generation is `generated` (the candidate was authored); nothing after
+ * the Diff ran, so no DDL, unit, gate, or publication work is recorded. The generation's
+ * duration and token usage are the only real measurement.
  */
 export function finalizeMeasuredNoChange(
   recordMetrics: RecordMetrics,
   input: {
     readonly buildId: string;
     readonly incarnationId: string;
-    readonly capabilityId: string;
     readonly durationMs: number;
     readonly usage: TokenUsage;
+    /** When the run opened its durable row, so `totalMs` is the real elapsed time. */
+    readonly builtAt: number;
   },
 ): void {
   const acc: DemoBuildAccumulator = {
     usages: [input.usage],
     timings: { specGenMs: input.durationMs },
   };
-  recordMetrics.start({
-    buildId: input.buildId,
-    incarnationId: input.incarnationId,
-    capabilityId: input.capabilityId,
-  });
   recordMetrics.succeed({
     buildId: input.buildId,
     incarnationId: input.incarnationId,
     outcome: "no_change",
     stages: lifecycleStages(acc, "no_change"),
-    measurement: lifecycleMeasurement(acc, performance.now() - input.durationMs),
+    measurement: lifecycleMeasurement(acc, input.builtAt),
   });
 }
 

@@ -62,22 +62,20 @@
   flex-direction: column;
   gap: var(--space-0_5);
 }
-.devbar__block:has(.spec-build__preview:empty):not(
-  :has(.capability-v2-tracer, .capability-evolution-candidate)
-) {
+.devbar__block:has(.spec-build__preview:empty):not(:has(.capability-evolution)) {
   display: none;
 }
 
-/* Module 4.6/01 — the evolution-candidate trace form: a hand-typed intent
-   targeting the open capability. Present whenever a capability is open, so its
-   block stays visible even while the candidate preview is still empty. */
-.capability-evolution-candidate {
+/* Module 4.6/05 — the evolution form: a hand-typed intent targeting the open
+   capability. Present whenever a capability is open, so its block stays visible
+   even while the candidate preview is still empty. */
+.capability-evolution {
   display: flex;
   flex-direction: column;
   gap: var(--space-0_5);
   align-items: flex-start;
 }
-.capability-evolution-candidate input {
+.capability-evolution input {
   width: 100%;
 }
 .devbar__block-label {

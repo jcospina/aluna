@@ -70,7 +70,7 @@ export interface AssembleEvolutionCandidateInput {
   readonly provider: Provider;
   /** Active dependency rows a regenerated Handler's projected context may reference. */
   readonly dependencyCatalog?: readonly CapabilityRow[];
-  /** Tier-on evolution (frozen behavioral tests) is 4.6/05; this defaults to tier off. */
+  /** Override the global `OMNI_BEHAVIORAL_TIER` toggle; omitted, the Gate resolves it. */
   readonly behavioralTierEnabled?: boolean;
   /**
    * True once the trace is cancelled or its subscriber is gone. Checked between units and
@@ -182,7 +182,11 @@ export async function assembleEvolutionCandidate(
     handlers: handlersFrom(units),
     itemRenderer: itemRendererFrom(units),
     provider: input.provider,
-    behavioralTier: { enabled: input.behavioralTierEnabled ?? false },
+    // Omitted, the Gate resolves the global `OMNI_BEHAVIORAL_TIER` toggle exactly as a
+    // v1 build does — the tier is one experiment-wide knob, not a per-path default.
+    ...(input.behavioralTierEnabled === undefined
+      ? {}
+      : { behavioralTier: { enabled: input.behavioralTierEnabled } }),
   });
 
   // Fold any bounded Gate repair back into the assembled bytes, exactly as a v1 build

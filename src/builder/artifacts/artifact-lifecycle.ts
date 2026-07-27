@@ -26,6 +26,7 @@ import { assertContained, listSnapshotFiles } from "./artifact-inventory.ts";
 import {
   DERIVED_UNIT_FILES,
   unitProvenance,
+  type UnitProvenanceManifest,
   unitProvenanceManifestSchema,
 } from "./artifact-provenance.ts";
 import {
@@ -91,6 +92,13 @@ export interface PublishCapabilitySnapshotInput {
   readonly units: readonly GeneratedUnit[];
   readonly gate: CapabilityGateResult;
   readonly artifactsRoot?: string;
+  /**
+   * The per-unit dependency-generation provenance this snapshot records. Omitted for a
+   * fresh v1 build, whose every unit is new; an evolution supplies the manifest its Diff
+   * settled, so a byte-copied unit carries its committed provenance forward instead of
+   * having it silently recomputed against the candidate (ADR-0006, PLAN decision 24).
+   */
+  readonly unitProvenance?: UnitProvenanceManifest;
   /** Test-only fault seam immediately after verification and before rename. */
   readonly beforePublish?: (stagingDirectory: string) => void;
 }
@@ -168,6 +176,7 @@ export function publishCapabilitySnapshot(
       buildId,
       units: input.units,
       gate: input.gate,
+      ...(input.unitProvenance ? { unitProvenance: input.unitProvenance } : {}),
     });
     verifyCapabilitySnapshot(stagingDirectory, manifest);
     publishDirectoryWithoutOverwrite(stagingDirectory, finalDirectory, () => {
@@ -388,6 +397,7 @@ function writeSnapshotManifest(input: {
   readonly buildId: string;
   readonly units: readonly GeneratedUnit[];
   readonly gate: CapabilityGateResult;
+  readonly unitProvenance?: UnitProvenanceManifest;
 }): SnapshotManifest {
   const otherFiles = listSnapshotFiles(input.stagingDirectory).map((path) => ({
     path,
@@ -405,7 +415,7 @@ function writeSnapshotManifest(input: {
     behavioral_tier: input.gate.behavioral.tier,
     snapshot_content_digest: snapshotContentDigest(otherFiles),
     files,
-    unit_provenance: unitProvenance(input.spec, input.units),
+    unit_provenance: input.unitProvenance ?? unitProvenance(input.spec, input.units),
   });
   writeFileSync(join(input.stagingDirectory, SNAPSHOT_MANIFEST_FILE), canonicalJson(manifest));
   return manifest;
