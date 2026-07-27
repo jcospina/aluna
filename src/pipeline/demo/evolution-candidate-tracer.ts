@@ -1,11 +1,12 @@
-// The evolution-candidate dev tracer — Module 4.6/01–03 (PLAN decisions 1, 2, 4,
+// The evolution-candidate dev tracer — Module 4.6/01–04 (PLAN decisions 1, 2, 4,
 // 21, 22, 37; ADR-0006). The first visible half of evolution: target a live
 // capability with a hand-typed intent, author one complete candidate spec,
 // validate it totally, then run the Diff Engine (4.6/02) over the committed and
 // candidate specs. It surfaces the validated candidate with its typed change
 // facts and unioned work plan — or, when the Diff finds zero facts, reports the
-// canonical no-op. A real change then assembles the executed work (4.6/03) and
-// Gates it, streaming the whole thing into the developer panel as it runs. It
+// canonical no-op. A real change then assembles the executed work (4.6/03–04) —
+// including the per-unit prior-source admissibility decision — and Gates it,
+// streaming the whole thing into the developer panel as it runs. It
 // still applies no DDL and performs no publication, activation, or version bump;
 // the measured no-op's only durable effect is its own `success/no_change`
 // metrics row (decision 37), finalized by the caller.
@@ -71,9 +72,9 @@ export interface EvolutionCandidateTracerResult {
   /** The lease-frozen catalog the candidate was generated and validated against. */
   readonly dependencyCatalog: readonly DependencyGenerationCatalogEntry[];
   /**
-   * The assembled + Gate-cleared candidate for a real change (4.6/03): additive DDL,
-   * per-unit copy/regenerate, provenance, and the Gate over the assembled snapshot.
-   * Absent on the measured no-op (there is nothing to assemble).
+   * The assembled + Gate-cleared candidate for a real change (4.6/03–04): additive DDL,
+   * per-unit copy/regenerate, prior-source admissibility, provenance, and the Gate over
+   * the assembled snapshot. Absent on the measured no-op (there is nothing to assemble).
    */
   readonly assembly?: AssembledEvolutionCandidate;
   /** The candidate authoring duration — the measured no-op's only real timing. */
@@ -208,6 +209,10 @@ function streamAssembly(
           regeneratedUnits: plan.regeneratedUnits,
           copiedUnits: plan.copiedUnits,
           additiveMigration: plan.additiveMigration.statements,
+          // Already final in the `running` plan: admissibility is deterministic and is
+          // decided before the first regeneration, so the developer watching the units
+          // assemble already knows which of them are seeing their old source.
+          priorSource: plan.priorSource,
           gate: [],
         }),
       ),

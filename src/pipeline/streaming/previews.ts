@@ -18,6 +18,7 @@ import type {
   GateRungOutcome,
   GeneratedUnit,
   GeneratedUnitName,
+  PriorSourceDecision,
   SmokeGateResult,
   StructuralGateResult,
   UnitDescriptor,
@@ -269,6 +270,13 @@ export interface EvolutionAssemblySummary {
   readonly regeneratedUnits: readonly GeneratedUnitName[];
   readonly copiedUnits: readonly GeneratedUnitName[];
   readonly additiveMigration: readonly string[];
+  /**
+   * Per regenerated unit, whether its prior committed source was admitted into the
+   * regeneration prompt and why it was withheld when it was not (4.6/04). Decided before
+   * the first model call, so it is already complete in the `running` plan. Copied units are
+   * absent — they never enter model context, so no admission arises.
+   */
+  readonly priorSource: readonly PriorSourceDecision[];
   readonly gate: readonly { readonly rung: string; readonly status: string }[];
 }
 

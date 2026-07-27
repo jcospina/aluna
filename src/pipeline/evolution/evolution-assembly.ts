@@ -17,8 +17,14 @@
 //   - **Regeneration sees only the active projection.** A selected unit is regenerated
 //     against the candidate spec through the same per-unit prompt a v1 build uses, which
 //     projects only active fields and each dependency's active schema (decisions 2, 21).
-//     Its provenance is refreshed. Prior committed source is deliberately not fed in here
-//     — admissibility-gated prior source is the next issue (4.6/04).
+//     Its provenance is refreshed.
+//
+// On top of those, 4.6/04 adds the third: **prior source is proven, not assumed.** A
+// regenerated unit's old committed source is offered to its prompt only when deterministic
+// admissibility checks prove it references nothing outside that unit's *candidate* contract
+// (decision 21 ¶2). The proof runs before any model call, so the whole copy/regenerate/
+// admit/withhold shape of an evolution is decided — and reportable — with zero spend, and a
+// withheld unit regenerates from the contract alone exactly as a v1 build does.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -26,6 +32,7 @@ import { join } from "node:path";
 import {
   type CapabilityDiff,
   type CapabilityGateResult,
+  checkPriorSourceAdmissibility,
   DERIVED_UNIT_FILES,
   type DerivedUnitFile,
   evolutionUnitProvenance,
@@ -34,6 +41,7 @@ import {
   type GeneratedUnitName,
   generateCapabilityUnit,
   type HandlerUnitName,
+  type PriorSourceDecision,
   runCapabilityGate,
   type UnitDescriptor,
   type UnitGenerationObserver,
@@ -88,6 +96,12 @@ export interface EvolutionAssemblyPlan {
   readonly regeneratedUnits: readonly GeneratedUnitName[];
   readonly copiedUnits: readonly GeneratedUnitName[];
   readonly additiveMigration: AdditiveCapabilityMigration;
+  /**
+   * Per regenerated unit, whether its prior committed source was admitted into the
+   * regeneration prompt and — when it was not — why (4.6/04). Copied units are absent:
+   * they never enter model context at all, so there is nothing to admit or withhold.
+   */
+  readonly priorSource: readonly PriorSourceDecision[];
 }
 
 export interface EvolutionAssemblyProgress {
@@ -119,6 +133,13 @@ export interface AssembledEvolutionCandidate {
   readonly copiedUnits: readonly GeneratedUnitName[];
   /** The nullable ADD COLUMN(s) this evolution derives (empty for a no-DDL change). */
   readonly additiveMigration: AdditiveCapabilityMigration;
+  /**
+   * The prior-source admissibility decision recorded for each unit the work plan
+   * regenerated, in canonical unit order — the audit trail for what entered model context.
+   * Audit-only, exactly like unit provenance: it never feeds equality, the Diff, or a
+   * unit's `active_context_digest`, which stays a digest of the *contract* prompt.
+   */
+  readonly priorSource: readonly PriorSourceDecision[];
   /** The fail-closed Gate result over the assembled snapshot (structural + smoke, …). */
   readonly gate: CapabilityGateResult;
   /** Per-unit provenance: refreshed for regenerated units, carried forward for copies. */
@@ -141,13 +162,18 @@ export async function assembleEvolutionCandidate(
   const verified = verifyEvolutionBase(committed);
   const additiveMigration = deriveAdditiveCapabilityMigration(verified.spec, candidate);
   const regenerated = new Set<GeneratedUnitName>(diff.workPlan.regeneratedUnits);
+  // The proof runs before the plan is reported, and therefore before any model call: a
+  // developer sees which units will be regenerated *with* their old source and which
+  // without, at the same moment they see the copy/regenerate split.
+  const priorSource = proveRegenerationPriorSource(input, verified.directory, regenerated);
   await input.progress?.onPlanned?.({
     regeneratedUnits: diff.workPlan.regeneratedUnits,
     copiedUnits: copiedUnitNames(regenerated),
     additiveMigration,
+    priorSource: priorSource.decisions,
   });
 
-  const units = await assembleUnits(input, verified.directory, regenerated);
+  const units = await assembleUnits(input, verified.directory, regenerated, priorSource.admitted);
   throwIfAborted(input.isAborted ?? NEVER_ABORTED);
   await input.progress?.onGateStart?.();
   const gate = await runCapabilityGate({
@@ -184,6 +210,7 @@ export async function assembleEvolutionCandidate(
     regeneratedUnits: orderedUnitNames(written),
     copiedUnits: copiedUnitNames(written),
     additiveMigration,
+    priorSource: withGateRepairDecisions(priorSource.decisions, regenerated, written),
     gate,
     unitProvenance,
     handlers: handlersFrom(finalUnits),
@@ -232,13 +259,15 @@ async function assembleUnits(
   input: AssembleEvolutionCandidateInput,
   committedDirectory: string,
   regenerated: ReadonlySet<GeneratedUnitName>,
+  admittedPriorSource: ReadonlyMap<GeneratedUnitName, string>,
 ): Promise<GeneratedUnit[]> {
   const units: GeneratedUnit[] = [];
   const isAborted = input.isAborted ?? NEVER_ABORTED;
   for (const filename of DERIVED_UNIT_FILES) {
     throwIfAborted(isAborted);
-    if (regenerated.has(unitNameForFile(filename))) {
-      units.push(await regenerateUnit(input, filename));
+    const name = unitNameForFile(filename);
+    if (regenerated.has(name)) {
+      units.push(await regenerateUnit(input, filename, admittedPriorSource.get(name)));
       continue;
     }
     const copied = copiedUnit(committedDirectory, filename);
@@ -251,6 +280,7 @@ async function assembleUnits(
 function regenerateUnit(
   input: AssembleEvolutionCandidateInput,
   filename: DerivedUnitFile,
+  priorSource: string | undefined,
 ): Promise<GeneratedUnit> {
   return generateCapabilityUnit({
     provider: input.provider,
@@ -259,7 +289,101 @@ function regenerateUnit(
     ...(input.dependencyCatalog ? { dependencyCatalog: input.dependencyCatalog } : {}),
     ...(input.maxAttempts !== undefined ? { maxAttempts: input.maxAttempts } : {}),
     ...(input.observer ? { observer: input.observer } : {}),
+    // Present only for a unit whose prior source was proven admissible. A withheld unit's
+    // prompt therefore carries no old bytes at all — not an emptied section, no section.
+    ...(priorSource !== undefined ? { priorSource } : {}),
   });
+}
+
+/** The per-unit proof: what a developer is shown, and what a prompt is allowed to carry. */
+interface RegenerationPriorSource {
+  readonly decisions: readonly PriorSourceDecision[];
+  readonly admitted: ReadonlyMap<GeneratedUnitName, string>;
+}
+
+/**
+ * Decide, for each unit the work plan regenerates, whether its committed source may be
+ * offered back to the model — deterministically, against the *candidate* contract, with no
+ * model call and no execution (decision 21 ¶2). A unit whose source fails the proof is
+ * simply absent from `admitted`, and its recorded decision carries the reason.
+ */
+function proveRegenerationPriorSource(
+  input: AssembleEvolutionCandidateInput,
+  committedDirectory: string,
+  regenerated: ReadonlySet<GeneratedUnitName>,
+): RegenerationPriorSource {
+  const decisions: PriorSourceDecision[] = [];
+  const admitted = new Map<GeneratedUnitName, string>();
+
+  for (const filename of DERIVED_UNIT_FILES) {
+    const name = unitNameForFile(filename);
+    if (!regenerated.has(name)) continue;
+    const source = readPriorSource(committedDirectory, filename);
+    if (source === undefined) {
+      decisions.push({ unit: name, admitted: false, reason: "its committed source is unreadable" });
+      continue;
+    }
+    const verdict = checkPriorSourceAdmissibility({
+      spec: input.candidate,
+      unit: descriptorForFile(filename),
+      source,
+      ...(input.dependencyCatalog ? { dependencyCatalog: input.dependencyCatalog } : {}),
+    });
+    if (!verdict.admitted) {
+      decisions.push({ unit: name, admitted: false, reason: verdict.reason });
+      continue;
+    }
+    admitted.set(name, source);
+    decisions.push({ unit: name, admitted: true });
+  }
+
+  return { decisions: inCanonicalUnitOrder(decisions), admitted };
+}
+
+/**
+ * Complete the record for a unit the *Gate* rewrote. A repair can land on a unit the work
+ * plan copied, which makes it a written unit with no admissibility decision — and the
+ * record has to cover every unit that entered model context. It always reads as withheld,
+ * and truthfully: the repair rungs regenerate from the contract plus the failure through
+ * `generateUnitContent`, which has no prior-source parameter at all.
+ */
+function withGateRepairDecisions(
+  decisions: readonly PriorSourceDecision[],
+  planned: ReadonlySet<GeneratedUnitName>,
+  written: ReadonlySet<GeneratedUnitName>,
+): readonly PriorSourceDecision[] {
+  const repaired = [...written].filter((unit) => !planned.has(unit));
+  if (repaired.length === 0) return decisions;
+  return inCanonicalUnitOrder([
+    ...decisions,
+    ...repaired.map((unit) => ({
+      unit,
+      admitted: false,
+      reason: "it was rewritten by a Gate repair, which regenerates from the contract alone",
+    })),
+  ]);
+}
+
+/** Canonical unit order, matching both halves of the plan line the panel shows. */
+function inCanonicalUnitOrder(
+  decisions: readonly PriorSourceDecision[],
+): readonly PriorSourceDecision[] {
+  return [...decisions].sort(
+    (a, b) => GENERATED_UNITS.indexOf(a.unit) - GENERATED_UNITS.indexOf(b.unit),
+  );
+}
+
+/**
+ * Read one committed unit off the verified snapshot. The snapshot was verified before this
+ * point, so a failure here is not expected — but prior source is optional context, and
+ * losing it is a withheld admission, never a failed evolution.
+ */
+function readPriorSource(directory: string, filename: DerivedUnitFile): string | undefined {
+  try {
+    return readFileSync(join(directory, filename), "utf8");
+  } catch {
+    return undefined;
+  }
 }
 
 function regeneratedFilenamesOf(

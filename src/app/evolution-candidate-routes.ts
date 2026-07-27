@@ -1,12 +1,14 @@
-// The evolution-candidate dev tracer routes — Module 4.6/01–02 (PLAN decisions
+// The evolution-candidate dev tracer routes — Module 4.6/01–04 (PLAN decisions
 // 1, 2, 4, 21, 22, 37; ADR-0006). The first visible half of evolution on the
 // homepage: the developer-panel affordance posts a live capability id plus a
 // hand-typed intent; the trace authors one complete candidate spec, validates it
 // totally, and runs the Diff Engine over the committed and candidate specs. It
 // shows the accepted candidate with its typed change facts and unioned work plan,
-// the measured no-op when the Diff finds zero facts, or the warm rejection. A
-// real change stops after the Diff (4.6/03 owns the additive DDL and unit work);
-// the only durable effect here is the measured no-op's own `success/no_change`
+// the measured no-op when the Diff finds zero facts, or the warm rejection. A real
+// change then assembles the executed work (4.6/03–04) and Gates it: the additive
+// DDL, the copy/regenerate split, and — per regenerated unit — whether its prior
+// committed source was admitted into the regeneration prompt or withheld, and why.
+// The only durable effect here is the measured no-op's own `success/no_change`
 // metrics row — still no DDL, publication, version bump, or View swap.
 //
 // The trace runs under the exclusive build lease: decision 1 freezes the
@@ -216,6 +218,7 @@ function summarizeAssembly(assembly: AssembledEvolutionCandidate): EvolutionAsse
     regeneratedUnits: assembly.regeneratedUnits,
     copiedUnits: assembly.copiedUnits,
     additiveMigration: assembly.additiveMigration.statements,
+    priorSource: assembly.priorSource,
     gate: assembly.gate.outcomes.map((outcome) => ({
       rung: outcome.rung,
       status: outcome.status,

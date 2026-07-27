@@ -285,6 +285,13 @@ describe("an accepted candidate", () => {
     expect(preview.assembly.additiveMigration).toEqual([
       'ALTER TABLE "cap_journal" ADD COLUMN "mood" TEXT;',
     ]);
+    // 4.6/04: and per regenerated unit, whether its prior committed source was admitted
+    // into the regeneration prompt. Adding a field takes nothing away, so all three fit.
+    expect(preview.assembly.priorSource).toEqual([
+      { unit: "create", admitted: true },
+      { unit: "update", admitted: true },
+      { unit: "search", admitted: true },
+    ]);
     const gate = Object.fromEntries(
       preview.assembly.gate.map((rung: { rung: string; status: string }) => [
         rung.rung,
@@ -333,6 +340,14 @@ describe("the streamed assembly", () => {
     expect([...running.assembly.copiedUnits].sort()).toEqual(["delete", "item", "read"]);
     expect(running.assembly.additiveMigration).toEqual([
       'ALTER TABLE "cap_journal" ADD COLUMN "mood" TEXT;',
+    ]);
+    // The prior-source decisions are already final in the running plan: admissibility is
+    // deterministic, so a developer knows which units are seeing their old source before
+    // the first of them is written.
+    expect(running.assembly.priorSource).toEqual([
+      { unit: "create", admitted: true },
+      { unit: "update", admitted: true },
+      { unit: "search", admitted: true },
     ]);
     expect(running.assembly.gate).toEqual([]);
     expect(names.indexOf("candidate-preview")).toBeLessThan(names.indexOf("units-preview"));

@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   createHandlerFor,
+  DELETE_HANDLER,
   fullHandlersFor,
   generatedUnitsFor,
   itemRendererFor,
@@ -21,6 +22,7 @@ import {
 } from "../../builder/gate/gate.test-support.ts";
 import {
   activatePublishedSnapshot,
+  type CapabilityDiff,
   type CapabilityGateResult,
   diffCapabilitySpec,
   expectedAbsentCapability,
@@ -58,6 +60,32 @@ function committedSpec(): CapabilitySpec {
           lifecycle: "inactive",
         },
       ],
+    },
+  });
+}
+
+// The hide-then-evolve candidate: `pinned` becomes inactive. Every committed Handler that
+// wrote or read it now carries a name the candidate contract no longer declares, which is
+// exactly the prior source admissibility must withhold.
+function candidateHidingPinned(): CapabilitySpec {
+  return notesSpec({
+    schema: {
+      fields: committedSpec().schema.fields.map((field) =>
+        field.name === "pinned" ? { ...field, lifecycle: "inactive" as const } : field,
+      ),
+    },
+  });
+}
+
+// A candidate whose only change is the item renderer's design direction — the one shape that
+// regenerates `item` alone, and `item` is the one unit whose canonical order (last) differs
+// from the snapshot file order (first).
+function candidateWithNewItemDirection(): CapabilitySpec {
+  return notesSpec({
+    schema: { fields: committedSpec().schema.fields },
+    ui_intent: {
+      ...committedSpec().ui_intent,
+      item: { direction: "A quieter card that leads with the note text.", shows: ["text"] },
     },
   });
 }
@@ -105,7 +133,9 @@ interface AssemblyEnv {
 
 // Publish + activate the committed v1 on disk, then seed a record written before the
 // new field so its added column must read back null.
-async function setUpCommitted(): Promise<AssemblyEnv> {
+async function setUpCommitted(
+  handlerOverrides: Readonly<Partial<Record<string, string>>> = {},
+): Promise<AssemblyEnv> {
   const root = mkdtempSync(join(tmpdir(), "omni-crud-evolution-assembly-"));
   const conns = openDatabase(join(root, "platform.db"));
   runMigrations(conns.readwrite);
@@ -115,10 +145,10 @@ async function setUpCommitted(): Promise<AssemblyEnv> {
     spec: committedSpec(),
     incarnationId: INCARNATION_ID,
     version: 1,
-    units: generatedUnitsFor(
-      committedSpec(),
-      fullHandlersFor(committedSpec(), { read: READ_HANDLER }),
-    ),
+    units: generatedUnitsFor(committedSpec(), {
+      ...fullHandlersFor(committedSpec(), { read: READ_HANDLER }),
+      ...handlerOverrides,
+    }),
     gate: committedGate,
     artifactsRoot: join(root, "capabilities"),
   });
@@ -248,6 +278,127 @@ describe("evolution candidate assembly", () => {
   });
 });
 
+// The canonical snapshot order the assembler requests units in — `item.ts` first.
+const SNAPSHOT_UNIT_ORDER = ["item", "create", "read", "update", "delete", "search"] as const;
+
+function regeneratedInSnapshotOrder(diff: CapabilityDiff): readonly string[] {
+  const regenerated: readonly string[] = diff.workPlan.regeneratedUnits;
+  return SNAPSHOT_UNIT_ORDER.filter((unit) => regenerated.includes(unit));
+}
+
+/** A conforming unit per name, so any subset the work plan selects can be answered. */
+function conformingUnitsFor(spec: CapabilitySpec): Readonly<Record<string, string>> {
+  return {
+    item: itemRendererFor(spec),
+    create: createHandlerFor(spec),
+    read: READ_HANDLER,
+    update: updateHandlerFor(spec),
+    delete: DELETE_HANDLER,
+    search: searchHandlerFor(spec),
+  };
+}
+
+// Prior source is optional regeneration context, not an entitlement (4.6/04, decision 21
+// ¶2). A regenerated unit gets its old committed source back only when deterministic checks
+// prove it references nothing outside the *candidate* unit's contract; otherwise it
+// regenerates from the contract alone, exactly as a v1 build does.
+describe("prior-source admissibility in an evolution", () => {
+  useCommittedCapability();
+
+  test("admits clean prior source into each regenerated unit's prompt", async () => {
+    const { assembled, prompts, active } = await assembleNewField(env.conns);
+
+    // Adding a field takes nothing away, so every regenerated unit's committed source still
+    // fits its candidate contract.
+    expect(assembled.priorSource).toEqual([
+      { unit: "create", admitted: true },
+      { unit: "update", admitted: true },
+      { unit: "search", admitted: true },
+    ]);
+
+    const committedDir = verifyCapabilitySnapshot(active.artifacts_path).directory;
+    for (const [unit, filename] of [
+      ["create.ts", "create.ts"],
+      ["update.ts", "update.ts"],
+      ["search.ts", "search.ts"],
+    ] as const) {
+      const prompt = prompts.find((candidate) =>
+        candidate.includes(`Generate the ${unit} handler`),
+      );
+      expect(prompt).toContain("Prior committed source");
+      expect(prompt).toContain(readFileSync(join(committedDir, filename), "utf8"));
+    }
+  });
+
+  // `item` sorts last in canonical unit order but is the *first* file the assembler walks,
+  // so it is the only unit whose recorded position can disagree with the plan line.
+  test("records the item renderer's decision in canonical unit order", async () => {
+    const candidate = candidateWithNewItemDirection();
+    const diff = diffCapabilitySpec(committedSpec(), candidate);
+    const active = getCapability("notes", env.conns.readonly);
+    if (!active) throw new Error("committed capability did not activate");
+    const { provider, prompts } = makeSequenceProvider(
+      regeneratedInSnapshotOrder(diff).map((unit) => ({
+        content: conformingUnitsFor(candidate)[unit] ?? "",
+      })),
+    );
+
+    const assembled = await assembleEvolutionCandidate({
+      committed: active,
+      candidate,
+      diff,
+      provider,
+      behavioralTierEnabled: false,
+    });
+
+    // The committed item renderer reads only `text`, which the candidate still shows.
+    expect(assembled.priorSource).toContainEqual({ unit: "item", admitted: true });
+    expect(assembled.priorSource.at(-1)?.unit).toBe("item");
+    const itemPrompt = prompts.find((prompt) => prompt.includes("item renderer"));
+    expect(itemPrompt).toContain(
+      readFileSync(
+        join(verifyCapabilitySnapshot(active.artifacts_path).directory, "item.ts"),
+        "utf8",
+      ),
+    );
+  });
+
+  test("withholds prior source that names a field the candidate hides, and says why", async () => {
+    const candidate = candidateHidingPinned();
+    const diff = diffCapabilitySpec(committedSpec(), candidate);
+    const active = getCapability("notes", env.conns.readonly);
+    if (!active) throw new Error("committed capability did not activate");
+    // One response per regenerated unit, in canonical snapshot order (item first).
+    const { provider, prompts } = makeSequenceProvider(
+      regeneratedInSnapshotOrder(diff).map((unit) => ({
+        content: conformingUnitsFor(candidate)[unit] ?? "",
+      })),
+    );
+
+    const assembled = await assembleEvolutionCandidate({
+      committed: active,
+      candidate,
+      diff,
+      provider,
+      behavioralTierEnabled: false,
+    });
+
+    // The committed create and update both write `pinned`; the candidate no longer declares
+    // it, so their bytes are withheld and the reason names the field.
+    const withheld = assembled.priorSource.filter((decision) => !decision.admitted);
+    expect(withheld.map((decision) => decision.unit)).toEqual(["create", "update"]);
+    for (const decision of withheld) expect(decision.reason).toContain("pinned");
+
+    // …and not one byte of the withheld source reached the prompts.
+    const committedDir = verifyCapabilitySnapshot(active.artifacts_path).directory;
+    for (const filename of ["create.ts", "update.ts"] as const) {
+      const priorSource = readFileSync(join(committedDir, filename), "utf8");
+      expect(prompts.some((prompt) => prompt.includes(priorSource))).toBe(false);
+      expect(prompts.some((prompt) => prompt.includes("pinned"))).toBe(false);
+    }
+  });
+});
+
 // The assembly stage is the long half of an evolution (several live regenerations plus the
 // Gate), so it reports its progress rather than only its result — that reporting is what
 // the developer panel streams. The plan half is derived, not generated, so it is
@@ -343,6 +494,11 @@ describe("evolution assembly liveness", () => {
     // a repair only ever moves a unit out of `copiedUnits`, never into it.
     expect(assembled.regeneratedUnits).toEqual(["create", "update", "search"]);
     expect([...assembled.copiedUnits].sort()).toEqual(["delete", "item", "read"]);
+    // The record covers every unit that entered model context, however it got there. A
+    // repair that reclassifies a copied unit as written must bring a decision with it.
+    expect(assembled.priorSource.map((decision) => decision.unit).toSorted()).toEqual(
+      [...assembled.regeneratedUnits].sort(),
+    );
   });
 
   test("a cancelled trace stops the assembly instead of running the Gate", async () => {

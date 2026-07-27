@@ -23,6 +23,7 @@ import {
   FULL_CAPABILITY_TOOLS,
 } from "../../registry/index.ts";
 
+import { admissiblePriorSource } from "./prior-source-admissibility.ts";
 import { checkGeneratedUnit } from "./unit-checks.ts";
 import { buildUnitPrompt } from "./unit-prompts.ts";
 
@@ -160,28 +161,23 @@ export async function generateCapabilityUnits(
   const maxAttempts = normalizeMaxAttempts(input.maxAttempts);
   const units: GeneratedUnit[] = [];
 
+  const shared = {
+    provider: input.provider,
+    spec: input.spec,
+    maxAttempts,
+    observer: input.observer,
+    dependencyCatalog: input.dependencyCatalog,
+  };
+
   units.push(
-    await generateUnit(
-      input.provider,
-      input.spec,
-      { kind: "item-renderer", name: ITEM_RENDERER_UNIT_NAME },
-      maxAttempts,
-      input.observer,
-      input.dependencyCatalog,
-    ),
+    await generateUnit({
+      ...shared,
+      unit: { kind: "item-renderer", name: ITEM_RENDERER_UNIT_NAME },
+    }),
   );
 
   for (const action of input.spec.tools) {
-    units.push(
-      await generateUnit(
-        input.provider,
-        input.spec,
-        { kind: "handler", name: action },
-        maxAttempts,
-        input.observer,
-        input.dependencyCatalog,
-      ),
-    );
+    units.push(await generateUnit({ ...shared, unit: { kind: "handler", name: action } }));
   }
 
   return {
@@ -200,6 +196,12 @@ export interface GenerateCapabilityUnitInput {
   readonly maxAttempts?: number;
   readonly observer?: UnitGenerationObserver;
   readonly dependencyCatalog?: readonly CapabilityRow[];
+  /**
+   * An evolution's prior committed source for this unit (4.6/04). Optional regeneration
+   * context, never an entitlement: it is re-proven against `spec` here and dropped unless
+   * it references nothing outside this unit's current generation contract.
+   */
+  readonly priorSource?: string;
 }
 
 /**
@@ -213,24 +215,43 @@ export interface GenerateCapabilityUnitInput {
  */
 export function generateCapabilityUnit(input: GenerateCapabilityUnitInput): Promise<GeneratedUnit> {
   if (input.unit.kind === "handler") assertHandlerSpec(input.spec);
-  return generateUnit(
-    input.provider,
-    input.spec,
-    input.unit,
-    normalizeMaxAttempts(input.maxAttempts),
-    input.observer,
-    input.dependencyCatalog,
-  );
+  // Decision 21's proof, re-run at the prompt boundary. The assembler decides and records
+  // the same verdict from the same pure function, so this never disagrees with what a
+  // developer is shown — it is here so that no caller, present or future, can hand stale
+  // source into a prompt by forgetting to ask.
+  const priorSource =
+    input.priorSource === undefined
+      ? undefined
+      : admissiblePriorSource({
+          spec: input.spec,
+          unit: input.unit,
+          source: input.priorSource,
+          ...(input.dependencyCatalog ? { dependencyCatalog: input.dependencyCatalog } : {}),
+        });
+
+  return generateUnit({
+    provider: input.provider,
+    spec: input.spec,
+    unit: input.unit,
+    maxAttempts: normalizeMaxAttempts(input.maxAttempts),
+    observer: input.observer,
+    dependencyCatalog: input.dependencyCatalog,
+    priorSource,
+  });
 }
 
-async function generateUnit(
-  provider: Provider,
-  spec: CapabilitySpec,
-  unit: UnitDescriptor,
-  maxAttempts: number,
-  observer: UnitGenerationObserver | undefined,
-  dependencyCatalog: readonly CapabilityRow[] | undefined,
-): Promise<GeneratedUnit> {
+interface UnitGenerationRun {
+  readonly provider: Provider;
+  readonly spec: CapabilitySpec;
+  readonly unit: UnitDescriptor;
+  readonly maxAttempts: number;
+  readonly observer: UnitGenerationObserver | undefined;
+  readonly dependencyCatalog: readonly CapabilityRow[] | undefined;
+  readonly priorSource?: string | undefined;
+}
+
+async function generateUnit(run: UnitGenerationRun): Promise<GeneratedUnit> {
+  const { provider, spec, unit, maxAttempts, observer, dependencyCatalog, priorSource } = run;
   const attempts: UnitGenerationAttempt[] = [];
   let previousFailure: UnitGenerationFailure | undefined;
 
@@ -238,7 +259,7 @@ async function generateUnit(
     await observer?.onUnitStart?.({ unit, attempt });
     const startedAt = performance.now();
     const result = provider.generate(
-      buildUnitPrompt(spec, unit, previousFailure, dependencyCatalog),
+      buildUnitPrompt(spec, unit, previousFailure, dependencyCatalog, priorSource),
       generatedUnitSchema,
     );
     // Previews are observational: `result.object` is the authoritative outcome and

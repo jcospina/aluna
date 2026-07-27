@@ -27,28 +27,55 @@ import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./u
  * The prompt for one unit: the kind-specific authoring contract plus the spec, with
  * the previous attempt's failure appended on a retry so the model returns a complete
  * corrected unit (not a patch).
+ *
+ * `priorSource` is an evolution regeneration's optional extra context (4.6/04). It is
+ * appended only when the caller has already proven it admissible against *this* spec —
+ * this builder never decides admissibility, it only places what it is given, so an
+ * inadmissible unit's prompt is byte-for-byte the prompt a fresh unit would receive.
  */
 export function buildUnitPrompt(
   spec: CapabilitySpec,
   unit: UnitDescriptor,
   previousFailure?: UnitGenerationFailure,
   dependencyCatalog: readonly CapabilityRow[] = [],
+  priorSource?: string,
 ): string {
   const base =
     unit.kind === "handler"
       ? buildHandlerPrompt(spec, unit.name, dependencyCatalog)
       : buildItemRendererPrompt(spec);
+  const withPriorSource = priorSource
+    ? [base, "", ...priorSourceSection(unit, priorSource)].join("\n")
+    : base;
 
-  if (!previousFailure) return base;
+  if (!previousFailure) return withPriorSource;
 
   return [
-    base,
+    withPriorSource,
     "",
     "Previous attempt failed. Return a complete corrected unit, not a patch.",
     "Failure to fix:",
     previousFailure.message,
     ...indexedInputRepairGuidance(unit, previousFailure.message),
   ].join("\n");
+}
+
+/**
+ * The prior committed source, framed as what it is: reference material that was proven to
+ * reference nothing outside the contract stated above, and that the contract above still
+ * outranks. Placed after the contract and before any failure feedback, so the last thing
+ * the model reads on a retry is still the failure it has to fix.
+ */
+function priorSourceSection(unit: UnitDescriptor, priorSource: string): string[] {
+  return [
+    `Prior committed source for this ${unit.kind === "handler" ? `${unit.name}.ts handler` : "item renderer"} (reference only):`,
+    "- It was written for the previous version of this capability. It was proven to reference no data outside the contract above, but the behavior it implements may be exactly what is changing.",
+    "- The contract above is authoritative — its Action behavior, fields, and dependencies all outrank this source. Keep what still fits; drop anything the contract above no longer states. Do not reintroduce fields, dependencies, or behavior from here.",
+    "- Return the complete new unit, not a patch or a diff against this source.",
+    "```typescript",
+    priorSource,
+    "```",
+  ];
 }
 
 function indexedInputRepairGuidance(unit: UnitDescriptor, message: string): string[] {
