@@ -235,10 +235,13 @@ export function buildGatePreview(
   };
 }
 
-// The evolution-candidate preview. The dev tracer's one
+// The evolution-candidate preview. The evolution run's one
 // developer-panel payload: the validated candidate plus the Diff Engine's typed
 // change facts and unioned work plan, the measured no-op when the Diff finds zero
-// facts, or the total rejection with every contract violation.
+// facts, or the total rejection with every contract violation. An accepted
+// candidate also carries the executed-work summary (`assembly`), first as the running
+// plan and then complete with the Gate verdict. It stops at the candidate on purpose:
+// an activated version is announced by `commit-preview`/`commit`, not here.
 export interface EvolutionCandidatePreview {
   readonly kind: "evolution-candidate-preview";
   readonly status: "accepted" | "no_change" | "rejected";

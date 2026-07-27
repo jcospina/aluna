@@ -9,10 +9,11 @@
 // Layout:
 //   jobs/       — build-job admission/queueing and the Complete-View restoration descriptor
 //   build/      — the v1 `new_capability` path: intent → deflection → stages → commit
-//   evolution/  — additive evolution candidate assembly
+//   evolution/  — the one evolution path: candidate assembly and the
+//                 complete run through publication and activation
 //   streaming/  — what goes on the wire during a run: dev `*-preview` events and the
 //                 product-voice terminal presentation
-//   demo/       — the `/demo/*` runners and the temporary hand-authored tracers
+//   demo/       — the remaining `/demo/*` runner
 //   metrics-recorder.ts — cross-cutting: one durable metrics row per run, for both paths
 
 export {

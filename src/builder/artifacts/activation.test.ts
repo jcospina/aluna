@@ -181,7 +181,7 @@ describe("activatePublishedSnapshot — point of no return", () => {
     expect(commit.previousLabel).toBe("Notes");
     expect(
       renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel).split(
-        '<div id="developer-v2-tracer-control"',
+        '<div id="developer-evolution-control"',
       )[0],
     ).not.toContain("hx-swap-oob");
   });
