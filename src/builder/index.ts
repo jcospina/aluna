@@ -125,6 +125,13 @@ export {
   type SpecGenResult,
 } from "./spec/spec-gen.ts";
 export {
+  admissiblePriorSource,
+  checkPriorSourceAdmissibility,
+  type PriorSourceAdmissibility,
+  type PriorSourceAdmissibilityInput,
+  type PriorSourceDecision,
+} from "./units/prior-source-admissibility.ts";
+export {
   buildUnitPrompt,
   DEFAULT_UNIT_FIX_ATTEMPTS,
   type GenerateCapabilityUnitInput,

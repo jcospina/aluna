@@ -79,16 +79,28 @@ export function checkHandlerSourceContract(
 }
 
 function checkItemRendererUnit(spec: CapabilitySpec, content: string): string | undefined {
+  const sourceMessage = checkItemRendererSourceContract(spec, content);
+  if (sourceMessage) return sourceMessage;
+  return typeCheckUnit(content, itemRendererContractDeclarations, ITEM_RENDERER_ASSERT);
+}
+
+/**
+ * The complete static item-renderer contract, minus the isolated type-check — the mirror of
+ * {@link checkHandlerSourceContract}. The export-shape rule comes first and stays first:
+ * `checkItemRendererFieldAccess` locates the renderer by looking for the default *function
+ * declaration*, so an unanalyzable export shape would otherwise read as a clean pass.
+ */
+export function checkItemRendererSourceContract(
+  spec: CapabilitySpec,
+  content: string,
+): string | undefined {
   const source = ts.createSourceFile("item.ts", content, ts.ScriptTarget.Latest, true);
   const exportMessage = validateDefaultFunctionExport(source, { async: false });
   if (exportMessage) return exportMessage;
   if (source.statements.some((statement) => ts.isImportDeclaration(statement))) {
     return "The item renderer must not import anything — it composes one record into markup and nothing else.";
   }
-  const fieldAccessMessage = checkItemRendererFieldAccess(spec, content);
-  if (fieldAccessMessage) return fieldAccessMessage;
-
-  return typeCheckUnit(content, itemRendererContractDeclarations, ITEM_RENDERER_ASSERT);
+  return checkItemRendererFieldAccess(spec, content);
 }
 
 interface ExportShapeRules {
