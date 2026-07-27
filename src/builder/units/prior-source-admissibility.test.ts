@@ -79,6 +79,18 @@ function candidateWithJournalsDependency(): CapabilitySpec {
   });
 }
 
+function candidateWithPinnedInactive(): CapabilitySpec {
+  const spec = candidateSpec();
+  return {
+    ...spec,
+    schema: {
+      fields: spec.schema.fields.map((field) =>
+        field.name === "pinned" ? { ...field, lifecycle: "inactive" as const } : field,
+      ),
+    },
+  };
+}
+
 /** The frozen catalog row for `journals`: one active field and one inactive field. */
 function journalsCatalog(): readonly CapabilityRow[] {
   return [
@@ -224,6 +236,88 @@ describe("prior-source admissibility", () => {
     expect(verdict(CREATE, derived("legacy_note_count"))).toEqual({ admitted: true });
     expect(verdict(CREATE, derived("archived_legacy_note"))).toEqual({ admitted: true });
   });
+
+  test("withholds Unicode-escaped hidden identifiers, strings, and comments", () => {
+    const escapedIdentifier = CLEAN_CREATE.replaceAll("pinned", "pinn\\u0065d");
+    const escapedString = CLEAN_CREATE.replace(
+      "  const values",
+      '  const stale = "pinn\\u0065d";\n  void stale;\n  const values',
+    );
+    const escapedComment = CLEAN_CREATE.replace(
+      "  const values",
+      "  // pinn\\u0065d was retired.\n  const values",
+    );
+    const spec = candidateWithPinnedInactive();
+
+    expect(reasonFor(CREATE, escapedIdentifier, spec)).toContain("pinned");
+    expect(reasonFor(CREATE, escapedString, spec)).toContain("pinned");
+    expect(reasonFor(CREATE, escapedComment, spec)).toContain("pinned");
+  });
+
+  test("withholds hidden names assembled through constants, concatenation, or templates", () => {
+    const cases = [
+      '  const stale = "pin" + "ned";\n  void stale;',
+      '  const prefix = "pin";\n  const stale = prefix + "ned";\n  void stale;',
+      '  const prefix = "pin";\n  const stale = `${prefix}ned`;\n  void stale;',
+    ];
+    const spec = candidateWithPinnedInactive();
+
+    for (const assembled of cases) {
+      const source = CLEAN_CREATE.replace("  const values", `${assembled}\n  const values`);
+      expect(reasonFor(CREATE, source, spec)).toContain("pinned");
+    }
+  });
+
+  test("withholds unresolved computed property names rather than guessing", () => {
+    const source = CLEAN_CREATE.replace(
+      '  values.pinned = input.values.pinned === "on" || input.values.pinned === "true";',
+      "  const field = String(input.values.text);\n  values[field] = true;",
+    );
+
+    expect(reasonFor(CREATE, source, candidateWithPinnedInactive())).toContain("cannot be proven");
+  });
+});
+
+describe("runtime prior-source name assembly", () => {
+  test("withholds runtime assembly, mutation, and shadowing at computed-name sinks", () => {
+    const withoutPinned = CLEAN_CREATE.replace(
+      '  values.pinned = input.values.pinned === "on" || input.values.pinned === "true";',
+      "  // candidate no longer writes the inactive boolean",
+    );
+    const cases = [
+      [
+        '  const field = ["pin", "ned"].join("");',
+        "  Object.assign(values, { [field]: true });",
+      ].join("\n"),
+      [
+        '  let prefix = "safe";',
+        '  prefix = "pin";',
+        '  const field = prefix + "ned";',
+        "  values[field] = true;",
+      ].join("\n"),
+      [
+        '  const prefix = "pin";',
+        '  { const prefix = "safe"; void prefix; }',
+        '  values[prefix + "ned"] = true;',
+      ].join("\n"),
+    ];
+
+    for (const assembled of cases) {
+      const source = withoutPinned.replace("  return present", `${assembled}\n  return present`);
+      expect(verdict(CREATE, source, candidateWithPinnedInactive())).toMatchObject({
+        admitted: false,
+      });
+    }
+  });
+
+  test("withholds hidden names assembled for reflective property access", () => {
+    const source = CLEAN_CREATE.replace(
+      "  return present",
+      '  Reflect.set(values, ["leg", "acy_note"].join(""), true);\n  return present',
+    );
+
+    expect(reasonFor(CREATE, source)).toContain("legacy_note");
+  });
 });
 
 // The other three halves of the contract: dependency data, platform authority, and the item
@@ -261,6 +355,20 @@ describe("prior-source admissibility beyond the target's fields", () => {
 
     expect(reasonFor(READ, commented)).toContain("cap_journals");
     expect(reasonFor(READ, dead)).toContain("cap_journals");
+  });
+
+  test("withholds escaped and assembled dropped dependency table names", () => {
+    const escaped = READ_SOURCE.replace(
+      "  const rows",
+      '  const oldTable = "cap_journ\\u0061ls";\n  void oldTable;\n  const rows',
+    );
+    const assembled = READ_SOURCE.replace(
+      "  const rows",
+      '  const oldTable = "cap_jour" + "nals";\n  void oldTable;\n  const rows',
+    );
+
+    expect(reasonFor(READ, escaped)).toContain("cap_journals");
+    expect(reasonFor(READ, assembled)).toContain("cap_journals");
   });
 
   // An *active* field of the target is neither inactive nor undeclared: the spec's behavior
@@ -409,6 +517,28 @@ describe("prior source in the regeneration prompt", () => {
     expect(prompts[0]).not.toContain("Prior committed source");
     expect(prompts[0]).not.toContain("legacy_note");
     expect(prompts[0]).not.toContain('if ("text" in input.values)');
+  });
+
+  test("generation drops statically assembled hidden context before prompt construction", async () => {
+    const assembled = CLEAN_CREATE.replace(
+      "  const values",
+      '  const stale = "pin" + "ned";\n  void stale;\n  const values',
+    );
+    const { provider, prompts } = recordingProvider();
+
+    await expect(
+      generateCapabilityUnit({
+        provider,
+        spec: candidateWithPinnedInactive(),
+        unit: CREATE,
+        maxAttempts: 1,
+        priorSource: assembled,
+      }),
+    ).rejects.toThrow();
+
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).not.toContain("Prior committed source");
+    expect(prompts[0]).not.toContain('const stale = "pin" + "ned"');
   });
 
   test("generation keeps admissible prior source", async () => {

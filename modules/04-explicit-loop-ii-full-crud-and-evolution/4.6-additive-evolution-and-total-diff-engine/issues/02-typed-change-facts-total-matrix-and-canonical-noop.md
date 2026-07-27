@@ -159,13 +159,13 @@ Verified 2026-07-23 (America/Bogota):
 
 1. Start the app with `bun run dev` (or reuse the server on port 3030), then open
    `http://localhost:3030/`.
-2. Click a capability in the left toolbar, then open the developer panel with the
-   `</>` icon.
-3. In the **Evolution candidate** block, type a real change — e.g.
-   `Add an optional rating field` — and select **Trace candidate**. Confirm the
+2. Click a capability in the left toolbar. In the content-area **Evolve this
+   capability** control, type a real change — e.g.
+   `Add an optional rating field` — and select **Evolve**. Open the developer
+   panel with the `</>` icon only to observe. Confirm the
    **Evolution candidate** panel shows `diff.facts` (e.g. a `new_active_field`
    fact) and `diff.workPlan` (e.g. `regeneratedUnits: ["create","update","search"]`),
-   with the View restored and the version unchanged.
+   followed by one View swap and a version increment.
 4. Submit a change that is already satisfied (a no-op) — e.g. ask for a field the
    capability already has, or re-state its current behavior. Confirm the narration
    *"That's already exactly how this works — nothing to change,"* the **Lifecycle**

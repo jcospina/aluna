@@ -76,12 +76,16 @@ export function assertFragmentIncludes(
   }
 }
 
-export function assertFragmentIncludesInOrder(fragment: string, expected: readonly string[]): void {
+export function assertFragmentIncludesInOrder(
+  action: HandlerUnitName,
+  fragment: string,
+  expected: readonly string[],
+): void {
   let cursor = 0;
   for (const text of expected) {
     const index = fragment.indexOf(text, cursor);
     if (index === -1) {
-      throw new Error(`expected read fragment to include ${JSON.stringify(text)} in order.`);
+      throw new Error(`expected ${action} fragment to include ${JSON.stringify(text)} in order.`);
     }
     cursor = index + text.length;
   }

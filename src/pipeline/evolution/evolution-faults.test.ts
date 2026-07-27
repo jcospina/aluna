@@ -139,6 +139,92 @@ describe("the point of no return", () => {
   });
 });
 
+describe("cancellation before the point of no return", () => {
+  test("cancellation during the final preview cannot publish or activate", async () => {
+    let aborted = false;
+    let publicationStarted = false;
+    const result = await evolve(env, behaviorNeutralDueDateCandidate(), "add a due date", {
+      buildId: "cancel-final-preview",
+      behavioralTierEnabled: false,
+      isAborted: () => aborted,
+      onSend: async (event, data) => {
+        if (
+          event === "candidate-preview" &&
+          (JSON.parse(data) as { assembly?: { status?: string } }).assembly?.status === "complete"
+        ) {
+          aborted = true;
+        }
+      },
+      beforePublish: () => {
+        publicationStarted = true;
+      },
+    });
+
+    expect(result.outcome.kind).toBe("cancelled");
+    expect(publicationStarted).toBe(false);
+    expect(getCapability("notes", env.conns.readonly)?.version).toBe(1);
+    expect(existsSync(versionDirectory(env, 2))).toBe(false);
+    expect(tableColumns(env, "cap_notes")).not.toContain("due_date");
+    expect(result.lifecycles.at(-1)).toMatchObject({
+      lifecycleStatus: "failed",
+      outcome: "cancelled",
+    });
+    expect(result.lifecycles.at(-1)?.stages).toEqual(
+      expect.arrayContaining([
+        { stage: "publication", state: "skipped" },
+        { stage: "activation", state: "skipped" },
+      ]),
+    );
+  });
+
+  test("cancellation observed after publication leaves the candidate non-live", async () => {
+    let aborted = false;
+    const result = await evolve(env, behaviorNeutralDueDateCandidate(), "add a due date", {
+      buildId: "cancel-after-publication",
+      behavioralTierEnabled: false,
+      isAborted: () => aborted,
+      beforePublish: () => {
+        aborted = true;
+      },
+    });
+
+    expect(result.outcome.kind).toBe("cancelled");
+    expect(existsSync(versionDirectory(env, 2))).toBe(true);
+    expect(getCapability("notes", env.conns.readonly)?.version).toBe(1);
+    expect(tableColumns(env, "cap_notes")).not.toContain("due_date");
+    expect(result.lifecycles.at(-1)).toMatchObject({
+      lifecycleStatus: "failed",
+      outcome: "cancelled",
+    });
+  });
+
+  for (const boundary of ["beforeTransaction", "afterMetricsFinalized"] as const) {
+    test(`cancellation observed at ${boundary} rolls activation back before COMMIT`, async () => {
+      let aborted = false;
+      const result = await evolve(env, behaviorNeutralDueDateCandidate(), "add a due date", {
+        buildId: `cancel-${boundary}`,
+        behavioralTierEnabled: false,
+        durableMetrics: true,
+        isAborted: () => aborted,
+        faults: {
+          [boundary]: () => {
+            aborted = true;
+          },
+        },
+      });
+
+      expect(result.outcome.kind).toBe("cancelled");
+      expect(existsSync(versionDirectory(env, 2))).toBe(true);
+      expect(getCapability("notes", env.conns.readonly)?.version).toBe(1);
+      expect(tableColumns(env, "cap_notes")).not.toContain("due_date");
+      expect(durableLifecycle(env, `cancel-${boundary}`)).toMatchObject({
+        lifecycleStatus: "failed",
+        outcome: "cancelled",
+      });
+    });
+  }
+});
+
 // Everything below stops earlier still: the candidate never becomes a snapshot at all.
 describe("failing closed before publication", () => {
   test("a failed Gate is durable failure evidence before any publication", async () => {

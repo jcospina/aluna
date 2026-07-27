@@ -12,6 +12,7 @@
 import { z } from "zod";
 
 import {
+  type CapabilityRow,
   type CapabilitySpec,
   type CapabilityTool,
   incarnationIdSchema,
@@ -62,6 +63,19 @@ export const unitProvenanceManifestSchema = z.strictObject({
 export type UnitProvenanceManifest = z.infer<typeof unitProvenanceManifestSchema>;
 
 /**
+ * One active dependency snapshot after its committed bytes have passed complete
+ * snapshot verification. This is deliberately narrower than the generation catalog:
+ * prompts receive active authored context, while provenance records the immutable
+ * identity of the exact bytes that context came from.
+ */
+export interface VerifiedDependencySnapshot {
+  readonly capability_id: string;
+  readonly incarnation_id: string;
+  readonly version: number;
+  readonly snapshot_content_digest: string;
+}
+
+/**
  * Provenance for a freshly generated complete inventory (a v1 build). Every unit's
  * bytes are new, so each records a fresh active-context digest. A v1 capability cannot
  * declare external dependencies; inventing dependency evidence here would be false, so
@@ -98,6 +112,10 @@ export function unitProvenance(
 export interface EvolutionUnitProvenanceInput {
   /** The validated candidate spec regenerated units were generated against. */
   readonly candidateSpec: CapabilitySpec;
+  /** The lease-frozen active rows projected into regenerated Handler prompts. */
+  readonly dependencyCatalog: readonly CapabilityRow[];
+  /** Verified immutable identities for the same lease-frozen dependency rows. */
+  readonly dependencySnapshots: readonly VerifiedDependencySnapshot[];
   /** The committed snapshot's per-unit provenance, carried forward for copied units. */
   readonly committedProvenance: UnitProvenanceManifest;
   /** The derived-unit filenames the Diff work plan regenerated (the rest are copied). */
@@ -113,11 +131,10 @@ export interface EvolutionUnitProvenanceInput {
  * a Diff fact, or a cascade, so carrying it forward keeps the record honest without
  * manufacturing a difference.
  *
- * Fresh provenance for a regenerated unit whose Action declares external
- * `read_dependencies` needs a verified dependency snapshot catalog to name; until that
- * exists this fails closed rather than inventing dependency evidence (the same stance
- * {@link unitProvenance} takes for fresh v1 capabilities). Copied dependency-bearing
- * units are unaffected — their provenance is carried, not recomputed.
+ * Fresh provenance for a regenerated dependency-bearing Action resolves only through the
+ * lease-frozen verified dependency snapshot catalog. Missing evidence fails closed rather
+ * than inventing an incarnation, version, or digest. Copied dependency-bearing units are
+ * unaffected — their provenance is carried, not recomputed.
  */
 export function evolutionUnitProvenance(
   input: EvolutionUnitProvenanceInput,
@@ -126,20 +143,39 @@ export function evolutionUnitProvenance(
     if (!input.regeneratedFilenames.has(filename)) return input.committedProvenance[filename];
 
     const action = handlerActionForFile(filename);
-    if (action && input.candidateSpec.read_dependencies[action].length > 0) {
-      throw new SnapshotVerificationError(
-        "Fresh dependency provenance requires a verified dependency snapshot catalog.",
-      );
-    }
     return {
       active_context_digest: contentDigest(
-        buildUnitPrompt(input.candidateSpec, descriptorForFile(filename)),
+        buildUnitPrompt(
+          input.candidateSpec,
+          descriptorForFile(filename),
+          undefined,
+          input.dependencyCatalog,
+        ),
       ),
-      dependencies: [],
+      dependencies: action ? dependencyProvenanceFor(input, action) : [],
     };
   };
 
   return mapDerivedUnits(provenanceFor);
+}
+
+function dependencyProvenanceFor(
+  input: EvolutionUnitProvenanceInput,
+  action: CapabilityTool,
+): UnitGenerationProvenance["dependencies"] {
+  return input.candidateSpec.read_dependencies[action].map((dependency) => {
+    const snapshot = input.dependencySnapshots.find(
+      (candidate) =>
+        candidate.capability_id === dependency.capability_id &&
+        candidate.incarnation_id === dependency.incarnation_id,
+    );
+    if (!snapshot) {
+      throw new SnapshotVerificationError(
+        `Dependency provenance is missing a verified snapshot for ${dependency.capability_id}/${dependency.incarnation_id}.`,
+      );
+    }
+    return snapshot;
+  });
 }
 
 function mapDerivedUnits(

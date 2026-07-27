@@ -34,6 +34,9 @@ process sandbox.
 - [x] Test fixtures: old source referencing a now-hidden field, a
       newly-undeclared dependency, and a forbidden platform authority are each
       rejected; clean prior source is admitted verbatim
+- [x] Escaped, statically assembled, and unprovable computed hidden field/table
+      names are rejected by decoded TypeScript analysis; raw comments remain
+      covered
 - [x] The admissibility decision is recorded per unit (visible in the dev
       preview work plan / metrics stage states)
 - [x] Prompt-content assertion: an inadmissible unit's regeneration prompt
@@ -42,9 +45,9 @@ process sandbox.
 
 ## Living demo
 
-The dev tracer's work plan shows, per regenerated unit, whether prior source
-was admitted or withheld and why — visible on a hide-then-evolve scenario
-against a live capability.
+The read-only developer panel's work plan shows, per regenerated unit, whether
+prior source was admitted or withheld and why after a hide-then-evolve action
+is submitted from the content-area living demo.
 
 ## Blocked by
 
@@ -172,7 +175,7 @@ Verified 2026-07-26 (America/Bogota):
 - `bun run typecheck` and `bun run lint`: clean.
 - `bun test src/builder src/pipeline src/app`: **394 pass / 0 fail** (macOS, no
   container needed). New/updated coverage:
-  - `src/builder/units/prior-source-admissibility.test.ts` (new, 16 tests): clean
+  - `src/builder/units/prior-source-admissibility.test.ts` (23 tests): clean
     source admitted verbatim; a now-hidden field rejected whether it is read, named
     in a comment, or named in an error-marker attribute; whole-token matching not
     misfiring on derived identifiers; an *active* field named outside an Action's
@@ -192,7 +195,7 @@ Verified 2026-07-26 (America/Bogota):
     `update` with a reason naming the hidden field and **no byte** of their
     committed source (nor the field name) reaches any prompt; and every unit in
     `regeneratedUnits` has a decision, including after a Gate repair.
-  - `src/app/app.evolution-candidate.test.ts`: `assembly.priorSource` reaches the
+  - `src/app/app.evolution.test.ts`: `assembly.priorSource` reaches the
     developer panel in both the `running` plan and the terminal summary.
 - Live end-to-end round-trips on the running dev server (port 3030) — see "Living
   demo — as delivered": the real AI authored the hide candidate, four units were
@@ -205,13 +208,19 @@ Verified 2026-07-26 (America/Bogota):
   restored ahead of its field-access check, which silently passes an export shape it
   cannot analyze; a Gate-repaired copied unit now gets a decision row; the
   prior-source prompt header no longer implies the behavior it implements is still
-  current. Knowingly not fixed: obfuscated field references
-  (`values["legacy_note"]`) defeat the raw-text scan — no generator emits that,
-  and the AST checks cover the reachable shapes; and the design-lint rung quotes a
+  current. The post-Epic release review then closed the remaining fail-open name
+  scan: the checker now uses TypeScript's decoded identifiers/string literals plus
+  shared static-string evaluation for constants, concatenation, and templates;
+  encoded comments are decoded conservatively, and unresolved computed property
+  names withhold on doubt. Runtime `.join(...)` assembly, reassigned bindings,
+  lexical shadowing, and computed object-property names now also withhold instead
+  of trusting an incomplete global binding value; static `.join(...)`/`.concat(...)`
+  values and reflective property-key APIs such as `Reflect.set` are covered too.
+  The design-lint rung still quotes a
   rejected unit's *rendered markup* into its own repair prompt, which is the Gate's
   failure feedback over bytes it was handed, not prior source entering a
   regeneration prompt (both repair rungs use `generateUnitContent`, which has no
-  prior-source parameter at all). Both are recorded in the module docstring.
+  prior-source parameter at all).
 - Not covered by a test, and honestly so: the `"its committed source is
   unreadable"` branch is unreachable through the public surface (the snapshot is
   hash-verified before it is read), and a Gate repair reclassifying a *copied* unit
@@ -223,11 +232,10 @@ Verified 2026-07-26 (America/Bogota):
 
 1. Start the app with `bun run dev` (or reuse the server on port 3030), then open
    `http://localhost:3030/`.
-2. Click **Experiment journal** in the left toolbar, then open the developer panel
-   with the `</>` icon.
-3. In the **Evolution candidate** block, type a *hide* intent — e.g.
+2. Click **Experiment journal** in the left toolbar. In the content-area
+   **Evolve this capability** control, type a *hide* intent — e.g.
    `The tags are no longer useful — hide them from each experiment` — and select
-   **Trace candidate**.
+   **Evolve**. Open the developer panel with the `</>` icon only to observe.
 4. The moment the Diff resolves, the **Evolution candidate** block shows
    `assembly.status: "running"` with `priorSource` **already complete**: the
    admit/withhold decision per regenerated unit is deterministic, so it is known
@@ -242,7 +250,7 @@ Verified 2026-07-26 (America/Bogota):
    `Add an optional grind size to each coffee` against **Coffee tasting diary**.
    Adding a field takes nothing away, so every regenerated unit shows
    `admitted: true` and its old source is fed back as reference.
-   The View is restored and the version is unchanged either way — publication and
-   activation are 4.6/05.
+   The completed engine then publishes, activates, and performs one View swap;
+   use the panel only to compare the prior-source decisions.
 7. Deterministic proof (runs anywhere, no container needed):
-   `bun test src/builder/units/prior-source-admissibility.test.ts src/pipeline/evolution/evolution-assembly.test.ts src/app/app.evolution-candidate.test.ts`
+   `bun test src/builder/units/prior-source-admissibility.test.ts src/pipeline/evolution/evolution-assembly.test.ts src/app/app.evolution.test.ts`

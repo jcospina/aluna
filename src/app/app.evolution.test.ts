@@ -1,5 +1,5 @@
 // The evolution dev tracer routes — Module 4.6/05. Route-level proof of the living
-// demo: the developer-panel affordance admits a live capability plus a hand-typed
+// demo: the content-area control admits a live capability plus a hand-typed
 // intent, and the terminal presentation is one of exactly three shapes — an activated
 // version behind a complete View swap, the measured no-op, or the warm rejection. The
 // engine's own end-to-end battery lives in `src/pipeline/evolution/evolution-run.test.ts`
@@ -73,20 +73,33 @@ afterEach(() => {
   tearDownEvolutionRouteEnv(env);
 });
 
-describe("the developer-panel affordance", () => {
-  test("a full-page capability load renders the intent form targeting that capability", async () => {
+describe("the content-area living-demo control", () => {
+  test("a full-page capability load renders the intent form outside the read-only panel", async () => {
     const { app } = scratchApp(env, candidateFrom(journalCapabilityRow()));
     const res = await app.request("/capability/journal");
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain('id="developer-evolution-control"');
     expect(html).toContain('hx-post="/demo/evolution/journal"');
     expect(html).toContain('name="intent"');
     expect(html).toContain("Evolution candidate");
     expect(html).toContain('id="spec-candidate-preview"');
+    const content = html.slice(
+      html.indexOf('<main class="content">'),
+      html.indexOf("</main>") + "</main>".length,
+    );
+    const panel = html.slice(
+      html.indexOf('<aside class="devbar" id="developer-panel"'),
+      html.indexOf("</aside>") + "</aside>".length,
+    );
+    expect(content).toContain('class="capability-evolution"');
+    expect(content).toContain('hx-post="/demo/evolution/journal"');
+    expect(panel).toContain('id="spec-candidate-preview"');
+    expect(panel).not.toContain('class="capability-evolution"');
+    expect(panel).not.toContain('hx-post="/demo/evolution/');
+    expect(panel).not.toContain('name="intent"');
   });
 
-  test("the cold-start shell keeps the empty placeholder — no capability, no form", async () => {
+  test("the cold-start shell has no capability and therefore no evolution form", async () => {
     const bare = createScratchDbEnv("aluna-evolution-bare-");
     try {
       const { recordMetrics } = makeMetricsRecorder();
@@ -94,7 +107,8 @@ describe("the developer-panel affordance", () => {
       const app = makeScratchApp(bare, provider, recordMetrics);
       const res = await app.request("/");
       const html = await res.text();
-      expect(html).toContain('<div id="developer-evolution-control"></div>');
+      expect(html).not.toContain("developer-evolution-control");
+      expect(html).not.toContain('class="capability-evolution"');
       expect(html).not.toContain('hx-post="/demo/evolution/');
     } finally {
       teardownScratchDbEnv(bare);

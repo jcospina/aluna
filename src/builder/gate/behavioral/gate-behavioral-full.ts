@@ -358,7 +358,11 @@ function assertFragmentExpectations(testCase: FullBehavioralTestCase, fragment: 
         throw new Error(`${testCase.action} Handler fragment unexpectedly included ${excluded}.`);
       }
     }
-    assertFragmentIncludesInOrder(fragment, testCase.expectFragmentIncludesInOrder);
+    assertFragmentIncludesInOrder(
+      testCase.action,
+      fragment,
+      testCase.expectFragmentIncludesInOrder,
+    );
   }
 }
 

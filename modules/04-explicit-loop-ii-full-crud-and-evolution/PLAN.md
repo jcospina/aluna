@@ -359,6 +359,20 @@ foreground stream and complete `commit` swap),
     | `search` | active `string`/`string[]` field names/types |
     | `read`, `delete` | none; canonical-row/delete mechanics stay in always-on smoke |
 
+    Generated success-fragment assertions must also respect the Action's
+    observable response shape:
+
+    | Action | Admissible fragment evidence |
+    | --- | --- |
+    | `create`, `update` | the one mutated item only; unordered values may come from submitted input or one affected expected row, but every fragment marker must be absent from unrelated setup rows, while collection ordering and unrelated preserved rows are state assertions |
+    | `read`, `search` | the returned collection; ordered row markers are admissible |
+    | `delete` | none; deletion is proved from scratch state |
+
+    Error cases leave every fragment assertion empty and prove only stable
+    semantic markers, codes, Action, and affected fields. The platform validates
+    this matrix before executing generated tests, so model output cannot redefine
+    an Action's response contract.
+
     Free-text `behavior` is conservatively an input to every Action. Current
     declared active dependency projections are generation context and full
     physical compatibility schemas are scratch-fixture context; neither is a

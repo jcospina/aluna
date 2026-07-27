@@ -24,6 +24,15 @@ and this closed schema projection:
 | `search` | active `string`/`string[]` field names/types |
 | `read`, `delete` | none; canonical-row/delete mechanics stay in always-on smoke |
 
+Success-fragment evidence is also Action-scoped: create/update observe one
+mutated item, read/search observe collections, and delete observes no fragment.
+Collection ordering may therefore appear only in read/search tests. An
+unordered create/update assertion may use submitted values or values from one
+affected expected row (for example a normalized result), but never an unrelated
+preserved row; any mutation marker that also occurs in an unrelated setup row is
+inadmissibly ambiguous, even when it is also a submitted value. State assertions
+own persistence, preservation, and deletion.
+
 - Free-text `behavior` is conservatively an input to every Action.
 - Current declared active dependency projections are generation context, and
   full physical compatibility schemas are scratch-fixture context; **neither**
@@ -43,6 +52,10 @@ and this closed schema projection:
 - [ ] Generated tests are frozen (content-addressed/digested in the snapshot)
       before any Handler generation or repair starts
 - [ ] Tests assert stable markers/codes/Actions/fields, never product wording
+- [ ] Platform validation rejects response-shape contradictions before Gate
+      execution: create/update collection-order or preserved-row fragment
+      assertions, delete fragment assertions, and fragment assertions on error
+      cases
 - [ ] `bun test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo

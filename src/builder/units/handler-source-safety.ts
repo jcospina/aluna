@@ -2,6 +2,11 @@ import ts from "typescript";
 
 import { capabilityQueryScopeTableNames } from "../../capability-data/index.ts";
 import type { CapabilitySpec } from "../../registry/index.ts";
+import {
+  evaluateStaticString,
+  expressionBindings,
+  unwrapExpression,
+} from "./static-string-analysis.ts";
 import type { HandlerUnitName } from "./units.ts";
 
 export interface HandlerDependencyCatalogEntry {
@@ -315,83 +320,6 @@ function sqlExpressionFromCall(call: ts.CallExpression): ts.Expression | undefin
   if (sql && ts.isPropertyAssignment(sql)) return sql.initializer;
   if (sql && ts.isShorthandPropertyAssignment(sql)) return sql.name;
   return undefined;
-}
-
-function expressionBindings(source: ts.SourceFile): ReadonlyMap<string, ts.Expression> {
-  const bindings = new Map<string, ts.Expression>();
-  const visit = (node: ts.Node): void => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-      bindings.set(node.name.text, node.initializer);
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(source);
-  return bindings;
-}
-
-function evaluateStaticString(
-  node: ts.Expression,
-  bindings: ReadonlyMap<string, ts.Expression>,
-  seen: ReadonlySet<string>,
-): string | undefined {
-  const unwrapped = unwrapExpression(node);
-  if (ts.isStringLiteralLike(unwrapped)) return unwrapped.text;
-  if (ts.isIdentifier(unwrapped)) return evaluateStaticIdentifier(unwrapped, bindings, seen);
-  if (
-    ts.isBinaryExpression(unwrapped) &&
-    unwrapped.operatorToken.kind === ts.SyntaxKind.PlusToken
-  ) {
-    return evaluateStaticConcatenation(unwrapped, bindings, seen);
-  }
-  if (ts.isTemplateExpression(unwrapped)) return evaluateStaticTemplate(unwrapped, bindings, seen);
-  return undefined;
-}
-
-function unwrapExpression(node: ts.Expression): ts.Expression {
-  if (
-    ts.isParenthesizedExpression(node) ||
-    ts.isAsExpression(node) ||
-    ts.isTypeAssertionExpression(node) ||
-    ts.isNonNullExpression(node)
-  ) {
-    return unwrapExpression(node.expression);
-  }
-  return node;
-}
-
-function evaluateStaticIdentifier(
-  node: ts.Identifier,
-  bindings: ReadonlyMap<string, ts.Expression>,
-  seen: ReadonlySet<string>,
-): string | undefined {
-  if (seen.has(node.text)) return undefined;
-  const initializer = bindings.get(node.text);
-  if (!initializer) return undefined;
-  return evaluateStaticString(initializer, bindings, new Set([...seen, node.text]));
-}
-
-function evaluateStaticConcatenation(
-  node: ts.BinaryExpression,
-  bindings: ReadonlyMap<string, ts.Expression>,
-  seen: ReadonlySet<string>,
-): string | undefined {
-  const left = evaluateStaticString(node.left, bindings, seen);
-  const right = evaluateStaticString(node.right, bindings, seen);
-  return left === undefined || right === undefined ? undefined : left + right;
-}
-
-function evaluateStaticTemplate(
-  node: ts.TemplateExpression,
-  bindings: ReadonlyMap<string, ts.Expression>,
-  seen: ReadonlySet<string>,
-): string | undefined {
-  let value = node.head.text;
-  for (const span of node.templateSpans) {
-    const expression = evaluateStaticString(span.expression, bindings, seen);
-    if (expression === undefined) return undefined;
-    value += expression + span.literal.text;
-  }
-  return value;
 }
 
 function addCapabilityTables(tables: Set<string>, value: string): void {

@@ -1,6 +1,7 @@
 // The evolution dev tracer routes — Module 4.6/05 (PLAN decisions 1, 2, 4, 21, 22,
 // 24, 27, 37; ADR-0006). The near-final evolution surface on the homepage: the
-// developer-panel affordance posts a live capability id plus a hand-typed intent, and
+// content-area living-demo control posts a live capability id plus a hand-typed intent,
+// while the read-only developer panel observes the streamed internals, and
 // the whole engine runs on the real capability — candidate spec, total validation, the
 // Diff Engine's typed change facts and unioned work plan, additive DDL, the
 // copy/regenerate split with its prior-source admissibility decisions, the Gate over the

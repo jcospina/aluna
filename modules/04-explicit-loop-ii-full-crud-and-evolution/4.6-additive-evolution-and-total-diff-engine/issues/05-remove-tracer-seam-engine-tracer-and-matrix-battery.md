@@ -1,6 +1,6 @@
 # Remove the regenerate-all seam; end-to-end engine tracer and matrix battery
 
-Status: done
+Status: ready-for-human
 
 Implementation is complete and the deterministic battery is green; the one open
 item is the live human sign-off at the bottom of this file.
@@ -39,10 +39,14 @@ Close the engine: one evolution path, proven end-to-end.
 - [x] The due-date tracer passes end-to-end with behavioral tier on and off
 - [x] A behavior-neutral additive change proves copied `read`/`search` stay
       byte-identical yet return complete new-column rows (rehydration)
-- [x] End-to-end battery green: all matrix rows *except* `read_dependencies`
-      (blocked — see "Honest limits"; pinned as a fail-closed refusal instead),
-      unions, all-Handler behavior fallback, zero-diff no-op, unmapped-fact
-      failure
+- [x] End-to-end battery green: every matrix row, including successful
+      dependency-bearing evolution with exact verified provenance; unions,
+      all-Handler behavior fallback, zero-diff no-op, unmapped-fact failure
+- [x] Cancellation during final preview delivery cannot publish or activate;
+      cancellation observed after publication or anywhere before SQLite COMMIT
+      leaves a complete non-live candidate for reconciliation
+- [x] The temporary Evolve control lives in the content area; the developer
+      panel contains previews only and is read-only
 - [x] `bun test`, `bun run typecheck`, `bun run lint` clean
 - [ ] **Human sign-off**: run the due-date evolution live on the homepage —
       one View swap, records intact, due date standing out in the list
@@ -148,7 +152,7 @@ surface publishes and activates, "candidate" would be actively misleading:
 | `src/app/evolution-candidate-routes.ts` | `src/app/evolution-routes.ts` |
 | `registerEvolutionCandidateTracerRoutes` | `registerEvolutionTracerRoutes` |
 | `POST /demo/evolution-candidate/:id` | `POST /demo/evolution/:id` |
-| `#developer-evolution-candidate-control` | `#developer-evolution-control` |
+| `#developer-evolution-candidate-control` | `.capability-evolution` in the content area |
 | `src/app/app.evolution-candidate.test.ts` | `src/app/app.evolution.test.ts` |
 
 The developer-panel *preview* vocabulary is unchanged (`candidate-preview`,
@@ -164,6 +168,19 @@ explicit that resolver classification is outside the engine until 4.8, so 05 rem
 
 ## Verification record
 
+- Post-release-blocker closure (2026-07-27):
+  - `bun test src/pipeline/evolution/evolution-matrix.test.ts
+    src/pipeline/evolution/evolution-faults.test.ts
+    src/builder/units/prior-source-admissibility.test.ts
+    src/app/app.evolution.test.ts src/app/app.complete-view-restoration.test.ts
+    src/web/fragments.test.ts` — 82 passed, 0 failed when run serially.
+  - `bun run test --shards=1` — 834 passed, 0 failed across 77 files.
+    `bun run typecheck`, `bun run lint`, and `git diff --check` — clean.
+  - Reused the user-owned `http://localhost:3030/`: the active capability showed
+    **Evolve this capability** in the content area; with the developer panel open,
+    the DOM contained all seven preview regions and no form, mutation input, or
+    activating POST target. No provider-backed evolution was submitted during this
+    read-only verification.
 - `bun run typecheck`, `bun run lint` — clean.
 - `bun run test src/pipeline src/app` — 148 passed, 0 failed; the wider
   `bun run test src/pipeline src/app src/builder src/web src/registry src/router`
@@ -182,20 +199,25 @@ explicit that resolver classification is outside the engine until 4.8, so 05 rem
     `read.ts` executed through the real query adapter** so the rehydrated record
     provably carries a column its own SQL never mentions — the measured no-op, and the
     fail-closed unmapped difference.
-  - `src/pipeline/evolution/evolution-matrix.test.ts` (16) — one complete engine run
+  - `src/pipeline/evolution/evolution-matrix.test.ts` (21) — one complete engine run
     per matrix row, asserting facts, platform work, regenerated vs. byte-copied units
     *on disk*, the DDL the live table actually got, the projected behavioral-test
     column, and that the seeded record survives; plus the monotone union of three
     unrelated facts, the list-input-mode row (own committed shape, since it needs an
     active `string[]`), hide→reactivate across two sequential evolutions (column
-    reused, the v1 value still in it), and the pinned `read_dependencies` refusal.
-  - `src/pipeline/evolution/evolution-faults.test.ts` (12) — the coverage the deleted
+    reused, the v1 value still in it), and successful dependency-bearing
+    `create`/`read`/`update`/`delete`/`search` regeneration through Gate,
+    publication, activation, and exact provenance. A dependency-byte substitution
+    after initial verification fails the pre-COMMIT recheck and cannot activate.
+  - `src/pipeline/evolution/evolution-faults.test.ts` — the coverage the deleted
     4.5 fault battery carried, now through the real engine **and the real SQLite
     metrics recorder**: each of the four pre-commit activation faults (pointer, column
     and durable row all rolled back together), the post-commit `afterCommit` fault
     (success stays authoritative), the staging fault, a failed Gate, corrupt committed
-    history, reconciliation of an interrupted never-activated candidate, cancellation,
-    and the two "only evolution path" greps.
+    history, reconciliation of an interrupted never-activated candidate,
+    cancellation before assembly, cancellation during final preview delivery,
+    cancellation after publication, cancellation at activation entry and at the
+    final pre-COMMIT boundary, and the two "only evolution path" greps.
   - `src/app/app.evolution.test.ts` (11) — rewritten for the closed engine: the
     accepted candidate emits exactly one `commit` (and no restoring `fragment`), the
     registry moves to v2 with the column live, the durable row is `success/activated`,
@@ -230,8 +252,20 @@ Fixed from it, highest-impact first:
 - **"All matrix rows" was ticked and was not true.** `list_input_mode` and the
   *reactivate* direction of hide/reactivate had no case; both now do (the list-input row
   brings its own committed shape, since it needs an active `string[]`). The
-  `read_dependencies` row is genuinely blocked — see below — and is now pinned as a
-  fail-closed refusal with the criterion qualified rather than ticked.
+  all five `read_dependencies.<action>` rows now run end to end using a separately verified
+  dependency-snapshot catalog. The model-facing catalog remains the exact active
+  projection; provenance records verified incarnation/version/content digest, and
+  Gate receives synthetic dependency schemas rather than live data. The exact
+  dependency evidence is reverified synchronously at the SQLite pre-COMMIT boundary,
+  so changed bytes roll activation back rather than leaving stale provenance live.
+- **Late cancellation crossed the publication boundary.** The engine now checks
+  cancellation after awaited final previews and again after publication before
+  activation, and `withWriteTransaction` performs the final check immediately before
+  COMMIT. Tests prove the first window creates no v2 and every later pre-commit
+  window leaves a complete candidate non-live with no DDL or pointer change.
+- **The developer panel was a mutation surface.** The Evolve form now travels with
+  the canonical content-area capability surface on full loads, toolbar navigation,
+  restoration, and commit swaps. The panel contains only observational previews.
 - **`presentFailure` treated a measured no-op as an activation.** It read only
   `lifecycleStatus === "success"`, which `success/no_change` also satisfies, so a
   presentation failure after a no-op would have told the user to refresh for a version
@@ -287,17 +321,6 @@ Knowingly not fixed, and why:
   wires the durable row every terminal path needs (`activated`, `no_change`,
   `cancelled`, and each typed failure) plus the `copied` stage state; the richer
   evolution measurement columns are not in scope here.
-- **A capability that declares cross-capability `read_dependencies` cannot be evolved
-  yet.** The Diff maps the row correctly (the named Action's Handler, and only it), but
-  `evolutionUnitProvenance` refuses to write *fresh* provenance for a regenerated unit
-  whose Action declares dependencies — it needs a verified dependency snapshot catalog
-  to name the dependency's incarnation/version/digest, and would otherwise fabricate
-  audit evidence (decision 24). It fails closed, which is the right behavior; but it
-  means this matrix row has no end-to-end case, only the pinned refusal in
-  `evolution-matrix.test.ts` → *"the read_dependencies row"*. Copied dependency-bearing
-  units are unaffected (their provenance is carried, not recomputed), so an evolution
-  that does not regenerate the declaring Action still works. Building that catalog is
-  its own piece of work and is not smuggled in here.
 - **Tier-on evolution regenerates the whole suite every time.** Decision 24's table says
   on→on with unchanged test inputs should *copy* the frozen tests and rerun only what a
   changed Handler covers. That optimisation is 4.7's. Because the tier now follows the
@@ -311,11 +334,14 @@ Knowingly not fixed, and why:
    open `http://localhost:3030/`.
 2. If the registry is empty, build a capability first: type
    `I want to keep track of my notes` in the prompt bar and wait for the View to land.
-3. Click that capability in the left toolbar, then open the developer panel with the
-   `</>` icon. Note the current version in the **Lifecycle & committed versions**
-   block, and add a record or two so there is history to preserve.
-4. In the **Evolution candidate** block, type
-   `add a due date to my notes and make it stand out in the list` and select **Evolve**.
+3. Click that capability in the left toolbar and add a record or two so there is
+   history to preserve. Confirm **Evolve this capability** appears in the content
+   area.
+4. Open the developer panel with the `</>` icon. Confirm it contains previews
+   only—no Evolve input or button—and note the current version in
+   **Lifecycle & committed versions**. In the content-area control, type
+   `add a due date to my notes and make it stand out in the list`, then select
+   **Evolve**.
 5. What confirms the work, in the order it appears:
    - the **Spec** block streams the candidate as it is authored;
    - the **Evolution candidate** block shows `assembly.status: "running"` with the

@@ -42,6 +42,9 @@ Turn unioned change facts into executed work:
 - [x] Copied units are byte-identical, never entered model context (pinned by
       provider-call assertion), and carry provenance forward; regenerated
       units refresh provenance
+- [x] A dependency-bearing regenerated Action clears Gate against a synthetic
+      dependency catalog and refreshes exact verified dependency
+      incarnation/version/snapshot-digest provenance
 - [x] Provenance alone changes no equality/Diff/cascade outcome (plan
       acceptance: audit-only)
 - [x] Smoke + design lint run over every assembled snapshot per the rule above
@@ -49,9 +52,10 @@ Turn unioned change facts into executed work:
 
 ## Living demo
 
-Through the dev tracer: evolve a live capability with a new field — the demo
-shows the added column rendering as the platform empty value on historical
-records, with unchanged Handlers visibly copied (work plan in the dev preview).
+Through the content-area evolution control, evolve a live capability with a new
+field. The demo shows the added column rendering as the platform empty value on
+historical records, while the read-only developer panel shows unchanged
+Handlers copied in the work plan.
 
 ## Blocked by
 
@@ -218,10 +222,10 @@ Original round, verified 2026-07-24 (America/Bogota):
 
 1. Start the app with `bun run dev` (or reuse the server on port 3030), then
    open `http://localhost:3030/`.
-2. Click a capability in the left toolbar (e.g. **Coffee tasting diary**), then
-   open the developer panel with the `</>` icon.
-3. In the **Evolution candidate** block, type a new-field change — e.g.
-   `Add an optional grind size to each coffee` — and select **Trace candidate**.
+2. Click a capability in the left toolbar (e.g. **Coffee tasting diary**). In the
+   content-area **Evolve this capability** control, type a new-field change — e.g.
+   `Add an optional grind size to each coffee` — and select **Evolve**. Open the
+   developer panel with the `</>` icon only to observe.
 4. Watch it stream rather than waiting for one payload. Within a second of the
    Diff resolving, the **Evolution candidate** block shows
    `assembly.status: "running"` with the `ADD COLUMN` and the
@@ -235,15 +239,15 @@ Original round, verified 2026-07-24 (America/Bogota):
      `item`/`read`/`delete` (the unchanged Handlers copied, not regenerated);
    - `gate` = `structural: passed`, `smoke: passed` (the full-CRUD/search smoke
      ran over the assembled snapshot).
-   The View is restored and the capability's version is unchanged — this issue
-   assembles and gates the candidate but does not publish or activate it (that
-   is 4.6/05).
+   The completed engine then publishes and activates the candidate in one View
+   swap. Confirm the version increases by one, the new grind-size field is
+   available, and every pre-existing coffee record remains visible.
 6. Optional: press **Cancel** mid-assembly. The running plan closes out as
    `assembly.status: "cancelled"` rather than sitting at `running` forever, and the
    work stops instead of finishing the Gate.
 7. Deterministic proof of the additive DDL, the copy/regenerate/provenance
    split, the Gate over the assembled snapshot, and the streamed liveness: run
-   `bun test src/capability-data/ddl.test.ts src/pipeline/evolution/evolution-assembly.test.ts src/app/app.evolution-candidate.test.ts`
+   `bun test src/capability-data/ddl.test.ts src/pipeline/evolution/evolution-assembly.test.ts src/app/app.evolution.test.ts`
    in the Linux container (the smoke rung segfaults `bun test` on macOS). The
    two pure suites run anywhere:
    `bun test src/pipeline/streaming/unit-preview-stream.test.ts src/pipeline/build/previewing-provider.test.ts`.

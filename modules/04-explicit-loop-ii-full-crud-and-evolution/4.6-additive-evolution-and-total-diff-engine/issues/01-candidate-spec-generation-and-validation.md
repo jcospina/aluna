@@ -156,15 +156,14 @@ Verified 2026-07-23 (America/Bogota):
 
 1. Start the app with `bun run dev` (or reuse the server on port 3030), then open
    `http://localhost:3030/`.
-2. Click a capability in the left toolbar (e.g. **Experiment journal**), then open
-   the developer panel with the `</>` icon.
-3. In the new **Evolution candidate** block, type a change — e.g.
+2. Click a capability in the left toolbar (e.g. **Experiment journal**). In the
+   content-area **Evolve this capability** control, type a change — e.g.
    `Add an optional short conclusion note to each experiment` — and select
-   **Trace candidate**.
+   **Evolve**. Open the developer panel with the `</>` icon only to observe.
 4. Confirm the narration stays warm ("Let me think through that change." → "Here's
    how I'd shape that change…"), the **Evolution candidate** preview fills with the
    accepted candidate JSON (every existing field preserved, the new field `active`),
-   and the capability list shows no new version.
+   and the completed flow performs one View swap onto the new version.
 5. Optional: submit a blank intent (expect a warm "Tell me what you'd like to
    change first.") or a nonsense/destructive intent (expect a coherent candidate
    or the warm "I couldn't quite shape that change safely" — never a cold error,

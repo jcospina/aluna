@@ -132,38 +132,37 @@ function renderCapabilityToolbarReplacement(row: Pick<CapabilityRow, "id" | "lab
 export function renderCapabilitySurface(
   row: Pick<CapabilityRow, "id" | "incarnation_id" | "version">,
   collectionHtml: string,
-  includeDeveloperControl = true,
 ): string {
   return [
     `<section class="capability-surface" data-active-capability-id="${escapeHtml(row.id)}"` +
       ` data-active-capability-incarnation="${escapeHtml(row.incarnation_id)}"` +
       ` data-active-capability-version="${row.version}">`,
     collectionHtml,
+    renderEvolutionDemoControl(row),
     "</section>",
-    ...(includeDeveloperControl ? [renderDeveloperEvolutionControl(row, true)] : []),
   ].join("\n");
 }
 
 /**
- * The evolution dev tracer affordance — Module 4.6/05. A developer targets the open
- * capability with a hand-typed intent and the whole engine runs on it: the candidate,
- * its typed change facts and work plan, the Gate, and — for a real change — one complete
- * View swap onto the next version. Any live version is a valid target, and this is the
- * platform's only evolution path. The typed text stands in for the resolved intent
- * until epic 4.8 wires the real resolver in front of it.
+ * The temporary content-area evolution control — Module 4.6/05's living demo. It drives
+ * the real activating route while the read-only developer panel merely observes the
+ * candidate, work plan, Gate, and commit previews. Epic 4.8 replaces the hand-typed
+ * stand-in with the resolved-intent interaction.
  */
-function renderDeveloperEvolutionControl(
-  row: Pick<CapabilityRow, "id">,
-  outOfBand: boolean,
-): string {
+function renderEvolutionDemoControl(row: Pick<CapabilityRow, "id">): string {
+  const inputId = `evolution-intent-${escapeHtml(row.id)}`;
   return [
-    `<div id="developer-evolution-control"${outOfBand ? ' hx-swap-oob="innerHTML"' : ""}>`,
-    `  <form class="capability-evolution" data-dev-only hx-post="/demo/evolution/${encodeURIComponent(row.id)}" hx-target="#spec-build-output" hx-swap="beforeend">`,
-    '    <label class="devbar__block-label" for="evolution-intent">Describe a change</label>',
-    '    <input id="evolution-intent" name="intent" type="text" required autocomplete="off" placeholder="Add a due date and make it stand out" />',
-    '    <button type="submit" class="btn btn--ghost">Evolve</button>',
+    '<section class="capability-evolution-demo" data-living-demo="evolution">',
+    "  <h2>Evolve this capability</h2>",
+    "  <p>Describe one change to try. Your current records stay in place while Aluna checks the next version.</p>",
+    `  <form class="capability-evolution" hx-post="/demo/evolution/${encodeURIComponent(row.id)}" hx-target="#spec-build-output" hx-swap="beforeend">`,
+    `    <label for="${inputId}">Describe a change</label>`,
+    '    <div class="capability-evolution__composer">',
+    `      <input id="${inputId}" name="intent" type="text" required autocomplete="off" placeholder="Add a due date and make it stand out" />`,
+    '      <button type="submit" class="btn btn--ghost">Evolve</button>',
+    "    </div>",
     "  </form>",
-    "</div>",
+    "</section>",
   ].join("\n");
 }
 
@@ -184,7 +183,7 @@ export function renderCapabilityShell(
   collectionHtml: string,
   shellHtml: string,
 ): string {
-  const surface = renderCapabilitySurface(activeRow, collectionHtml, false);
+  const surface = renderCapabilitySurface(activeRow, collectionHtml);
   const contentPlaceholder =
     '<div class="intro__output" id="spec-build-output" aria-live="polite"></div>';
 
@@ -197,11 +196,7 @@ export function renderCapabilityShell(
     throw new Error("The shell content target placeholder is missing.");
   }
 
-  const withEvolutionControl = withContent.replace(
-    '<div id="developer-evolution-control"></div>',
-    renderDeveloperEvolutionControl(activeRow, false),
-  );
-  return injectToolbarEntries(withEvolutionControl, renderToolbarEntries(allRows));
+  return injectToolbarEntries(withContent, renderToolbarEntries(allRows));
 }
 
 /**

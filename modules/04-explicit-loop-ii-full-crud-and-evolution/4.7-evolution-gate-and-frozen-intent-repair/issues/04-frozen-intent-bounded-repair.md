@@ -12,7 +12,10 @@ per-unit repair)
 
 ## What to build
 
-Repair that answers to frozen tests, never the other way around.
+Repair that answers to valid frozen tests, never the other way around. Generated
+tests must first pass the platform-owned per-Action input and observable-response
+contract from issue 4.7/01; an inadmissible suite is regenerated or fails the
+build before Handler repair and is never frozen as behavioral intent.
 
 - A failing behavioral assertion repairs **only the implicated Handler** when
   attribution is total; otherwise the conservative Handler set (decision 22's
@@ -33,6 +36,8 @@ Repair that answers to frozen tests, never the other way around.
       bytes; non-narrowable attribution repairs the conservative set
 - [ ] No code path can modify a frozen test during repair (pinned by digest
       verification at publication)
+- [ ] Only a suite already admitted by the platform-owned Action response
+      contract can be frozen or drive Handler repair
 - [ ] Retry bound respected; exhaustion → rollback + `failed` metrics + warm
       `fragment` restoration; prior version stays live and routable
 - [ ] Gate runs prove behavior over existing records (a repair cannot pass by

@@ -147,3 +147,34 @@
   padding: var(--space-4) var(--space-2);
   text-align: left;
 }
+
+/* Module 4.6/05 living demo. This temporary activating control belongs to the
+   content area; the developer panel remains a read-only stream of raw previews. */
+.capability-evolution-demo {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+.capability-evolution-demo h2,
+.capability-evolution-demo p {
+  margin: 0;
+}
+.capability-evolution-demo p {
+  color: var(--color-text-muted);
+}
+.capability-evolution {
+  display: grid;
+  gap: var(--space-0_5);
+}
+.capability-evolution__composer {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+.capability-evolution__composer input {
+  flex: 1;
+  min-width: 0;
+}

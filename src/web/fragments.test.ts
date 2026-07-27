@@ -100,6 +100,11 @@ describe("web fragments", () => {
       'data-active-capability-incarnation="11111111-1111-4111-8111-111111111111"',
     );
     expect(fragment).toContain('data-active-capability-version="1"');
+    expect(fragment).toContain('data-living-demo="evolution"');
+    expect(fragment).toContain('hx-post="/demo/evolution/notes"');
+    expect(fragment).not.toMatch(
+      /class="capability-evolution"[^>]*hx-swap-oob|hx-swap-oob[^>]*class="capability-evolution"/,
+    );
   });
 
   test("evolution replaces a changed label but emits no toolbar sidecar when unchanged", async () => {
@@ -123,6 +128,7 @@ describe("web fragments", () => {
     const unchanged = renderCapabilityCommitSwap(evolved, collection, "Journal");
     expect(await inspectToolbarOob(unchanged)).toMatchObject({ entryCount: 0, oobCount: 0 });
     expect(unchanged).toContain('data-active-capability-id="notes"');
+    expect(unchanged).toContain('hx-post="/demo/evolution/notes"');
   });
 });
 

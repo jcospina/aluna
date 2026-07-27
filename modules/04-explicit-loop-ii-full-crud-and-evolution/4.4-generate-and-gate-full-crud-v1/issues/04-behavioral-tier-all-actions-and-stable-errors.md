@@ -89,6 +89,14 @@ the homepage form shows the same stable error semantics the tests froze.
   search case submits a nonblank query but makes no impossible matching-row or
   ordering assertion. Smoke proves the empty match set, and behavioral reports
   ordering as honestly inapplicable instead of rejecting an architectural shape.
+- Post-Epic correction (2026-07-27): generated success-fragment assertions are
+  now validated against each Action's actual response. Create/update can assert
+  the one mutated item (including one transformed expected result) but cannot
+  assert collection order or unrelated preserved rows; any mutation marker
+  shared by an unrelated setup row is rejected as ambiguous. Read/search can
+  assert ordered collection markers; delete and every error case keep fragment
+  assertions empty. Persistence and preservation remain scratch-state assertions
+  through `expectedRows`/`expectedRowCount`.
 
 The blocker implementation is landed and green; its separate human-sign-off
 status remains tracked in issue 4.4/01.
@@ -115,6 +123,15 @@ status remains tracked in issue 4.4/01.
   the behavioral search case and all other Gate rungs before commit. The first
   used six first-pass units; the second successfully consumed bounded repairs
   for create and update, then committed normally.
+- Post-Epic regression: a provider-generated `create_entry_newest_first` case
+  that expected a preexisting row in the Create response is rejected before
+  Gate execution. Sole-preserved-row and duplicate-marker Create/Update variants
+  are also pinned. The focused behavioral, validation, and smoke suites pass 41
+  tests, including transformed mutation results and Action-specific failure
+  diagnostics.
+- Post-Epic repository verification: `bun run test` passes 841 tests across 79
+  files; `bun run typecheck`, `bun run lint`, `bun run build`, and
+  `git diff --check` are clean.
 
 ## HITL test instructions
 

@@ -43,11 +43,16 @@ export interface PlatformDatabase {
 export async function withWriteTransaction<T>(
   database: Database,
   body: () => T | Promise<T>,
+  beforeCommit?: () => void,
 ): Promise<T> {
   database.exec("BEGIN IMMEDIATE TRANSACTION;");
 
   try {
     const result = await body();
+    // This hook runs after the body's final awaited continuation and immediately before
+    // SQLite's point of no return. Activation uses it for its last cancellation check;
+    // placing that check inside an async body would leave one microtask-sized gap.
+    beforeCommit?.();
     database.exec("COMMIT;");
     return result;
   } catch (err) {

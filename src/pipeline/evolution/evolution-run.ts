@@ -22,9 +22,12 @@
 // decision 1 requires.
 
 import {
+  ActivationCancelledError,
   type ActivationFaultHooks,
   activatePublishedSnapshot,
+  assertVerifiedDependencySnapshotCatalog,
   buildDependencyGenerationCatalog,
+  buildVerifiedDependencySnapshotCatalog,
   type CapabilityDiff,
   CapabilityGateError,
   type CommitCapabilityResult,
@@ -40,6 +43,7 @@ import {
   reconcileCapabilityArtifacts,
   SnapshotVerificationError,
   UnitGenerationError,
+  type VerifiedDependencySnapshot,
   type VerifiedPublishedSnapshot,
 } from "../../builder/index.ts";
 import { applyAdditiveCapabilityMigration } from "../../capability-data/index.ts";
@@ -166,6 +170,7 @@ export async function runCapabilityEvolution(
   // capability's { capability_id, incarnation_id, label, prompt_context,
   // active_schema } — while mutation ownership is held (decision 1).
   const activeRows = listCapabilities(input.database.readonly);
+  const dependencyRows = activeRows.filter((row) => row.id !== active.id);
   const dependencyCatalog = buildDependencyGenerationCatalog(activeRows, active.id);
   const intent = handSuppliedEvolutionIntent(active, input.intentText);
 
@@ -189,7 +194,15 @@ export async function runCapabilityEvolution(
   });
 
   try {
-    return await runEvolutionStages(input, state, dependencyCatalog, intent);
+    const dependencySnapshots = buildVerifiedDependencySnapshotCatalog(activeRows, active.id);
+    return await runEvolutionStages(
+      input,
+      state,
+      dependencyCatalog,
+      dependencyRows,
+      dependencySnapshots,
+      intent,
+    );
   } catch (error) {
     // `afterCommit` is deliberately outside the transaction. Its success row is evidence
     // that the new version is authoritative, so never overwrite it as a failure.
@@ -209,6 +222,8 @@ async function runEvolutionStages(
   input: RunCapabilityEvolutionInput,
   state: EvolutionRunState,
   dependencyCatalog: readonly DependencyGenerationCatalogEntry[],
+  dependencyRows: readonly CapabilityRow[],
+  dependencySnapshots: readonly VerifiedDependencySnapshot[],
   intent: ReturnType<typeof handSuppliedEvolutionIntent>,
 ): Promise<CapabilityEvolutionOutcome> {
   const { active } = input;
@@ -242,7 +257,13 @@ async function runEvolutionStages(
   }
 
   state.stage = "assembly";
-  const assembly = await assembleCandidate(input, generated.candidate, diff);
+  const assembly = await assembleCandidate(
+    input,
+    generated.candidate,
+    diff,
+    dependencyRows,
+    dependencySnapshots,
+  );
   recordUnitMetrics(state.acc, assembly.units);
   state.acc.copiedUnits = new Set(assembly.copiedUnits);
   recordGateMetrics(state.acc, assembly.gate);
@@ -250,8 +271,17 @@ async function runEvolutionStages(
   // The Gate has passed; from here a throw is transport, not verification.
   state.stage = "delivery";
   await sendAssembledPreviews(input, generated.candidate, diff, assembly);
+  if (isAborted()) return cancel(input, state);
 
-  const { publication, commit } = await publishAndActivate(input, state, assembly);
+  const activated = await publishAndActivate(
+    input,
+    state,
+    assembly,
+    dependencyRows,
+    dependencySnapshots,
+  );
+  if (!activated) return cancel(input, state);
+  const { publication, commit } = activated;
   return { kind: "activated", assembly, publication, commit, ...base };
 }
 
@@ -293,7 +323,9 @@ async function publishAndActivate(
   input: RunCapabilityEvolutionInput,
   state: EvolutionRunState,
   assembly: AssembledEvolutionCandidate,
-): Promise<{ publication: VerifiedPublishedSnapshot; commit: CommitCapabilityResult }> {
+  dependencyRows: readonly CapabilityRow[],
+  dependencySnapshots: readonly VerifiedDependencySnapshot[],
+): Promise<{ publication: VerifiedPublishedSnapshot; commit: CommitCapabilityResult } | undefined> {
   const { active } = input;
   const { acc } = state;
   state.stage = "publication";
@@ -323,30 +355,42 @@ async function publishAndActivate(
     artifactsRoot: input.artifactsRoot,
     ...(input.beforePublish ? { beforePublish: input.beforePublish } : {}),
   });
+  // Publication is still before the point of no return. A cancellation observed after
+  // the atomic rename leaves a complete never-activated candidate for reconciliation,
+  // but must not apply DDL, move the registry pointer, or finalize activated success.
+  if (input.isAborted?.()) return undefined;
 
   state.stage = "activation";
   acc.activationAttempted = true;
-  const commit = await activatePublishedSnapshot({
-    database: input.database.readwrite,
-    spec: assembly.spec,
-    publication,
-    expected,
-    applyMigration: (database) => {
-      const startedAt = performance.now();
-      applyAdditiveCapabilityMigration(assembly.additiveMigration, database);
-      acc.timings.migrationMs = performance.now() - startedAt;
-    },
-    finalizeMetrics: () =>
-      input.recordMetrics.succeed({
-        buildId: input.buildId,
-        incarnationId: active.incarnation_id,
-        outcome: "activated",
-        stages: lifecycleStages(acc, "activated"),
-        measurement: lifecycleMeasurement(acc, state.builtAt),
-      }),
-    ...(input.faults ? { faults: input.faults } : {}),
-  });
-  return { publication, commit };
+  try {
+    const commit = await activatePublishedSnapshot({
+      database: input.database.readwrite,
+      spec: assembly.spec,
+      publication,
+      expected,
+      isAborted: input.isAborted,
+      verifyBeforeCommit: () =>
+        assertVerifiedDependencySnapshotCatalog(dependencyRows, active.id, dependencySnapshots),
+      applyMigration: (database) => {
+        const startedAt = performance.now();
+        applyAdditiveCapabilityMigration(assembly.additiveMigration, database);
+        acc.timings.migrationMs = performance.now() - startedAt;
+      },
+      finalizeMetrics: () =>
+        input.recordMetrics.succeed({
+          buildId: input.buildId,
+          incarnationId: active.incarnation_id,
+          outcome: "activated",
+          stages: lifecycleStages(acc, "activated"),
+          measurement: lifecycleMeasurement(acc, state.builtAt),
+        }),
+      ...(input.faults ? { faults: input.faults } : {}),
+    });
+    return { publication, commit };
+  } catch (error) {
+    if (error instanceof ActivationCancelledError) return undefined;
+    throw error;
+  }
 }
 
 /** Finalize a cancelled run's durable row once, then report the terminal shape. */
@@ -436,9 +480,10 @@ async function assembleCandidate(
   input: RunCapabilityEvolutionInput,
   candidate: CapabilitySpec,
   diff: CapabilityDiff,
+  dependencyRows: readonly CapabilityRow[],
+  dependencySnapshots: readonly VerifiedDependencySnapshot[],
 ): Promise<AssembledEvolutionCandidate> {
   const stream = streamAssembly(input, candidate, diff);
-  const activeRows = listCapabilities(input.database.readonly);
   try {
     const assembly = await assembleEvolutionCandidate({
       committed: input.active,
@@ -450,7 +495,8 @@ async function assembleCandidate(
       // The same freeze the candidate's catalog uses, minus this capability: a
       // self-dependency is implicit and is never declared, so the row the freeze
       // deliberately drops must not reappear in unit-generation context either.
-      dependencyCatalog: activeRows.filter((row) => row.id !== input.active.id),
+      dependencyCatalog: dependencyRows,
+      dependencySnapshots,
       // Absent, the assembled snapshot follows the global `OMNI_BEHAVIORAL_TIER` toggle,
       // exactly as a v1 build does — evolution is no longer pinned tier-off.
       ...(input.behavioralTierEnabled === undefined

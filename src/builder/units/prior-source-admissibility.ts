@@ -45,6 +45,8 @@
 // entering a regeneration prompt — `generateUnitContent`, which both repair rungs use, has
 // no prior-source parameter at all.
 
+import ts from "typescript";
+
 import { capabilityQueryScopeTableNames } from "../../capability-data/index.ts";
 import {
   activeSpecFields,
@@ -53,6 +55,7 @@ import {
   capabilitySpecFromRow,
 } from "../../registry/index.ts";
 import type { GeneratedUnitName } from "../evolution/diff-engine.ts";
+import { evaluateStaticString, expressionBindings } from "./static-string-analysis.ts";
 import { checkHandlerSourceContract, checkItemRendererSourceContract } from "./unit-checks.ts";
 import type { HandlerUnitName, UnitDescriptor } from "./units.ts";
 
@@ -108,17 +111,41 @@ export function checkPriorSourceAdmissibility(
     return withheld(`it no longer satisfies the unit contract — ${contractMessage}`);
   }
 
-  const fields = namesPresent(source, inactiveFieldNames(spec, unit, catalog));
+  return hiddenContextVerdict(spec, unit, source, catalog);
+}
+
+function hiddenContextVerdict(
+  spec: CapabilitySpec,
+  unit: UnitDescriptor,
+  source: string,
+  catalog: readonly CapabilityRow[],
+): PriorSourceAdmissibility {
+  const analysis = analyzeSourceNames(source);
+  if (!analysis) {
+    return withheld("its source cannot be parsed well enough to prove its current context");
+  }
+
+  const fields = namesPresent(analysis.meanings, inactiveFieldNames(spec, unit, catalog));
   if (fields.length > 0) {
     return withheld(
       `it names ${fields.length === 1 ? "a field" : "fields"} the candidate has made inactive: ${fields.join(", ")}`,
     );
   }
 
-  const tables = undeclaredCapabilityTables(spec, unit, source, catalog);
+  const tables = undeclaredCapabilityTables(spec, unit, analysis.meanings, catalog);
   if (tables.length > 0) {
     return withheld(
       `it names capability ${tables.length === 1 ? "table" : "tables"} outside this unit's declared scope: ${tables.join(", ")}`,
+    );
+  }
+  if (analysis.hasUnresolvedComputedName) {
+    return withheld(
+      "it computes a property name that cannot be proven inside the candidate unit contract",
+    );
+  }
+  if (analysis.hasUnstableBindings) {
+    return withheld(
+      "its string bindings are mutable or shadowed, so their names cannot be proven inside the candidate unit contract",
     );
   }
   return { admitted: true };
@@ -172,7 +199,7 @@ function hiddenFieldNamesOf(spec: CapabilitySpec): readonly string[] {
 function undeclaredCapabilityTables(
   spec: CapabilitySpec,
   unit: UnitDescriptor,
-  source: string,
+  sourceMeanings: readonly string[],
   dependencyCatalog: readonly CapabilityRow[],
 ): readonly string[] {
   const dependencies =
@@ -183,7 +210,9 @@ function undeclaredCapabilityTables(
     ),
   );
   const named = new Set(
-    [...source.matchAll(/\bcap_[a-z0-9_]+\b/gi)].map((match) => match[0].toLowerCase()),
+    sourceMeanings.flatMap((meaning) =>
+      [...meaning.matchAll(/\bcap_[a-z0-9_]+\b/gi)].map((match) => match[0].toLowerCase()),
+    ),
   );
   return [...named].filter((table) => !allowed.has(table)).sort();
 }
@@ -208,15 +237,174 @@ function declaredDependencySpecs(
 }
 
 /**
- * Which of the given names this source mentions, anywhere in its bytes. Whole-token
- * matching (`_` and `$` count as token characters) so `text` does not match inside
- * `text_element`, while `"text"`, `.text`, `text:` and a bare `text` in SQL all do.
+ * Which of the given names this source mentions, either in raw bytes or in the decoded
+ * and statically assembled meanings TypeScript gives those bytes. Whole-token matching
+ * (`_` and `$` count as token characters) keeps `text_element` distinct from `text`.
  */
-function namesPresent(source: string, names: ReadonlySet<string>): readonly string[] {
+function namesPresent(
+  sourceMeanings: readonly string[],
+  names: ReadonlySet<string>,
+): readonly string[] {
   const found = [...names].filter((name) =>
-    new RegExp(`(?<![\\p{L}\\p{N}_$])${escapeRegExp(name)}(?![\\p{L}\\p{N}_$])`, "u").test(source),
+    sourceMeanings.some((meaning) =>
+      new RegExp(`(?<![\\p{L}\\p{N}_$])${escapeRegExp(name)}(?![\\p{L}\\p{N}_$])`, "u").test(
+        meaning,
+      ),
+    ),
   );
   return found.sort();
+}
+
+interface SourceNameAnalysis {
+  readonly meanings: readonly string[];
+  readonly hasUnresolvedComputedName: boolean;
+  readonly hasUnstableBindings: boolean;
+}
+
+function analyzeSourceNames(source: string): SourceNameAnalysis | undefined {
+  const parsed = ts.createSourceFile("prior-source.ts", source, ts.ScriptTarget.Latest, true);
+  const diagnostics = (
+    parsed as ts.SourceFile & { readonly parseDiagnostics: readonly ts.Diagnostic[] }
+  ).parseDiagnostics;
+  if (diagnostics.length > 0) return undefined;
+
+  const meanings = new Set([source, decodeSourceEscapes(source)]);
+  const bindings = expressionBindings(parsed);
+  const hasUnstableBindings = sourceHasUnstableBindings(parsed);
+  let hasUnresolvedComputedName = false;
+  const visit = (node: ts.Node): void => {
+    addNodeMeanings(node, bindings, meanings);
+    hasUnresolvedComputedName ||= isUnresolvedComputedName(node, bindings);
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  return { meanings: [...meanings], hasUnresolvedComputedName, hasUnstableBindings };
+}
+
+function addNodeMeanings(
+  node: ts.Node,
+  bindings: ReadonlyMap<string, ts.Expression>,
+  meanings: Set<string>,
+): void {
+  if (ts.isIdentifier(node) || ts.isStringLiteralLike(node)) meanings.add(node.text);
+  if (!ts.isExpression(node)) return;
+  const value = evaluateStaticString(node, bindings);
+  if (value !== undefined) meanings.add(value);
+}
+
+function isUnresolvedComputedName(
+  node: ts.Node,
+  bindings: ReadonlyMap<string, ts.Expression>,
+): boolean {
+  const expression = ts.isElementAccessExpression(node)
+    ? node.argumentExpression
+    : ts.isComputedPropertyName(node)
+      ? node.expression
+      : reflectivePropertyKey(node);
+  if (!expression || ts.isNumericLiteral(expression)) return false;
+  return evaluateStaticString(expression, bindings) === undefined;
+}
+
+function reflectivePropertyKey(node: ts.Node): ts.Expression | undefined {
+  if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) {
+    return undefined;
+  }
+  const receiver = node.expression.expression;
+  if (!ts.isIdentifier(receiver)) return undefined;
+  const method = node.expression.name.text;
+  const reflectiveMethods =
+    receiver.text === "Reflect"
+      ? new Set(["defineProperty", "deleteProperty", "get", "has", "set"])
+      : receiver.text === "Object"
+        ? new Set(["defineProperty", "getOwnPropertyDescriptor", "hasOwn"])
+        : new Set<string>();
+  return reflectiveMethods.has(method) ? node.arguments[1] : undefined;
+}
+
+/**
+ * The shared evaluator intentionally stays small. For prior-source admission, make its
+ * global binding map sound by accepting only uniquely named immutable bindings. A
+ * shadow, destructuring collision, `let`/`var`, or assignment makes the proof
+ * conservative: old source is withheld and generation proceeds from the contract alone.
+ */
+function sourceHasUnstableBindings(source: ts.SourceFile): boolean {
+  const names = new Set<string>();
+  let unstable = hasDuplicateLexicalDeclarationText(source.text);
+  const declare = (name: ts.BindingName): void => {
+    bindingIdentifiers(name).forEach((identifier) => {
+      if (names.has(identifier)) unstable = true;
+      names.add(identifier);
+    });
+  };
+  const visit = (node: ts.Node): void => {
+    const binding = bindingDeclaredBy(node);
+    if (binding) declare(binding);
+    if (hasUnstableBindingSemantics(node)) unstable = true;
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return unstable;
+}
+
+function hasDuplicateLexicalDeclarationText(source: string): boolean {
+  const names = [
+    ...source.matchAll(/\b(?:const|let|var)\s+([\p{ID_Start}_$][\p{ID_Continue}_$]*)/gu),
+  ].map((match) => match[1]);
+  return names.some((name, index) => name !== undefined && names.indexOf(name) !== index);
+}
+
+function bindingDeclaredBy(node: ts.Node): ts.BindingName | undefined {
+  if (ts.isVariableDeclaration(node) || ts.isParameter(node)) return node.name;
+  return ts.isCatchClause(node) ? node.variableDeclaration?.name : undefined;
+}
+
+function hasUnstableBindingSemantics(node: ts.Node): boolean {
+  if (ts.isVariableDeclaration(node)) {
+    const declarationList = node.parent;
+    return (
+      ts.isVariableDeclarationList(declarationList) &&
+      (declarationList.flags & ts.NodeFlags.Const) === 0
+    );
+  }
+  if (ts.isBinaryExpression(node)) {
+    return (
+      isAssignmentOperator(node.operatorToken.kind) &&
+      (ts.isIdentifier(node.left) ||
+        ts.isArrayLiteralExpression(node.left) ||
+        ts.isObjectLiteralExpression(node.left))
+    );
+  }
+  if (ts.isPrefixUnaryExpression(node)) {
+    return (
+      node.operator === ts.SyntaxKind.PlusPlusToken ||
+      node.operator === ts.SyntaxKind.MinusMinusToken
+    );
+  }
+  return ts.isPostfixUnaryExpression(node);
+}
+
+function bindingIdentifiers(name: ts.BindingName): readonly string[] {
+  if (ts.isIdentifier(name)) return [name.text];
+  return name.elements.flatMap((element) =>
+    ts.isOmittedExpression(element) ? [] : bindingIdentifiers(element.name),
+  );
+}
+
+function isAssignmentOperator(kind: ts.SyntaxKind): boolean {
+  return kind >= ts.SyntaxKind.FirstAssignment && kind <= ts.SyntaxKind.LastAssignment;
+}
+
+function decodeSourceEscapes(source: string): string {
+  return source
+    .replace(/\\u\{([0-9a-f]{1,6})\}/gi, (_match, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16)),
+    )
+    .replace(/\\u([0-9a-f]{4})/gi, (_match, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16)),
+    )
+    .replace(/\\x([0-9a-f]{2})/gi, (_match, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16)),
+    );
 }
 
 function escapeRegExp(value: string): string {

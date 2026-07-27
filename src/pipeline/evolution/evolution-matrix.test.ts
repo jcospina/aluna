@@ -10,11 +10,11 @@
 // intersection.
 
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { notesSpec } from "../../builder/gate/gate.test-support.ts";
 import {
   type CapabilityGateResult,
-  diffCapabilitySpec,
-  evolutionUnitProvenance,
   type GeneratedUnitName,
   type PlatformWorkKind,
   verifyCapabilitySnapshot,
@@ -27,12 +27,15 @@ import {
 } from "../../registry/index.ts";
 import {
   activated,
+  addCommittedDependency,
   committedGate,
   committedSpec,
+  durableLifecycle,
   type EngineEnv,
   evolve,
   factKinds,
   HISTORICAL_TEXT,
+  handlersFor,
   publishedUnit,
   setUpCommitted,
   tableColumns,
@@ -412,14 +415,69 @@ describe("the list-input mode row", () => {
 });
 
 describe("the read_dependencies row", () => {
-  test("fails closed rather than inventing dependency provenance", async () => {
-    // The matrix maps a `read_dependencies.<action>` change to the named Action's
-    // Handler. The engine derives that correctly — but publishing the result needs a
-    // *verified dependency snapshot catalog*, which `evolutionUnitProvenance` does not
-    // have yet, so it refuses to write fresh provenance rather than fabricate the
-    // dependency's incarnation/version/digest (decision 24; ADR-0006). Pinned here so
-    // the refusal is a recorded, deliberate gap and cannot silently become a fake.
+  for (const action of ["create", "read", "update", "delete", "search"] as const) {
+    test(`${action} regenerates, Gates, and activates exact dependency provenance`, async () => {
+      const shelvesIncarnation = "66666666-6666-4666-8666-666666666666";
+      const shelves = notesSpec({
+        id: "shelves",
+        label: "Shelves",
+        prompt_context: "Stores named shelves that notes may organize against.",
+      });
+      const shelvesPublication = await addCommittedDependency(env, shelves, shelvesIncarnation);
+      const readDependencies = {
+        create: [],
+        read: [],
+        update: [],
+        delete: [],
+        search: [],
+        [action]: [{ capability_id: "shelves", incarnation_id: shelvesIncarnation }],
+      };
+      const candidate = notesSpec({ read_dependencies: readDependencies });
+      const dependencyAwareSource = withDependencyQuery(candidate, action);
+
+      const result = await evolve(env, candidate, `let notes ${action} read my shelves`, {
+        buildId: `${action}-dependency`,
+        behavioralTierEnabled: false,
+        unitOverrides: { [action]: dependencyAwareSource },
+      });
+      const outcome = activated(result);
+
+      expect(outcome.diff.facts).toEqual([{ kind: "read_dependencies", action }]);
+      expect([...outcome.diff.workPlan.platformWork]).toEqual(["read_catalog"]);
+      expect([...outcome.diff.workPlan.regeneratedUnits]).toEqual([action]);
+      expect([...outcome.diff.workPlan.gate.behavioral.actions]).toEqual([action]);
+      expect(outcome.assembly.regeneratedUnits).toEqual([action]);
+      expect(result.generatedUnits).toEqual([action]);
+      expect(publishedUnit(env, 2, `${action}.ts`)).toBe(dependencyAwareSource);
+      expect(getCapability("notes", env.conns.readonly)?.version).toBe(2);
+
+      const before = verifyCapabilitySnapshot(versionDirectory(env, 1));
+      const after = verifyCapabilitySnapshot(versionDirectory(env, 2));
+      expect(after.manifest.unit_provenance[`${action}.ts`].dependencies).toEqual([
+        {
+          capability_id: "shelves",
+          incarnation_id: shelvesIncarnation,
+          version: 1,
+          snapshot_content_digest: shelvesPublication.manifest.snapshot_content_digest,
+        },
+      ]);
+      expect(after.manifest.unit_provenance[`${action}.ts`].active_context_digest).not.toBe(
+        before.manifest.unit_provenance[`${action}.ts`].active_context_digest,
+      );
+      expect(
+        result.prompts.find((prompt) => prompt.startsWith(`Generate the ${action}.ts`)),
+      ).toContain('"capability_id": "shelves"');
+    });
+  }
+
+  test("dependency bytes changed before activation fail closed against frozen evidence", async () => {
     const shelvesIncarnation = "66666666-6666-4666-8666-666666666666";
+    const shelves = notesSpec({
+      id: "shelves",
+      label: "Shelves",
+      prompt_context: "Stores named shelves that notes may organize against.",
+    });
+    const shelvesPublication = await addCommittedDependency(env, shelves, shelvesIncarnation);
     const candidate = notesSpec({
       read_dependencies: {
         create: [],
@@ -429,20 +487,42 @@ describe("the read_dependencies row", () => {
         search: [],
       },
     });
-    const diff = diffCapabilitySpec(committedSpec(), candidate);
-    // The Diff half of the row is right: the named Action, and only it.
-    expect(diff.facts).toEqual([{ kind: "read_dependencies", action: "read" }]);
-    expect([...diff.workPlan.platformWork]).toEqual(["read_catalog"]);
-    expect([...diff.workPlan.regeneratedUnits]).toEqual(["read"]);
-    expect([...diff.workPlan.gate.behavioral.actions]).toEqual(["read"]);
-
-    expect(() =>
-      evolutionUnitProvenance({
-        candidateSpec: candidate,
-        committedProvenance: verifyCapabilitySnapshot(versionDirectory(env, 1)).manifest
-          .unit_provenance,
-        regeneratedFilenames: new Set(["read.ts"]),
+    await expect(
+      evolve(env, candidate, "let notes read my shelves", {
+        buildId: "dependency-changed-before-activation",
+        durableMetrics: true,
+        behavioralTierEnabled: false,
+        unitOverrides: { read: withDependencyQuery(candidate, "read") },
+        beforePublish: () => {
+          writeFileSync(join(shelvesPublication.directory, "read.ts"), "corrupted\n");
+        },
       }),
-    ).toThrow(/dependency snapshot catalog/i);
+    ).rejects.toThrow(/dependency|snapshot|verification/i);
+
+    expect(getCapability("notes", env.conns.readonly)?.version).toBe(1);
+    expect(existsSync(versionDirectory(env, 2))).toBe(true);
+    expect(durableLifecycle(env, "dependency-changed-before-activation")).toMatchObject({
+      lifecycleStatus: "failed",
+      outcome: "activation_failed",
+    });
+    expect(() => verifyCapabilitySnapshot(shelvesPublication.directory)).toThrow();
   });
 });
+
+function withDependencyQuery(spec: CapabilitySpec, action: CapabilityTool): string {
+  const source = handlersFor(spec)[action];
+  const firstLineEnd = source.indexOf("\n");
+  const signature = source
+    .slice(0, firstLineEnd)
+    .replace(
+      action === "delete" ? "{ mutation }" : "{ input, mutation",
+      action === "delete" ? "{ mutation, query }" : "{ input, query, mutation",
+    );
+  const dependencyRead = [
+    "  query.all({",
+    '    sql: \'SELECT "text" FROM "cap_shelves"\',',
+    '    result: [{ alias: "text", type: "string" }],',
+    "  });",
+  ].join("\n");
+  return `${signature}\n${dependencyRead}${source.slice(firstLineEnd)}`;
+}
