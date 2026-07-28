@@ -13,14 +13,18 @@ import type { ZodType } from "zod";
 import {
   activatePublishedSnapshot,
   applyCapabilityMigration,
+  type BehavioralTierInput,
   CapabilityGateError,
   type CapabilityGateResult,
   type CommitCapabilityResult,
   FIRST_CAPABILITY_VERSION,
+  type FrozenBehavioralTestsResult,
+  freezeBehavioralTests,
   type GeneratedUnit,
   generateCapabilityUnits,
   generateSpec,
   publishCapabilitySnapshot,
+  resolveBehavioralTierEnabled,
   runCapabilityGate,
   type UnitGenerationAttempt,
 } from "../../builder/index.ts";
@@ -170,6 +174,14 @@ export async function runSpecBuildStages(
   }
   throwIfAborted(isAborted);
 
+  // Behavioral intent is frozen here, before the first Handler byte exists (PLAN decision
+  // 23, ADR-0006). Tests authored after code could only describe it; authored before, they
+  // are the contract the Gate holds the code to.
+  const frozenTests = resolveBehavioralTierEnabled()
+    ? await freezeBehavioralTests({ provider, spec })
+    : undefined;
+  throwIfAborted(isAborted);
+
   await send("narration", " I'm shaping it into something you can use.");
   const unitResult = await generateUnitsWithPreview(send, isAborted, provider, spec);
   throwIfAborted(isAborted);
@@ -188,6 +200,7 @@ export async function runSpecBuildStages(
       itemRenderer: unitResult.itemRenderer,
       provider,
       realDatabase: database,
+      behavioralTier: behavioralTierInput(frozenTests),
     });
   } catch (error) {
     if (error instanceof CapabilityGateError) acc.gateRungs = error.outcomes;
@@ -212,29 +225,12 @@ export async function runSpecBuildStages(
         gateResult.structural,
         gateResult.smoke,
         gateResult.behavioral,
+        frozenTests?.report,
       ),
     ),
   );
 
-  // The developer's verification surface: the full validated spec and the duration
-  // + token usage the metrics row records. Console only.
-  console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
-    usage,
-    spec,
-    units: commitUnits.map((unit) => ({
-      kind: unit.kind,
-      name: unit.name,
-      attempts: unit.attempts.length,
-      durationMs: Math.round(unit.durationMs),
-      usage: unit.usage,
-    })),
-    gate: {
-      durationMs: Math.round(gateResult.durationMs),
-      rungs: gateResult.outcomes,
-      smoke: gateResult.smoke,
-      behavioral: gateResult.behavioral,
-    },
-  });
+  logBuildVerification(spec, durationMs, usage, commitUnits, gateResult);
 
   // Publish first. Activation then keeps only DDL + registry CAS + lifecycle success
   // inside SQLite's short transaction.
@@ -260,6 +256,66 @@ export async function runSpecBuildStages(
       acc.timings.migrationMs = migration.durationMs;
     },
     finalizeMetrics: () => onActivated(),
+  });
+}
+
+/**
+ * Hand a run's frozen behavioral tests to the Gate. The tier is decided — and the suite
+ * authored — before Handler generation (PLAN decision 23), so by here the answer is simply
+ * whether a frozen suite exists. Shared with the evolution assembler so both pipelines
+ * report the same generated/carried split into the same metrics columns.
+ */
+export function behavioralTierInput(
+  frozen: FrozenBehavioralTestsResult | undefined,
+): BehavioralTierInput {
+  if (!frozen) return { enabled: false };
+  return {
+    enabled: true,
+    frozen: {
+      frozenTests: frozen.frozenTests,
+      generation: {
+        outcome: "passed",
+        durationMs: frozen.durationMs,
+        usage: frozen.usage,
+        testCount: frozen.testCount,
+        generatedActions: frozen.report
+          .filter((entry) => entry.status === "generated")
+          .map((entry) => entry.action),
+        carriedActions: frozen.report
+          .filter((entry) => entry.status === "carried")
+          .map((entry) => entry.action),
+      },
+    },
+  };
+}
+
+/**
+ * The developer's verification surface: the full validated spec and the duration + token
+ * usage the metrics row records. Console only.
+ */
+function logBuildVerification(
+  spec: CapabilitySpec,
+  durationMs: number,
+  usage: TokenUsage,
+  commitUnits: readonly GeneratedUnit[],
+  gateResult: CapabilityGateResult,
+): void {
+  console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
+    usage,
+    spec,
+    units: commitUnits.map((unit) => ({
+      kind: unit.kind,
+      name: unit.name,
+      attempts: unit.attempts.length,
+      durationMs: Math.round(unit.durationMs),
+      usage: unit.usage,
+    })),
+    gate: {
+      durationMs: Math.round(gateResult.durationMs),
+      rungs: gateResult.outcomes,
+      smoke: gateResult.smoke,
+      behavioral: gateResult.behavioral,
+    },
   });
 }
 

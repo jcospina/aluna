@@ -12,16 +12,17 @@ import {
   UPDATE_HANDLER as FULL_UPDATE_HANDLER,
 } from "../../../app/app.test-support.ts";
 import { deriveCapabilityTableDdl } from "../../../capability-data/index.ts";
-import type { CapabilitySpec } from "../../../registry/index.ts";
+import { BEHAVIORAL_ERROR_MARKERS, type CapabilitySpec } from "../../../registry/index.ts";
 import {
   CREATE_HANDLER,
   DEFAULT_BEHAVIORAL_SUITE,
   expectGateFailure,
+  type FullBehavioralTestSuite,
+  frozenTestsInput,
   fullBehavioralSuiteFor,
   GOOD_HANDLERS,
   gateInput,
   generatedUnitsFor,
-  makeBehaviorProvider,
   notesSpec,
 } from "../gate.test-support.ts";
 import {
@@ -29,27 +30,99 @@ import {
   resolveBehavioralTierEnabled,
   runCapabilityGate,
 } from "../gate.ts";
+import { runFullBehavioralRung } from "./gate-behavioral-full.ts";
 
 setDefaultTimeout(15_000);
 
 const FIVE_ACTION_SPEC = notesSpec();
 const FIVE_ACTION_UNITS = generatedUnitsFor(FIVE_ACTION_SPEC);
 
-function fullInput(suite: unknown = FULL_BEHAVIORAL_SUITE) {
-  return gateInput({
-    spec: FULL_NOTES_SPEC as CapabilitySpec,
-    ddl: deriveCapabilityTableDdl(FULL_NOTES_SPEC as CapabilitySpec),
-    itemRenderer: FULL_ITEM_RENDERER,
-    handlers: {
-      create: FULL_CREATE_HANDLER,
-      read: FULL_READ_HANDLER,
-      update: FULL_UPDATE_HANDLER,
-      delete: FULL_DELETE_HANDLER,
-      search: FULL_SEARCH_HANDLER,
+function fullInput(suite: FullBehavioralTestSuite = FULL_BEHAVIORAL_SUITE) {
+  return gateInput(
+    {
+      spec: FULL_NOTES_SPEC as CapabilitySpec,
+      ddl: deriveCapabilityTableDdl(FULL_NOTES_SPEC as CapabilitySpec),
+      itemRenderer: FULL_ITEM_RENDERER,
+      handlers: {
+        create: FULL_CREATE_HANDLER,
+        read: FULL_READ_HANDLER,
+        update: FULL_UPDATE_HANDLER,
+        delete: FULL_DELETE_HANDLER,
+        search: FULL_SEARCH_HANDLER,
+      },
     },
-    provider: makeBehaviorProvider(suite).provider,
-  });
+    suite,
+  );
 }
+
+describe("capability gate — empty behavioral read", () => {
+  test("accepts the required empty read fragment when no rows exist", async () => {
+    const emptyReadSuite = structuredClone(DEFAULT_BEHAVIORAL_SUITE);
+    const readCase = emptyReadSuite.cases.find((testCase) => testCase.action === "read");
+    if (!readCase) throw new Error("behavioral suite is missing normal read coverage");
+    readCase.name = "returns empty collection when no entries exist";
+    readCase.setupRows = [];
+    readCase.expectedRows = [];
+    readCase.expectedRowCount = 0;
+    readCase.expectFragmentIncludes = [];
+    readCase.expectFragmentExcludes = [];
+    readCase.expectFragmentIncludesInOrder = [];
+
+    const result = await runCapabilityGate(gateInput({}, emptyReadSuite));
+
+    expect(result.behavioral.status).toBe("passed");
+  });
+
+  test("preserves semantic error fragments for read error cases with no rows", async () => {
+    const readError: CapabilitySpec["behavioral_errors"][number] = {
+      action: "read",
+      trigger: "read_unavailable",
+      code: "read_unavailable",
+      fields: ["text"],
+      expected_markers: BEHAVIORAL_ERROR_MARKERS,
+    };
+    const baseSpec = notesSpec();
+    const spec = notesSpec({
+      behavioral_errors: [...baseSpec.behavioral_errors, readError],
+    });
+    const suite = { cases: [...structuredClone(DEFAULT_BEHAVIORAL_SUITE).cases] };
+    const normalRead = suite.cases.find((testCase) => testCase.action === "read");
+    if (!normalRead) throw new Error("behavioral suite is missing normal read coverage");
+    suite.cases.push({
+      ...normalRead,
+      name: "reports an unavailable read with stable markers",
+      setupRows: [],
+      expectedRows: [],
+      expectedRowCount: 0,
+      expectFragmentIncludes: [],
+      expectFragmentExcludes: [],
+      expectFragmentIncludesInOrder: [],
+      expectedError: readError,
+    });
+    const read = [
+      "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+      "  const rows = query.records({",
+      '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+      "  });",
+      '  if (rows.length === 0) return \'<div data-role="error" data-error-code="read_unavailable" data-error-fields="text">Unavailable.</div>\';',
+      '  return rows.map(({ record }) => present(record)).join("");',
+      "}",
+    ].join("\n");
+
+    const result = await runFullBehavioralRung(
+      gateInput(
+        {
+          spec,
+          ddl: deriveCapabilityTableDdl(spec),
+          handlers: { ...GOOD_HANDLERS, read },
+        },
+        suite,
+      ),
+    );
+
+    expect(result.status).toBe("passed");
+  });
+});
 
 describe("capability gate — behavioral violations", () => {
   test("behavioral rung fails violating handlers and passes conforming handlers", async () => {
@@ -79,12 +152,14 @@ describe("capability gate — behavioral violations", () => {
     );
 
     const pass = await runCapabilityGate(
-      gateInput({
-        spec: trimSpec,
-        ddl: deriveCapabilityTableDdl(trimSpec),
-        provider: makeBehaviorProvider(trimSuite).provider,
-        handlers: { ...GOOD_HANDLERS, create: trimmingCreate },
-      }),
+      gateInput(
+        {
+          spec: trimSpec,
+          ddl: deriveCapabilityTableDdl(trimSpec),
+          handlers: { ...GOOD_HANDLERS, create: trimmingCreate },
+        },
+        trimSuite,
+      ),
     );
     expect(pass.outcomes.map((outcome) => `${outcome.rung}:${outcome.status}`)).toEqual([
       "structural:passed",
@@ -94,12 +169,14 @@ describe("capability gate — behavioral violations", () => {
     ]);
 
     const error = await expectGateFailure(
-      gateInput({
-        spec: trimSpec,
-        ddl: deriveCapabilityTableDdl(trimSpec),
-        provider: makeBehaviorProvider(trimSuite).provider,
-        handlers: GOOD_HANDLERS,
-      }),
+      gateInput(
+        {
+          spec: trimSpec,
+          ddl: deriveCapabilityTableDdl(trimSpec),
+          handlers: GOOD_HANDLERS,
+        },
+        trimSuite,
+      ),
     );
 
     expect(error.failedRung).toBe("behavioral");
@@ -191,25 +268,27 @@ describe("capability gate — behavioral scratch catalog", () => {
     });
 
     const result = await runCapabilityGate(
-      gateInput({
-        spec,
-        ddl: deriveCapabilityTableDdl(spec),
-        handlers,
-        itemRenderer,
-        provider: makeBehaviorProvider(suite).provider,
-        scratchCatalog: [
-          {
-            spec: dependencySpec,
-            incarnationId: dependencyIncarnation,
-            rows: [
-              {
-                text: "synthetic behavior",
-                retired_note: "compatible hidden value",
-              },
-            ],
-          },
-        ],
-      }),
+      gateInput(
+        {
+          spec,
+          ddl: deriveCapabilityTableDdl(spec),
+          handlers,
+          itemRenderer,
+          scratchCatalog: [
+            {
+              spec: dependencySpec,
+              incarnationId: dependencyIncarnation,
+              rows: [
+                {
+                  text: "synthetic behavior",
+                  retired_note: "compatible hidden value",
+                },
+              ],
+            },
+          ],
+        },
+        suite,
+      ),
     );
 
     expect(result.behavioral.status).toBe("passed");
@@ -241,9 +320,7 @@ describe("capability gate — setup-row ordering", () => {
     readCase.expectFragmentIncludes = ["Newest setup note", "Older note"];
     readCase.expectFragmentIncludesInOrder = ["Newest setup note", "Older note"];
 
-    const result = await runCapabilityGate(
-      gateInput({ provider: makeBehaviorProvider(orderSuite).provider }),
-    );
+    const result = await runCapabilityGate(gateInput({}, orderSuite));
 
     expect(result.outcomes.map((outcome) => `${outcome.rung}:${outcome.status}`)).toEqual([
       "structural:passed",
@@ -287,9 +364,7 @@ describe("capability gate — setup-row ordering", () => {
     readCase.expectFragmentIncludes = ["Newest setup note", "Middle note", "Oldest note"];
     readCase.expectFragmentIncludesInOrder = ["Newest setup note", "Middle note", "Oldest note"];
 
-    const result = await runCapabilityGate(
-      gateInput({ provider: makeBehaviorProvider(orderSuite).provider }),
-    );
+    const result = await runCapabilityGate(gateInput({}, orderSuite));
 
     expect(result.outcomes.map((outcome) => `${outcome.rung}:${outcome.status}`)).toEqual([
       "structural:passed",
@@ -301,13 +376,79 @@ describe("capability gate — setup-row ordering", () => {
 });
 
 describe("capability gate — behavioral tier", () => {
-  test("tier-on retains the exact validated suite for snapshot publication", async () => {
+  test("tier-on retains the exact frozen per-Action suite for snapshot publication", async () => {
     const result = await runCapabilityGate(fullInput());
 
     expect(result.behavioral.tier).toBe("on");
     if (result.behavioral.tier !== "on") throw new Error("Behavioral tier unexpectedly skipped.");
-    expect(result.behavioral.frozenTests as unknown).toEqual(FULL_BEHAVIORAL_SUITE);
-    expect(result.behavioral.frozenTests.cases).toHaveLength(result.behavioral.testGen.testCount);
+    const frozen = result.behavioral.frozenTests;
+    expect(frozen.actions.map((entry) => entry.action)).toEqual([
+      "create",
+      "read",
+      "update",
+      "delete",
+      "search",
+    ]);
+    // The Gate hands back exactly what it was given — every case, unmoved and undigested
+    // by execution — regrouped only by the Action that owns it.
+    expect(frozen.actions.flatMap((entry) => entry.cases)).toEqual(
+      ["create", "read", "update", "delete", "search"].flatMap((action) =>
+        FULL_BEHAVIORAL_SUITE.cases.filter((testCase) => testCase.action === action),
+      ),
+    );
+    for (const entry of frozen.actions) expect(entry.input_digest).toMatch(/^sha256:[a-f0-9]{64}$/);
+  });
+
+  test("tier-on without a frozen suite fails closed instead of silently skipping", async () => {
+    // The Gate executes behavioral intent; it never authors it. A caller that turned the
+    // tier on but froze nothing has a bug, and a skipped rung would hide it.
+    const error = await expectGateFailure({
+      ...fullInput(),
+      behavioralTier: { enabled: true },
+    });
+
+    expect(error.failedRung).toBe("behavioral");
+    expect(error.outcomes.find((outcome) => outcome.rung === "behavioral")?.error).toContain(
+      "no frozen test suite was supplied",
+    );
+  });
+
+  test("tier-on rejects a frozen suite that is not addressed to the spec's own inputs", async () => {
+    const input = fullInput();
+    const frozen = frozenTestsInput(FULL_NOTES_SPEC as CapabilitySpec);
+    const tampered = {
+      ...frozen,
+      frozenTests: {
+        actions: frozen.frozenTests.actions.map((entry) =>
+          entry.action === "create"
+            ? { ...entry, input_digest: `sha256:${"0".repeat(64)}` }
+            : entry,
+        ),
+      },
+    };
+
+    const error = await expectGateFailure({
+      ...input,
+      behavioralTier: { enabled: true, frozen: tampered },
+    });
+
+    expect(error.failedRung).toBe("behavioral");
+    expect(error.outcomes.find((outcome) => outcome.rung === "behavioral")?.error).toContain(
+      "Frozen create tests are not content-addressed to their current total inputs",
+    );
+  });
+
+  test("tier-off rejects supplied frozen intent instead of silently discarding it", async () => {
+    const input = fullInput();
+    const frozen = input.behavioralTier?.frozen;
+    if (!frozen) throw new Error("fixture is missing frozen behavioral intent");
+
+    await expect(
+      runCapabilityGate({
+        ...input,
+        behavioralTier: { enabled: false, frozen },
+      }),
+    ).rejects.toThrow("refusing to discard frozen intent");
   });
 
   test("behavioral tier defaults on and can be globally skipped for baseline runs", async () => {

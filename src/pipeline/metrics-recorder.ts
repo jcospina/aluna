@@ -7,6 +7,7 @@
 
 import type { Database } from "bun:sqlite";
 import {
+  BehavioralTestGenerationError,
   CapabilityGateError,
   type CapabilityGateResult,
   type GateRungOutcome,
@@ -169,10 +170,21 @@ function activationStageState(
   return terminal === "activated" || acc.activationAttempted ? "executed" : "skipped";
 }
 
+function behavioralTestGenerationStageState(
+  acc: DemoBuildAccumulator,
+  behavioralSeen: boolean,
+  failure: GenerationFailure | undefined,
+): GenerationStageMeasurement["state"] {
+  if (acc.timings.testGenMs !== undefined) return "generated";
+  if (failure?.stage === "behavioral_test_generation") return "executed";
+  return behavioralSeen ? "absent" : "skipped";
+}
+
 /** A complete semantic state vector; later evolution can mark individual entries copied. */
 export function lifecycleStages(
   acc: DemoBuildAccumulator,
   terminal: LifecycleTerminal,
+  failure?: GenerationFailure,
 ): readonly GenerationStageMeasurement[] {
   const generatedUnits = new Set(acc.unitAttempts?.map((unit) => `${unit.kind}:${unit.name}`));
   const gateByName = new Map(acc.gateRungs?.map((rung) => [rung.rung, rung.status]));
@@ -197,8 +209,7 @@ export function lifecycleStages(
     })),
     {
       stage: "behavioral_test_generation",
-      state:
-        acc.timings.testGenMs !== undefined ? "generated" : behavioralSeen ? "absent" : "skipped",
+      state: behavioralTestGenerationStageState(acc, behavioralSeen, failure),
     },
     {
       stage: "behavioral_test_execution",
@@ -263,6 +274,11 @@ export function lifecycleFailureOutcome(failure: GenerationFailure): GenerationF
       return "migration_failed";
     case "unit_generation":
       return "unit_generation_failed";
+    case "behavioral_test_generation":
+      // Preserve the durable terminal vocabulary and SQLite CHECK established by 0008.
+      // The measurement's exact stage distinguishes this pre-Gate tier failure, while the
+      // coarse terminal outcome remains the behavioral experiment's existing bucket.
+      return "gate_failed";
     case "gate":
       return "gate_failed";
     case "publication":
@@ -315,6 +331,11 @@ export function classifyBuildFailure(error: unknown, acc: DemoBuildAccumulator):
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof CapabilityGateError) {
     return { stage: "gate", rung: error.failedRung, message };
+  }
+  // Freezing happens before either Handler generation or the Gate (4.7/01). Name that real
+  // stage instead of fabricating a failed behavioral rung that never entered the inventory.
+  if (error instanceof BehavioralTestGenerationError) {
+    return { stage: "behavioral_test_generation", message };
   }
   if (error instanceof UnitGenerationError) {
     return { stage: "unit_generation", message };

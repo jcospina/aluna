@@ -10,7 +10,6 @@ import {
   selectCapabilityRows,
 } from "../../../capability-data/index.ts";
 import type { PresentationAdapter } from "../../../presentation/index.ts";
-import type { Provider, TokenUsage } from "../../../provider/index.ts";
 import { activeSpecFields, type CapabilitySpec } from "../../../registry/index.ts";
 import type { CapabilityInput } from "../../../router/index.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
@@ -33,12 +32,10 @@ import {
   snapshotCapabilityTables,
   sqlIdentifier,
 } from "../gate-internal.ts";
-import { assertFullSuiteContract } from "./gate-behavioral-full-contract.ts";
-import { buildFullBehavioralTestPrompt } from "./gate-behavioral-full-prompt.ts";
+import { assertFrozenTestsContract } from "./gate-behavioral-full-contract.ts";
 import {
   type FullBehavioralTestCase,
-  type FullBehavioralTestSuite,
-  fullBehavioralTestSuiteSchema,
+  frozenBehavioralTestCases,
 } from "./gate-behavioral-full-schema.ts";
 import {
   type BehavioralScalar,
@@ -53,12 +50,6 @@ import {
   assertValidationErrorMarkers,
   rowMatches,
 } from "./gate-behavioral-shared.ts";
-
-interface GeneratedFullBehavioralTests {
-  readonly suite: FullBehavioralTestSuite;
-  readonly durationMs: number;
-  readonly usage: TokenUsage;
-}
 
 interface FullBehavioralCaseDiagnostic {
   readonly testCase: FullBehavioralTestCase;
@@ -79,59 +70,51 @@ class FullBehavioralCaseFailure extends Error {
   }
 }
 
+/**
+ * Execute the frozen behavioral suite. The rung generates nothing: decision 23 freezes the
+ * suite before any Handler is generated or repaired (4.7/01), so by the time the Gate runs
+ * the tests already exist and the rung's only job is to run them against the exact bytes
+ * the Gate is about to clear. The platform contract is re-asserted here rather than trusted
+ * from the freeze stage, so no caller can smuggle an inadmissible suite into execution.
+ */
 export async function runFullBehavioralRung(
   input: CapabilityGateInput,
 ): Promise<BehavioralGateResult> {
-  if (!input.provider) {
+  const frozen = input.behavioralTier?.frozen;
+  if (!frozen) {
     throw new Error(
-      "Behavioral tier is on, but no provider was supplied for behavioral test generation.",
+      "Behavioral tier is on, but no frozen test suite was supplied. Tests are generated and frozen before Handler generation or repair (PLAN decision 23).",
     );
   }
-  const generated = await generateFullBehavioralTests(input.provider, input.spec);
-  const testRun = await runFullBehavioralTests(input, generated.suite);
+  assertFrozenTestsContract(input.spec, frozen.frozenTests);
+  const testRun = await runFullBehavioralTests(
+    input,
+    frozenBehavioralTestCases(frozen.frozenTests),
+  );
   return {
     tier: "on",
     status: "passed",
-    testGen: {
-      outcome: "passed",
-      durationMs: generated.durationMs,
-      usage: generated.usage,
-      testCount: generated.suite.cases.length,
-    },
+    testGen: frozen.generation,
     testRun,
-    frozenTests: generated.suite,
+    frozenTests: frozen.frozenTests,
   };
-}
-
-async function generateFullBehavioralTests(
-  provider: Provider,
-  spec: CapabilitySpec,
-): Promise<GeneratedFullBehavioralTests> {
-  const startedAt = performance.now();
-  const result = provider.generate(
-    buildFullBehavioralTestPrompt(spec),
-    fullBehavioralTestSuiteSchema,
-  );
-  const suite = fullBehavioralTestSuiteSchema.parse(await result.object);
-  assertFullSuiteContract(spec, suite);
-  return { suite, usage: await result.usage, durationMs: performance.now() - startedAt };
 }
 
 async function runFullBehavioralTests(
   input: CapabilityGateInput,
-  suite: FullBehavioralTestSuite,
+  cases: readonly FullBehavioralTestCase[],
 ): Promise<BehavioralTestRunMetrics> {
   const startedAt = performance.now();
   const beforeReal = input.realDatabase ? snapshotCapabilityTables(input.realDatabase) : undefined;
   const handlers = await loadHandlers(input.handlers, input.spec.tools);
   const present = buildGatePresent(input.spec, input.itemRenderer);
-  const cases: BehavioralTestCaseOutcome[] = [];
+  const outcomes: BehavioralTestCaseOutcome[] = [];
   let runError: unknown;
   try {
-    for (const testCase of suite.cases) {
+    for (const testCase of cases) {
       const caseStartedAt = performance.now();
       await runFullBehavioralCase(input, handlers, present, testCase);
-      cases.push({
+      outcomes.push({
         action: testCase.action,
         name: testCase.name,
         status: "passed",
@@ -149,7 +132,7 @@ async function runFullBehavioralTests(
     throw new Error("Behavioral gate execution changed real capability data tables.");
   }
   if (runError) throw runError;
-  return { outcome: "passed", durationMs: performance.now() - startedAt, cases };
+  return { outcome: "passed", durationMs: performance.now() - startedAt, cases: outcomes };
 }
 
 async function runFullBehavioralCase(
@@ -342,8 +325,16 @@ function assertReturnedFragment(
   testCase: FullBehavioralTestCase,
   fragment: string | undefined,
 ): void {
-  if (testCase.action === "delete") {
-    if (typeof fragment !== "string") throw new Error("delete Handler did not return a string");
+  if (testCase.action === "read" && !testCase.expectedError && testCase.expectedRowCount === 0) {
+    if (fragment !== "") {
+      throw new Error("read Handler must return an empty string when no rows exist");
+    }
+    return;
+  }
+  if (testCase.action === "delete" || testCase.action === "search") {
+    if (typeof fragment !== "string") {
+      throw new Error(`${testCase.action} Handler did not return a string`);
+    }
     return;
   }
   assertFragment(testCase.action, fragment);

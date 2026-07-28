@@ -36,6 +36,7 @@ export {
   type ListInputMode,
   listInputIntentSchema,
   listInputModeSchema,
+  MAX_BEHAVIORAL_ERRORS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
   type PresentationFieldDescriptor,

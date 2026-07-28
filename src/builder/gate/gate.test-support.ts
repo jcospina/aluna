@@ -21,11 +21,28 @@ import {
   activeSpecFields,
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  type CapabilityTool,
+  FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
 import type { GeneratedUnit, HandlerUnitName } from "../units/units.ts";
-import type { FullBehavioralTestSuite } from "./behavioral/gate-behavioral-full-schema.ts";
-import { CapabilityGateError, runCapabilityGate } from "./gate.ts";
+import { actionTestInputDigest, actionTestInputs } from "./behavioral/behavioral-test-inputs.ts";
+import { ACTION_UNDER_TEST_PREFIX } from "./behavioral/gate-behavioral-full-prompt.ts";
+import type {
+  FrozenBehavioralTests,
+  FullBehavioralTestCase,
+} from "./behavioral/gate-behavioral-full-schema.ts";
+import {
+  type BehavioralTierInput,
+  CapabilityGateError,
+  type FrozenBehavioralTestsInput,
+  runCapabilityGate,
+} from "./gate.ts";
+
+/** The whole-capability case list the fixtures author, before the per-Action split. */
+export interface FullBehavioralTestSuite {
+  readonly cases: readonly FullBehavioralTestCase[];
+}
 
 export function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
   const mutation = createCapabilityMutationPort(spec, databases.readwrite);
@@ -565,6 +582,60 @@ export const MULTI_REQUIRED_VALIDATION_SUITE = fullBehavioralSuiteFor(articlesSp
   createName: "missing title and body emits stable validation markers",
 });
 
+/**
+ * Group a whole-capability fixture suite into the frozen per-Action artifact, digesting
+ * each Action's real closed inputs. This is the shape the pipeline freezes before Handler
+ * generation and hands the Gate (4.7/01).
+ */
+export function frozenBehavioralTestsFor(
+  spec: CapabilitySpec,
+  suite: FullBehavioralTestSuite = DEFAULT_BEHAVIORAL_SUITE,
+): FrozenBehavioralTests {
+  return {
+    actions: declaredActions(spec).map((action) => ({
+      action,
+      input_digest: actionTestInputDigest(actionTestInputs(spec, action)),
+      cases: suite.cases.filter((testCase) => testCase.action === action),
+    })),
+  };
+}
+
+/** The Gate's tier-on input for a fixture suite, as the pipeline would supply it. */
+export function frozenTierInput(
+  spec: CapabilitySpec,
+  suite: FullBehavioralTestSuite = DEFAULT_BEHAVIORAL_SUITE,
+): BehavioralTierInput {
+  return { enabled: true, frozen: frozenTestsInput(spec, suite) };
+}
+
+export function frozenTestsInput(
+  spec: CapabilitySpec,
+  suite: FullBehavioralTestSuite = DEFAULT_BEHAVIORAL_SUITE,
+): FrozenBehavioralTestsInput {
+  return {
+    frozenTests: frozenBehavioralTestsFor(spec, suite),
+    generation: {
+      outcome: "passed",
+      durationMs: 1,
+      usage: { inputTokens: 7, outputTokens: 11, totalTokens: 18 },
+      testCount: suite.cases.length,
+      generatedActions: declaredActions(spec),
+      carriedActions: [],
+    },
+  };
+}
+
+function declaredActions(spec: CapabilitySpec): readonly CapabilityTool[] {
+  return FULL_CAPABILITY_TOOLS.filter((action) => spec.tools.includes(action));
+}
+
+/**
+ * A provider that answers per-Action behavioral test generation from a whole-capability
+ * fixture suite: it reads the Action under test off the prompt and hands back only that
+ * Action's cases, exactly as the real per-Action contract expects. A fixture with no case
+ * for the requested Action falls through unsliced, so a deliberately malformed suite still
+ * reaches the platform validator instead of being silently emptied.
+ */
 export function makeBehaviorProvider(suite: unknown = DEFAULT_BEHAVIORAL_SUITE): {
   provider: Provider;
   prompts: string[];
@@ -576,17 +647,32 @@ export function makeBehaviorProvider(suite: unknown = DEFAULT_BEHAVIORAL_SUITE):
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
       prompts.push(prompt);
       jsonSchemas.push(z.toJSONSchema(_schema));
+      const response = behavioralResponseFor(prompt, suite);
       async function* stream(): AsyncGenerator<DeepPartial<T>> {
-        yield suite as DeepPartial<T>;
+        yield response as DeepPartial<T>;
       }
       return {
         partialStream: stream(),
-        object: Promise.resolve(suite as T),
+        object: Promise.resolve(response as T),
         usage: Promise.resolve({ inputTokens: 7, outputTokens: 11, totalTokens: 18 }),
       };
     },
   };
   return { provider, prompts, jsonSchemas };
+}
+
+/**
+ * Slice a whole-capability fixture suite down to the Action a per-Action test-generation
+ * prompt is asking for. Shared by every fake provider in the repo so one fixture answers
+ * all five calls the freeze stage now makes.
+ */
+export function behavioralResponseFor(prompt: string, suite: unknown): unknown {
+  const action = prompt.match(new RegExp(`${ACTION_UNDER_TEST_PREFIX} (\\w+)`))?.[1];
+  if (!action || typeof suite !== "object" || suite === null) return suite;
+  const cases = (suite as { cases?: unknown }).cases;
+  if (!Array.isArray(cases)) return suite;
+  const sliced = cases.filter((entry) => (entry as { action?: string })?.action === action);
+  return sliced.length > 0 ? { cases: sliced } : suite;
 }
 
 /**
@@ -624,8 +710,14 @@ export function makeSequenceProvider(responses: readonly unknown[]): {
   return { provider, prompts };
 }
 
+/**
+ * A Gate input carrying tests already frozen from `suite` — the state the pipeline hands
+ * the Gate, since generation now happens before Handler work rather than inside a rung.
+ * Pass the suite matching a non-default spec; `provider` remains for the repair rungs.
+ */
 export function gateInput(
   overrides: Partial<Parameters<typeof runCapabilityGate>[0]> = {},
+  suite: FullBehavioralTestSuite = DEFAULT_BEHAVIORAL_SUITE,
 ): Parameters<typeof runCapabilityGate>[0] {
   const spec = overrides.spec ?? notesSpec();
   const { provider } = makeBehaviorProvider();
@@ -635,6 +727,7 @@ export function gateInput(
     handlers: GOOD_HANDLERS,
     itemRenderer: overrides.itemRenderer ?? itemRendererFor(spec),
     provider,
+    behavioralTier: frozenTierInput(spec, suite),
     ...overrides,
   };
 }

@@ -459,7 +459,11 @@ async function invokeRecordHandler(
     const fragment = await handler({ input, query, present: recorder.present });
     if (typeof fragment !== "string") throw new Error(`${label} Handler did not return a string`);
     assertPresentedFragmentsReturned(label, fragment, recorder.fragments());
-    return recorder.rows();
+    const rows = recorder.rows();
+    if (rows.length === 0 && fragment !== "") {
+      throw new Error(`${label} Handler must return an empty string when no records are presented`);
+    }
+    return rows;
   } catch (error) {
     if (error instanceof SmokeActionFailure) throw error;
     throw new SmokeActionFailure(

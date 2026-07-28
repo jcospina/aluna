@@ -11,6 +11,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ZodType } from "zod";
+import {
+  behavioralResponseFor,
+  type FullBehavioralTestSuite,
+} from "../builder/gate/gate.test-support.ts";
 import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
 import { runMigrations } from "../persistence/migrations.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
@@ -291,7 +295,14 @@ export const SEARCH_HANDLER = [
   "}",
 ].join("\n");
 
-export const BEHAVIORAL_SUITE = {
+type BehavioralExpectedError = FullBehavioralTestSuite["cases"][number]["expectedError"];
+
+/** The authored error at `index`, in the shape a behavioral case copies it into. */
+function notesBehavioralError(index: number): BehavioralExpectedError {
+  return NOTES_SPEC.behavioral_errors[index] as BehavioralExpectedError;
+}
+
+export const BEHAVIORAL_SUITE: FullBehavioralTestSuite = {
   cases: [
     {
       action: "create",
@@ -382,7 +393,7 @@ export const BEHAVIORAL_SUITE = {
       expectFragmentIncludes: [],
       expectFragmentExcludes: [],
       expectFragmentIncludesInOrder: [],
-      expectedError: NOTES_SPEC.behavioral_errors[0],
+      expectedError: notesBehavioralError(0),
       expectedPlatformError: null,
     },
     {
@@ -396,7 +407,7 @@ export const BEHAVIORAL_SUITE = {
       expectFragmentIncludes: [],
       expectFragmentExcludes: [],
       expectFragmentIncludesInOrder: [],
-      expectedError: NOTES_SPEC.behavioral_errors[1],
+      expectedError: notesBehavioralError(1),
       expectedPlatformError: null,
     },
     {
@@ -456,12 +467,16 @@ export function makeSpecProvider(
     { content: units.delete ?? DELETE_HANDLER },
     { content: units.search ?? SEARCH_HANDLER },
     ...(units.searchRepair ? [{ content: units.searchRepair }] : []),
-    behavioralSuite,
   ];
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
       prompts.push(prompt);
-      const response = responses.shift();
+      // Behavioral tests are generated per Action and *before* the units (4.7/01), so they
+      // are answered by prompt rather than by queue position; the queue keeps the spec and
+      // unit order it always had.
+      const response = prompt.startsWith("Generate deterministic black-box behavioral tests")
+        ? behavioralResponseFor(prompt, behavioralSuite)
+        : responses.shift();
       if (response === undefined) {
         throw new Error(`fake provider exhausted after ${prompts.length} prompt(s)`);
       }

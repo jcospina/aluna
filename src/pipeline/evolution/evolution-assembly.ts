@@ -30,18 +30,23 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  type BehavioralTestActionReport,
   type CapabilityDiff,
   type CapabilityGateResult,
   checkPriorSourceAdmissibility,
   DERIVED_UNIT_FILES,
   type DerivedUnitFile,
   evolutionUnitProvenance,
+  type FrozenBehavioralTestsResult,
+  freezeBehavioralTests,
   GENERATED_UNITS,
   type GeneratedUnit,
   type GeneratedUnitName,
   generateCapabilityUnit,
   type HandlerUnitName,
   type PriorSourceDecision,
+  readFrozenBehavioralTests,
+  resolveBehavioralTierEnabled,
   runCapabilityGate,
   type UnitDescriptor,
   type UnitGenerationObserver,
@@ -60,7 +65,12 @@ import {
   type CapabilitySpec,
   capabilitySpecFromRow,
 } from "../../registry/index.ts";
-import { applyGateFixes, throwIfAborted, unitsChanged } from "../build/build-run.ts";
+import {
+  applyGateFixes,
+  behavioralTierInput,
+  throwIfAborted,
+  unitsChanged,
+} from "../build/build-run.ts";
 
 const ZERO_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 const NEVER_ABORTED = () => false;
@@ -115,6 +125,12 @@ export interface EvolutionAssemblyProgress {
   /** The derived plan, before any unit work — the first thing an observer can show. */
   readonly onPlanned?: (plan: EvolutionAssemblyPlan) => void | Promise<void>;
   /**
+   * Behavioral intent is frozen (4.7/01) — per Action, generated or carried forward, and
+   * from which closed inputs. Reported before any unit is written, because that is the
+   * guarantee: the tests existed before the code they judge.
+   */
+  readonly onTestsFrozen?: (report: readonly BehavioralTestActionReport[]) => void | Promise<void>;
+  /**
    * A unit read verbatim off the committed snapshot. It is reported so the inventory a
    * developer watches is complete; the bytes still never enter a generation prompt.
    */
@@ -147,6 +163,12 @@ export interface AssembledEvolutionCandidate {
    * unit's `active_context_digest`, which stays a digest of the *contract* prompt.
    */
   readonly priorSource: readonly PriorSourceDecision[];
+  /**
+   * Per Action, whether this evolution generated that Action's behavioral tests or carried
+   * the prior frozen ones forward on byte-identical inputs (4.7/01). Empty when the tier is
+   * off, in which case the candidate carries no test artifact at all.
+   */
+  readonly behavioralTests: readonly BehavioralTestActionReport[];
   /** The fail-closed Gate result over the assembled snapshot (structural + smoke, …). */
   readonly gate: CapabilityGateResult;
   /** Per-unit provenance: refreshed for regenerated units, carried forward for copies. */
@@ -180,6 +202,15 @@ export async function assembleEvolutionCandidate(
     priorSource: priorSource.decisions,
   });
 
+  // Freeze behavioral intent before a single Handler byte is written or repaired (PLAN
+  // decision 23). An Action whose total inputs are byte-identical to the committed
+  // version's carries its frozen cases forward untouched; only an Action whose own inputs
+  // changed is regenerated. A label rename or a field reorder therefore regenerates no
+  // tests at all — not by policy, but because it moves no digest.
+  const frozenTests = await freezeEvolutionTests(input, verified);
+  if (frozenTests) await input.progress?.onTestsFrozen?.(frozenTests.report);
+  throwIfAborted(input.isAborted ?? NEVER_ABORTED);
+
   const units = await assembleUnits(input, verified.directory, regenerated, priorSource.admitted);
   throwIfAborted(input.isAborted ?? NEVER_ABORTED);
   await input.progress?.onGateStart?.();
@@ -190,11 +221,7 @@ export async function assembleEvolutionCandidate(
     itemRenderer: itemRendererFrom(units),
     provider: input.provider,
     scratchCatalog: dependencyScratchCatalog(candidate, input.dependencyCatalog ?? []),
-    // Omitted, the Gate resolves the global `OMNI_BEHAVIORAL_TIER` toggle exactly as a
-    // v1 build does — the tier is one experiment-wide knob, not a per-path default.
-    ...(input.behavioralTierEnabled === undefined
-      ? {}
-      : { behavioralTier: { enabled: input.behavioralTierEnabled } }),
+    behavioralTier: behavioralTierInput(frozenTests),
   });
 
   // Fold any bounded Gate repair back into the assembled bytes, exactly as a v1 build
@@ -225,11 +252,36 @@ export async function assembleEvolutionCandidate(
     copiedUnits: copiedUnitNames(written),
     additiveMigration,
     priorSource: withGateRepairDecisions(priorSource.decisions, regenerated, written),
+    behavioralTests: frozenTests?.report ?? [],
     gate,
     unitProvenance,
     handlers: handlersFrom(finalUnits),
     itemRenderer: itemRendererFrom(finalUnits),
   };
+}
+
+/**
+ * Author this candidate's frozen behavioral intent, or nothing when the tier is off. The
+ * committed snapshot's own frozen tests are offered as the carry-forward source; they are
+ * absent when the prior version was built tier-off, in which case every Action generates
+ * from the current candidate inputs (decision 24's off→on row).
+ *
+ * The tier resolves here rather than inside the Gate because generation now happens before
+ * the Gate exists — but it resolves through the same global `OMNI_BEHAVIORAL_TIER` toggle a
+ * v1 build uses, since the tier is one experiment-wide knob, not a per-path default.
+ */
+function freezeEvolutionTests(
+  input: AssembleEvolutionCandidateInput,
+  verified: ReturnType<typeof verifyCapabilitySnapshot>,
+): Promise<FrozenBehavioralTestsResult> | undefined {
+  const enabled = input.behavioralTierEnabled ?? resolveBehavioralTierEnabled();
+  if (!enabled) return undefined;
+  const priorFrozenTests = readFrozenBehavioralTests(verified);
+  return freezeBehavioralTests({
+    provider: input.provider,
+    spec: input.candidate,
+    ...(priorFrozenTests ? { priorFrozenTests } : {}),
+  });
 }
 
 function dependencyScratchCatalog(spec: CapabilitySpec, catalog: readonly CapabilityRow[]) {

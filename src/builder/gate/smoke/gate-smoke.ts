@@ -188,6 +188,7 @@ async function executeCreateRead(
   readwrite: Database,
   readonly: Database,
 ): Promise<CreateReadResult> {
+  await assertInitialEmptyRead(input, handlers, recorder, readonly);
   const smokeInput = buildSmokeInput(input.spec);
   const createFragment = await runAction("create", async () => {
     recorder.clear();
@@ -214,6 +215,28 @@ async function executeCreateRead(
   seedProtectedUpdateState(input.spec, input.ddl.tableName, insertedRow.id, readwrite);
   const readFragment = await runRead(input, handlers, recorder, readonly);
   return { createFragment, initialRows, insertedRow, readFragment };
+}
+
+async function assertInitialEmptyRead(
+  input: CapabilityGateInput,
+  handlers: LoadedHandlers,
+  recorder: RecordingPresentation,
+  readonly: Database,
+): Promise<void> {
+  await runAction("read", async () => {
+    recorder.clear();
+    const fragment = await handlers.read({
+      input: emptyInput(),
+      query: buildGateQueryPort(input.spec, "read", input.scratchCatalog, readonly),
+      present: recorder.present,
+    });
+    if (fragment !== "") {
+      throw new Error("read Handler must return an empty string when no rows exist");
+    }
+    if (recorder.rows().length > 0) {
+      throw new Error("read Handler presented a record when no rows exist");
+    }
+  });
 }
 
 async function runRead(

@@ -1,6 +1,6 @@
 # Remove the regenerate-all seam; end-to-end engine tracer and matrix battery
 
-Status: ready-for-human
+Status: done
 
 Implementation is complete and the deterministic battery is green; the one open
 item is the live human sign-off at the bottom of this file.

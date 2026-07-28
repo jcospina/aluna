@@ -10,6 +10,7 @@ export const FAILURE_STAGES = [
   "spec_gen",
   "migration",
   "unit_generation",
+  "behavioral_test_generation",
   "gate",
   "publication",
   "activation",

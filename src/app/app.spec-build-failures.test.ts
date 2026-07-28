@@ -69,7 +69,11 @@ function makeSpecProviderWithBehavioralError(
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
       prompts.push(prompt);
-      const response = responses.shift();
+      // Behavioral test generation is identified by its prompt: it now runs *before* the
+      // units, so a fixed queue position can no longer stand for "the behavioral call".
+      const response = prompt.startsWith("Generate deterministic black-box behavioral tests")
+        ? undefined
+        : responses.shift();
 
       async function* stream(): AsyncGenerator<DeepPartial<T>> {
         if (response !== undefined) yield response as DeepPartial<T>;
@@ -165,7 +169,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — provi
       NOTES_SPEC,
       new Error("Invalid schema for response_format 'response': Missing required expectedError."),
     );
-    const { rows, recordMetrics } = makeMetricsRecorder();
+    const { lifecycles, rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
     const events = collectSseEvents(
@@ -180,12 +184,22 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — provi
     expect(dataFor("narration")).toMatch(/mind trying again/i);
     expect(dataFor("narration")).not.toMatch(/response_format|schema|expectedError/i);
     expect(dataFor("done")).toBe("error");
-    expect(preview.errorName).toBe("CapabilityGateError");
+    // Generation now happens before the Gate exists (4.7/01), so it carries its own typed
+    // error — but the failure is still the behavioral tier's, and is recorded as such.
+    expect(preview.errorName).toBe("BehavioralTestGenerationError");
     expect(preview.message).toContain("Invalid schema for response_format");
     expect(preview.message).toContain("expectedError");
-    // The behavioral test-generation failure is recorded as a gate/behavioral failure.
     expect(rows[0]?.outcome).toBe("failure");
-    expect(rows[0]?.failure).toMatchObject({ stage: "gate", rung: "behavioral" });
+    expect(rows[0]?.failure).toMatchObject({ stage: "behavioral_test_generation" });
+    expect(rows[0]?.failure).not.toHaveProperty("rung");
+    expect(lifecycles.at(-1)).toMatchObject({
+      outcome: "gate_failed",
+      measurement: { failure: { stage: "behavioral_test_generation" } },
+      stages: expect.arrayContaining([
+        { stage: "behavioral_test_generation", state: "executed" },
+        { stage: "gate_behavioral", state: "skipped" },
+      ]),
+    });
   });
 });
 

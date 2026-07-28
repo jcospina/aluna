@@ -20,7 +20,12 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
-import { DEFAULT_BEHAVIORAL_SUITE, fullHandlersFor, GOOD_HANDLERS } from "../gate.test-support.ts";
+import {
+  DEFAULT_BEHAVIORAL_SUITE,
+  frozenTierInput,
+  fullHandlersFor,
+  GOOD_HANDLERS,
+} from "../gate.test-support.ts";
 import { CapabilityGateError, type CapabilityGateInput, runCapabilityGate } from "../gate.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";
 
@@ -362,7 +367,7 @@ describe("design-lint final-renderer integrity", () => {
         handlers: GOOD_HANDLERS,
         itemRenderer: offToken,
         provider,
-        behavioralTier: { enabled: true },
+        behavioralTier: frozenTierInput(notesSpec()),
       }),
     );
 
@@ -376,7 +381,9 @@ describe("design-lint final-renderer integrity", () => {
     expect(result.smoke.attempts).toHaveLength(2);
     expect(result.behavioral.tier).toBe("on");
     expect(rendererCalls).toHaveLength(1);
-    expect(behavioralCalls).toHaveLength(1);
+    // The suite was frozen before any of this ran (4.7/01), so a design-lint repair
+    // cannot reach it: the Gate asks the provider for behavioral tests exactly never.
+    expect(behavioralCalls).toHaveLength(0);
   });
 
   test("keeps the passed design verdict when final behavioral execution fails", async () => {
@@ -391,7 +398,7 @@ describe("design-lint final-renderer integrity", () => {
         handlers: fullHandlersFor(notesSpec(), HANDLERS),
         itemRenderer: offToken,
         provider,
-        behavioralTier: { enabled: true },
+        behavioralTier: frozenTierInput(notesSpec()),
       }),
     );
 
@@ -403,7 +410,8 @@ describe("design-lint final-renderer integrity", () => {
       "design-lint:passed",
     ]);
     expect(rendererCalls).toHaveLength(1);
-    expect(behavioralCalls).toHaveLength(1);
+    // A failing frozen test never asks the model for a different test.
+    expect(behavioralCalls).toHaveLength(0);
   });
 
   test("re-validates a regenerated renderer's type/shape before accepting it", async () => {

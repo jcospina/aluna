@@ -19,6 +19,7 @@ import {
   hardcodedNewCapabilityIntent,
   reconcileCapabilityArtifacts,
 } from "../../builder/index.ts";
+import type { GenerationFailure } from "../../metrics/index.ts";
 import type { MutationCoordinator } from "../../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
 import { abortableProvider, type Provider } from "../../provider/index.ts";
@@ -113,18 +114,13 @@ async function runDemoStages(
     );
   } catch (error) {
     const cancelled = error instanceof AbortedBuildError || input.isAborted();
+    const failure = cancelled ? undefined : classifyBuildFailure(error, input.acc);
     input.recordMetrics.fail({
       buildId: input.buildId,
       incarnationId: input.incarnationId,
-      outcome: cancelled
-        ? "cancelled"
-        : lifecycleFailureOutcome(classifyBuildFailure(error, input.acc)),
-      stages: lifecycleStages(input.acc, cancelled ? "cancelled" : "failed"),
-      measurement: lifecycleMeasurement(
-        input.acc,
-        input.builtAt,
-        cancelled ? undefined : classifyBuildFailure(error, input.acc),
-      ),
+      outcome: cancelled ? "cancelled" : lifecycleFailureOutcome(failure as GenerationFailure),
+      stages: lifecycleStages(input.acc, cancelled ? "cancelled" : "failed", failure),
+      measurement: lifecycleMeasurement(input.acc, input.builtAt, failure),
     });
     if (cancelled) return "terminal-sent";
     await presentDemoFailure(

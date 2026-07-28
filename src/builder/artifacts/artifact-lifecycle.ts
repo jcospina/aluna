@@ -33,6 +33,10 @@ import {
   createSafeStagingParent,
   publishDirectoryWithoutOverwrite,
 } from "./artifact-publication.ts";
+import {
+  type FrozenBehavioralTests,
+  frozenBehavioralTestsSchema,
+} from "../gate/behavioral/gate-behavioral-full-schema.ts";
 import { assertIssuedCapabilityGateResult, type CapabilityGateResult } from "../gate/gate.ts";
 import { SnapshotVerificationError } from "./snapshot-error.ts";
 import type { GeneratedUnit } from "../units/units.ts";
@@ -234,6 +238,35 @@ export function verifyCapabilitySnapshot(
   }
 
   return { directory: absoluteDirectory, files: actualFiles, manifest, spec };
+}
+
+/**
+ * Read a verified snapshot's frozen behavioral tests, or `undefined` when that version was
+ * built tier-off and therefore carries no test artifact at all (decision 24). The snapshot
+ * has already been verified against its manifest digests by the time this runs, so the
+ * bytes are known-unmodified; parsing is still strict, because a shape the current platform
+ * cannot admit must fail closed rather than silently carry stale intent forward.
+ */
+export function readFrozenBehavioralTests(
+  verified: VerifiedCapabilitySnapshot,
+): FrozenBehavioralTests | undefined {
+  if (verified.manifest.behavioral_tier !== "on") return undefined;
+  const path = join(verified.directory, FROZEN_BEHAVIORAL_TEST_FILE);
+  let value: unknown;
+  try {
+    value = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new SnapshotVerificationError(
+      `Invalid ${FROZEN_BEHAVIORAL_TEST_FILE}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const parsed = frozenBehavioralTestsSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new SnapshotVerificationError(
+      `Invalid ${FROZEN_BEHAVIORAL_TEST_FILE}: ${parsed.error.message}`,
+    );
+  }
+  return parsed.data;
 }
 
 function readCapabilitySpec(directory: string): CapabilitySpec {

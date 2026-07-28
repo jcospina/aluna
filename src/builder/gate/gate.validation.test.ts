@@ -20,7 +20,6 @@ import {
   gateInput,
   MARKED_ARTICLE_CREATE_HANDLER,
   MULTI_REQUIRED_VALIDATION_SUITE,
-  makeBehaviorProvider,
   notesSpec,
 } from "./gate.test-support.ts";
 import { runCapabilityGate } from "./gate.ts";
@@ -31,12 +30,10 @@ describe("capability gate — validation-error markers", () => {
   test("validation-error behavioral cases assert stable markers, not product copy", async () => {
     const spec = articlesSpec();
     const result = await runCapabilityGate(
-      gateInput({
-        spec,
-        ddl: deriveCapabilityTableDdl(spec),
-        provider: makeBehaviorProvider(MULTI_REQUIRED_VALIDATION_SUITE).provider,
-        handlers: ARTICLE_HANDLERS,
-      }),
+      gateInput(
+        { spec, ddl: deriveCapabilityTableDdl(spec), handlers: ARTICLE_HANDLERS },
+        MULTI_REQUIRED_VALIDATION_SUITE,
+      ),
     );
 
     expect(result.outcomes.map((outcome) => `${outcome.rung}:${outcome.status}`)).toEqual([
@@ -77,12 +74,14 @@ describe("capability gate — validation-error markers", () => {
 
     for (const entry of badHandlers) {
       const error = await expectGateFailure(
-        gateInput({
-          spec,
-          ddl: deriveCapabilityTableDdl(spec),
-          provider: makeBehaviorProvider(MULTI_REQUIRED_VALIDATION_SUITE).provider,
-          handlers: { ...ARTICLE_HANDLERS, create: entry.create },
-        }),
+        gateInput(
+          {
+            spec,
+            ddl: deriveCapabilityTableDdl(spec),
+            handlers: { ...ARTICLE_HANDLERS, create: entry.create },
+          },
+          MULTI_REQUIRED_VALIDATION_SUITE,
+        ),
       );
 
       expect(error.failedRung, entry.label).toBe("behavioral");
@@ -181,12 +180,14 @@ describe("capability gate — datetime instant matching", () => {
     });
 
     const result = await runCapabilityGate(
-      gateInput({
-        spec: eventsSpec,
-        ddl: deriveCapabilityTableDdl(eventsSpec),
-        provider: makeBehaviorProvider(datetimeSuite).provider,
-        handlers: fullHandlersFor(eventsSpec, { create: canonicalizingCreate, read: eventsRead }),
-      }),
+      gateInput(
+        {
+          spec: eventsSpec,
+          ddl: deriveCapabilityTableDdl(eventsSpec),
+          handlers: fullHandlersFor(eventsSpec, { create: canonicalizingCreate, read: eventsRead }),
+        },
+        datetimeSuite,
+      ),
     );
 
     expect(result.outcomes.map((outcome) => `${outcome.rung}:${outcome.status}`)).toEqual([

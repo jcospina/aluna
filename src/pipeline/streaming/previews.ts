@@ -11,6 +11,7 @@ import type { Database } from "bun:sqlite";
 
 import type {
   BehavioralGateResult,
+  BehavioralTestActionReport,
   CandidateValidationIssue,
   CapabilityDiff,
   CapabilityMigrationResult,
@@ -69,6 +70,8 @@ export interface DemoGatePreview {
   readonly structural: StructuralGateResult;
   readonly smoke: SmokeGateResult;
   readonly behavioral: BehavioralGateResult;
+  /** Per Action, generated vs carried and from which closed inputs (4.7/01); tier-on only. */
+  readonly behavioralTests?: readonly BehavioralTestActionReport[];
 }
 
 export interface DemoBuildErrorPreview {
@@ -223,6 +226,7 @@ export function buildGatePreview(
   structural: StructuralGateResult,
   smoke: SmokeGateResult,
   behavioral: BehavioralGateResult,
+  behavioralTests?: readonly BehavioralTestActionReport[],
 ): DemoGatePreview {
   return {
     kind: "gate-preview",
@@ -232,6 +236,7 @@ export function buildGatePreview(
     structural,
     smoke,
     behavioral,
+    ...(behavioralTests ? { behavioralTests } : {}),
   };
 }
 
@@ -280,6 +285,14 @@ export interface EvolutionAssemblySummary {
    * absent — they never enter model context, so no admission arises.
    */
   readonly priorSource: readonly PriorSourceDecision[];
+  /**
+   * Per Action, whether this evolution generated that Action's behavioral tests or carried
+   * the prior frozen ones forward, the content address of the closed inputs that decided
+   * it, and which inputs those were (4.7/01). Absent while the tier is off, and absent from
+   * the first `running` plan because it is settled a moment later — but always before any
+   * Handler is generated or repaired, which is the ordering it exists to make visible.
+   */
+  readonly behavioralTests?: readonly BehavioralTestActionReport[];
   readonly gate: readonly { readonly rung: string; readonly status: string }[];
 }
 

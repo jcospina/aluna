@@ -10,11 +10,14 @@
 // publish nothing at all. Providers are fake: no network, no spend.
 
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  actionTestInputDigest,
+  actionTestInputs,
   type CapabilityGateResult,
+  frozenBehavioralTestsSchema,
   UnmappedChangeFactError,
   verifyCapabilitySnapshot,
 } from "../../builder/index.ts";
@@ -334,5 +337,114 @@ describe("an unmapped difference fails closed", () => {
     expect(existsSync(versionDirectory(env, 2))).toBe(false);
     expect(tableColumns(env, "cap_notes")).not.toContain("due_date");
     expect(existsSync(join(env.artifactsRoot, "notes", INCARNATION_ID, "v1"))).toBe(true);
+  });
+});
+
+// ── Frozen behavioral intent (4.7/01, PLAN decision 23) ─────────────────────────────
+
+describe("frozen behavioral intent under evolution", () => {
+  beforeEach(async () => {
+    env = await setUpCommitted(gate);
+  });
+
+  afterEach(() => {
+    tearDownCommitted(env);
+  });
+
+  test("freezes per-Action tests before any Handler byte and content-addresses them", async () => {
+    const candidate = dueDateCandidate();
+    const result = await evolve(env, candidate, "add a due date to my notes", {
+      behavioralTierEnabled: true,
+      buildId: "frozen-intent",
+    });
+    const outcome = activated(result);
+
+    // The ordering *is* the guarantee: every behavioral prompt precedes every unit prompt,
+    // so no test in this snapshot can have been written to fit a Handler.
+    const isBehavioral = (prompt: string) => prompt.includes("Action under test:");
+    const isUnit = (prompt: string) => /^Generate the \w+\.ts/u.test(prompt);
+    const behavioralIndexes = result.prompts.flatMap((prompt, index) =>
+      isBehavioral(prompt) ? [index] : [],
+    );
+    const unitIndexes = result.prompts.flatMap((prompt, index) => (isUnit(prompt) ? [index] : []));
+    expect(behavioralIndexes).toHaveLength(5);
+    expect(unitIndexes.length).toBeGreaterThan(0);
+    expect(Math.max(...behavioralIndexes)).toBeLessThan(Math.min(...unitIndexes));
+
+    // The published artifact is per Action and addressed to that Action's closed inputs.
+    const frozen = frozenBehavioralTestsSchema.parse(
+      JSON.parse(
+        readFileSync(join(outcome.publication.directory, "tests/behavioral.json"), "utf8"),
+      ),
+    );
+    expect(frozen.actions.map((entry) => entry.action)).toEqual([
+      "create",
+      "read",
+      "update",
+      "delete",
+      "search",
+    ]);
+    for (const entry of frozen.actions) {
+      expect(entry.input_digest).toBe(
+        actionTestInputDigest(actionTestInputs(candidate, entry.action)),
+      );
+    }
+
+    // The build story shows, per Action, that tests were generated and from which inputs.
+    expect(
+      outcome.assembly.behavioralTests.map((entry) => `${entry.action}:${entry.status}`),
+    ).toEqual([
+      "create:generated",
+      "read:generated",
+      "update:generated",
+      "delete:generated",
+      "search:generated",
+    ]);
+    const preview = JSON.parse(
+      result.events.filter((event) => event.event === "candidate-preview").at(-1)?.data ?? "null",
+    ) as { assembly?: { behavioralTests?: readonly { action: string; inputs: unknown }[] } };
+    expect(preview.assembly?.behavioralTests).toHaveLength(5);
+    expect(preview.assembly?.behavioralTests?.[0]?.inputs).toMatchObject({
+      behavior: true,
+      schemaFields: ["due_date", "pinned", "text"],
+    });
+  });
+
+  test("a following label-only evolution regenerates no tests and carries the frozen bytes", async () => {
+    const first = dueDateCandidate();
+    const firstOutcome = activated(
+      await evolve(env, first, "add a due date to my notes", {
+        behavioralTierEnabled: true,
+        buildId: "frozen-intent-v2",
+      }),
+    );
+    const frozenV2 = readFileSync(
+      join(firstOutcome.publication.directory, "tests/behavioral.json"),
+      "utf8",
+    );
+
+    // Only user-facing wording moves: no field name, type, requiredness, lifecycle,
+    // behavior, error, or dependency identity changes.
+    const relabelled: CapabilitySpec = {
+      ...first,
+      label: "Reminders",
+      schema: {
+        fields: first.schema.fields.map((field) => ({ ...field, label: `${field.label} ` })),
+      },
+    };
+    const second = await evolve(env, relabelled, "rename the labels", {
+      behavioralTierEnabled: true,
+      buildId: "frozen-intent-v3",
+    });
+    const secondOutcome = activated(second);
+
+    expect(second.prompts.filter((prompt) => prompt.includes("Action under test:"))).toEqual([]);
+    expect(
+      secondOutcome.assembly.behavioralTests.every((entry) => entry.status === "carried"),
+    ).toBe(true);
+    // Byte-identical frozen intent carried into the new version's snapshot.
+    expect(
+      readFileSync(join(secondOutcome.publication.directory, "tests/behavioral.json"), "utf8"),
+    ).toBe(frozenV2);
   });
 });

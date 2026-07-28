@@ -12,10 +12,10 @@ import type { Database } from "bun:sqlite";
 
 import type { CapabilityCreateValues, CapabilityTableDdl } from "../../capability-data/index.ts";
 import type { Provider, TokenUsage } from "../../provider/index.ts";
-import type { CapabilitySpec } from "../../registry/index.ts";
+import type { CapabilitySpec, CapabilityTool } from "../../registry/index.ts";
 import type { HandlerUnitName } from "../units/units.ts";
 import { runBehavioralRung } from "./behavioral/gate-behavioral.ts";
-import type { FullBehavioralTestSuite } from "./behavioral/gate-behavioral-full-schema.ts";
+import type { FrozenBehavioralTests } from "./behavioral/gate-behavioral-full-schema.ts";
 import { runDesignLintRung } from "./design-lint/gate-design-lint.ts";
 import { diagnosticForError, errorMessage } from "./gate-internal.ts";
 import { runSmokeRung } from "./smoke/gate-smoke.ts";
@@ -65,6 +65,16 @@ export interface SmokeGateAttempt {
 
 export interface BehavioralTierInput {
   readonly enabled?: boolean;
+  /**
+   * The suite frozen before any Handler generation or repair (4.7/01, PLAN decision 23).
+   * Required when the tier is on: the Gate executes behavioral intent, it never authors it.
+   */
+  readonly frozen?: FrozenBehavioralTestsInput;
+}
+
+export interface FrozenBehavioralTestsInput {
+  readonly frozenTests: FrozenBehavioralTests;
+  readonly generation: BehavioralTestGenerationMetrics;
 }
 
 export interface BehavioralTestGenerationMetrics {
@@ -72,6 +82,10 @@ export interface BehavioralTestGenerationMetrics {
   readonly durationMs: number;
   readonly usage: TokenUsage;
   readonly testCount: number;
+  /** Actions whose tests this build authored — their total inputs changed (or are new). */
+  readonly generatedActions: readonly CapabilityTool[];
+  /** Actions whose prior frozen tests carried forward byte-for-byte on unchanged inputs. */
+  readonly carriedActions: readonly CapabilityTool[];
 }
 
 export interface BehavioralTestCaseOutcome {
@@ -93,7 +107,7 @@ export type BehavioralGateResult =
       readonly status: "passed";
       readonly testGen: BehavioralTestGenerationMetrics;
       readonly testRun: BehavioralTestRunMetrics;
-      readonly frozenTests: FullBehavioralTestSuite;
+      readonly frozenTests: FrozenBehavioralTests;
     }
   | {
       readonly tier: "off";
@@ -142,14 +156,14 @@ export interface CapabilityGateInput {
   // it and the smoke/behavioral rungs bind it into the real `present` adapter the
   // handlers render records through — so create and read cannot drift.
   readonly itemRenderer: string;
-  // The behavioral tier generates tests from spec behavior + schema only; the
-  // design-lint rung regenerates the item renderer through the provider when it rejects a
-  // composition (its bounded fix loop). Required when the behavioral tier is on, and when
-  // design-lint needs to fix a violation; unused when the tier is off and the renderer is
-  // already clean.
+  // The design-lint rung regenerates the item renderer through the provider when it
+  // rejects a composition (its bounded fix loop), and the smoke rung repairs a failing
+  // Handler. The behavioral rung needs no provider at all: its tests were authored and
+  // frozen before this Gate was called.
   readonly provider?: Provider;
   // Global default comes from OMNI_BEHAVIORAL_TIER (default ON); tests and future
-  // orchestration can override explicitly without mutating process.env.
+  // orchestration can override explicitly without mutating process.env. When on, this
+  // also carries the frozen suite the behavioral rung executes.
   readonly behavioralTier?: BehavioralTierInput;
   // Optional override for the design-lint rung's bounded fix loop (default
   // DEFAULT_UNIT_FIX_ATTEMPTS); tests set it to exercise fix-then-pass and cap exhaustion.
@@ -210,10 +224,29 @@ export class CapabilityGateError extends Error {
   }
 }
 
-// Re-exported so the public builder surface (src/builder/index.ts) and the gate's
-// own tests reach the behavioral prompt without depending on the rung file directly.
-export { buildBehavioralTestPrompt } from "./behavioral/gate-behavioral.ts";
-export type { FullBehavioralTestSuite } from "./behavioral/gate-behavioral-full-schema.ts";
+// Re-exported so the public builder surface (src/builder/index.ts) and the gate's own
+// tests reach the behavioral prompt, the freeze stage, and the frozen-artifact shape
+// without depending on the rung files directly.
+export {
+  type ActionTestInputs,
+  actionTestInputDigest,
+  actionTestInputs,
+  assertActionSuiteContract,
+  assertFrozenTestsContract,
+  type BehavioralTestActionReport,
+  BehavioralTestGenerationError,
+  type BehavioralTestInputSummary,
+  buildBehavioralTestPrompt,
+  type FreezeBehavioralTestsInput,
+  type FrozenActionTests,
+  type FrozenBehavioralTests,
+  type FrozenBehavioralTestsResult,
+  type FullBehavioralTestCase,
+  freezeBehavioralTests,
+  frozenBehavioralTestCases,
+  frozenBehavioralTestsSchema,
+  specActionTestInputs,
+} from "./behavioral/gate-behavioral.ts";
 
 /**
  * Run the layered Gate and report outcomes in canonical order — structural, smoke, the
@@ -221,9 +254,12 @@ export type { FullBehavioralTestSuite } from "./behavioral/gate-behavioral-full-
  * The first failing rung throws {@link CapabilityGateError}; a full pass returns the smoke,
  * behavioral, and design-lint results (the last carrying the final, possibly-fixed item
  * renderer the pipeline commits) alongside the per-rung outcomes. Design lint runs before
- * behavioral execution so the generated suite freezes and runs exactly once against the
- * final renderer. When design lint changes bytes, they first re-enter smoke without Handler
- * repair; repeated smoke duration/usage is folded into the same public rung result.
+ * behavioral execution so the frozen suite runs exactly once against the final renderer.
+ * When design lint changes bytes, they first re-enter smoke without Handler repair;
+ * repeated smoke duration/usage is folded into the same public rung result.
+ *
+ * The Gate does not author behavioral tests. When the tier is on, the caller supplies the
+ * suite it froze before generating any Handler (`behavioralTier.frozen`, 4.7/01).
  */
 export async function runCapabilityGate(input: CapabilityGateInput): Promise<CapabilityGateResult> {
   const startedAt = performance.now();
@@ -262,9 +298,11 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   }
 
   // Design has now fixed/frozen the renderer and smoke has executed its final bytes. Only
-  // now generate the behavioral suite, once, and execute it against that exact snapshot.
-  // Its outcome is inserted before design-lint to preserve the Gate's documented public
-  // rung order even though design preparation necessarily happened first.
+  // now execute the frozen behavioral suite, once, against that exact snapshot. The suite
+  // itself was authored before any Handler existed (4.7/01), so running it last costs it
+  // nothing: what moved is the code under test, never the intent. Its outcome is inserted
+  // before design-lint to preserve the Gate's documented public rung order even though
+  // design preparation necessarily happened first.
   const designOutcome = outcomes.pop();
   if (designOutcome?.rung !== "design-lint") {
     throw new Error("Design-lint outcome was not recorded at the Gate boundary.");
@@ -413,5 +451,11 @@ function skipGateRung(
 }
 
 function resolveBehavioralTierEnabledForInput(input: CapabilityGateInput): boolean {
-  return input.behavioralTier?.enabled ?? resolveBehavioralTierEnabled();
+  const enabled = input.behavioralTier?.enabled ?? resolveBehavioralTierEnabled();
+  if (!enabled && input.behavioralTier?.frozen) {
+    throw new Error(
+      "Frozen behavioral tests were supplied while the behavioral tier is off; refusing to discard frozen intent.",
+    );
+  }
+  return enabled;
 }

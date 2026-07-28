@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ZodType } from "zod";
+import { behavioralResponseFor } from "../builder/gate/gate.test-support.ts";
 import type { IntentClassification } from "../intent-resolver/index.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
@@ -70,12 +71,15 @@ function makePromptBuildProvider(
     { content: units.update ?? UPDATE_HANDLER },
     { content: units.delete ?? DELETE_HANDLER },
     { content: units.search ?? SEARCH_HANDLER },
-    behavioralSuite,
   ];
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
       prompts.push(prompt);
-      const response = responses.shift();
+      // Per-Action behavioral generation runs before the units (4.7/01), so it is answered
+      // by prompt rather than by queue position.
+      const response = prompt.startsWith("Generate deterministic black-box behavioral tests")
+        ? behavioralResponseFor(prompt, behavioralSuite)
+        : responses.shift();
       if (response === undefined) {
         throw new Error(`fake provider exhausted after ${prompts.length} prompt(s)`);
       }
@@ -158,8 +162,9 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       outcome: "activated",
     });
 
-    // intent + spec + 6 units (item renderer + five Actions) + behavioral test-gen.
-    expect(prompts).toHaveLength(9);
+    // intent + spec + five per-Action behavioral suites + 6 units (item renderer + five
+    // Actions). The tests come before the units: intent is frozen before code exists.
+    expect(prompts).toHaveLength(13);
     expect(prompts[0]).toContain("Aluna's Intent Resolver");
     expect(prompts[0]).toContain("track my notes");
     expect(prompts[1]).toContain("Aluna's Capability Builder");
@@ -180,8 +185,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       capabilityId: "notes",
       intent: { type: "new_capability", confidence: 0.97, targetCapability: null },
     });
-    // 9 provider calls × 53 tokens each: intent + spec + 6 units + behavioral test-gen.
-    expect(rows[0]?.usage?.totalTokens).toBe(477);
+    // 13 provider calls × 53 tokens each: intent + spec + five per-Action test suites + 6 units.
+    expect(rows[0]?.usage?.totalTokens).toBe(13 * 53);
     expect(rows[0]?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
     expect(rows[0]?.gateRungs?.map((rung) => rung.rung)).toEqual([
       "structural",

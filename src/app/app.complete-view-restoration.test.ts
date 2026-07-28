@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { ZodType } from "zod";
+import { behavioralResponseFor } from "../builder/gate/gate.test-support.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
@@ -123,11 +124,16 @@ function successfulBuildProvider(): Provider {
     { content: UPDATE_HANDLER },
     { content: DELETE_HANDLER },
     { content: SEARCH_HANDLER },
-    BEHAVIORAL_SUITE,
   ];
   return {
-    generate<T>(_prompt: string, _schema: ZodType<T>): GenerateResult<T> {
-      const response = responses.shift() as T;
+    generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
+      // Per-Action behavioral generation runs before the units (4.7/01), so it is answered
+      // by prompt rather than by queue position.
+      const response = (
+        prompt.startsWith("Generate deterministic black-box behavioral tests")
+          ? behavioralResponseFor(prompt, BEHAVIORAL_SUITE)
+          : responses.shift()
+      ) as T;
       return {
         partialStream: (async function* () {
           yield response as DeepPartial<T>;

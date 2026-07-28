@@ -104,6 +104,31 @@ describe("capability gate — smoke rung", () => {
     expect(result.smoke.readFragmentLength).toBeGreaterThan(0);
   });
 
+  test("smoke rejects Handler-authored empty-state markup before any row exists", async () => {
+    const read = [
+      "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
+      "  const rows = query.records({",
+      '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
+      "  });",
+      '  if (rows.length === 0) return "<p>Nothing here yet.</p>";',
+      '  return rows.map(({ record }) => present(record)).join("");',
+      "}",
+    ].join("\n");
+
+    const error = await expectGateFailure(
+      gateInput({
+        handlers: { ...GOOD_HANDLERS, read },
+        behavioralTier: { enabled: false },
+        provider: undefined,
+      }),
+    );
+
+    expect(error.failedRung).toBe("smoke");
+    expect(error.outcomes[1]?.error).toContain(
+      "read Handler must return an empty string when no rows exist",
+    );
+  });
+
   test("smoke runs the real handlers against scratch and fails when no row lands", async () => {
     const noInsertCreate = [
       "export default async function create(_context: CapabilityContext): Promise<string> {",
