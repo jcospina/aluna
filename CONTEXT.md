@@ -196,6 +196,25 @@ in-process, so this is accidental-output protection rather than hostile-code
 containment (ADR-0003, ADR-0004, ADR-0005).
 _Avoid_: CI, checks, test suite
 
+**Frozen behavioral intent**:
+The behavioral test suite a tier-on version is held to, generated per Action from
+that Action's total inputs and written before any Handler byte exists. Published
+as `tests/behavioral.json` and digested into the snapshot manifest. Because it
+precedes the code, repair answers to it and never the other way around: a failing
+assertion rewrites a Handler, never a test (PLAN decision 23, ADR-0006).
+_Avoid_: the generated tests, the test file, expectations
+
+**Total inputs**:
+The closed set one Action's behavioral tests may be generated from — free-text
+`behavior`, that Action's own `behavioral_errors` with their stable markers, its
+declared dependency identities, and a per-Action schema projection. Never Handler
+source, field labels, field order, `ui_intent`, inactive fields, or a
+dependency's schema. Their canonical serialization is content-addressed as the
+Action's **test input digest**: equal digests mean the Action's tests carry
+forward untouched, which is what makes "a label rename regenerates nothing" a
+fact about a hash rather than a policy (PLAN decision 23).
+_Avoid_: test context, the prompt, generation inputs
+
 ## Product voice
 
 The voice every piece of UI copy speaks in, and the guide every future coding

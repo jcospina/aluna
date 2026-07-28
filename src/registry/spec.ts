@@ -188,6 +188,7 @@ export const readDependenciesSchema = z.strictObject({
 export type ReadDependencies = z.infer<typeof readDependenciesSchema>;
 
 export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
+export const MAX_BEHAVIORAL_ERRORS = 8;
 export const BEHAVIORAL_ERROR_MARKERS = {
   role_attribute: "data-role",
   role: "error",
@@ -249,7 +250,7 @@ const commonSpecShape = {
   // Stable validation-error behavior that the generated handler and independent
   // behavioral tests both consume. User-facing copy can vary; this contract is
   // made of semantic markers and affected fields.
-  behavioral_errors: z.array(behavioralErrorCaseSchema).max(8),
+  behavioral_errors: z.array(behavioralErrorCaseSchema).max(MAX_BEHAVIORAL_ERRORS),
   tools: capabilityToolsSchema,
   read_dependencies: readDependenciesSchema,
   // What the intent resolver reads to understand this capability (ARCH §6.3).

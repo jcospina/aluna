@@ -182,7 +182,7 @@ async function failAdmittedBuild(
     buildId: input.generationId,
     incarnationId: input.incarnationId,
     outcome: lifecycleFailureOutcome(failure),
-    stages: lifecycleStages(input.acc, "failed"),
+    stages: lifecycleStages(input.acc, "failed", failure),
     measurement: lifecycleMeasurement(input.acc, input.builtAt, failure),
   });
   const metricsPreview = JSON.stringify(

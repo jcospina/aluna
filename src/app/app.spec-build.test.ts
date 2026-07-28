@@ -220,19 +220,26 @@ function assertGatePreview(dataFor: (name: string) => string): void {
   expect(gatePreview.behavioral).toMatchObject({
     tier: "on",
     status: "passed",
-    testGen: { outcome: "passed", testCount: 9, usage: { totalTokens: 53 } },
+    // Five independent per-Action generations on a fresh build: nothing to carry forward.
+    testGen: {
+      outcome: "passed",
+      testCount: 9,
+      usage: { totalTokens: 5 * 53 },
+      generatedActions: ["create", "read", "update", "delete", "search"],
+      carriedActions: [],
+    },
   });
   expect(gatePreview.behavioral.testRun.outcome).toBe("passed");
   expect(gatePreview.behavioral.testRun.cases.map((testCase) => testCase.action)).toEqual([
     "create",
+    "create",
     "read",
     "update",
+    "update",
+    "update",
+    "delete",
     "delete",
     "search",
-    "create",
-    "update",
-    "update",
-    "delete",
   ]);
   expect(
     gatePreview.behavioral.testRun.cases.every((testCase) => testCase.status === "passed"),
@@ -264,10 +271,11 @@ function assertNarrationCommitAndPrompts(
   expect(commitSwap).toContain("Notes");
   expect(dataFor("done")).toBe("ok");
 
-  // The typed prompt reached the provider, then the complete unit-generation prompts
-  // (item renderer, then all five handlers) and the behavioral test-generation
-  // prompt followed — proof the demo runs the current builder stages, not a canned string.
-  expect(prompts).toHaveLength(8);
+  // The typed prompt reached the provider, then the five per-Action behavioral test
+  // prompts, then the unit-generation prompts (item renderer, then all five handlers) —
+  // proof the demo runs the current builder stages, not a canned string. The ordering is
+  // itself the guarantee: behavioral intent is frozen before a Handler byte exists.
+  expect(prompts).toHaveLength(12);
   expect(prompts[0]).toContain("track my notes");
   expect(prompts[0]).toContain(
     "tools: exactly [create, read, update, delete, search] in that canonical order",
@@ -275,17 +283,20 @@ function assertNarrationCommitAndPrompts(
   expect(prompts[0]).toContain('"update": [], "delete": [], "search": []');
   expect(prompts[0]).toContain("ui_intent.collection.layout is one of: feed | grid");
   expect(prompts[0]).toContain("Do not include ui_intent.views");
-  expect(prompts[1]).toContain("Generate the item.ts item renderer");
-  expect(prompts[2]).toContain("Generate the create.ts handler");
-  expect(prompts[3]).toContain("Generate the read.ts handler");
-  expect(prompts[4]).toContain("Generate the update.ts handler");
-  expect(prompts[5]).toContain("Generate the delete.ts handler");
-  expect(prompts[6]).toContain("Generate the search.ts handler");
-  expect(prompts[7]).toContain("Text is required. Newest notes appear first.");
-  expect(prompts[7]).toContain('"schema"');
-  expect(prompts[7]).toContain('"behavioral_errors"');
-  expect(prompts[7]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
-  expect(prompts[7]).not.toContain("export default async function");
+  expect(prompts.slice(1, 6).map((prompt) => /Action under test: (\w+)/.exec(prompt)?.[1])).toEqual(
+    ["create", "read", "update", "delete", "search"],
+  );
+  expect(prompts[1]).toContain("Text is required. Newest notes appear first.");
+  expect(prompts[1]).toContain('"schema"');
+  expect(prompts[1]).toContain('"behavioral_errors"');
+  expect(prompts[1]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
+  expect(prompts[1]).not.toContain("export default async function");
+  expect(prompts[6]).toContain("Generate the item.ts item renderer");
+  expect(prompts[7]).toContain("Generate the create.ts handler");
+  expect(prompts[8]).toContain("Generate the read.ts handler");
+  expect(prompts[9]).toContain("Generate the update.ts handler");
+  expect(prompts[10]).toContain("Generate the delete.ts handler");
+  expect(prompts[11]).toContain("Generate the search.ts handler");
 }
 
 function assertBuildMetrics(rows: GenerationMetrics[]): void {
@@ -453,10 +464,12 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(await Bun.file(resolve(committed.artifacts_path, "search.ts")).text()).toBe(
       SEARCH_HANDLER,
     );
-    expect(prompts).toHaveLength(9);
-    expect(prompts[7]).toContain("Previous attempt failed");
-    expect(prompts[7]).toContain("Generate the search.ts handler");
-    expect(prompts[8]).toContain("behavioral tests for every Action in this Aluna capability");
+    // spec + five per-Action behavioral suites + item + five handlers + the smoke repair.
+    expect(prompts).toHaveLength(13);
+    expect(prompts[12]).toContain("Previous attempt failed");
+    expect(prompts[12]).toContain("Generate the search.ts handler");
+    // The repair is the last model call of the build: no test was authored after it.
+    expect(prompts.filter((prompt) => prompt.includes("Action under test:"))).toHaveLength(5);
     expect(rows[0]?.outcome).toBe("success");
     expect(rows[0]?.unitAttempts?.find((unit) => unit.name === "search")?.attempts).toBe(2);
   });

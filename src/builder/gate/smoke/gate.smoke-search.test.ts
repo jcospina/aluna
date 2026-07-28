@@ -174,6 +174,40 @@ describe("capability gate — search ordering", () => {
 });
 
 describe("capability gate — adversarial search failure integrity", () => {
+  test("rejects Handler-authored no-match markup", async () => {
+    if (!itemRenderer) throw new Error("reference item renderer missing");
+    const handlers = referenceHandlers();
+    const goodSearch = handlers.search;
+    if (!goodSearch) throw new Error("reference search Handler missing");
+    const handlerOwnedNoMatches = goodSearch
+      .replace("  return query.records({", "  const rows = query.records({")
+      .replace(
+        '  }).map(({ record }) => present(record)).join("");',
+        [
+          "  });",
+          '  const fragment = rows.map(({ record }) => present(record)).join("");',
+          '  return fragment.length > 0 ? fragment : "<p>No matches.</p>";',
+        ].join("\n"),
+      );
+
+    const error = await expectGateFailure(
+      gateInput({
+        spec: FIVE_ACTION_SPEC,
+        ddl: deriveCapabilityTableDdl(FIVE_ACTION_SPEC),
+        handlers: { ...handlers, search: handlerOwnedNoMatches },
+        itemRenderer,
+        provider: undefined,
+        behavioralTier: { enabled: false },
+      }),
+    );
+
+    expect(error.failedRung).toBe("smoke");
+    expect(error.diagnostic).toMatchObject({ smoke: { action: "search" } });
+    expect(error.outcomes.at(-1)?.error).toContain(
+      "search Handler must return an empty string when no records are presented",
+    );
+  });
+
   test("rejects a search Handler that discards presented HTML", async () => {
     if (!itemRenderer) throw new Error("reference item renderer missing");
     const handlers = referenceHandlers();

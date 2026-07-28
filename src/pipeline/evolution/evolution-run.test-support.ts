@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ZodType } from "zod";
 import {
+  behavioralResponseFor,
   createHandlerFor,
   DELETE_HANDLER,
   fullBehavioralSuiteFor,
@@ -183,7 +184,10 @@ export function engineProvider(
       generatedUnits.push("item");
       return { content: units.item };
     }
-    if (prompt.startsWith("Generate deterministic black-box behavioral tests")) return suite;
+    // One fixture answers all five per-Action generation calls the freeze stage makes.
+    if (prompt.startsWith("Generate deterministic black-box behavioral tests")) {
+      return behavioralResponseFor(prompt, suite);
+    }
     return candidate;
   };
 
