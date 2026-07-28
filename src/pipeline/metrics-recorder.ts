@@ -7,6 +7,7 @@
 
 import type { Database } from "bun:sqlite";
 import {
+  type BehavioralActionExecution,
   BehavioralTestGenerationError,
   CapabilityGateError,
   type CapabilityGateResult,
@@ -113,6 +114,12 @@ export interface DemoBuildAccumulator {
    * generated, and the stage vector says so (decision 21's copy is a claim about bytes).
    */
   copiedUnits?: ReadonlySet<string>;
+  /**
+   * Per Action, whether this build generated or copied that frozen suite and whether it
+   * executed or skipped it (4.7/02). Generation and execution are separate decisions, so the
+   * stage vector records them as separate per-Action rows rather than one blended verdict.
+   */
+  behavioralExecution?: readonly BehavioralActionExecution[];
   publicationAttempted?: boolean;
   activationAttempted?: boolean;
 }
@@ -175,9 +182,49 @@ function behavioralTestGenerationStageState(
   behavioralSeen: boolean,
   failure: GenerationFailure | undefined,
 ): GenerationStageMeasurement["state"] {
-  if (acc.timings.testGenMs !== undefined) return "generated";
+  if (acc.timings.testGenMs !== undefined) {
+    // The stage ran, but "generated" would be a lie for an evolution whose every Action
+    // carried its prior suite forward on unchanged inputs — copy is a claim about bytes here
+    // exactly as it is for units (4.7/01–02).
+    return acc.behavioralExecution?.every((entry) => entry.source === "copied")
+      ? "copied"
+      : "generated";
+  }
   if (failure?.stage === "behavioral_test_generation") return "executed";
   return behavioralSeen ? "absent" : "skipped";
+}
+
+function behavioralTestExecutionStageState(
+  acc: DemoBuildAccumulator,
+  behavioralSeen: boolean,
+): GenerationStageMeasurement["state"] {
+  if (acc.timings.testRunMs === undefined) return behavioralSeen ? "absent" : "skipped";
+  // A tier-on run whose every frozen suite was skipped executed no test at all. Decision 23
+  // makes that a legitimate outcome — not a missing measurement — so it is reported as the
+  // skip it is rather than as an execution that happened to take no time.
+  return acc.behavioralExecution?.every((entry) => entry.execution === "skipped")
+    ? "skipped"
+    : "executed";
+}
+
+/**
+ * The per-Action behavioral test rows (4.7/02). Two subjects per Action: what this build did
+ * about the *intent* (generated it, or copied the prior frozen bytes), and what it did about
+ * the *code* (executed that suite, or skipped it because nothing it covers moved).
+ */
+function behavioralTestStages(acc: DemoBuildAccumulator): readonly GenerationStageMeasurement[] {
+  return (acc.behavioralExecution ?? []).flatMap((entry) => [
+    {
+      stage: "behavioral_test_generation",
+      state: entry.source === "generated" ? ("generated" as const) : ("copied" as const),
+      test: { kind: "behavioral-suite", name: entry.action },
+    },
+    {
+      stage: "behavioral_test_execution",
+      state: entry.execution === "executed" ? ("executed" as const) : ("skipped" as const),
+      test: { kind: "behavioral-suite", name: entry.action },
+    },
+  ]);
 }
 
 /** A complete semantic state vector; later evolution can mark individual entries copied. */
@@ -213,9 +260,9 @@ export function lifecycleStages(
     },
     {
       stage: "behavioral_test_execution",
-      state:
-        acc.timings.testRunMs !== undefined ? "executed" : behavioralSeen ? "absent" : "skipped",
+      state: behavioralTestExecutionStageState(acc, behavioralSeen),
     },
+    ...behavioralTestStages(acc),
     ...(["structural", "smoke", "behavioral", "design-lint"] as const).map((name) => ({
       stage: `gate_${name}`,
       state:
@@ -402,6 +449,7 @@ export function recordGateMetrics(
   if (gateResult.behavioral.tier === "on") {
     acc.timings.testGenMs = gateResult.behavioral.testGen.durationMs;
     acc.timings.testRunMs = gateResult.behavioral.testRun.durationMs;
+    acc.behavioralExecution = gateResult.behavioral.execution.actions;
     acc.usages.push(gateResult.behavioral.testGen.usage);
   }
   acc.usages.push(gateResult.smoke.usage);

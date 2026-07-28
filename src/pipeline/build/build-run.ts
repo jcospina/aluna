@@ -13,6 +13,7 @@ import type { ZodType } from "zod";
 import {
   activatePublishedSnapshot,
   applyCapabilityMigration,
+  type BehavioralExecutionImpact,
   type BehavioralTierInput,
   CapabilityGateError,
   type CapabilityGateResult,
@@ -200,7 +201,7 @@ export async function runSpecBuildStages(
       itemRenderer: unitResult.itemRenderer,
       provider,
       realDatabase: database,
-      behavioralTier: behavioralTierInput(frozenTests),
+      behavioralTier: behavioralTierInput(frozenTests, firstBuildImpact(spec)),
     });
   } catch (error) {
     if (error instanceof CapabilityGateError) acc.gateRungs = error.outcomes;
@@ -260,17 +261,32 @@ export async function runSpecBuildStages(
 }
 
 /**
+ * A first build authors every unit, so no suite is copied and none can be skipped. Stating
+ * that plainly — rather than leaving impact unstated — keeps "the complete suite ran" a
+ * reported consequence of the work, not the Gate's fallback for a caller that said nothing.
+ */
+function firstBuildImpact(spec: CapabilitySpec): BehavioralExecutionImpact {
+  return { regeneratedHandlers: [...spec.tools], regeneratedItemRenderer: true };
+}
+
+/**
  * Hand a run's frozen behavioral tests to the Gate. The tier is decided — and the suite
  * authored — before Handler generation (PLAN decision 23), so by here the answer is simply
  * whether a frozen suite exists. Shared with the evolution assembler so both pipelines
  * report the same generated/carried split into the same metrics columns.
+ *
+ * `impact` states which Handlers this build authors, which is what lets the Gate skip a
+ * copied suite nothing touched (4.7/02). A v1 build states the whole inventory; an
+ * evolution states its Diff work plan. Omitted, the Gate runs the complete frozen suite.
  */
 export function behavioralTierInput(
   frozen: FrozenBehavioralTestsResult | undefined,
+  impact?: BehavioralExecutionImpact,
 ): BehavioralTierInput {
   if (!frozen) return { enabled: false };
   return {
     enabled: true,
+    ...(impact ? { impact } : {}),
     frozen: {
       frozenTests: frozen.frozenTests,
       generation: {

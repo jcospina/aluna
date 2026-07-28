@@ -185,6 +185,8 @@ describe("capability artifact lifecycle — snapshot shape", () => {
 
     expect(publication.files).toEqual(TIER_OFF_FILES);
     expect(publication.manifest.behavioral_tier).toBe("off");
+    // No tests, and therefore nothing to say about running them (4.7/02).
+    expect(publication.manifest.behavioral_tests).toBeUndefined();
     expect(publication.files.some((path) => path.startsWith("tests/"))).toBe(false);
     expect(existsSync(join(publication.directory, "tests"))).toBe(false);
     expect(JSON.parse(readFileSync(join(publication.directory, "spec.json"), "utf8"))).toEqual(
@@ -204,6 +206,47 @@ describe("capability artifact lifecycle — snapshot shape", () => {
     );
     expect(JSON.parse(readFileSync(frozenTestPath, "utf8"))).toEqual(
       tierOnGate.behavioral.frozenTests,
+    );
+  });
+
+  test("tier-on records the per-Action run/skip verdict as durable tier metadata", () => {
+    // 4.7/02: the snapshot answers "was this version's frozen intent re-proven against these
+    // bytes?" — a question the frozen tests alone cannot answer, since they are identical
+    // whether they ran or not.
+    const publication = publish({ gate: tierOnGate });
+    if (tierOnGate.behavioral.tier !== "on") throw new Error("Expected tier-on Gate evidence.");
+
+    expect(publication.manifest.behavioral_tests).toEqual({
+      full_suite: tierOnGate.behavioral.execution.fullSuite,
+      actions: tierOnGate.behavioral.execution.actions.map((entry) => ({
+        action: entry.action,
+        source: entry.source,
+        execution: entry.execution,
+        reason: entry.reason,
+      })),
+    });
+  });
+
+  test("verification rejects tier metadata that claims a suite was authored but never run", () => {
+    // `snapshot.json` carries no self-digest, so the metadata's own invariants are what make
+    // it tamper-evident: a suite this build authored has judged no code until it executes,
+    // and a version published on that claim would be trusting tests that never ran.
+    const publication = publish({ gate: tierOnGate });
+    const behavioralTests = publication.manifest.behavioral_tests;
+    if (!behavioralTests) throw new Error("Expected tier-on behavioral test metadata.");
+    const forged: SnapshotManifest = {
+      ...publication.manifest,
+      behavioral_tests: {
+        ...behavioralTests,
+        actions: behavioralTests.actions.map((entry, index) =>
+          index === 0 ? { ...entry, execution: "skipped" as const } : entry,
+        ),
+      },
+    };
+    writeFileSync(join(publication.directory, "snapshot.json"), canonicalJson(forged));
+
+    expect(() => verifyCapabilitySnapshot(publication.directory)).toThrow(
+      /never executed against it/,
     );
   });
 

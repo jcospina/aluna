@@ -4,6 +4,16 @@
 // stable Gate seam: the rung executes frozen tests, the freeze stage authors them.
 
 export {
+  type BehavioralActionExecution,
+  type BehavioralExecutionImpact,
+  type BehavioralExecutionPlan,
+  type BehavioralExecutionPlanInput,
+  type BehavioralExecutionReason,
+  behavioralSuiteCoverage,
+  planBehavioralExecution,
+  selectedBehavioralCases,
+} from "./behavioral-execution-plan.ts";
+export {
   type BehavioralTestActionReport,
   BehavioralTestGenerationError,
   type BehavioralTestInputSummary,

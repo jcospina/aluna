@@ -14,6 +14,10 @@ import type { CapabilityCreateValues, CapabilityTableDdl } from "../../capabilit
 import type { Provider, TokenUsage } from "../../provider/index.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../registry/index.ts";
 import type { HandlerUnitName } from "../units/units.ts";
+import type {
+  BehavioralExecutionImpact,
+  BehavioralExecutionPlan,
+} from "./behavioral/behavioral-execution-plan.ts";
 import { runBehavioralRung } from "./behavioral/gate-behavioral.ts";
 import type { FrozenBehavioralTests } from "./behavioral/gate-behavioral-full-schema.ts";
 import { runDesignLintRung } from "./design-lint/gate-design-lint.ts";
@@ -70,6 +74,13 @@ export interface BehavioralTierInput {
    * Required when the tier is on: the Gate executes behavioral intent, it never authors it.
    */
   readonly frozen?: FrozenBehavioralTestsInput;
+  /**
+   * This build's executable impact — which Handlers it authored rather than copied (4.7/02,
+   * decision 23's execution clause). The Gate folds its own bounded repairs into this before
+   * selecting, so a Handler the smoke rung rewrote counts as changed. Omitted, nothing can be
+   * proven unaffected and the complete frozen suite runs.
+   */
+  readonly impact?: BehavioralExecutionImpact;
 }
 
 export interface FrozenBehavioralTestsInput {
@@ -107,6 +118,11 @@ export type BehavioralGateResult =
       readonly status: "passed";
       readonly testGen: BehavioralTestGenerationMetrics;
       readonly testRun: BehavioralTestRunMetrics;
+      /**
+       * Per Action: copied or generated, executed or skipped, and why (4.7/02). The run/skip
+       * half of the record the snapshot's tier metadata and the metrics stage vector carry.
+       */
+      readonly execution: BehavioralExecutionPlan;
       readonly frozenTests: FrozenBehavioralTests;
     }
   | {
@@ -233,9 +249,15 @@ export {
   actionTestInputs,
   assertActionSuiteContract,
   assertFrozenTestsContract,
+  type BehavioralActionExecution,
+  type BehavioralExecutionImpact,
+  type BehavioralExecutionPlan,
+  type BehavioralExecutionPlanInput,
+  type BehavioralExecutionReason,
   type BehavioralTestActionReport,
   BehavioralTestGenerationError,
   type BehavioralTestInputSummary,
+  behavioralSuiteCoverage,
   buildBehavioralTestPrompt,
   type FreezeBehavioralTestsInput,
   type FrozenActionTests,
@@ -245,6 +267,8 @@ export {
   freezeBehavioralTests,
   frozenBehavioralTestCases,
   frozenBehavioralTestsSchema,
+  planBehavioralExecution,
+  selectedBehavioralCases,
   specActionTestInputs,
 } from "./behavioral/gate-behavioral.ts";
 
@@ -311,6 +335,9 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
     ...repairedInput,
     handlers: smokeRun.handlers,
     itemRenderer: designLint.itemRenderer,
+    ...(input.behavioralTier
+      ? { behavioralTier: withGateRepairImpact(input.behavioralTier, smoke, designLint) }
+      : {}),
   };
   let behavioral: BehavioralGateResult | undefined;
   try {
@@ -338,6 +365,34 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   };
   issuedGateEvidence.set(result, JSON.stringify(result));
   return result;
+}
+
+/**
+ * Fold the Gate's own bounded repairs into the impact statement the caller supplied. The
+ * pipeline states which units it *planned* to regenerate, but a smoke repair rewrites a
+ * Handler and a design-lint fix rewrites the item renderer after that plan was made —
+ * bytes the caller could not have known about. Selection must answer to the code the Gate
+ * is actually about to clear, so those repairs count as regeneration here. A caller that
+ * stated no impact stays unstated: it already runs the complete frozen suite.
+ */
+function withGateRepairImpact(
+  tier: BehavioralTierInput,
+  smoke: SmokeGateResult,
+  designLint: DesignLintGateResult,
+): BehavioralTierInput {
+  if (!tier.impact) return tier;
+  const repaired = smoke.attempts.flatMap((attempt) =>
+    attempt.repairAction ? [attempt.repairAction] : [],
+  );
+  if (repaired.length === 0 && !designLint.fixed) return tier;
+  return {
+    ...tier,
+    impact: {
+      ...tier.impact,
+      regeneratedHandlers: [...new Set([...tier.impact.regeneratedHandlers, ...repaired])],
+      regeneratedItemRenderer: (tier.impact.regeneratedItemRenderer ?? false) || designLint.fixed,
+    },
+  };
 }
 
 /** Re-run a rung that already passed while preserving the public one-outcome-per-rung

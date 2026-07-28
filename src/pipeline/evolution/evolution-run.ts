@@ -557,6 +557,11 @@ async function sendAssembledPreviews(
         additiveMigration: assembly.additiveMigration.statements,
         priorSource: assembly.priorSource,
         behavioralTests: assembly.behavioralTests,
+        // The run/skip half, settled by the Gate: which frozen suites this evolution had to
+        // re-prove against new bytes, and which it left alone because nothing they cover moved.
+        ...(assembly.behavioralExecution
+          ? { behavioralExecution: assembly.behavioralExecution }
+          : {}),
         gate: assembly.gate.outcomes.map((outcome) => ({
           rung: outcome.rung,
           status: outcome.status,

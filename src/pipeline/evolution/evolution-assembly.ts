@@ -30,6 +30,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  type BehavioralExecutionImpact,
+  type BehavioralExecutionPlan,
   type BehavioralTestActionReport,
   type CapabilityDiff,
   type CapabilityGateResult,
@@ -169,6 +171,12 @@ export interface AssembledEvolutionCandidate {
    * off, in which case the candidate carries no test artifact at all.
    */
   readonly behavioralTests: readonly BehavioralTestActionReport[];
+  /**
+   * Per Action, whether that frozen suite executed against this candidate's bytes or was
+   * skipped because no Handler it covers moved — and why (4.7/02). Undefined when the tier
+   * is off. Generation is about intent; this is about impact, and they are separate answers.
+   */
+  readonly behavioralExecution?: BehavioralExecutionPlan;
   /** The fail-closed Gate result over the assembled snapshot (structural + smoke, …). */
   readonly gate: CapabilityGateResult;
   /** Per-unit provenance: refreshed for regenerated units, carried forward for copies. */
@@ -221,7 +229,10 @@ export async function assembleEvolutionCandidate(
     itemRenderer: itemRendererFrom(units),
     provider: input.provider,
     scratchCatalog: dependencyScratchCatalog(candidate, input.dependencyCatalog ?? []),
-    behavioralTier: behavioralTierInput(frozenTests),
+    behavioralTier: behavioralTierInput(
+      frozenTests,
+      evolutionImpact(input, verified.spec, regenerated),
+    ),
   });
 
   // Fold any bounded Gate repair back into the assembled bytes, exactly as a v1 build
@@ -253,11 +264,66 @@ export async function assembleEvolutionCandidate(
     additiveMigration,
     priorSource: withGateRepairDecisions(priorSource.decisions, regenerated, written),
     behavioralTests: frozenTests?.report ?? [],
+    ...(gate.behavioral.tier === "on" ? { behavioralExecution: gate.behavioral.execution } : {}),
     gate,
     unitProvenance,
     handlers: handlersFrom(finalUnits),
     itemRenderer: itemRendererFrom(finalUnits),
   };
+}
+
+/**
+ * State this evolution's executable impact for behavioral execution selection (4.7/02,
+ * decision 23). The work plan already names exactly which units this build authors, so the
+ * run/skip verdict is read off the same plan the copy/regenerate split came from — a copied
+ * Handler is bytes the prior version's frozen suite already passed against.
+ *
+ * Two things widen it beyond the Handler list, and both are stated in words rather than by
+ * silently growing the set:
+ *
+ *   - A change fact that names no Action at all (a free-text `behavior` edit, decision 22).
+ *   - A change to the fields the item renderer may show. The renderer is not a Handler and
+ *     covers no Action, but every fragment assertion is rendered through it and may only
+ *     name row values, so shrinking `ui_intent.item.shows` can make a carried assertion
+ *     unsatisfiable by construction — with no Handler moving and no test digest moving. That
+ *     is precisely "a valid test's Handler coverage cannot be narrowed", and it runs the full
+ *     frozen suite. A rename or a reordering leaves the shown fields alone and still skips.
+ */
+function evolutionImpact(
+  input: AssembleEvolutionCandidateInput,
+  committedSpec: CapabilitySpec,
+  regenerated: ReadonlySet<GeneratedUnitName>,
+): BehavioralExecutionImpact {
+  const { diff } = input;
+  return {
+    regeneratedHandlers: diff.workPlan.regeneratedUnits.filter(
+      (unit): unit is HandlerUnitName => unit !== "item",
+    ),
+    regeneratedItemRenderer: regenerated.has("item"),
+    ...unnarrowableEvolutionReason(input, committedSpec),
+  };
+}
+
+function unnarrowableEvolutionReason(
+  input: AssembleEvolutionCandidateInput,
+  committedSpec: CapabilitySpec,
+): { unnarrowableReason?: string } {
+  if (input.diff.workPlan.gate.behavioral.fullSuite) {
+    return {
+      unnarrowableReason:
+        "a changed fact scoped to no single Action (PLAN decision 22's conservative fallback), so no copied suite can be proven unaffected",
+    };
+  }
+  if (!sameOrderedStrings(committedSpec.ui_intent.item.shows, input.candidate.ui_intent.item.shows))
+    return {
+      unnarrowableReason:
+        "the fields the item renderer may show changed, so a copied fragment assertion could no longer be satisfiable by any renderer",
+    };
+  return {};
+}
+
+function sameOrderedStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((entry, index) => entry === right[index]);
 }
 
 /**

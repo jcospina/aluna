@@ -10,6 +10,7 @@
 import type { Database } from "bun:sqlite";
 
 import type {
+  BehavioralExecutionPlan,
   BehavioralGateResult,
   BehavioralTestActionReport,
   CandidateValidationIssue,
@@ -293,6 +294,13 @@ export interface EvolutionAssemblySummary {
    * Handler is generated or repaired, which is the ordering it exists to make visible.
    */
   readonly behavioralTests?: readonly BehavioralTestActionReport[];
+  /**
+   * Per Action, whether that frozen suite executed or was skipped, and why — impact-driven
+   * or the full-suite fallback (4.7/02). Settled by the Gate, so it is absent from the
+   * `running` plan and from a tier-off evolution. Read next to `behavioralTests`, the two
+   * halves say the whole thing: what this version's intent is, and what had to be re-proven.
+   */
+  readonly behavioralExecution?: BehavioralExecutionPlan;
   readonly gate: readonly { readonly rung: string; readonly status: string }[];
 }
 

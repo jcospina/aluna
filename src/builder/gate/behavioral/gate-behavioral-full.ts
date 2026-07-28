@@ -32,11 +32,9 @@ import {
   snapshotCapabilityTables,
   sqlIdentifier,
 } from "../gate-internal.ts";
+import { planBehavioralExecution, selectedBehavioralCases } from "./behavioral-execution-plan.ts";
 import { assertFrozenTestsContract } from "./gate-behavioral-full-contract.ts";
-import {
-  type FullBehavioralTestCase,
-  frozenBehavioralTestCases,
-} from "./gate-behavioral-full-schema.ts";
+import type { FullBehavioralTestCase } from "./gate-behavioral-full-schema.ts";
 import {
   type BehavioralScalar,
   fieldValuesToRecord,
@@ -76,6 +74,12 @@ class FullBehavioralCaseFailure extends Error {
  * the tests already exist and the rung's only job is to run them against the exact bytes
  * the Gate is about to clear. The platform contract is re-asserted here rather than trusted
  * from the freeze stage, so no caller can smuggle an inadmissible suite into execution.
+ *
+ * *Which* frozen suites run is `planBehavioralExecution`'s decision (4.7/02): execution
+ * follows executable impact, so a suite copied byte-for-byte from the prior version runs
+ * only when a Handler it covers regenerated — or when narrowing could not be proven sound,
+ * in which case the complete frozen suite runs. When the plan executes nothing, this rung
+ * loads no Handler and opens no scratch database: a skip is a skip.
  */
 export async function runFullBehavioralRung(
   input: CapabilityGateInput,
@@ -87,15 +91,22 @@ export async function runFullBehavioralRung(
     );
   }
   assertFrozenTestsContract(input.spec, frozen.frozenTests);
-  const testRun = await runFullBehavioralTests(
-    input,
-    frozenBehavioralTestCases(frozen.frozenTests),
-  );
+  const execution = planBehavioralExecution({
+    frozenTests: frozen.frozenTests,
+    generatedActions: frozen.generation.generatedActions,
+    ...(input.behavioralTier?.impact ? { impact: input.behavioralTier.impact } : {}),
+  });
+  const cases = selectedBehavioralCases(frozen.frozenTests, execution);
+  const testRun =
+    cases.length === 0
+      ? { outcome: "passed" as const, durationMs: 0, cases: [] }
+      : await runFullBehavioralTests(input, cases);
   return {
     tier: "on",
     status: "passed",
     testGen: frozen.generation,
     testRun,
+    execution,
     frozenTests: frozen.frozenTests,
   };
 }

@@ -13,6 +13,7 @@ import { z } from "zod";
 import {
   type CapabilitySpec,
   capabilitySpecSchema,
+  FULL_CAPABILITY_TOOLS,
   incarnationIdSchema,
 } from "../../registry/index.ts";
 import {
@@ -33,6 +34,10 @@ import {
   createSafeStagingParent,
   publishDirectoryWithoutOverwrite,
 } from "./artifact-publication.ts";
+import {
+  BEHAVIORAL_EXECUTION_REASONS,
+  type BehavioralExecutionPlan,
+} from "../gate/behavioral/behavioral-execution-plan.ts";
 import {
   type FrozenBehavioralTests,
   frozenBehavioralTestsSchema,
@@ -72,6 +77,29 @@ const snapshotFileEntrySchema = z.strictObject({
   content_digest: digestSchema.optional(),
 });
 
+/**
+ * The tier metadata a tier-on snapshot records beyond the on/off flag (4.7/02): per Action,
+ * where this version's frozen cases came from and whether they were re-proven against these
+ * bytes. It lives here rather than inside `tests/behavioral.json` on purpose — the frozen
+ * artifact must stay byte-identical when its inputs did not move, so a fact about *this
+ * build's* execution cannot be written into it without destroying that guarantee.
+ */
+const snapshotBehavioralTestEntrySchema = z.strictObject({
+  action: z.enum(FULL_CAPABILITY_TOOLS),
+  source: z.enum(["generated", "copied"]),
+  execution: z.enum(["executed", "skipped"]),
+  // The closed reason vocabulary, pinned in the durable artifact rather than left as free
+  // text: the run/skip decision is only auditable if its grounds are a fixed set.
+  reason: z.enum(BEHAVIORAL_EXECUTION_REASONS),
+});
+
+const snapshotBehavioralTestsSchema = z.strictObject({
+  /** True when execution could not be narrowed and the complete frozen suite ran. */
+  full_suite: z.boolean(),
+  full_suite_reason: z.string().min(1).optional(),
+  actions: z.array(snapshotBehavioralTestEntrySchema).min(1).max(FULL_CAPABILITY_TOOLS.length),
+});
+
 export const snapshotManifestSchema = z.strictObject({
   manifest_version: z.literal(SNAPSHOT_MANIFEST_VERSION),
   capability_id: z.string().min(1),
@@ -79,6 +107,8 @@ export const snapshotManifestSchema = z.strictObject({
   version: z.number().int().positive(),
   build_id: buildIdSchema,
   behavioral_tier: z.enum(["on", "off"]),
+  /** Present exactly when the tier is on; a tier-off snapshot has no tests to describe. */
+  behavioral_tests: snapshotBehavioralTestsSchema.optional(),
   snapshot_content_digest: digestSchema,
   files: z.array(snapshotFileEntrySchema).min(1),
   unit_provenance: unitProvenanceManifestSchema,
@@ -446,12 +476,36 @@ function writeSnapshotManifest(input: {
     version: input.version,
     build_id: input.buildId,
     behavioral_tier: input.gate.behavioral.tier,
+    ...(input.gate.behavioral.tier === "on"
+      ? { behavioral_tests: behavioralTestMetadata(input.gate.behavioral.execution) }
+      : {}),
     snapshot_content_digest: snapshotContentDigest(otherFiles),
     files,
     unit_provenance: input.unitProvenance ?? unitProvenance(input.spec, input.units),
   });
   writeFileSync(join(input.stagingDirectory, SNAPSHOT_MANIFEST_FILE), canonicalJson(manifest));
   return manifest;
+}
+
+/**
+ * Project the Gate's execution plan into the manifest's snake_case record. The snapshot is
+ * the durable answer to "was this version's frozen intent actually re-proven against these
+ * bytes, or carried on the strength of unchanged Handlers?" — a question a later reader of
+ * the artifacts cannot reconstruct from the frozen tests alone.
+ */
+function behavioralTestMetadata(
+  execution: BehavioralExecutionPlan,
+): z.infer<typeof snapshotBehavioralTestsSchema> {
+  return {
+    full_suite: execution.fullSuite,
+    ...(execution.fullSuiteReason ? { full_suite_reason: execution.fullSuiteReason } : {}),
+    actions: execution.actions.map((entry) => ({
+      action: entry.action,
+      source: entry.source,
+      execution: entry.execution,
+      reason: entry.reason,
+    })),
+  };
 }
 
 function assertSuccessfulGate(gate: CapabilityGateResult): void {
@@ -507,7 +561,52 @@ function assertGeneratedUnitInventory(units: readonly GeneratedUnit[]): void {
   }
 }
 
+/**
+ * The tier metadata's own internal contract (4.7/02). Tier state and tier metadata are one
+ * fact: a tier-on snapshot that cannot say what it executed is as incomplete as one missing
+ * its frozen tests, and a tier-off snapshot describing test execution describes work the
+ * contract says never happened. Beyond presence, two invariants are cheap here and
+ * expensive to discover later — a freshly authored suite that never judged code must not
+ * reach a published version, and a full-suite fallback that skipped something is not a full
+ * suite. They are asserted at the boundary rather than trusted from the Gate, exactly as the
+ * frozen suite's own contract is.
+ */
+function assertBehavioralTestMetadataShape(manifest: SnapshotManifest): void {
+  const behavioralTests = manifest.behavioral_tests;
+  if ((behavioralTests !== undefined) !== (manifest.behavioral_tier === "on")) {
+    throw new SnapshotVerificationError(
+      `A tier-${manifest.behavioral_tier} snapshot must ${manifest.behavioral_tier === "on" ? "record" : "omit"} per-Action behavioral test metadata.`,
+    );
+  }
+  if (!behavioralTests) return;
+
+  const actions = behavioralTests.actions.map((entry) => entry.action);
+  if (new Set(actions).size !== actions.length) {
+    throw new SnapshotVerificationError(
+      "Behavioral test metadata must record each Action exactly once.",
+    );
+  }
+  for (const entry of behavioralTests.actions) {
+    if (entry.source === "generated" && entry.execution === "skipped") {
+      throw new SnapshotVerificationError(
+        `Behavioral tests authored for ${entry.action} in this build were never executed against it.`,
+      );
+    }
+    if (behavioralTests.full_suite && entry.execution === "skipped") {
+      throw new SnapshotVerificationError(
+        `A full-suite behavioral run cannot report ${entry.action} as skipped.`,
+      );
+    }
+  }
+  if (behavioralTests.full_suite !== (behavioralTests.full_suite_reason !== undefined)) {
+    throw new SnapshotVerificationError(
+      "A full-suite behavioral run must record why execution could not be narrowed.",
+    );
+  }
+}
+
 function assertManifestShape(manifest: SnapshotManifest): void {
+  assertBehavioralTestMetadataShape(manifest);
   const snapshotEntries = manifest.files.filter((entry) => entry.path === SNAPSHOT_MANIFEST_FILE);
   if (snapshotEntries.length !== 1 || snapshotEntries[0]?.content_digest !== undefined) {
     throw new SnapshotVerificationError(
