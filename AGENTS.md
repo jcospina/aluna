@@ -54,6 +54,6 @@ what visible behavior confirms the work.
 ### How to approach an issue
 
 Repo has lots of documents that can eat up context quickly. Use subagents to read documents and get the big picture and needed details from them instead of reading them on the main session. This will keep the session clean for the actual work.
-Use subagents as well to run quality and adversarial tests before running the live test.
-For subagents be sensible when choosing the model. Harder tasks require the SOTA models but trivial ones can be implemented with cheaper models. Adversarial must always use SOTA models.
+Use subagents as well to run quality and adversarial tests before running the live test. The issue cannot be marked as done without fixing the adversarial findings.
+For subagents be sensible when choosing the model and quantity. Reading code and docs to get summaries can be done with cheaper models (i.e Sonnet for Claude or Terra for Codex). Harder tasks require the SOTA models like adversarial testing must always use SOTA models.
 Main session will always run in the most powerful model + effort combination. No subagent can run in higher settings.

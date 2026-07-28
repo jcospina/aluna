@@ -34,6 +34,7 @@ import {
   dueDateCandidate,
   type EngineEnv,
   evolve,
+  expectEveryFrozenSuiteSkipped,
   factKinds,
   HISTORICAL_TEXT,
   INCARNATION_ID,
@@ -445,5 +446,11 @@ describe("frozen behavioral intent under evolution", () => {
     expect(
       readFileSync(join(secondOutcome.publication.directory, "tests/behavioral.json"), "utf8"),
     ).toBe(frozenV2);
+
+    // …and nothing ran. A label rename regenerates `item.ts` alone; the renderer covers no
+    // Action and no Handler moved, so there is no code any frozen assertion has not already
+    // judged. This is the living-demo case: an item-only change runs none.
+    expect(secondOutcome.assembly.regeneratedUnits).toEqual(["item"]);
+    expectEveryFrozenSuiteSkipped(second, secondOutcome, versionDirectory(env, 3));
   });
 });

@@ -3,6 +3,7 @@
 // whatever the engine asks for, and one `evolve` call that runs the whole engine over it.
 // Not a test file itself; bun never runs it.
 
+import { expect } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -26,6 +27,7 @@ import {
   expectedAbsentCapability,
   publishCapabilitySnapshot,
   runCapabilityGate,
+  verifyCapabilitySnapshot,
 } from "../../builder/index.ts";
 import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../../capability-data/index.ts";
 import type { StoredGenerationLifecycle } from "../../metrics/index.ts";
@@ -389,4 +391,63 @@ export function dueDateCandidate(): CapabilitySpec {
 export function behaviorNeutralDueDateCandidate(): CapabilitySpec {
   const base = committedSpec();
   return notesSpec({ schema: { fields: [...base.schema.fields, DUE_DATE_FIELD] } });
+}
+
+/**
+ * The three places one "nothing had to be re-proven" verdict has to agree: the Gate's own
+ * run, the snapshot's durable tier metadata, and the metrics stage vector. They are asserted
+ * together because a verdict that only one of them records is not a verdict a developer or a
+ * later reader of the artifacts can trust.
+ */
+export function expectEveryFrozenSuiteSkipped(
+  result: Awaited<ReturnType<typeof evolve>>,
+  outcome: ReturnType<typeof activated>,
+  directory: string,
+): void {
+  expect(outcome.assembly.behavioralExecution?.fullSuite).toBe(false);
+  expect(
+    outcome.assembly.behavioralExecution?.actions.map(
+      (entry) => `${entry.action}:${entry.source}:${entry.execution}`,
+    ),
+  ).toEqual([
+    "create:copied:skipped",
+    "read:copied:skipped",
+    "update:copied:skipped",
+    "delete:copied:skipped",
+    "search:copied:skipped",
+  ]);
+  if (outcome.assembly.gate.behavioral.tier !== "on") {
+    throw new Error("expected a tier-on evolution");
+  }
+  expect(outcome.assembly.gate.behavioral.testRun.cases).toEqual([]);
+
+  // The snapshot's tier metadata is the durable record — a later reader of the artifacts can
+  // tell "carried and re-proven" from "carried and left alone".
+  expect(verifyCapabilitySnapshot(directory).manifest.behavioral_tests).toEqual({
+    full_suite: false,
+    actions: (["create", "read", "update", "delete", "search"] as const).map((action) => ({
+      action,
+      source: "copied",
+      execution: "skipped",
+      reason: "no_covered_handler_change",
+    })),
+  });
+
+  // And the durable metrics row says the same thing per Action, in the stage vocabulary.
+  expect(result.lifecycles.at(-1)?.stages).toEqual(
+    expect.arrayContaining([
+      { stage: "behavioral_test_generation", state: "copied" },
+      { stage: "behavioral_test_execution", state: "skipped" },
+      {
+        stage: "behavioral_test_generation",
+        state: "copied",
+        test: { kind: "behavioral-suite", name: "search" },
+      },
+      {
+        stage: "behavioral_test_execution",
+        state: "skipped",
+        test: { kind: "behavioral-suite", name: "search" },
+      },
+    ]),
+  );
 }

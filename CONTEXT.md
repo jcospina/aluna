@@ -215,6 +215,19 @@ forward untouched, which is what makes "a label rename regenerates nothing" a
 fact about a hash rather than a policy (PLAN decision 23).
 _Avoid_: test context, the prompt, generation inputs
 
+**Executable impact**:
+Which Handlers a build authors rather than copies forward — the thing test
+*execution* follows, as distinct from the total inputs generation follows. A
+frozen suite copied byte-for-byte still runs whenever a Handler it covers
+regenerates, and may skip only when no covered Handler moved; each Action's suite
+covers exactly its own Handler, because a case invokes that one Handler and seeds
+and asserts everything else through platform ports. When coverage or runtime
+failure attribution cannot be narrowed — nothing was stated, a change fact names
+no Action, or the shared item renderer moved alongside Handler bytes — the
+**full-suite fallback** runs the complete frozen suite rather than trusting an
+unsound skip (PLAN decisions 22–23, ADR-0006).
+_Avoid_: affected tests, dirty tests, invalidation
+
 ## Product voice
 
 The voice every piece of UI copy speaks in, and the guide every future coding
