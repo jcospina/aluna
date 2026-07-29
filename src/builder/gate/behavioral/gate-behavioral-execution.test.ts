@@ -109,7 +109,7 @@ describe("capability gate — empty behavioral read", () => {
       "}",
     ].join("\n");
 
-    const result = await runFullBehavioralRung(
+    const { result } = await runFullBehavioralRung(
       gateInput(
         {
           spec,

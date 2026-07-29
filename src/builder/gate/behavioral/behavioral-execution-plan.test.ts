@@ -114,12 +114,9 @@ describe("a copied suite runs when a Handler it covers regenerates", () => {
     expect(selectedBehavioralCases(FROZEN, result)).toEqual([]);
   });
 
-  test("an item-renderer-only change runs nothing", () => {
-    // The living-demo case: a label rename regenerates `item.ts` and nothing else. The
-    // renderer covers no Action, and with no Handler bytes moving there is no failure to
-    // attribute — so there is nothing to re-prove. A renderer rewrite that *could* change
-    // which row values reach a fragment is a different fact, and the caller states it as
-    // `unnarrowableReason` (see the fallback tests below); the plan does not guess.
+  test("an item-renderer-only planned change runs nothing without an unscoped fact", () => {
+    // The Diff separately marks renderer changes that may invalidate frozen fragments with
+    // `unnarrowableReason`. A label-only renderer regeneration carries no such fact.
     const result = plan([], { regeneratedHandlers: [], regeneratedItemRenderer: true });
 
     expect(result.actions.every((entry) => entry.execution === "skipped")).toBe(true);

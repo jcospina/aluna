@@ -2,6 +2,7 @@
 // callback is immutable; only the Action attributed by a failed execution may be
 // regenerated, statically rechecked, and tried again from fresh scratch state.
 
+import { isProviderAbortError, type TokenUsage } from "../../../provider/index.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
 import { checkGeneratedUnit } from "../../units/unit-checks.ts";
 import {
@@ -9,6 +10,7 @@ import {
   generateUnitContent,
   type HandlerUnitName,
   type UnitGenerationFailure,
+  UnitGenerationPassError,
 } from "../../units/units.ts";
 import type { CapabilityGateInput, SmokeGateAttempt, SmokeGateResult } from "../gate.ts";
 
@@ -31,7 +33,7 @@ export class SmokeActionFailure extends Error {
   }
 }
 
-class SmokeRungFailure extends Error {
+export class SmokeRungFailure extends Error {
   override readonly name = "SmokeRungFailure";
   readonly diagnostic: {
     readonly smoke: {
@@ -40,6 +42,7 @@ class SmokeRungFailure extends Error {
       readonly failure: string;
     };
   };
+  readonly measurement: { readonly usage: TokenUsage };
 
   constructor(
     action: HandlerUnitName | undefined,
@@ -49,6 +52,7 @@ class SmokeRungFailure extends Error {
   ) {
     super(failure);
     this.diagnostic = { smoke: { ...(action ? { action } : {}), attempts, failure } };
+    this.measurement = { usage: sumAttemptUsage(attempts) };
   }
 }
 
@@ -148,17 +152,36 @@ async function prepareValidRepair(options: RepairPreparationInput): Promise<Pend
         error: failure,
       });
     } catch (repairError) {
-      failure = repairError instanceof Error ? repairError.message : String(repairError);
+      const failed = failedRepairGeneration(attempt, options.action, startedAt, repairError);
+      failure = failed.error;
       cause = repairError;
-      options.attempts.push({
-        attempt,
-        action: options.action,
-        durationMs: performance.now() - startedAt,
-        error: failure,
-      });
+      options.attempts.push(failed);
     }
   }
   throw new SmokeRungFailure(options.action, options.attempts, failure, cause);
+}
+
+function failedRepairGeneration(
+  attempt: number,
+  action: HandlerUnitName,
+  startedAt: number,
+  error: unknown,
+): SmokeGateAttempt & { readonly error: string } {
+  if (isProviderAbortError(error)) throw error;
+  const passFailure = error instanceof UnitGenerationPassError ? error : undefined;
+  return {
+    attempt,
+    action,
+    durationMs: passFailure?.durationMs ?? performance.now() - startedAt,
+    ...(passFailure?.usage
+      ? {
+          repairAction: action,
+          repairDurationMs: passFailure.durationMs,
+          usage: passFailure.usage,
+        }
+      : {}),
+    error: error instanceof Error ? error.message : String(error),
+  };
 }
 
 async function generateHandlerRepair(

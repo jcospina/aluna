@@ -89,6 +89,13 @@ describe("the generation context (decision 1, pinned)", () => {
     expect(prompt).toContain("tools: exactly [create, read, update, delete, search]");
     expect(prompt).toContain("Never return incarnation, version, build id, snapshot metadata");
     expect(prompt).toContain("comma_separated | repeatable");
+    expect(prompt).toContain(
+      "Preserve the committed behavior byte-for-byte unless the resolved intent explicitly changes",
+    );
+    expect(prompt).toContain('"make it stand out" in ui_intent');
+    expect(prompt).toContain(
+      "Preserve it byte-for-byte unless the resolved intent changes the capability's purpose",
+    );
   });
 
   test("an empty catalog states there is nothing to depend on", () => {

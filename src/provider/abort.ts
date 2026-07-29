@@ -4,12 +4,33 @@ import type { DeepPartial, GenerateResult, Provider } from "./contract.ts";
 
 export class ProviderAbortedError extends Error {
   override readonly name = "ProviderAbortedError";
+
+  constructor(
+    message = "Provider generation was aborted.",
+    override readonly cause?: unknown,
+  ) {
+    super(message);
+  }
 }
 
 function abortError(signal: AbortSignal): Error {
-  return signal.reason instanceof Error
-    ? signal.reason
-    : new ProviderAbortedError("Provider generation was aborted.");
+  if (
+    signal.reason instanceof ProviderAbortedError ||
+    (signal.reason instanceof Error && signal.reason.name === "AbortError")
+  ) {
+    return signal.reason;
+  }
+  return new ProviderAbortedError(
+    signal.reason instanceof Error ? signal.reason.message : "Provider generation was aborted.",
+    signal.reason,
+  );
+}
+
+/** True only for the two abort shapes the provider wrapper deliberately emits. */
+export function isProviderAbortError(error: unknown): error is Error {
+  return (
+    error instanceof ProviderAbortedError || (error instanceof Error && error.name === "AbortError")
+  );
 }
 
 function rejectOnAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -61,6 +82,10 @@ export function abortableProvider(provider: Provider, signal?: AbortSignal): Pro
 
   return {
     generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
+      // Do not start provider work after cancellation. `rejectOnAbort` protects awaited
+      // handles, but checking only after `provider.generate` would still initiate a network
+      // request that no build is allowed to publish.
+      if (signal.aborted) throw abortError(signal);
       const result = provider.generate(prompt, schema);
       const object = rejectOnAbort(result.object, signal);
       const usage = rejectOnAbort(result.usage, signal);

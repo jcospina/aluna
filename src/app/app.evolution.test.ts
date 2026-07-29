@@ -81,6 +81,11 @@ describe("the content-area living-demo control", () => {
     const html = await res.text();
     expect(html).toContain('hx-post="/demo/evolution/journal"');
     expect(html).toContain('name="intent"');
+    expect(html).toContain('name="force_behavioral_failure"');
+    expect(html).toContain("Want to watch me catch and repair a weak first attempt");
+    expect(html).toContain("Show me the guided repair");
+    expect(html).not.toContain("stress test");
+    expect(html).not.toContain("Stress-test");
     expect(html).toContain("Evolution candidate");
     expect(html).toContain('id="spec-candidate-preview"');
     const content = html.slice(
@@ -97,6 +102,7 @@ describe("the content-area living-demo control", () => {
     expect(panel).not.toContain('class="capability-evolution"');
     expect(panel).not.toContain('hx-post="/demo/evolution/');
     expect(panel).not.toContain('name="intent"');
+    expect(panel).not.toContain('name="force_behavioral_failure"');
   });
 
   test("the cold-start shell has no capability and therefore no evolution form", async () => {
@@ -135,6 +141,25 @@ describe("admission", () => {
     });
     expect(res.status).toBe(422);
     expect(await res.text()).toContain("Tell me what you'd like to change first.");
+  });
+
+  test("tier-off rejects the guided repair before it can inject or publish bytes", async () => {
+    const candidate = moodCandidate();
+    const { app, prompts } = moodEvolutionApp(env, candidate);
+    const res = await app.request("/demo/evolution/journal", {
+      method: "POST",
+      body: new URLSearchParams({
+        intent: "Add a mood field",
+        force_behavioral_failure: "true",
+      }),
+    });
+
+    expect(res.status).toBe(422);
+    expect(await res.text()).toContain(
+      "I can only show the guided repair while behavioral checks are on.",
+    );
+    expect(prompts).toHaveLength(0);
+    expect(getCapability("journal", env.conns.readonly)?.version).toBe(1);
   });
 
   test("an admitted trace returns the build subscriber wired to its own stream", async () => {

@@ -16,7 +16,12 @@
 // in `unit-prompts.ts` and the static checks in `unit-checks.ts`.
 
 import { z } from "zod";
-import type { DeepPartial, Provider, TokenUsage } from "../../provider/index.ts";
+import {
+  type DeepPartial,
+  isProviderAbortError,
+  type Provider,
+  type TokenUsage,
+} from "../../provider/index.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,
@@ -306,6 +311,24 @@ export interface UnitGenerationPass {
 }
 
 /**
+ * A provider generation that failed after returning a result handle. Usage may already be
+ * available even when the structured object rejects; carrying it keeps failed Gate work
+ * measurable without parsing provider error text.
+ */
+export class UnitGenerationPassError extends Error {
+  override readonly name = "UnitGenerationPassError";
+
+  constructor(
+    message: string,
+    readonly durationMs: number,
+    readonly usage: TokenUsage | undefined,
+    override readonly cause?: unknown,
+  ) {
+    super(message);
+  }
+}
+
+/**
  * Run one generation pass for a unit — build its prompt (feeding a prior failure back
  * when present, exactly as {@link generateUnit} does), stream a structured object, and
  * return the parsed `content` with its usage and wall time. This is the write step of the
@@ -328,9 +351,43 @@ export async function generateUnitContent(
     buildUnitPrompt(spec, unit, previousFailure, dependencyCatalog),
     generatedUnitSchema,
   );
-  const { content } = generatedUnitSchema.parse(await result.object);
-  const usage = await result.usage;
+  const [objectResult, usageResult] = await Promise.allSettled([result.object, result.usage]);
+  if (objectResult.status === "rejected") {
+    if (isProviderAbortError(objectResult.reason)) throw objectResult.reason;
+    const usage = usageResult.status === "fulfilled" ? usageResult.value : undefined;
+    throw new UnitGenerationPassError(
+      generationFailureMessage(objectResult.reason),
+      performance.now() - startedAt,
+      usage,
+      objectResult.reason,
+    );
+  }
+  if (usageResult.status === "rejected") {
+    if (isProviderAbortError(usageResult.reason)) throw usageResult.reason;
+    throw new UnitGenerationPassError(
+      generationFailureMessage(usageResult.reason),
+      performance.now() - startedAt,
+      undefined,
+      usageResult.reason,
+    );
+  }
+  let content: string;
+  try {
+    ({ content } = generatedUnitSchema.parse(objectResult.value));
+  } catch (error) {
+    throw new UnitGenerationPassError(
+      generationFailureMessage(error),
+      performance.now() - startedAt,
+      usageResult.value,
+      error,
+    );
+  }
+  const usage = usageResult.value;
   return { content, usage, durationMs: performance.now() - startedAt };
+}
+
+function generationFailureMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function observeUnitPartials(
