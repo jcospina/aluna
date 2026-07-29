@@ -228,7 +228,12 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
           : testCase,
       ),
     };
-    const { provider } = makeSpecProvider(NOTES_SPEC, failingSuite);
+    const { provider } = makeSpecProvider(NOTES_SPEC, failingSuite, {
+      // A v1 fragment failure is conservatively attributed because item.ts was generated.
+      // Return every Handler byte-identically: five real measured calls, no invented defect,
+      // and no admissible rewrite that could make the impossible assertion pass.
+      repairs: [CREATE_HANDLER, READ_HANDLER, UPDATE_HANDLER, DELETE_HANDLER, SEARCH_HANDLER],
+    });
     const { lifecycles, rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
@@ -262,9 +267,26 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
     expect(rows[0]?.failure).toMatchObject({ stage: "gate", rung: "behavioral" });
     expect(rows[0]?.capabilityId).toBe("notes");
     expect(rows[0]?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
+    // spec + five Action suites + six initial units + five conservative Handler attempts.
+    // Every fake call costs 53 tokens, including byte-identical repairs that did not publish.
+    expect(rows[0]?.usage?.totalTokens).toBe(53 * 17);
+    expect(
+      rows[0]?.unitAttempts?.filter((unit) => unit.kind === "handler").map((unit) => unit.attempts),
+    ).toEqual([2, 2, 2, 2, 2]);
     expect(
       lifecycles.at(-1)?.stages.find((stage) => stage.stage === "gate_behavioral"),
     ).toMatchObject({ state: "executed" });
+    expect(lifecycles.at(-1)?.stages).toContainEqual({
+      stage: "behavioral_test_execution",
+      state: "executed",
+      test: { kind: "behavioral-suite", name: "read" },
+    });
+    expect(
+      lifecycles
+        .at(-1)
+        ?.stages.filter((stage) => stage.stage === "unit_generation")
+        .every((stage) => stage.state === "generated"),
+    ).toBe(true);
 
     // Commit is unreachable when a gate rung fails: the transaction rolled back, so
     // nothing committed — no registry row, no cap_<id> table, no artifacts on disk —

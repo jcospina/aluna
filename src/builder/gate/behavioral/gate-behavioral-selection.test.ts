@@ -99,7 +99,7 @@ const UNCALLABLE_HANDLERS = Object.fromEntries(
 describe("capability gate — behavioral execution selection", () => {
   test("unchanged inputs and no covered Handler change copy the tests and run nothing", async () => {
     const spec = FULL_NOTES_SPEC as CapabilitySpec;
-    const result = await runFullBehavioralRung({
+    const { result } = await runFullBehavioralRung({
       ...fullInput(),
       handlers: UNLOADABLE_HANDLERS,
       behavioralTier: carriedTierInput(spec, { regeneratedHandlers: [] }),
@@ -125,7 +125,7 @@ describe("capability gate — behavioral execution selection", () => {
   test("a copied suite runs — and covers exactly one Handler — when its Handler regenerates", async () => {
     const spec = FULL_NOTES_SPEC as CapabilitySpec;
     const input = fullInput();
-    const result = await runFullBehavioralRung({
+    const { result } = await runFullBehavioralRung({
       ...input,
       // Every Handler but `update` throws if it is called. The update suite still passes,
       // which is what makes "an Action's suite covers exactly its own Handler" a fact about
@@ -149,7 +149,7 @@ describe("capability gate — behavioral execution selection", () => {
 
   test("attribution that cannot be narrowed runs the complete frozen suite", async () => {
     const spec = FULL_NOTES_SPEC as CapabilitySpec;
-    const result = await runFullBehavioralRung({
+    const { result } = await runFullBehavioralRung({
       ...fullInput(),
       behavioralTier: carriedTierInput(spec, {
         regeneratedHandlers: ["update"],
@@ -171,13 +171,15 @@ describe("capability gate — behavioral execution selection", () => {
       carriedTierInput(spec, { regeneratedHandlers: [] }).frozen.generation.testCount,
     );
   });
+});
 
+describe("capability gate — behavioral execution fallback and repair impact", () => {
   test("a caller that states no impact runs everything", async () => {
     // The default for every direct Gate caller: nothing was claimed about which Handlers
     // moved, so no copied suite can be proven unaffected and all of them run.
     const spec = FULL_NOTES_SPEC as CapabilitySpec;
     const tier = carriedTierInput(spec, { regeneratedHandlers: [] });
-    const result = await runFullBehavioralRung({
+    const { result } = await runFullBehavioralRung({
       ...fullInput(),
       behavioralTier: { enabled: true, frozen: tier.frozen },
     });

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { z } from "zod";
+import { type ZodType, z } from "zod";
 
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import { abortableProvider, ProviderAbortedError } from "./abort.ts";
@@ -84,4 +84,21 @@ test("a non-Error abort reason still rejects as a named provider abort", async (
 
   await expect(result.object).rejects.toBeInstanceOf(ProviderAbortedError);
   await expect(result.object).rejects.toHaveProperty("name", "ProviderAbortedError");
+});
+
+test("an already-aborted wrapper never initiates underlying provider work", () => {
+  const controller = new AbortController();
+  controller.abort();
+  let calls = 0;
+  const provider: Provider = {
+    generate<T>(): GenerateResult<T> {
+      calls += 1;
+      return neverSettlingProvider().generate("", z.unknown() as ZodType<T>);
+    },
+  };
+
+  expect(() =>
+    abortableProvider(provider, controller.signal).generate("must not start", z.string()),
+  ).toThrow();
+  expect(calls).toBe(0);
 });

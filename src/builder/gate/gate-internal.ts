@@ -67,6 +67,20 @@ export interface LoadedHandlers {
  * the smoke rung proves their item markup is identical by construction (3.4/02). A renderer
  * that fails to load throws here and fails the rung loudly rather than rendering blank.
  */
+/**
+ * A throw from inside the generated item renderer, marked so a rung can tell it apart from
+ * a Handler's own failure. It matters for runtime failure attribution (4.7/04): the renderer
+ * executes *inside* the Handler call, so without this marker a renderer defect would look
+ * like a Handler defect and license rewriting an innocent unit.
+ */
+export class ItemRendererExecutionError extends Error {
+  override readonly name = "ItemRendererExecutionError";
+
+  constructor(override readonly cause: unknown) {
+    super(`Generated item renderer threw while rendering: ${errorMessage(cause)}`);
+  }
+}
+
 export function buildGatePresent(spec: CapabilitySpec, itemRenderer: string): PresentationAdapter {
   const capability: RenderableCapability = {
     id: spec.id,
@@ -77,7 +91,17 @@ export function buildGatePresent(spec: CapabilitySpec, itemRenderer: string): Pr
     item: spec.ui_intent.item,
     detail: spec.ui_intent.detail,
   };
-  return createPresentationAdapter({ capability, renderItem: loadItemRenderer(itemRenderer) });
+  const renderItem = loadItemRenderer(itemRenderer);
+  const marked: ItemRenderer = (record) => {
+    try {
+      return renderItem(record);
+    } catch (error) {
+      throw error instanceof ItemRendererExecutionError
+        ? error
+        : new ItemRendererExecutionError(error);
+    }
+  };
+  return createPresentationAdapter({ capability, renderItem: marked });
 }
 
 export interface ScratchDatabasePair {

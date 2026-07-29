@@ -330,8 +330,10 @@ The lifecycle is spec-first and recoverable across SQLite and the filesystem:
    Action-safe active projections/opaque handles. The same ports have scratch
    adapters over synthetic data.
 4. Assemble the complete candidate in a unique build-id staging directory.
-   Behavioral tests are generated/copied according to the recorded tier and
-   freeze before any bounded Handler repair.
+   Behavioral tests are generated/copied according to the recorded tier.
+   Independent Action cache misses may author with bounded concurrency and
+   report per-Action progress, but settle into canonical order and freeze as one
+   admitted artifact before any Handler generation or bounded repair.
 5. **Validate before publication — a layered, fail-closed Gate.** Any active rung
    failing fails the whole build:
    - **Structural** (always): type-check the complete snapshot and assert every

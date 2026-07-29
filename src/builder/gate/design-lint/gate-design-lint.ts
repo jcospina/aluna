@@ -37,7 +37,7 @@ import {
   type RenderableCapability,
   renderCollection,
 } from "../../../presentation/index.ts";
-import type { Provider, TokenUsage } from "../../../provider/index.ts";
+import { isProviderAbortError, type Provider, type TokenUsage } from "../../../provider/index.ts";
 import type { CapabilitySpec, SpecField } from "../../../registry/index.ts";
 import { checkGeneratedUnit } from "../../units/unit-checks.ts";
 import {
@@ -46,9 +46,12 @@ import {
   ITEM_RENDERER_UNIT_NAME,
   type UnitDescriptor,
   type UnitGenerationFailure,
+  UnitGenerationPassError,
 } from "../../units/units.ts";
 import type { CapabilityGateInput, DesignLintAttempt, DesignLintGateResult } from "../gate.ts";
+import { normalizeGateAttempts } from "../gate-attempts.ts";
 import { errorMessage, loadItemRenderer } from "../gate-internal.ts";
+import { sumTokenUsages, TokenUsageAccumulator } from "../gate-token-usage.ts";
 import { observableItemRecordContent } from "./gate-item-content.ts";
 
 /** The affected unit the rung regenerates on a violation — the one creative surface. */
@@ -68,12 +71,18 @@ export interface DesignLintDiagnostic {
 export class DesignLintRungError extends Error {
   override readonly name = "DesignLintRungError";
   readonly diagnostic: DesignLintDiagnostic;
+  readonly measurement: { readonly usage: TokenUsage };
 
   constructor(diagnostic: DesignLintDiagnostic) {
     super(
       `Design-lint rung rejected the item renderer after ${diagnostic.attempts.length} attempt(s): ${diagnostic.violation}`,
     );
     this.diagnostic = diagnostic;
+    this.measurement = {
+      usage: sumTokenUsages(
+        diagnostic.attempts.flatMap((attempt) => (attempt.usage ? [attempt.usage] : [])),
+      ),
+    };
   }
 }
 
@@ -84,7 +93,11 @@ export class DesignLintRungError extends Error {
  * fixed) item renderer; throws {@link DesignLintRungError} on exhaustion.
  */
 export async function runDesignLintRung(input: CapabilityGateInput): Promise<DesignLintGateResult> {
-  const knob = normalizeMaxAttempts(input.designLint?.maxAttempts);
+  const knob = normalizeGateAttempts(
+    input.designLint?.maxAttempts,
+    DEFAULT_UNIT_FIX_ATTEMPTS,
+    "design-lint",
+  );
   const provider = input.provider;
   // Without a provider the rung can only detect once — it cannot regenerate to fix. In the
   // production pipeline a provider is always supplied; the no-provider path is the baseline
@@ -102,10 +115,15 @@ export async function runDesignLintRung(input: CapabilityGateInput): Promise<Des
     // clean). Later attempts regenerate it with the prior failure fed back — the same write
     // step the type-check loop runs — then re-validate the fresh unit's shape/type
     // (structural's job, re-applied) before the design review.
-    const step =
-      attempt === 1
-        ? { content: candidate }
-        : await regenerateItemRenderer(provider, input.spec, previousFailure);
+    const step = await designStep({
+      attempt,
+      candidate,
+      provider,
+      spec: input.spec,
+      previousFailure,
+      attempts,
+      usages,
+    });
     candidate = step.content;
     if (step.usage) usages.add(step.usage);
 
@@ -127,6 +145,39 @@ export async function runDesignLintRung(input: CapabilityGateInput): Promise<Des
     attempts,
     violation: previousFailure?.message ?? "unknown design violation",
   });
+}
+
+interface DesignStepInput {
+  readonly attempt: number;
+  readonly candidate: string;
+  readonly provider: Provider | undefined;
+  readonly spec: CapabilitySpec;
+  readonly previousFailure: UnitGenerationFailure | undefined;
+  readonly attempts: DesignLintAttempt[];
+  readonly usages: TokenUsageAccumulator;
+}
+
+async function designStep(
+  input: DesignStepInput,
+): Promise<{ content: string; usage?: TokenUsage; failure?: string }> {
+  if (input.attempt === 1) return { content: input.candidate };
+  try {
+    return await regenerateItemRenderer(input.provider, input.spec, input.previousFailure);
+  } catch (error) {
+    if (isProviderAbortError(error)) throw error;
+    if (!(error instanceof UnitGenerationPassError)) throw error;
+    if (error.usage) input.usages.add(error.usage);
+    input.attempts.push({
+      attempt: input.attempt,
+      durationMs: error.durationMs,
+      ...(error.usage ? { usage: error.usage } : {}),
+      error: error.message,
+    });
+    throw new DesignLintRungError({
+      attempts: input.attempts,
+      violation: error.message,
+    });
+  }
 }
 
 /** One regeneration step of the bounded fix loop: regenerate the item renderer through the
@@ -597,35 +648,4 @@ function offContractMessage(detail: string, probe: DesignProbe): string {
     "- Inline `style` may set only token values on the owned axes: color `var(--color-*)`, spacing `var(--space-*)`, type scale `var(--type-*)`, border weight `var(--border-thin|--border-regular|--border-thick)`. No raw colors (named, hex, or color functions), no `url(...)`, no `position: fixed|absolute|sticky`.",
     "- Emit no `<script>`, event handlers (`on*=`), links, buttons, inputs, or other interactive/unknown elements — the platform owns the wrapper, payload, and click-to-open.",
   ].join("\n");
-}
-
-function normalizeMaxAttempts(maxAttempts: number | undefined): number {
-  if (maxAttempts === undefined) return DEFAULT_UNIT_FIX_ATTEMPTS;
-  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
-    throw new RangeError("design-lint maxAttempts must be a positive integer.");
-  }
-  return maxAttempts;
-}
-
-/** Accumulate token usage across regeneration passes into one honest total (a missing figure
- *  stays absent, never a fabricated zero — the provider-contract rule). */
-class TokenUsageAccumulator {
-  private input: number | undefined;
-  private output: number | undefined;
-  private totalTokens: number | undefined;
-
-  add(usage: TokenUsage): void {
-    this.input = addOptional(this.input, usage.inputTokens);
-    this.output = addOptional(this.output, usage.outputTokens);
-    this.totalTokens = addOptional(this.totalTokens, usage.totalTokens);
-  }
-
-  total(): TokenUsage {
-    return { inputTokens: this.input, outputTokens: this.output, totalTokens: this.totalTokens };
-  }
-}
-
-function addOptional(current: number | undefined, next: number | undefined): number | undefined {
-  if (next === undefined) return current;
-  return (current ?? 0) + next;
 }

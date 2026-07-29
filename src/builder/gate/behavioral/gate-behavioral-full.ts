@@ -14,7 +14,6 @@ import { activeSpecFields, type CapabilitySpec } from "../../../registry/index.t
 import type { CapabilityInput } from "../../../router/index.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
 import type {
-  BehavioralGateResult,
   BehavioralTestCaseOutcome,
   BehavioralTestRunMetrics,
   CapabilityGateInput,
@@ -24,6 +23,7 @@ import {
   buildGatePresent,
   buildGateQueryPort,
   errorMessage,
+  ItemRendererExecutionError,
   type LoadedHandlers,
   loadHandlers,
   openScratchDatabasePair,
@@ -32,7 +32,8 @@ import {
   snapshotCapabilityTables,
   sqlIdentifier,
 } from "../gate-internal.ts";
-import { planBehavioralExecution, selectedBehavioralCases } from "./behavioral-execution-plan.ts";
+import { selectedBehavioralCases } from "./behavioral-execution-plan.ts";
+import type { BehavioralFailureSurface } from "./behavioral-failure-attribution.ts";
 import { assertFrozenTestsContract } from "./gate-behavioral-full-contract.ts";
 import type { FullBehavioralTestCase } from "./gate-behavioral-full-schema.ts";
 import {
@@ -40,6 +41,7 @@ import {
   fieldValuesToRecord,
   inputValuesToHandlerInput,
 } from "./gate-behavioral-input.ts";
+import { type BehavioralRungRun, runBehavioralRepairLoop } from "./gate-behavioral-repair.ts";
 import {
   ageSetupRows,
   assertFragmentIncludes,
@@ -55,10 +57,18 @@ interface FullBehavioralCaseDiagnostic {
   readonly actionInput?: CapabilityInput;
   readonly scratchRows?: ReturnType<typeof selectCapabilityRows>;
   readonly fragment?: string;
+  /** Where in the case's execution it failed — the input to runtime attribution (4.7/04). */
+  readonly surface: BehavioralFailureSurface;
   readonly failure: string;
 }
 
-class FullBehavioralCaseFailure extends Error {
+/**
+ * One frozen case's verdict against these bytes. Exported because it is the *only* error
+ * a Handler repair may answer to (4.7/04): anything else escaping the rung — an
+ * inadmissible suite, a scratch-setup fault, a real-database mutation — fails the Gate
+ * closed rather than spending the repair budget on an innocent unit.
+ */
+export class FullBehavioralCaseFailure extends Error {
   override readonly name = "BehavioralCaseFailure";
   readonly diagnostic: FullBehavioralCaseDiagnostic;
 
@@ -80,10 +90,14 @@ class FullBehavioralCaseFailure extends Error {
  * only when a Handler it covers regenerated — or when narrowing could not be proven sound,
  * in which case the complete frozen suite runs. When the plan executes nothing, this rung
  * loads no Handler and opens no scratch database: a skip is a skip.
+ *
+ * A *failing* case does not end the rung outright: `runBehavioralRepairLoop` (4.7/04)
+ * rewrites the attributed Handler(s) within ADR-0003's bounded budget and reruns the same
+ * frozen bytes. The suite is admitted against the platform-owned Action response contract
+ * here, once, before any of that — an inadmissible suite may neither execute nor drive a
+ * repair.
  */
-export async function runFullBehavioralRung(
-  input: CapabilityGateInput,
-): Promise<BehavioralGateResult> {
+export function runFullBehavioralRung(input: CapabilityGateInput): Promise<BehavioralRungRun> {
   const frozen = input.behavioralTier?.frozen;
   if (!frozen) {
     throw new Error(
@@ -91,24 +105,16 @@ export async function runFullBehavioralRung(
     );
   }
   assertFrozenTestsContract(input.spec, frozen.frozenTests);
-  const execution = planBehavioralExecution({
-    frozenTests: frozen.frozenTests,
-    generatedActions: frozen.generation.generatedActions,
-    ...(input.behavioralTier?.impact ? { impact: input.behavioralTier.impact } : {}),
+  return runBehavioralRepairLoop({
+    input,
+    frozen,
+    execute: (handlers, execution) => {
+      const cases = selectedBehavioralCases(frozen.frozenTests, execution);
+      return cases.length === 0
+        ? Promise.resolve({ outcome: "passed" as const, durationMs: 0, cases: [] })
+        : runFullBehavioralTests({ ...input, handlers }, cases);
+    },
   });
-  const cases = selectedBehavioralCases(frozen.frozenTests, execution);
-  const testRun =
-    cases.length === 0
-      ? { outcome: "passed" as const, durationMs: 0, cases: [] }
-      : await runFullBehavioralTests(input, cases);
-  return {
-    tier: "on",
-    status: "passed",
-    testGen: frozen.generation,
-    testRun,
-    execution,
-    frozenTests: frozen.frozenTests,
-  };
 }
 
 async function runFullBehavioralTests(
@@ -166,11 +172,16 @@ async function runFullBehavioralCase(
   const actionInput = inputValuesToHandlerInput(input.spec, testCase.input, submittedFields);
   let fragment: string | undefined;
   let scratchRows: ReturnType<typeof selectCapabilityRows> | undefined;
+  // Tagged as execution advances, never inferred from the message afterwards. Runtime
+  // attribution (4.7/04) turns on *which generated units had run by this point*, and only
+  // the executor knows that — a wording heuristic over an error string would not.
+  let surface: BehavioralFailureSurface = "setup";
   try {
     prepareScratchCatalog(input.spec, input.ddl, input.scratchCatalog, scratch);
     const setupIds = seedRows(input.spec, input.ddl.tableName, setupRows, scratch.readwrite);
     ageSetupRows(scratch.readwrite, input.ddl.tableName, setupIds);
     const targetId = resolveTargetId(testCase, setupIds);
+    surface = "handler_invocation";
     fragment = await invokeExpectedAction(
       input,
       handlers,
@@ -181,11 +192,16 @@ async function runFullBehavioralCase(
       scratch.readwrite,
       scratch.readonly,
     );
+    // Reading the scratch table back is platform work, but it reads the state this
+    // Handler just wrote: a row it corrupted surfaces here and is its own doing.
+    surface = "row_state";
     scratchRows = selectCapabilityRows(
       input.spec,
       buildGateQueryPort(input.spec, "read", input.scratchCatalog, scratch.readonly),
     );
+    surface = "fragment";
     assertFragmentResult(testCase, fragment);
+    surface = "row_state";
     assertExpectedRows(input.spec, scratchRows, testCase);
   } catch (error) {
     throw new FullBehavioralCaseFailure(testCase.name, {
@@ -194,12 +210,26 @@ async function runFullBehavioralCase(
       actionInput,
       scratchRows,
       fragment,
+      // The item renderer runs *inside* the Handler call, so a renderer defect would
+      // otherwise be tagged `handler_invocation` — the one surface attribution treats as
+      // unconditionally total — and blamed on a Handler that could not possibly fix it.
+      // A marked renderer throw moves to the fragment surface, where attribution asks
+      // whether the shared renderer is proven unmoved before narrowing (4.7/04).
+      surface: renderedThrough(error) ? "fragment" : surface,
       failure: errorMessage(error),
     });
   } finally {
     scratch.readonly.close();
     scratch.readwrite.close();
   }
+}
+
+/** Whether this failure came out of the shared item renderer rather than the Handler. */
+function renderedThrough(error: unknown): boolean {
+  for (let current = error; current instanceof Error; current = current.cause) {
+    if (current instanceof ItemRendererExecutionError) return true;
+  }
+  return false;
 }
 
 function seedRows(

@@ -343,6 +343,41 @@ describe("an unmapped difference fails closed", () => {
 
 // ── Frozen behavioral intent (4.7/01, PLAN decision 23) ─────────────────────────────
 
+function assertBehavioralProgressBeforeUnits(
+  events: readonly { readonly event: string; readonly data: string }[],
+): void {
+  const progressEvents = events.flatMap((event, index) =>
+    event.event === "behavioral-tests-preview"
+      ? [
+          {
+            index,
+            progress: JSON.parse(event.data) as {
+              status: string;
+              completedActions: number;
+              actions: readonly { action: string; status: string }[];
+            },
+          },
+        ]
+      : [],
+  );
+  expect(progressEvents[0]?.progress).toMatchObject({
+    status: "running",
+    completedActions: 0,
+  });
+  expect(
+    progressEvents.some(
+      ({ progress }) =>
+        progress.actions.filter((entry) => entry.status === "generating").length === 2,
+    ),
+  ).toBe(true);
+  expect(progressEvents.at(-1)?.progress).toMatchObject({
+    status: "complete",
+    completedActions: 5,
+  });
+  const firstUnitsEvent = events.findIndex((event) => event.event === "units-preview");
+  expect(progressEvents.at(-1)?.index).toBeLessThan(firstUnitsEvent);
+}
+
 describe("frozen behavioral intent under evolution", () => {
   beforeEach(async () => {
     env = await setUpCommitted(gate);
@@ -409,6 +444,8 @@ describe("frozen behavioral intent under evolution", () => {
       behavior: true,
       schemaFields: ["due_date", "pinned", "text"],
     });
+
+    assertBehavioralProgressBeforeUnits(result.events);
   });
 
   test("a following label-only evolution regenerates no tests and carries the frozen bytes", async () => {

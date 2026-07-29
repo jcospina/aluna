@@ -229,7 +229,9 @@ M4 contract. This is bounded development sequencing, not persisted dual-serving.
   off→on generates from current intent on the next spec-changing build (not a
   semantic no-op); copied frozen tests rerun after covered code changes, with
   full-suite fallback only for non-total valid-test coverage/failure attribution.
-  Repair never edits tests.
+  Changed Action suites author with bounded concurrency, settle in canonical
+  order before Handler work, and stream per-Action liveness. Repair never edits
+  tests.
 - **4.8 — Resolver, explicit presenter, active context & overlap.** Act on
   `new_capability | extend_capability | ui_change`; keep `reject`/`data_query` out
   of the Builder; resolve meaningful separate capabilities. Separate the resolved

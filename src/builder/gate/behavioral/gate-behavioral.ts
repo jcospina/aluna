@@ -14,7 +14,20 @@ export {
   selectedBehavioralCases,
 } from "./behavioral-execution-plan.ts";
 export {
+  attributeBehavioralFailure,
+  BEHAVIORAL_ATTRIBUTION_REASONS,
+  BEHAVIORAL_FAILURE_SURFACES,
+  type BehavioralAttributionReason,
+  type BehavioralFailureAttribution,
+  type BehavioralFailureSurface,
+  declaredHandlerSet,
+} from "./behavioral-failure-attribution.ts";
+export {
+  BEHAVIORAL_TEST_GENERATION_CONCURRENCY,
+  type BehavioralTestActionProgress,
+  type BehavioralTestActionProgressStatus,
   type BehavioralTestActionReport,
+  type BehavioralTestFreezeProgress,
   BehavioralTestGenerationError,
   type BehavioralTestInputSummary,
   type FreezeBehavioralTestsInput,
@@ -40,3 +53,9 @@ export {
   frozenBehavioralTestCases,
   frozenBehavioralTestsSchema,
 } from "./gate-behavioral-full-schema.ts";
+export {
+  BehavioralRungFailure,
+  type BehavioralRungFailureMeasurement,
+  type BehavioralRungRun,
+  FrozenIntentMutatedError,
+} from "./gate-behavioral-repair.ts";

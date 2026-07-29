@@ -35,6 +35,7 @@ import {
 } from "./gate-behavioral-full-schema.ts";
 
 const ZERO_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+export const BEHAVIORAL_TEST_GENERATION_CONCURRENCY = 2;
 
 /**
  * A behavioral suite that could not be authored or could not be admitted. Freezing now
@@ -83,6 +84,26 @@ export interface BehavioralTestInputSummary {
   readonly dependencies: readonly string[];
 }
 
+export type BehavioralTestActionProgressStatus = "pending" | "generating" | "generated" | "carried";
+
+export interface BehavioralTestActionProgress {
+  readonly action: CapabilityTool;
+  readonly status: BehavioralTestActionProgressStatus;
+  readonly inputDigest: string;
+  readonly caseCount?: number;
+}
+
+/**
+ * A point-in-time, canonical-Action-order view of the pre-unit freeze. Callers may stream
+ * it freely: the snapshot never exposes test bytes and never changes the rule that every
+ * suite must finish and pass admission before Handler generation begins.
+ */
+export interface BehavioralTestFreezeProgress {
+  readonly completedActions: number;
+  readonly totalActions: number;
+  readonly actions: readonly BehavioralTestActionProgress[];
+}
+
 export interface FreezeBehavioralTestsInput {
   readonly provider: Provider;
   readonly spec: CapabilitySpec;
@@ -92,6 +113,8 @@ export interface FreezeBehavioralTestsInput {
    * regenerating them; absent, every Action generates (a v1 build, or an off→on transition).
    */
   readonly priorFrozenTests?: FrozenBehavioralTests;
+  /** Optional liveness observer; it cannot alter, admit, or access the frozen test bytes. */
+  readonly onProgress?: (progress: BehavioralTestFreezeProgress) => void | Promise<void>;
 }
 
 export interface FrozenBehavioralTestsResult {
@@ -114,36 +137,94 @@ export async function freezeBehavioralTests(
   const prior = new Map(
     (input.priorFrozenTests?.actions ?? []).map((entry) => [entry.action, entry]),
   );
-  const actions: FrozenActionTests[] = [];
-  const report: BehavioralTestActionReport[] = [];
-  const usages: TokenUsage[] = [];
-
-  for (const inputs of specActionTestInputs(input.spec)) {
+  const plans = specActionTestInputs(input.spec).map((inputs) => {
     const digest = actionTestInputDigest(inputs);
     const carried = prior.get(inputs.action);
-    try {
-      if (
-        carried &&
-        carried.input_digest === digest &&
-        carriedSuiteIsAdmissible(input.spec, inputs.action, carried)
-      ) {
-        // Unchanged total inputs. The prior cases carry forward verbatim — but they are
-        // re-admitted against the candidate contract first, so a suite the platform would
-        // no longer accept can never survive by being old.
-        actions.push(carried);
-        report.push(actionReport(inputs, digest, "carried", carried.cases.length));
-        continue;
-      }
-      const generated = await generateActionTests(input.provider, input.spec, inputs, digest);
-      usages.push(generated.usage);
-      actions.push(generated.frozen);
-      report.push(actionReport(inputs, digest, "generated", generated.frozen.cases.length));
-    } catch (error) {
-      throw new BehavioralTestGenerationError(error, inputs.action);
-    }
-  }
+    const admissibleCarry =
+      carried &&
+      carried.input_digest === digest &&
+      carriedSuiteIsAdmissible(input.spec, inputs.action, carried)
+        ? carried
+        : undefined;
+    return { inputs, digest, carried: admissibleCarry };
+  });
+  const actions: Array<FrozenActionTests | undefined> = plans.map((plan) => plan.carried);
+  const report: Array<BehavioralTestActionReport | undefined> = plans.map((plan) =>
+    plan.carried
+      ? actionReport(plan.inputs, plan.digest, "carried", plan.carried.cases.length)
+      : undefined,
+  );
+  const usages: Array<TokenUsage | undefined> = plans.map(() => undefined);
+  const progress: BehavioralTestActionProgress[] = plans.map((plan) => ({
+    action: plan.inputs.action,
+    status: plan.carried ? "carried" : "pending",
+    inputDigest: plan.digest,
+    ...(plan.carried ? { caseCount: plan.carried.cases.length } : {}),
+  }));
+  let progressDelivery = Promise.resolve();
+  const publishProgress = (): Promise<void> => {
+    if (!input.onProgress) return Promise.resolve();
+    const snapshot: BehavioralTestFreezeProgress = {
+      completedActions: progress.filter(
+        (entry) => entry.status === "generated" || entry.status === "carried",
+      ).length,
+      totalActions: progress.length,
+      actions: progress.map((entry) => ({ ...entry })),
+    };
+    progressDelivery = progressDelivery.then(() => input.onProgress?.(snapshot));
+    return progressDelivery;
+  };
 
-  const frozenTests: FrozenBehavioralTests = { actions };
+  await publishProgress();
+  const pendingIndexes = plans.flatMap((plan, index) => (plan.carried ? [] : [index]));
+  let nextPending = 0;
+  let firstFailure: BehavioralTestGenerationError | undefined;
+  const worker = async (): Promise<void> => {
+    while (!firstFailure) {
+      const index = pendingIndexes[nextPending];
+      nextPending += 1;
+      if (index === undefined) return;
+      const plan = entryAt(plans, index);
+      const currentProgress = entryAt(progress, index);
+      progress[index] = { ...currentProgress, status: "generating" };
+      await publishProgress();
+      try {
+        const generated = await generateActionTests(
+          input.provider,
+          input.spec,
+          plan.inputs,
+          plan.digest,
+        );
+        usages[index] = generated.usage;
+        actions[index] = generated.frozen;
+        report[index] = actionReport(
+          plan.inputs,
+          plan.digest,
+          "generated",
+          generated.frozen.cases.length,
+        );
+        progress[index] = {
+          ...currentProgress,
+          status: "generated",
+          caseCount: generated.frozen.cases.length,
+        };
+        await publishProgress();
+      } catch (error) {
+        firstFailure = firstFailure ?? new BehavioralTestGenerationError(error, plan.inputs.action);
+      }
+    }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(BEHAVIORAL_TEST_GENERATION_CONCURRENCY, pendingIndexes.length) },
+      () => worker(),
+    ),
+  );
+  if (firstFailure) throw firstFailure;
+  await progressDelivery;
+
+  const frozenTests: FrozenBehavioralTests = { actions: completeEntries(actions) };
+  const completeReport = completeEntries(report);
   try {
     assertFrozenTestsContract(input.spec, frozenTests);
   } catch (error) {
@@ -151,11 +232,30 @@ export async function freezeBehavioralTests(
   }
   return {
     frozenTests,
-    report,
+    report: completeReport,
     durationMs: performance.now() - startedAt,
-    usage: usages.reduce(addTokenUsage, ZERO_USAGE),
-    testCount: actions.reduce((count, entry) => count + entry.cases.length, 0),
+    usage: definedEntries(usages).reduce(addTokenUsage, ZERO_USAGE),
+    testCount: frozenTests.actions.reduce((count, entry) => count + entry.cases.length, 0),
   };
+}
+
+function completeEntries<T>(entries: readonly (T | undefined)[]): T[] {
+  if (entries.some((entry) => entry === undefined)) {
+    throw new BehavioralTestGenerationError("behavioral freeze completed with missing results");
+  }
+  return entries as T[];
+}
+
+function definedEntries<T>(entries: readonly (T | undefined)[]): T[] {
+  return entries.filter((entry): entry is T => entry !== undefined);
+}
+
+function entryAt<T>(entries: readonly T[], index: number): T {
+  const entry = entries[index];
+  if (entry === undefined) {
+    throw new BehavioralTestGenerationError(`missing behavioral freeze plan at index ${index}`);
+  }
+  return entry;
 }
 
 /**

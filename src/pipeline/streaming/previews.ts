@@ -13,6 +13,7 @@ import type {
   BehavioralExecutionPlan,
   BehavioralGateResult,
   BehavioralTestActionReport,
+  BehavioralTestFreezeProgress,
   CandidateValidationIssue,
   CapabilityDiff,
   CapabilityMigrationResult,
@@ -64,6 +65,14 @@ export interface DemoUnitsPreview {
   readonly units: readonly DemoUnitPreview[];
 }
 
+export interface DemoBehavioralTestProgressPreview {
+  readonly kind: "behavioral-test-generation-preview";
+  readonly status: "running" | "complete";
+  readonly completedActions: number;
+  readonly totalActions: number;
+  readonly actions: BehavioralTestFreezeProgress["actions"];
+}
+
 export interface DemoGatePreview {
   readonly kind: "gate-preview";
   readonly status: "passed";
@@ -71,10 +80,49 @@ export interface DemoGatePreview {
   readonly rungs: readonly GateRungOutcome[];
   readonly structural: StructuralGateResult;
   readonly smoke: SmokeGateResult;
-  readonly behavioral: BehavioralGateResult;
+  readonly behavioral: DemoBehavioralGatePreview;
   /** Per Action, generated vs carried and from which closed inputs (4.7/01); tier-on only. */
   readonly behavioralTests?: readonly BehavioralTestActionReport[];
 }
+
+export function buildBehavioralTestProgressPreview(
+  progress: BehavioralTestFreezeProgress,
+  status: DemoBehavioralTestProgressPreview["status"],
+): DemoBehavioralTestProgressPreview {
+  return {
+    kind: "behavioral-test-generation-preview",
+    status,
+    completedActions: progress.completedActions,
+    totalActions: progress.totalActions,
+    actions: progress.actions,
+  };
+}
+
+export type DemoBehavioralGatePreview =
+  | Extract<BehavioralGateResult, { readonly tier: "off" }>
+  | {
+      readonly tier: "on";
+      readonly status: "passed";
+      readonly testGen: Extract<BehavioralGateResult, { readonly tier: "on" }>["testGen"];
+      readonly testRun: {
+        readonly outcome: "passed";
+        readonly durationMs: number;
+        readonly caseCount: number;
+        readonly actions: readonly {
+          readonly action: string;
+          readonly caseCount: number;
+        }[];
+      };
+      /** Repair is deliberately before execution/evidence in the serialized panel payload. */
+      readonly repair: Extract<BehavioralGateResult, { readonly tier: "on" }>["repair"];
+      readonly execution: Extract<BehavioralGateResult, { readonly tier: "on" }>["execution"];
+      /** Full case bytes remain sealed in the snapshot; the live panel gets their inventory. */
+      readonly frozenIntent: {
+        readonly artifact: "tests/behavioral.json";
+        readonly actionCount: number;
+        readonly testCount: number;
+      };
+    };
 
 export interface DemoBuildErrorPreview {
   readonly kind: "build-error-preview";
@@ -249,8 +297,38 @@ export function buildGatePreview(
     rungs,
     structural,
     smoke,
-    behavioral,
+    behavioral: behavioralGatePreview(behavioral),
     ...(behavioralTests ? { behavioralTests } : {}),
+  };
+}
+
+function behavioralGatePreview(behavioral: BehavioralGateResult): DemoBehavioralGatePreview {
+  if (behavioral.tier === "off") return behavioral;
+  const actionCounts = new Map<string, number>();
+  for (const testCase of behavioral.testRun.cases) {
+    const action = testCase.action ?? "unknown";
+    actionCounts.set(action, (actionCounts.get(action) ?? 0) + 1);
+  }
+  return {
+    tier: behavioral.tier,
+    status: behavioral.status,
+    testGen: behavioral.testGen,
+    testRun: {
+      outcome: behavioral.testRun.outcome,
+      durationMs: behavioral.testRun.durationMs,
+      caseCount: behavioral.testRun.cases.length,
+      actions: [...actionCounts].map(([action, caseCount]) => ({ action, caseCount })),
+    },
+    repair: behavioral.repair,
+    execution: behavioral.execution,
+    frozenIntent: {
+      artifact: "tests/behavioral.json",
+      actionCount: behavioral.frozenTests.actions.length,
+      testCount: behavioral.frozenTests.actions.reduce(
+        (count, entry) => count + entry.cases.length,
+        0,
+      ),
+    },
   };
 }
 

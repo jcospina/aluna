@@ -12,6 +12,7 @@ import {
   behavioralResponseFor,
   createHandlerFor,
   DELETE_HANDLER,
+  frozenTestsInput,
   fullBehavioralSuiteFor,
   fullHandlersFor,
   generatedUnitsFor,
@@ -46,6 +47,9 @@ import {
 
 export const INCARNATION_ID = "55555555-5555-4555-8555-555555555555";
 
+/** One unit's substitute bytes: fixed for every generation, or a queue answered in order. */
+export type UnitOverride = string | readonly string[];
+
 /** The seeded record's text — written before any evolved column existed. */
 export const HISTORICAL_TEXT = "written before the due date existed";
 
@@ -67,6 +71,25 @@ export function committedGate(
     handlers: handlersFor(spec),
     itemRenderer: itemRendererFor(spec),
     behavioralTier: { enabled: false },
+  });
+}
+
+/**
+ * The same committed v1, published **tier-on** — the only base from which an evolution can
+ * carry a frozen suite forward. It matters for more than coverage: a carried suite's setup
+ * rows were written against v1's schema, so once an evolution adds a column those rows are
+ * the Gate's *existing records*, holding a historical `null` in a column that did not exist
+ * when the intent was frozen (4.7/04).
+ */
+export function committedTierOnGate(
+  spec: CapabilitySpec = committedSpec(),
+): Promise<CapabilityGateResult> {
+  return runCapabilityGate({
+    spec,
+    ddl: deriveCapabilityTableDdl(spec),
+    handlers: handlersFor(spec),
+    itemRenderer: itemRendererFor(spec),
+    behavioralTier: { enabled: true, frozen: frozenTestsInput(spec, behavioralSuiteFor(spec)) },
   });
 }
 
@@ -157,7 +180,8 @@ export function tearDownCommitted(env: EngineEnv): void {
  */
 export function engineProvider(
   candidate: CapabilitySpec,
-  unitOverrides: Readonly<Record<string, string>> = {},
+  unitOverrides: Readonly<Record<string, UnitOverride>> = {},
+  onRepairGeneration?: (unit: string) => Promise<void>,
 ): {
   provider: Provider;
   prompts: string[];
@@ -172,19 +196,43 @@ export function engineProvider(
     update: updateHandlerFor(candidate),
     delete: DELETE_HANDLER,
     search: searchHandlerFor(candidate),
-    ...unitOverrides,
+    ...Object.fromEntries(
+      Object.entries(unitOverrides).flatMap(([name, override]) =>
+        typeof override === "string" ? [[name, override]] : [],
+      ),
+    ),
   };
+  // A queued override answers successive generations of the same unit in order and then
+  // falls back to the good default — how a case drives the Gate into a *repairable*
+  // failure: the build writes bad bytes, and the repair regeneration writes correct ones.
+  const queues = new Map<string, string[]>(
+    Object.entries(unitOverrides).flatMap(([name, override]) =>
+      typeof override === "string" ? [] : [[name, [...override]]],
+    ),
+  );
   const suite = behavioralSuiteFor(candidate);
+  const unitContent = (name: string): string | undefined => {
+    const queued = queues.get(name);
+    return (queued && queued.length > 0 ? queued.shift() : undefined) ?? units[name];
+  };
+  // A unit generated a second time is the Gate repairing it — the only point at which a
+  // case can stop the run *inside* the repair loop.
+  const generationCounts = new Map<string, number>();
+  const isRepair = (name: string): boolean => {
+    const next = (generationCounts.get(name) ?? 0) + 1;
+    generationCounts.set(name, next);
+    return next > 1;
+  };
 
   const answer = (prompt: string): unknown => {
     const handler = /^Generate the (\w+)\.ts handler/u.exec(prompt);
     if (handler?.[1]) {
       generatedUnits.push(handler[1]);
-      return { content: units[handler[1]] };
+      return { content: unitContent(handler[1]) };
     }
     if (prompt.startsWith("Generate the item.ts item renderer")) {
       generatedUnits.push("item");
-      return { content: units.item };
+      return { content: unitContent("item") };
     }
     // One fixture answers all five per-Action generation calls the freeze stage makes.
     if (prompt.startsWith("Generate deterministic black-box behavioral tests")) {
@@ -197,13 +245,19 @@ export function engineProvider(
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
       prompts.push(prompt);
       const response = answer(prompt);
+      const repairing = /^Generate the (\w+)\.ts handler/u.exec(prompt)?.[1];
+      const held =
+        repairing && onRepairGeneration && isRepair(repairing)
+          ? onRepairGeneration(repairing)
+          : Promise.resolve();
       async function* stream(): AsyncGenerator<DeepPartial<T>> {
+        await held;
         yield response as DeepPartial<T>;
       }
       return {
         partialStream: stream(),
-        object: Promise.resolve(response as T),
-        usage: Promise.resolve({ inputTokens: 32, outputTokens: 16, totalTokens: 48 }),
+        object: held.then(() => response as T),
+        usage: held.then(() => ({ inputTokens: 32, outputTokens: 16, totalTokens: 48 })),
       };
     },
   };
@@ -211,7 +265,7 @@ export function engineProvider(
 }
 
 /** The tier-on suite, derived from whichever notes-shaped candidate is under test. */
-function behavioralSuiteFor(candidate: CapabilitySpec) {
+export function behavioralSuiteFor(candidate: CapabilitySpec) {
   const extras = Object.fromEntries(
     candidate.schema.fields
       .filter((field) => field.lifecycle === "active" && field.name !== "text")
@@ -243,14 +297,23 @@ export interface EvolveResult {
 export type EvolveOptions = Partial<
   Pick<
     RunCapabilityEvolutionInput,
-    "behavioralTierEnabled" | "beforePublish" | "faults" | "isAborted" | "active"
+    | "behavioralTierEnabled"
+    | "beforePublish"
+    | "faults"
+    | "firstPassHandlerFixture"
+    | "isAborted"
+    | "active"
   >
 > & {
   readonly buildId: string;
   /** Observe delivery synchronously; cancellation tests use it to target an exact preview. */
   readonly onSend?: SendBuildEvent;
-  /** Replace one unit's generated bytes — how a case drives the Gate into failing. */
-  readonly unitOverrides?: Readonly<Record<string, string>>;
+  /**
+   * Replace one unit's generated bytes — how a case drives the Gate into failing. A string
+   * answers every generation of that unit; an array answers them in order and then reverts
+   * to the good default, which is how a case exercises a *repair* rather than a dead end.
+   */
+  readonly unitOverrides?: Readonly<Record<string, UnitOverride>>;
   /**
    * Write the lifecycle through the real SQLite recorder instead of the in-memory stub.
    * Required by any case that faults *inside* the activation transaction: the stub
@@ -258,6 +321,11 @@ export type EvolveOptions = Partial<
    * rests on, and would report `success/activated` for a run that rolled back.
    */
   readonly durableMetrics?: boolean;
+  /**
+   * Fires when the Gate asks the provider to *rewrite* a unit it already generated — the
+   * only point from which a case can stop a run inside the bounded repair loop.
+   */
+  readonly onRepairGeneration?: (unit: string) => Promise<void>;
 };
 
 /** Run the whole engine once over the committed capability. */
@@ -270,6 +338,7 @@ export async function evolve(
   const { provider, prompts, generatedUnits } = engineProvider(
     candidate,
     options.unitOverrides ?? {},
+    options.onRepairGeneration,
   );
   const active = options.active ?? getCapability("notes", env.conns.readonly);
   if (!active) throw new Error("committed capability did not activate");
@@ -297,6 +366,9 @@ export async function evolve(
       : { behavioralTierEnabled: options.behavioralTierEnabled }),
     ...(options.beforePublish ? { beforePublish: options.beforePublish } : {}),
     ...(options.faults ? { faults: options.faults } : {}),
+    ...(options.firstPassHandlerFixture
+      ? { firstPassHandlerFixture: options.firstPassHandlerFixture }
+      : {}),
     ...(options.isAborted ? { isAborted: options.isAborted } : {}),
   });
   return {

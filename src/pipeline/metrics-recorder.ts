@@ -8,6 +8,7 @@
 import type { Database } from "bun:sqlite";
 import {
   type BehavioralActionExecution,
+  type BehavioralHandlerGenerationAttempt,
   type BehavioralTestActionReport,
   BehavioralTestGenerationError,
   CapabilityGateError,
@@ -212,13 +213,19 @@ function behavioralTestExecutionStageState(
   acc: DemoBuildAccumulator,
   behavioralSeen: boolean,
 ): GenerationStageMeasurement["state"] {
+  // Failure evidence carries the last execution plan even though the rung never returned a
+  // successful `testRun` timing. Read the plan first so a failed frozen assertion is not
+  // mislabeled as an absent tier.
+  if (acc.behavioralExecution) {
+    return acc.behavioralExecution.every((entry) => entry.execution === "skipped")
+      ? "skipped"
+      : "executed";
+  }
   if (acc.timings.testRunMs === undefined) return behavioralSeen ? "absent" : "skipped";
   // A tier-on run whose every frozen suite was skipped executed no test at all. Decision 23
   // makes that a legitimate outcome — not a missing measurement — so it is reported as the
   // skip it is rather than as an execution that happened to take no time.
-  return acc.behavioralExecution?.every((entry) => entry.execution === "skipped")
-    ? "skipped"
-    : "executed";
+  return "executed";
 }
 
 /**
@@ -469,6 +476,70 @@ export function recordGateMetrics(
   }
   acc.usages.push(gateResult.smoke.usage);
   acc.usages.push(gateResult.designLint.usage);
+  if (gateResult.behavioral.tier === "on") {
+    acc.usages.push(gateResult.behavioral.repair.usage);
+  }
+}
+
+/**
+ * Preserve the work a thrown Gate completed before its verdict. Successful and failed runs
+ * use the same accounting boundary: initial unit usage is recorded before the Gate, then
+ * provider-backed rung usage is added once here (or by `recordGateMetrics` on success).
+ */
+export function recordGateFailureMetrics(
+  acc: DemoBuildAccumulator,
+  error: CapabilityGateError,
+): void {
+  acc.gateRungs = error.outcomes;
+  const measurement = error.measurement;
+  if (!measurement) return;
+
+  acc.usages.push(measurement.smokeUsage);
+  acc.usages.push(measurement.designLintUsage);
+  const behavioral = measurement.behavioral;
+  if (!behavioral) return;
+
+  acc.behavioralExecution = behavioral.execution.actions;
+  acc.usages.push(behavioral.usage);
+  mergeBehavioralGenerationAttempts(acc, behavioral.generations);
+}
+
+function mergeBehavioralGenerationAttempts(
+  acc: DemoBuildAccumulator,
+  generations: readonly BehavioralHandlerGenerationAttempt[],
+): void {
+  if (!acc.unitAttempts) return;
+  const byName = new Map(acc.unitAttempts.map((unit) => [unit.name, unit]));
+  for (const generation of generations) {
+    const prior = byName.get(generation.action);
+    if (!prior) continue;
+    byName.set(generation.action, {
+      ...prior,
+      attempts: prior.attempts + 1,
+      durationMs: prior.durationMs + generation.durationMs,
+      usage: addMetricsUsage(prior.usage, generation.usage),
+    });
+  }
+  acc.unitAttempts = acc.unitAttempts.map((unit) => byName.get(unit.name) ?? unit);
+}
+
+function addMetricsUsage(
+  left: UnitAttemptSummary["usage"],
+  right: TokenUsage | undefined,
+): UnitAttemptSummary["usage"] {
+  if (!right) return left;
+  return {
+    inputTokens: addOptionalMetric(left.inputTokens, right.inputTokens),
+    outputTokens: addOptionalMetric(left.outputTokens, right.outputTokens),
+    totalTokens: addOptionalMetric(left.totalTokens, right.totalTokens),
+  };
+}
+
+function addOptionalMetric(
+  left: number | undefined,
+  right: number | undefined,
+): number | undefined {
+  return left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
 }
 
 /**

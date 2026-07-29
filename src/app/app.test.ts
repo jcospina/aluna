@@ -40,6 +40,7 @@ describe("GET / (shell)", () => {
     expect(html).toContain("Make it");
     expect(html).toContain('id="spec-metrics-preview"');
     expect(html).toContain('id="spec-build-preview"');
+    expect(html).toContain('id="spec-behavioral-tests-preview"');
     expect(html).toContain('id="spec-migration-preview"');
     expect(html).toContain('id="spec-units-preview"');
     expect(html).toContain('id="spec-gate-preview"');

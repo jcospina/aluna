@@ -20,11 +20,12 @@
 
 import type { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { CandidateValidationError } from "../builder/index.ts";
+import { CandidateValidationError, resolveBehavioralTierEnabled } from "../builder/index.ts";
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import {
   type CapabilityEvolutionOutcome,
+  type RunCapabilityEvolutionInput,
   runCapabilityEvolution,
 } from "../pipeline/evolution/evolution-run.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
@@ -63,12 +64,21 @@ export interface EvolutionTracerDeps {
   readonly sseHeartbeatMs: number;
   /** The lifecycle writer every evolution's durable row is opened and finalized through. */
   readonly recordMetrics: RecordMetrics;
+  /**
+   * TEMPORARY dev-only seam for 4.7/04's explicit hard-path checkbox. The route knows only
+   * the evolution contract; the app composition root chooses the demo fixture.
+   */
+  readonly hardEvolutionHandlerFixture: NonNullable<
+    RunCapabilityEvolutionInput["firstPassHandlerFixture"]
+  >;
 }
 
 /** One admitted evolution: the target row and the typed intent. */
 interface EvolutionAdmission {
   readonly active: CapabilityRow;
   readonly intentText: string;
+  /** TEMPORARY (4.7/04 living demo): the explicit hard-path control was enabled. */
+  readonly forceBehavioralFailure: boolean;
 }
 
 /** Register the tracer's admit/cancel/stream trio. */
@@ -82,16 +92,25 @@ export function registerEvolutionTracerRoutes(app: Hono, deps: EvolutionTracerDe
     const active = getCapability(id, buildDatabases.readonly);
     if (!active) return c.html('<p class="notice">Hmm — I can\'t find that here.</p>', 404);
     const body = await c.req.parseBody();
+    // The hard-path checkbox is deliberately separate from the intent: the resolver, Diff,
+    // and frozen suite must see exactly the text the developer typed (4.7/04).
     const intentText = typeof body.intent === "string" ? body.intent.trim() : "";
+    const forceBehavioralFailure = body.force_behavioral_failure === "true";
     if (intentText.length === 0) {
       return c.html('<p class="notice">Tell me what you\'d like to change first.</p>', 422);
+    }
+    if (forceBehavioralFailure && !resolveBehavioralTierEnabled()) {
+      return c.html(
+        '<p class="notice">I can only show the guided repair while behavioral checks are on. Your current version is still live.</p>',
+        422,
+      );
     }
     const result = jobs.create(id, {
       kind: "capability",
       capabilityId: active.id,
       incarnationId: active.incarnation_id,
     });
-    expected.set(result.job.id, { active, intentText });
+    expected.set(result.job.id, { active, intentText, forceBehavioralFailure });
     const encodedJobId = encodeURIComponent(result.job.id);
     return c.html(
       renderBuildSubscriber(result.job.id, {
@@ -178,6 +197,13 @@ function evolveCapability(
     recordMetrics: deps.recordMetrics,
     send,
     isAborted,
+    // A requested guided repair is admitted only while the tier is on, then pinned on for
+    // this run. A configuration change between POST and stream may never turn deliberately
+    // weak demo bytes into a tier-off candidate.
+    ...(admitted.forceBehavioralFailure ? { behavioralTierEnabled: true } : {}),
+    ...(admitted.forceBehavioralFailure
+      ? { firstPassHandlerFixture: deps.hardEvolutionHandlerFixture }
+      : {}),
   });
 }
 

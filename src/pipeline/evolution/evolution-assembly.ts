@@ -33,6 +33,7 @@ import {
   type BehavioralExecutionImpact,
   type BehavioralExecutionPlan,
   type BehavioralTestActionReport,
+  type BehavioralTestFreezeProgress,
   type CapabilityDiff,
   type CapabilityGateResult,
   checkPriorSourceAdmissibility,
@@ -73,7 +74,11 @@ import {
   throwIfAborted,
   unitsChanged,
 } from "../build/build-run.ts";
-import { type DemoBuildAccumulator, recordBehavioralFreezeMetrics } from "../metrics-recorder.ts";
+import {
+  type DemoBuildAccumulator,
+  recordBehavioralFreezeMetrics,
+  recordUnitMetrics,
+} from "../metrics-recorder.ts";
 import {
   type BehavioralTierTransition,
   behavioralTierTransition,
@@ -116,6 +121,18 @@ export interface AssembleEvolutionCandidateInput {
   readonly observer?: UnitGenerationObserver;
   /** Assembly-stage liveness: the derived plan, each byte-copy, and the Gate handover. */
   readonly progress?: EvolutionAssemblyProgress;
+  /**
+   * TEMPORARY (4.7/04 living demo): substitute the first-pass bytes of one Handler the
+   * Diff already selected for regeneration, so the Gate has a real behavioral failure to
+   * repair. Returning `undefined` keeps whatever the provider wrote. It cannot widen the
+   * Diff plan, reach a copied unit, alter a frozen test, or touch the Gate's own provider
+   * repair. The assembly fails closed unless those synthetic bytes produce a frozen
+   * behavioral failure and an actual repair. Removed with the `/demo` surface.
+   */
+  readonly firstPassHandlerFixture?: (
+    spec: CapabilitySpec,
+    unit: GeneratedUnitName,
+  ) => string | undefined;
 }
 
 /**
@@ -139,6 +156,12 @@ export interface EvolutionAssemblyPlan {
 export interface EvolutionAssemblyProgress {
   /** The derived plan, before any unit work — the first thing an observer can show. */
   readonly onPlanned?: (plan: EvolutionAssemblyPlan) => void | Promise<void>;
+  /**
+   * Live, canonical-order progress while changed Action suites are generated with bounded
+   * concurrency. This is observational only: no test bytes cross the hook, and all suites
+   * still finish admission before the first Handler byte is authored.
+   */
+  readonly onTestsProgress?: (progress: BehavioralTestFreezeProgress) => void | Promise<void>;
   /**
    * Behavioral intent is frozen (4.7/01) — per Action, generated or carried forward, and
    * from which closed inputs. Reported before any unit is written, because that is the
@@ -239,7 +262,21 @@ export async function assembleEvolutionCandidate(
   await reportFrozenTests(input, frozenTests);
   throwIfAborted(input.isAborted ?? NEVER_ABORTED);
 
-  const units = await assembleUnits(input, verified.directory, regenerated, priorSource.admitted);
+  const fixtureUnits = new Set<GeneratedUnitName>();
+  const units = await assembleUnits(
+    input,
+    verified.directory,
+    regenerated,
+    priorSource.admitted,
+    fixtureUnits,
+  );
+  // Record the assembled inventory before the Gate can throw. Evolution used to wait until
+  // the whole assembler returned, which made a failed Gate look as though no unit had been
+  // generated or copied and dropped every unit-generation token from the durable row.
+  if (input.measurement) {
+    recordUnitMetrics(input.measurement, units);
+    input.measurement.copiedUnits = new Set(copiedUnitNames(regenerated));
+  }
   throwIfAborted(input.isAborted ?? NEVER_ABORTED);
   await input.progress?.onGateStart?.();
   const gate = await runCapabilityGate({
@@ -259,6 +296,7 @@ export async function assembleEvolutionCandidate(
   // does. A correctly-copied unit is behavior-neutral against the candidate schema, so
   // the Gate does not repair it and its bytes stay byte-identical to the committed snapshot.
   const finalUnits = applyGateFixes(units, gate);
+  assertFixtureRepairsProven(fixtureUnits, units, finalUnits, gate);
   // A repair rewrote bytes an observer is already showing as final. Report the reconciled
   // inventory so what a developer reads is the source the candidate actually carries —
   // the same refresh a v1 build sends after its own Gate (`runSpecBuildStages`).
@@ -388,6 +426,7 @@ function freezeEvolutionTests(
     provider: input.provider,
     spec: input.candidate,
     ...(priorFrozenTests ? { priorFrozenTests } : {}),
+    ...(input.progress?.onTestsProgress ? { onProgress: input.progress.onTestsProgress } : {}),
   });
 }
 
@@ -448,14 +487,28 @@ async function assembleUnits(
   committedDirectory: string,
   regenerated: ReadonlySet<GeneratedUnitName>,
   admittedPriorSource: ReadonlyMap<GeneratedUnitName, string>,
+  fixtureUnits: Set<GeneratedUnitName>,
 ): Promise<GeneratedUnit[]> {
   const units: GeneratedUnit[] = [];
   const isAborted = input.isAborted ?? NEVER_ABORTED;
+  // Resolve the tier before any deliberately weak byte can be substituted. Direct engine
+  // callers receive the same safety guarantee as the route: tier-off means the fixture is
+  // never invoked, not merely that a later assertion prevents publication.
+  const allowFirstPassFixture =
+    input.firstPassHandlerFixture !== undefined &&
+    (input.behavioralTierEnabled ?? resolveBehavioralTierEnabled());
   for (const filename of DERIVED_UNIT_FILES) {
     throwIfAborted(isAborted);
     const name = unitNameForFile(filename);
     if (regenerated.has(name)) {
-      units.push(await regenerateUnit(input, filename, admittedPriorSource.get(name)));
+      units.push(
+        await regenerateUnit(
+          input,
+          filename,
+          admittedPriorSource.get(name),
+          allowFirstPassFixture ? fixtureUnits : undefined,
+        ),
+      );
       continue;
     }
     const copied = copiedUnit(committedDirectory, filename);
@@ -465,12 +518,66 @@ async function assembleUnits(
   return units;
 }
 
-function regenerateUnit(
+async function regenerateUnit(
   input: AssembleEvolutionCandidateInput,
   filename: DerivedUnitFile,
   priorSource: string | undefined,
+  fixtureUnits: Set<GeneratedUnitName> | undefined,
 ): Promise<GeneratedUnit> {
-  return generateCapabilityUnit({
+  const generated = await generateCapabilityUnit(unitGenerationInput(input, filename, priorSource));
+  // TEMPORARY (4.7/04 living demo): substitute deliberately wrong first-pass bytes so the
+  // Gate has a real behavioral failure to repair. It reaches only what this build *writes* —
+  // copied units, frozen tests, and the Gate's own repair regeneration are all past it.
+  const forced = fixtureUnits
+    ? input.firstPassHandlerFixture?.(input.candidate, generated.name)
+    : undefined;
+  if (forced !== undefined) fixtureUnits?.add(generated.name);
+  return forced === undefined ? generated : { ...generated, content: forced };
+}
+
+/**
+ * Synthetic first-pass bytes are useful only as a trigger for the real frozen-intent
+ * repair loop. They are never eligible candidate bytes in their own right: every injected
+ * Handler must be named by the passing rung's repair evidence and must finish with
+ * provider-authored bytes different from the fixture.
+ */
+function assertFixtureRepairsProven(
+  fixtureUnits: ReadonlySet<GeneratedUnitName>,
+  firstPassUnits: readonly GeneratedUnit[],
+  finalUnits: readonly GeneratedUnit[],
+  gate: CapabilityGateResult,
+): void {
+  if (fixtureUnits.size === 0) return;
+  if (gate.behavioral.tier !== "on" || !gate.behavioral.repair.fixed) {
+    throw new Error(
+      "Guided repair bytes did not produce a proven frozen behavioral failure and repair.",
+    );
+  }
+  for (const unit of fixtureUnits) {
+    if (unit === "item") {
+      throw new Error("Guided repair may only substitute Handler bytes.");
+    }
+    const firstPass = firstPassUnits.find((entry) => entry.name === unit)?.content;
+    const final = finalUnits.find((entry) => entry.name === unit)?.content;
+    if (
+      !gate.behavioral.repair.repairedHandlers.includes(unit) ||
+      firstPass === undefined ||
+      final === undefined ||
+      final === firstPass
+    ) {
+      throw new Error(
+        `Guided repair bytes for ${unit} were not replaced by a proven provider repair.`,
+      );
+    }
+  }
+}
+
+function unitGenerationInput(
+  input: AssembleEvolutionCandidateInput,
+  filename: DerivedUnitFile,
+  priorSource: string | undefined,
+) {
+  return {
     provider: input.provider,
     spec: input.candidate,
     unit: descriptorForFile(filename),
@@ -480,7 +587,7 @@ function regenerateUnit(
     // Present only for a unit whose prior source was proven admissible. A withheld unit's
     // prompt therefore carries no old bytes at all — not an emptied section, no section.
     ...(priorSource !== undefined ? { priorSource } : {}),
-  });
+  };
 }
 
 /** The per-unit proof: what a developer is shown, and what a prompt is allowed to carry. */

@@ -162,9 +162,12 @@ empty collection as its sole behavioral proof.
   Decision 23's criterion is "unchanged test inputs", so selection is derived
   from the inputs themselves. `behavioral-test-inputs.test.ts` asserts the two
   agree across the change-fact matrix rather than threading the plan through.
-- **Cost note:** a tier-on build now makes five behavioral provider calls
-  instead of one. That is inherent to per-Action independence — it is what makes
-  regenerating only the mapped Actions possible.
+- **Cost note:** a tier-on build may make up to five isolated behavioral
+  provider calls, but only for Action input digests that missed carry-forward.
+  Independent Action context is what makes mapped regeneration provable;
+  serial execution is not part of that guarantee. Cache misses run with bounded
+  concurrency and settle back into canonical Action order before any Handler
+  generation begins.
 
 ## Verification
 

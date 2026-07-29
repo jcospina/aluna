@@ -26,7 +26,12 @@ import {
   fullHandlersFor,
   GOOD_HANDLERS,
 } from "../gate.test-support.ts";
-import { CapabilityGateError, type CapabilityGateInput, runCapabilityGate } from "../gate.ts";
+import {
+  type BehavioralTierInput,
+  CapabilityGateError,
+  type CapabilityGateInput,
+  runCapabilityGate,
+} from "../gate.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";
 
 setDefaultTimeout(15_000);
@@ -217,6 +222,25 @@ function gateInput(overrides: Partial<CapabilityGateInput> = {}): CapabilityGate
   };
 }
 
+/** A tier-on prior artifact whose five Action suites were all copied into this build. */
+function carriedFrozenTierInput(spec: CapabilitySpec): BehavioralTierInput {
+  const tier = frozenTierInput(spec);
+  const frozen = tier.frozen;
+  if (!frozen) throw new Error("tier-on fixture did not carry frozen tests");
+  return {
+    ...tier,
+    impact: { regeneratedHandlers: [], regeneratedItemRenderer: false },
+    frozen: {
+      ...frozen,
+      generation: {
+        ...frozen.generation,
+        generatedActions: [],
+        carriedActions: frozen.generation.generatedActions,
+      },
+    },
+  };
+}
+
 async function expectGateFailure(input: CapabilityGateInput): Promise<CapabilityGateError> {
   try {
     await runCapabilityGate(input);
@@ -367,7 +391,7 @@ describe("design-lint final-renderer integrity", () => {
         handlers: GOOD_HANDLERS,
         itemRenderer: offToken,
         provider,
-        behavioralTier: frozenTierInput(notesSpec()),
+        behavioralTier: carriedFrozenTierInput(notesSpec()),
       }),
     );
 
@@ -379,7 +403,16 @@ describe("design-lint final-renderer integrity", () => {
     ]);
     expect(result.designLint.itemRenderer).toBe(CLEAN_RENDERER);
     expect(result.smoke.attempts).toHaveLength(2);
-    expect(result.behavioral.tier).toBe("on");
+    if (result.behavioral.tier !== "on") throw new Error("expected tier-on behavioral result");
+    expect(result.behavioral.execution.fullSuite).toBe(true);
+    expect(result.behavioral.execution.fullSuiteReason).toContain(
+      "design lint repaired the shared item renderer",
+    );
+    expect(
+      result.behavioral.execution.actions.every(
+        (entry) => entry.source === "copied" && entry.execution === "executed",
+      ),
+    ).toBe(true);
     expect(rendererCalls).toHaveLength(1);
     // The suite was frozen before any of this ran (4.7/01), so a design-lint repair
     // cannot reach it: the Gate asks the provider for behavioral tests exactly never.
@@ -413,7 +446,9 @@ describe("design-lint final-renderer integrity", () => {
     // A failing frozen test never asks the model for a different test.
     expect(behavioralCalls).toHaveLength(0);
   });
+});
 
+describe("design-lint repaired-renderer revalidation", () => {
   test("re-validates a regenerated renderer's type/shape before accepting it", async () => {
     // First fix regenerates a renderer that does not type-check; it must feed back (not
     // commit) and the second fix — clean — is what passes.

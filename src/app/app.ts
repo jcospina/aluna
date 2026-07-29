@@ -23,6 +23,7 @@ import {
   renderMutationCoordinatorPreviewPage,
 } from "../mutation-coordinator/preview.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../persistence/db.ts";
+import { hardEvolutionHandlerFixture } from "../pipeline/demo/hard-evolution-fixture.ts";
 import {
   createMetricsRecorder,
   createPromptBuildPipeline,
@@ -44,7 +45,7 @@ import {
   renderBuildSubscriber,
   renderRehydratedShellPage,
 } from "../web/index.ts";
-import { registerEvolutionTracerRoutes } from "./evolution-routes.ts";
+import { type EvolutionTracerDeps, registerEvolutionTracerRoutes } from "./evolution-routes.ts";
 import { handleStreamError, streamGreeting } from "./greeting.ts";
 
 /**
@@ -99,6 +100,11 @@ export interface AppDeps {
   readonly mutationCoordinator?: MutationCoordinator;
   /** Test-only override for the deliberately slow mutation preview lease. */
   readonly mutationPreviewHoldMs?: number;
+  /**
+   * TEMPORARY dev-only seam for the 4.7/04 bounded-repair living demo. The default is
+   * composed here, outside the route module; tests may inject a deterministic substitute.
+   */
+  readonly hardEvolutionHandlerFixture?: EvolutionTracerDeps["hardEvolutionHandlerFixture"];
 }
 
 /** The fully-resolved dependency set every route group below is wired from. */
@@ -113,6 +119,7 @@ interface ResolvedAppDeps {
   readonly buildJobs: BuildJobQueue;
   readonly capabilityRouter: CapabilityRouterDeps;
   readonly registryReadonly: PlatformDatabase["readonly"];
+  readonly hardEvolutionHandlerFixture: EvolutionTracerDeps["hardEvolutionHandlerFixture"];
 }
 
 /**
@@ -128,6 +135,7 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
   const artifactsRoot = deps.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
   const mutationPreviewHoldMs = deps.mutationPreviewHoldMs ?? DEFAULT_MUTATION_PREVIEW_HOLD_MS;
+  const resolvedHardEvolutionFixture = resolveHardEvolutionFixture(deps);
   const buildJobs =
     deps.buildJobs ??
     createBuildJobQueue({
@@ -156,7 +164,14 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     buildJobs,
     capabilityRouter,
     registryReadonly,
+    hardEvolutionHandlerFixture: resolvedHardEvolutionFixture,
   };
+}
+
+function resolveHardEvolutionFixture(
+  deps: AppDeps,
+): EvolutionTracerDeps["hardEvolutionHandlerFixture"] {
+  return deps.hardEvolutionHandlerFixture ?? hardEvolutionHandlerFixture;
 }
 
 /**

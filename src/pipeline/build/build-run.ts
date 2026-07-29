@@ -24,6 +24,7 @@ import {
   type GeneratedUnit,
   generateCapabilityUnits,
   generateSpec,
+  type HandlerUnitName,
   publishCapabilitySnapshot,
   resolveBehavioralTierEnabled,
   runCapabilityGate,
@@ -38,6 +39,7 @@ import type { Send } from "../../sse/index.ts";
 import {
   type DemoBuildAccumulator,
   recordBehavioralFreezeMetrics,
+  recordGateFailureMetrics,
   recordGateMetrics,
   recordUnitMetrics,
   refreshUnitMetrics,
@@ -208,7 +210,7 @@ export async function runSpecBuildStages(
       behavioralTier: behavioralTierInput(frozenTests, firstBuildImpact(spec)),
     });
   } catch (error) {
-    if (error instanceof CapabilityGateError) acc.gateRungs = error.outcomes;
+    if (error instanceof CapabilityGateError) recordGateFailureMetrics(acc, error);
     throw error;
   }
   throwIfAborted(isAborted);
@@ -357,9 +359,10 @@ function generateUnitsWithPreview(
 
 /**
  * Fold Gate repairs back into the units the pipeline commits. Smoke may replace exactly
- * one failing Handler per bounded turn, and design lint may replace item.ts. Behavioral
- * execution has already consumed these repaired Handler bytes inside runCapabilityGate.
- * Shared with the evolution assembler so a v1 build and an evolution reconcile Gate
+ * one failing Handler per bounded turn, design lint may replace item.ts, and the
+ * behavioral rung may replace the Handler(s) a failing frozen assertion is attributed to
+ * (4.7/04) — all of which land in `gate.handlers`, the bytes that actually cleared every
+ * rung. Shared with the evolution assembler so a v1 build and an evolution reconcile Gate
  * repairs identically.
  */
 export function applyGateFixes(
@@ -401,9 +404,12 @@ function gateRepairAttempts(
   const attempts =
     unit.kind === "item-renderer"
       ? gate.designLint.attempts.filter((attempt) => attempt.usage)
-      : gate.smoke.attempts.filter(
-          (attempt) => (attempt.repairAction ?? attempt.action) === unit.name && attempt.usage,
-        );
+      : [
+          ...gate.smoke.attempts.filter(
+            (attempt) => (attempt.repairAction ?? attempt.action) === unit.name && attempt.usage,
+          ),
+          ...behavioralRepairAttempts(unit.name, gate),
+        ];
   return attempts.map((attempt, index) => ({
     attempt: unit.attempts.length + index + 1,
     durationMs:
@@ -417,6 +423,31 @@ function gateRepairAttempts(
     },
     ...(attempt.error ? { error: attempt.error } : {}),
   }));
+}
+
+/**
+ * The behavioral rung's own repairs of one Handler (4.7/04), shaped like the smoke/design
+ * attempts this function already folds. Each turn contributes at most one entry per
+ * Handler, carrying that Handler's own cost rather than the whole conservative round's, and
+ * the failing frozen assertion as the attempt's error so the unit's history reads as
+ * "rewritten because this test said so".
+ */
+function behavioralRepairAttempts(
+  name: HandlerUnitName,
+  gate: CapabilityGateResult,
+): readonly { durationMs: number; usage: TokenUsage; error?: string }[] {
+  if (gate.behavioral.tier !== "on") return [];
+  return gate.behavioral.repair.attempts.flatMap((attempt) => {
+    const repair = attempt.repairs?.find((entry) => entry.action === name);
+    if (!repair) return [];
+    return [
+      {
+        durationMs: repair.durationMs,
+        usage: repair.usage,
+        ...(attempt.error ? { error: attempt.error } : {}),
+      },
+    ];
+  });
 }
 
 function addTokenUsage(base: TokenUsage, additions: readonly TokenUsage[]): TokenUsage {

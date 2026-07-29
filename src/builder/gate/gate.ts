@@ -18,11 +18,20 @@ import type {
   BehavioralExecutionImpact,
   BehavioralExecutionPlan,
 } from "./behavioral/behavioral-execution-plan.ts";
-import { runBehavioralRung } from "./behavioral/gate-behavioral.ts";
+import type {
+  BehavioralFailureAttribution,
+  BehavioralFailureSurface,
+} from "./behavioral/behavioral-failure-attribution.ts";
+import { BehavioralRungFailure, runBehavioralRung } from "./behavioral/gate-behavioral.ts";
 import type { FrozenBehavioralTests } from "./behavioral/gate-behavioral-full-schema.ts";
-import { runDesignLintRung } from "./design-lint/gate-design-lint.ts";
-import { diagnosticForError, errorMessage } from "./gate-internal.ts";
+import {
+  CapabilityGateError,
+  type CapabilityGateFailureMeasurement,
+} from "./capability-gate-error.ts";
+import { DesignLintRungError, runDesignLintRung } from "./design-lint/gate-design-lint.ts";
+import { rerunPassedGateRung, runGateRung, skipGateRung } from "./gate-rung-runner.ts";
 import { runSmokeRung } from "./smoke/gate-smoke.ts";
+import { SmokeRungFailure, type SmokeRungRun } from "./smoke/gate-smoke-repair.ts";
 import { runStructuralRung, type StructuralGateResult } from "./structural/gate-structural.ts";
 
 export const BEHAVIORAL_TIER_ENV_VAR = "OMNI_BEHAVIORAL_TIER";
@@ -81,6 +90,12 @@ export interface BehavioralTierInput {
    * proven unaffected and the complete frozen suite runs.
    */
   readonly impact?: BehavioralExecutionImpact;
+  /**
+   * Optional override for the rung's bounded repair budget (4.7/04). Defaults to the same
+   * reused `DEFAULT_UNIT_FIX_ATTEMPTS` knob generation, design lint, and smoke spend — one
+   * execution plus one repair-and-rerun — not a new per-rung dial.
+   */
+  readonly maxAttempts?: number;
 }
 
 export interface FrozenBehavioralTestsInput {
@@ -112,6 +127,68 @@ export interface BehavioralTestRunMetrics {
   readonly cases: readonly BehavioralTestCaseOutcome[];
 }
 
+/**
+ * One turn of the behavioral rung's bounded repair loop (4.7/04): the frozen suite ran, and
+ * — when it failed and the budget allowed — the attributed Handlers were rewritten. `failure`
+ * and `attribution` are present exactly on a turn whose run failed; `repairedHandlers` and
+ * `usage` exactly on a turn that then spent provider work.
+ */
+export interface BehavioralRepairAttempt {
+  readonly attempt: number;
+  readonly durationMs: number;
+  readonly failure?: {
+    readonly action: HandlerUnitName;
+    readonly testName: string;
+    readonly surface: BehavioralFailureSurface;
+    readonly message: string;
+  };
+  /** Whose fault the failing frozen case was, and on what grounds (total, or conservative). */
+  readonly attribution?: BehavioralFailureAttribution;
+  /**
+   * The Handlers this turn actually rewrote, each with its own cost. Per Handler rather
+   * than per turn because a conservative round rewrites several: charging every one of them
+   * the whole round's tokens would inflate unit-level accounting by the size of the set.
+   */
+  readonly repairs?: readonly BehavioralHandlerRepair[];
+  /**
+   * Every provider generation this turn actually started, including rejected output.
+   * This is distinct from `repairs`: a structural rejection, byte-identical answer, or
+   * provider failure spent a unit attempt without changing publishable Handler bytes.
+   */
+  readonly generations?: readonly BehavioralHandlerGenerationAttempt[];
+  /** The whole round's wall time and provider cost, repaired and rejected units alike. */
+  readonly repairDurationMs?: number;
+  readonly usage?: TokenUsage;
+  readonly error?: string;
+}
+
+export interface BehavioralHandlerGenerationAttempt {
+  readonly action: HandlerUnitName;
+  /** Per-Handler repair generation number, independent of the suite's global turn number. */
+  readonly attempt: number;
+  readonly durationMs: number;
+  readonly outcome: "repaired" | "structural_rejected" | "byte_identical" | "provider_error";
+  readonly usage?: TokenUsage;
+  readonly error?: string;
+}
+
+export interface BehavioralHandlerRepair {
+  readonly action: HandlerUnitName;
+  readonly durationMs: number;
+  readonly usage: TokenUsage;
+}
+
+/**
+ * What the bounded repair loop spent to clear the rung. `fixed` is false on the ordinary
+ * path — the frozen suite passed the first time and no Handler byte moved here.
+ */
+export interface BehavioralRepairResult {
+  readonly fixed: boolean;
+  readonly repairedHandlers: readonly HandlerUnitName[];
+  readonly attempts: readonly BehavioralRepairAttempt[];
+  readonly usage: TokenUsage;
+}
+
 export type BehavioralGateResult =
   | {
       readonly tier: "on";
@@ -121,9 +198,13 @@ export type BehavioralGateResult =
       /**
        * Per Action: copied or generated, executed or skipped, and why (4.7/02). The run/skip
        * half of the record the snapshot's tier metadata and the metrics stage vector carry.
+       * This is the plan of the turn that *passed*, and the rung refuses to return unless
+       * every Handler it repaired appears in it as executed.
        */
       readonly execution: BehavioralExecutionPlan;
       readonly frozenTests: FrozenBehavioralTests;
+      /** The bounded per-Handler repair record (4.7/04). */
+      readonly repair: BehavioralRepairResult;
     }
   | {
       readonly tier: "off";
@@ -173,9 +254,10 @@ export interface CapabilityGateInput {
   // handlers render records through — so create and read cannot drift.
   readonly itemRenderer: string;
   // The design-lint rung regenerates the item renderer through the provider when it
-  // rejects a composition (its bounded fix loop), and the smoke rung repairs a failing
-  // Handler. The behavioral rung needs no provider at all: its tests were authored and
-  // frozen before this Gate was called.
+  // rejects a composition (its bounded fix loop), the smoke rung repairs a failing Handler,
+  // and the behavioral rung repairs the Handler(s) a failing frozen assertion is attributed
+  // to (4.7/04). The behavioral rung never generates a *test* through it: its suite was
+  // authored and frozen before this Gate was called, and repair answers to that suite.
   readonly provider?: Provider;
   // Global default comes from OMNI_BEHAVIORAL_TIER (default ON); tests and future
   // orchestration can override explicitly without mutating process.env. When on, this
@@ -213,6 +295,11 @@ export interface CapabilityGateResult {
   readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
 }
 
+/**
+ * Provider work and execution evidence already completed when a Gate fails. A thrown verdict
+ * still has to be measurable: otherwise every repair token and every passed provider-backed
+ * rung before the failure disappears from the durable build row.
+ */
 const issuedGateEvidence = new WeakMap<CapabilityGateResult, string>();
 
 /** Refuse caller-constructed or post-verdict-mutated Gate objects. */
@@ -220,23 +307,6 @@ export function assertIssuedCapabilityGateResult(result: CapabilityGateResult): 
   const issued = issuedGateEvidence.get(result);
   if (issued === undefined || issued !== JSON.stringify(result)) {
     throw new Error("Capability publication requires immutable evidence issued by the Gate.");
-  }
-}
-
-export class CapabilityGateError extends Error {
-  override readonly name = "CapabilityGateError";
-  readonly failedRung: GateRungName;
-  readonly outcomes: readonly GateRungOutcome[];
-  readonly diagnostic?: unknown;
-  override readonly cause?: unknown;
-
-  constructor(failedRung: GateRungName, outcomes: readonly GateRungOutcome[], cause?: unknown) {
-    const failed = outcomes.find((outcome) => outcome.rung === failedRung);
-    super(`Capability gate failed at ${failedRung}: ${failed?.error ?? "unknown failure"}`);
-    this.failedRung = failedRung;
-    this.outcomes = outcomes;
-    this.cause = cause;
-    this.diagnostic = diagnosticForError(cause);
   }
 }
 
@@ -254,7 +324,9 @@ export {
   type BehavioralExecutionPlan,
   type BehavioralExecutionPlanInput,
   type BehavioralExecutionReason,
+  type BehavioralTestActionProgress,
   type BehavioralTestActionReport,
+  type BehavioralTestFreezeProgress,
   BehavioralTestGenerationError,
   type BehavioralTestInputSummary,
   behavioralSuiteCoverage,
@@ -271,6 +343,7 @@ export {
   selectedBehavioralCases,
   specActionTestInputs,
 } from "./behavioral/gate-behavioral.ts";
+export { CapabilityGateError, type CapabilityGateFailureMeasurement };
 
 /**
  * Run the layered Gate and report outcomes in canonical order — structural, smoke, the
@@ -291,14 +364,25 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   const behavioralTierEnabled = resolveBehavioralTierEnabledForInput(input);
 
   const structural = await runGateRung(outcomes, "structural", () => runStructuralRung(input));
-  let smokeRun = await runGateRung(outcomes, "smoke", () => runSmokeRung(input));
+  let smokeRun = await runGateRung(
+    outcomes,
+    "smoke",
+    () => runSmokeRung(input),
+    smokeFailureMeasurement,
+  );
   let smoke = smokeRun.result;
   const repairedInput = { ...input, handlers: smokeRun.handlers };
   const skippedBehavioral = behavioralTierEnabled
     ? undefined
     : skipGateRung(outcomes, "behavioral", "Behavioral tier is off for this run.");
-  const designLint = await runGateRung(outcomes, "design-lint", () =>
-    runDesignLintRung(repairedInput),
+  const designLint = await runGateRung(
+    outcomes,
+    "design-lint",
+    () => runDesignLintRung(repairedInput),
+    (error) => ({
+      smokeUsage: smoke.usage,
+      designLintUsage: error instanceof DesignLintRungError ? error.measurement.usage : ZERO_USAGE,
+    }),
   );
 
   if (designLint.fixed) {
@@ -314,8 +398,11 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
       provider: undefined,
       smoke: { maxAttempts: 1 },
     };
-    const finalSmokeRun = await rerunPassedGateRung(outcomes, "smoke", () =>
-      runSmokeRung(finalRendererInput),
+    const finalSmokeRun = await revalidateDesignRepair(
+      outcomes,
+      finalRendererInput,
+      smoke,
+      designLint,
     );
     smoke = mergeSmokeResults(smoke, finalSmokeRun.result);
     smokeRun = { ...finalSmokeRun, result: smoke };
@@ -339,32 +426,163 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
       ? { behavioralTier: withGateRepairImpact(input.behavioralTier, smoke, designLint) }
       : {}),
   };
-  let behavioral: BehavioralGateResult | undefined;
+  let phase: BehavioralPhaseResult;
   try {
-    behavioral = behavioralTierEnabled
-      ? await runGateRung(outcomes, "behavioral", () => runBehavioralRung(finalInput))
-      : skippedBehavioral;
+    phase = await runBehavioralPhase(outcomes, finalInput, {
+      structural,
+      smoke,
+      handlers: smokeRun.handlers,
+      ...(skippedBehavioral ? { skipped: skippedBehavioral } : {}),
+    });
   } catch (error) {
-    // Design already passed against this exact renderer. Restore its deferred verdict so
-    // the failure preview remains a complete canonical inventory rather than implying the
-    // final rung never ran.
-    outcomes.push(designOutcome);
-    throw error;
+    rethrowBehavioralPhaseFailure(error, outcomes, designOutcome, smoke, designLint);
   }
   outcomes.push(designOutcome);
-  if (!behavioral) throw new Error("Behavioral Gate result was not resolved.");
 
   const result: CapabilityGateResult = {
     outcomes,
     durationMs: performance.now() - startedAt,
-    structural,
-    smoke,
-    behavioral,
+    structural: phase.structural,
+    smoke: phase.smoke,
+    behavioral: phase.behavioral,
     designLint,
-    handlers: smokeRun.handlers,
+    handlers: phase.handlers,
   };
   issuedGateEvidence.set(result, JSON.stringify(result));
   return result;
+}
+
+async function revalidateDesignRepair(
+  outcomes: GateRungOutcome[],
+  input: CapabilityGateInput,
+  smoke: SmokeGateResult,
+  designLint: DesignLintGateResult,
+): Promise<SmokeRungRun> {
+  try {
+    return await rerunPassedGateRung(outcomes, "smoke", () => runSmokeRung(input));
+  } catch (error) {
+    if (!(error instanceof CapabilityGateError)) throw error;
+    throw new CapabilityGateError(error.failedRung, outcomes, error.cause, {
+      smokeUsage: addTokenUsage(
+        smoke.usage,
+        error.cause instanceof SmokeRungFailure ? error.cause.measurement.usage : ZERO_USAGE,
+      ),
+      designLintUsage: designLint.usage,
+    });
+  }
+}
+
+function rethrowBehavioralPhaseFailure(
+  error: unknown,
+  outcomes: GateRungOutcome[],
+  designOutcome: GateRungOutcome,
+  smoke: SmokeGateResult,
+  designLint: DesignLintGateResult,
+): never {
+  outcomes.push(designOutcome);
+  if (!(error instanceof CapabilityGateError)) throw error;
+  const behavioral =
+    error.cause instanceof BehavioralRungFailure
+      ? error.cause.measurement
+      : error.measurement?.behavioral;
+  if (!behavioral) throw error;
+  throw new CapabilityGateError(error.failedRung, outcomes, error.cause, {
+    smokeUsage: addTokenUsage(smoke.usage, error.measurement?.smokeUsage ?? ZERO_USAGE),
+    designLintUsage: addTokenUsage(
+      designLint.usage,
+      error.measurement?.designLintUsage ?? ZERO_USAGE,
+    ),
+    behavioral,
+  });
+}
+
+interface BehavioralPhaseResult {
+  readonly behavioral: BehavioralGateResult;
+  readonly structural: StructuralGateResult;
+  readonly smoke: SmokeGateResult;
+  readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
+}
+
+interface BehavioralPhaseInput {
+  readonly structural: StructuralGateResult;
+  readonly smoke: SmokeGateResult;
+  readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
+  /** The recorded skip when the tier is off; its presence *is* the tier verdict. */
+  readonly skipped?: BehavioralGateResult;
+}
+
+/**
+ * Run the behavioral tier over the final snapshot and reconcile whatever its bounded repair
+ * loop rewrote. A repair is Handler bytes that satisfy the frozen suite but have never
+ * cleared the always-on rungs, so — exactly as design lint's own fix does for `item.ts` —
+ * the repaired snapshot re-enters structural and smoke before it may be called cleared.
+ * That revalidation gets no provider and one smoke attempt: a repair must fail closed here,
+ * never trigger a second, unbudgeted round of Handler rewriting.
+ */
+async function runBehavioralPhase(
+  outcomes: GateRungOutcome[],
+  finalInput: CapabilityGateInput,
+  prior: BehavioralPhaseInput,
+): Promise<BehavioralPhaseResult> {
+  if (prior.skipped) {
+    return {
+      behavioral: prior.skipped,
+      structural: prior.structural,
+      smoke: prior.smoke,
+      handlers: prior.handlers,
+    };
+  }
+  const run = await runGateRung(outcomes, "behavioral", () => runBehavioralRung(finalInput));
+  if (run.result.tier !== "on" || !run.result.repair.fixed) {
+    return {
+      behavioral: run.result,
+      structural: prior.structural,
+      smoke: prior.smoke,
+      handlers: run.handlers,
+    };
+  }
+  const repairedInput = {
+    ...finalInput,
+    handlers: run.handlers,
+    provider: undefined,
+    smoke: { maxAttempts: 1 },
+  };
+  try {
+    const structural = await rerunPassedGateRung(outcomes, "structural", () =>
+      runStructuralRung(repairedInput),
+    );
+    const smokeRun = await rerunPassedGateRung(outcomes, "smoke", () =>
+      runSmokeRung(repairedInput),
+    );
+    return {
+      behavioral: run.result,
+      structural,
+      smoke: mergeSmokeResults(prior.smoke, smokeRun.result),
+      handlers: run.handlers,
+    };
+  } catch (error) {
+    if (!(error instanceof CapabilityGateError)) throw error;
+    // The behavioral repair provider work is already spent even when its repaired bytes
+    // subsequently fail the always-on revalidation. Carry it through the later rung's error;
+    // the outer Gate boundary adds the smoke/design measurements available there.
+    throw new CapabilityGateError(error.failedRung, outcomes, error.cause, {
+      smokeUsage:
+        error.cause instanceof SmokeRungFailure
+          ? error.cause.measurement.usage
+          : (error.measurement?.smokeUsage ?? ZERO_USAGE),
+      designLintUsage: error.measurement?.designLintUsage ?? ZERO_USAGE,
+      behavioral: {
+        execution: run.result.execution,
+        durationMs: run.result.repair.attempts.reduce(
+          (sum, attempt) => sum + attempt.durationMs,
+          0,
+        ),
+        attempts: run.result.repair.attempts,
+        generations: run.result.repair.attempts.flatMap((attempt) => attempt.generations ?? []),
+        usage: run.result.repair.usage,
+      },
+    });
+  }
 }
 
 /**
@@ -391,41 +609,15 @@ function withGateRepairImpact(
       ...tier.impact,
       regeneratedHandlers: [...new Set([...tier.impact.regeneratedHandlers, ...repaired])],
       regeneratedItemRenderer: (tier.impact.regeneratedItemRenderer ?? false) || designLint.fixed,
+      ...(designLint.fixed
+        ? {
+            unnarrowableReason:
+              tier.impact.unnarrowableReason ??
+              "design lint repaired the shared item renderer, so its final bytes must re-prove every frozen fragment assertion",
+          }
+        : {}),
     },
   };
-}
-
-/** Re-run a rung that already passed while preserving the public one-outcome-per-rung
- * shape. Duration is cumulative; a final-candidate failure replaces the stale pass so the
- * fail-closed preview names the bytes that were actually rejected. */
-async function rerunPassedGateRung<T>(
-  outcomes: GateRungOutcome[],
-  rung: GateRungName,
-  body: () => T | Promise<T>,
-): Promise<T> {
-  const outcomeIndex = outcomes.findIndex((outcome) => outcome.rung === rung);
-  const previous = outcomes[outcomeIndex];
-  if (outcomeIndex < 0 || previous?.status !== "passed") {
-    throw new Error(`Cannot re-run ${rung} before its first successful Gate pass.`);
-  }
-
-  const startedAt = performance.now();
-  try {
-    const result = await body();
-    outcomes[outcomeIndex] = {
-      ...previous,
-      durationMs: previous.durationMs + (performance.now() - startedAt),
-    };
-    return result;
-  } catch (error) {
-    outcomes[outcomeIndex] = {
-      rung,
-      status: "failed",
-      durationMs: previous.durationMs + (performance.now() - startedAt),
-      error: errorMessage(error),
-    };
-    throw new CapabilityGateError(rung, outcomes, error);
-  }
 }
 
 /** Fold the original and final-renderer smoke executions into the one public result. The
@@ -475,34 +667,13 @@ export function resolveBehavioralTierEnabled(env: NodeJS.ProcessEnv = process.en
   throw new Error(`${BEHAVIORAL_TIER_ENV_VAR} must be one of on/off, true/false, yes/no, or 1/0.`);
 }
 
-async function runGateRung<T>(
-  outcomes: GateRungOutcome[],
-  rung: GateRungName,
-  body: () => T | Promise<T>,
-): Promise<T> {
-  const startedAt = performance.now();
-  try {
-    const result = await body();
-    outcomes.push({ rung, status: "passed", durationMs: performance.now() - startedAt });
-    return result;
-  } catch (error) {
-    outcomes.push({
-      rung,
-      status: "failed",
-      durationMs: performance.now() - startedAt,
-      error: errorMessage(error),
-    });
-    throw new CapabilityGateError(rung, outcomes, error);
-  }
-}
+const ZERO_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
-function skipGateRung(
-  outcomes: GateRungOutcome[],
-  rung: GateRungName,
-  reason: string,
-): BehavioralGateResult {
-  outcomes.push({ rung, status: "skipped", durationMs: 0, reason });
-  return { tier: "off", status: "skipped", reason };
+function smokeFailureMeasurement(error: unknown): CapabilityGateFailureMeasurement {
+  return {
+    smokeUsage: error instanceof SmokeRungFailure ? error.measurement.usage : ZERO_USAGE,
+    designLintUsage: ZERO_USAGE,
+  };
 }
 
 function resolveBehavioralTierEnabledForInput(input: CapabilityGateInput): boolean {

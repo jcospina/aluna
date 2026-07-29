@@ -676,6 +676,54 @@ export function behavioralResponseFor(prompt: string, suite: unknown): unknown {
 }
 
 /**
+ * A provider that answers Handler *regeneration* — the call the Gate's repair rungs make.
+ * Each Action maps to a queue of replacement bytes consumed in order; an Action with no
+ * queued bytes left throws, so a test asserting "repair rewrote exactly this Handler, once"
+ * fails loudly on an extra rewrite instead of silently accepting a looser bound.
+ */
+export function makeHandlerRepairProvider(
+  replacements: Readonly<Partial<Record<HandlerUnitName, readonly string[]>>>,
+  suite: unknown = DEFAULT_BEHAVIORAL_SUITE,
+): { provider: Provider; repaired: HandlerUnitName[]; prompts: string[] } {
+  const queues = new Map<HandlerUnitName, string[]>(
+    Object.entries(replacements).map(([action, bytes]) => [
+      action as HandlerUnitName,
+      [...(bytes ?? [])],
+    ]),
+  );
+  const repaired: HandlerUnitName[] = [];
+  const prompts: string[] = [];
+  const provider: Provider = {
+    generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
+      prompts.push(prompt);
+      const action = prompt.match(/Generate the (\w+)\.ts handler/)?.[1] as
+        | HandlerUnitName
+        | undefined;
+      let response: unknown;
+      if (action) {
+        const next = queues.get(action)?.shift();
+        if (next === undefined) {
+          throw new Error(`No queued repair bytes for the ${action} Handler.`);
+        }
+        repaired.push(action);
+        response = { content: next };
+      } else {
+        response = behavioralResponseFor(prompt, suite);
+      }
+      async function* stream(): AsyncGenerator<DeepPartial<T>> {
+        yield response as DeepPartial<T>;
+      }
+      return {
+        partialStream: stream(),
+        object: Promise.resolve(response as T),
+        usage: Promise.resolve({ inputTokens: 3, outputTokens: 5, totalTokens: 8 }),
+      };
+    },
+  };
+  return { provider, repaired, prompts };
+}
+
+/**
  * A provider that hands back one queued response per call, in order. It throws once the
  * queue is exhausted rather than replaying the last response: a test that asserts "these
  * units were copied, never generated" is only proof if an unexpected extra generation

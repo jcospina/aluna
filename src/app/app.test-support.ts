@@ -454,7 +454,10 @@ export function makeSpecProvider(
     readonly update?: string;
     readonly delete?: string;
     readonly search?: string;
+    readonly updateRepair?: string;
     readonly searchRepair?: string;
+    /** Additional Gate repair responses in provider-call order. */
+    readonly repairs?: readonly string[];
   } = {},
 ): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];
@@ -466,7 +469,9 @@ export function makeSpecProvider(
     { content: units.update ?? UPDATE_HANDLER },
     { content: units.delete ?? DELETE_HANDLER },
     { content: units.search ?? SEARCH_HANDLER },
+    ...(units.updateRepair ? [{ content: units.updateRepair }] : []),
     ...(units.searchRepair ? [{ content: units.searchRepair }] : []),
+    ...(units.repairs ?? []).map((content) => ({ content })),
   ];
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {

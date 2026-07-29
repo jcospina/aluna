@@ -23,6 +23,7 @@ const PREVIEW_TARGETS = [
   ["metrics-preview", "spec-metrics-preview"],
   ["spec-preview", "spec-build-preview"],
   ["candidate-preview", "spec-candidate-preview"],
+  ["behavioral-tests-preview", "spec-behavioral-tests-preview"],
   ["migration-preview", "spec-migration-preview"],
   ["units-preview", "spec-units-preview"],
   ["gate-preview", "spec-gate-preview"],
@@ -35,6 +36,7 @@ const CLEAR_ON_ACCEPT_TARGETS = [
   ["pre", "spec-metrics-preview"],
   ["pre", "spec-build-preview"],
   ["pre", "spec-candidate-preview"],
+  ["pre", "spec-behavioral-tests-preview"],
   ["pre", "spec-migration-preview"],
   ["pre", "spec-units-preview"],
   ["pre", "spec-gate-preview"],
@@ -154,13 +156,18 @@ function renderEvolutionDemoControl(row: Pick<CapabilityRow, "id">): string {
   return [
     '<section class="capability-evolution-demo" data-living-demo="evolution">',
     "  <h2>Evolve this capability</h2>",
-    "  <p>Describe one change to try. Your current records stay in place while Aluna checks the next version.</p>",
+    "  <p>Describe one change to try. Your current records stay in place while I check the next version.</p>",
+    // TEMPORARY (4.7/04 living demo): the repair story is invisible on a healthy build, so
+    // this explicit control makes the hard path observable without changing the evolution
+    // intent supplied to the resolver, Diff, or frozen suite.
+    '  <p class="capability-evolution-demo__hint">Want to watch me catch and repair a weak first attempt before anything goes live? Choose the guided repair when your change updates how records are edited.</p>',
     `  <form class="capability-evolution" hx-post="/demo/evolution/${encodeURIComponent(row.id)}" hx-target="#spec-build-output" hx-swap="beforeend">`,
     `    <label for="${inputId}">Describe a change</label>`,
     '    <div class="capability-evolution__composer">',
     `      <input id="${inputId}" name="intent" type="text" required autocomplete="off" placeholder="Add a due date and make it stand out" />`,
     '      <button type="submit" class="btn btn--ghost">Evolve</button>',
     "    </div>",
+    '    <label class="capability-evolution__hard-path"><input name="force_behavioral_failure" type="checkbox" value="true" /> Show me the guided repair</label>',
     "  </form>",
     "</section>",
   ].join("\n");
