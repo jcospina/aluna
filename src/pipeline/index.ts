@@ -21,6 +21,12 @@ export {
   type PromptBuildPipelineDeps,
 } from "./build/prompt-pipeline.ts";
 export {
+  type PromptResolutionMemory,
+  type PromptResolutionOutcome,
+  type ResolvedBuildRequest,
+  resolvedNewCapabilityRequest,
+} from "./build/resolved-request.ts";
+export {
   DEMO_SPEC_PROMPT,
   handleSpecBuildError,
   streamSpecBuildDemo,

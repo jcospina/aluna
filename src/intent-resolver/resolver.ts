@@ -7,7 +7,11 @@
 
 import type { Database } from "bun:sqlite";
 import type { Provider, TokenUsage } from "../provider/index.ts";
-import { type CapabilityRow, listCapabilities } from "../registry/index.ts";
+import {
+  type ActiveRegistryCatalog,
+  type CapabilityRow,
+  readActiveRegistryCatalog,
+} from "../registry/index.ts";
 import { type IntentClassification, intentClassificationSchema } from "./schema.ts";
 
 export const INTENT_RESOLUTION_NARRATION =
@@ -19,6 +23,8 @@ export interface ClassifyIntentInput {
   readonly provider: Provider;
   readonly prompt: string;
   readonly activeCapabilityId?: string | null;
+  /** One already-read resolver catalog. When present, the resolver performs no registry read. */
+  readonly catalog?: ActiveRegistryCatalog;
   readonly database?: Database;
   readonly send?: IntentResolverSend;
 }
@@ -33,6 +39,7 @@ export interface ClassifyIntentResult {
   readonly intent: IntentClassification;
   readonly usage: TokenUsage;
   readonly durationMs: number;
+  readonly catalogFingerprint: string;
 }
 
 function formatCapability(capability: CapabilityRow): string {
@@ -120,10 +127,10 @@ export async function classifyIntent(input: ClassifyIntentInput): Promise<Intent
 export async function classifyIntentWithUsage(
   input: ClassifyIntentInput,
 ): Promise<ClassifyIntentResult> {
-  const capabilities = listCapabilities(input.database);
+  const catalog = input.catalog ?? readActiveRegistryCatalog(input.database);
   const prompt = buildIntentPrompt({
     prompt: input.prompt,
-    capabilities,
+    capabilities: catalog.capabilities,
     activeCapabilityId: input.activeCapabilityId ?? null,
   });
   await input.send?.("narration", INTENT_RESOLUTION_NARRATION);
@@ -136,5 +143,6 @@ export async function classifyIntentWithUsage(
     intent,
     usage,
     durationMs: performance.now() - startedAt,
+    catalogFingerprint: catalog.fingerprint,
   };
 }

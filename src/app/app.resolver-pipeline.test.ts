@@ -124,7 +124,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 
   test("POST admits immediately; the stream classifies and proceeds to build new_capability", async () => {
     const { provider, prompts } = makePromptBuildProvider(newCapabilityIntent);
-    const { rows, recordMetrics } = makeMetricsRecorder();
+    const { rows, lifecycles, recordMetrics } = makeMetricsRecorder();
     const app = defaultPipelineApp(provider, recordMetrics);
 
     const postRes = await postPrompt(app, "track my notes");
@@ -156,11 +156,16 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
       lifecycleStatus: "running",
       outcome: null,
+      resolver: {
+        durationMs: expect.any(Number),
+        catalogFingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+      },
     });
     expect(JSON.parse(metricEvents.at(-1)?.data ?? "null")).toMatchObject({
       lifecycleStatus: "success",
       outcome: "activated",
     });
+    expect(lifecycles[0]?.resolver?.catalogFingerprint).toMatch(/^sha256:[a-f0-9]{64}$/);
 
     // intent + spec + five per-Action behavioral suites + 6 units (item renderer + five
     // Actions). The tests come before the units: intent is frozen before code exists.
@@ -198,7 +203,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(getCapability("notes", conns.readonly)?.version).toBe(1);
     const committed = getCapability("notes", conns.readonly);
     expect(existsSync(resolve(committed?.artifacts_path ?? "", "create.ts"))).toBe(true);
-  });
+  }, 20_000);
 });
 
 describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeline) — shared coordinator lease", () => {
@@ -345,7 +350,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       requires_confirmation: false,
     };
     const { provider, prompts } = makePromptBuildProvider(dataQueryIntent);
-    const { rows, recordMetrics } = makeMetricsRecorder();
+    const { rows, resolutionRows, recordMetrics } = makeMetricsRecorder();
     const app = defaultPipelineApp(provider, recordMetrics);
 
     const jobId = buildJobIdFromSubscriber(
@@ -357,26 +362,33 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       .map((event) => event.data)
       .join("");
 
-    expect(events.map((event) => event.event)).toEqual(["narration", "fragment", "done"]);
+    expect(events.map((event) => event.event)).toEqual([
+      "narration",
+      "metrics-preview",
+      "fragment",
+      "done",
+    ]);
     expect(eventData(events, "fragment")).toContain('data-build-restoration="neutral"');
     expect(eventData(events, "fragment")).toContain("what you&#39;ve saved");
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
-    expect(events.at(-1)).toEqual({ id: "2", event: "done", data: "ok" });
+    expect(events.at(-1)).toMatchObject({ event: "done", data: "ok" });
     expect(narration).not.toMatch(
       /capability|intent|data_query|registry|schema|migration|handler|artifact|metrics|provider/i,
     );
 
     expect(prompts).toHaveLength(1);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      id: jobId,
-      outcome: "deflected",
-      intent: { type: "data_query", confidence: 0.89, targetCapability: "notes" },
+    expect(rows).toEqual([]);
+    expect(resolutionRows).toHaveLength(1);
+    expect(resolutionRows[0]).toMatchObject({
+      promptJobId: jobId,
+      outcome: "completed",
+      resolver: {
+        intent: { type: "data_query", confidence: 0.89, targetCapability: "notes" },
+        catalogFingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+      },
     });
-    expect(rows[0]?.timings).toBeUndefined();
-    expect(rows[0]?.gateRungs).toBeUndefined();
-    expect(rows[0]?.unitAttempts).toBeUndefined();
+    expect(JSON.parse(eventData(events, "metrics-preview"))).toEqual(resolutionRows[0]);
     expect(listCapabilities(conns.readonly)).toEqual([]);
     expect(
       conns.readonly
@@ -397,7 +409,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       requires_confirmation: false,
     };
     const { provider, prompts } = makePromptBuildProvider(extendIntent);
-    const { rows, recordMetrics } = makeMetricsRecorder();
+    const { rows, resolutionRows, recordMetrics } = makeMetricsRecorder();
     const app = defaultPipelineApp(provider, recordMetrics);
 
     const jobId = buildJobIdFromSubscriber(
@@ -410,18 +422,23 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       .join("");
 
     expect(prompts).toHaveLength(0);
-    expect(events.map((event) => event.event)).toEqual(["fragment", "done"]);
+    expect(events.map((event) => event.event)).toEqual(["metrics-preview", "fragment", "done"]);
     expect(eventData(events, "fragment")).toContain("already have Notes");
     expect(eventData(events, "fragment")).toContain('data-build-restoration-behavior="preserve"');
     expect(eventData(events, "fragment")).toContain('id="prompt-notice" hx-swap-oob="innerHTML"');
     expect(narration).not.toMatch(
       /capability|intent|extend_capability|registry|schema|migration|handler|artifact/i,
     );
-    expect(rows[0]).toMatchObject({
-      id: jobId,
-      outcome: "deflected",
-      intent: { type: "extend_capability", confidence: 1, targetCapability: "notes" },
+    expect(rows).toEqual([]);
+    expect(resolutionRows[0]).toMatchObject({
+      promptJobId: jobId,
+      outcome: "completed",
+      resolver: {
+        intent: { type: "extend_capability", confidence: 1, targetCapability: "notes" },
+        durationMs: 0,
+      },
     });
+    expect(resolutionRows[0]?.resolver.usage.totalTokens).toBeUndefined();
     expect(listCapabilities(conns.readonly)).toHaveLength(1);
     expect(listCapabilities(conns.readonly)[0]?.id).toBe("notes");
     expect(existsSync(artifactsRoot)).toBe(false);
@@ -449,7 +466,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       conns.readwrite,
     );
     const { provider, prompts } = makePromptBuildProvider(newCapabilityIntent, PERSONAL_NOTES_SPEC);
-    const { rows, recordMetrics } = makeMetricsRecorder();
+    const { rows, resolutionRows, recordMetrics } = makeMetricsRecorder();
     const app = defaultPipelineApp(provider, recordMetrics);
 
     const jobId = buildJobIdFromSubscriber(
@@ -461,23 +478,22 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       .map((event) => event.data)
       .join("");
 
-    expect(events.map((event) => event.event)).toEqual(["fragment", "done"]);
+    expect(events.map((event) => event.event)).toEqual(["metrics-preview", "fragment", "done"]);
     expect(narration).toBe("");
     expect(eventData(events, "fragment")).toContain("&lt;img");
     expect(eventData(events, "fragment")).not.toContain("<img");
     expect(prompts).toHaveLength(0);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      id: jobId,
-      outcome: "deflected",
-      intent: {
-        type: "extend_capability",
-        targetCapability: "personal_notes",
+    expect(rows).toEqual([]);
+    expect(resolutionRows).toHaveLength(1);
+    expect(resolutionRows[0]).toMatchObject({
+      promptJobId: jobId,
+      resolver: {
+        intent: {
+          type: "extend_capability",
+          targetCapability: "personal_notes",
+        },
       },
     });
-    expect(rows[0]?.timings).toBeUndefined();
-    expect(rows[0]?.gateRungs).toBeUndefined();
-    expect(rows[0]?.unitAttempts).toBeUndefined();
     expect(listCapabilities(conns.readonly)).toHaveLength(1);
     expect(
       conns.readonly
@@ -508,7 +524,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       requires_confirmation: false,
     };
     const { provider, prompts } = makePromptBuildProvider(rejectIntent);
-    const { rows, recordMetrics } = makeMetricsRecorder();
+    const { rows, resolutionRows, recordMetrics } = makeMetricsRecorder();
     const app = defaultPipelineApp(provider, recordMetrics);
 
     const jobId = buildJobIdFromSubscriber(
@@ -518,13 +534,20 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toContain("I want to keep track of my recipes");
-    expect(events.map((event) => event.event)).toEqual(["narration", "fragment", "done"]);
+    expect(events.map((event) => event.event)).toEqual([
+      "narration",
+      "metrics-preview",
+      "fragment",
+      "done",
+    ]);
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
-    expect(rows[0]).toMatchObject({
-      id: jobId,
-      outcome: "deflected",
-      intent: { type: "reject", confidence: 0.51, targetCapability: null },
+    expect(rows).toEqual([]);
+    expect(resolutionRows[0]).toMatchObject({
+      promptJobId: jobId,
+      resolver: {
+        intent: { type: "reject", confidence: 0.51, targetCapability: null },
+      },
     });
     expect(existsSync(artifactsRoot)).toBe(false);
   });

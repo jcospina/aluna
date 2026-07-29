@@ -34,7 +34,7 @@ import { deriveCapabilityTableDdl } from "../../capability-data/index.ts";
 import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
 import type { GenerateResult, Provider, TokenUsage } from "../../provider/index.ts";
-import type { CapabilitySpec } from "../../registry/index.ts";
+import type { CapabilityRegistryExpectation, CapabilitySpec } from "../../registry/index.ts";
 import type { Send } from "../../sse/index.ts";
 import {
   type DemoBuildAccumulator,
@@ -140,6 +140,7 @@ export async function runSpecBuildStages(
   artifactsRoot: string,
   onCapabilityIdentified: (capabilityId: string) => void,
   onActivated: () => void,
+  targetExpectation: CapabilityRegistryExpectation = { state: "absent" },
 ): Promise<CommitCapabilityResult | undefined> {
   // Wrap the provider so the spec streams to the shell as it builds (demo preview),
   // while the stage itself runs unchanged.
@@ -257,6 +258,7 @@ export async function runSpecBuildStages(
     database,
     spec,
     publication,
+    expected: targetExpectation,
     isAborted,
     applyMigration: (activationDatabase) => {
       const migration = applyCapabilityMigration({ database: activationDatabase, spec });
