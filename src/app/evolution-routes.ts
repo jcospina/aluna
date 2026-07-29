@@ -188,13 +188,16 @@ async function presentActivated(
   jobId: string,
   send: SendBuildEvent,
   canPresent: () => boolean,
-  commit: Extract<CapabilityEvolutionOutcome, { kind: "activated" }>["commit"],
+  activation: Extract<CapabilityEvolutionOutcome, { kind: "activated" }>,
 ): Promise<BuildPipelineCompletion> {
+  const commit = activation.commit;
   // Past the point of no return: the new version is live whether or not this lands.
   if (!canPresent()) return undefined;
   const delivered = await deliverActivatedPresentation(
     send,
-    JSON.stringify(buildCommitPreview(commit)),
+    // The published-version pane carries the transition row too, so the answer to "why does
+    // this version have (no) frozen tests?" is on the same panel as the version itself.
+    JSON.stringify(buildCommitPreview(commit, activation.assembly.behavioralTierTransition)),
     renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel),
     undefined,
     JSON.stringify(deps.recordMetrics.get(jobId, admitted.active.incarnation_id)),
@@ -220,7 +223,7 @@ async function presentOutcome(
       await deliverActivatedRecoveryPresentation(send);
       return "terminal-sent";
     }
-    return presentActivated(deps, admitted, job.id, send, canPresent, outcome.commit);
+    return presentActivated(deps, admitted, job.id, send, canPresent, outcome);
   }
 
   const restoration = renderRestorationFragment(job.restoration, deps.buildDatabases.readonly);
