@@ -5,6 +5,11 @@
 // behavioral tier) and the lean read/write access to the registry table. Later
 // epics import from here and depend on nothing inside.
 
+export {
+  type ActiveRegistryCatalog,
+  fingerprintActiveRegistryCatalog,
+  readActiveRegistryCatalog,
+} from "./active-catalog.ts";
 export { canonicalCapabilityLabel, isCapabilityNameLabel } from "./labels.ts";
 export {
   activeSpecFields,

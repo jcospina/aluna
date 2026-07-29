@@ -19,6 +19,7 @@
 //     property is established; keep new migrations additive.
 
 import type { Database } from "bun:sqlite";
+import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
   reconcileRunningGenerationLifecycles,
@@ -225,6 +226,23 @@ export const MIGRATIONS: readonly Migration[] = [
              )) OR
              (lifecycle_status = 'interrupted' AND outcome = 'interrupted')
            )
+         ) STRICT;`,
+      );
+    },
+  },
+  // 0009 separates non-admitted resolution measurements from the durable build
+  // lifecycle. Rows are content-free and best-effort: the prompt stream never waits
+  // for this table, while admitted builds embed the same resolver measurement in 0008.
+  {
+    id: "0009_intent_resolution_metrics",
+    up: (database) => {
+      database.exec(
+        `CREATE TABLE IF NOT EXISTS ${INTENT_RESOLUTION_METRICS_TABLE} (
+           prompt_job_id       TEXT PRIMARY KEY,
+           outcome             TEXT NOT NULL
+             CHECK (outcome IN ('completed', 'cancelled', 'expired')),
+           resolver_measurement TEXT NOT NULL CHECK (json_valid(resolver_measurement)),
+           created_at          TEXT NOT NULL DEFAULT (datetime('now'))
          ) STRICT;`,
       );
     },

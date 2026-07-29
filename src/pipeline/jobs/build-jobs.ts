@@ -1,3 +1,4 @@
+import type { PromptResolutionMemory } from "../build/resolved-request.ts";
 import type { RestorationDescriptor } from "./restoration.ts";
 
 export type BuildJobStatus = "pending" | "running" | "done";
@@ -7,6 +8,8 @@ export interface BuildJob {
   readonly prompt: string;
   /** Data-free identity of the content displaced by this foreground job. */
   readonly restoration: RestorationDescriptor;
+  /** Content-free resolver outcome plus any resolved build request, retained in job memory. */
+  resolution?: PromptResolutionMemory;
   status: BuildJobStatus;
 }
 

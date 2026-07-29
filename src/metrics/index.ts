@@ -7,6 +7,20 @@
 // dataset through. Later modules import from here and depend on nothing inside.
 
 export {
+  getIntentResolutionMetrics,
+  INTENT_RESOLUTION_METRICS_TABLE,
+  INTENT_RESOLUTION_OUTCOMES,
+  type IntentResolutionMetrics,
+  type IntentResolutionOutcome,
+  intentResolutionMetrics,
+  intentResolutionMetricsSchema,
+  intentResolutionOutcomeSchema,
+  listIntentResolutionMetrics,
+  type StoredIntentResolutionMetrics,
+  storedIntentResolutionMetricsSchema,
+  writeIntentResolutionMetrics,
+} from "./intent-resolution-store.ts";
+export {
   type CarriedResolverMeasurement,
   carriedResolverMeasurementSchema,
   finalizeGenerationLifecycleFailure,

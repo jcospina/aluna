@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
   getGenerationLifecycle,
@@ -115,6 +116,7 @@ describe("platform migrations runner", () => {
         MIGRATIONS_TABLE,
         GENERATION_METRICS_TABLE,
         GENERATION_LIFECYCLE_TABLE,
+        INTENT_RESOLUTION_METRICS_TABLE,
       ].sort(),
     );
   });

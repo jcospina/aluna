@@ -2,6 +2,7 @@ import type { RecordMetrics } from "../pipeline/index.ts";
 import type {
   GenerationLifecycle,
   GenerationMetrics,
+  IntentResolutionMetrics,
   StartGenerationLifecycleInput,
   StoredGenerationLifecycle,
 } from "./index.ts";
@@ -57,10 +58,12 @@ function legacyTerminalRow(
 // assertions readable while `lifecycles` exposes every running/identity/terminal transition.
 export function makeMetricsRecorder(): {
   rows: GenerationMetrics[];
+  resolutionRows: IntentResolutionMetrics[];
   lifecycles: GenerationLifecycle[];
   recordMetrics: RecordMetrics;
 } {
   const rows: GenerationMetrics[] = [];
+  const resolutionRows: IntentResolutionMetrics[] = [];
   const lifecycleByKey = new Map<string, GenerationLifecycle>();
   const lifecycles: GenerationLifecycle[] = [];
   const legacy = (metrics: GenerationMetrics) => void rows.push(metrics);
@@ -84,6 +87,9 @@ export function makeMetricsRecorder(): {
   };
 
   const recordMetrics = Object.assign(legacy, {
+    resolve(metrics: IntentResolutionMetrics): void {
+      resolutionRows.push(metrics);
+    },
     start(input: StartGenerationLifecycleInput): GenerationLifecycle {
       const lifecycle: GenerationLifecycle = {
         buildId: input.buildId,
@@ -117,5 +123,5 @@ export function makeMetricsRecorder(): {
     },
   }) satisfies RecordMetrics;
 
-  return { rows, lifecycles, recordMetrics };
+  return { rows, resolutionRows, lifecycles, recordMetrics };
 }

@@ -30,6 +30,7 @@ import type {
   GenerationStageMeasurement,
   GenerationSuccessOutcome,
   GenerationTimings,
+  IntentResolutionMetrics,
   StartGenerationLifecycleInput,
   StoredGenerationLifecycle,
   UnitAttemptSummary,
@@ -42,6 +43,7 @@ import {
   sumTokenUsage,
   updateGenerationLifecycleIdentity,
   writeGenerationMetrics,
+  writeIntentResolutionMetrics,
 } from "../metrics/index.ts";
 import type { TokenUsage } from "../provider/index.ts";
 import { resolveModel } from "../provider/index.ts";
@@ -54,6 +56,7 @@ import { resolveModel } from "../provider/index.ts";
 export interface RecordMetrics {
   /** Legacy best-effort resolution-only measurement writer. */
   (metrics: GenerationMetrics): void;
+  readonly resolve: (metrics: IntentResolutionMetrics) => void;
   readonly start: (input: StartGenerationLifecycleInput) => GenerationLifecycle;
   readonly identify: (buildId: string, incarnationId: string, capabilityId: string) => void;
   readonly succeed: (input: {
@@ -77,6 +80,8 @@ export interface RecordMetrics {
 export function createMetricsRecorder(database: Database): RecordMetrics {
   const legacy = (metrics: GenerationMetrics) => void writeGenerationMetrics(metrics, database);
   return Object.assign(legacy, {
+    resolve: (metrics: IntentResolutionMetrics) =>
+      void writeIntentResolutionMetrics(metrics, database),
     start: (input: StartGenerationLifecycleInput) => startGenerationLifecycle(input, database),
     identify: (buildId: string, incarnationId: string, capabilityId: string) =>
       updateGenerationLifecycleIdentity(buildId, incarnationId, capabilityId, database),
@@ -139,7 +144,8 @@ export function carriedResolverMeasurement(
   intent: IntentClassification,
   usage: TokenUsage,
   durationMs: number,
-): CarriedResolverMeasurement {
+  catalogFingerprint: string,
+): CarriedResolverMeasurement & { readonly usage: TokenUsage } {
   return {
     intent: {
       type: intent.type,
@@ -149,6 +155,7 @@ export function carriedResolverMeasurement(
     model: resolveModel(),
     durationMs,
     usage,
+    catalogFingerprint,
   };
 }
 
@@ -363,22 +370,10 @@ export function lifecycleFailureOutcome(failure: GenerationFailure): GenerationF
  */
 export function writeDeflectionMetrics(
   recordMetrics: RecordMetrics,
-  generationId: string,
-  intent: IntentClassification,
-  usage: TokenUsage,
+  metrics: IntentResolutionMetrics,
 ): void {
   try {
-    recordMetrics({
-      id: generationId,
-      outcome: "deflected",
-      model: resolveModel(),
-      intent: {
-        type: intent.type,
-        confidence: intent.confidence,
-        targetCapability: intent.target_capability,
-      },
-      usage,
-    });
+    recordMetrics.resolve(metrics);
   } catch (metricsError) {
     console.error(
       "Aluna build job: metrics write failed:",

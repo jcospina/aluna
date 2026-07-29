@@ -1,6 +1,6 @@
 # Non-mutating prompt job and resolver separation from mutation ownership
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -33,16 +33,16 @@ Resolution admitted before mutation, never owning it.
 
 ## Acceptance criteria
 
-- [ ] Plan acceptance: resolver-job vs mutation-ticket separation — a prompt
+- [x] Plan acceptance: resolver-job vs mutation-ticket separation — a prompt
       job holds no coordinator state until its resolved build intent is
       enqueued; an abandoned prompt job owns no mutation state
-- [ ] `reject` resolutions complete their stream warm with zero mutation
+- [x] `reject` resolutions complete their stream warm with zero mutation
       admission and (best-effort) an `intent_resolution_metrics` row
-- [ ] The resolved build request carries catalog revision/fingerprint + target
+- [x] The resolved build request carries catalog revision/fingerprint + target
       expectation; the `running` row embeds the resolver measurement
-- [ ] Best-effort semantics pinned: completion does not wait on the metrics
+- [x] Best-effort semantics pinned: completion does not wait on the metrics
       write; a simulated crash loses only the non-admitted row
-- [ ] `bun test`, `bun run typecheck`, `bun run lint` clean
+- [x] `bun test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -54,3 +54,72 @@ preview. A real prompt shows resolver timing attached to its build row.
 
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.6-additive-evolution-and-total-diff-engine/issues/05-remove-tracer-seam-engine-tracer-and-matrix-battery.md
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.5-snapshots-publication-metrics-atomic-activation/issues/02-durable-generation-metrics-lifecycle.md
+
+## Implementation notes
+
+- `POST /prompt` remains synchronous job creation only. The prompt job now retains
+  its content-free resolver outcome/measurement, but it does not create a
+  coordinator reservation. The build reservation is still created only after a
+  `new_capability` resolution.
+- Resolver classification and the deterministic duplicate guard now consume the
+  same immutable active-registry catalog. Its recursively canonicalized SHA-256
+  fingerprint is carried in the resolved build request beside the current
+  expected-absent target expectation, and the request crosses the existing
+  activation CAS boundary.
+- The admitted `running` lifecycle row stores that exact resolver measurement:
+  classification, model, duration, token usage, and catalog fingerprint. It does
+  not create a second resolver-only row.
+- Added additive migration `0009_intent_resolution_metrics` and a strict,
+  content-free store keyed by prompt job. Non-build resolution writes use a short
+  coordinator platform-write lease, but the stream never awaits it. Contention
+  coverage proves `done` arrives while the write is still queued; a deliberately
+  lost write affects only this optional row.
+- The existing `metrics-preview` SSE surface now shows resolver-only rows for
+  rejected/query/deflected prompt jobs. Cancellation outcome is captured once so
+  persistence, preview, and terminal `done` cannot disagree across an in-flight
+  cancel.
+- Exact lease-head target/catalog stale revalidation and direct `failed/stale`
+  admission rows remain the owning follow-up issue
+  `03-core-builder-presenter-split-and-stale-revalidation.md`; this issue supplies
+  its bound request primitive without taking that scope.
+
+## Verification record
+
+- `bun run test --shards=1` — 993 passed, 0 failed across 99 files after
+  adversarial repairs.
+- `bun run typecheck` — clean.
+- `bun run lint` — clean across 278 files.
+- `bun run build` — successful production bundle.
+- `git diff --check` — clean.
+- Focused prompt admission coverage proves abandoned jobs, lost best-effort
+  writes, job-memory carry, early and in-flight cancellation consistency, and
+  completion before a contended metrics lease.
+- Adversarial review found and closed the cancellation-outcome race, then requested
+  the contended-write regression; no runtime blockers remain.
+- Reused the user-owned `http://localhost:3030/`:
+  - `purple semaphore under moonlight` resolved `reject`, ended warm, showed its
+    prompt-job resolution row in the developer preview, and persisted only
+    `intent_resolution_metrics` (zero lifecycle and legacy generation rows).
+  - `I want to keep track of board game sessions` showed a durable `running` row
+    with resolver duration/fingerprint, then activated **Board game sessions**;
+    its lifecycle row retained that measurement and no resolver-only duplicate.
+
+## HITL test instructions
+
+1. Run `bun run dev` if the user-owned server is not already listening, then open
+   `http://localhost:3030/` and open the developer panel with the `</>` button.
+2. Enter `purple semaphore under moonlight` in the prompt bar and choose **Make
+   it**.
+3. Confirm the stream ends with the warm “not quite sure” guidance, no toolbar
+   entry or build appears, and **Lifecycle & committed versions** shows an object
+   keyed by `promptJobId` whose resolver intent is `reject`, with `durationMs` and
+   a `sha256:` catalog fingerprint.
+4. Optional deterministic proof with no provider spend:
+   `bun test src/app/app.prompt-admission.test.ts
+   src/metrics/intent-resolution-store.test.ts
+   src/intent-resolver/resolver-catalog.test.ts`.
+5. For the admitted companion (real provider calls), enter a fresh capability
+   outcome such as `I want to keep track of telescope observations`. Confirm the
+   preview first shows `lifecycleStatus: running` with the resolver measurement,
+   then `success/activated`; the new capability appears once in the toolbar and no
+   separate resolver-only preview replaces its lifecycle row.
