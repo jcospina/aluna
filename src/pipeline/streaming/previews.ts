@@ -26,6 +26,7 @@ import type {
   UnitDescriptor,
 } from "../../builder/index.ts";
 import type { CapabilityRow, CapabilitySpec } from "../../registry/index.ts";
+import type { BehavioralTierTransition } from "../evolution/behavioral-tier-transition.ts";
 
 export interface DemoMigrationColumnPreview {
   readonly name: string;
@@ -100,6 +101,14 @@ export interface DemoCommitPreview {
   readonly snapshotVerified: true;
   readonly snapshotContentDigest: string;
   readonly behavioralTier: "on" | "off";
+  /**
+   * Which row of decision 24's transition table this version landed on (4.7/03). Present on
+   * an evolution and absent on a first build, which has no prior snapshot to transition
+   * *from*. It is derived, not stored: `snapshot.json` records each version's own tier, and
+   * the row is the pair — so the published-version pane states it rather than making a
+   * reader open two manifests.
+   */
+  readonly behavioralTierTransition?: BehavioralTierTransition;
   readonly files: readonly string[];
 }
 
@@ -158,7 +167,10 @@ export function buildMigrationPreview(
 }
 
 /** The commit-stage preview: the capability that just became real. */
-export function buildCommitPreview(commit: CommitCapabilityResult): DemoCommitPreview {
+export function buildCommitPreview(
+  commit: CommitCapabilityResult,
+  behavioralTierTransition?: BehavioralTierTransition,
+): DemoCommitPreview {
   return {
     kind: "commit-preview",
     status: "committed",
@@ -170,6 +182,7 @@ export function buildCommitPreview(commit: CommitCapabilityResult): DemoCommitPr
     snapshotVerified: commit.snapshotVerified,
     snapshotContentDigest: commit.snapshotContentDigest,
     behavioralTier: commit.manifest.behavioral_tier,
+    ...(behavioralTierTransition ? { behavioralTierTransition } : {}),
     files: commit.files,
   };
 }
@@ -301,6 +314,14 @@ export interface EvolutionAssemblySummary {
    * halves say the whole thing: what this version's intent is, and what had to be re-proven.
    */
   readonly behavioralExecution?: BehavioralExecutionPlan;
+  /**
+   * Which row of decision 24's transition table this candidate landed on, with the prior
+   * snapshot's tier it was read against (4.7/03). Absent from the `running` plan, because
+   * the candidate half is not settled until the Gate is — but present on every complete
+   * assembly, including the tier-off ones where it is the only thing that explains why
+   * `behavioralTests` and `behavioralExecution` say nothing at all.
+   */
+  readonly behavioralTierTransition?: BehavioralTierTransition;
   readonly gate: readonly { readonly rung: string; readonly status: string }[];
 }
 

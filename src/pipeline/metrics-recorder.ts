@@ -8,9 +8,11 @@
 import type { Database } from "bun:sqlite";
 import {
   type BehavioralActionExecution,
+  type BehavioralTestActionReport,
   BehavioralTestGenerationError,
   CapabilityGateError,
   type CapabilityGateResult,
+  type FrozenBehavioralTestsResult,
   type GateRungOutcome,
   type GeneratedUnit,
   SnapshotVerificationError,
@@ -120,6 +122,14 @@ export interface DemoBuildAccumulator {
    * stage vector records them as separate per-Action rows rather than one blended verdict.
    */
   behavioralExecution?: readonly BehavioralActionExecution[];
+  /**
+   * Per Action, whether this build authored that suite or carried the prior frozen bytes —
+   * recorded by the freeze stage itself (4.7/01), which runs long before the Gate. Kept
+   * separate from `behavioralExecution` precisely so a run that froze intent and then failed
+   * still reports the generation work it did rather than looking like a run that never
+   * reached the tier at all.
+   */
+  behavioralFreeze?: readonly BehavioralTestActionReport[];
   publicationAttempted?: boolean;
   activationAttempted?: boolean;
 }
@@ -182,15 +192,19 @@ function behavioralTestGenerationStageState(
   behavioralSeen: boolean,
   failure: GenerationFailure | undefined,
 ): GenerationStageMeasurement["state"] {
-  if (acc.timings.testGenMs !== undefined) {
-    // The stage ran, but "generated" would be a lie for an evolution whose every Action
-    // carried its prior suite forward on unchanged inputs — copy is a claim about bytes here
-    // exactly as it is for units (4.7/01–02).
-    return acc.behavioralExecution?.every((entry) => entry.source === "copied")
+  // Read off the freeze stage's own report, not the Gate's — the freeze is what authored or
+  // carried these bytes, and it happened before any Handler existed. A run that froze intent
+  // and then failed still says so, instead of collapsing into the tier-off reading.
+  if (acc.behavioralFreeze) {
+    // "generated" would be a lie for an evolution whose every Action carried its prior suite
+    // forward on unchanged inputs — copy is a claim about bytes here exactly as for units.
+    return acc.behavioralFreeze.every((entry) => entry.status === "carried")
       ? "copied"
       : "generated";
   }
   if (failure?.stage === "behavioral_test_generation") return "executed";
+  // `absent` is the tier saying there was nothing to author (decision 24's tier-off rows);
+  // `skipped` is a run that never reached the tier at all.
   return behavioralSeen ? "absent" : "skipped";
 }
 
@@ -447,11 +461,29 @@ export function recordGateMetrics(
 ): void {
   acc.gateRungs = gateResult.outcomes;
   if (gateResult.behavioral.tier === "on") {
-    acc.timings.testGenMs = gateResult.behavioral.testGen.durationMs;
+    // Only the *run* half is the Gate's to report. Generation's timing and tokens were
+    // recorded by `recordBehavioralFreezeMetrics` when the freeze happened, so they survive a
+    // build that never reaches this line — and are not counted twice when it does.
     acc.timings.testRunMs = gateResult.behavioral.testRun.durationMs;
     acc.behavioralExecution = gateResult.behavioral.execution.actions;
-    acc.usages.push(gateResult.behavioral.testGen.usage);
   }
   acc.usages.push(gateResult.smoke.usage);
   acc.usages.push(gateResult.designLint.usage);
+}
+
+/**
+ * Record the behavioral tier's *generation* leg the moment the suite is frozen (4.7/01),
+ * which is before the first Handler byte and long before the Gate. The measured cost of
+ * authoring tests is what M8 weighs the tier against the no-test baseline with; recording it
+ * only on a successful Gate would attribute the spend of every failed tier-on build to
+ * nothing, and would leave the stage vector unable to tell a tier-on run that froze five
+ * suites and then failed from a run that never turned the tier on.
+ */
+export function recordBehavioralFreezeMetrics(
+  acc: DemoBuildAccumulator,
+  frozen: FrozenBehavioralTestsResult,
+): void {
+  acc.timings.testGenMs = frozen.durationMs;
+  acc.behavioralFreeze = frozen.report;
+  acc.usages.push(frozen.usage);
 }

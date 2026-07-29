@@ -27,7 +27,7 @@ import {
   SnapshotVerificationError,
   verifyCapabilitySnapshot,
 } from "./artifact-lifecycle.ts";
-import { gateInput, generatedUnitsFor } from "../gate/gate.test-support.ts";
+import { frozenTestsInput, gateInput, generatedUnitsFor } from "../gate/gate.test-support.ts";
 import { type CapabilityGateResult, runCapabilityGate } from "../gate/gate.ts";
 import { buildUnitPrompt } from "../units/unit-prompts.ts";
 import type { GeneratedUnit, UnitDescriptor } from "../units/units.ts";
@@ -225,6 +225,44 @@ describe("capability artifact lifecycle — snapshot shape", () => {
         reason: entry.reason,
       })),
     });
+  });
+
+  test("a carried suite re-run over a regenerated Handler is recorded with its narrow reason", async () => {
+    // Decision 24's fourth row in its *narrowed* form: the suite was copied byte-for-byte and
+    // still executed, because one Handler it covers moved. It cannot arise from the Diff —
+    // every change fact that regenerates a Handler also regenerates that Action's tests
+    // (`evolution-matrix.test.ts`) — so it reaches a published version only through the
+    // Gate's own repair. That makes this the one place the durable record of it is asserted.
+    const spec = notesSpec();
+    const frozen = frozenTestsInput(spec);
+    const carried = {
+      enabled: true,
+      impact: { regeneratedHandlers: ["update"] as const },
+      frozen: {
+        ...frozen,
+        generation: { ...frozen.generation, generatedActions: [], carriedActions: spec.tools },
+      },
+    };
+    const gate = await runCapabilityGate(gateInput({ spec, behavioralTier: carried }));
+    const publication = publish({ buildId: "carried-rerun", gate });
+
+    expect(publication.manifest.behavioral_tests?.full_suite).toBe(false);
+    expect(publication.manifest.behavioral_tests?.actions).toContainEqual({
+      action: "update",
+      source: "copied",
+      execution: "executed",
+      reason: "covered_handler_regenerated",
+    });
+    // Copied and *not* re-run is the same row's sibling, and both survive verification.
+    expect(publication.manifest.behavioral_tests?.actions).toContainEqual({
+      action: "read",
+      source: "copied",
+      execution: "skipped",
+      reason: "no_covered_handler_change",
+    });
+    expect(verifyCapabilitySnapshot(publication.directory).manifest.behavioral_tests).toEqual(
+      publication.manifest.behavioral_tests,
+    );
   });
 
   test("verification rejects tier metadata that claims a suite was authored but never run", () => {

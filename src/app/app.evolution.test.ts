@@ -212,7 +212,17 @@ describe("an accepted candidate", () => {
     expect(eventData(events, "commit")).toContain('data-active-capability-version="2"');
     expect(eventData(events, "fragment")).toBe("");
     expect(eventData(events, "done")).toBe("ok");
-    expect(JSON.parse(eventData(events, "commit-preview")).version).toBe(2);
+    const commitPreview = JSON.parse(eventData(events, "commit-preview"));
+    expect(commitPreview.version).toBe(2);
+    // 4.7/03: the published-version pane names the transition row this version landed on, so
+    // "why does this version carry (no) frozen tests?" is answerable without opening the
+    // predecessor's manifest. A first build has no predecessor and omits it.
+    expect(commitPreview.behavioralTierTransition).toMatchObject({
+      prior: expect.stringMatching(/^(on|off)$/u),
+      candidate: expect.stringMatching(/^(on|off)$/u),
+      artifacts: expect.stringMatching(/^(present|absent)$/u),
+    });
+    expect(commitPreview.behavioralTierTransition.rows.length).toBeGreaterThan(0);
 
     // The registry points at v2, and the added column is live on the existing table.
     const live = getCapability("journal", env.conns.readonly);

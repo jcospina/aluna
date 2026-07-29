@@ -37,6 +37,7 @@ import type { CapabilitySpec } from "../../registry/index.ts";
 import type { Send } from "../../sse/index.ts";
 import {
   type DemoBuildAccumulator,
+  recordBehavioralFreezeMetrics,
   recordGateMetrics,
   recordUnitMetrics,
   refreshUnitMetrics,
@@ -181,6 +182,9 @@ export async function runSpecBuildStages(
   const frozenTests = resolveBehavioralTierEnabled()
     ? await freezeBehavioralTests({ provider, spec })
     : undefined;
+  // Measured where it happened, so a build that freezes five suites and then fails the Gate
+  // still reports the generation it paid for (4.7/03).
+  if (frozenTests) recordBehavioralFreezeMetrics(acc, frozenTests);
   throwIfAborted(isAborted);
 
   await send("narration", " I'm shaping it into something you can use.");

@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { notesSpec } from "../../builder/gate/gate.test-support.ts";
 import {
   type CapabilityGateResult,
+  diffCapabilitySpec,
   type GeneratedUnitName,
   type PlatformWorkKind,
   verifyCapabilitySnapshot,
@@ -23,6 +24,7 @@ import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   type CapabilityTool,
+  FULL_CAPABILITY_TOOLS,
   getCapability,
 } from "../../registry/index.ts";
 import {
@@ -506,6 +508,41 @@ describe("the read_dependencies row", () => {
       outcome: "activation_failed",
     });
     expect(() => verifyCapabilitySnapshot(shelvesPublication.directory)).toThrow();
+  });
+});
+
+// A property of the whole matrix, and the reason decision 24's fourth row ("unchanged
+// inputs, Handler impacted") cannot be reached from the Diff alone. One test, not one per
+// row: the file's `beforeEach` publishes and activates a committed v1, and this assertion
+// needs none of it — running the real Diff over each row's candidate is pure.
+describe("the Diff never regenerates a Handler without selecting that Action's tests", () => {
+  test("every matrix row couples its Handler selection to its test selection", () => {
+    const committed = committedSpec();
+    for (const matrixCase of MATRIX) {
+      const workPlan = diffCapabilitySpec(committed, matrixCase.candidate()).workPlan;
+      const handlers = workPlan.regeneratedUnits.filter(
+        (unit): unit is CapabilityTool => unit !== "item",
+      );
+      // Every Handler this fact rewrites is an Action whose suite the same fact selects for
+      // regeneration — so a regenerated Handler always arrives with freshly authored tests,
+      // and a *carried* suite re-run over changed bytes can only come from the Gate's own
+      // bounded repair (pinned at the rung in `gate-behavioral-selection.test.ts`) or the
+      // full-suite fallback. A future fact that broke that coupling fails here first.
+      const selected = workPlan.gate.behavioral.fullSuite
+        ? [...FULL_CAPABILITY_TOOLS]
+        : workPlan.gate.behavioral.actions;
+      expect({
+        row: matrixCase.row,
+        uncovered: handlers.filter((h) => !selected.includes(h)),
+      }).toEqual({ row: matrixCase.row, uncovered: [] });
+      // …and the full-suite fallback is not a way to be vacuously right: it selects every
+      // Action, so it covers whatever the fact rewrote by construction.
+      if (workPlan.gate.behavioral.fullSuite) expect(selected).toHaveLength(5);
+    }
+    // The property is only meaningful if some row actually regenerates a Handler.
+    expect(
+      MATRIX.filter((row) => row.regenerated.some((unit) => unit !== "item")).length,
+    ).toBeGreaterThan(3);
   });
 });
 

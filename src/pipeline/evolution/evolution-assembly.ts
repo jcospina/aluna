@@ -73,6 +73,11 @@ import {
   throwIfAborted,
   unitsChanged,
 } from "../build/build-run.ts";
+import { type DemoBuildAccumulator, recordBehavioralFreezeMetrics } from "../metrics-recorder.ts";
+import {
+  type BehavioralTierTransition,
+  behavioralTierTransition,
+} from "./behavioral-tier-transition.ts";
 
 const ZERO_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 const NEVER_ABORTED = () => false;
@@ -91,6 +96,14 @@ export interface AssembleEvolutionCandidateInput {
   readonly dependencySnapshots?: readonly VerifiedDependencySnapshot[];
   /** Override the global `OMNI_BEHAVIORAL_TIER` toggle; omitted, the Gate resolves it. */
   readonly behavioralTierEnabled?: boolean;
+  /**
+   * The run's measurement accumulator. The freeze stage's timing and tokens are recorded
+   * into it here, where the freeze happens — not by the caller after this returns, because
+   * an assembly that dies in unit generation or at the Gate has already paid for the suites
+   * it authored, and not through `progress`, which exists for the developer panel and may be
+   * absent (4.7/03). A caller that measures nothing simply omits it.
+   */
+  readonly measurement?: DemoBuildAccumulator;
   /**
    * True once the trace is cancelled or its subscriber is gone. Checked between units and
    * before the Gate so a cancel stops the work rather than only unwinding whatever model
@@ -131,7 +144,7 @@ export interface EvolutionAssemblyProgress {
    * from which closed inputs. Reported before any unit is written, because that is the
    * guarantee: the tests existed before the code they judge.
    */
-  readonly onTestsFrozen?: (report: readonly BehavioralTestActionReport[]) => void | Promise<void>;
+  readonly onTestsFrozen?: (frozen: FrozenBehavioralTestsResult) => void | Promise<void>;
   /**
    * A unit read verbatim off the committed snapshot. It is reported so the inventory a
    * developer watches is complete; the bytes still never enter a generation prompt.
@@ -177,6 +190,13 @@ export interface AssembledEvolutionCandidate {
    * is off. Generation is about intent; this is about impact, and they are separate answers.
    */
   readonly behavioralExecution?: BehavioralExecutionPlan;
+  /**
+   * Which row of decision 24's transition table this version landed on, read off the
+   * committed snapshot's tier and the two answers above (4.7/03). Always present — the
+   * tier-off rows are exactly the ones a reader most needs named, since a tier-off version
+   * carries nothing else to say why its behavioral artifacts are absent.
+   */
+  readonly behavioralTierTransition: BehavioralTierTransition;
   /** The fail-closed Gate result over the assembled snapshot (structural + smoke, …). */
   readonly gate: CapabilityGateResult;
   /** Per-unit provenance: refreshed for regenerated units, carried forward for copies. */
@@ -216,7 +236,7 @@ export async function assembleEvolutionCandidate(
   // changed is regenerated. A label rename or a field reorder therefore regenerates no
   // tests at all — not by policy, but because it moves no digest.
   const frozenTests = await freezeEvolutionTests(input, verified);
-  if (frozenTests) await input.progress?.onTestsFrozen?.(frozenTests.report);
+  await reportFrozenTests(input, frozenTests);
   throwIfAborted(input.isAborted ?? NEVER_ABORTED);
 
   const units = await assembleUnits(input, verified.directory, regenerated, priorSource.admitted);
@@ -265,6 +285,13 @@ export async function assembleEvolutionCandidate(
     priorSource: withGateRepairDecisions(priorSource.decisions, regenerated, written),
     behavioralTests: frozenTests?.report ?? [],
     ...(gate.behavioral.tier === "on" ? { behavioralExecution: gate.behavioral.execution } : {}),
+    // Decision 24's row, named from the pair this evolution actually spans: the committed
+    // snapshot's own recorded tier and the verdict the Gate just reached.
+    behavioralTierTransition: behavioralTierTransition({
+      prior: verified.manifest.behavioral_tier,
+      candidate: gate.behavioral.tier,
+      ...(gate.behavioral.tier === "on" ? { execution: gate.behavioral.execution } : {}),
+    }),
     gate,
     unitProvenance,
     handlers: handlersFrom(finalUnits),
@@ -324,6 +351,20 @@ function unnarrowableEvolutionReason(
 
 function sameOrderedStrings(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((entry, index) => entry === right[index]);
+}
+
+/**
+ * Record and report the freeze the moment it lands. The measurement comes first and does not
+ * depend on `progress`: an assembly that dies in unit generation or at the Gate has already
+ * paid for the suites it authored, and the panel hook is optional (4.7/03).
+ */
+async function reportFrozenTests(
+  input: AssembleEvolutionCandidateInput,
+  frozen: FrozenBehavioralTestsResult | undefined,
+): Promise<void> {
+  if (!frozen) return;
+  if (input.measurement) recordBehavioralFreezeMetrics(input.measurement, frozen);
+  await input.progress?.onTestsFrozen?.(frozen);
 }
 
 /**
