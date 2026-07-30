@@ -34,7 +34,11 @@ import { deriveCapabilityTableDdl } from "../../capability-data/index.ts";
 import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
 import type { GenerateResult, Provider, TokenUsage } from "../../provider/index.ts";
-import type { CapabilityRegistryExpectation, CapabilitySpec } from "../../registry/index.ts";
+import {
+  type CapabilityRegistryExpectation,
+  type CapabilitySpec,
+  listCapabilities,
+} from "../../registry/index.ts";
 import type { Send } from "../../sse/index.ts";
 import {
   type DemoBuildAccumulator,
@@ -51,6 +55,10 @@ import {
   finalUnitPreview,
 } from "../streaming/previews.ts";
 import { createUnitPreviewStream } from "../streaming/unit-preview-stream.ts";
+import {
+  validateBuiltOverlapIdentity,
+  validateProposedOverlapIdentity,
+} from "./overlap-identity.ts";
 
 /**
  * An aborted stream mid-build, thrown before activation. Distinct from a build
@@ -115,6 +123,47 @@ export function previewingProvider(
   return { provider, flushPreviews: () => (streaming ? settled : Promise.resolve()) };
 }
 
+async function authorInitialSpec(input: {
+  readonly send: Send;
+  readonly provider: Provider;
+  readonly prompt: string;
+  readonly intent: IntentClassification;
+  readonly acc: DemoBuildAccumulator;
+  readonly database: PlatformDatabase;
+}): Promise<Awaited<ReturnType<typeof generateSpec>>> {
+  const { provider: observed, flushPreviews } = previewingProvider(input.provider, input.send);
+  const overlapCatalog =
+    input.intent.resolution === "namespace" ? listCapabilities(input.database.readonly) : [];
+  if (input.intent.resolution === "namespace" && input.intent.proposed_identity) {
+    validateProposedOverlapIdentity({
+      proposed: input.intent.proposed_identity,
+      targetCapabilityId: input.intent.target_capability ?? "",
+      capabilities: overlapCatalog,
+    });
+  }
+
+  let generated!: Awaited<ReturnType<typeof generateSpec>>;
+  try {
+    generated = await generateSpec({
+      provider: observed,
+      prompt: input.prompt,
+      intent: input.intent,
+      send: input.send,
+    });
+    input.acc.timings.specGenMs = generated.durationMs;
+    input.acc.usages.push(generated.usage);
+    if (input.intent.resolution === "namespace" && input.intent.proposed_identity) {
+      validateBuiltOverlapIdentity({
+        proposed: input.intent.proposed_identity,
+        spec: generated.spec,
+      });
+    }
+  } finally {
+    await flushPreviews();
+  }
+  return generated;
+}
+
 /**
  * Run the builder stages, streaming the developer previews and filling `acc` with the
  * metrics measurements. Returns the commit result on success, or `undefined` when the
@@ -142,26 +191,22 @@ export async function runSpecBuildStages(
   onActivated: () => void,
   targetExpectation: CapabilityRegistryExpectation = { state: "absent" },
 ): Promise<CommitCapabilityResult | undefined> {
-  // Wrap the provider so the spec streams to the shell as it builds (demo preview),
-  // while the stage itself runs unchanged.
-  const { provider: observed, flushPreviews } = previewingProvider(provider, send);
   // `generateSpec` narrates the intent's `user_facing_label` over `send` and returns
   // the validated spec plus the build's measurements. Spec generation runs before the
   // transaction opens — a spec failure has nothing to roll back.
-  const { spec, durationMs, usage } = await generateSpec({
-    provider: observed,
+  const { spec, durationMs, usage } = await authorInitialSpec({
+    send,
+    provider,
     prompt,
     intent,
-    send,
+    acc,
+    database: buildDatabases,
   });
   acc.capabilityId = spec.id;
   acc.incarnationId = incarnationId;
   // Admission assigns the incarnation before Builder provider work. Once the
   // validated authored spec supplies the semantic id, enrich the same durable row.
   onCapabilityIdentified(spec.id);
-  acc.timings.specGenMs = durationMs;
-  acc.usages.push(usage);
-  await flushPreviews(); // every spec-preview is on the wire before the confirmation
   if (isAborted()) return;
 
   // Preview the deterministic migration plan against scratch SQLite. The real data

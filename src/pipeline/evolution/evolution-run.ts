@@ -14,10 +14,9 @@
 // A zero-fact candidate is the canonical no-op (decision 37): no DDL, no unit work, no
 // snapshot, no version, no `commit` — just a measured `success/no_change` row.
 //
-// TEMPORARY SEAM — the hand-supplied resolved intent. Epic 4.8 wires the real Intent
-// Resolver (and stale-target admission) in front of this run; until then
-// `handSuppliedEvolutionIntent` stands in for the classification. The catalog freeze is
-// not temporary: the caller holds the exclusive build lease while this runs, so the
+// Production prompt work supplies the resolved intent. The temporary guided Evolve
+// control may still supply its typed stand-in until that demo is retired. The catalog
+// freeze is not temporary: the caller holds the exclusive build lease while this runs, so the
 // dependency-generation catalog captured here is the immutable lease-frozen catalog
 // decision 1 requires.
 
@@ -28,7 +27,6 @@ import {
   assertVerifiedDependencySnapshotCatalog,
   type BehavioralTestActionReport,
   type BehavioralTestFreezeProgress,
-  BehavioralTestGenerationError,
   buildDependencyGenerationCatalog,
   buildVerifiedDependencySnapshotCatalog,
   type CapabilityDiff,
@@ -40,17 +38,15 @@ import {
   expectedActiveCapability,
   type GeneratedUnit,
   generateCandidateSpec,
-  handSuppliedEvolutionIntent,
   nextCapabilityVersion,
   publishCapabilitySnapshot,
   reconcileCapabilityArtifacts,
-  SnapshotVerificationError,
-  UnitGenerationError,
   type VerifiedDependencySnapshot,
   type VerifiedPublishedSnapshot,
 } from "../../builder/index.ts";
 import { applyAdditiveCapabilityMigration } from "../../capability-data/index.ts";
-import type { GenerationFailure } from "../../metrics/index.ts";
+import type { IntentClassification } from "../../intent-resolver/index.ts";
+import type { CarriedResolverMeasurement } from "../../metrics/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
 import type { Provider, TokenUsage } from "../../provider/index.ts";
 import { type CapabilityRow, type CapabilitySpec, listCapabilities } from "../../registry/index.ts";
@@ -80,12 +76,18 @@ import {
   assembleEvolutionCandidate,
   type EvolutionAssemblyPlan,
 } from "./evolution-assembly.ts";
+import { classifyEvolutionFailure, type EvolutionStage } from "./evolution-failure.ts";
+import { resolveEvolutionIntent, validateEvolutionIntentScope } from "./evolution-intent.ts";
 
 export interface RunCapabilityEvolutionInput {
   /** The live committed capability being evolved — re-checked under the lease. */
   readonly active: CapabilityRow;
-  /** The developer's hand-typed intent (the 4.8 resolver stand-in). */
+  /** Original typed text retained for previews and the temporary demo seam. */
   readonly intentText: string;
+  /** The production resolver result. Omitted only by the temporary Evolve demo. */
+  readonly resolvedIntent?: IntentClassification;
+  /** Resolver measurement carried into the durable running row. */
+  readonly resolver?: CarriedResolverMeasurement & { readonly usage: TokenUsage };
   readonly provider: Provider;
   /** The build id this run's durable lifecycle row and published snapshot are keyed by. */
   readonly buildId: string;
@@ -143,15 +145,6 @@ export type CapabilityEvolutionOutcome =
       readonly commit: CommitCapabilityResult;
     } & EvolutionRunBase);
 
-// The progress marker the failure classifier reads. The generic `classifyBuildFailure`
-// infers the stage from which timings are filled, which an evolution cannot use: its
-// migration timing is only produced *inside* activation, so every post-Diff failure
-// would be mislabelled as a migration failure. The run knows exactly where it is.
-// `delivery` is the short window between a passing Gate and publication in which the
-// run is only writing previews to the wire: a transport failure there is not a Gate
-// failure, and the stage marker is what keeps the two apart.
-type EvolutionStage = "spec_gen" | "diff" | "assembly" | "delivery" | "publication" | "activation";
-
 /** The mutable measurement state one run threads through its stages. */
 interface EvolutionRunState {
   stage: EvolutionStage;
@@ -183,13 +176,13 @@ export async function runCapabilityEvolution(
   const activeRows = listCapabilities(input.database.readonly);
   const dependencyRows = activeRows.filter((row) => row.id !== active.id);
   const dependencyCatalog = buildDependencyGenerationCatalog(activeRows, active.id);
-  const intent = handSuppliedEvolutionIntent(active, input.intentText);
+  const intent = resolveEvolutionIntent(active, input.intentText, input.resolvedIntent);
 
   const state: EvolutionRunState = {
     stage: "spec_gen",
     builtAt: performance.now(),
     acc: {
-      usages: [],
+      usages: input.resolver ? [input.resolver.usage] : [],
       timings: {},
       capabilityId: active.id,
       incarnationId: active.incarnation_id,
@@ -201,6 +194,7 @@ export async function runCapabilityEvolution(
     buildId: input.buildId,
     incarnationId: active.incarnation_id,
     capabilityId: active.id,
+    ...(input.resolver ? { resolver: input.resolver } : {}),
     stages: [],
   });
 
@@ -235,7 +229,7 @@ async function runEvolutionStages(
   dependencyCatalog: readonly DependencyGenerationCatalogEntry[],
   dependencyRows: readonly CapabilityRow[],
   dependencySnapshots: readonly VerifiedDependencySnapshot[],
-  intent: ReturnType<typeof handSuppliedEvolutionIntent>,
+  intent: IntentClassification,
 ): Promise<CapabilityEvolutionOutcome> {
   const { active } = input;
   const isAborted = input.isAborted ?? (() => false);
@@ -245,6 +239,7 @@ async function runEvolutionStages(
   // candidate. Total and monotone — an unmapped difference throws.
   state.stage = "diff";
   const diff = diffCapabilitySpec(committedSpecView(active), generated.candidate);
+  validateEvolutionIntentScope(intent, diff);
   const base: EvolutionRunBase = {
     candidate: generated.candidate,
     diff,
@@ -305,7 +300,7 @@ async function authorCandidate(
   input: RunCapabilityEvolutionInput,
   state: EvolutionRunState,
   dependencyCatalog: readonly DependencyGenerationCatalogEntry[],
-  intent: ReturnType<typeof handSuppliedEvolutionIntent>,
+  intent: IntentClassification,
 ): Promise<Awaited<ReturnType<typeof generateCandidateSpec>>> {
   // Mirror the v1 build's liveness view: the developer watches the candidate assemble in
   // the panel's Spec block while the stage itself runs unchanged.
@@ -442,52 +437,6 @@ function finalizeFailure(
     stages: lifecycleStages(state.acc, "failed", failure),
     measurement: lifecycleMeasurement(state.acc, state.builtAt, failure),
   });
-}
-
-/**
- * Where an evolution stopped, in the metrics vocabulary. The structured build errors
- * carry a precise location of their own; everything else is the stage the run had
- * actually reached, which is exact rather than inferred.
- */
-function classifyEvolutionFailure(error: unknown, stage: EvolutionStage): GenerationFailure {
-  const message = error instanceof Error ? error.message : String(error);
-  if (error instanceof CapabilityGateError) {
-    return { stage: "gate", rung: error.failedRung, message };
-  }
-  // Frozen before either Handler generation or the Gate (4.7/01); no rung ran yet.
-  if (error instanceof BehavioralTestGenerationError) {
-    return { stage: "behavioral_test_generation", message };
-  }
-  if (error instanceof UnitGenerationError) return { stage: "unit_generation", message };
-  // A snapshot-verification failure means "publication" only once this run is actually
-  // publishing. The same error type is also how a corrupt *committed* base fails closed
-  // during assembly (decision 27), and calling that a publication fault would contradict
-  // the row's own stage vector, which shows publication skipped.
-  if (error instanceof SnapshotVerificationError && stage === "publication") {
-    return { stage: "publication", message };
-  }
-  switch (stage) {
-    case "spec_gen":
-      return { stage: "spec_gen", message };
-    // The Diff derives this evolution's schema work, so a difference the matrix cannot
-    // map stops where a failed migration derivation would.
-    case "diff":
-      return { stage: "migration", message };
-    // The assembly stage was running. A failed Gate rung and an exhausted unit loop are
-    // already typed above, so what lands here is the base-verification/disk half of
-    // assembly — the 4.5 failure vocabulary has no stage of its own for a corrupt
-    // committed base, and the failure `message` carries the real reason.
-    case "assembly":
-      return { stage: "unit_generation", message };
-    // The Gate already passed and only the wire failed; nothing was published, so the
-    // row reads "never got published" rather than blaming a rung that succeeded.
-    case "delivery":
-      return { stage: "publication", message };
-    case "publication":
-      return { stage: "publication", message };
-    case "activation":
-      return { stage: "activation", message };
-  }
 }
 
 /**

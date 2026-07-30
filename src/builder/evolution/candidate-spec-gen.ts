@@ -183,6 +183,8 @@ export function handSuppliedEvolutionIntent(
     type: "extend_capability",
     confidence: 1,
     target_capability: committed.id,
+    resolution: "extend",
+    proposed_identity: null,
     proposed_action: typedIntent,
     user_facing_label: "Let me think through that change.",
     requires_confirmation: false,

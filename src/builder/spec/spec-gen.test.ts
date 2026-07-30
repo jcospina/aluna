@@ -75,6 +75,8 @@ function notesIntent(overrides: Partial<IntentClassification> = {}): IntentClass
     type: "new_capability",
     confidence: 0.92,
     target_capability: null,
+    resolution: "new",
+    proposed_identity: null,
     proposed_action: "Create a place to keep the user's notes.",
     user_facing_label: "I'll make a place for your notes.",
     requires_confirmation: false,
@@ -335,6 +337,30 @@ describe("spec generation stage — authored modes, narration, and identity", ()
     expect(spec.id).toBe("reading_list");
     expect(spec.label).toBe("Reading list");
     expect(spec.id).toMatch(/^[a-z][a-z0-9_]*$/);
+  });
+
+  test("keeps the namespace mechanism out of the Builder prompt", async () => {
+    const provider = makeSpecProvider(notesSpec({ id: "work_contacts", label: "Work contacts" }));
+    const { send } = recordingSend();
+    const intent = notesIntent({
+      target_capability: "contacts",
+      resolution: "namespace",
+      proposed_identity: { id: "work_contacts", label: "Work contacts" },
+      proposed_action: "Create a separate capability for work contacts.",
+    });
+    const prompt = buildSpecPrompt({
+      provider,
+      prompt: "track my work contacts separately",
+      intent,
+      send,
+    });
+
+    expect(prompt).not.toContain("namespace");
+    expect(prompt).not.toContain("overlap_resolution");
+    expect(prompt).toContain("meaningful semantic label and id");
+    expect(prompt).toContain("Resolver-owned distinct identity — return these values exactly");
+    expect(prompt).toContain("- id: work_contacts");
+    expect(prompt).toContain("- label: Work contacts");
   });
 });
 

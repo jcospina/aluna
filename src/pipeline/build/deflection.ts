@@ -35,6 +35,8 @@ export function deflectionNarration(intent: IntentClassification): string {
 const DUPLICATE_PROMPT_STOP_WORDS = new Set([
   "add",
   "and",
+  "build",
+  "create",
   "for",
   "keep",
   "let",
@@ -42,6 +44,7 @@ const DUPLICATE_PROMPT_STOP_WORDS = new Set([
   "me",
   "my",
   "of",
+  "please",
   "save",
   "set",
   "store",
@@ -81,20 +84,15 @@ function duplicateMatchTokens(value: string, applyStopWords: boolean): Set<strin
   return new Set(tokens ?? []);
 }
 
-function duplicateCapabilityIdentityTokens(capability: CapabilityRow): Set<string> {
-  return duplicateMatchTokens([capability.id, capability.label].join(" "), false);
+function sameTokens(left: Set<string>, right: Set<string>): boolean {
+  return left.size === right.size && [...left].every((token) => right.has(token));
 }
 
-function duplicateCapabilityContextTokens(capability: CapabilityRow): Set<string> {
-  return duplicateMatchTokens(capability.prompt_context, true);
-}
-
-function duplicateScore(promptTokens: Set<string>, capabilityTokens: Set<string>): number {
-  let score = 0;
-  for (const token of promptTokens) {
-    if (capabilityTokens.has(token)) score += 1;
-  }
-  return score;
+function duplicateCapabilityIdentityTokens(capability: CapabilityRow): readonly Set<string>[] {
+  return [
+    duplicateMatchTokens(capability.id, false),
+    duplicateMatchTokens(capability.label, false),
+  ];
 }
 
 function findPromptOverlapCapability(
@@ -104,20 +102,12 @@ function findPromptOverlapCapability(
   const promptTokens = duplicateMatchTokens(prompt, true);
   if (promptTokens.size === 0) return undefined;
 
-  let best: { readonly capability: CapabilityRow; readonly score: number } | undefined;
-  for (const capability of capabilities) {
-    const identityScore = duplicateScore(
-      promptTokens,
-      duplicateCapabilityIdentityTokens(capability),
-    );
-    const contextScore = duplicateScore(promptTokens, duplicateCapabilityContextTokens(capability));
-    const score = identityScore > 0 || contextScore >= 2 ? identityScore + contextScore : 0;
-    if (score > 0 && (!best || score > best.score)) {
-      best = { capability, score };
-    }
-  }
-
-  return best?.capability;
+  const matches = capabilities.filter((capability) =>
+    duplicateCapabilityIdentityTokens(capability).some((identity) =>
+      sameTokens(promptTokens, identity),
+    ),
+  );
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 function duplicateIntentForCapability(capability: CapabilityRow): IntentClassification {
@@ -125,6 +115,8 @@ function duplicateIntentForCapability(capability: CapabilityRow): IntentClassifi
     type: "extend_capability",
     confidence: 1,
     target_capability: capability.id,
+    resolution: "extend",
+    proposed_identity: null,
     proposed_action: "Add this to an existing place.",
     user_facing_label: "This belongs with something you've already started.",
     requires_confirmation: false,
@@ -133,9 +125,10 @@ function duplicateIntentForCapability(capability: CapabilityRow): IntentClassifi
 
 /**
  * The `extend_capability` intent for a prompt that overlaps an existing capability,
- * or `undefined` when nothing overlaps strongly enough. The overlap heuristic scores
- * identity tokens (id + label) and context tokens separately; a single identity hit,
- * or two context hits, is enough to treat the prompt as a restatement.
+ * or `undefined` when the prompt adds any meaningful qualifier. This guard is
+ * intentionally exact-only: semantic overlap such as "work contacts separately"
+ * must reach the resolver with the complete registry so the model can distinguish
+ * extension from a separately named capability.
  */
 export function duplicateIntentForPrompt(
   prompt: string,

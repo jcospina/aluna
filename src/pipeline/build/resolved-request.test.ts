@@ -9,6 +9,8 @@ test("a resolved build request binds target expectation, catalog fingerprint, an
       type: "new_capability",
       confidence: 0.97,
       target_capability: null,
+      resolution: "new",
+      proposed_identity: null,
       proposed_action: "Create a notes capability.",
       user_facing_label: "Got it. I'm putting that together now.",
       requires_confirmation: false,

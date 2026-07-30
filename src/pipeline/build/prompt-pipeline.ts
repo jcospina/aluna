@@ -10,12 +10,11 @@ import {
   createCapabilityIncarnationId,
   reconcileCapabilityArtifacts,
 } from "../../builder/index.ts";
-import { classifyIntentWithUsage } from "../../intent-resolver/index.ts";
-import { intentResolutionMetrics } from "../../metrics/index.ts";
+import { classifyIntentWithUsage, type IntentClassification } from "../../intent-resolver/index.ts";
 import type { MutationCoordinator } from "../../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
 import { abortableProvider, type Provider } from "../../provider/index.ts";
-import { readActiveRegistryCatalog } from "../../registry/index.ts";
+import { type ActiveRegistryCatalog, readActiveRegistryCatalog } from "../../registry/index.ts";
 import type { Send } from "../../sse/index.ts";
 import { renderCachedCapabilityCommitSwap } from "../../web/index.ts";
 import type {
@@ -32,7 +31,6 @@ import {
   lifecycleMeasurement,
   lifecycleStages,
   type RecordMetrics,
-  writeDeflectionMetrics,
 } from "../metrics-recorder.ts";
 import { buildCommitPreview } from "../streaming/previews.ts";
 import {
@@ -45,11 +43,13 @@ import {
 import { AbortedBuildError, runSpecBuildStages } from "./build-run.ts";
 import {
   deflectDuplicateNewCapability,
-  deflectionNarration,
   duplicateIntentForPrompt,
   existingCapabilityNarration,
   NO_TOKEN_USAGE,
 } from "./deflection.ts";
+import { streamDeflection } from "./deflection-pipeline.ts";
+import { streamResolvedEvolution } from "./evolution-pipeline.ts";
+import { validateProposedOverlapIdentity } from "./overlap-identity.ts";
 import {
   type PromptResolutionMemory,
   type ResolvedBuildRequest,
@@ -64,72 +64,6 @@ export interface PromptBuildPipelineDeps {
   readonly artifactsRoot: string;
   readonly mutationCoordinator: MutationCoordinator;
   readonly terminalPresenterTimeoutMs?: number;
-}
-
-interface DeflectionPipelineInput {
-  readonly generationId: string;
-  readonly resolution: PromptResolutionMemory;
-  readonly recordMetrics: RecordMetrics;
-  readonly send: Send;
-  readonly isAborted: () => boolean;
-  readonly canPresent: () => boolean;
-  readonly mutationCoordinator: MutationCoordinator;
-  readonly restoration: RestorationDescriptor;
-  readonly buildDatabases: PlatformDatabase;
-  readonly terminalPresenterTimeoutMs: number;
-  readonly narration?: string;
-  readonly preserveActiveView?: boolean;
-}
-
-/** Record the deflection metrics row and narrate the warm "not yet" line. */
-async function streamDeflection({
-  generationId,
-  resolution,
-  recordMetrics,
-  send,
-  isAborted,
-  canPresent,
-  mutationCoordinator,
-  restoration,
-  buildDatabases,
-  terminalPresenterTimeoutMs,
-  narration,
-  preserveActiveView,
-}: DeflectionPipelineInput): Promise<BuildPipelineCompletion> {
-  // Resolve cancellation once so the best-effort row, preview, and terminal signal
-  // cannot disagree if a cancel arrives while a preview write is in flight.
-  const resolutionOutcome = isAborted() ? "cancelled" : "completed";
-  const metrics = intentResolutionMetrics({
-    promptJobId: generationId,
-    outcome: resolutionOutcome,
-    resolver: resolution.resolver,
-  });
-  // Non-build resolver metrics are best-effort: the write still queues behind any
-  // build reservation, but the user-visible deflection never waits for experiment data.
-  void mutationCoordinator
-    .withPlatformWrite(() => writeDeflectionMetrics(recordMetrics, metrics))
-    .catch((error) => {
-      console.error(
-        "Aluna resolver metrics write did not complete:",
-        error instanceof Error ? error.message : error,
-      );
-    });
-  if (canPresent()) {
-    await send("metrics-preview", JSON.stringify(metrics));
-    const explanation = narration ?? deflectionNarration(resolution.intent);
-    await deliverRestoredPresentation(
-      send,
-      renderRestorationFragment(
-        restoration,
-        buildDatabases.readonly,
-        explanation,
-        preserveActiveView ? "preserve" : "replace",
-      ),
-      resolutionOutcome === "cancelled" ? "cancelled" : "ok",
-      terminalPresenterTimeoutMs,
-    );
-    return "terminal-sent";
-  }
 }
 
 interface NewCapabilityPipelineInput {
@@ -343,88 +277,89 @@ interface ResolvedPromptPipelineDeps extends PromptBuildPipelineDeps {
   readonly terminalPresenterTimeoutMs: number;
 }
 
-async function runPromptJob(
-  { job, send, isAborted, canPresent, signal }: BuildPipelineContext,
+type ResolverMeasurement = ReturnType<typeof carriedResolverMeasurement>;
+
+async function runExistingCapabilityIntent(
+  context: BuildPipelineContext,
   deps: ResolvedPromptPipelineDeps,
+  catalog: ActiveRegistryCatalog,
+  provider: Provider,
+  intent: IntentClassification & { readonly type: "extend_capability" | "ui_change" },
+  resolver: ResolverMeasurement,
 ): Promise<BuildPipelineCompletion> {
-  const builtAt = performance.now();
-  const catalog = readActiveRegistryCatalog(deps.buildDatabases.readonly);
-  const duplicateIntent = duplicateIntentForPrompt(job.prompt, catalog.capabilities);
-  if (duplicateIntent) {
-    const resolution: PromptResolutionMemory = {
-      intent: duplicateIntent,
-      outcome: "non_build",
-      catalogFingerprint: catalog.fingerprint,
-      resolver: carriedResolverMeasurement(duplicateIntent, NO_TOKEN_USAGE, 0, catalog.fingerprint),
-    };
-    job.resolution = resolution;
-    return streamDeflection({
-      generationId: job.id,
-      resolution,
-      recordMetrics: deps.recordMetrics,
-      send,
-      isAborted,
-      canPresent,
-      mutationCoordinator: deps.mutationCoordinator,
-      restoration: job.restoration,
-      buildDatabases: deps.buildDatabases,
-      terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
-      narration: existingCapabilityNarration(duplicateIntent, catalog.capabilities),
-      preserveActiveView: true,
-    });
-  }
-
-  const provider = abortableProvider(deps.getProvider(), signal);
-  const classification = await classifyIntentWithUsage({
-    provider,
-    prompt: job.prompt,
-    catalog,
-    send,
-  });
-  const intent = deflectDuplicateNewCapability(
-    classification.intent,
-    job.prompt,
-    catalog.capabilities,
+  const active = catalog.capabilities.find(
+    (capability) => capability.id === intent.target_capability,
   );
-  const { usage, durationMs: resolverDurationMs } = classification;
-  const resolver = carriedResolverMeasurement(
+  if (!active) {
+    throw new Error("The resolved capability is not present in the resolver catalog.");
+  }
+  context.job.resolution = {
     intent,
-    usage,
-    resolverDurationMs,
-    classification.catalogFingerprint,
-  );
-  if (intent.type !== "new_capability") {
-    const resolution: PromptResolutionMemory = {
-      intent,
-      outcome: "non_build",
-      catalogFingerprint: classification.catalogFingerprint,
-      resolver,
-    };
-    job.resolution = resolution;
-    return streamDeflection({
-      generationId: job.id,
-      resolution,
-      recordMetrics: deps.recordMetrics,
-      send,
-      isAborted,
-      canPresent,
-      mutationCoordinator: deps.mutationCoordinator,
-      restoration: job.restoration,
-      buildDatabases: deps.buildDatabases,
-      terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
-    });
-  }
+    outcome: "build",
+    catalogFingerprint: catalog.fingerprint,
+    resolver,
+  };
+  return streamResolvedEvolution({
+    ...context,
+    active,
+    intent,
+    resolver,
+    provider,
+    recordMetrics: deps.recordMetrics,
+    buildDatabases: deps.buildDatabases,
+    artifactsRoot: deps.artifactsRoot,
+    mutationCoordinator: deps.mutationCoordinator,
+  });
+}
 
+function runNonBuildIntent(
+  context: BuildPipelineContext,
+  deps: ResolvedPromptPipelineDeps,
+  catalogFingerprint: string,
+  intent: IntentClassification,
+  resolver: ResolverMeasurement,
+): Promise<BuildPipelineCompletion> {
+  const resolution: PromptResolutionMemory = {
+    intent,
+    outcome: "non_build",
+    catalogFingerprint,
+    resolver,
+  };
+  context.job.resolution = resolution;
+  return streamDeflection({
+    generationId: context.job.id,
+    resolution,
+    recordMetrics: deps.recordMetrics,
+    send: context.send,
+    isAborted: context.isAborted,
+    canPresent: context.canPresent,
+    mutationCoordinator: deps.mutationCoordinator,
+    restoration: context.job.restoration,
+    buildDatabases: deps.buildDatabases,
+    terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
+  });
+}
+
+async function runNewCapabilityIntent(
+  context: BuildPipelineContext,
+  deps: ResolvedPromptPipelineDeps,
+  provider: Provider,
+  intent: IntentClassification & { readonly type: "new_capability" },
+  resolver: ResolverMeasurement,
+  catalogFingerprint: string,
+  builtAt: number,
+): Promise<BuildPipelineCompletion> {
+  const { job, send, isAborted, canPresent, signal } = context;
   const resolvedRequest = resolvedNewCapabilityRequest({
     prompt: job.prompt,
-    intent: { ...intent, type: "new_capability" },
-    catalogFingerprint: classification.catalogFingerprint,
+    intent,
+    catalogFingerprint,
     resolver,
   });
   job.resolution = {
     intent,
     outcome: "build",
-    catalogFingerprint: classification.catalogFingerprint,
+    catalogFingerprint,
     resolver,
     buildRequest: resolvedRequest,
   };
@@ -458,6 +393,89 @@ async function runPromptJob(
       }
     },
     signal ? { signal } : {},
+  );
+}
+
+async function runPromptJob(
+  context: BuildPipelineContext,
+  deps: ResolvedPromptPipelineDeps,
+): Promise<BuildPipelineCompletion> {
+  const { job, send, signal } = context;
+  const builtAt = performance.now();
+  const catalog = readActiveRegistryCatalog(deps.buildDatabases.readonly);
+  const duplicateIntent = duplicateIntentForPrompt(job.prompt, catalog.capabilities);
+  if (duplicateIntent) {
+    const resolution: PromptResolutionMemory = {
+      intent: duplicateIntent,
+      outcome: "non_build",
+      catalogFingerprint: catalog.fingerprint,
+      resolver: carriedResolverMeasurement(duplicateIntent, NO_TOKEN_USAGE, 0, catalog.fingerprint),
+    };
+    job.resolution = resolution;
+    return streamDeflection({
+      generationId: job.id,
+      resolution,
+      recordMetrics: deps.recordMetrics,
+      send,
+      isAborted: context.isAborted,
+      canPresent: context.canPresent,
+      mutationCoordinator: deps.mutationCoordinator,
+      restoration: job.restoration,
+      buildDatabases: deps.buildDatabases,
+      terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
+      narration: existingCapabilityNarration(duplicateIntent, catalog.capabilities),
+      preserveActiveView: true,
+    });
+  }
+
+  const provider = abortableProvider(deps.getProvider(), signal);
+  const classification = await classifyIntentWithUsage({
+    provider,
+    prompt: job.prompt,
+    catalog,
+    activeCapabilityId: job.restoration.kind === "capability" ? job.restoration.capabilityId : null,
+    send,
+  });
+  const intent = deflectDuplicateNewCapability(
+    classification.intent,
+    job.prompt,
+    catalog.capabilities,
+  );
+  const { usage, durationMs: resolverDurationMs } = classification;
+  const resolver = carriedResolverMeasurement(
+    intent,
+    usage,
+    resolverDurationMs,
+    classification.catalogFingerprint,
+  );
+  if (intent.type === "extend_capability" || intent.type === "ui_change") {
+    return runExistingCapabilityIntent(
+      context,
+      deps,
+      catalog,
+      provider,
+      { ...intent, type: intent.type },
+      resolver,
+    );
+  }
+  if (intent.type !== "new_capability") {
+    return runNonBuildIntent(context, deps, classification.catalogFingerprint, intent, resolver);
+  }
+  if (intent.resolution === "namespace" && intent.proposed_identity) {
+    validateProposedOverlapIdentity({
+      proposed: intent.proposed_identity,
+      targetCapabilityId: intent.target_capability ?? "",
+      capabilities: catalog.capabilities,
+    });
+  }
+  return runNewCapabilityIntent(
+    context,
+    deps,
+    provider,
+    { ...intent, type: "new_capability" },
+    resolver,
+    classification.catalogFingerprint,
+    builtAt,
   );
 }
 

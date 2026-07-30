@@ -20,4 +20,7 @@ export {
   type IntentType,
   intentClassificationSchema,
   intentTypeSchema,
+  OVERLAP_RESOLUTIONS,
+  type OverlapResolution,
+  overlapResolutionSchema,
 } from "./schema.ts";

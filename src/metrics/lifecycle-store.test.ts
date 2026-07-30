@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
 import { runMigrations } from "../persistence/migrations.ts";
 import {
+  carriedResolverMeasurementSchema,
   finalizeGenerationLifecycleFailure,
   finalizeGenerationLifecycleSuccess,
   getGenerationLifecycle,
@@ -47,6 +48,18 @@ describe("durable generation lifecycle", () => {
       },
       conns.readwrite,
     );
+
+  test("resolver overlap resolution is a closed durable vocabulary", () => {
+    expect(() =>
+      carriedResolverMeasurementSchema.parse({
+        intent: { type: "new_capability", confidence: 0.98, targetCapability: null },
+        model: "gpt-5",
+        durationMs: 12,
+        usage: { totalTokens: 12 },
+        overlapResolution: "bogus",
+      }),
+    ).toThrow();
+  });
 
   test("start throws on duplicate admission and stores content-free running state", () => {
     start();

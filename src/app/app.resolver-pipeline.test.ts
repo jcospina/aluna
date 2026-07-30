@@ -96,18 +96,12 @@ function makePromptBuildProvider(
   return { provider, prompts };
 }
 
-const PERSONAL_NOTES_SPEC = {
-  ...NOTES_SPEC,
-  id: "personal_notes",
-  label: "Personal Notes",
-  prompt_context:
-    "Stores personal notes with titles, content, optional tags, pinned status, and an optional note date for easy retrieval.",
-};
-
 const newCapabilityIntent: IntentClassification = {
   type: "new_capability",
   confidence: 0.97,
   target_capability: null,
+  resolution: "new",
+  proposed_identity: null,
   proposed_action: "Create a notes capability.",
   user_facing_label: "Got it. I'm putting that together now.",
   requires_confirmation: false,
@@ -345,6 +339,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       type: "data_query",
       confidence: 0.89,
       target_capability: "notes",
+      resolution: "none",
+      proposed_identity: null,
       proposed_action: "Answer a question about saved notes.",
       user_facing_label: "I can look across your notes.",
       requires_confirmation: false,
@@ -404,6 +400,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       type: "extend_capability",
       confidence: 0.94,
       target_capability: "notes",
+      resolution: "extend",
+      proposed_identity: null,
       proposed_action: "Add another way to track notes inside the existing Notes capability.",
       user_facing_label: "I can add that to your notes.",
       requires_confirmation: false,
@@ -441,114 +439,6 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(resolutionRows[0]?.resolver.usage.totalTokens).toBeUndefined();
     expect(listCapabilities(conns.readonly)).toHaveLength(1);
     expect(listCapabilities(conns.readonly)[0]?.id).toBe("notes");
-    expect(existsSync(artifactsRoot)).toBe(false);
-  });
-});
-
-describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeline) — duplicate guard", () => {
-  beforeEach(() => {
-    ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-prompt-build-"));
-  });
-
-  afterEach(() => {
-    teardownScratchDbEnv({ dir, conns, artifactsRoot });
-  });
-
-  test("an existing registry row deflects before provider or builder work", async () => {
-    insertCapability(
-      notesCapabilityRow({
-        id: "personal_notes",
-        label: '<img src=x onerror="alert(1)">',
-        incarnation_id: "22222222-2222-4222-8222-222222222222",
-        artifacts_path: "capabilities/personal_notes/22222222-2222-4222-8222-222222222222/v1/",
-        prompt_context: PERSONAL_NOTES_SPEC.prompt_context,
-      }),
-      conns.readwrite,
-    );
-    const { provider, prompts } = makePromptBuildProvider(newCapabilityIntent, PERSONAL_NOTES_SPEC);
-    const { rows, resolutionRows, recordMetrics } = makeMetricsRecorder();
-    const app = defaultPipelineApp(provider, recordMetrics);
-
-    const jobId = buildJobIdFromSubscriber(
-      await responseText(await postPrompt(app, "I want to keep track of my notes")),
-    );
-    const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
-    const narration = events
-      .filter((event) => event.event === "narration")
-      .map((event) => event.data)
-      .join("");
-
-    expect(events.map((event) => event.event)).toEqual(["metrics-preview", "fragment", "done"]);
-    expect(narration).toBe("");
-    expect(eventData(events, "fragment")).toContain("&lt;img");
-    expect(eventData(events, "fragment")).not.toContain("<img");
-    expect(prompts).toHaveLength(0);
-    expect(rows).toEqual([]);
-    expect(resolutionRows).toHaveLength(1);
-    expect(resolutionRows[0]).toMatchObject({
-      promptJobId: jobId,
-      resolver: {
-        intent: {
-          type: "extend_capability",
-          targetCapability: "personal_notes",
-        },
-      },
-    });
-    expect(listCapabilities(conns.readonly)).toHaveLength(1);
-    expect(
-      conns.readonly
-        .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'cap_personal_notes'")
-        .get(),
-    ).toBeNull();
-    expect(existsSync(artifactsRoot)).toBe(false);
-  });
-
-  test("a distinct recipe prompt is not caught by the deterministic Notes duplicate guard", async () => {
-    insertCapability(
-      notesCapabilityRow({
-        id: "personal_notes",
-        label:
-          "We’ll set you up to capture and organize your notes so you can quickly find them later.",
-        incarnation_id: "22222222-2222-4222-8222-222222222222",
-        artifacts_path: "capabilities/personal_notes/22222222-2222-4222-8222-222222222222/v1/",
-        prompt_context: PERSONAL_NOTES_SPEC.prompt_context,
-      }),
-      conns.readwrite,
-    );
-    const rejectIntent: IntentClassification = {
-      type: "reject",
-      confidence: 0.51,
-      target_capability: null,
-      proposed_action: "Do not build during this guard test.",
-      user_facing_label: "I'm not quite sure what to make from that yet.",
-      requires_confirmation: false,
-    };
-    const { provider, prompts } = makePromptBuildProvider(rejectIntent);
-    const { rows, resolutionRows, recordMetrics } = makeMetricsRecorder();
-    const app = defaultPipelineApp(provider, recordMetrics);
-
-    const jobId = buildJobIdFromSubscriber(
-      await responseText(await postPrompt(app, "I want to keep track of my recipes")),
-    );
-    const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
-
-    expect(prompts).toHaveLength(1);
-    expect(prompts[0]).toContain("I want to keep track of my recipes");
-    expect(events.map((event) => event.event)).toEqual([
-      "narration",
-      "metrics-preview",
-      "fragment",
-      "done",
-    ]);
-    expect(events[0]?.data).toContain("new place");
-    expect(events[0]?.data).toContain("already started");
-    expect(rows).toEqual([]);
-    expect(resolutionRows[0]).toMatchObject({
-      promptJobId: jobId,
-      resolver: {
-        intent: { type: "reject", confidence: 0.51, targetCapability: null },
-      },
-    });
     expect(existsSync(artifactsRoot)).toBe(false);
   });
 });

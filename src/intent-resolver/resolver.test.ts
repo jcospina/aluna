@@ -37,6 +37,16 @@ interface RecordingProvider extends Provider {
   readonly calls: RecordedGenerateCall[];
 }
 
+function resolutionFor(type: (typeof INTENT_TYPES)[number]) {
+  if (type === "new_capability") return "new" as const;
+  if (type === "extend_capability" || type === "ui_change") return "extend" as const;
+  return "none" as const;
+}
+
+function targetFor(type: (typeof INTENT_TYPES)[number]): string | null {
+  return type === "new_capability" || type === "reject" ? null : "notes";
+}
+
 function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
   const incarnationId = "11111111-1111-4111-8111-111111111111";
   return {
@@ -161,25 +171,16 @@ function closeIntentDatabase(dir: string, conns: PlatformDatabase): void {
   rmSync(dir, { recursive: true, force: true });
 }
 
-describe("intent resolver classification — schema and prompt assembly", () => {
-  let dir: string;
-  let conns: PlatformDatabase;
-
-  beforeEach(() => {
-    ({ dir, conns } = openIntentDatabase());
-  });
-
-  afterEach(() => {
-    closeIntentDatabase(dir, conns);
-  });
-
+describe("intent resolver classification — schema", () => {
   test("the schema speaks the full intent enum plus the reject bucket and keeps confirmations off in M2", () => {
     for (const type of INTENT_TYPES) {
       expect(
         intentClassificationSchema.parse({
           type,
           confidence: 0.8,
-          target_capability: type === "new_capability" || type === "reject" ? null : "notes",
+          target_capability: targetFor(type),
+          resolution: resolutionFor(type),
+          proposed_identity: null,
           proposed_action: "Classify the user's request.",
           user_facing_label: "I'm sorting out what you want to track.",
           requires_confirmation: false,
@@ -192,11 +193,51 @@ describe("intent resolver classification — schema and prompt assembly", () => 
         type: "new_capability",
         confidence: 0.8,
         target_capability: null,
+        resolution: "new",
+        proposed_identity: null,
         proposed_action: "Create a notes space.",
         user_facing_label: "I'll start a place for your notes.",
         requires_confirmation: true,
       }),
     ).toThrow();
+
+    expect(() =>
+      intentClassificationSchema.parse({
+        type: "new_capability",
+        confidence: 0.9,
+        target_capability: "contacts",
+        resolution: "namespace",
+        proposed_identity: null,
+        proposed_action: "Create a separate work contacts capability.",
+        user_facing_label: "I'll keep work contacts separately.",
+        requires_confirmation: false,
+      }),
+    ).toThrow(/proposed identity/i);
+    expect(
+      intentClassificationSchema.parse({
+        type: "new_capability",
+        confidence: 0.9,
+        target_capability: "contacts",
+        resolution: "namespace",
+        proposed_identity: { id: "work_contacts", label: "Work contacts" },
+        proposed_action: "Create a separate work contacts capability.",
+        user_facing_label: "I'll keep work contacts separately.",
+        requires_confirmation: false,
+      }).proposed_identity,
+    ).toEqual({ id: "work_contacts", label: "Work contacts" });
+  });
+});
+
+describe("intent resolver classification — prompt assembly", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = openIntentDatabase());
+  });
+
+  afterEach(() => {
+    closeIntentDatabase(dir, conns);
   });
 
   test("assembles every registry prompt_context plus the active capability for the provider call", async () => {
@@ -204,6 +245,8 @@ describe("intent resolver classification — schema and prompt assembly", () => 
       type: "new_capability",
       confidence: 0.91,
       target_capability: null,
+      resolution: "new",
+      proposed_identity: null,
       proposed_action: "Create a trips capability.",
       user_facing_label: "I'll make a place for your trips.",
       requires_confirmation: false,
@@ -226,10 +269,7 @@ describe("intent resolver classification — schema and prompt assembly", () => 
     );
     expect(provider.calls[0]?.prompt).toContain("Active capability:\nid: notes");
     expect(provider.calls[0]?.prompt).toContain(
-      "If the prompt overlaps an existing capability, choose extend_capability",
-    );
-    expect(provider.calls[0]?.prompt).toContain(
-      "Existing capability check — do this before deciding",
+      "Existing capability and overlap check — do this before deciding",
     );
     expect(provider.calls[0]?.prompt).toContain(
       "The registry context below is the complete list of existing capabilities",
@@ -250,7 +290,20 @@ describe("intent resolver classification — schema and prompt assembly", () => 
     expect(provider.calls[0]?.prompt).toContain(
       "'let me store notes with images' is extend_capability",
     );
-    expect(provider.calls[0]?.prompt).toContain("do not invent suffixed duplicate ids");
+    expect(provider.calls[0]?.prompt).toContain(
+      "'track my work contacts separately' is new_capability with resolution namespace",
+    );
+    expect(provider.calls[0]?.prompt).toContain(
+      "active capability is strong context for vague references",
+    );
+    expect(provider.calls[0]?.prompt).toContain("Explicit wording overrides active context");
+    expect(provider.calls[0]?.prompt).toContain("never contacts_2");
+    expect(provider.calls[0]?.prompt).toContain(
+      "Adding/hiding data, changing requiredness, or changing behavior is extend_capability",
+    );
+    expect(provider.calls[0]?.prompt).toContain(
+      "Quotes, addresses, citations, and names as entered may contain commas",
+    );
   });
 });
 
@@ -272,6 +325,8 @@ describe("intent resolver classification — narration and round-trip results", 
       type: "new_capability",
       confidence: 0.91,
       target_capability: null,
+      resolution: "new",
+      proposed_identity: null,
       proposed_action: "Create a trips capability.",
       user_facing_label: "I'll make a place for your trips.",
       requires_confirmation: false,
@@ -304,6 +359,8 @@ describe("intent resolver classification — narration and round-trip results", 
       type: "extend_capability",
       confidence: 0.94,
       target_capability: "notes",
+      resolution: "extend",
+      proposed_identity: null,
       proposed_action: "Add another way to track notes inside the existing Notes capability.",
       user_facing_label: "I can add that to your notes.",
       requires_confirmation: false,
@@ -321,6 +378,8 @@ describe("intent resolver classification — narration and round-trip results", 
       type: "extend_capability",
       confidence: 0.94,
       target_capability: "notes",
+      resolution: "extend",
+      proposed_identity: null,
       proposed_action: "Add another way to track notes inside the existing Notes capability.",
       user_facing_label: "I can add that to your notes.",
       requires_confirmation: false,
@@ -333,6 +392,8 @@ describe("intent resolver classification — narration and round-trip results", 
       type: "new_capability",
       confidence: 0.5,
       target_capability: null,
+      resolution: "new",
+      proposed_identity: null,
       proposed_action: "Create notes.",
       user_facing_label: "I'll make a place for that.",
       requires_confirmation: true,

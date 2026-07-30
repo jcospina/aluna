@@ -156,6 +156,7 @@ export function carriedResolverMeasurement(
     durationMs,
     usage,
     catalogFingerprint,
+    overlapResolution: intent.resolution,
   };
 }
 
@@ -382,6 +383,10 @@ export function writeDeflectionMetrics(
   }
 }
 
+function specGenerationIncomplete(acc: DemoBuildAccumulator): boolean {
+  return acc.timings.specGenMs === undefined || acc.capabilityId === undefined;
+}
+
 /**
  * Name the stage (and, for the gate, the rung) a failed build stopped at, for the
  * metrics row's "failure is data" record (Epic 2.7). The two structured build errors
@@ -407,7 +412,7 @@ export function classifyBuildFailure(error: unknown, acc: DemoBuildAccumulator):
     return { stage: "publication", message };
   }
   const { timings } = acc;
-  if (timings.specGenMs === undefined) return { stage: "spec_gen", message };
+  if (specGenerationIncomplete(acc)) return { stage: "spec_gen", message };
   if (timings.migrationMs === undefined) return { stage: "migration", message };
   if (timings.codeGenMs === undefined || timings.presentationGenMs === undefined) {
     return { stage: "unit_generation", message };

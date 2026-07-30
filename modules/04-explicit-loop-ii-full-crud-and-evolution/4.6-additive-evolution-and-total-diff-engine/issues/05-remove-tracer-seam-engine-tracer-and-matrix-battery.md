@@ -166,6 +166,10 @@ the existing Commit and Lifecycle blocks.
 explicit that resolver classification is outside the engine until 4.8, so 05 removed the
 4.5 seam only — the 4.6 tracer route is the *near-final* surface, not a second path.
 
+Their removal is now owned by
+`modules/04-explicit-loop-ii-full-crud-and-evolution/4.8-resolver-explicit-presenter-and-overlap/issues/04-remove-evolution-demo-surface.md`,
+filed once 4.8/02 made the prompt bar the real evolution entrance.
+
 ## Verification record
 
 - Post-release-blocker closure (2026-07-27):

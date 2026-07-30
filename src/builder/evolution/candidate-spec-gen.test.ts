@@ -189,6 +189,8 @@ describe("the hand-supplied intent seam (until 4.8)", () => {
       type: "extend_capability",
       confidence: 1,
       target_capability: "journal",
+      resolution: "extend",
+      proposed_identity: null,
       proposed_action: "Track a mood too",
       user_facing_label: "Let me think through that change.",
       requires_confirmation: false,

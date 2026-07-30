@@ -95,6 +95,14 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "Identity:",
     "- id is the engineering identity (it becomes a table and folder name). Short, lowercase, never shown to the user.",
     '- label is the short user-facing capability name shown in the toolbar, like "Notes" or "Reading list". It must be a name, not a sentence, narration, promise, or confirmation.',
+    "- Every distinct capability must use a meaningful semantic label and id derived from the user's wording. Never create a mechanical numbered or versioned duplicate.",
+    ...(input.intent.proposed_identity
+      ? [
+          "Resolver-owned distinct identity — return these values exactly:",
+          `- id: ${input.intent.proposed_identity.id}`,
+          `- label: ${input.intent.proposed_identity.label}`,
+        ]
+      : []),
     "",
     "Other fields:",
     "- behavior: one or two plain sentences describing how this capability behaves (what is required, default ordering). Aluna generates tests from this, so state intent, not implementation.",
@@ -104,6 +112,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "- prompt_context: one concise sentence describing what this capability stores, used later to recognise related requests.",
     "",
     "Resolved intent:",
+    `- type: ${input.intent.type}`,
     `- proposed_action: ${input.intent.proposed_action}`,
     `- user_facing_label: ${input.intent.user_facing_label}`,
     "",
@@ -146,6 +155,8 @@ export function hardcodedNewCapabilityIntent(prompt: string): IntentClassificati
     type: "new_capability",
     confidence: 1,
     target_capability: null,
+    resolution: "new",
+    proposed_identity: null,
     proposed_action: `Build a new capability for: ${prompt}`,
     user_facing_label: "Got it. I'm putting that together now.",
     requires_confirmation: false,
