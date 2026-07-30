@@ -426,18 +426,7 @@ function validateListInputs(
   const actualFields = spec.ui_intent.form.list_inputs.map((entry) => entry.field);
 
   for (const [index, entry] of spec.ui_intent.form.list_inputs.entries()) {
-    const field = fieldsByName.get(entry.field);
-    if (!field) {
-      addListInputIssue(ctx, index, `field "${entry.field}" is not in schema.fields`);
-    } else if (field.lifecycle !== "active") {
-      addListInputIssue(ctx, index, `field "${entry.field}" must be active`);
-    } else if (!isListFieldType(field.type)) {
-      addListInputIssue(ctx, index, `field "${entry.field}" must be a list field`);
-    }
-
-    if (actualFields.indexOf(entry.field) !== index) {
-      addListInputIssue(ctx, index, `field "${entry.field}" appears more than once`);
-    }
+    validateListInputEntry(fieldsByName, actualFields, entry, index, ctx);
   }
 
   if (!sameOrderedStrings(actualFields, expectedFields)) {
@@ -447,6 +436,27 @@ function validateListInputs(
         "form list_inputs must contain every active string[] field exactly once in schema-field order",
       path: ["ui_intent", "form", "list_inputs"],
     });
+  }
+}
+
+function validateListInputEntry(
+  fieldsByName: ReadonlyMap<string, SpecField>,
+  actualFields: readonly string[],
+  entry: ListInputIntent,
+  index: number,
+  ctx: z.RefinementCtx,
+): void {
+  const field = fieldsByName.get(entry.field);
+  if (!field) {
+    addListInputIssue(ctx, index, `field "${entry.field}" is not in schema.fields`);
+  } else if (field.lifecycle !== "active") {
+    addListInputIssue(ctx, index, `field "${entry.field}" must be active`);
+  } else if (!isListFieldType(field.type)) {
+    addListInputIssue(ctx, index, `field "${entry.field}" must be a list field`);
+  }
+
+  if (actualFields.indexOf(entry.field) !== index) {
+    addListInputIssue(ctx, index, `field "${entry.field}" appears more than once`);
   }
 }
 

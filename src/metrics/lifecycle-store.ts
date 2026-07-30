@@ -4,7 +4,7 @@
 
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
-import { intentTypeSchema } from "../intent-resolver/index.ts";
+import { intentTypeSchema, overlapResolutionSchema } from "../intent-resolver/index.ts";
 import { db, dbReadonly } from "../persistence/db.ts";
 import {
   gateRungOutcomeSchema,
@@ -84,7 +84,7 @@ export const carriedResolverMeasurementSchema = z.strictObject({
   durationMs: z.number().nonnegative(),
   usage: tokenUsageSchema,
   catalogFingerprint: z.string().min(1).optional(),
-  overlapResolution: z.string().min(1).optional(),
+  overlapResolution: overlapResolutionSchema.optional(),
 });
 export type CarriedResolverMeasurement = z.infer<typeof carriedResolverMeasurementSchema>;
 

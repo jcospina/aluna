@@ -20,7 +20,7 @@
 
 import type { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { CandidateValidationError, resolveBehavioralTierEnabled } from "../builder/index.ts";
+import { resolveBehavioralTierEnabled } from "../builder/index.ts";
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import {
@@ -28,32 +28,20 @@ import {
   type RunCapabilityEvolutionInput,
   runCapabilityEvolution,
 } from "../pipeline/evolution/evolution-run.ts";
+import {
+  presentEvolutionFailure,
+  presentEvolutionOutcome,
+} from "../pipeline/evolution/explicit-presentation.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
 import {
-  type BuildJob,
   type BuildJobQueue,
-  type BuildPipelineCompletion,
   createBuildJobQueue,
   type SendBuildEvent,
 } from "../pipeline/jobs/build-jobs.ts";
-import { renderRestorationFragment } from "../pipeline/jobs/restoration.ts";
-import {
-  buildCommitPreview,
-  buildEvolutionCandidateNoChangePreview,
-  buildEvolutionCandidateRejectedPreview,
-} from "../pipeline/streaming/previews.ts";
-import {
-  deliverActivatedPresentation,
-  deliverActivatedRecoveryPresentation,
-  deliverCandidateNoChangePresentation,
-  deliverCandidateRejectedPresentation,
-  deliverFailedPresentation,
-  deliverRestoredPresentation,
-} from "../pipeline/streaming/terminal-presentation.ts";
 import { abortableProvider, type Provider } from "../provider/index.ts";
 import { type CapabilityRow, getCapability } from "../registry/index.ts";
 import { sseTransport, withSseHeartbeat } from "../sse/index.ts";
-import { renderBuildSubscriber, renderCachedCapabilityCommitSwap } from "../web/index.ts";
+import { renderBuildSubscriber } from "../web/index.ts";
 
 /** The slice of the app's resolved dependency set this route group needs. */
 export interface EvolutionTracerDeps {
@@ -159,9 +147,33 @@ function createEvolutionTracerJobs(
           () => evolveCapability(deps, admitted, job.id, send, isAborted, signal),
           signal ? { signal } : {},
         );
-        return await presentOutcome(deps, admitted, job, send, canPresent, isAborted, outcome);
+        return await presentEvolutionOutcome(
+          {
+            active: admitted.active,
+            intentText: admitted.intentText,
+            job,
+            send,
+            canPresent,
+            isAborted,
+            database: deps.buildDatabases.readonly,
+            recordMetrics: deps.recordMetrics,
+          },
+          outcome,
+        );
       } catch (error) {
-        return await presentFailure(deps, admitted, job, send, canPresent, isAborted, error);
+        return await presentEvolutionFailure(
+          {
+            active: admitted.active,
+            intentText: admitted.intentText,
+            job,
+            send,
+            canPresent,
+            isAborted,
+            database: deps.buildDatabases.readonly,
+            recordMetrics: deps.recordMetrics,
+          },
+          error,
+        );
       }
     },
   });
@@ -205,122 +217,4 @@ function evolveCapability(
       ? { firstPassHandlerFixture: deps.hardEvolutionHandlerFixture }
       : {}),
   });
-}
-
-/** The one activation swap: the developer commit preview plus the complete View. */
-async function presentActivated(
-  deps: EvolutionTracerDeps,
-  admitted: EvolutionAdmission,
-  jobId: string,
-  send: SendBuildEvent,
-  canPresent: () => boolean,
-  activation: Extract<CapabilityEvolutionOutcome, { kind: "activated" }>,
-): Promise<BuildPipelineCompletion> {
-  const commit = activation.commit;
-  // Past the point of no return: the new version is live whether or not this lands.
-  if (!canPresent()) return undefined;
-  const delivered = await deliverActivatedPresentation(
-    send,
-    // The published-version pane carries the transition row too, so the answer to "why does
-    // this version have (no) frozen tests?" is on the same panel as the version itself.
-    JSON.stringify(buildCommitPreview(commit, activation.assembly.behavioralTierTransition)),
-    renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel),
-    undefined,
-    JSON.stringify(deps.recordMetrics.get(jobId, admitted.active.incarnation_id)),
-  );
-  if (!delivered) await deliverActivatedRecoveryPresentation(send);
-  return "terminal-sent";
-}
-
-async function presentOutcome(
-  deps: EvolutionTracerDeps,
-  admitted: EvolutionAdmission,
-  job: BuildJob,
-  send: SendBuildEvent,
-  canPresent: () => boolean,
-  isAborted: () => boolean,
-  outcome: CapabilityEvolutionOutcome,
-): Promise<BuildPipelineCompletion> {
-  if (outcome.kind === "activated") {
-    if (isAborted()) {
-      // Cancelled after the pointer moved: the version is real, so never restore the old
-      // View over it — invite the refresh that recovers it from the registry.
-      if (!canPresent()) return undefined;
-      await deliverActivatedRecoveryPresentation(send);
-      return "terminal-sent";
-    }
-    return presentActivated(deps, admitted, job.id, send, canPresent, outcome);
-  }
-
-  const restoration = renderRestorationFragment(job.restoration, deps.buildDatabases.readonly);
-  if (outcome.kind === "cancelled") {
-    if (canPresent()) await deliverRestoredPresentation(send, restoration, "cancelled");
-    return "terminal-sent";
-  }
-  if (!canPresent()) return undefined;
-  await deliverCandidateNoChangePresentation(
-    send,
-    JSON.stringify(
-      buildEvolutionCandidateNoChangePreview(
-        admitted.active,
-        admitted.intentText,
-        outcome.candidate,
-        outcome.diff,
-      ),
-    ),
-    restoration,
-    JSON.stringify(deps.recordMetrics.get(job.id, admitted.active.incarnation_id)),
-  );
-  return "terminal-sent";
-}
-
-// A CandidateValidationError is the warm-rejection path, never a crash; every other
-// throw is the shared failed-build presentation. Either way the displaced View is
-// restored — nothing before activation changed anything. A throw *after* activation
-// committed is the one exception: the new version is authoritative, so the user is told
-// to refresh rather than shown a restored old View.
-async function presentFailure(
-  deps: EvolutionTracerDeps,
-  admitted: EvolutionAdmission,
-  job: BuildJob,
-  send: SendBuildEvent,
-  canPresent: () => boolean,
-  isAborted: () => boolean,
-  error: unknown,
-): Promise<BuildPipelineCompletion> {
-  // Did *this* run activate? The durable lifecycle row is the authority — a pointer
-  // that merely moved could equally be another build's, which is a stale target and an
-  // ordinary failure here. The outcome matters as much as the status: a measured no-op
-  // is `success` too, and it must restore the committed View rather than send the user
-  // to refresh for a version that does not exist.
-  const lifecycle = deps.recordMetrics.get(job.id, admitted.active.incarnation_id);
-  if (lifecycle?.lifecycleStatus === "success" && lifecycle.outcome === "activated") {
-    if (!canPresent()) return undefined;
-    await deliverActivatedRecoveryPresentation(send);
-    return "terminal-sent";
-  }
-  if (!canPresent()) return undefined;
-  const restoration = renderRestorationFragment(job.restoration, deps.buildDatabases.readonly);
-  if (isAborted()) {
-    await deliverRestoredPresentation(send, restoration, "cancelled");
-    return "terminal-sent";
-  }
-  if (error instanceof CandidateValidationError) {
-    await deliverCandidateRejectedPresentation(
-      send,
-      JSON.stringify(
-        buildEvolutionCandidateRejectedPreview(admitted.active, admitted.intentText, error.issues),
-      ),
-      restoration,
-    );
-    return "terminal-sent";
-  }
-  await deliverFailedPresentation(
-    send,
-    error,
-    restoration,
-    undefined,
-    JSON.stringify(deps.recordMetrics.get(job.id, admitted.active.incarnation_id)),
-  );
-  return "terminal-sent";
 }

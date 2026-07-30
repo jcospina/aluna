@@ -25,6 +25,8 @@ function rejectingProvider(prompts: string[]): Provider {
     type: "reject",
     confidence: 0.4,
     target_capability: null,
+    resolution: "none",
+    proposed_identity: null,
     proposed_action: "Do not build.",
     user_facing_label: "I'm not quite sure what to make from that yet.",
     requires_confirmation: false,
