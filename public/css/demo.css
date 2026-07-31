@@ -55,9 +55,9 @@
 }
 
 /* ── Builder-stage verification stream (Module 2 §2.5+) ──────────────────────
-   The prompt bar opens /demo/spec-build and the current real builder stages
-   stream product-voice narration plus raw developer previews into the content
-   area. */
+   The prompt bar posts to /prompt and the per-build stream it hands back drives
+   the current real builder stages, which write product-voice narration plus raw
+   developer previews into the content area. */
 .intro {
   display: flex;
   flex-direction: column;

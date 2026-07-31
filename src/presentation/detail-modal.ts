@@ -57,8 +57,8 @@ export const DETAIL_MODAL_BODY_ID = "aluna-detail-modal-body";
 
 /**
  * The DOM event that opens the modal — the seam between the mechanics (here) and
- * whatever triggers an open. The demo's dev trigger dispatches it; 3.3/02's item
- * click-to-open dispatches the same event after reading a clicked item's `data-item`.
+ * whatever triggers an open. The item click-to-open controller (public/item-detail.js)
+ * dispatches it after reading a clicked or key-activated item's `data-item`.
  * `detail` carries `{ title, sourceId }`: the title text (set via `textContent`, so it
  * cannot inject markup) and the id of a `<template>` whose already-safe, server-rendered
  * content is cloned into the body. Exported so dispatchers and tests share one name.

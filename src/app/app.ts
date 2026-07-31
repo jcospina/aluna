@@ -5,8 +5,10 @@
 // capability router).
 //
 // It serves the fixed shell page at `/`, static assets under /static/*, the Module 1
-// `/stream` provider-liveness endpoint, the production `/prompt` → `/build/:id/stream`
-// build-job flow, and the remaining `/demo/spec-build` verification route.
+// `/stream` provider-liveness endpoint, and the production `/prompt` →
+// `/build/:id/stream` build-job flow. The `/demo/*` surfaces no served fragment
+// targets — the spec-build verification route and the few-shot gallery — sit behind a
+// single dev-only guard, so a production bundle does not answer them.
 
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
@@ -28,10 +30,6 @@ import {
 } from "../pipeline/index.ts";
 import { type BuildJobQueue, createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import { captureRestorationDescriptor } from "../pipeline/jobs/restoration.ts";
-import { renderDetailInteractionPreviewPage } from "../presentation/detail-interaction-preview.ts";
-import { renderDetailModalPreviewPage } from "../presentation/detail-modal-preview.ts";
-import { renderFieldRendererPreviewPage } from "../presentation/field-renderer-preview.ts";
-import { renderListContainerPreviewPage } from "../presentation/list-container-preview.ts";
 import { createProvider, type Provider } from "../provider/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../router/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "../sse/index.ts";
@@ -42,6 +40,19 @@ import {
 } from "../web/index.ts";
 import { type EvolutionTracerDeps, registerEvolutionTracerRoutes } from "./evolution-routes.ts";
 import { handleStreamError, streamGreeting } from "./greeting.ts";
+
+/**
+ * Whether the developer-only `/demo/*` surfaces are registered. See {@link createApp}
+ * for why this is one check rather than per-route configuration.
+ *
+ * Read per `createApp()` call, not once at import: a module-level constant would be
+ * frozen before any test could set `NODE_ENV`, leaving the guard permanently unprovable
+ * and free to be deleted under a green suite. `bun run build` defines NODE_ENV as
+ * "production", so this still folds to `false` in the bundle.
+ */
+function demoSurfacesEnabled(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
 
 /**
  * Dependencies the app is built with. Everything is injected (defaulting to the real
@@ -165,20 +176,11 @@ function resolveHardEvolutionFixture(
 }
 
 /**
- * The fixed shell at `/`, the Module 1 `/stream` liveness endpoint, and the legacy
- * `/demo/spec-build` verification route — the last two provider-driven and
- * user-initiated, so the provider is never called on page load.
+ * The fixed shell at `/` and the Module 1 `/stream` liveness endpoint — the latter
+ * provider-driven and user-initiated, so the provider is never called on page load.
  */
 function registerShellAndLivenessRoutes(app: Hono, ctx: ResolvedAppDeps): void {
-  const {
-    getProvider,
-    sseHeartbeatMs,
-    recordMetrics,
-    buildDatabases,
-    artifactsRoot,
-    mutationCoordinator,
-    registryReadonly,
-  } = ctx;
+  const { getProvider, sseHeartbeatMs, registryReadonly } = ctx;
 
   // Root route — the fixed shell (ARCH §6.1), with its capability toolbar rehydrated
   // from the registry on load (Epic 2.1): one canonical entry per row, and the shell
@@ -219,12 +221,27 @@ function registerShellAndLivenessRoutes(app: Hono, ctx: ResolvedAppDeps): void {
       });
     }),
   );
+}
 
-  // The build demo (Module 2 §2.5; superseded by the production POST /prompt flow
-  // in Epic 2.6). Runs the full pipeline through commit against the configured
-  // provider and the real db/disk. User-initiated like /stream, so the provider is
-  // never called on page load. The typed prompt rides a query param (EventSource is
-  // GET-only), with a default so the bare button still works.
+/**
+ * The legacy `/demo/spec-build` verification route (Module 2 §2.5; superseded by the
+ * production `POST /prompt` flow in Epic 2.6). Its own group so the one dev-only guard
+ * in {@link createApp} reaches it without also gating `/` and `/stream`.
+ */
+function registerSpecBuildDemoRoute(app: Hono, ctx: ResolvedAppDeps): void {
+  const {
+    getProvider,
+    sseHeartbeatMs,
+    recordMetrics,
+    buildDatabases,
+    artifactsRoot,
+    mutationCoordinator,
+  } = ctx;
+
+  // Runs the full pipeline through commit against the configured provider and the real
+  // db/disk. User-initiated like /stream, so the provider is never called on page load.
+  // The typed prompt rides a query param (EventSource is GET-only), with a default so
+  // the bare button still works.
   app.get("/demo/spec-build", (c) =>
     streamSSE(c, async (stream) => {
       const transport = sseTransport(stream);
@@ -256,60 +273,16 @@ function registerShellAndLivenessRoutes(app: Hono, ctx: ResolvedAppDeps): void {
 }
 
 /**
- * Deterministic HITL preview surfaces (epic 3.2–3.5) — no provider and no db, so every
- * one of them is safe on page load.
+ * The one surviving deterministic preview surface (epic 3.5) — no provider and no db.
+ *
+ * The 3.2–3.3 platform-presentation previews it used to sit beside are gone (4.8/07):
+ * every module they showed — field renderer, list container + item wrapper, shared
+ * detail modal, click-to-open — is now on the live capability surface, which `/` serves
+ * through the real `renderCollection`. The gallery stays because it is the only place
+ * the *injected* item-renderer prompt section can be read; production shows the
+ * generated output, never the input.
  */
 function registerPreviewDemoRoutes(app: Hono): void {
-  // Dev preview for the centralized field renderer (epic 3.2/01) — the HITL visual
-  // sign-off surface. Renders the live create form + read-only detail for a sample
-  // spec so a reviewer confirms the controls are on-brand and complete on the running
-  // app. No provider, no db: a deterministic render of the platform module, so it is
-  // safe on page load (unlike the provider-driven demos above).
-  app.get(
-    "/demo/field-renderer",
-    () =>
-      new Response(renderFieldRendererPreviewPage(), {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }),
-  );
-
-  // Dev preview for the list scaffolding container + accessible item wrapper (epic
-  // 3.2/02) — the HITL visual sign-off surface. Renders the live platform list in both
-  // `feed` and `grid` from a hand-written item renderer round-tripped through the
-  // wrapper, plus the empty state. Deterministic, no provider, no db — safe on page load.
-  app.get(
-    "/demo/list-container",
-    () =>
-      new Response(renderListContainerPreviewPage(), {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }),
-  );
-
-  // Dev preview for the shared read-only detail modal (epic 3.2/04) — the HITL visual
-  // sign-off surface. Renders the one shared <dialog> plus dev triggers that open it
-  // prefilled read-only (via the real controller), exercising focus trap/restore, Escape,
-  // and backdrop dismiss. Deterministic, no provider, no db — safe on page load.
-  app.get(
-    "/demo/detail-modal",
-    () =>
-      new Response(renderDetailModalPreviewPage(), {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }),
-  );
-
-  // Dev preview for the item click-to-open → read-only detail modal (epic 3.3/02) — the
-  // HITL visual sign-off surface. Renders a hand-written capability list through the real
-  // wrapper + real modal + real controllers (detail-modal.js + item-detail.js): clicking or
-  // key-activating an item opens the shared modal prefilled read-only, honoring the
-  // capability's `detail.shows`. Deterministic, no provider, no db — safe on page load.
-  app.get(
-    "/demo/detail-interaction",
-    () =>
-      new Response(renderDetailInteractionPreviewPage(), {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }),
-  );
-
   // Dev preview for the few-shot design gallery + item-renderer prompt injection
   // (epic 3.5) — the HITL surface for inspecting the repo-only exemplars and the exact
   // "vary, don't copy" prompt section. Deterministic, no provider, no db.
@@ -382,12 +355,25 @@ export function createApp(deps: AppDeps = {}): Hono {
   const app = new Hono();
 
   registerShellAndLivenessRoutes(app, ctx);
+  registerBuildJobRoutes(app, ctx);
   // Module 4.6/05 — the evolution dev tracer, the platform's one evolution path (its
   // own module so this wiring sheet stays thin; the hand-supplied intent seam that
-  // stands in for classification ends with epic 4.8).
+  // stands in for classification ends with epic 4.8). NOT behind the dev-only guard
+  // below: `renderEvolutionDemoControl` (src/web/fragments.ts) renders its form on
+  // every capability page, so gating the route alone would ship a dead button rather
+  // than remove a surface. Route and control retire together in 4.8/04.
   registerEvolutionTracerRoutes(app, ctx);
-  registerPreviewDemoRoutes(app);
-  registerBuildJobRoutes(app, ctx);
+
+  // The one guard over the `/demo/*` surfaces nothing in the served UI targets: they
+  // are developer inspection routes, not product, so a production bundle must not
+  // answer them. `bun run build` defines NODE_ENV as "production", which folds the
+  // check to `false`; a source run — `bun run dev`, `bun test` — leaves it unset, so
+  // the surfaces stay available where they are actually used. One guard, not a
+  // framework: no per-route flags, no configuration machinery.
+  if (demoSurfacesEnabled()) {
+    registerSpecBuildDemoRoute(app, ctx);
+    registerPreviewDemoRoutes(app);
+  }
 
   // The deterministic capability router (ARCH §6.2, ADR-0004): the fixed
   // `/capability/:id/:action` convention the generated UI targets. It validates the

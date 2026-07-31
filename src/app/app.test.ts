@@ -4,7 +4,7 @@
 // app.*.test.ts files; shared setup, fixtures, and fake providers live in
 // app.test-support.ts. app.request() drives app.fetch without binding a port.
 
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
@@ -62,6 +62,20 @@ describe("GET / (shell)", () => {
     expect(html).toContain('src="/static/vendor/htmx-ext-sse.min.js"');
     expect(html.indexOf('src="/static/vendor/htmx.min.js"')).toBeLessThan(
       html.indexOf('src="/static/vendor/htmx-ext-sse.min.js"'),
+    );
+  });
+
+  test("loads the shell's Alpine component before Alpine itself", async () => {
+    const app = createApp();
+    const html = await responseText(await app.request("/"));
+
+    // app.js registers the Alpine `shell` component on `alpine:init`, so it MUST load
+    // before alpine.min.js — the cdn build initializes on load and would fire the event
+    // before the component existed. Both are `defer`, so document order is run order.
+    expect(html).toContain('<script defer src="/static/app.js"></script>');
+    expect(html).toContain('<script defer src="/static/vendor/alpine.min.js"></script>');
+    expect(html.indexOf('src="/static/app.js"')).toBeLessThan(
+      html.indexOf('src="/static/vendor/alpine.min.js"'),
     );
   });
 
@@ -345,23 +359,6 @@ describe("GET / (shell) — prompt admission", () => {
   });
 });
 
-describe("GET /demo/list-container (create cancel living demo)", () => {
-  test("loads the real browser glue and exposes repeatable rows for cancel cleanup", async () => {
-    const app = createApp();
-    const body = await responseText(await app.request("/demo/list-container"));
-
-    expect(body).toContain('<script defer src="/static/app.js"></script>');
-    expect(body).toContain('<script defer src="/static/vendor/alpine.min.js"></script>');
-    expect(body.indexOf("/static/app.js")).toBeLessThan(
-      body.indexOf("/static/vendor/alpine.min.js"),
-    );
-    expect(body).toContain('data-list-field-label="Favorite quotes"');
-    expect(body).toContain('data-list-input-id="cap-reading-quotes"');
-    expect(body).toContain("data-list-field-add>Add another</button>");
-    expect(body).toContain("data-create-cancel");
-  });
-});
-
 describe("GET / (shell) — stream close glue", () => {
   test("clears and refocuses the prompt when the build stream closes", () => {
     const listeners = new Map<string, () => void>();
@@ -419,49 +416,6 @@ describe("GET / (shell) — stream close glue", () => {
   });
 });
 
-// The item click-to-open → read-only detail modal HITL surface (epic 3.3/02). Runs the whole
-// real path (wrapper + modal + controllers) on a hand-written list, since the live read path
-// does not emit wrapper items until 3.4 — so a human signs off the interaction here.
-describe("GET /demo/detail-interaction (click-to-open detail, epic 3.3/02)", () => {
-  test("renders live wrapped items + their detail templates + the shared modal + controllers", async () => {
-    const app = createApp();
-    const res = await app.request("/demo/detail-interaction");
-    const html = await res.text();
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type") ?? "").toContain("text/html");
-
-    // Live wrapper output: accessible item triggers carrying the click-to-open hooks. The
-    // adapter keys each template to the record id, so the first record's is detail-reading-<id>.
-    expect(html).toContain('class="capability-item"');
-    expect(html).toContain('data-detail-template="detail-reading-left-hand"');
-    expect(html).toContain("data-detail-title=");
-    // Each record's inert detail template, the one shared modal, and both real controllers.
-    expect(html).toContain('<template id="detail-reading-left-hand">');
-    expect(html).toContain('<dialog id="aluna-detail-modal"');
-    expect(html).toContain('src="/static/detail-modal.js"');
-    expect(html).toContain('src="/static/item-detail.js"');
-
-    // The detail body honors detail.shows [title, rating, note, author]: it drops the
-    // schema's "finished" field, so no detail surface shows a "Finished" label — proof the
-    // modal follows the intent, not spec order. (The card still shows a Finished/Reading
-    // status as plain text, which is not a <dt> label.)
-    expect(html).not.toContain(">Finished</dt>");
-  });
-
-  test("escapes a hostile record so nothing executes in the list or the detail template", async () => {
-    const app = createApp();
-    const html = await responseText(await app.request("/demo/detail-interaction"));
-
-    // The raw element forms never appear (they are entity-escaped to inert text); the
-    // `onerror=alert(2)` chars survive only inside the escaped `&lt;img …&gt;`, so we
-    // assert on the element openings, which are what would execute.
-    expect(html).not.toContain("<script>alert(1)</script>");
-    expect(html).not.toContain("<img src=x");
-    expect(html).toContain("&lt;script&gt;");
-  });
-});
-
 // The few-shot gallery + injection harness HITL surface (epic 3.5). The route is
 // deterministic and provider-free: it previews repo-owned exemplars and the exact
 // prompt section the item-renderer generator receives.
@@ -497,6 +451,40 @@ describe("GET /demo/few-shot-gallery (few-shot gallery, epic 3.5)", () => {
     expect(html).toContain("Chosen collection layout for this capability: &quot;grid&quot;");
     expect(html).toContain("style=&quot;grid-template-columns");
     expect(html).toContain("var(--border-thin) solid var(--color-border)");
+  });
+});
+
+// The dev-only guard over the surviving `/demo/*` inspection routes (epic 4.8/07). A
+// production bundle must not answer them, and that must be provable here rather than
+// resting on someone remembering to run `bun run build` — hence the guard reads the
+// environment per `createApp()` call instead of freezing at import.
+describe("the dev-only guard on the remaining /demo/* inspection routes", () => {
+  const previous = process.env.NODE_ENV;
+  afterEach(() => {
+    if (previous === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previous;
+  });
+
+  test("a production run serves the shell but not the developer inspection routes", async () => {
+    process.env.NODE_ENV = "production";
+    const app = createApp();
+
+    expect((await app.request("/demo/few-shot-gallery")).status).toBe(404);
+    expect((await app.request("/demo/spec-build")).status).toBe(404);
+    // The product surface is untouched by the guard.
+    expect((await app.request("/")).status).toBe(200);
+  });
+
+  test("the evolution tracer stays registered in production, because its control ships", async () => {
+    // `renderEvolutionDemoControl` (src/web/fragments.ts) renders an hx-post to
+    // `/demo/evolution/:id` on every capability surface. Gating the route alone would
+    // ship a dead button; the route and its control retire together in 4.8/04.
+    process.env.NODE_ENV = "production";
+    const app = createApp();
+
+    // 404 here would be Hono's "no such route"; the tracer answers with its own status
+    // for an unknown capability, so anything other than 404 proves it is registered.
+    expect((await app.request("/demo/evolution/build/nope/stream")).status).not.toBe(404);
   });
 });
 

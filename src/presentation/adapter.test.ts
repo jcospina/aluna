@@ -312,6 +312,28 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
     // The raw value survives only as inert data in the escaped payload — never live markup.
     expect(readBackPayload(html)).toMatchObject({ title: hostileTitle });
   });
+
+  test("a hostile field value cannot execute in the record's detail template either", () => {
+    // The sibling test above covers the list half. The record's inert detail <template>
+    // is the other half of what a hostile record reaches: it is cloned into the shared
+    // modal on open, so an unescaped value there would execute at that moment instead.
+    const present = createPlatformPresentationAdapter({
+      capability: CAPABILITY,
+      renderItem: renderReadingItem,
+    });
+
+    const hostileTitle = "<script>alert(1)</script><img src=x onerror=alert(2)>";
+    const html = present(record({ title: hostileTitle }));
+    const body = detailTemplateBody(html, `${DETAIL_TEMPLATE_ID_PREFIX}-reading-rec-1`);
+
+    // `title` is first in detail.shows and also seeds the edit-mode input, so the hostile
+    // value lands in this body twice — both times as inert escaped text. Assert on the
+    // element openings, which are what would execute: the `onerror=alert(2)` characters
+    // legitimately survive as text inside the escaped `&lt;img …&gt;`.
+    expect(body).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(body).not.toMatch(/<script/i);
+    expect(body).not.toMatch(/<img/i);
+  });
 });
 
 describe("createPresentationAdapter — payload byte safety", () => {

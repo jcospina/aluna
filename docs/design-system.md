@@ -244,8 +244,8 @@ renders both the create form the "New X" button opens and the read-only detail t
 shared modal shows, so the two can never drift, and it is **exhaustive over the
 field-type pantry** through a total switch — Module 4's list types and Module 6's `file` type
 extend exactly one place (adding a `FieldType` without a case fails the type-check).
-Eyeball it on the running app at
-[`/demo/field-renderer`](../src/presentation/field-renderer-preview.ts).
+Eyeball it on the running app by opening a capability from the toolbar: the create form
+behind "New X" and the read-only detail in the shared modal are both this module.
 
 ### Field type → control (create) / display (detail)
 
@@ -281,8 +281,8 @@ and styled in [`public/css/collection.css`](../public/css/collection.css). Platf
 **chrome** again — distinct from the generated item vocabulary above: the container owns
 the *collection* arrangement and the wrapper owns the per-record *frame + trigger*, while
 the generated inner markup composes one record's fields **inside** the wrapper using the
-primitives. Eyeball it on the running app at
-[`/demo/list-container`](../src/presentation/list-container-preview.ts).
+primitives. Eyeball it on the running app by opening a capability from the toolbar: the
+collection you see is this module's output in the capability's declared layout.
 
 ### Closed collection layouts (`feed | grid`)
 
@@ -369,7 +369,7 @@ edit that same record, rendered by
 [`public/css/detail-modal.css`](../public/css/detail-modal.css). Platform **chrome** and a
 platform **invariant** — a single instance the whole app reuses, never one per capability
 and never model-authored (`modal: true` is not stored, ADR-0005 §6). Eyeball it on the
-running app at [`/demo/detail-modal`](../src/presentation/detail-modal-preview.ts).
+running app by opening a capability from the toolbar and clicking a record.
 
 ### Native `<dialog>`, so the browser owns the hard parts
 
@@ -447,6 +447,7 @@ the payload shrinks to an id (ADR-0005 §3, post-M4). Field selection/order **ho
 `ui_intent.detail.shows`** (3.3/02): the body renders exactly those fields, in that order,
 falling back to every field in spec order when a capability carries no intent. Opening is
 driven by the `aluna:open-detail` event
-(`OPEN_DETAIL_EVENT`) — the seam a dev trigger fires at [`/demo/detail-modal`](../src/presentation/detail-modal-preview.ts)
-and the item click-to-open fires from a clicked/activated record. See the whole interaction
-end to end at [`/demo/detail-interaction`](../src/presentation/detail-interaction-preview.ts).
+(`OPEN_DETAIL_EVENT`, [`src/presentation/detail-modal.ts`](../src/presentation/detail-modal.ts)) — the
+seam the item click-to-open controller ([`public/item-detail.js`](../public/item-detail.js))
+fires from a clicked or key-activated record. See the whole interaction end to end on a
+committed capability's live surface: click an item, read it, then hit Edit.

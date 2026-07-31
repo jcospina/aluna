@@ -1,6 +1,6 @@
 # Remove the platform-presentation preview surfaces
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -83,20 +83,20 @@ Work to do:
 
 ## Acceptance criteria
 
-- [ ] No route, module, doc, or test references `/demo/field-renderer`,
+- [x] No route, module, doc, or test references `/demo/field-renderer`,
       `/demo/list-container`, `/demo/detail-modal`, or `/demo/detail-interaction`
-- [ ] Those four routes return 404; `GET /demo/few-shot-gallery` still renders
+- [x] Those four routes return 404; `GET /demo/few-shot-gallery` still renders
       the exemplars and the injected prompt section in a dev run
-- [ ] `/demo/few-shot-gallery` is not served by a production bundle
-- [ ] The four preview modules are deleted and every presentation symbol they
+- [x] `/demo/few-shot-gallery` is not served by a production bundle
+- [x] The four preview modules are deleted and every presentation symbol they
       used still has a production caller
-- [ ] A committed capability's live surface is unchanged: create disclosure with
+- [x] A committed capability's live surface is unchanged: create disclosure with
       cancel, list in its declared layout, click-to-open read-only detail, edit
       mode, confirmation-gated delete, and debounced search
-- [ ] Hostile-record escaping is proved in the presentation module suites, not
+- [x] Hostile-record escaping is proved in the presentation module suites, not
       in an app route test
-- [ ] `docs/design-system.md` contains no link to a removed route
-- [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
+- [x] `docs/design-system.md` contains no link to a removed route
+- [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -106,6 +106,107 @@ shows all of it directly. Open a capability from the toolbar: the create form,
 the collection layout, the detail modal, and search are the same modules the
 previews rendered.
 
+## What shipped
+
+- **Four routes and four modules gone.** `registerPreviewDemoRoutes`
+  (`src/app/app.ts`) lost the `/demo/field-renderer`, `/demo/list-container`,
+  `/demo/detail-modal`, and `/demo/detail-interaction` registrations and their
+  four imports; `src/presentation/{field-renderer,list-container,detail-modal,
+  detail-interaction}-preview.ts` are deleted (939 lines). All six named
+  presentation symbols keep production callers — `renderCreateForm`
+  (`list-container.ts:246`), `renderDetailFields` (`detail-modal.ts:179`),
+  `renderDetailContentTemplate` / `renderItemWrapper` / `enforceItemMarkup`
+  (`adapter.ts:121-123`, plus `gate-design-lint.ts:256`), and
+  `OPEN_DETAIL_EVENT` as the pinned string `detail-modal.test.ts:263` and
+  `list-container.test.ts:376` check against the browser controllers.
+- **`registerPreviewDemoRoutes` survives** holding only
+  `/demo/few-shot-gallery`, with a doc comment that now says why that one page
+  outlives the rest: it is the only surface where the *injected* item-renderer
+  prompt section can be read.
+- **One dev-only guard.** `demoSurfacesEnabled()` (`src/app/app.ts`) returns
+  `process.env.NODE_ENV !== "production"`, and `bun run build` now passes
+  `--define process.env.NODE_ENV='"production"'` so it folds to `false` in the
+  bundle. It wraps `/demo/spec-build` and `/demo/few-shot-gallery`.
+  It deliberately does **not** wrap the evolution tracer:
+  `renderEvolutionDemoControl` (`src/web/fragments.ts:154`) renders an
+  `hx-post="/demo/evolution/:id"` form on *every* capability surface, so gating
+  that route alone would ship a visible dead button rather than remove a
+  surface. Route and control retire together in issue 04. The guard is a
+  function, not a module constant, so a test can actually flip `NODE_ENV` and
+  prove it — a frozen constant would have left the gate unprovable and free to
+  be deleted under a green suite.
+- **Tests.** Both route blocks deleted from `src/app/app.test.ts`. Three
+  assertions were unique and were rehomed rather than dropped:
+  - the `app.js`-before-`alpine.min.js` ordering moved into the `GET /` shell
+    block — it pins the invariant documented at `public/index.html:38-39`, and
+    the shell had no other test for it;
+  - `data-list-field-label` / `data-list-input-id` / the `Add another` label
+    moved into `field-renderer.test.ts:160` — a live cross-file contract that
+    `syncListFieldRows` (`public/app.js:364-365`) reads to re-key every repeated
+    row's `input.id` and `aria-label`, and which had **zero** assertions
+    anywhere else;
+  - hostile-record escaping moved to `adapter.test.ts` as a new test over the
+    record's detail `<template>`. The pre-existing sibling at `adapter.test.ts`
+    already covered the *list* half; the detail half — read mode **and** the
+    edit-mode input seed — was genuinely uncovered.
+  Two new tests pin the guard itself (`app.test.ts`): production serves `/` but
+  404s the two gated routes, and the evolution tracer still answers.
+- **Docs.** The five dead `/demo/*` links in `docs/design-system.md` now point
+  at the live capability surface or the owning module. Also fixed two stale
+  comments the deletion exposed: `detail-modal.ts:60` still credited "the demo's
+  dev trigger" for dispatching `OPEN_DETAIL_EVENT` (the only dispatcher left is
+  `public/item-detail.js`), and `public/css/demo.css:57` claimed the prompt bar
+  opens `/demo/spec-build` (it posts to `/prompt`).
+
+## Verification
+
+`bun run test` 1021 passed / 0 failed · `bun run typecheck` clean ·
+`bun run lint` clean.
+
+Adversarial review (SOTA subagent) found two substantive defects, both fixed
+above: the untestable module-constant guard, and the silent loss of the
+`data-list-field-*` contract coverage. It independently verified every other
+deleted assertion has a home, that `--define` does no collateral damage to the
+other `process.env` readers (`OMNI_CRUD_SQLITE_LIBRARY`, `PORT`, `CC`, and the
+whole-object reads in `provider/config.ts` and `gate.ts:661` all survive), and
+that the new escaping test fails under two independent un-escaping mutations of
+`field-renderer.ts`. The always-on mutation of `demoSurfacesEnabled()` was also
+confirmed to fail the new guard test.
+
+Live, on the dev server (port 3030): the four routes 404,
+`/demo/few-shot-gallery` 200 with all three exemplar captions, six wrapped
+items, the shared modal, and the "Injected prompt preview" section;
+`/static/primitives-preview.html` 200; `/` 200; a capability page still carries
+its evolution control.
+
+Production bundle (`bun run build`, booted from a scratch cwd): all six `/demo`
+preview and spec-build paths 404, `/` and `/static/primitives-preview.html` 200,
+`/demo/evolution/*` still answered. Note the gated modules are still *bytes* in
+`dist/index.js` — Bun folds the check to `false` but does not eliminate the
+branch. The criterion is "not served", which holds.
+
+## HITL
+
+1. Dev server on port 3030 (`bun run dev` if it is not already up).
+2. Confirm the four pages are gone — each should render a 404, not a preview:
+   `http://localhost:3030/demo/field-renderer`,
+   `/demo/list-container`, `/demo/detail-modal`, `/demo/detail-interaction`.
+3. Confirm the two deliberate keeps still work:
+   `http://localhost:3030/demo/few-shot-gallery` shows the three exemplar cards
+   *and* the "Injected prompt preview" block, and
+   `http://localhost:3030/static/primitives-preview.html` shows the primitives.
+4. Open a capability from the toolbar and confirm nothing regressed on the live
+   surface — this is where the removed previews' behavior now lives: "New X"
+   opens the create form and Cancel closes it; records list in the declared
+   layout; clicking a record opens the read-only detail modal; Edit switches to
+   edit mode; Delete asks for confirmation; typing in search filters after a
+   short pause. If the capability has no records yet, add one first.
+5. Optional, to see the gate: `bun run build && bun run start`, then hit
+   `/demo/few-shot-gallery` — it must 404 there while `/` still loads.
+
+Sign-off gate: the four routes 404, the gallery and primitives page still
+render, and a capability's live surface behaves exactly as it did before.
+
 ## Notes
 
 Independent of 05, 06, and 08.
@@ -114,3 +215,10 @@ The four removed pages imported the real modules rather than copying markup, so
 they could not silently drift — a signature change broke the typecheck. That is
 why they are being retired for redundancy, not for rot, and why the gate on the
 surviving gallery matters more than its deletion would.
+
+Left deliberately unchanged: the HITL steps in sibling issue
+`05-remove-mutation-coordinator-demo.md` (lines 156, 159, 170) tell a reader to
+confirm `/demo/field-renderer` returns 200. That is the historical record of a
+verification performed when 05 landed, and this issue's spec says earlier issue
+files keep their historical HITL text unchanged — so it stays, noted here rather
+than rewritten.
