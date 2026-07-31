@@ -106,6 +106,14 @@ results rerun correctly.
 
 ## HITL test instructions
 
+> **Superseded — the seed step no longer runs.** `bun run demo:five-action-reference`
+> was removed in epic 4.4/05 together with the hand-written reference
+> capability it installed, so there is no fixture to seed. To walk these
+> steps today, build a capability by prompt on the homepage and use it
+> wherever the steps name the reference capability. The platform behavior
+> being checked still exists — it is now exercised on a generated
+> capability instead of the fixture.
+
 1. Ensure the app server is running on port 3030 (`bun run dev` if needed), then
    run `bun run demo:five-action-reference`.
 2. Open `http://localhost:3030`, choose **Journal entry**, and search **quiet**.

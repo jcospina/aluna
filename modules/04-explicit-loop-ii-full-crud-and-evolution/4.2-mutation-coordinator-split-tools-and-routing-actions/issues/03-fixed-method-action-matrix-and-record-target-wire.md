@@ -99,6 +99,15 @@ strict two-Action registry shape.
 
 ## HITL test instructions
 
+> **Superseded — the Field lifecycle capability no longer exists.** It was a
+> hand-written fixture, removed in epic 4.4/05 along with its installer, so
+> every `field_lifecycle_demo` URL below now 404s. To walk these steps today,
+> build a capability by prompt on the homepage and substitute its id. The method
+> and Action matrix being checked is capability-generic and unchanged. Ignore the
+> closing note about issue 4.2/04 installing the five-Action reference: since
+> 4.4/05 every generated capability starts with all five Actions, so a freshly
+> built capability advertises the full set rather than create/read only.
+
 1. Reuse the app server on port 3030, or run `bun run dev`, then open
    `http://localhost:3030/` and choose **Field lifecycle**.
 2. Open **New Field lifecycle**, enter a real event and at least one Tag, then

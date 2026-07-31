@@ -83,6 +83,14 @@ read-only failure in tests).
 
 ## HITL test instructions
 
+> **Superseded — the seed step no longer runs.** `bun run demo:field-lifecycle`
+> was removed in epic 4.4/05 together with the hand-written reference
+> capability it installed, so there is no fixture to seed. To walk these
+> steps today, build a capability by prompt on the homepage and use it
+> wherever the steps name the reference capability. The platform behavior
+> being checked still exists — it is now exercised on a generated
+> capability instead of the fixture.
+
 1. Run `bun run demo:field-lifecycle`, then reuse the app server on port 3030
    (or run `bun run dev` if it is not already running).
 2. Open `http://localhost:3030`, reload, and choose **Field lifecycle** from the

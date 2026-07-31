@@ -72,9 +72,12 @@ None — can start immediately (independent of the 4.1 field contract).
   returns a structured warm refusal, keeps the form open, preserves entered
   values, and writes no row. `read` bypasses the coordinator and remains live
   during an active build.
-- Added `/demo/mutation-coordinator` with live active-lease/FIFO state and a
-  deliberately slowed shared-coordinator build. The page links to the real Field
-  lifecycle create surface for the second-tab refusal check.
+- **Proving scaffold (now removed).** Added `/demo/mutation-coordinator` with
+  live active-lease/FIFO state and a deliberately slowed shared-coordinator
+  build. The page linked to the real Field lifecycle create surface for the
+  second-tab refusal check. Epic 4.8/05 deleted the surface once the coordinator
+  became the real admission gate on every shared-connection write; the
+  coordinator itself, and every behavior listed above, is unchanged.
 - Added focused regressions for FIFO ordering, reservation expiry/cancellation,
   stale ownership, deletion non-queuing, platform-write waiting, `finally`
   release, presenter timeout, record-create refusal, concurrent reads, abandoned
@@ -102,6 +105,15 @@ None — can start immediately (independent of the 4.1 field contract).
   afterward to restore its baseline data.
 
 ## HITL test instructions
+
+> **Superseded — two steps no longer run.** `bun run demo:field-lifecycle` was
+> removed in epic 4.4/05 together with the hand-written reference capability it
+> installed, so step 1 has no fixture to seed; build a capability by prompt on
+> the homepage instead and use it wherever the steps name Field lifecycle. Step 3
+> is gone too: the `/demo/mutation-coordinator` preview was removed in epic
+> 4.8/05 and now 404s — to hold a build lease today, submit a prompt on the
+> homepage, since the real build takes the lease the preview used to fake. The
+> refusal behavior in steps 4–6 is unchanged.
 
 1. Run `bun run demo:field-lifecycle`.
 2. If the app is not already running, run `bun run dev` and keep the existing

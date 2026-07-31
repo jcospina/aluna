@@ -117,6 +117,17 @@ returns normalized matches via curl.
 
 ## HITL test instructions
 
+> **Superseded — not reproducible as written.** `bun run demo:five-action-reference`
+> was removed in epic 4.4/05 together with the hand-written reference capability
+> it installed, and the Journal links capability these steps read from went with
+> it. The rehydration and search-normalization steps can be walked on a
+> capability built by prompt on the homepage, but **the cross-capability read
+> cannot**: a freshly generated capability is built with empty
+> `read_dependencies` by construction, so a declared dependency arrives only
+> through evolution, which today runs on the temporary `/demo/evolution/:id`
+> tracer. The platform behavior still exists and is covered by tests; it is the
+> homepage walkthrough of it that no longer has a fixture.
+
 1. Ensure an extension-capable SQLite is available (`brew install sqlite` on
    macOS). Reuse the app server on port 3030, or run `bun run dev` if it is not
    already running, then run `bun run demo:five-action-reference`.

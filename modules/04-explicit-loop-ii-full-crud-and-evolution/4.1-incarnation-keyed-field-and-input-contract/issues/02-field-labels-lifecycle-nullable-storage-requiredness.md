@@ -107,6 +107,16 @@ with a warm error on the homepage surface.
 
 ## HITL test instructions
 
+> **Superseded — partly reproducible.** `bun run demo:field-lifecycle` was
+> removed in epic 4.4/05 together with the hand-written reference capability it
+> installed, so there is no fixture to seed. The label, requiredness, and warm
+> validation steps can be walked on a capability built by prompt on the homepage.
+> **Steps 3 and 6 cannot**: they rely on the fixture's seeded state — a retired
+> (inactive) field, and a historical row holding NULL in a now-required column.
+> A freshly generated capability is built with every field active and has no path
+> to either condition; both arise only after evolution. The field-lifecycle
+> contract itself is unchanged and is covered by tests.
+
 1. Run `bun run demo:field-lifecycle`, then reuse the server on port 3030 (or
    start it with `bun run dev`).
 2. Open `http://localhost:3030/` and choose **Field lifecycle**.

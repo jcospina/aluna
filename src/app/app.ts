@@ -17,11 +17,6 @@ import {
   createMutationCoordinator,
   type MutationCoordinator,
 } from "../mutation-coordinator/index.ts";
-import {
-  abortableDelay,
-  DEFAULT_MUTATION_PREVIEW_HOLD_MS,
-  renderMutationCoordinatorPreviewPage,
-} from "../mutation-coordinator/preview.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../persistence/db.ts";
 import { hardEvolutionHandlerFixture } from "../pipeline/demo/hard-evolution-fixture.ts";
 import {
@@ -98,8 +93,6 @@ export interface AppDeps {
   readonly artifactsRoot?: string;
   /** Atomic admission shared by builds, record routes, and platform writes. */
   readonly mutationCoordinator?: MutationCoordinator;
-  /** Test-only override for the deliberately slow mutation preview lease. */
-  readonly mutationPreviewHoldMs?: number;
   /**
    * TEMPORARY dev-only seam for the 4.7/04 bounded-repair living demo. The default is
    * composed here, outside the route module; tests may inject a deterministic substitute.
@@ -115,7 +108,6 @@ interface ResolvedAppDeps {
   readonly buildDatabases: PlatformDatabase;
   readonly artifactsRoot: string;
   readonly mutationCoordinator: MutationCoordinator;
-  readonly mutationPreviewHoldMs: number;
   readonly buildJobs: BuildJobQueue;
   readonly capabilityRouter: CapabilityRouterDeps;
   readonly registryReadonly: PlatformDatabase["readonly"];
@@ -134,7 +126,6 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     deps.recordMetrics ?? createMetricsRecorder(buildDatabases.readwrite);
   const artifactsRoot = deps.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
-  const mutationPreviewHoldMs = deps.mutationPreviewHoldMs ?? DEFAULT_MUTATION_PREVIEW_HOLD_MS;
   const resolvedHardEvolutionFixture = resolveHardEvolutionFixture(deps);
   const buildJobs =
     deps.buildJobs ??
@@ -160,7 +151,6 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     buildDatabases,
     artifactsRoot,
     mutationCoordinator,
-    mutationPreviewHoldMs,
     buildJobs,
     capabilityRouter,
     registryReadonly,
@@ -266,12 +256,10 @@ function registerShellAndLivenessRoutes(app: Hono, ctx: ResolvedAppDeps): void {
 }
 
 /**
- * Deterministic HITL preview surfaces (epic 3.2–3.5) plus the Module 4.2 mutation
- * coordinator admission demo — no provider, and no db beyond the coordinator lease.
+ * Deterministic HITL preview surfaces (epic 3.2–3.5) — no provider and no db, so every
+ * one of them is safe on page load.
  */
-function registerPreviewDemoRoutes(app: Hono, ctx: ResolvedAppDeps): void {
-  const { mutationCoordinator, mutationPreviewHoldMs } = ctx;
-
+function registerPreviewDemoRoutes(app: Hono): void {
   // Dev preview for the centralized field renderer (epic 3.2/01) — the HITL visual
   // sign-off surface. Renders the live create form + read-only detail for a sample
   // spec so a reviewer confirms the controls are on-brand and complete on the running
@@ -332,31 +320,6 @@ function registerPreviewDemoRoutes(app: Hono, ctx: ResolvedAppDeps): void {
         headers: { "content-type": "text/html; charset=utf-8" },
       }),
   );
-
-  app.get(
-    "/demo/mutation-coordinator",
-    () =>
-      new Response(renderMutationCoordinatorPreviewPage(mutationPreviewHoldMs), {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }),
-  );
-
-  app.get("/demo/mutation-coordinator/state", (c) => c.json(mutationCoordinator.snapshot()));
-
-  app.post("/demo/mutation-coordinator/slow-build", async (c) => {
-    const signal = c.req.raw.signal;
-    const reservation = mutationCoordinator.reserveBuild();
-    try {
-      await mutationCoordinator.withBuildLease(
-        reservation,
-        () => abortableDelay(mutationPreviewHoldMs, signal),
-        { signal },
-      );
-      return c.json({ status: "released" });
-    } catch {
-      return c.json({ status: "cancelled" }, 409);
-    }
-  });
 }
 
 /**
@@ -423,7 +386,7 @@ export function createApp(deps: AppDeps = {}): Hono {
   // own module so this wiring sheet stays thin; the hand-supplied intent seam that
   // stands in for classification ends with epic 4.8).
   registerEvolutionTracerRoutes(app, ctx);
-  registerPreviewDemoRoutes(app, ctx);
+  registerPreviewDemoRoutes(app);
   registerBuildJobRoutes(app, ctx);
 
   // The deterministic capability router (ARCH §6.2, ADR-0004): the fixed

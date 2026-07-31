@@ -2510,10 +2510,15 @@
               <div>
                 <h3>The five-Action runtime is real; AI generation catches up next.</h3>
                 <p>
-                  Today, the hand-written Journal entry capability uses all five Actions through the
-                  finished routes and homepage interface. Prompt-built capabilities still use the
-                  temporary Create-and-Read shape. Epic 4.4 removes that transition and makes every
-                  newly generated capability start with all five Actions.
+                  At the time this chapter was written, the hand-written Journal entry capability
+                  used all five Actions through the finished routes and homepage interface, while
+                  prompt-built capabilities were still limited to a temporary Create-and-Read shape.
+                  Epic 4.4 removed that transition.
+                </p>
+                <p>
+                  That has since happened. Every newly generated capability now starts with all five
+                  Actions, the two-Action shape is rejected outright, and the hand-written Journal
+                  entry capability is gone.
                 </p>
               </div>
             </div>
@@ -3480,29 +3485,48 @@
                   capability makes the whole path visible while Epic 4.4 teaches the AI to generate
                   that same complete shape.
                 </p>
+                <p>
+                  This chapter records the module at the close of Epic 4.3. Epics 4.4 through 4.7
+                  have since landed and 4.8 is in progress, so the stage narrative around this note
+                  is a snapshot, not the current state. The one change worth knowing before you read
+                  on: Epic 4.4's greenfield reset removed the hand-written Journal entry capability
+                  and the commands that installed it, so every capability is generated now. The two
+                  boxes below have been rewritten for that; the rest of the chapter has not.
+                </p>
               </div>
             </div>
 
             <div class="plain-definition">
               <div>
                 <p class="plain-definition__label">Try the complete product path</p>
-                <h3>Use Journal entry on the homepage.</h3>
+                <h3>Build a capability, then use it.</h3>
                 <p>
-                  Reuse the app server on port 3030, or start it with <code>bun run dev</code>. Then
-                  run <code>bun run demo:five-action-reference</code>, open
-                  <code>http://localhost:3030</code>, and choose Journal entry. Create, open, edit,
-                  search, and delete a record through the shared interface.
+                  Reuse the app server on port 3030, or start it with <code>bun run dev</code>. Open
+                  <code>http://localhost:3030</code>
+                  and describe what you want to keep track of. When the build finishes, choose it
+                  from the toolbar and create, open, edit, search, and delete a record through the
+                  shared interface. Epic 4.4 replaced the seeded Journal entry fixture described
+                  above: every capability is now generated, so there is nothing to install first.
                 </p>
               </div>
               <div>
                 <p class="plain-definition__label">See the safety rules separately</p>
-                <h3>Use the focused living demos.</h3>
+                <h3>Most of them run on the product path.</h3>
                 <p>
-                  With that same server running, use <code>bun run demo:field-lifecycle</code> for
-                  hidden fields and both text-list modes. Journal links shows an allowed
-                  cross-capability read. Open
-                  <code>http://localhost:3030/demo/mutation-coordinator</code>
-                  to watch queued builds and record-write admission.
+                  Write-path admission needs no demo: submit a second prompt and, once Aluna has
+                  decided it is building something new, try to save a record on another capability.
+                  It is warmly refused until the build releases the lease, and every value you
+                  entered is preserved. Text-list inputs appear in the create form of any generated
+                  capability that has a list field — ask for one with tags to see the
+                  comma-separated mode, or with quotes to see the repeatable one.
+                </p>
+                <p>
+                  Two rules are no longer reachable this way. Hidden fields and cross-capability
+                  reads cannot occur on a freshly generated capability: every field it is built with
+                  is active, and its declared dependencies are empty by construction. Both arrive
+                  only through evolution, which today runs on the temporary
+                  <code>/demo/evolution/:id</code>
+                  tracer rather than the homepage.
                 </p>
               </div>
             </div>
@@ -4244,12 +4268,12 @@
     const fieldStates = {
       new: {
         spec: `{
-                          "name": "due_date",
-                          "label": "Due date",
-                          "type": "date",
-                          "required": false,
-                          "lifecycle": "active"
-                        }`,
+                              "name": "due_date",
+                              "label": "Due date",
+                              "type": "date",
+                              "required": false,
+                              "lifecycle": "active"
+                            }`,
         title: "Add the field without breaking old records.",
         copy: "A new field starts visible. Its database column allows empty values so records created before the field existed remain readable.",
         effects: [
@@ -4261,12 +4285,12 @@
       },
       hidden: {
         spec: `{
-                          "name": "due_date",
-                          "label": "Due date",
-                          "type": "date",
-                          "required": false,
-                          "lifecycle": "inactive"
-                        }`,
+                              "name": "due_date",
+                              "label": "Due date",
+                              "type": "date",
+                              "required": false,
+                              "lifecycle": "inactive"
+                            }`,
         title: "Stop showing it, keep the column and values.",
         copy: "Aluna marks the field hidden instead of removing it from the capability definition. The original column and saved values remain.",
         effects: [
@@ -4278,12 +4302,12 @@
       },
       reactivated: {
         spec: `{
-                          "name": "due_date",
-                          "label": "Target day",
-                          "type": "date",
-                          "required": true,
-                          "lifecycle": "active"
-                        }`,
+                              "name": "due_date",
+                              "label": "Target day",
+                              "type": "date",
+                              "required": true,
+                              "lifecycle": "active"
+                            }`,
         title: "Reveal the original field and stored values.",
         copy: "Aluna shows the same field again. The proposal may also change its visible label or make it required, and Aluna combines all work those changes need.",
         effects: [

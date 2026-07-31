@@ -65,6 +65,12 @@ search chrome, records region), create, read, search (hit + miss), update
 (persisted), and delete (gone). The removed reference installer has a regression
 test proving `POST /demo/five-action-reference/install` returns 404.
 
+> Correction (epic 4.8): that regression test no longer exists. It was dropped in
+> `998834d` ("Code organization + tests improved") when `src/app.test.ts` was
+> split into `src/app/app.test.ts`. The route is still genuinely gone — no
+> handler or reference to `five-action-reference` survives anywhere in `src/` —
+> but nothing now guards against it being reintroduced.
+
 Final integrity verification on Bun 1.3.12:
 
 - `bun test` → 577 pass, 0 fail across 56 files, 2 snapshots

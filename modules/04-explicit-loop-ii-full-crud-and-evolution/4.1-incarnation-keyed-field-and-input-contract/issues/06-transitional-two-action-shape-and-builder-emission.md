@@ -87,6 +87,15 @@ absent Action is advertised anywhere in the UI or registry.
 
 ## HITL
 
+> **Superseded — this walkthrough now proves the opposite.** The transitional
+> two-Action shape it validates was deliberately deleted in epic 4.4/05: the
+> Builder and the registry admit only the exact five-Action inventory, and a
+> two-Action spec is rejected. Running these steps today, the prompt in step 2
+> correctly produces all five Actions with the full five-key
+> `read_dependencies`, and the toolbar correctly does advertise update, delete,
+> and search — so steps 3 and 4 fail by design. Kept as the record of the
+> transitional stage, not as a test to run.
+
 1. Run `bun run dev` if the existing `3030` server is not already running, then
    open `http://localhost:3030/` and expand the developer panel.
 2. Prompt: `I want to keep track of coffee cuppings, including coffee name,

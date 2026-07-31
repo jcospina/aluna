@@ -115,6 +115,14 @@ collection.
 
 ## HITL test instructions
 
+> **Superseded — the seed step no longer runs.** `bun run demo:five-action-reference`
+> was removed in epic 4.4/05 together with the hand-written reference
+> capability it installed, so there is no fixture to seed. To walk these
+> steps today, build a capability by prompt on the homepage and use it
+> wherever the steps name the reference capability. The platform behavior
+> being checked still exists — it is now exercised on a generated
+> capability instead of the fixture.
+
 1. Ensure an extension-capable SQLite is available (`brew install sqlite` on
    macOS). Reuse the app server on port 3030, or run `bun run dev` if it is not
    already running, then run `bun run demo:five-action-reference`.
