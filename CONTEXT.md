@@ -127,6 +127,60 @@ Handler lifecycle in one SQLite transaction: a non-success response rolls back t
 canonical create/update/delete before ownership releases.
 _Avoid_: busy flag, build-only queue, mutation lock check
 
+**Core Builder**:
+Everything between an already-resolved build request and a changed platform: the
+bounded ticket, the exclusive lease, lease-head revalidation, the durable
+admission row, and the run itself — spec or candidate, migration, units, Gate,
+publication, activation. It owns no prompt route, no active DOM, and no SSE; it
+takes a **resolved build request** and a **build presenter**, and emits one
+terminal lifecycle event into that presenter while its lease is still held. This
+is the reuse seam: the explicit loop resolves a typed prompt and supplies the
+foreground presenter, while Module 7's implicit loop will hand over an
+already-confirmed proposal in the same shape — never reclassified — and choose a
+presenter of its own. Mutation, staging, Gate, activation, and metrics are
+identical either way (PLAN decision 31, ADR-0006, ARCH §6.2). The seam is
+**terminal-only today**: the in-flight liveness sink still carries ADR-0002 SSE
+event names, a dead sink is read as cancellation, and the product-voice narration
+is authored inside the stages. Module 7 can swap the terminal presenter but not
+yet the in-flight story; widening it waits for a second real presenter to shape
+it against.
+_Avoid_: build pipeline, the builder service, prompt pipeline
+
+**Resolved build request**:
+What prompt resolution hands to the Core Builder. It binds one **target
+expectation** — `expected_absent` for a new semantic id, or the exact
+`{ capability_id, incarnation_id, expected_version }` of the capability being
+evolved — plus the revision or canonical fingerprint of the one active registry
+catalog it was classified against. Both are revalidated at the head of the lease
+(PLAN decision 28).
+_Avoid_: build job, build intent, classification
+
+**Build presenter**:
+The adapter that turns the Core Builder's terminal lifecycle event into what a
+person sees. The explicit-loop presenter occupies the active content area,
+narrates the foreground product-voice story, and emits one View `commit` — only
+for a real pointer activation. Every non-activating terminal instead restores the
+canonical committed View through `fragment` with no toolbar sidecar. Presentation
+is not a Builder invariant: Module 7 may choose another presenter entirely
+(PLAN decisions 29, 31; ADR-0002).
+_Avoid_: renderer, view layer, the SSE handler
+
+**Stale refusal**:
+What happens when a resolved build request's target expectation, expected-absence,
+or resolver catalog no longer holds once its lease is granted. The request is
+refused outright — never silently rebased, retargeted, or reclassified against the
+newer catalog. It starts no provider work and never opens a `running` row; while
+ownership is held it writes one direct terminal admission row with
+`lifecycle_status=failed, outcome=stale` and every generation stage skipped. That
+row carries the expected incarnation for an evolution, and none at all for a new
+capability refused before one was assigned. Distinct from the measured no-op
+(`success/no_change`), which is a candidate that was authored and found identical
+(PLAN decisions 28, 31, 37). The catalog binding covers **every active row**, so
+any concurrent registry change refuses a queued build even when it touched an
+unrelated capability — deliberate, because the classification was made about a
+world that no longer exists, overlap and naming reasoning included.
+_Avoid_: conflict, retry, race error, rebase
+
 **Field name**:
 The stable identity of one value a capability tracks. It does not change when
 the user-facing wording changes.

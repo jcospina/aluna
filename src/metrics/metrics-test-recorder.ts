@@ -5,14 +5,17 @@ import type {
   IntentResolutionMetrics,
   StartGenerationLifecycleInput,
   StoredGenerationLifecycle,
+  WriteStaleGenerationAdmissionInput,
 } from "./index.ts";
 
 type TerminalInput = Parameters<RecordMetrics["succeed"]>[0] | Parameters<RecordMetrics["fail"]>[0];
 
 const STORED_AT = "2026-07-21T00:00:00Z";
 
-function keyFor(buildId: string, incarnationId: string): string {
-  return `${buildId}/${incarnationId}`;
+// Mirrors the store's own absent-incarnation handling so a stale refusal without one is
+// still addressable by `get`, exactly as it is on disk.
+function keyFor(buildId: string, incarnationId: string | null): string {
+  return `${buildId}/${incarnationId ?? ""}`;
 }
 
 function requireLifecycle(
@@ -117,7 +120,22 @@ export function makeMetricsRecorder(): {
     fail(input: Parameters<RecordMetrics["fail"]>[0]): void {
       finish(input, "failed", input.outcome);
     },
-    get(buildId: string, incarnationId: string): StoredGenerationLifecycle | null {
+    refuseStale(input: WriteStaleGenerationAdmissionInput): GenerationLifecycle {
+      const lifecycle: GenerationLifecycle = {
+        buildId: input.buildId,
+        incarnationId: input.incarnationId,
+        capabilityId: input.capabilityId ?? null,
+        lifecycleStatus: "failed",
+        outcome: "stale",
+        resolver: input.resolver ?? null,
+        measurement: input.measurement ?? null,
+        stages: input.stages,
+      };
+      lifecycleByKey.set(keyFor(input.buildId, input.incarnationId), lifecycle);
+      lifecycles.push(lifecycle);
+      return lifecycle;
+    },
+    get(buildId: string, incarnationId: string | null): StoredGenerationLifecycle | null {
       const current = lifecycleByKey.get(keyFor(buildId, incarnationId));
       return current ? { ...current, createdAt: STORED_AT, updatedAt: STORED_AT } : null;
     },
