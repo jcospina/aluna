@@ -1,6 +1,6 @@
 // Tests for the platform's one route file — the cold-start shell and the
-// deterministic, provider-free demo surfaces (detail interaction, few-shot gallery,
-// mutation coordinator). The provider-driven build/stream slices live in the sibling
+// deterministic, provider-free demo surfaces (detail interaction, few-shot
+// gallery). The provider-driven build/stream slices live in the sibling
 // app.*.test.ts files; shared setup, fixtures, and fake providers live in
 // app.test-support.ts. app.request() drives app.fetch without binding a port.
 
@@ -500,44 +500,7 @@ describe("GET /demo/few-shot-gallery (few-shot gallery, epic 3.5)", () => {
   });
 });
 
-describe("GET /demo/mutation-coordinator (Module 4.2 admission preview)", () => {
-  test("shows live active-lease and FIFO-queue regions with second-tab instructions", async () => {
-    const app = createApp();
-    const response = await app.request("/demo/mutation-coordinator");
-    const html = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(html).toContain("One owner on the write path");
-    expect(html).toContain('id="active-lease"');
-    expect(html).toContain('id="queue-list"');
-    expect(html).toContain("/demo/mutation-coordinator/state");
-    expect(html).toContain("/demo/mutation-coordinator/slow-build");
-    expect(html).toContain("Second-tab check");
-    expect(html).toContain("build a capability");
-  });
-
-  test("the deliberately slow build is queued and leased by the shared coordinator", async () => {
-    const mutationCoordinator = createMutationCoordinator();
-    const recordLease = mutationCoordinator.tryAcquireRecordWrite();
-    expect(recordLease).toBeDefined();
-    const app = createApp({
-      mutationCoordinator,
-      mutationPreviewHoldMs: 20,
-    });
-
-    const slowBuildResponse = app.request("/demo/mutation-coordinator/slow-build", {
-      method: "POST",
-    });
-    await wait(0);
-    expect(mutationCoordinator.snapshot().queuedTickets).toMatchObject([{ kind: "build" }]);
-
-    expect(recordLease && mutationCoordinator.release(recordLease)).toBe(true);
-    await wait(0);
-    expect(mutationCoordinator.snapshot().activeLease?.kind).toBe("build");
-    expect((await slowBuildResponse).status).toBe(200);
-    expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
-  });
-
+describe("shared mutation-coordinator admission on the legacy demo build path", () => {
   test("the legacy spec-build demo cannot bypass the shared coordinator", async () => {
     const mutationCoordinator = createMutationCoordinator();
     const recordLease = mutationCoordinator.tryAcquireRecordWrite();
