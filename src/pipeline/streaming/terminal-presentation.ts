@@ -188,6 +188,38 @@ export async function deliverCandidateNoChangePresentation(
   );
 }
 
+// Module 4.8/03 — the lease-head stale refusal, in product voice with zero internals.
+// The user is not told about catalogs, fingerprints, incarnations or leases; they are told
+// the true thing, which is that the world moved while Aluna was queued and their words were
+// about the older one. Nothing durable changed except this build's own refusal row.
+export const STALE_BUILD_NOTICE =
+  "That changed while I was getting to it, so I stopped rather than guess. Have a look and tell me again?";
+
+/**
+ * Deliver a refused admission: the direct `failed/stale` row's metrics preview, one warm
+ * narration line kept visible as the persistent prompt notice, the then-current canonical
+ * View restored through `fragment` with no toolbar sidecar, and `done=error`. No provider
+ * work ran and no product state moved, so there is nothing else to say.
+ */
+export async function deliverStalePresentation(
+  send: Send,
+  restorationFragment: string,
+  timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
+  metricsPreview?: string,
+): Promise<boolean> {
+  const persistentNotice = `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(STALE_BUILD_NOTICE)}</div>`;
+  return runBoundedTerminalPresentation(
+    send,
+    async (sendWhileActive) => {
+      if (metricsPreview !== undefined) await sendWhileActive("metrics-preview", metricsPreview);
+      await sendWhileActive("narration", STALE_BUILD_NOTICE);
+      await sendWhileActive("fragment", `${restorationFragment}\n${persistentNotice}`);
+      await sendWhileActive("done", "error");
+    },
+    timeoutMs,
+  );
+}
+
 /** Activation is durable; tell the user to refresh if its View could not be prepared. */
 export async function deliverActivatedRecoveryPresentation(
   send: Send,

@@ -51,6 +51,8 @@ export {
   startGenerationLifecycle,
   storedGenerationLifecycleSchema,
   updateGenerationLifecycleIdentity,
+  type WriteStaleGenerationAdmissionInput,
+  writeStaleGenerationAdmission,
 } from "./lifecycle-store.ts";
 export {
   FAILURE_STAGES,

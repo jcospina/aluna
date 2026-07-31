@@ -17,6 +17,7 @@ import {
   buildEvolutionCandidateRejectedPreview,
 } from "../streaming/previews.ts";
 import {
+  DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
   deliverActivatedPresentation,
   deliverActivatedRecoveryPresentation,
   deliverCandidateNoChangePresentation,
@@ -35,6 +36,16 @@ export interface ExplicitEvolutionPresentation {
   readonly isAborted: () => boolean;
   readonly database: PlatformDatabase["readonly"];
   readonly recordMetrics: RecordMetrics;
+  /**
+   * The bound on terminal delivery. It is the caller's to set because the build lease is
+   * held for the whole of it — a presenter that ignored this would hold mutation ownership
+   * for the default regardless of what the caller asked for.
+   */
+  readonly terminalPresenterTimeoutMs?: number;
+}
+
+function boundFor(input: ExplicitEvolutionPresentation): number {
+  return input.terminalPresenterTimeoutMs ?? DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS;
 }
 
 async function presentActivated(
@@ -47,10 +58,10 @@ async function presentActivated(
     input.send,
     JSON.stringify(buildCommitPreview(commit, activation.assembly.behavioralTierTransition)),
     renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel),
-    undefined,
+    boundFor(input),
     JSON.stringify(input.recordMetrics.get(input.job.id, input.active.incarnation_id)),
   );
-  if (!delivered) await deliverActivatedRecoveryPresentation(input.send);
+  if (!delivered) await deliverActivatedRecoveryPresentation(input.send, boundFor(input));
   return "terminal-sent";
 }
 
@@ -61,7 +72,7 @@ export async function presentEvolutionOutcome(
   if (outcome.kind === "activated") {
     if (input.isAborted()) {
       if (!input.canPresent()) return undefined;
-      await deliverActivatedRecoveryPresentation(input.send);
+      await deliverActivatedRecoveryPresentation(input.send, boundFor(input));
       return "terminal-sent";
     }
     return presentActivated(input, outcome);
@@ -70,7 +81,7 @@ export async function presentEvolutionOutcome(
   const restoration = renderRestorationFragment(input.job.restoration, input.database);
   if (outcome.kind === "cancelled") {
     if (input.canPresent()) {
-      await deliverRestoredPresentation(input.send, restoration, "cancelled");
+      await deliverRestoredPresentation(input.send, restoration, "cancelled", boundFor(input));
     }
     return "terminal-sent";
   }
@@ -87,6 +98,7 @@ export async function presentEvolutionOutcome(
     ),
     restoration,
     JSON.stringify(input.recordMetrics.get(input.job.id, input.active.incarnation_id)),
+    boundFor(input),
   );
   return "terminal-sent";
 }
@@ -98,14 +110,14 @@ export async function presentEvolutionFailure(
   const lifecycle = input.recordMetrics.get(input.job.id, input.active.incarnation_id);
   if (lifecycle?.lifecycleStatus === "success" && lifecycle.outcome === "activated") {
     if (!input.canPresent()) return undefined;
-    await deliverActivatedRecoveryPresentation(input.send);
+    await deliverActivatedRecoveryPresentation(input.send, boundFor(input));
     return "terminal-sent";
   }
   if (!input.canPresent()) return undefined;
 
   const restoration = renderRestorationFragment(input.job.restoration, input.database);
   if (input.isAborted()) {
-    await deliverRestoredPresentation(input.send, restoration, "cancelled");
+    await deliverRestoredPresentation(input.send, restoration, "cancelled", boundFor(input));
     return "terminal-sent";
   }
   if (error instanceof CandidateValidationError) {
@@ -115,6 +127,7 @@ export async function presentEvolutionFailure(
         buildEvolutionCandidateRejectedPreview(input.active, input.intentText, error.issues),
       ),
       restoration,
+      boundFor(input),
     );
     return "terminal-sent";
   }
@@ -122,7 +135,7 @@ export async function presentEvolutionFailure(
     input.send,
     error,
     restoration,
-    undefined,
+    boundFor(input),
     JSON.stringify(input.recordMetrics.get(input.job.id, input.active.incarnation_id)),
   );
   return "terminal-sent";

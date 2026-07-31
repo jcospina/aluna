@@ -1,6 +1,17 @@
 // Durable lifecycle storage for every admitted generation. Unlike the historical
 // terminal-only metrics table, this store represents running work, typed terminal
 // outcomes, recovery after process interruption, and semantic stage state.
+//
+// One row is written directly terminal rather than opening `running` first: the
+// lease-head stale refusal (PLAN decision 28, 4.8/03). It never enters `running`
+// because no Builder provider work ever starts, and for a new capability refused
+// before incarnation assignment it has no incarnation at all. That absence is real
+// domain knowledge, so the public row shape carries `incarnationId: null` — but the
+// physical column sits inside `PRIMARY KEY (build_id, incarnation_id)` on a STRICT
+// table, where SQLite enforces NOT NULL implicitly and no ALTER can relax it. This
+// module therefore owns the translation, exactly as migration 0006 made the registry's
+// incarnation column physically permissive and left its meaning to row validation:
+// `ABSENT_INCARNATION` is written to disk and never escapes this file.
 
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
@@ -111,9 +122,29 @@ export const generationBuildMeasurementSchema = z.strictObject({
 });
 export type GenerationBuildMeasurement = z.infer<typeof generationBuildMeasurementSchema>;
 
+/**
+ * The on-disk stand-in for "this row has no incarnation". Never returned to a caller
+ * and never accepted from one — {@link toStoredIncarnation} and {@link fromStoredIncarnation}
+ * are the only two places it appears.
+ */
+const ABSENT_INCARNATION = "";
+
+function toStoredIncarnation(incarnationId: string | null): string {
+  return incarnationId ?? ABSENT_INCARNATION;
+}
+
+function fromStoredIncarnation(stored: string): string | null {
+  return stored === ABSENT_INCARNATION ? null : stored;
+}
+
 const generationLifecycleBaseSchema = z.strictObject({
   buildId: z.string().min(1),
-  incarnationId: z.string().uuid(),
+  /**
+   * Null only for a new-capability stale refusal that never reached incarnation
+   * assignment (decision 28). Every other row — including an evolution's stale
+   * refusal, which carries its expected incarnation — names one.
+   */
+  incarnationId: z.string().uuid().nullable(),
   capabilityId: z.string().min(1).nullable(),
   lifecycleStatus: generationLifecycleStatusSchema,
   outcome: generationTerminalOutcomeSchema.nullable(),
@@ -138,6 +169,15 @@ export const generationLifecycleSchema = generationLifecycleBaseSchema.superRefi
       code: "custom",
       path: ["outcome"],
       message: `outcome is incompatible with lifecycle status ${row.lifecycleStatus}`,
+    });
+  }
+  // A missing incarnation is only ever the new-capability stale refusal. Anything else
+  // without one is a row that lost its identity, not a row that never had one.
+  if (row.incarnationId === null && row.outcome !== "stale") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["incarnationId"],
+      message: "only a stale admission refusal may omit its incarnation",
     });
   }
 });
@@ -166,13 +206,38 @@ export interface FinalizeGenerationLifecycleInput {
   readonly measurement?: GenerationBuildMeasurement | null;
 }
 
+/**
+ * The lease-head stale refusal's row. It is written directly terminal — there is no
+ * `running` row to update, because the refusal happens before the first Builder
+ * provider call (decision 28).
+ */
+export interface WriteStaleGenerationAdmissionInput {
+  readonly buildId: string;
+  /** The expected incarnation for evolution; null for a new capability refused before assignment. */
+  readonly incarnationId: string | null;
+  readonly capabilityId?: string | null;
+  readonly resolver?: CarriedResolverMeasurement | null;
+  readonly measurement?: GenerationBuildMeasurement | null;
+  /** Every generation stage, all skipped — nothing this row describes ever ran. */
+  readonly stages: readonly GenerationStageMeasurement[];
+}
+
 export type GenerationSuccessOutcome = Extract<
   GenerationTerminalOutcome,
   "activated" | "no_change"
 >;
+/**
+ * The failure outcomes a *running* row may be finalized into.
+ *
+ * `stale` is deliberately excluded. A refused admission never runs, so it has no running
+ * row to close — it is written terminal on its first and only write by
+ * {@link writeStaleGenerationAdmission}. Admitting `stale` here would let a build that
+ * called a provider, generated units, or moved DDL file itself as one that never started,
+ * which is the one thing decision 28's row is supposed to be able to prove.
+ */
 export type GenerationFailureOutcome = Exclude<
   GenerationTerminalOutcome,
-  GenerationSuccessOutcome | "interrupted"
+  GenerationSuccessOutcome | "interrupted" | "stale"
 >;
 
 interface StoredLifecycleRow {
@@ -224,6 +289,44 @@ export function startGenerationLifecycle(
     [
       row.buildId,
       row.incarnationId,
+      row.capabilityId,
+      row.resolver === null ? null : JSON.stringify(row.resolver),
+      row.measurement === null ? null : JSON.stringify(row.measurement),
+      JSON.stringify(row.stages),
+    ],
+  );
+  return row;
+}
+
+/**
+ * Record one refused admission while the build lease is still held. Unlike every other
+ * row this store writes, it is terminal on its first and only write: the target,
+ * expected-absence, or resolver catalog moved between resolution and the lease head, so
+ * the request was refused outright rather than rebased onto the newer catalog.
+ */
+export function writeStaleGenerationAdmission(
+  input: WriteStaleGenerationAdmissionInput,
+  database: Database = db,
+): GenerationLifecycle {
+  const row = generationLifecycleSchema.parse({
+    buildId: input.buildId,
+    incarnationId: input.incarnationId,
+    capabilityId: input.capabilityId ?? null,
+    lifecycleStatus: "failed",
+    outcome: "stale",
+    resolver: input.resolver ?? null,
+    measurement: input.measurement ?? null,
+    stages: input.stages,
+  });
+
+  database.run(
+    `INSERT INTO ${GENERATION_LIFECYCLE_TABLE} (
+       build_id, incarnation_id, capability_id, lifecycle_status, outcome,
+       resolver_measurement, build_measurement, stage_measurements
+     ) VALUES (?, ?, ?, 'failed', 'stale', ?, ?, ?)`,
+    [
+      row.buildId,
+      toStoredIncarnation(row.incarnationId),
       row.capabilityId,
       row.resolver === null ? null : JSON.stringify(row.resolver),
       row.measurement === null ? null : JSON.stringify(row.measurement),
@@ -318,7 +421,7 @@ export function reconcileRunningGenerationLifecycles(database: Database = db): n
 
 export function getGenerationLifecycle(
   buildId: string,
-  incarnationId: string,
+  incarnationId: string | null,
   database: Database = dbReadonly,
 ): StoredGenerationLifecycle | null {
   const stored = database
@@ -326,7 +429,7 @@ export function getGenerationLifecycle(
       `SELECT ${LIFECYCLE_COLUMNS} FROM ${GENERATION_LIFECYCLE_TABLE}
        WHERE build_id = ? AND incarnation_id = ?`,
     )
-    .get(buildId, incarnationId) as StoredLifecycleRow | null;
+    .get(buildId, toStoredIncarnation(incarnationId)) as StoredLifecycleRow | null;
   return stored ? parseStoredLifecycle(stored) : null;
 }
 
@@ -345,7 +448,7 @@ export function listGenerationLifecycles(
 function parseStoredLifecycle(stored: StoredLifecycleRow): StoredGenerationLifecycle {
   return storedGenerationLifecycleSchema.parse({
     buildId: stored.build_id,
-    incarnationId: stored.incarnation_id,
+    incarnationId: fromStoredIncarnation(stored.incarnation_id),
     capabilityId: stored.capability_id,
     lifecycleStatus: stored.lifecycle_status,
     outcome: stored.outcome,

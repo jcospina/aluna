@@ -34,6 +34,7 @@ import type {
   StartGenerationLifecycleInput,
   StoredGenerationLifecycle,
   UnitAttemptSummary,
+  WriteStaleGenerationAdmissionInput,
 } from "../metrics/index.ts";
 import {
   finalizeGenerationLifecycleFailure,
@@ -44,6 +45,7 @@ import {
   updateGenerationLifecycleIdentity,
   writeGenerationMetrics,
   writeIntentResolutionMetrics,
+  writeStaleGenerationAdmission,
 } from "../metrics/index.ts";
 import type { TokenUsage } from "../provider/index.ts";
 import { resolveModel } from "../provider/index.ts";
@@ -73,7 +75,12 @@ export interface RecordMetrics {
     readonly stages: readonly GenerationStageMeasurement[];
     readonly measurement: GenerationBuildMeasurement;
   }) => void;
-  readonly get: (buildId: string, incarnationId: string) => StoredGenerationLifecycle | null;
+  /**
+   * The one row written terminal on its first write: a lease-head stale refusal, which
+   * never opens `running` because no Builder provider work starts (decision 28).
+   */
+  readonly refuseStale: (input: WriteStaleGenerationAdmissionInput) => GenerationLifecycle;
+  readonly get: (buildId: string, incarnationId: string | null) => StoredGenerationLifecycle | null;
 }
 
 /** Bind lifecycle operations to one write connection. Success joins the caller's transaction. */
@@ -99,7 +106,9 @@ export function createMetricsRecorder(database: Database): RecordMetrics {
       stages: readonly GenerationStageMeasurement[];
       measurement: GenerationBuildMeasurement;
     }) => finalizeGenerationLifecycleFailure(input, database),
-    get: (buildId: string, incarnationId: string) =>
+    refuseStale: (input: WriteStaleGenerationAdmissionInput) =>
+      writeStaleGenerationAdmission(input, database),
+    get: (buildId: string, incarnationId: string | null) =>
       getGenerationLifecycle(buildId, incarnationId, database),
   });
 }
@@ -340,6 +349,32 @@ export function finalizeMeasuredNoChange(
     stages: lifecycleStages(acc, "no_change"),
     measurement: lifecycleMeasurement(acc, input.builtAt),
   });
+}
+
+/**
+ * The stale refusal's stage vector (decision 28): every generation stage skipped. The
+ * request was refused at the head of the lease, so there is no spec, no DDL, no unit, no
+ * Gate rung, no publication and no activation to report — and, unlike a failed build,
+ * nothing was even attempted.
+ */
+export function staleAdmissionStages(): readonly GenerationStageMeasurement[] {
+  return lifecycleStages({ usages: [], timings: {} }, "failed");
+}
+
+/**
+ * The stale refusal's measurement. The only real number is how long the request took to
+ * reach its refusal — the caller's whole clock, so for `/prompt` that spans classification
+ * and the queue wait, not just the pause at the lease head. Token usage is *absent*, not
+ * zero: the resolver's
+ * spend is carried in the row's own resolver measurement, and the Builder never called a
+ * provider at all, so there is no generation usage to report. `model` names the model this
+ * build would have run on — the schema requires one, and no other answer is more honest.
+ */
+export function staleAdmissionMeasurement(builtAt: number): GenerationBuildMeasurement {
+  return {
+    model: resolveModel(),
+    timings: { totalMs: performance.now() - builtAt },
+  };
 }
 
 export function lifecycleFailureOutcome(failure: GenerationFailure): GenerationFailureOutcome {

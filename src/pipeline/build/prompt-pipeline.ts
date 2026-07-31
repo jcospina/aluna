@@ -1,46 +1,35 @@
-// The production `/prompt` build pipeline — what a queued build job runs (Epic 2.5).
+// The production `/prompt` pipeline — resolution, then admission (Epics 2.5, 4.8).
 //
-// Given a job's prompt it classifies intent (with a duplicate-detection short
-// circuit), then either deflects an unsupported intent with a warm line, or runs the
-// full spec → migration → units → gate → commit build for a `new_capability`. The
-// `/build/:id/stream` route drives this; the POST `/prompt` path only admits the job.
+// This is the explicit loop's *route* half, and after 4.8/03 that is all it is. It reads
+// one active registry catalog, classifies the typed prompt against it (with a
+// deterministic duplicate short circuit), and turns a build-shaped classification into a
+// `ResolvedBuildRequest` bound to its target expectation and that catalog's fingerprint.
+// From there it hands the request to the core Builder together with the explicit
+// foreground presenter, and owns nothing else: the lease, the lease-head stale
+// revalidation, the durable admission row, mutation, Gate, and activation all live in
+// `core-builder.ts`, which Module 7 will drive with a different presenter.
+//
+// `reject` and `data_query` never reach the Builder — they deflect with a warm line and a
+// best-effort resolver-only metrics row.
 
-import {
-  type CommitCapabilityResult,
-  createCapabilityIncarnationId,
-  reconcileCapabilityArtifacts,
-} from "../../builder/index.ts";
 import { classifyIntentWithUsage, type IntentClassification } from "../../intent-resolver/index.ts";
 import type { MutationCoordinator } from "../../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
 import { abortableProvider, type Provider } from "../../provider/index.ts";
 import { type ActiveRegistryCatalog, readActiveRegistryCatalog } from "../../registry/index.ts";
-import type { Send } from "../../sse/index.ts";
-import { renderCachedCapabilityCommitSwap } from "../../web/index.ts";
 import type {
   BuildPipeline,
   BuildPipelineCompletion,
   BuildPipelineContext,
 } from "../jobs/build-jobs.ts";
-import { type RestorationDescriptor, renderRestorationFragment } from "../jobs/restoration.ts";
-import {
-  carriedResolverMeasurement,
-  classifyBuildFailure,
-  type DemoBuildAccumulator,
-  lifecycleFailureOutcome,
-  lifecycleMeasurement,
-  lifecycleStages,
-  type RecordMetrics,
-} from "../metrics-recorder.ts";
-import { buildCommitPreview } from "../streaming/previews.ts";
+import { renderRestorationFragment } from "../jobs/restoration.ts";
+import { carriedResolverMeasurement, type RecordMetrics } from "../metrics-recorder.ts";
 import {
   DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
-  deliverActivatedPresentation,
-  deliverActivatedRecoveryPresentation,
   deliverFailedPresentation,
   deliverRestoredPresentation,
 } from "../streaming/terminal-presentation.ts";
-import { AbortedBuildError, runSpecBuildStages } from "./build-run.ts";
+import { runCoreBuild } from "./core-builder.ts";
 import {
   deflectDuplicateNewCapability,
   duplicateIntentForPrompt,
@@ -48,11 +37,11 @@ import {
   NO_TOKEN_USAGE,
 } from "./deflection.ts";
 import { streamDeflection } from "./deflection-pipeline.ts";
-import { streamResolvedEvolution } from "./evolution-pipeline.ts";
+import { createExplicitEvolutionPresenter, createExplicitPresenter } from "./explicit-presenter.ts";
 import { validateProposedOverlapIdentity } from "./overlap-identity.ts";
 import {
   type PromptResolutionMemory,
-  type ResolvedBuildRequest,
+  resolvedExistingCapabilityRequest,
   resolvedNewCapabilityRequest,
 } from "./resolved-request.ts";
 
@@ -66,218 +55,24 @@ export interface PromptBuildPipelineDeps {
   readonly terminalPresenterTimeoutMs?: number;
 }
 
-interface NewCapabilityPipelineInput {
-  readonly generationId: string;
-  readonly provider: Provider;
-  readonly resolvedRequest: ResolvedBuildRequest;
-  readonly builtAt: number;
-  readonly recordMetrics: RecordMetrics;
-  readonly buildDatabases: PlatformDatabase;
-  readonly artifactsRoot: string;
-  readonly send: Send;
-  readonly isAborted: () => boolean;
-  readonly canPresent: () => boolean;
-  readonly terminalPresenterTimeoutMs: number;
-  readonly restoration: RestorationDescriptor;
-}
-
-interface AdmittedBuildInput extends NewCapabilityPipelineInput {
-  readonly incarnationId: string;
-  readonly acc: DemoBuildAccumulator;
-}
-
-function restorationFor(input: NewCapabilityPipelineInput): string {
-  return renderRestorationFragment(input.restoration, input.buildDatabases.readonly);
-}
-
-async function cancelAdmittedBuild(input: AdmittedBuildInput): Promise<BuildPipelineCompletion> {
-  input.recordMetrics.fail({
-    buildId: input.generationId,
-    incarnationId: input.incarnationId,
-    outcome: "cancelled",
-    stages: lifecycleStages(input.acc, "cancelled"),
-    measurement: lifecycleMeasurement(input.acc, input.builtAt),
-  });
-  if (!input.canPresent()) return;
-  const metricsPreview = JSON.stringify(
-    input.recordMetrics.get(input.generationId, input.incarnationId),
-  );
-  await deliverRestoredPresentation(
-    input.send,
-    restorationFor(input),
-    "cancelled",
-    input.terminalPresenterTimeoutMs,
-    { metricsPreview },
-  );
-  return "terminal-sent";
-}
-
-async function failAdmittedBuild(
-  input: AdmittedBuildInput,
-  error: unknown,
-): Promise<BuildPipelineCompletion> {
-  const failure = classifyBuildFailure(error, input.acc);
-  input.recordMetrics.fail({
-    buildId: input.generationId,
-    incarnationId: input.incarnationId,
-    outcome: lifecycleFailureOutcome(failure),
-    stages: lifecycleStages(input.acc, "failed", failure),
-    measurement: lifecycleMeasurement(input.acc, input.builtAt, failure),
-  });
-  const metricsPreview = JSON.stringify(
-    input.recordMetrics.get(input.generationId, input.incarnationId),
-  );
-  await deliverFailedPresentation(
-    input.send,
-    error,
-    restorationFor(input),
-    input.terminalPresenterTimeoutMs,
-    metricsPreview,
-  );
-  return "terminal-sent";
-}
-
-async function runAdmittedBuildStages(input: AdmittedBuildInput): Promise<BuildPipelineCompletion> {
-  let commit: CommitCapabilityResult | undefined;
-  try {
-    commit = await runSpecBuildStages(
-      input.send,
-      input.isAborted,
-      input.provider,
-      input.resolvedRequest.prompt,
-      input.resolvedRequest.intent,
-      input.generationId,
-      input.incarnationId,
-      input.acc,
-      input.buildDatabases,
-      input.artifactsRoot,
-      (capabilityId) =>
-        input.recordMetrics.identify(input.generationId, input.incarnationId, capabilityId),
-      () =>
-        input.recordMetrics.succeed({
-          buildId: input.generationId,
-          incarnationId: input.incarnationId,
-          outcome: "activated",
-          stages: lifecycleStages(input.acc, "activated"),
-          measurement: lifecycleMeasurement(input.acc, input.builtAt),
-        }),
-      input.resolvedRequest.targetExpectation,
-    );
-  } catch (error) {
-    return error instanceof AbortedBuildError || input.isAborted()
-      ? cancelAdmittedBuild(input)
-      : failAdmittedBuild(input, error);
-  }
-
-  if (commit === undefined) return cancelAdmittedBuild(input);
-  await deliverActivatedBuild(commit, input.send, input.terminalPresenterTimeoutMs, () =>
-    JSON.stringify(input.recordMetrics.get(input.generationId, input.incarnationId)),
-  );
-  return "terminal-sent";
-}
-
-async function deliverActivatedBuild(
-  commit: CommitCapabilityResult,
-  send: Send,
-  timeoutMs: number,
-  getMetricsPreview: () => string,
-): Promise<void> {
-  try {
-    await deliverActivatedPresentation(
-      send,
-      JSON.stringify(buildCommitPreview(commit)),
-      renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel),
-      timeoutMs,
-      getMetricsPreview(),
-    );
-  } catch (error) {
-    console.error(
-      "Aluna activated presentation could not be prepared:",
-      error instanceof Error ? error.message : error,
-    );
-    await deliverActivatedRecoveryPresentation(send, timeoutMs);
-  }
-}
-
-/**
- * Run the full build for a `new_capability` intent, then announce the committed
- * capability (developer commit preview + product commit swap). On failure it records
- * the failure metrics row and rethrows for the queue's apology; an abort mid-build
- * rolls product work back and durably finalizes the admitted row as cancelled.
- */
-async function streamNewCapabilityBuild({
-  generationId,
-  provider,
-  resolvedRequest,
-  builtAt,
-  recordMetrics,
-  buildDatabases,
-  artifactsRoot,
-  send,
-  isAborted,
-  canPresent,
-  terminalPresenterTimeoutMs,
-  restoration,
-}: NewCapabilityPipelineInput): Promise<BuildPipelineCompletion> {
-  // Lease-head recovery cannot race this process's next publication. It validates
-  // every committed version before removing any proven never-activated candidate.
-  reconcileCapabilityArtifacts({ database: buildDatabases.readwrite, artifactsRoot });
-  const incarnationId = createCapabilityIncarnationId();
-  const acc: DemoBuildAccumulator = { usages: [resolvedRequest.resolver.usage], timings: {} };
-  recordMetrics.start({
-    buildId: generationId,
-    incarnationId,
-    resolver: resolvedRequest.resolver,
-    stages: [],
-  });
-  try {
-    await send("metrics-preview", JSON.stringify(recordMetrics.get(generationId, incarnationId)));
-  } catch (error) {
-    recordMetrics.fail({
-      buildId: generationId,
-      incarnationId,
-      outcome: "cancelled",
-      stages: lifecycleStages(acc, "cancelled"),
-      measurement: lifecycleMeasurement(acc, builtAt),
-    });
-    if (canPresent()) {
-      await deliverRestoredPresentation(
-        send,
-        renderRestorationFragment(restoration, buildDatabases.readonly),
-        "cancelled",
-        terminalPresenterTimeoutMs,
-      );
-      return "terminal-sent";
-    }
-    console.error(
-      "Aluna initial build presentation did not complete:",
-      error instanceof Error ? error.message : error,
-    );
-    return;
-  }
-  return runAdmittedBuildStages({
-    generationId,
-    provider,
-    resolvedRequest,
-    builtAt,
-    recordMetrics,
-    buildDatabases,
-    artifactsRoot,
-    send,
-    isAborted,
-    canPresent,
-    terminalPresenterTimeoutMs,
-    restoration,
-    incarnationId,
-    acc,
-  });
-}
-
 interface ResolvedPromptPipelineDeps extends PromptBuildPipelineDeps {
   readonly terminalPresenterTimeoutMs: number;
 }
 
 type ResolverMeasurement = ReturnType<typeof carriedResolverMeasurement>;
+
+/** The presentation wiring both build paths share, minus the terminal shapes themselves. */
+function presenterInput(context: BuildPipelineContext, deps: ResolvedPromptPipelineDeps) {
+  return {
+    job: context.job,
+    send: context.send,
+    canPresent: context.canPresent,
+    isAborted: context.isAborted,
+    buildDatabases: deps.buildDatabases,
+    recordMetrics: deps.recordMetrics,
+    terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
+  };
+}
 
 async function runExistingCapabilityIntent(
   context: BuildPipelineContext,
@@ -286,6 +81,7 @@ async function runExistingCapabilityIntent(
   provider: Provider,
   intent: IntentClassification & { readonly type: "extend_capability" | "ui_change" },
   resolver: ResolverMeasurement,
+  builtAt: number,
 ): Promise<BuildPipelineCompletion> {
   const active = catalog.capabilities.find(
     (capability) => capability.id === intent.target_capability,
@@ -293,22 +89,37 @@ async function runExistingCapabilityIntent(
   if (!active) {
     throw new Error("The resolved capability is not present in the resolver catalog.");
   }
+  // The exact target this classification was made about: id, incarnation, and the version
+  // that was live when it was read. All three are revalidated at the head of the lease.
+  const request = resolvedExistingCapabilityRequest({
+    prompt: context.job.prompt,
+    intent,
+    target: {
+      capabilityId: active.id,
+      incarnationId: active.incarnation_id,
+      version: active.version,
+    },
+    catalogFingerprint: catalog.fingerprint,
+    resolver,
+  });
   context.job.resolution = {
     intent,
     outcome: "build",
     catalogFingerprint: catalog.fingerprint,
     resolver,
+    buildRequest: request,
   };
-  return streamResolvedEvolution({
-    ...context,
-    active,
-    intent,
-    resolver,
+  return runCoreBuild({
+    buildId: context.job.id,
+    request,
+    presenter: createExplicitEvolutionPresenter({ ...presenterInput(context, deps), active }),
     provider,
     recordMetrics: deps.recordMetrics,
     buildDatabases: deps.buildDatabases,
     artifactsRoot: deps.artifactsRoot,
     mutationCoordinator: deps.mutationCoordinator,
+    builtAt,
+    ...(context.signal ? { signal: context.signal } : {}),
   });
 }
 
@@ -340,7 +151,7 @@ function runNonBuildIntent(
   });
 }
 
-async function runNewCapabilityIntent(
+function runNewCapabilityIntent(
   context: BuildPipelineContext,
   deps: ResolvedPromptPipelineDeps,
   provider: Provider,
@@ -349,51 +160,31 @@ async function runNewCapabilityIntent(
   catalogFingerprint: string,
   builtAt: number,
 ): Promise<BuildPipelineCompletion> {
-  const { job, send, isAborted, canPresent, signal } = context;
-  const resolvedRequest = resolvedNewCapabilityRequest({
-    prompt: job.prompt,
+  const request = resolvedNewCapabilityRequest({
+    prompt: context.job.prompt,
     intent,
     catalogFingerprint,
     resolver,
   });
-  job.resolution = {
+  context.job.resolution = {
     intent,
     outcome: "build",
     catalogFingerprint,
     resolver,
-    buildRequest: resolvedRequest,
+    buildRequest: request,
   };
-  const reservation = deps.mutationCoordinator.reserveBuild();
-  return deps.mutationCoordinator.withBuildLease(
-    reservation,
-    async () => {
-      try {
-        return await streamNewCapabilityBuild({
-          generationId: job.id,
-          provider,
-          resolvedRequest,
-          builtAt,
-          recordMetrics: deps.recordMetrics,
-          buildDatabases: deps.buildDatabases,
-          artifactsRoot: deps.artifactsRoot,
-          send,
-          isAborted,
-          canPresent,
-          terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
-          restoration: job.restoration,
-        });
-      } catch (error) {
-        await deliverFailedPresentation(
-          send,
-          error,
-          renderRestorationFragment(job.restoration, deps.buildDatabases.readonly),
-          deps.terminalPresenterTimeoutMs,
-        );
-        return "terminal-sent";
-      }
-    },
-    signal ? { signal } : {},
-  );
+  return runCoreBuild({
+    buildId: context.job.id,
+    request,
+    presenter: createExplicitPresenter(presenterInput(context, deps)),
+    provider,
+    recordMetrics: deps.recordMetrics,
+    buildDatabases: deps.buildDatabases,
+    artifactsRoot: deps.artifactsRoot,
+    mutationCoordinator: deps.mutationCoordinator,
+    builtAt,
+    ...(context.signal ? { signal: context.signal } : {}),
+  });
 }
 
 async function runPromptJob(
@@ -456,6 +247,7 @@ async function runPromptJob(
       provider,
       { ...intent, type: intent.type },
       resolver,
+      builtAt,
     );
   }
   if (intent.type !== "new_capability") {
@@ -479,7 +271,7 @@ async function runPromptJob(
   );
 }
 
-/** Classify one prompt job, then deflect or run the admitted build under its lease. */
+/** Classify one prompt job, then deflect or hand the resolved request to the Builder. */
 export function createPromptBuildPipeline(input: PromptBuildPipelineDeps): BuildPipeline {
   const deps: ResolvedPromptPipelineDeps = {
     ...input,
@@ -490,6 +282,7 @@ export function createPromptBuildPipeline(input: PromptBuildPipelineDeps): Build
     try {
       return await runPromptJob(context, deps);
     } catch (error) {
+      // Resolution itself failed — before any request existed, and so before any lease.
       if (context.isAborted() && !context.canPresent()) return;
       if (context.isAborted()) {
         await deliverRestoredPresentation(

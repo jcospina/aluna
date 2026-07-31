@@ -95,6 +95,13 @@ export interface RunCapabilityEvolutionInput {
   readonly database: PlatformDatabase;
   readonly artifactsRoot: string;
   readonly recordMetrics: RecordMetrics;
+  /**
+   * When the caller started measuring this build, so the row's `totalMs` covers the whole
+   * wait a person actually experienced — resolution and the queue behind the exclusive
+   * lease included, as it is for a v1 build. Defaults to the moment the run itself begins,
+   * which is the only honest answer for a caller that had no earlier clock of its own.
+   */
+  readonly builtAt?: number;
   readonly send: SendBuildEvent;
   /**
    * True once the subscriber is gone or the run was cancelled. The liveness stream goes
@@ -152,6 +159,20 @@ interface EvolutionRunState {
   readonly builtAt: number;
 }
 
+/** Open the run's measurement state on the caller's clock, or on this run's own. */
+function openEvolutionRunState(input: RunCapabilityEvolutionInput): EvolutionRunState {
+  return {
+    stage: "spec_gen",
+    builtAt: input.builtAt ?? performance.now(),
+    acc: {
+      usages: input.resolver ? [input.resolver.usage] : [],
+      timings: {},
+      capabilityId: input.active.id,
+      incarnationId: input.active.incarnation_id,
+    },
+  };
+}
+
 /**
  * Run one complete evolution under the caller-held build lease, from hand-supplied
  * intent to activated version. Streams the authoring preview (`spec-preview`), the
@@ -178,16 +199,7 @@ export async function runCapabilityEvolution(
   const dependencyCatalog = buildDependencyGenerationCatalog(activeRows, active.id);
   const intent = resolveEvolutionIntent(active, input.intentText, input.resolvedIntent);
 
-  const state: EvolutionRunState = {
-    stage: "spec_gen",
-    builtAt: performance.now(),
-    acc: {
-      usages: input.resolver ? [input.resolver.usage] : [],
-      timings: {},
-      capabilityId: active.id,
-      incarnationId: active.incarnation_id,
-    },
-  };
+  const state = openEvolutionRunState(input);
   // The durable lifecycle opens immediately before the first Builder-owned provider
   // call, exactly as a v1 build's does (ARCH §6.2 step 1).
   recordMetrics.start({
