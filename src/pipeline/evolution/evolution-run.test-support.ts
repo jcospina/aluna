@@ -8,6 +8,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ZodType } from "zod";
+import { evolutionIntentFor } from "../../builder/evolution/candidate.test-support.ts";
 import {
   behavioralResponseFor,
   createHandlerFor,
@@ -303,6 +304,7 @@ export type EvolveOptions = Partial<
     | "firstPassHandlerFixture"
     | "isAborted"
     | "active"
+    | "resolvedIntent"
   >
 > & {
   readonly buildId: string;
@@ -355,6 +357,9 @@ export async function evolve(
   const outcome = await runCapabilityEvolution({
     active,
     intentText,
+    // The engine only ever runs behind the resolver (4.8/04); a case that cares about the
+    // classification itself passes its own.
+    resolvedIntent: options.resolvedIntent ?? evolutionIntentFor(active, intentText),
     provider,
     buildId: options.buildId,
     database: env.conns,

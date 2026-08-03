@@ -1,7 +1,12 @@
-// Shared fixtures for the Module 4.6/05 evolution-route suites. One committed `journal`
+// Shared fixtures for the prompt-driven evolution suites. One committed `journal`
 // capability plus the `shelves` capability its dependency catalog sees, both published
-// and activated on disk; the fake providers the routes are driven with; and the
-// admit-then-stream helper. Not a test file itself; bun never runs it.
+// and activated on disk; the fake providers the `/prompt` path is driven with; and the
+// submit-then-stream helper. Not a test file itself; bun never runs it.
+//
+// Since 4.8/04 the prompt bar is the only entrance to an evolution, so these suites drive
+// `POST /prompt` → `GET /build/:id/stream` exactly as the browser does. The resolver leg
+// is faked (see {@link resolvedBy}) rather than skipped: the engine must receive a real
+// classification, because there is no longer any other way for it to receive one.
 //
 // Both capabilities get real snapshots on purpose: the engine reconciles every committed
 // version before it treats a pointer as an evolution base, so a registry row with no
@@ -9,6 +14,8 @@
 
 import type { ZodType } from "zod";
 import {
+  type EvolutionIntentOverrides,
+  evolutionIntentFor,
   JOURNAL_INCARNATION_ID,
   journalCapabilityRow,
   makeCandidateProvider,
@@ -34,7 +41,11 @@ import {
   runCapabilityGate,
 } from "../builder/index.ts";
 import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../capability-data/index.ts";
-import type { Provider } from "../provider/index.ts";
+import {
+  INTENT_RESOLVER_PROMPT_PREFIX,
+  type IntentClassification,
+} from "../intent-resolver/index.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
 import { type CapabilitySpec, capabilitySpecFromRow } from "../registry/index.ts";
 import {
   buildJobIdFromSubscriber,
@@ -46,6 +57,38 @@ import {
 } from "./app.test-support.ts";
 
 export { JOURNAL_INCARNATION_ID } from "../builder/evolution/candidate.test-support.ts";
+
+/** The classification the resolver would return for a change typed against `journal`. */
+export function journalEvolutionIntent(
+  intentText: string,
+  overrides: EvolutionIntentOverrides = {},
+): IntentClassification {
+  return evolutionIntentFor(journalCapabilityRow(), intentText, overrides);
+}
+
+/**
+ * Answer the Intent Resolver's one classification call with `intent`, and delegate every
+ * other generation to `inner`. Matching on the resolver's own prompt rather than on call
+ * position keeps the engine provider's recorded `prompts` exactly what it was when the
+ * demo route called the engine directly — the resolver leg is added, not interleaved.
+ */
+export function resolvedBy(intent: IntentClassification, inner: Provider): Provider {
+  return {
+    generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
+      if (!prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)) {
+        return inner.generate(prompt, schema);
+      }
+      async function* stream(): AsyncGenerator<DeepPartial<T>> {
+        yield intent as DeepPartial<T>;
+      }
+      return {
+        partialStream: stream(),
+        object: Promise.resolve(intent as T),
+        usage: Promise.resolve({ inputTokens: 30, outputTokens: 8, totalTokens: 38 }),
+      };
+    },
+  };
+}
 
 /** The committed journal capability as a validated spec. */
 export function journalSpec(): CapabilitySpec {
@@ -137,12 +180,20 @@ export function tearDownEvolutionRouteEnv(env: ScratchDbEnv): void {
   teardownScratchDbEnv(env);
 }
 
-/** An app whose provider answers exactly one canned candidate. */
-export function scratchApp(env: ScratchDbEnv, response: unknown) {
+/**
+ * An app whose provider classifies `intentText` as an evolution of `journal` and then
+ * answers exactly one canned candidate. `submit` types that same text into the prompt bar,
+ * so the classification and the prompt behind it can never drift apart.
+ */
+export function scratchApp(env: ScratchDbEnv, response: unknown, intentText: string) {
   const { recordMetrics, rows, lifecycles } = makeMetricsRecorder();
   const { provider, prompts } = makeCandidateProvider(response);
-  const app = makeScratchApp(env, provider, recordMetrics);
-  return { app, prompts, rows, lifecycles };
+  const app = makeScratchApp(
+    env,
+    resolvedBy(journalEvolutionIntent(intentText), provider),
+    recordMetrics,
+  );
+  return { app, prompts, rows, lifecycles, submit: () => submitEvolution(app, intentText) };
 }
 
 /** The candidate journal spec plus one new active string field. */
@@ -169,10 +220,15 @@ export function moodResponses(candidate: CapabilitySpec): readonly unknown[] {
   ];
 }
 
-export function moodEvolutionApp(env: ScratchDbEnv, candidate: CapabilitySpec) {
+export function moodEvolutionApp(env: ScratchDbEnv, candidate: CapabilitySpec, intentText: string) {
   const metrics = makeMetricsRecorder();
   const { provider, prompts } = makeSequenceProvider(moodResponses(candidate));
-  return { app: makeScratchApp(env, provider, metrics.recordMetrics), prompts, ...metrics };
+  const app = makeScratchApp(
+    env,
+    resolvedBy(journalEvolutionIntent(intentText), provider),
+    metrics.recordMetrics,
+  );
+  return { app, prompts, ...metrics, submit: () => submitEvolution(app, intentText) };
 }
 
 /**
@@ -201,17 +257,25 @@ export function pausingProvider(inner: Provider, pauseOnCall: number) {
   return { provider, reached, release: () => release() };
 }
 
-/** Admit one evolution against `journal` and return its job's stream path. */
-export async function admitTrace(
+/**
+ * Type one change into the prompt bar from the open `journal` surface and return its job's
+ * stream path — the same POST the browser sends, restoration descriptor included, so a
+ * non-activating terminal restores the View the person was actually looking at.
+ */
+export async function submitEvolution(
   app: { request: (path: string, init?: RequestInit) => Response | Promise<Response> },
-  intent: string,
+  intentText: string,
 ) {
-  const res = await app.request("/demo/evolution/journal", {
+  const res = await app.request("/prompt", {
     method: "POST",
-    body: new URLSearchParams({ intent }),
+    body: new URLSearchParams({
+      prompt: intentText,
+      __aluna_restore_capability_id: "journal",
+      __aluna_restore_incarnation_id: JOURNAL_INCARNATION_ID,
+    }),
   });
-  if (res.status !== 200) throw new Error(`admission failed with ${res.status}`);
+  if (res.status !== 200) throw new Error(`prompt admission failed with ${res.status}`);
   const fragment = await res.text();
   const jobId = buildJobIdFromSubscriber(fragment);
-  return { fragment, jobId, streamPath: `/demo/evolution/build/${jobId}/stream` };
+  return { fragment, jobId, streamPath: `/build/${jobId}/stream` };
 }

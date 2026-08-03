@@ -58,7 +58,6 @@ export {
   type CandidateSpecGenResult,
   type GenerateCandidateSpecInput,
   generateCandidateSpec,
-  handSuppliedEvolutionIntent,
 } from "./evolution/candidate-spec-gen.ts";
 export {
   CandidateValidationError,

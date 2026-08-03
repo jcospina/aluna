@@ -14,11 +14,10 @@
 // A zero-fact candidate is the canonical no-op (decision 37): no DDL, no unit work, no
 // snapshot, no version, no `commit` — just a measured `success/no_change` row.
 //
-// Production prompt work supplies the resolved intent. The temporary guided Evolve
-// control may still supply its typed stand-in until that demo is retired. The catalog
-// freeze is not temporary: the caller holds the exclusive build lease while this runs, so the
-// dependency-generation catalog captured here is the immutable lease-frozen catalog
-// decision 1 requires.
+// Every run carries the resolver's classification of the typed prompt — there is no
+// hand-supplied stand-in any more (4.8/04). The caller holds the exclusive build lease
+// while this runs, so the dependency-generation catalog captured here is the immutable
+// lease-frozen catalog decision 1 requires.
 
 import {
   ActivationCancelledError,
@@ -77,15 +76,25 @@ import {
   type EvolutionAssemblyPlan,
 } from "./evolution-assembly.ts";
 import { classifyEvolutionFailure, type EvolutionStage } from "./evolution-failure.ts";
-import { resolveEvolutionIntent, validateEvolutionIntentScope } from "./evolution-intent.ts";
+import {
+  type EvolutionIntentClassification,
+  resolveEvolutionIntent,
+  validateEvolutionIntentScope,
+} from "./evolution-intent.ts";
 
 export interface RunCapabilityEvolutionInput {
   /** The live committed capability being evolved — re-checked under the lease. */
   readonly active: CapabilityRow;
-  /** Original typed text retained for previews and the temporary demo seam. */
+  /** The typed text the resolver classified, retained for previews and narration. */
   readonly intentText: string;
-  /** The production resolver result. Omitted only by the temporary Evolve demo. */
-  readonly resolvedIntent?: IntentClassification;
+  /**
+   * The resolver's classification of {@link intentText}. Required, and narrowed to the two
+   * intent types an evolution can answer: a run that reached the engine without a
+   * classification — or under one that was never about changing an existing capability —
+   * would be acting on nobody's judgment, and neither is representable (4.8/04). Only the
+   * pairing with {@link active} is left to check at runtime.
+   */
+  readonly resolvedIntent: EvolutionIntentClassification;
   /** Resolver measurement carried into the durable running row. */
   readonly resolver?: CarriedResolverMeasurement & { readonly usage: TokenUsage };
   readonly provider: Provider;
@@ -116,9 +125,10 @@ export interface RunCapabilityEvolutionInput {
   /** Test-only activation fault seams around the point of no return. */
   readonly faults?: ActivationFaultHooks;
   /**
-   * TEMPORARY (4.7/04 living demo): force one regenerated Handler's first pass to be
-   * deliberately wrong, so the Gate has a real behavioral failure to repair. See
-   * `pipeline/demo/hard-evolution-fixture.ts`; removed with the `/demo` surface.
+   * Test-only seam: force one regenerated Handler's first pass to be deliberately wrong, so
+   * the Gate has a real behavioral failure to repair. It is how 4.7/04's bounded repair is
+   * proven deterministically (`evolution-frozen-repair.test.ts` with
+   * `hard-evolution-fixture.test-support.ts`); no composition root supplies it.
    */
   readonly firstPassHandlerFixture?: AssembleEvolutionCandidateInput["firstPassHandlerFixture"];
 }
@@ -174,8 +184,8 @@ function openEvolutionRunState(input: RunCapabilityEvolutionInput): EvolutionRun
 }
 
 /**
- * Run one complete evolution under the caller-held build lease, from hand-supplied
- * intent to activated version. Streams the authoring preview (`spec-preview`), the
+ * Run one complete evolution under the caller-held build lease, from resolved intent to
+ * activated version. Streams the authoring preview (`spec-preview`), the
  * derived work plan and regenerated units (`candidate-preview`/`units-preview`), and the
  * Gate verdict (`gate-preview`) as they land; the caller owns the terminal presentation.
  *
@@ -197,7 +207,7 @@ export async function runCapabilityEvolution(
   const activeRows = listCapabilities(input.database.readonly);
   const dependencyRows = activeRows.filter((row) => row.id !== active.id);
   const dependencyCatalog = buildDependencyGenerationCatalog(activeRows, active.id);
-  const intent = resolveEvolutionIntent(active, input.intentText, input.resolvedIntent);
+  const intent = resolveEvolutionIntent(active, input.resolvedIntent);
 
   const state = openEvolutionRunState(input);
   // The durable lifecycle opens immediately before the first Builder-owned provider

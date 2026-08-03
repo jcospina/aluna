@@ -1,9 +1,10 @@
-// The evolution run's streamed liveness — Module 4.6/05. Assembly is the long half of a
+// The evolution run's streamed liveness — Module 4.6/05, driven through the prompt bar
+// since 4.8/04. Assembly is the long half of a
 // run: several live regenerations plus the Gate. It streams like a v1 build rather than
 // landing as one terminal payload — the derived plan first (it needs no model call), then
 // the units, then the Gate — and a run that dies or is cancelled mid-assembly must close
 // its running plan out rather than leaving the panel showing work nobody is doing. The
-// admit/activate/reject seam lives in `app.evolution.test.ts`.
+// submit/activate/reject seam lives in `app.evolution.test.ts`.
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import {
@@ -17,18 +18,21 @@ import {
   searchHandlerFor,
   updateHandlerFor,
 } from "../builder/gate/gate.test-support.ts";
+import type { Provider } from "../provider/index.ts";
 import { getCapability } from "../registry/index.ts";
 import {
-  admitTrace,
   buildEvolutionRouteGates,
   type EvolutionRouteFixture,
+  journalEvolutionIntent,
   journalSpec,
   moodCandidate,
   moodEvolutionApp,
   pausingProvider,
   pinBehavioralTierOff,
+  resolvedBy,
   scratchApp,
   setUpEvolutionRouteEnv,
+  submitEvolution,
   tearDownEvolutionRouteEnv,
 } from "./app.evolution.test-support.ts";
 import {
@@ -62,11 +66,24 @@ afterEach(() => {
   tearDownEvolutionRouteEnv(env);
 });
 
+/**
+ * An app whose engine work is answered by `provider`, behind a resolver that classifies
+ * `intentText` as one evolution of `journal`.
+ */
+function evolutionApp(provider: Provider, intentText: string) {
+  const { recordMetrics } = makeMetricsRecorder();
+  return makeScratchApp(
+    env,
+    resolvedBy(journalEvolutionIntent(intentText), provider),
+    recordMetrics,
+  );
+}
+
 describe("the streamed assembly", () => {
   test("streams the assembly plan, the units, and the Gate while the work runs", async () => {
     const candidate = moodCandidate();
-    const { app } = moodEvolutionApp(env, candidate);
-    const { streamPath } = await admitTrace(app, "Add a mood field");
+    const { app, submit } = moodEvolutionApp(env, candidate, "Add a mood field");
+    const { streamPath } = await submit();
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
     const names = events.map((event) => event.event);
@@ -140,9 +157,8 @@ describe("the streamed assembly", () => {
       { content: "export default 'not a handler';" },
       { content: "export default 'still not a handler';" },
     ]);
-    const { recordMetrics } = makeMetricsRecorder();
-    const app = makeScratchApp(env, provider, recordMetrics);
-    const { streamPath } = await admitTrace(app, "Add a mood field");
+    const app = evolutionApp(provider, "Add a mood field");
+    const { streamPath } = await submitEvolution(app, "Add a mood field");
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
@@ -170,15 +186,12 @@ describe("the streamed assembly", () => {
     ]);
     // Hold the last regeneration open so the cancel lands mid-assembly, deterministically.
     const { provider, reached, release } = pausingProvider(queued, 4);
-    const { recordMetrics } = makeMetricsRecorder();
-    const app = makeScratchApp(env, provider, recordMetrics);
-    const { jobId, streamPath } = await admitTrace(app, "Add a mood field");
+    const app = evolutionApp(provider, "Add a mood field");
+    const { jobId, streamPath } = await submitEvolution(app, "Add a mood field");
     const payload = readSse(await app.request(streamPath));
 
     await reached;
-    const cancelled = await app.request(`/demo/evolution/build/${jobId}/cancel`, {
-      method: "POST",
-    });
+    const cancelled = await app.request(`/build/${jobId}/cancel`, { method: "POST" });
     expect(cancelled.status).toBe(202);
     release();
 
@@ -195,8 +208,12 @@ describe("the streamed assembly", () => {
   });
 
   test("a measured no-op streams no assembly work at all", async () => {
-    const { app } = scratchApp(env, candidateFrom(journalCapabilityRow()));
-    const { streamPath } = await admitTrace(app, "Keep it exactly as it is");
+    const { app, submit } = scratchApp(
+      env,
+      candidateFrom(journalCapabilityRow()),
+      "Keep it exactly as it is",
+    );
+    const { streamPath } = await submit();
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
     // Nothing to assemble: no units, no Gate, and exactly one terminal candidate preview.
@@ -206,7 +223,7 @@ describe("the streamed assembly", () => {
   });
 });
 
-// A pre-flight guard for the living demo. Every event the run puts on the wire has to
+// A pre-flight guard for the homepage. Every event the run puts on the wire has to
 // have somewhere to land in the browser: either a `sse-swap` region on the subscriber
 // fragment, or a hidden preview listener whose `data-preview-target` is a real element in
 // the shipped shell. An event with no home is invisible on the homepage — the failure mode
@@ -214,8 +231,8 @@ describe("the streamed assembly", () => {
 describe("the developer panel can receive everything the run emits", () => {
   test("every emitted event has a subscriber region and a live shell target", async () => {
     const candidate = moodCandidate();
-    const { app } = moodEvolutionApp(env, candidate);
-    const { fragment, streamPath } = await admitTrace(app, "Add a mood field");
+    const { app, submit } = moodEvolutionApp(env, candidate, "Add a mood field");
+    const { fragment, streamPath } = await submit();
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
     const emitted = [...new Set(events.map((event) => event.event))];

@@ -122,12 +122,13 @@ export interface AssembleEvolutionCandidateInput {
   /** Assembly-stage liveness: the derived plan, each byte-copy, and the Gate handover. */
   readonly progress?: EvolutionAssemblyProgress;
   /**
-   * TEMPORARY (4.7/04 living demo): substitute the first-pass bytes of one Handler the
-   * Diff already selected for regeneration, so the Gate has a real behavioral failure to
-   * repair. Returning `undefined` keeps whatever the provider wrote. It cannot widen the
-   * Diff plan, reach a copied unit, alter a frozen test, or touch the Gate's own provider
-   * repair. The assembly fails closed unless those synthetic bytes produce a frozen
-   * behavioral failure and an actual repair. Removed with the `/demo` surface.
+   * Test-only seam (4.7/04's bounded-repair battery): substitute the first-pass bytes of
+   * one Handler the Diff already selected for regeneration, so the Gate has a real
+   * behavioral failure to repair. Returning `undefined` keeps whatever the provider wrote.
+   * It cannot widen the Diff plan, reach a copied unit, alter a frozen test, or touch the
+   * Gate's own provider repair. The assembly fails closed unless those synthetic bytes
+   * produce a frozen behavioral failure and an actual repair. No composition root supplies
+   * it — see `hard-evolution-fixture.test-support.ts`.
    */
   readonly firstPassHandlerFixture?: (
     spec: CapabilitySpec,
@@ -491,9 +492,8 @@ async function assembleUnits(
 ): Promise<GeneratedUnit[]> {
   const units: GeneratedUnit[] = [];
   const isAborted = input.isAborted ?? NEVER_ABORTED;
-  // Resolve the tier before any deliberately weak byte can be substituted. Direct engine
-  // callers receive the same safety guarantee as the route: tier-off means the fixture is
-  // never invoked, not merely that a later assertion prevents publication.
+  // Resolve the tier before any deliberately weak byte can be substituted: tier-off means
+  // the fixture is never invoked, not merely that a later assertion prevents publication.
   const allowFirstPassFixture =
     input.firstPassHandlerFixture !== undefined &&
     (input.behavioralTierEnabled ?? resolveBehavioralTierEnabled());
@@ -525,7 +525,7 @@ async function regenerateUnit(
   fixtureUnits: Set<GeneratedUnitName> | undefined,
 ): Promise<GeneratedUnit> {
   const generated = await generateCapabilityUnit(unitGenerationInput(input, filename, priorSource));
-  // TEMPORARY (4.7/04 living demo): substitute deliberately wrong first-pass bytes so the
+  // Test-only seam (4.7/04): substitute deliberately wrong first-pass bytes so the
   // Gate has a real behavioral failure to repair. It reaches only what this build *writes* —
   // copied units, frozen tests, and the Gate's own repair regeneration are all past it.
   const forced = fixtureUnits

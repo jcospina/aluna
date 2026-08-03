@@ -84,9 +84,16 @@ function formatActiveCapability(context: IntentPromptContext): string {
   return formatCapability(active).replace(/^- /, "");
 }
 
+/**
+ * The opening line of every classification prompt. Exported so a fake provider can
+ * recognize the resolver's own call by its prompt rather than by queue position, and so a
+ * rewording of the prompt cannot silently make that recognition stop matching.
+ */
+export const INTENT_RESOLVER_PROMPT_PREFIX = "You are Aluna's Intent Resolver.";
+
 export function buildIntentPrompt(context: IntentPromptContext): string {
   return [
-    "You are Aluna's Intent Resolver. Classify the prompt bar text into one structured intent.",
+    `${INTENT_RESOLVER_PROMPT_PREFIX} Classify the prompt bar text into one structured intent.`,
     "",
     "Use the complete intent type language exactly as provided by the schema:",
     "- new_capability: the user wants Aluna to keep track of a new kind of thing.",

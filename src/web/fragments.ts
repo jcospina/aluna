@@ -57,13 +57,10 @@ const CLEAR_ON_ACCEPT_TARGETS = [
  * re-run the build. The `commit` region receives the terminal success swap:
  * committed content in the content area plus the toolbar entry as an OOB sidecar.
  */
-export function renderBuildSubscriber(
-  jobId: string,
-  paths: { readonly streamPath?: string; readonly cancelPath?: string } = {},
-): string {
+export function renderBuildSubscriber(jobId: string): string {
   const encodedJobId = encodeURIComponent(jobId);
-  const streamPath = paths.streamPath ?? `/build/${encodedJobId}/stream`;
-  const cancelPath = paths.cancelPath ?? `/build/${encodedJobId}/cancel`;
+  const streamPath = `/build/${encodedJobId}/stream`;
+  const cancelPath = `/build/${encodedJobId}/cancel`;
   return [
     `<section class="build-stream" data-build-job-id="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}" sse-close="done">`,
     '  <div class="build-stream__narration" aria-live="polite" sse-swap="narration" hx-swap="beforeend"></div>',
@@ -140,35 +137,6 @@ export function renderCapabilitySurface(
       ` data-active-capability-incarnation="${escapeHtml(row.incarnation_id)}"` +
       ` data-active-capability-version="${row.version}">`,
     collectionHtml,
-    renderEvolutionDemoControl(row),
-    "</section>",
-  ].join("\n");
-}
-
-/**
- * The temporary content-area evolution control — Module 4.6/05's living demo. It drives
- * the real activating route while the read-only developer panel merely observes the
- * candidate, work plan, Gate, and commit previews. Epic 4.8 replaces the hand-typed
- * stand-in with the resolved-intent interaction.
- */
-function renderEvolutionDemoControl(row: Pick<CapabilityRow, "id">): string {
-  const inputId = `evolution-intent-${escapeHtml(row.id)}`;
-  return [
-    '<section class="capability-evolution-demo" data-living-demo="evolution">',
-    "  <h2>Evolve this capability</h2>",
-    "  <p>Describe one change to try. Your current records stay in place while I check the next version.</p>",
-    // TEMPORARY (4.7/04 living demo): the repair story is invisible on a healthy build, so
-    // this explicit control makes the hard path observable without changing the evolution
-    // intent supplied to the resolver, Diff, or frozen suite.
-    '  <p class="capability-evolution-demo__hint">Want to watch me catch and repair a weak first attempt before anything goes live? Choose the guided repair when your change updates how records are edited.</p>',
-    `  <form class="capability-evolution" hx-post="/demo/evolution/${encodeURIComponent(row.id)}" hx-target="#spec-build-output" hx-swap="beforeend">`,
-    `    <label for="${inputId}">Describe a change</label>`,
-    '    <div class="capability-evolution__composer">',
-    `      <input id="${inputId}" name="intent" type="text" required autocomplete="off" placeholder="Add a due date and make it stand out" />`,
-    '      <button type="submit" class="btn btn--ghost">Evolve</button>',
-    "    </div>",
-    '    <label class="capability-evolution__hard-path"><input name="force_behavioral_failure" type="checkbox" value="true" /> Show me the guided repair</label>',
-    "  </form>",
     "</section>",
   ].join("\n");
 }

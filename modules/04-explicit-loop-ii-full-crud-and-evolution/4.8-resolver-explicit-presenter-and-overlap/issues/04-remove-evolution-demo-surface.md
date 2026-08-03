@@ -1,6 +1,6 @@
 # Remove the evolution demo surface and its hand-supplied intent seam
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -70,24 +70,24 @@ Delete the surface, not the engine.
 
 ## Acceptance criteria
 
-- [ ] No route, template, stylesheet, or composition-root dependency under
+- [x] No route, template, stylesheet, or composition-root dependency under
       `src/` or `public/` references `/demo/evolution`,
       `capability-evolution`, `force_behavioral_failure`, or
       `hardEvolutionHandlerFixture`
-- [ ] A capability surface (HTMX toolbar click and a full-page
+- [x] A capability surface (HTMX toolbar click and a full-page
       `GET /capability/:id`) renders the collection scaffolding with no
       evolution form, and `POST /demo/evolution/:id` returns 404
-- [ ] Evolution through the prompt bar is unchanged end to end: candidate,
+- [x] Evolution through the prompt bar is unchanged end to end: candidate,
       Diff facts, work plan, Gate, publication, activation, and one View
       `commit`, with the same durable lifecycle row
-- [ ] Presenter, cancellation, streaming, and complete-View-restoration
+- [x] Presenter, cancellation, streaming, and complete-View-restoration
       coverage previously driven through `/demo/evolution/*` runs against
       `/prompt` with no loss of assertions
-- [ ] `handSuppliedEvolutionIntent` is gone and an unresolved evolution intent
+- [x] `handSuppliedEvolutionIntent` is gone and an unresolved evolution intent
       is unrepresentable at the type level
-- [ ] 4.7/04's bounded repair still has its deterministic battery through the
+- [x] 4.7/04's bounded repair still has its deterministic battery through the
       retained `firstPassHandlerFixture` test seam
-- [ ] `bun test`, `bun run typecheck`, `bun run lint` clean
+- [x] `bun test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -104,3 +104,194 @@ into the prompt bar still evolves it in place with the same foreground story.
 Independent of 4.8/03 and cheaper to land first: removing this path leaves the
 explicit presenter with a single caller before 03 splits it from the core
 Builder.
+
+## What landed
+
+- `src/app/evolution-routes.ts` — **deleted in full**. With it went the parallel
+  build-job queue, the `expected` admission map, and the route's own under-lease
+  target re-check. The core Builder's lease-head revalidation
+  (`revalidateResolvedRequest`, `core-builder.ts`) already does strictly more:
+  the same incarnation + version bindings, *plus* the catalog fingerprint, *plus*
+  a durable direct `failed/stale` row the route never wrote.
+- `src/web/fragments.ts` — `renderEvolutionDemoControl` gone;
+  `renderCapabilitySurface` is now the collection scaffolding inside the active
+  marker and nothing else. `public/css/demo.css` lost the
+  `.capability-evolution*` block.
+- `src/app/app.ts` — `registerEvolutionTracerRoutes`, the
+  `hardEvolutionHandlerFixture` field on `AppDeps`/`ResolvedAppDeps`, and
+  `resolveHardEvolutionFixture` all removed. The composition root can no longer
+  express a deliberately weak first pass.
+- `src/pipeline/demo/hard-evolution-fixture.ts` →
+  `src/pipeline/evolution/hard-evolution-fixture.test-support.ts` (test moved
+  beside it). The `firstPassHandlerFixture` seam stays and is now documented as
+  test-only in both `evolution-run.ts` and `evolution-assembly.ts`.
+- `handSuppliedEvolutionIntent` deleted from `candidate-spec-gen.ts` and
+  `src/builder/index.ts`. The suites that used it as a *fixture* (not as their
+  subject) now call `evolutionIntentFor` in
+  `builder/evolution/candidate.test-support.ts`; the one test whose subject it
+  was is gone with it.
+- Coverage re-pointed onto `POST /prompt` → `GET /build/:id/stream`. The new
+  `resolvedBy(intent, inner)` helper answers only the resolver's own prompt
+  (matched on the exported `INTENT_RESOLVER_PROMPT_PREFIX`) and delegates
+  everything else, so each engine provider's recorded `prompts` — and
+  `pausingProvider`'s call index — are byte-identical to the demo-route era.
+- Docs: PRD story 21 and its acceptance walkthrough now point at the
+  frozen-repair battery instead of a checkbox; the module TECHNICAL-GUIDE no
+  longer tells the reader evolution runs on a tracer "rather than the homepage".
+
+## Adversarial findings fixed
+
+1. **Warm-404 story lost its user-facing assertion.** The replacement for
+   `an unknown capability is a warm 404` asserted only `done === "error"`, so the
+   warm copy and the View restoration could both have regressed to nothing
+   unnoticed. Now asserts `FAILED_BUILD_NOTICE` narration *and* a restoring
+   `fragment` carrying `capability-surface` +
+   `data-active-capability-id="journal"`.
+2. **Dead parameter on `renderBuildSubscriber`.** Its `paths` override existed
+   solely so the demo route could point the subscriber at
+   `/demo/evolution/build/:id/{stream,cancel}`. Removed; the two paths are
+   inlined.
+3. **`onExpiredPendingJob` became production-dead.** Its only production consumer
+   was the deleted route's admission-map cleanup. Removed from
+   `BuildJobQueueOptions`, along with the test that existed only to exercise it —
+   pending-job expiry itself is still pinned by the `missing` assertion.
+4. **The type was wider than the contract.** `resolvedIntent` was required but
+   typed `IntentClassification`, so a `reject`/`data_query`/`new_capability`
+   classification stayed representable and was caught only at runtime — by a
+   branch unreachable from the sole production caller. Now narrowed to the new
+   `EvolutionIntentClassification` (`extend_capability | ui_change`), which
+   deletes half the runtime guard. What survives is the `target_capability` /
+   `active.id` pairing check, documented as defence-in-depth for Module 7's
+   implicit loop rather than for `/prompt`.
+5. **Panel-scoped assertions had been weakened to page-scoped.** The surface test
+   again slices the `<aside id="developer-panel">` region and asserts the
+   candidate preview lives *inside* it while the content area carries no
+   evolution markup.
+6. **Two structurally vacuous assertions.** `eventData()` returns `""` for an
+   event that never fired, so `expect(eventData(events, "candidate-preview"))
+   .toBe("")` could not fail. Both now assert against the emitted event-name
+   list.
+7. **Magic-string coupling to the resolver prompt.** The fake resolver matched a
+   hard-coded `"You are Aluna's Intent Resolver"` in two files. `resolver.ts` now
+   exports `INTENT_RESOLVER_PROMPT_PREFIX` and builds its first line from it, so a
+   rewording cannot silently stop the fake from matching.
+8. **Blank-prompt guard.** The deleted route refused a blank `intent` with a warm
+   422; `/prompt`'s input carried no `required` attribute, so after the removal a
+   blank submit would reach the resolver and spend a real call. Added `required`
+   to `#spec-build-prompt`, which is the same browser-level guard the demo form
+   had. See *Deferred* below for what this deliberately does **not** cover.
+
+## Deferred, deliberately
+
+Items 1 and 3 below are now filed as
+`issues/09-blank-prompt-refusal-and-vestigial-control-assertion.md`.
+
+- **Server-side blank/whitespace refusal on `/prompt`. → 4.8/09.** `required`
+  stops an empty submit in the browser, but a whitespace-only string still passes
+  HTML5 validation, and a non-browser POST bypasses it entirely. Adding a server
+  422 would change `/prompt`'s response contract — HTMX does not swap a non-2xx by
+  default, so a blank submit would silently do nothing on screen — and designing
+  that terminal shape is product work this issue did not authorize. Flagged
+  rather than guessed at.
+- **`src/pipeline/demo/spec-build-demo.ts` still exists and is still reachable**
+  from `src/app/app.ts` behind `demoSurfacesEnabled()`. The "nothing under
+  `src/pipeline/demo/` remains reachable" phrasing above is about the relocated
+  fixture; the spec-build demo is issue 4.8/08's scope, not this one.
+- **`src/builder/artifacts/activation.test.ts:184` → 4.8/09.** Splits the commit
+  swap on `'<div id="developer-evolution-control"'`, a marker that never existed
+  in this tree (it predates the change and was already inert). Left alone here:
+  touching it is a separate correctness question about that assertion, not part
+  of removing this surface.
+
+## Verification
+
+- `bun run test` — **1044 passed, 0 failed**, both before the review fixes and
+  again after them.
+- `bun run typecheck`, `bunx biome check src/ public/`, `bun run build`,
+  `git diff --check` — all clean.
+- **A note on the runner, for whoever hits this next.** The post-fix re-runs at
+  the default shard count reported 29–41 failures, *every one* a `TimeoutError`
+  and several in files this issue never touched
+  (`gate-behavioral-selection.test.ts`, `evolution-assembly.test.ts`,
+  `app.spec-build*.test.ts`). Those same tests pass in 0.9–2.4s on an idle
+  machine; under load the slowest reached 186s against the runner's 30s
+  hang-bound. `scripts/test.ts:34-42` already names this as "the single largest
+  source of 'it passes for me' disagreements". Dropping to `--shards=2` on a busy
+  machine reproduces the green run. Nothing in this change is implicated — a
+  logic fault here cannot time out a gate test that imports none of it.
+- `dist/index.js` (production bundle, `NODE_ENV=production`) contains **zero**
+  occurrences of `demo/evolution`, `capability-evolution`, or
+  `hard-evolution-fixture`.
+- Live against the dev server on **:3030**:
+  - `GET /` → 200, no evolution-form markers anywhere in the shell.
+  - `GET /capability/contacts` (full page) → 200, carrying
+    `data-active-capability-id="contacts"`, `hx-get="/capability/contacts/read"`,
+    and the developer panel's `spec-candidate-preview` — and none of
+    `capability-evolution`, `/demo/evolution/`, `force_behavioral_failure`,
+    "Evolve this capability", "Show me the guided repair".
+  - `GET /capability/contacts` with `HX-Request: true` → same, fragment form.
+  - `POST /demo/evolution/contacts` → **404**.
+  - `GET /demo/evolution/build/:id/stream` → **404**.
+  - `POST /demo/evolution/build/:id/cancel` → **404**.
+
+## HITL — validate the living demo
+
+The dev server should be running on **http://localhost:3030**. If it is not:
+
+```bash
+bun run dev
+```
+
+**1. The second entrance is gone.**
+
+1. Open http://localhost:3030 and click any capability in the left toolbar — say
+   **Contacts**.
+2. Look at the content area. You should see the records surface and *nothing
+   else*: no "Evolve this capability" heading, no "Describe a change" field, no
+   "Show me the guided repair" checkbox.
+3. Reload the page directly at http://localhost:3030/capability/contacts. Same
+   result — the form is gone on the full page load too, not just the HTMX swap.
+
+**2. The prompt bar still evolves it, in place.**
+
+4. With Contacts still open, type into the **prompt bar** at the bottom:
+
+   `add a due date and make it stand out in the list`
+
+5. Press **Make it**.
+
+**What confirms the work:**
+
+- The foreground story is the one you already know: a product-voice line while it
+  thinks, then the capability's View swaps in place carrying the new field. No
+  page navigation, no second form anywhere.
+- Your existing contacts are all still there, with the new column empty.
+- In the developer panel: the **Evolution candidate** block fills with the
+  candidate spec, its change facts, the work plan (which units are regenerated vs
+  byte-copied), and the Gate verdict — exactly as it did through the old control.
+- The **Lifecycle & committed versions** block ends at
+  `lifecycle_status=success`, `outcome=activated`, and the capability's version
+  has gone up by one.
+
+**3. The retired routes really are gone.**
+
+6. In a terminal:
+
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:3030/demo/evolution/contacts
+   ```
+
+   Expect `404`. The route no longer exists; nothing answers it in any
+   environment.
+
+**4. The guided repair moved, it did not disappear.**
+
+7. The checkbox is gone, and the bounded-repair story now lives in a
+   deterministic battery instead of a click:
+
+   ```bash
+   bun test src/pipeline/evolution/evolution-frozen-repair.test.ts
+   ```
+
+   It should pass, proving the frozen failing case, the attributed Handler, the
+   bounded provider repair, the same-case pass, and the final activation.

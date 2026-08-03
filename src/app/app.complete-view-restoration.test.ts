@@ -182,10 +182,10 @@ test("a failed admitted build restores the captured live View through read", asy
   expect(restoration).toContain('data-active-capability-id="notes"');
   expect(restoration).toContain('data-search-state="idle"');
   expect(restoration).toContain('hx-get="/capability/notes/read" hx-trigger="load"');
-  expect(restoration).toContain('data-living-demo="evolution"');
-  expect(restoration).not.toMatch(
-    /class="capability-evolution"[^>]*hx-swap-oob|hx-swap-oob[^>]*class="capability-evolution"/,
-  );
+  // The restored View is the collection scaffolding alone: the content-area evolution
+  // control retired with the demo route (4.8/04).
+  expect(restoration).not.toContain("capability-evolution");
+  expect(restoration).not.toContain('data-living-demo="evolution"');
   expect(mutationCoordinator.snapshot().activeLease).toBeNull();
 });
 

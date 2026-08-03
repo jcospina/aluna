@@ -3524,9 +3524,8 @@
                   Two rules are no longer reachable this way. Hidden fields and cross-capability
                   reads cannot occur on a freshly generated capability: every field it is built with
                   is active, and its declared dependencies are empty by construction. Both arrive
-                  only through evolution, which today runs on the temporary
-                  <code>/demo/evolution/:id</code>
-                  tracer rather than the homepage.
+                  only through evolution — which since 4.8/04 you reach the same way as everything
+                  else: type the change into the homepage prompt bar with the capability open.
                 </p>
               </div>
             </div>
@@ -4268,12 +4267,12 @@
     const fieldStates = {
       new: {
         spec: `{
-                              "name": "due_date",
-                              "label": "Due date",
-                              "type": "date",
-                              "required": false,
-                              "lifecycle": "active"
-                            }`,
+                                  "name": "due_date",
+                                  "label": "Due date",
+                                  "type": "date",
+                                  "required": false,
+                                  "lifecycle": "active"
+                                }`,
         title: "Add the field without breaking old records.",
         copy: "A new field starts visible. Its database column allows empty values so records created before the field existed remain readable.",
         effects: [
@@ -4285,12 +4284,12 @@
       },
       hidden: {
         spec: `{
-                              "name": "due_date",
-                              "label": "Due date",
-                              "type": "date",
-                              "required": false,
-                              "lifecycle": "inactive"
-                            }`,
+                                  "name": "due_date",
+                                  "label": "Due date",
+                                  "type": "date",
+                                  "required": false,
+                                  "lifecycle": "inactive"
+                                }`,
         title: "Stop showing it, keep the column and values.",
         copy: "Aluna marks the field hidden instead of removing it from the capability definition. The original column and saved values remain.",
         effects: [
@@ -4302,12 +4301,12 @@
       },
       reactivated: {
         spec: `{
-                              "name": "due_date",
-                              "label": "Target day",
-                              "type": "date",
-                              "required": true,
-                              "lifecycle": "active"
-                            }`,
+                                  "name": "due_date",
+                                  "label": "Target day",
+                                  "type": "date",
+                                  "required": true,
+                                  "lifecycle": "active"
+                                }`,
         title: "Reveal the original field and stored values.",
         copy: "Aluna shows the same field again. The proposal may also change its visible label or make it required, and Aluna combines all work those changes need.",
         effects: [

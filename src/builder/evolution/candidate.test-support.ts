@@ -6,12 +6,41 @@
 
 import type { ZodType } from "zod";
 
+import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../provider/index.ts";
 import { type CapabilityRow, capabilitySpecFromRow } from "../../registry/index.ts";
 import { buildDependencyGenerationCatalog } from "./dependency-catalog.ts";
 
 export const JOURNAL_INCARNATION_ID = "22222222-2222-4222-8222-222222222222";
 export const SHELVES_INCARNATION_ID = "33333333-3333-4333-8333-333333333333";
+
+/** Overrides a suite may apply, narrowed to the two types an evolution can answer. */
+export type EvolutionIntentOverrides = Partial<Omit<IntentClassification, "type">> & {
+  readonly type?: "extend_capability" | "ui_change";
+};
+
+/**
+ * A resolver classification aimed at one committed capability — what the Intent Resolver
+ * hands the evolution engine for `intentText`. Stands in for a real classification so a
+ * suite can drive the engine without a resolver provider call of its own.
+ */
+export function evolutionIntentFor(
+  committed: Pick<CapabilityRow, "id">,
+  intentText: string,
+  overrides: EvolutionIntentOverrides = {},
+): IntentClassification & { readonly type: "extend_capability" | "ui_change" } {
+  return {
+    type: "extend_capability",
+    confidence: 1,
+    target_capability: committed.id,
+    resolution: "extend",
+    proposed_identity: null,
+    proposed_action: intentText,
+    user_facing_label: "Let me think through that change.",
+    requires_confirmation: false,
+    ...overrides,
+  };
+}
 
 /**
  * The committed capability under evolution. Field-lifecycle coverage on

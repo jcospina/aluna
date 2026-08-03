@@ -1,13 +1,12 @@
-// The 4.7/04 living-demo fixture. Temporary, and tested anyway: it is the only thing
-// standing between a developer and a repair story they can actually watch, and a fixture
-// that silently stopped forcing a failure would look exactly like a Gate that stopped
-// repairing.
+// The frozen-repair battery's forced-failure fixture. Test support, and tested anyway: it
+// is what makes 4.7/04's bounded repair deterministic, and a fixture that silently stopped
+// forcing a failure would look exactly like a Gate that stopped repairing.
 
 import { describe, expect, test } from "bun:test";
 import { notesSpec } from "../../builder/gate/gate.test-support.ts";
 import { checkGeneratedUnit } from "../../builder/units/unit-checks.ts";
 import { defaultBehavioralErrorsForSchema } from "../../registry/index.ts";
-import { hardEvolutionHandlerFixture } from "./hard-evolution-fixture.ts";
+import { hardEvolutionHandlerFixture } from "./hard-evolution-fixture.test-support.ts";
 
 describe("the forced first-pass Handler", () => {
   test("replaces update only — never a test, never another unit", () => {

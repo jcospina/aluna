@@ -475,16 +475,23 @@ describe("the dev-only guard on the remaining /demo/* inspection routes", () => 
     expect((await app.request("/")).status).toBe(200);
   });
 
-  test("the evolution tracer stays registered in production, because its control ships", async () => {
-    // `renderEvolutionDemoControl` (src/web/fragments.ts) renders an hx-post to
-    // `/demo/evolution/:id` on every capability surface. Gating the route alone would
-    // ship a dead button; the route and its control retire together in 4.8/04.
-    process.env.NODE_ENV = "production";
-    const app = createApp();
-
-    // 404 here would be Hono's "no such route"; the tracer answers with its own status
-    // for an unknown capability, so anything other than 404 proves it is registered.
-    expect((await app.request("/demo/evolution/build/nope/stream")).status).not.toBe(404);
+  test("the retired evolution tracer is unregistered in every environment", async () => {
+    // Its content-area control and its routes retired together (4.8/04), so `/prompt` is
+    // the single admission path for evolution work. Nothing answers here any more —
+    // 404 is Hono's "no such route", not a route reporting an unknown capability.
+    for (const nodeEnv of ["production", "development"]) {
+      process.env.NODE_ENV = nodeEnv;
+      const app = createApp();
+      expect((await app.request("/demo/evolution/build/nope/stream")).status).toBe(404);
+      expect(
+        (
+          await app.request("/demo/evolution/notes", {
+            method: "POST",
+            body: new URLSearchParams({ intent: "Add something" }),
+          })
+        ).status,
+      ).toBe(404);
+    }
   });
 });
 

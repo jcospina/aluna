@@ -1,10 +1,11 @@
-import {
-  CandidateValidationError,
-  type CapabilityDiff,
-  handSuppliedEvolutionIntent,
-} from "../../builder/index.ts";
+import { CandidateValidationError, type CapabilityDiff } from "../../builder/index.ts";
 import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { CapabilityRow } from "../../registry/index.ts";
+
+/** The only two classifications an evolution can answer (4.8/02). */
+export type EvolutionIntentClassification = IntentClassification & {
+  readonly type: "extend_capability" | "ui_change";
+};
 
 const UI_CHANGE_FACTS = new Set([
   "capability_label",
@@ -15,20 +16,23 @@ const UI_CHANGE_FACTS = new Set([
   "collection_layout",
 ]);
 
+/**
+ * The resolver's classification, re-checked against the capability the run is actually
+ * aimed at. The intent *type* is already narrowed at the type level (4.8/04), so all that
+ * is left is the pairing: a classification about one capability may never author a
+ * candidate for another. `/prompt` resolves `active` **by** `target_capability` and
+ * revalidates it at the lease head, so this cannot fire from there — it is the guard for
+ * the next caller of the engine, which Module 7's implicit loop will be.
+ */
 export function resolveEvolutionIntent(
   active: CapabilityRow,
-  intentText: string,
-  resolvedIntent?: IntentClassification,
-): IntentClassification {
-  const intent = resolvedIntent ?? handSuppliedEvolutionIntent(active, intentText);
-  if (
-    (intent.type !== "extend_capability" && intent.type !== "ui_change") ||
-    intent.target_capability !== active.id
-  ) {
+  intent: EvolutionIntentClassification,
+): EvolutionIntentClassification {
+  if (intent.target_capability !== active.id) {
     throw new CandidateValidationError([
       {
         path: "resolved_intent",
-        message: `evolution must target "${active.id}" as extend_capability or ui_change`,
+        message: `evolution must target "${active.id}", not "${intent.target_capability}"`,
       },
     ]);
   }

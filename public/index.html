@@ -193,6 +193,7 @@
               name="prompt"
               x-ref="promptField"
               :disabled="promptBusy"
+              required
               aria-label="Prompt"
               placeholder="What would you like to keep track of?"
             >
@@ -246,9 +247,9 @@
           <h2 class="devbar__block-label">Lifecycle &amp; committed versions</h2>
           <pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true"></pre>
         </section>
-        <!-- Module 4.6/05 — observational output from the content-area evolution
-             living demo. The candidate, its change facts, the derived work plan,
-             and the Gate verdict stream here; this panel never contains controls. -->
+        <!-- Observational output from an evolution asked for in the prompt bar. The
+             candidate, its change facts, the derived work plan, and the Gate verdict
+             stream here; this panel never contains controls. -->
         <section class="devbar__block">
           <h2 class="devbar__block-label">Evolution candidate</h2>
           <pre class="spec-build__preview" id="spec-candidate-preview" aria-hidden="true"></pre>

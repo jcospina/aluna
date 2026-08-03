@@ -20,7 +20,6 @@ import {
   type MutationCoordinator,
 } from "../mutation-coordinator/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../persistence/db.ts";
-import { hardEvolutionHandlerFixture } from "../pipeline/demo/hard-evolution-fixture.ts";
 import {
   createMetricsRecorder,
   createPromptBuildPipeline,
@@ -38,7 +37,6 @@ import {
   renderBuildSubscriber,
   renderRehydratedShellPage,
 } from "../web/index.ts";
-import { type EvolutionTracerDeps, registerEvolutionTracerRoutes } from "./evolution-routes.ts";
 import { handleStreamError, streamGreeting } from "./greeting.ts";
 
 /**
@@ -104,11 +102,6 @@ export interface AppDeps {
   readonly artifactsRoot?: string;
   /** Atomic admission shared by builds, record routes, and platform writes. */
   readonly mutationCoordinator?: MutationCoordinator;
-  /**
-   * TEMPORARY dev-only seam for the 4.7/04 bounded-repair living demo. The default is
-   * composed here, outside the route module; tests may inject a deterministic substitute.
-   */
-  readonly hardEvolutionHandlerFixture?: EvolutionTracerDeps["hardEvolutionHandlerFixture"];
 }
 
 /** The fully-resolved dependency set every route group below is wired from. */
@@ -122,7 +115,6 @@ interface ResolvedAppDeps {
   readonly buildJobs: BuildJobQueue;
   readonly capabilityRouter: CapabilityRouterDeps;
   readonly registryReadonly: PlatformDatabase["readonly"];
-  readonly hardEvolutionHandlerFixture: EvolutionTracerDeps["hardEvolutionHandlerFixture"];
 }
 
 /**
@@ -137,7 +129,6 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     deps.recordMetrics ?? createMetricsRecorder(buildDatabases.readwrite);
   const artifactsRoot = deps.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
-  const resolvedHardEvolutionFixture = resolveHardEvolutionFixture(deps);
   const buildJobs =
     deps.buildJobs ??
     createBuildJobQueue({
@@ -165,14 +156,7 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     buildJobs,
     capabilityRouter,
     registryReadonly,
-    hardEvolutionHandlerFixture: resolvedHardEvolutionFixture,
   };
-}
-
-function resolveHardEvolutionFixture(
-  deps: AppDeps,
-): EvolutionTracerDeps["hardEvolutionHandlerFixture"] {
-  return deps.hardEvolutionHandlerFixture ?? hardEvolutionHandlerFixture;
 }
 
 /**
@@ -356,13 +340,6 @@ export function createApp(deps: AppDeps = {}): Hono {
 
   registerShellAndLivenessRoutes(app, ctx);
   registerBuildJobRoutes(app, ctx);
-  // Module 4.6/05 — the evolution dev tracer, the platform's one evolution path (its
-  // own module so this wiring sheet stays thin; the hand-supplied intent seam that
-  // stands in for classification ends with epic 4.8). NOT behind the dev-only guard
-  // below: `renderEvolutionDemoControl` (src/web/fragments.ts) renders its form on
-  // every capability page, so gating the route alone would ship a dead button rather
-  // than remove a surface. Route and control retire together in 4.8/04.
-  registerEvolutionTracerRoutes(app, ctx);
 
   // The one guard over the `/demo/*` surfaces nothing in the served UI targets: they
   // are developer inspection routes, not product, so a production bundle must not

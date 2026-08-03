@@ -1,16 +1,18 @@
-// The evolution dev tracer routes — Module 4.6/05. Route-level proof of the living
-// demo: the content-area control admits a live capability plus a hand-typed
-// intent, and the terminal presentation is one of exactly three shapes — an activated
-// version behind a complete View swap, the measured no-op, or the warm rejection. The
-// engine's own end-to-end battery lives in `src/pipeline/evolution/evolution-run.test.ts`
-// and the streamed liveness in `app.evolution-streaming.test.ts`; this file owns the
-// admit/activate/reject seam. Driven through fake providers — no spend.
+// Evolution through the prompt bar — Module 4.8/04. Route-level proof that the platform's
+// one entrance works end to end: a change typed into the prompt bar is classified against
+// the live capability, and the terminal presentation is one of exactly three shapes — an
+// activated version behind a complete View swap, the measured no-op, or the warm
+// rejection. The engine's own end-to-end battery lives in
+// `src/pipeline/evolution/evolution-run.test.ts`, the streamed liveness in
+// `app.evolution-streaming.test.ts`, and the refusal of a target that moved between
+// resolution and the lease head in `app.stale-refusal.test.ts`; this file owns the
+// submit/activate/reject seam. Driven through fake providers — no spend.
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { ZodType } from "zod";
 import {
-  type CandidateDraft,
   candidateFrom,
   journalCapabilityRow,
   makeCandidateProvider,
@@ -21,25 +23,30 @@ import {
   searchHandlerFor,
   updateHandlerFor,
 } from "../builder/gate/gate.test-support.ts";
+import { INTENT_RESOLVER_PROMPT_PREFIX } from "../intent-resolver/index.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import {
   CANDIDATE_NO_CHANGE_NOTICE,
   CANDIDATE_REJECTED_NOTICE,
+  FAILED_BUILD_NOTICE,
+  STALE_BUILD_NOTICE,
 } from "../pipeline/streaming/terminal-presentation.ts";
+import type { Provider } from "../provider/index.ts";
 import { compareAndSwapCapability, getCapability } from "../registry/index.ts";
 import {
-  admitTrace,
   buildEvolutionRouteGates,
   type EvolutionRouteFixture,
+  journalEvolutionIntent,
   moodCandidate,
   moodEvolutionApp,
   pinBehavioralTierOff,
+  resolvedBy,
   scratchApp,
   setUpEvolutionRouteEnv,
+  submitEvolution,
   tearDownEvolutionRouteEnv,
 } from "./app.evolution.test-support.ts";
 import {
-  buildJobIdFromSubscriber,
   collectSseEvents,
   createScratchDbEnv,
   eventData,
@@ -73,21 +80,23 @@ afterEach(() => {
   tearDownEvolutionRouteEnv(env);
 });
 
-describe("the content-area living-demo control", () => {
-  test("a full-page capability load renders the intent form outside the read-only panel", async () => {
-    const { app } = scratchApp(env, candidateFrom(journalCapabilityRow()));
+describe("the capability surface", () => {
+  test("a full-page capability load is the collection scaffolding and nothing else", async () => {
+    const { app } = scratchApp(env, candidateFrom(journalCapabilityRow()), "Add a mood field");
     const res = await app.request("/capability/journal");
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain('hx-post="/demo/evolution/journal"');
-    expect(html).toContain('name="intent"');
-    expect(html).toContain('name="force_behavioral_failure"');
-    expect(html).toContain("Want to watch me catch and repair a weak first attempt");
-    expect(html).toContain("Show me the guided repair");
-    expect(html).not.toContain("stress test");
-    expect(html).not.toContain("Stress-test");
-    expect(html).toContain("Evolution candidate");
-    expect(html).toContain('id="spec-candidate-preview"');
+    // The second entrance is gone (4.8/04): no form, no hard-path checkbox, no route for
+    // either of them to post to. The prompt bar carries the whole evolution interaction.
+    expect(html).not.toContain("/demo/evolution/");
+    expect(html).not.toContain('name="intent"');
+    expect(html).not.toContain("force_behavioral_failure");
+    expect(html).not.toContain("capability-evolution");
+    expect(html).not.toContain('data-living-demo="evolution"');
+    expect(html).not.toContain("Evolve this capability");
+    expect(html).not.toContain("Show me the guided repair");
+    // What remains is the live collection scaffolding — plus the read-only developer panel,
+    // which is untouched by this removal.
     const content = html.slice(
       html.indexOf('<main class="content">'),
       html.indexOf("</main>") + "</main>".length,
@@ -96,13 +105,23 @@ describe("the content-area living-demo control", () => {
       html.indexOf('<aside class="devbar" id="developer-panel"'),
       html.indexOf("</aside>") + "</aside>".length,
     );
-    expect(content).toContain('class="capability-evolution"');
-    expect(content).toContain('hx-post="/demo/evolution/journal"');
+    expect(content).toContain('data-active-capability-id="journal"');
+    expect(content).toContain('hx-get="/capability/journal/read"');
+    expect(content).not.toContain("capability-evolution");
     expect(panel).toContain('id="spec-candidate-preview"');
-    expect(panel).not.toContain('class="capability-evolution"');
-    expect(panel).not.toContain('hx-post="/demo/evolution/');
+    expect(panel).toContain("Evolution candidate");
     expect(panel).not.toContain('name="intent"');
-    expect(panel).not.toContain('name="force_behavioral_failure"');
+  });
+
+  test("an HTMX toolbar click renders the same scaffolding with no evolution form", async () => {
+    const { app } = scratchApp(env, candidateFrom(journalCapabilityRow()), "Add a mood field");
+    const res = await app.request("/capability/journal", { headers: { "HX-Request": "true" } });
+    expect(res.status).toBe(200);
+    const fragment = await res.text();
+    expect(fragment).toContain('data-active-capability-id="journal"');
+    expect(fragment).toContain('hx-get="/capability/journal/read"');
+    expect(fragment).not.toContain("capability-evolution");
+    expect(fragment).not.toContain("/demo/evolution/");
   });
 
   test("the cold-start shell has no capability and therefore no evolution form", async () => {
@@ -114,8 +133,8 @@ describe("the content-area living-demo control", () => {
       const res = await app.request("/");
       const html = await res.text();
       expect(html).not.toContain("developer-evolution-control");
-      expect(html).not.toContain('class="capability-evolution"');
-      expect(html).not.toContain('hx-post="/demo/evolution/');
+      expect(html).not.toContain("capability-evolution");
+      expect(html).not.toContain("/demo/evolution/");
     } finally {
       teardownScratchDbEnv(bare);
     }
@@ -123,66 +142,98 @@ describe("the content-area living-demo control", () => {
 });
 
 describe("admission", () => {
-  test("an unknown capability is a warm 404", async () => {
-    const { app } = scratchApp(env, {});
-    const res = await app.request("/demo/evolution/ghosts", {
-      method: "POST",
-      body: new URLSearchParams({ intent: "Add something" }),
-    });
-    expect(res.status).toBe(404);
-    expect(await res.text()).toContain("I can't find that here");
-  });
-
-  test("a blank intent is a warm 422 and admits nothing", async () => {
-    const { app } = scratchApp(env, {});
-    const res = await app.request("/demo/evolution/journal", {
-      method: "POST",
-      body: new URLSearchParams({ intent: "   " }),
-    });
-    expect(res.status).toBe(422);
-    expect(await res.text()).toContain("Tell me what you'd like to change first.");
-  });
-
-  test("tier-off rejects the guided repair before it can inject or publish bytes", async () => {
-    const candidate = moodCandidate();
-    const { app, prompts } = moodEvolutionApp(env, candidate);
-    const res = await app.request("/demo/evolution/journal", {
-      method: "POST",
-      body: new URLSearchParams({
-        intent: "Add a mood field",
-        force_behavioral_failure: "true",
-      }),
-    });
-
-    expect(res.status).toBe(422);
-    expect(await res.text()).toContain(
-      "I can only show the guided repair while behavioral checks are on.",
+  test("the retired demo route is gone from the app entirely", async () => {
+    const { app } = scratchApp(env, {}, "Add a mood field");
+    expect(
+      (
+        await app.request("/demo/evolution/journal", {
+          method: "POST",
+          body: new URLSearchParams({ intent: "Add something" }),
+        })
+      ).status,
+    ).toBe(404);
+    expect((await app.request("/demo/evolution/build/any/stream")).status).toBe(404);
+    expect((await app.request("/demo/evolution/build/any/cancel", { method: "POST" })).status).toBe(
+      404,
     );
-    expect(prompts).toHaveLength(0);
-    expect(getCapability("journal", env.conns.readonly)?.version).toBe(1);
   });
 
-  test("an admitted trace returns the build subscriber wired to its own stream", async () => {
-    const { app } = scratchApp(env, candidateFrom(journalCapabilityRow()));
-    const { fragment, jobId } = await admitTrace(app, "Add a mood field");
-    expect(fragment).toContain(`/demo/evolution/build/${jobId}/stream`);
-    expect(fragment).toContain(`/demo/evolution/build/${jobId}/cancel`);
+  test("a submitted evolution returns the build subscriber wired to its own stream", async () => {
+    const { app, submit } = scratchApp(
+      env,
+      candidateFrom(journalCapabilityRow()),
+      "Add a mood field",
+    );
+    const { fragment, jobId } = await submit();
+    expect(fragment).toContain(`/build/${jobId}/stream`);
+    expect(fragment).toContain(`/build/${jobId}/cancel`);
+    expect((await app.request(`/build/${jobId}/cancel`, { method: "POST" })).status).toBe(202);
   });
 
   test("cancelling an unknown job is a 404", async () => {
-    const { app } = scratchApp(env, {});
-    const res = await app.request("/demo/evolution/build/missing/cancel", {
-      method: "POST",
-    });
+    const { app } = scratchApp(env, {}, "Add a mood field");
+    const res = await app.request("/build/missing/cancel", { method: "POST" });
     expect(res.status).toBe(404);
   });
+
+  test("a classification naming a capability the catalog does not hold builds nothing", async () => {
+    const { recordMetrics } = makeMetricsRecorder();
+    const { provider, prompts } = makeCandidateProvider(candidateFrom(journalCapabilityRow()));
+    const app = makeScratchApp(
+      env,
+      resolvedBy(
+        journalEvolutionIntent("Add a mood field", { target_capability: "ghosts" }),
+        provider,
+      ),
+      recordMetrics,
+    );
+    const { streamPath } = await submitEvolution(app, "Add a mood field");
+
+    const events = collectSseEvents(await readSse(await app.request(streamPath)));
+
+    // A warm product-voice failure with the person's own View back under it — the same
+    // terminal shape any pre-admission failure gets, not a bare error.
+    expect(eventData(events, "narration")).toContain(FAILED_BUILD_NOTICE);
+    expect(eventData(events, "fragment")).toContain("capability-surface");
+    expect(eventData(events, "fragment")).toContain('data-active-capability-id="journal"');
+    expect(eventData(events, "done")).toBe("error");
+    expect(events.map((event) => event.event)).not.toContain("candidate-preview");
+    expect(events.map((event) => event.event)).not.toContain("commit");
+    // The Builder never ran: no candidate was ever authored, and nothing durable moved.
+    expect(prompts).toHaveLength(0);
+    expect(getCapability("journal", env.conns.readonly)?.version).toBe(1);
+  });
 });
+
+/** Real unit loaders that also record which version directory each load came from. */
+function spyingUnitLoaders(loadedPaths: string[]) {
+  return {
+    loadHandler: async (artifactsPath: string, action: string) => {
+      loadedPaths.push(artifactsPath);
+      const module = (await import(pathToFileURL(join(artifactsPath, `${action}.ts`)).href)) as {
+        default: () => Promise<string>;
+      };
+      return module.default;
+    },
+    loadItemRenderer: async (artifactsPath: string) => {
+      loadedPaths.push(artifactsPath);
+      const module = (await import(pathToFileURL(join(artifactsPath, "item.ts")).href)) as {
+        default: (record: Record<string, unknown>) => string;
+      };
+      return module.default;
+    },
+  };
+}
 
 describe("an accepted candidate", () => {
   test("streams the run and activates the next version behind one complete View swap", async () => {
     const candidate = moodCandidate();
-    const { app, prompts, lifecycles } = moodEvolutionApp(env, candidate);
-    const { streamPath } = await admitTrace(app, "Add a mood field");
+    const { app, prompts, lifecycles, submit } = moodEvolutionApp(
+      env,
+      candidate,
+      "Add a mood field",
+    );
+    const { streamPath } = await submit();
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
@@ -278,29 +329,11 @@ describe("an accepted candidate", () => {
     // proof that the router follows the swapped pointer, not a cached v1.
     const loadedPaths: string[] = [];
     const app = createApp({
-      getProvider: () => provider,
+      getProvider: () => resolvedBy(journalEvolutionIntent("Add a mood field"), provider),
       recordMetrics: metrics.recordMetrics,
       buildDatabases: env.conns,
       artifactsRoot: env.artifactsRoot,
-      capabilityRouter: {
-        databases: env.conns,
-        loadHandler: async (artifactsPath, action) => {
-          loadedPaths.push(artifactsPath);
-          const module = (await import(
-            pathToFileURL(join(artifactsPath, `${action}.ts`)).href
-          )) as {
-            default: () => Promise<string>;
-          };
-          return module.default;
-        },
-        loadItemRenderer: async (artifactsPath) => {
-          loadedPaths.push(artifactsPath);
-          const module = (await import(pathToFileURL(join(artifactsPath, "item.ts")).href)) as {
-            default: (record: Record<string, unknown>) => string;
-          };
-          return module.default;
-        },
-      },
+      capabilityRouter: { databases: env.conns, ...spyingUnitLoaders(loadedPaths) },
       mutationCoordinator: createMutationCoordinator(),
     });
 
@@ -311,12 +344,8 @@ describe("an accepted candidate", () => {
       JSON.stringify([]),
     ]);
 
-    const res = await app.request("/demo/evolution/journal", {
-      method: "POST",
-      body: new URLSearchParams({ intent: "Add a mood field" }),
-    });
-    const jobId = buildJobIdFromSubscriber(await res.text());
-    await readSse(await app.request(`/demo/evolution/build/${jobId}/stream`));
+    const { streamPath } = await submitEvolution(app, "Add a mood field");
+    await readSse(await app.request(streamPath));
     expect(getCapability("journal", env.conns.readonly)?.version).toBe(2);
 
     const read = await app.request("/capability/journal/read");
@@ -333,8 +362,12 @@ describe("a measured no-op", () => {
   test("a semantically identical candidate is success/no_change with the View restored", async () => {
     // The provider re-authors the exact committed spec — a semantic no-op.
     const identical = candidateFrom(journalCapabilityRow());
-    const { app, rows, lifecycles } = scratchApp(env, identical);
-    const { streamPath } = await admitTrace(app, "Keep it exactly as it is");
+    const { app, rows, lifecycles, submit } = scratchApp(
+      env,
+      identical,
+      "Keep it exactly as it is",
+    );
+    const { streamPath } = await submit();
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
@@ -374,8 +407,8 @@ describe("a rejected candidate", () => {
     authored.schema.fields = authored.schema.fields.filter(
       (field) => field.name !== "archived_reason",
     );
-    const { app, lifecycles } = scratchApp(env, authored);
-    const { streamPath } = await admitTrace(app, "Forget the archive note");
+    const { app, lifecycles, submit } = scratchApp(env, authored, "Forget the archive note");
+    const { streamPath } = await submit();
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
@@ -404,34 +437,50 @@ describe("a rejected candidate", () => {
   });
 });
 
-describe("a stale target", () => {
-  test("a capability changed between admit and lease fails the trace, not the registry", async () => {
-    const draft: CandidateDraft = candidateFrom(journalCapabilityRow());
-    const { app } = scratchApp(env, draft);
-    const { streamPath } = await admitTrace(app, "Add a mood field");
+/** Another writer takes `journal` to v2 — the competing activation this run races. */
+function activateCompetingJournalV2(): void {
+  const journal = journalCapabilityRow();
+  compareAndSwapCapability(
+    journalCapabilityRow({
+      version: 2,
+      artifacts_path: `capabilities/journal/${journal.incarnation_id}/v2/`,
+    }),
+    {
+      state: "active",
+      capabilityId: journal.id,
+      incarnationId: journal.incarnation_id,
+      version: 1,
+    },
+    env.conns.readwrite,
+  );
+}
 
-    // Another build activates v2 before this trace reaches the queue head.
-    const journal = journalCapabilityRow();
-    compareAndSwapCapability(
-      journalCapabilityRow({
-        version: 2,
-        artifacts_path: `capabilities/journal/${journal.incarnation_id}/v2/`,
-      }),
-      {
-        state: "active",
-        capabilityId: journal.id,
-        incarnationId: journal.incarnation_id,
-        version: 1,
+describe("a stale target", () => {
+  test("a capability that moves during resolution is refused, not evolved", async () => {
+    const { recordMetrics, lifecycles } = makeMetricsRecorder();
+    const { provider, prompts } = makeCandidateProvider(candidateFrom(journalCapabilityRow()));
+    const classified = resolvedBy(journalEvolutionIntent("Add a mood field"), provider);
+    // The registry moves while the classification is still in flight, so the request reaches
+    // the head of its lease holding a target that no longer exists (decision 28).
+    const racing: Provider = {
+      generate<T>(prompt: string, schema: ZodType<T>) {
+        if (prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)) activateCompetingJournalV2();
+        return classified.generate(prompt, schema);
       },
-      env.conns.readwrite,
-    );
+    };
+    const app = makeScratchApp(env, racing, recordMetrics);
+    const { streamPath } = await submitEvolution(app, "Add a mood field");
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
+
     expect(eventData(events, "done")).toBe("error");
-    expect(eventData(events, "build-error-preview")).toContain(
-      "changed before its evolution began",
-    );
-    expect(eventData(events, "candidate-preview")).toBe("");
+    expect(eventData(events, "narration")).toContain(STALE_BUILD_NOTICE);
+    expect(events.map((event) => event.event)).not.toContain("candidate-preview");
+    expect(events.map((event) => event.event)).not.toContain("commit");
+    // Nothing was authored, and the competing version is still the live one: a refusal
+    // changes no product state.
+    expect(prompts).toHaveLength(0);
     expect(getCapability("journal", env.conns.readonly)?.version).toBe(2);
+    expect(lifecycles.at(-1)).toMatchObject({ lifecycleStatus: "failed", outcome: "stale" });
   });
 });
