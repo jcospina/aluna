@@ -11,10 +11,7 @@
 import { describe, expect, test } from "bun:test";
 import { zodSchema } from "ai";
 import type { ZodType } from "zod";
-import {
-  type IntentClassification,
-  intentClassificationSchema,
-} from "../../intent-resolver/index.ts";
+import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { SendBuildEvent } from "../../pipeline/jobs/build-jobs.ts";
 import type { DeepPartial, GenerateResult, Provider, TokenUsage } from "../../provider/index.ts";
 import {
@@ -24,7 +21,7 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   promptCapabilitySpecSchema,
 } from "../../registry/index.ts";
-import { buildSpecPrompt, generateSpec, hardcodedNewCapabilityIntent } from "../index.ts";
+import { buildSpecPrompt, generateSpec } from "../index.ts";
 
 const STUB_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
@@ -451,18 +448,5 @@ describe("spec generation stage — rejects non-conforming specs", () => {
         why,
       ).rejects.toThrow();
     }
-  });
-});
-
-describe("hardcodedNewCapabilityIntent (the pre-resolver stand-in)", () => {
-  test("produces a valid new_capability intent with confirmations off", () => {
-    const intent = hardcodedNewCapabilityIntent("I want to keep track of my notes");
-
-    // Conforms to the real classification shape, so it flows through the stage
-    // exactly as a resolved intent will once epic 2.4 is wired in front.
-    expect(() => intentClassificationSchema.parse(intent)).not.toThrow();
-    expect(intent.type).toBe("new_capability");
-    expect(intent.requires_confirmation).toBe(false);
-    expect(intent.user_facing_label.trim().length).toBeGreaterThan(0);
   });
 });

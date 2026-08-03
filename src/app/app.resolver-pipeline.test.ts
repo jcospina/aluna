@@ -8,35 +8,27 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import type { ZodType } from "zod";
-import { behavioralResponseFor } from "../builder/gate/gate.test-support.ts";
 import type { IntentClassification } from "../intent-resolver/index.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
-import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
+import type { Provider } from "../provider/index.ts";
 import { getCapability, insertCapability, listCapabilities } from "../registry/index.ts";
 import {
-  BEHAVIORAL_SUITE,
   buildJobIdFromSubscriber,
-  CREATE_HANDLER,
   collectSseEvents,
   createScratchDbEnv,
-  DELETE_HANDLER,
   eventData,
-  ITEM_RENDERER,
   makeMetricsRecorder,
+  makePromptBuildProvider,
   makeScratchApp,
-  NOTES_SPEC,
+  NEW_CAPABILITY_INTENT,
   notesCapabilityRow,
   postPrompt,
-  READ_HANDLER,
   readSse,
   responseText,
-  SEARCH_HANDLER,
   teardownScratchDbEnv,
   throwingProvider,
-  UPDATE_HANDLER,
   wait,
 } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
@@ -49,65 +41,6 @@ function defaultPipelineApp(provider: Provider, recordMetrics: RecordMetrics) {
   return makeScratchApp({ dir, conns, artifactsRoot }, provider, recordMetrics);
 }
 
-function makePromptBuildProvider(
-  intent: IntentClassification,
-  spec: unknown = NOTES_SPEC,
-  behavioralSuite: unknown = BEHAVIORAL_SUITE,
-  units: {
-    readonly item?: string;
-    readonly create?: string;
-    readonly read?: string;
-    readonly update?: string;
-    readonly delete?: string;
-    readonly search?: string;
-  } = {},
-): { provider: Provider; prompts: string[] } {
-  const prompts: string[] = [];
-  const responses = [
-    intent,
-    spec,
-    { content: units.item ?? ITEM_RENDERER },
-    { content: units.create ?? CREATE_HANDLER },
-    { content: units.read ?? READ_HANDLER },
-    { content: units.update ?? UPDATE_HANDLER },
-    { content: units.delete ?? DELETE_HANDLER },
-    { content: units.search ?? SEARCH_HANDLER },
-  ];
-  const provider: Provider = {
-    generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
-      prompts.push(prompt);
-      // Per-Action behavioral generation runs before the units (4.7/01), so it is answered
-      // by prompt rather than by queue position.
-      const response = prompt.startsWith("Generate deterministic black-box behavioral tests")
-        ? behavioralResponseFor(prompt, behavioralSuite)
-        : responses.shift();
-      if (response === undefined) {
-        throw new Error(`fake provider exhausted after ${prompts.length} prompt(s)`);
-      }
-      async function* stream(): AsyncGenerator<DeepPartial<T>> {
-        yield response as DeepPartial<T>;
-      }
-      return {
-        partialStream: stream(),
-        object: Promise.resolve(response as T),
-        usage: Promise.resolve({ inputTokens: 41, outputTokens: 12, totalTokens: 53 }),
-      };
-    },
-  };
-  return { provider, prompts };
-}
-
-const newCapabilityIntent: IntentClassification = {
-  type: "new_capability",
-  confidence: 0.97,
-  target_capability: null,
-  resolution: "new",
-  proposed_identity: null,
-  proposed_action: "Create a notes capability.",
-  user_facing_label: "Got it. I'm putting that together now.",
-  requires_confirmation: false,
-};
-
 describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeline)", () => {
   beforeEach(() => {
     ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-prompt-build-"));
@@ -118,7 +51,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
   });
 
   test("POST admits immediately; the stream classifies and proceeds to build new_capability", async () => {
-    const { provider, prompts } = makePromptBuildProvider(newCapabilityIntent);
+    const { provider, prompts } = makePromptBuildProvider(NEW_CAPABILITY_INTENT);
     const { rows, lifecycles, recordMetrics } = makeMetricsRecorder();
     const app = defaultPipelineApp(provider, recordMetrics);
 
@@ -146,7 +79,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
     const narrations = events.filter((event) => event.event === "narration");
-    expect(narrations[1]?.data).toBe(newCapabilityIntent.user_facing_label);
+    expect(narrations[1]?.data).toBe(NEW_CAPABILITY_INTENT.user_facing_label);
     const metricEvents = events.filter((event) => event.event === "metrics-preview");
     expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
       lifecycleStatus: "running",
@@ -214,7 +147,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     const mutationCoordinator = createMutationCoordinator();
     const recordLease = mutationCoordinator.tryAcquireRecordWrite();
     expect(recordLease).toBeDefined();
-    const { provider } = makePromptBuildProvider(newCapabilityIntent);
+    const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT);
     const { recordMetrics } = makeMetricsRecorder();
     const app = createApp({
       getProvider: () => provider,
@@ -247,7 +180,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 
   test("a failed production build presents one terminal error before releasing ownership", async () => {
     const mutationCoordinator = createMutationCoordinator();
-    const { provider } = makePromptBuildProvider(newCapabilityIntent, {});
+    const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, {});
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = createApp({
       getProvider: () => provider,
@@ -295,7 +228,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 
   test("a failed metrics write cannot move failure presentation outside the lease", async () => {
     const mutationCoordinator = createMutationCoordinator();
-    const { provider, prompts } = makePromptBuildProvider(newCapabilityIntent, {});
+    const { provider, prompts } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, {});
     const { recordMetrics } = makeMetricsRecorder();
     const failingMetrics = Object.assign(recordMetrics, {
       start() {

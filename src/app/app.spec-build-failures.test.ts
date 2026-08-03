@@ -1,6 +1,8 @@
-// GET /demo/spec-build (builder-stage liveness, fake provider) — the failure
-// slices: a missing key, a behavioral gate failure, a commit-stage rollback, a
-// behavioral test-generation provider error, and a validation-marker mismatch. Each
+// POST /prompt → GET /build/:id/stream (builder stages, fake provider) — the failure
+// slices *after admission*: a provider that dies mid-build, a behavioral gate failure, a
+// commit-stage rollback, a behavioral test-generation provider error, and a
+// validation-marker mismatch. (A provider that is unavailable before classification
+// never reaches the Builder; that slice lives in app.resolver-pipeline.test.ts.) Each
 // proves failure is data (a recorded metrics row and a developer-only diagnostic)
 // and that nothing internal leaks into product-voice narration. Split from the
 // happy-path app.spec-build.test.ts so each describe stays under the line budget;
@@ -10,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ZodType } from "zod";
+import type { IntentClassification } from "../intent-resolver/index.ts";
 import { listGenerationLifecycles } from "../metrics/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import { createMetricsRecorder, type RecordMetrics } from "../pipeline/index.ts";
@@ -22,25 +25,23 @@ import {
 import {
   BEHAVIORAL_SUITE,
   CREATE_HANDLER,
-  collectSseEvents,
   createScratchDbEnv,
   DELETE_HANDLER,
   eventData,
   ITEM_RENDERER,
   makeMetricsRecorder,
+  makePromptBuildProvider,
   makeScratchApp,
-  makeSpecProvider,
+  NEW_CAPABILITY_INTENT,
   NOTES_INCARNATION_ID,
   NOTES_SPEC,
   notesCapabilityRow,
   READ_HANDLER,
-  readSse,
+  runPromptBuild,
   SEARCH_HANDLER,
   teardownScratchDbEnv,
-  throwingProvider,
   UPDATE_HANDLER,
 } from "./app.test-support.ts";
-import { createApp } from "./app.ts";
 
 setDefaultTimeout(15_000);
 
@@ -52,12 +53,34 @@ function committingApp(provider: Provider, recordMetrics: RecordMetrics) {
   return makeScratchApp({ dir, conns, artifactsRoot }, provider, recordMetrics);
 }
 
+// Answers the resolver, then throws on every Builder-owned call — the shape of a
+// provider that dies after admission, once the durable `running` row is already open.
+function providerFailingAfterResolution(intent: IntentClassification, message: string): Provider {
+  let resolved = false;
+  return {
+    generate<T>(_prompt: string, _schema: ZodType<T>): GenerateResult<T> {
+      if (resolved) throw new Error(message);
+      resolved = true;
+      async function* stream(): AsyncGenerator<DeepPartial<T>> {
+        yield intent as DeepPartial<T>;
+      }
+      return {
+        partialStream: stream(),
+        object: Promise.resolve(intent as T),
+        usage: Promise.resolve({ inputTokens: 41, outputTokens: 12, totalTokens: 53 }),
+      };
+    },
+  };
+}
+
 function makeSpecProviderWithBehavioralError(
+  intent: IntentClassification,
   spec: unknown,
   error: Error,
 ): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];
   const responses = [
+    intent,
     spec,
     { content: ITEM_RENDERER },
     { content: CREATE_HANDLER },
@@ -115,7 +138,7 @@ const VALIDATION_ERROR_SUITE = {
   ),
 };
 
-describe("GET /demo/spec-build (builder-stage liveness, fake provider) — provider failure", () => {
+describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider) — provider failure", () => {
   beforeEach(() => {
     ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-spec-build-"));
   });
@@ -124,17 +147,17 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — provi
     teardownScratchDbEnv({ dir, conns, artifactsRoot });
   });
 
-  test("a missing key streams a warm apology, not a crash", async () => {
+  test("a provider that dies after admission streams a warm apology, not a crash", async () => {
+    // A provider that answers the resolver and then fails is the only way to reach the
+    // Builder's own failure path: a provider that is unavailable from the start never
+    // gets past classification (that case lives in app.resolver-pipeline.test.ts).
     const { rows, recordMetrics } = makeMetricsRecorder();
-    const app = createApp({
-      getProvider: throwingProvider("Missing OMNI_API_KEY. ..."),
+    const app = committingApp(
+      providerFailingAfterResolution(NEW_CAPABILITY_INTENT, "Missing OMNI_API_KEY. ..."),
       recordMetrics,
-    });
-    const res = await app.request("/demo/spec-build?prompt=track%20notes");
-    expect(res.status).toBe(200);
+    );
 
-    const payload = await readSse(res);
-    const events = collectSseEvents(payload);
+    const { payload, events } = await runPromptBuild(app, "track notes");
     const dataFor = (name: string) => eventData(events, name);
 
     expect(dataFor("narration")).toMatch(/mind trying again/i);
@@ -146,8 +169,9 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — provi
     expect(dataFor("fragment")).toContain('data-build-restoration="neutral"');
     expect(payload).not.toContain("event: commit");
     expect(dataFor("narration")).not.toMatch(/OMNI_API_KEY|api key|provider/i);
-    // Admission already happened under the active lease. Provider construction is
-    // therefore measured as a typed spec-generation failure, not silently lost.
+    // Admission already happened under the active lease, so the failed provider call is
+    // measured as a typed spec-generation failure against this build's own durable row,
+    // not silently lost.
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       outcome: "failure",
@@ -166,15 +190,14 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — provi
 
   test("a behavioral test-generation provider error is captured in the developer preview", async () => {
     const { provider } = makeSpecProviderWithBehavioralError(
+      NEW_CAPABILITY_INTENT,
       NOTES_SPEC,
       new Error("Invalid schema for response_format 'response': Missing required expectedError."),
     );
     const { lifecycles, rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
-    const events = collectSseEvents(
-      await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
-    );
+    const { events } = await runPromptBuild(app, "track notes");
     const dataFor = (name: string) => eventData(events, name);
     const preview = JSON.parse(dataFor("build-error-preview")) as {
       errorName: string;
@@ -203,7 +226,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — provi
   });
 });
 
-describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behavioral gate evidence", () => {
+describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider) — behavioral gate evidence", () => {
   beforeEach(() => {
     ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-spec-build-"));
   });
@@ -228,7 +251,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
           : testCase,
       ),
     };
-    const { provider } = makeSpecProvider(NOTES_SPEC, failingSuite, {
+    const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC, failingSuite, {
       // A v1 fragment failure is conservatively attributed because item.ts was generated.
       // Return every Handler byte-identically: five real measured calls, no invented defect,
       // and no admissible rewrite that could make the impossible assertion pass.
@@ -237,9 +260,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
     const { lifecycles, rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
-    const events = collectSseEvents(
-      await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
-    );
+    const { events } = await runPromptBuild(app, "track notes");
     const dataFor = (name: string) => eventData(events, name);
     const preview = JSON.parse(dataFor("build-error-preview")) as {
       errorName: string;
@@ -267,9 +288,10 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
     expect(rows[0]?.failure).toMatchObject({ stage: "gate", rung: "behavioral" });
     expect(rows[0]?.capabilityId).toBe("notes");
     expect(rows[0]?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
-    // spec + five Action suites + six initial units + five conservative Handler attempts.
-    // Every fake call costs 53 tokens, including byte-identical repairs that did not publish.
-    expect(rows[0]?.usage?.totalTokens).toBe(53 * 17);
+    // intent + spec + five Action suites + six initial units + five conservative Handler
+    // attempts. Every fake call costs 53 tokens, including the resolver's own and the
+    // byte-identical repairs that did not publish.
+    expect(rows[0]?.usage?.totalTokens).toBe(53 * 18);
     expect(
       rows[0]?.unitAttempts?.filter((unit) => unit.kind === "handler").map((unit) => unit.attempts),
     ).toEqual([2, 2, 2, 2, 2]);
@@ -304,7 +326,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — behav
   });
 });
 
-describe("GET /demo/spec-build (builder-stage liveness, fake provider) — commit rollback", () => {
+describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider) — commit rollback", () => {
   beforeEach(() => {
     ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-spec-build-"));
   });
@@ -317,15 +339,15 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — commi
     // A capability is already registered at this id, so commit's registry insert
     // collides — the gate passes but the build fails at the terminal commit step.
     // (The resolver normally prevents id collisions; this forces the commit-stage
-    // failure path directly.)
+    // failure path directly. The prompt deliberately shares no token with the live
+    // Notes row, so the deterministic duplicate guard lets the build through and the
+    // collision happens where this test wants it — at commit.)
     insertCapability(notesCapabilityRow(), conns.readwrite);
-    const { provider } = makeSpecProvider(NOTES_SPEC);
+    const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
     const recordMetrics = createMetricsRecorder(conns.readwrite);
     const app = committingApp(provider, recordMetrics);
 
-    const events = collectSseEvents(
-      await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
-    );
+    const { events } = await runPromptBuild(app, "log the books I finish");
     const eventNames = events.map((event) => event.event);
     const dataFor = (name: string) => eventData(events, name);
 
@@ -367,7 +389,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — commi
   });
 });
 
-describe("GET /demo/spec-build (builder-stage liveness, fake provider) — validation markers", () => {
+describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider) — validation markers", () => {
   beforeEach(() => {
     ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-spec-build-"));
   });
@@ -376,16 +398,17 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — valid
     teardownScratchDbEnv({ dir, conns, artifactsRoot });
   });
 
-  test("a validation marker mismatch is visible in the developer-only demo diagnostic", async () => {
-    const { provider } = makeSpecProvider(NOTES_SPEC, VALIDATION_ERROR_SUITE, {
-      create: MISSING_MARKER_CREATE_HANDLER,
-    });
+  test("a validation marker mismatch is visible in the developer-only diagnostic", async () => {
+    const { provider } = makePromptBuildProvider(
+      NEW_CAPABILITY_INTENT,
+      NOTES_SPEC,
+      VALIDATION_ERROR_SUITE,
+      { create: MISSING_MARKER_CREATE_HANDLER },
+    );
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
-    const events = collectSseEvents(
-      await readSse(await app.request("/demo/spec-build?prompt=track%20notes")),
-    );
+    const { events } = await runPromptBuild(app, "track notes");
     const dataFor = (name: string) => eventData(events, name);
     const preview = JSON.parse(dataFor("build-error-preview")) as {
       errorName: string;

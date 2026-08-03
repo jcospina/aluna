@@ -1,9 +1,11 @@
-// GET /demo/spec-build (builder-stage liveness, fake provider) — the happy-path
-// slices. The demo commits for real (Epic 2.5g): migration, gate, and registry
-// insert ride a scratch db pair, and committed artifacts land in a throwaway
-// directory — never the real data file or the tracked capabilities/ tree. The same
-// scratch pair is handed to the capability router so a committed build is immediately
-// routable in the same test.
+// POST /prompt → GET /build/:id/stream (builder stages, fake provider) — the
+// happy-path slices of the one production build path. The build commits for real
+// (Epic 2.5g): migration, gate, and registry insert ride a scratch db pair, and
+// committed artifacts land in a throwaway directory — never the real data file or the
+// tracked capabilities/ tree. The same scratch pair is handed to the capability router
+// so a committed build is immediately routable in the same test. The fake provider
+// answers the resolver first, so the Builder is reached the only way it can be: through
+// a real `new_capability` classification.
 //
 // The headline "narrates, previews stages, commit-swaps content and toolbar, and
 // closes" case runs one build and then makes a long, ordered sequence of assertions
@@ -23,14 +25,14 @@ import { getCapability, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/i
 import { assertGatePreview } from "./app.spec-build-assertions.ts";
 import {
   BEHAVIORAL_SUITE,
-  collectSseEvents,
   createScratchDbEnv,
   eventData,
   makeMetricsRecorder,
+  makePromptBuildProvider,
   makeScratchApp,
-  makeSpecProvider,
+  NEW_CAPABILITY_INTENT,
   NOTES_SPEC,
-  readSse,
+  runPromptBuild,
   SEARCH_HANDLER,
   type SseEvent,
   teardownScratchDbEnv,
@@ -42,7 +44,7 @@ let dir: string;
 let conns: PlatformDatabase;
 let artifactsRoot: string;
 
-// Build the demo app wired to commit against the scratch db + temp artifacts root,
+// Build the app wired to commit against the scratch db + temp artifacts root,
 // sharing the scratch pair with the router so a committed capability is routable.
 function committingApp(provider: Provider, recordMetrics: RecordMetrics) {
   return makeScratchApp({ dir, conns, artifactsRoot }, provider, recordMetrics);
@@ -50,7 +52,10 @@ function committingApp(provider: Provider, recordMetrics: RecordMetrics) {
 
 function assertBuildEventOrder(events: SseEvent[]): void {
   const eventNames = events.map((event) => event.event);
-  expect(eventNames[0]).toBe("metrics-preview");
+  // Resolution narrates first — it runs before admission — and the admitted row's
+  // preview is the build's own opening event.
+  expect(eventNames[0]).toBe("narration");
+  expect(eventNames[1]).toBe("metrics-preview");
   const metricEvents = events.filter((event) => event.event === "metrics-preview");
   expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
     lifecycleStatus: "running",
@@ -80,8 +85,8 @@ function assertBuildEventOrder(events: SseEvent[]): void {
 }
 
 function assertSpecAndMigrationPreview(dataFor: (name: string) => string): void {
-  // The demo preview deliberately carries the raw spec (the developer's liveness
-  // view) — internals here are the point.
+  // The developer preview deliberately carries the raw spec (the liveness view) —
+  // internals here are the point.
   expect(dataFor("spec-preview")).toContain("schema");
   expect(dataFor("spec-preview")).toContain("ui_intent");
   expect(dataFor("spec-preview")).toContain("collection");
@@ -194,32 +199,35 @@ function assertNarrationCommitAndPrompts(
   expect(commitSwap).toContain("Notes");
   expect(dataFor("done")).toBe("ok");
 
-  // The typed prompt reached the provider, then the five per-Action behavioral test
-  // prompts, then the unit-generation prompts (item renderer, then all five handlers) —
-  // proof the demo runs the current builder stages, not a canned string. The ordering is
-  // itself the guarantee: behavioral intent is frozen before a Handler byte exists.
-  expect(prompts).toHaveLength(12);
+  // The typed prompt reached the resolver, then the spec stage, then the five per-Action
+  // behavioral test prompts, then the unit-generation prompts (item renderer, then all
+  // five handlers) — proof the route runs the current builder stages, not a canned
+  // string. The ordering is itself the guarantee: the intent is classified before the
+  // spec exists, and behavioral intent is frozen before a Handler byte exists.
+  expect(prompts).toHaveLength(13);
+  expect(prompts[0]).toContain("Aluna's Intent Resolver");
   expect(prompts[0]).toContain("track my notes");
-  expect(prompts[0]).toContain(
+  expect(prompts[1]).toContain("track my notes");
+  expect(prompts[1]).toContain(
     "tools: exactly [create, read, update, delete, search] in that canonical order",
   );
-  expect(prompts[0]).toContain('"update": [], "delete": [], "search": []');
-  expect(prompts[0]).toContain("ui_intent.collection.layout is one of: feed | grid");
-  expect(prompts[0]).toContain("Do not include ui_intent.views");
-  expect(prompts.slice(1, 6).map((prompt) => /Action under test: (\w+)/.exec(prompt)?.[1])).toEqual(
+  expect(prompts[1]).toContain('"update": [], "delete": [], "search": []');
+  expect(prompts[1]).toContain("ui_intent.collection.layout is one of: feed | grid");
+  expect(prompts[1]).toContain("Do not include ui_intent.views");
+  expect(prompts.slice(2, 7).map((prompt) => /Action under test: (\w+)/.exec(prompt)?.[1])).toEqual(
     ["create", "read", "update", "delete", "search"],
   );
-  expect(prompts[1]).toContain("Text is required. Newest notes appear first.");
-  expect(prompts[1]).toContain('"schema"');
-  expect(prompts[1]).toContain('"behavioral_errors"');
-  expect(prompts[1]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
-  expect(prompts[1]).not.toContain("export default async function");
-  expect(prompts[6]).toContain("Generate the item.ts item renderer");
-  expect(prompts[7]).toContain("Generate the create.ts handler");
-  expect(prompts[8]).toContain("Generate the read.ts handler");
-  expect(prompts[9]).toContain("Generate the update.ts handler");
-  expect(prompts[10]).toContain("Generate the delete.ts handler");
-  expect(prompts[11]).toContain("Generate the search.ts handler");
+  expect(prompts[2]).toContain("Text is required. Newest notes appear first.");
+  expect(prompts[2]).toContain('"schema"');
+  expect(prompts[2]).toContain('"behavioral_errors"');
+  expect(prompts[2]).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
+  expect(prompts[2]).not.toContain("export default async function");
+  expect(prompts[7]).toContain("Generate the item.ts item renderer");
+  expect(prompts[8]).toContain("Generate the create.ts handler");
+  expect(prompts[9]).toContain("Generate the read.ts handler");
+  expect(prompts[10]).toContain("Generate the update.ts handler");
+  expect(prompts[11]).toContain("Generate the delete.ts handler");
+  expect(prompts[12]).toContain("Generate the search.ts handler");
 }
 
 function assertBuildMetrics(rows: GenerationMetrics[]): void {
@@ -324,7 +332,7 @@ function assertCommitPreviewAndArtifacts(
   }
 }
 
-describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
+describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)", () => {
   beforeEach(() => {
     ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-spec-build-"));
   });
@@ -334,13 +342,11 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
   });
 
   test("narrates, previews stages, commit-swaps content and toolbar, and closes", async () => {
-    const { provider, prompts } = makeSpecProvider(NOTES_SPEC);
+    const { provider, prompts } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
-    const events = collectSseEvents(
-      await readSse(await app.request("/demo/spec-build?prompt=track%20my%20notes")),
-    );
+    const { events } = await runPromptBuild(app, "track my notes");
     const dataFor = (name: string) => eventData(events, name);
 
     assertBuildEventOrder(events);
@@ -354,16 +360,16 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
 
   test("commits the search Handler repaired by the always-on smoke fixture", async () => {
     const poisonedSearch = SEARCH_HANDLER.replaceAll("platform_search_normalize", "lower");
-    const { provider, prompts } = makeSpecProvider(NOTES_SPEC, BEHAVIORAL_SUITE, {
-      search: poisonedSearch,
-      searchRepair: SEARCH_HANDLER,
-    });
+    const { provider, prompts } = makePromptBuildProvider(
+      NEW_CAPABILITY_INTENT,
+      NOTES_SPEC,
+      BEHAVIORAL_SUITE,
+      { search: poisonedSearch, searchRepair: SEARCH_HANDLER },
+    );
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
-    const events = collectSseEvents(
-      await readSse(await app.request("/demo/spec-build?prompt=track%20my%20notes")),
-    );
+    const { events } = await runPromptBuild(app, "track my notes");
     expect(events.at(-1)).toEqual({ id: expect.any(String), event: "done", data: "ok" });
     const preview = JSON.parse(eventData(events, "gate-preview")) as {
       smoke: { fixed: boolean; attempts: Array<{ action?: string; error?: string }> };
@@ -387,10 +393,11 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
     expect(await Bun.file(resolve(committed.artifacts_path, "search.ts")).text()).toBe(
       SEARCH_HANDLER,
     );
-    // spec + five per-Action behavioral suites + item + five handlers + the smoke repair.
-    expect(prompts).toHaveLength(13);
-    expect(prompts[12]).toContain("Previous attempt failed");
-    expect(prompts[12]).toContain("Generate the search.ts handler");
+    // intent + spec + five per-Action behavioral suites + item + five handlers + the
+    // smoke repair.
+    expect(prompts).toHaveLength(14);
+    expect(prompts[13]).toContain("Previous attempt failed");
+    expect(prompts[13]).toContain("Generate the search.ts handler");
     // The repair is the last model call of the build: no test was authored after it.
     expect(prompts.filter((prompt) => prompt.includes("Action under test:"))).toHaveLength(5);
     expect(rows[0]?.outcome).toBe("success");
@@ -398,7 +405,7 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider)", () => {
   });
 });
 
-describe("GET /demo/spec-build (builder-stage liveness, fake provider) — router round-trip", () => {
+describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider) — router round-trip", () => {
   beforeEach(() => {
     ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-spec-build-"));
   });
@@ -412,16 +419,14 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — route
     // router, all on a fake provider, no real
     // calls. The router shares the build's scratch db pair and resolves the committed
     // handler files from the temp artifacts directory.
-    const { provider } = makeSpecProvider(NOTES_SPEC);
+    const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
-    const buildPayload = await readSse(
-      await app.request("/demo/spec-build?prompt=track%20my%20notes"),
-    );
-    expect(buildPayload).toContain("event: commit-preview");
-    expect(buildPayload).toContain("event: commit");
-    expect(collectSseEvents(buildPayload).at(-1)).toEqual({
+    const { payload, events } = await runPromptBuild(app, "track my notes");
+    expect(payload).toContain("event: commit-preview");
+    expect(payload).toContain("event: commit");
+    expect(events.at(-1)).toEqual({
       id: expect.any(String),
       event: "done",
       data: "ok",
@@ -481,17 +486,5 @@ describe("GET /demo/spec-build (builder-stage liveness, fake provider) — route
 
     const afterDelete = await app.request("/capability/notes/read");
     expect(await afterDelete.text()).not.toContain("Buy oat milk");
-  });
-
-  test("falls back to the default prompt when the field is empty", async () => {
-    const { provider, prompts } = makeSpecProvider(NOTES_SPEC);
-    const { rows, recordMetrics } = makeMetricsRecorder();
-    const app = committingApp(provider, recordMetrics);
-
-    const payload = await readSse(await app.request("/demo/spec-build"));
-
-    expect(payload).toContain("event: done");
-    expect(prompts[0]).toContain("I want to keep track of my notes");
-    expect(rows[0]?.outcome).toBe("success");
   });
 });

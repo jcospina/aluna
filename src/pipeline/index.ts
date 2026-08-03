@@ -2,9 +2,9 @@
 //
 // The single public entry point for the orchestration layer that sits above the
 // builder stages (`src/builder`): the production `/prompt` pipeline a queued job
-// runs, the `/demo/spec-build` route's runner, and the metrics-recorder type the app
-// wires its writer through. The app depends only on this barrel; the stage-running,
-// preview, deflection, and metrics internals stay private to the folder.
+// runs, and the metrics-recorder type the app wires its writer through. The app
+// depends only on this barrel; the stage-running, preview, deflection, and metrics
+// internals stay private to the folder.
 //
 // Layout:
 //   jobs/       — build-job admission/queueing and the Complete-View restoration descriptor
@@ -17,8 +17,8 @@
 //                 complete run through publication and activation (4.6/05)
 //   streaming/  — what goes on the wire during a run: dev `*-preview` events and the
 //                 product-voice terminal presentation
-//   demo/       — the remaining `/demo/*` runner
-//   metrics-recorder.ts — cross-cutting: one durable metrics row per run, for both paths
+//   metrics-recorder.ts — cross-cutting: one durable metrics row per run, for a v1 build
+//                 and an evolution alike
 
 export {
   type CoreBuilderPresenter,
@@ -47,11 +47,6 @@ export {
   resolvedExistingCapabilityRequest,
   resolvedNewCapabilityRequest,
 } from "./build/resolved-request.ts";
-export {
-  DEMO_SPEC_PROMPT,
-  handleSpecBuildError,
-  streamSpecBuildDemo,
-} from "./demo/spec-build-demo.ts";
 export {
   createMetricsRecorder,
   finalizeMeasuredNoChange,

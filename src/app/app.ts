@@ -4,10 +4,10 @@
 // subsystems (sse transport, web presentation, build pipeline, capability router).
 //
 // It serves the fixed shell page at `/`, static assets under /static/*, and the
-// production `/prompt` → `/build/:id/stream` build-job flow. The `/demo/*`
-// surfaces no served fragment targets — the spec-build verification route and the
-// few-shot gallery — sit behind a single dev-only guard, so a production bundle
-// does not answer them.
+// production `/prompt` → `/build/:id/stream` build-job flow — the one admission path
+// for every build. The `/demo/*` surface no served fragment targets — now just the
+// few-shot gallery — sits behind a single dev-only guard, so a production bundle does
+// not answer it.
 
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
@@ -22,9 +22,7 @@ import { db, dbReadonly, type PlatformDatabase } from "../persistence/db.ts";
 import {
   createMetricsRecorder,
   createPromptBuildPipeline,
-  DEMO_SPEC_PROMPT,
   type RecordMetrics,
-  streamSpecBuildDemo,
 } from "../pipeline/index.ts";
 import { type BuildJobQueue, createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import { captureRestorationDescriptor } from "../pipeline/jobs/restoration.ts";
@@ -81,7 +79,7 @@ export interface AppDeps {
   readonly sseHeartbeatMs?: number;
   /**
    * Generation-metrics writer (Epic 2.7). Defaults to the real writer on the platform
-   * read-write connection; tests inject a capturing stub so the demo's metrics wiring
+   * read-write connection; tests inject a capturing stub so a build's metrics wiring
    * is assertable without writing to the real data file.
    */
   readonly recordMetrics?: RecordMetrics;
@@ -183,55 +181,6 @@ function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
 }
 
 /**
- * The legacy `/demo/spec-build` verification route (Module 2 §2.5; superseded by the
- * production `POST /prompt` flow in Epic 2.6). Its own group so the one dev-only guard
- * in {@link createApp} reaches it without also gating `/`.
- */
-function registerSpecBuildDemoRoute(app: Hono, ctx: ResolvedAppDeps): void {
-  const {
-    getProvider,
-    sseHeartbeatMs,
-    recordMetrics,
-    buildDatabases,
-    artifactsRoot,
-    mutationCoordinator,
-  } = ctx;
-
-  // Runs the full pipeline through commit against the configured provider and the real
-  // db/disk. User-initiated, so the provider is never called on page load.
-  // The typed prompt rides a query param (EventSource is GET-only), with a default so
-  // the bare button still works.
-  app.get("/demo/spec-build", (c) =>
-    streamSSE(c, async (stream) => {
-      const transport = sseTransport(stream);
-      await withSseHeartbeat(transport, sseHeartbeatMs, async () => {
-        let aborted = false;
-        const abortController = new AbortController();
-        stream.onAbort(() => {
-          aborted = true;
-          abortController.abort();
-        });
-        const isAborted = () => aborted;
-        const typed = (c.req.query("prompt") ?? "").trim();
-        const prompt = typed.length > 0 ? typed : DEMO_SPEC_PROMPT;
-
-        await streamSpecBuildDemo(
-          transport.send,
-          isAborted,
-          getProvider,
-          prompt,
-          recordMetrics,
-          buildDatabases,
-          artifactsRoot,
-          mutationCoordinator,
-          abortController.signal,
-        );
-      });
-    }),
-  );
-}
-
-/**
  * The one surviving deterministic preview surface (epic 3.5) — no provider and no db.
  *
  * The 3.2–3.3 platform-presentation previews it used to sit beside are gone (4.8/07):
@@ -323,7 +272,6 @@ export function createApp(deps: AppDeps = {}): Hono {
   // the surfaces stay available where they are actually used. One guard, not a
   // framework: no per-route flags, no configuration machinery.
   if (demoSurfacesEnabled()) {
-    registerSpecBuildDemoRoute(app, ctx);
     registerPreviewDemoRoutes(app);
   }
 

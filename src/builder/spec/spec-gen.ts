@@ -143,22 +143,3 @@ export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenRes
 
   return { spec, durationMs, usage };
 }
-
-// Until the intent resolver is wired in front of the builder (epic 2.4), the build
-// pipeline runs spec generation from a hardcoded `new_capability` intent — the
-// PLAN's build order is explicit that 2.5 lands "hardcoded intent first," before
-// 2.4 moves in front (PLAN §"Sensible build order"). This produces that stand-in
-// from the raw prompt so the stage is exercisable end-to-end before the resolver
-// exists; once it does, a real `IntentClassification` flows through unchanged.
-export function hardcodedNewCapabilityIntent(prompt: string): IntentClassification {
-  return {
-    type: "new_capability",
-    confidence: 1,
-    target_capability: null,
-    resolution: "new",
-    proposed_identity: null,
-    proposed_action: `Build a new capability for: ${prompt}`,
-    user_facing_label: "Got it. I'm putting that together now.",
-    requires_confirmation: false,
-  };
-}

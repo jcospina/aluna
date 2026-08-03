@@ -1,8 +1,8 @@
 // Running the builder stages for one capability, end to end, against the live
 // provider and the real db/disk.
 //
-// This is the shared engine both the production `/prompt` pipeline and the
-// `/demo/spec-build` route drive: from a resolved `new_capability` intent it
+// This is the engine the core Builder drives on the `/prompt` pipeline's one admission
+// path: from a resolved `new_capability` intent it
 // generates the spec, derives + applies the migration, generates the units, runs the
 // fail-closed gate, publishes a verified snapshot, and commits — streaming developer previews and product-voice
 // narration along the way, and filling the metrics accumulator as each stage lands.
@@ -76,10 +76,10 @@ export function throwIfAborted(isAborted: () => boolean): void {
 }
 
 /**
- * Demo-only provider decorator: as the spec streams in, it forwards each partial
- * snapshot to the shell as a `spec-preview` event so the developer watches the spec
- * assemble live. This deliberately surfaces internals — that is the whole point of a
- * liveness check. `generateSpec` only awaits `object` (self-driven by the spine), so
+ * Developer-preview provider decorator: as the spec streams in, it forwards each
+ * partial snapshot to the shell as a `spec-preview` event so the developer watches the
+ * spec assemble live. This deliberately surfaces internals — that is the whole point of
+ * a liveness view. `generateSpec` only awaits `object` (self-driven by the spine), so
  * consuming `partialStream` here for previews doesn't starve the stage. The returned
  * `flushPreviews()` lets the route drain every preview before the warm confirmation,
  * keeping the wire order narration → preview* → confirmation.
@@ -369,7 +369,7 @@ function logBuildVerification(
   commitUnits: readonly GeneratedUnit[],
   gateResult: CapabilityGateResult,
 ): void {
-  console.log(`Aluna spec-build demo: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
+  console.log(`Aluna Builder: generated "${spec.id}" in ${Math.round(durationMs)}ms`, {
     usage,
     spec,
     units: commitUnits.map((unit) => ({
@@ -389,7 +389,7 @@ function logBuildVerification(
 }
 
 /**
- * Run unit generation with the demo's live preview observer. The observer streams a
+ * Run unit generation with the live preview observer. The observer streams a
  * `units-preview` snapshot as each unit starts, streams partials, fixes, and lands —
  * the developer watches the item renderer and handlers assemble. The evolution
  * assembler (4.6/03) drives the same stream for the units it regenerates.

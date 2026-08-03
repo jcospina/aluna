@@ -157,7 +157,6 @@ export {
   buildSpecPrompt,
   type GenerateSpecInput,
   generateSpec,
-  hardcodedNewCapabilityIntent,
   type SpecGenResult,
 } from "./spec/spec-gen.ts";
 export {

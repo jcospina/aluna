@@ -7,15 +7,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
-import {
-  createScratchDbEnv,
-  readSse,
-  responseText,
-  teardownScratchDbEnv,
-  throwingProvider,
-  wait,
-} from "./app.test-support.ts";
+import { responseText } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
 
 describe("GET / (shell)", () => {
@@ -476,18 +468,19 @@ describe("the dev-only guard on the remaining /demo/* inspection routes", () => 
     const app = createApp();
 
     expect((await app.request("/demo/few-shot-gallery")).status).toBe(404);
-    expect((await app.request("/demo/spec-build")).status).toBe(404);
     // The product surface is untouched by the guard.
     expect((await app.request("/")).status).toBe(200);
   });
 
-  test("the retired evolution tracer is unregistered in every environment", async () => {
-    // Its content-area control and its routes retired together (4.8/04), so `/prompt` is
-    // the single admission path for evolution work. Nothing answers here any more —
-    // 404 is Hono's "no such route", not a route reporting an unknown capability.
+  test("the retired build surfaces are unregistered in every environment", async () => {
+    // The evolution tracer's content-area control and its routes retired together
+    // (4.8/04), and the legacy spec-build demo followed (4.8/08), so `/prompt` is the
+    // single admission path for every build. Nothing answers here any more — 404 is
+    // Hono's "no such route", not a route reporting an unknown capability.
     for (const nodeEnv of ["production", "development"]) {
       process.env.NODE_ENV = nodeEnv;
       const app = createApp();
+      expect((await app.request("/demo/spec-build")).status).toBe(404);
       expect((await app.request("/demo/evolution/build/nope/stream")).status).toBe(404);
       expect(
         (
@@ -498,35 +491,5 @@ describe("the dev-only guard on the remaining /demo/* inspection routes", () => 
         ).status,
       ).toBe(404);
     }
-  });
-});
-
-describe("shared mutation-coordinator admission on the legacy demo build path", () => {
-  test("the legacy spec-build demo cannot bypass the shared coordinator", async () => {
-    const mutationCoordinator = createMutationCoordinator();
-    const recordLease = mutationCoordinator.tryAcquireRecordWrite();
-    expect(recordLease).toBeDefined();
-    // This route reconciles artifacts and writes lifecycle rows before the provider
-    // throws. Left on the defaults it would do that against the developer's real
-    // `data/omni-crud.db` and the real `capabilities/` tree — and reconciliation
-    // deletes. Scope it to a scratch environment like every sibling suite does.
-    const env = createScratchDbEnv("omni-crud-legacy-demo-lease-");
-    const app = createApp({
-      mutationCoordinator,
-      getProvider: throwingProvider("preview stop"),
-      buildDatabases: env.conns,
-      artifactsRoot: env.artifactsRoot,
-      capabilityRouter: { databases: env.conns },
-    });
-
-    const response = await app.request("/demo/spec-build?prompt=track%20notes");
-    const payload = readSse(response);
-    await wait(0);
-    expect(mutationCoordinator.snapshot().queuedTickets).toMatchObject([{ kind: "build" }]);
-
-    expect(recordLease && mutationCoordinator.release(recordLease)).toBe(true);
-    expect(await payload).toContain("event: done");
-    expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
-    teardownScratchDbEnv(env);
   });
 });
