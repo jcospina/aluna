@@ -18,7 +18,7 @@
 @import "css/shell.css"; /* shell layout, top bar, sidebar toggle, backdrop   */
 @import "css/toolbar.css"; /* capability toolbar (left sidebar) + responsive  */
 @import "css/devbar.css"; /* developer panel (right sidebar) + responsive     */
-@import "css/demo.css"; /* cold-start, intro stream, raw stage previews       */
+@import "css/demo.css"; /* cold-start, build stream, raw stage previews      */
 @import "css/prompt.css"; /* bottom-pinned prompt composer                    */
 @import "css/components.css"; /* platform button variants (design-system color)*/
 @import "css/fields.css"; /* capability create/edit/detail field chrome       */
