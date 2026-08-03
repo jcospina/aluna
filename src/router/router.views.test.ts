@@ -221,7 +221,11 @@ describe("deterministic capability router — view scaffolding", () => {
       behavioral_errors: [createRequired, { ...createRequired, action: "update" }],
     });
     const app = createApp({
-      capabilityRouter: { databases: conns, lookupCapability: () => fullRow },
+      capabilityRouter: {
+        databases: conns,
+        lookupCapability: () => fullRow,
+        readActiveCatalog: () => ({ capabilities: [fullRow], fingerprint: "test-catalog" }),
+      },
     });
 
     const body = await (

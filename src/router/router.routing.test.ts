@@ -236,6 +236,10 @@ describe("deterministic capability router — reserved marker boundary", () => {
       capabilityRouter: {
         databases: conns,
         lookupCapability: () => notesRow(),
+        readActiveCatalog: () => ({
+          capabilities: [notesRow()],
+          fingerprint: "test-catalog",
+        }),
         loadHandler: async () => {
           handlerLoads += 1;
           return async () => "<p>never</p>";

@@ -288,6 +288,7 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   const isStructuredFormRefusal = [
     "missing_required_fields",
     "mutation_busy",
+    "read_unavailable",
     "record_not_found",
     "mutation_failed",
   ].some((code) => response.includes(`data-error-code="${code}"`));
