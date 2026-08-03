@@ -50,11 +50,15 @@ import {
   type RenderableCapability,
 } from "../presentation/index.ts";
 import {
+  createReadGateCoordinator,
+  ReadGateClosingError,
+  type ReadGateCoordinator,
+} from "../read-gates/index.ts";
+import {
   type CapabilityRow,
   type CapabilitySpec,
   capabilitySpecFromRow,
-  getCapability,
-  resolveActionReadDependencies,
+  readActiveRegistryCatalog,
 } from "../registry/index.ts";
 import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
 import type {
@@ -64,6 +68,13 @@ import type {
   CapabilityReadHandler,
   CapabilityUpdateHandler,
 } from "./contract.ts";
+import {
+  type ActiveCatalogReader,
+  type CapturedCapabilityRead,
+  capabilityIncarnation,
+  captureCapabilityRead,
+} from "./read-admission.ts";
+import { assertReadOwnership, readUnavailable, recordMutationRefusal } from "./read-refusal.ts";
 import {
   type ParsedCapabilityRequest,
   parseCapabilityRequest,
@@ -99,8 +110,12 @@ export interface CapabilityRouterDeps {
   readonly loadItemRenderer?: ItemRendererLoader;
   // Defaults to the validated registry lookup.
   readonly lookupCapability?: CapabilityLookup;
+  // One immutable active-registry snapshot for target + dependency admission.
+  readonly readActiveCatalog?: ActiveCatalogReader;
   // Shared atomic admission for every route mutation; reads never acquire it.
   readonly mutationCoordinator?: MutationCoordinator;
+  // Shared per-incarnation read ownership for routes and later deletion.
+  readonly readGates?: ReadGateCoordinator;
 }
 
 // The fixed route and complete M4 method/Action matrix. Every capability declares
@@ -141,11 +156,13 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
   const databases = deps.databases ?? { readwrite: db, readonly: dbReadonly };
   const loadHandler = deps.loadHandler ?? defaultLoadHandler;
   const loadItemRenderer = deps.loadItemRenderer ?? defaultLoadItemRenderer;
-  const lookupCapability = deps.lookupCapability ?? getCapability;
+  const lookupCapability = deps.lookupCapability;
+  const readActiveCatalog = deps.readActiveCatalog ?? readActiveRegistryCatalog;
   const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
+  const readGates = deps.readGates ?? createReadGateCoordinator();
 
   app.get(CAPABILITY_VIEW_ROUTE, (c) =>
-    handleCapabilityViewRequest(c, databases, lookupCapability),
+    handleCapabilityViewRequest(c, databases, lookupCapability, readActiveCatalog, readGates),
   );
   // Catch every HTTP method here so a wrong pair receives the same warm product
   // boundary instead of falling through to Hono's generic 404 response.
@@ -156,7 +173,9 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
       loadHandler,
       loadItemRenderer,
       lookupCapability,
+      readActiveCatalog,
       mutationCoordinator,
+      readGates,
     ),
   );
 }
@@ -164,26 +183,43 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
 function handleCapabilityViewRequest(
   c: Context,
   databases: PlatformDatabase,
-  lookupCapability: CapabilityLookup,
+  lookupCapability: CapabilityLookup | undefined,
+  readActiveCatalog: ActiveCatalogReader,
+  readGates: ReadGateCoordinator,
 ): Response {
   const id = c.req.param("id");
   if (!id) {
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
 
-  const row = lookupCapability(id, databases.readonly);
+  const captured = captureCapabilityRead(
+    id,
+    undefined,
+    databases.readonly,
+    readActiveCatalog,
+    lookupCapability,
+  );
+  const { catalog, row } = captured;
   if (!row) {
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
+
+  const tokens = readGates.tryAcquire({
+    catalog: catalog.map(capabilityIncarnation),
+    incarnations: captured.incarnations,
+  });
+  if (!tokens) return readUnavailable(c);
 
   try {
     const html =
       c.req.header("HX-Request") === "true"
         ? renderCachedCapabilitySurface(row)
-        : renderCachedCapabilityShell(row, databases.readonly);
+        : renderCachedCapabilityShell(row, databases.readonly, catalog);
     return c.html(html);
   } catch (error) {
     return internalFailure(c, id, "view", error);
+  } finally {
+    readGates.release(tokens);
   }
 }
 
@@ -192,8 +228,10 @@ async function handleCapabilityRequest(
   databases: PlatformDatabase,
   loadHandler: HandlerLoader,
   loadItemRenderer: ItemRendererLoader,
-  lookupCapability: CapabilityLookup,
+  lookupCapability: CapabilityLookup | undefined,
+  readActiveCatalog: ActiveCatalogReader,
   mutationCoordinator: MutationCoordinator,
+  readGates: ReadGateCoordinator,
 ): Promise<Response> {
   const target = routableTarget(c);
   if (!target) {
@@ -203,23 +241,56 @@ async function handleCapabilityRequest(
 
   // Validate against the registry row's declared tools *before* loading any code.
   // An unknown capability (no row) or an undeclared action both fail here, cleanly.
-  const row = lookupCapability(id, databases.readonly);
+  let captured: CapturedCapabilityRead;
+  try {
+    captured = captureCapabilityRead(
+      id,
+      action,
+      databases.readonly,
+      readActiveCatalog,
+      lookupCapability,
+    );
+  } catch (error) {
+    return internalFailure(c, id, action, error);
+  }
+  const { catalog, dependencies, row } = captured;
   if (!row || !isDeclaredAction(row, action)) {
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
 
-  if (isMutationAction(action)) {
-    return handleRecordMutation(
+  const tokens = readGates.tryAcquire({
+    catalog: catalog.map(capabilityIncarnation),
+    incarnations: captured.incarnations,
+  });
+  if (!tokens) return readUnavailable(c, row.id, action);
+
+  try {
+    if (isMutationAction(action)) {
+      return await handleRecordMutation(
+        c,
+        databases,
+        loadHandler,
+        loadItemRenderer,
+        mutationCoordinator,
+        row,
+        dependencies,
+        action,
+        tokens.signal,
+      );
+    }
+    return await executeCapabilityHandler(
       c,
       databases,
       loadHandler,
       loadItemRenderer,
-      mutationCoordinator,
       row,
+      dependencies,
       action,
+      tokens.signal,
     );
+  } finally {
+    readGates.release(tokens);
   }
-  return executeCapabilityHandler(c, databases, loadHandler, loadItemRenderer, row, action);
 }
 
 async function handleRecordMutation(
@@ -229,7 +300,9 @@ async function handleRecordMutation(
   loadItemRenderer: ItemRendererLoader,
   mutationCoordinator: MutationCoordinator,
   row: CapabilityRow,
+  dependencies: readonly CapabilityRow[],
   action: MutationAction,
+  signal: AbortSignal,
 ): Promise<Response> {
   const mutationLease = mutationCoordinator.tryAcquireRecordWrite();
   if (!mutationLease) return recordMutationRefusal(c, row.id, action);
@@ -244,7 +317,9 @@ async function handleRecordMutation(
       loadHandler,
       loadItemRenderer,
       row,
+      dependencies,
       action,
+      signal,
     );
     databases.readwrite.exec(response.ok ? "COMMIT" : "ROLLBACK");
     transactionOpen = false;
@@ -263,23 +338,29 @@ async function executeCapabilityHandler(
   loadHandler: HandlerLoader,
   loadItemRenderer: ItemRendererLoader,
   row: CapabilityRow,
+  dependencies: readonly CapabilityRow[],
   action: WireProtocolAction,
+  signal: AbortSignal,
 ): Promise<Response> {
   const { id } = row;
   // Everything past validation is the build-and-run path: a throw anywhere in it —
   // input parsing, handler loading, handler execution, or a contract violation —
   // becomes one warm, internals-free failure.
   try {
+    assertReadOwnership(signal);
     const spec = capabilitySpecFromRow(row);
     const parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
+    assertReadOwnership(signal);
     const fragment = await invokeCapabilityHandler(
       databases,
       loadHandler,
       loadItemRenderer,
       row,
       spec,
+      dependencies,
       action,
       parsedRequest,
+      signal,
     );
     if (typeof fragment !== "string") {
       throw new TypeError(
@@ -297,6 +378,9 @@ async function executeCapabilityHandler(
     if (error instanceof RecordNotFoundError) {
       return recordNotFoundFailure(c, id, action, error);
     }
+    if (error instanceof ReadGateClosingError) {
+      return readUnavailable(c, id, action);
+    }
     return internalFailure(c, id, action, error);
   }
 }
@@ -307,23 +391,36 @@ async function invokeCapabilityHandler(
   loadItemRenderer: ItemRendererLoader,
   row: CapabilityRow,
   spec: CapabilitySpec,
+  dependencies: readonly CapabilityRow[],
   action: WireProtocolAction,
   parsedRequest: ParsedCapabilityRequest,
+  signal: AbortSignal,
 ): Promise<string> {
   const { input } = parsedRequest;
-  const dependencies = resolveActionReadDependencies(row, action, databases.readonly);
   const query = createCapabilityQueryPort(databases.readonly, {
     target: spec,
     dependencies: dependencies.map(capabilitySpecFromRow),
+    signal,
   });
 
   if (action === "create") {
+    assertReadOwnership(signal);
     const mutation = createCapabilityMutationPort(spec, databases.readwrite);
     const present = await buildPresentationAdapter(row, loadItemRenderer);
+    assertReadOwnership(signal);
     const handler = await loadHandler(row.artifacts_path, action);
-    return (handler as CapabilityCreateHandler)({ input, mutation, query, present });
+    assertReadOwnership(signal);
+    const fragment = await (handler as CapabilityCreateHandler)({
+      input,
+      mutation,
+      query,
+      present,
+    });
+    assertReadOwnership(signal);
+    return fragment;
   }
   if (action === "update") {
+    assertReadOwnership(signal);
     const mutation = createCapabilityUpdateMutationPort(
       spec,
       requireRecordTarget(parsedRequest.recordTarget, action),
@@ -331,39 +428,40 @@ async function invokeCapabilityHandler(
       databases.readwrite,
     );
     const present = await buildPresentationAdapter(row, loadItemRenderer);
+    assertReadOwnership(signal);
     const handler = await loadHandler(row.artifacts_path, action);
-    return (handler as CapabilityUpdateHandler)({ input, mutation, query, present });
+    assertReadOwnership(signal);
+    const fragment = await (handler as CapabilityUpdateHandler)({
+      input,
+      mutation,
+      query,
+      present,
+    });
+    assertReadOwnership(signal);
+    return fragment;
   }
   if (action === "delete") {
+    assertReadOwnership(signal);
     const mutation = createCapabilityDeleteMutationPort(
       spec,
       requireRecordTarget(parsedRequest.recordTarget, action),
       databases.readwrite,
     );
     const handler = await loadHandler(row.artifacts_path, action);
-    return (handler as CapabilityDeleteHandler)({ input, mutation, query });
+    assertReadOwnership(signal);
+    const fragment = await (handler as CapabilityDeleteHandler)({ input, mutation, query });
+    assertReadOwnership(signal);
+    return fragment;
   }
 
+  assertReadOwnership(signal);
   const present = await buildPresentationAdapter(row, loadItemRenderer);
+  assertReadOwnership(signal);
   const handler = await loadHandler(row.artifacts_path, action);
-  return (handler as CapabilityReadHandler)({ input, query, present });
-}
-
-function recordMutationRefusal(c: Context, capabilityId: string, action: MutationAction): Response {
-  if (action === "create") {
-    c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
-    c.header("HX-Reswap", "innerHTML");
-  } else if (action === "update") {
-    c.header("HX-Retarget", `#${capabilityEditErrorId(capabilityId)}`);
-    c.header("HX-Reswap", "innerHTML");
-  } else {
-    c.header("HX-Retarget", `#${capabilityDeleteErrorId(capabilityId)}`);
-    c.header("HX-Reswap", "innerHTML");
-  }
-  return c.html(
-    '<p class="notice" data-role="error" data-error-code="mutation_busy">I\'m still putting something together. Give me a moment, then try that again.</p>',
-    422,
-  );
+  assertReadOwnership(signal);
+  const fragment = await (handler as CapabilityReadHandler)({ input, query, present });
+  assertReadOwnership(signal);
+  return fragment;
 }
 
 function missingRequiredFieldsFailure(
@@ -512,7 +610,7 @@ function internalFailure(c: Context, id: string, action: string, error: unknown)
     `Capability ${id}/${action} failed:`,
     error instanceof Error ? error.message : error,
   );
-  if (isMutationActionName(action)) {
+  if (action === "create" || action === "update" || action === "delete") {
     const errorId =
       action === "create"
         ? capabilityCreateErrorId(id)
@@ -524,8 +622,4 @@ function internalFailure(c: Context, id: string, action: string, error: unknown)
     return c.html(MUTATION_FAILURE_FRAGMENT, 500);
   }
   return c.html(INTERNAL_ERROR_FRAGMENT, 500);
-}
-
-function isMutationActionName(action: string): action is MutationAction {
-  return action === "create" || action === "update" || action === "delete";
 }

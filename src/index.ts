@@ -8,10 +8,11 @@
 // migrations runner (Epic 1.4) against the read-write connection — synchronously,
 // before serving, so the db is ready the moment the first request arrives.
 
-import { app } from "./app/app.ts";
+import { app, platformReadGates } from "./app/app.ts";
 import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
-import { db } from "./persistence/db.ts";
+import { db, dbReadonly } from "./persistence/db.ts";
 import { runMigrations } from "./persistence/migrations.ts";
+import { readActiveRegistryCatalog } from "./registry/index.ts";
 
 // Apply platform migrations before accepting traffic. Idempotent: a no-op once the
 // ledger is up to date, so steady-state restarts pay nothing.
@@ -19,6 +20,12 @@ const applied = runMigrations();
 if (applied.length > 0) {
   console.log(`omni-crud applied ${applied.length} migration(s): ${applied.join(", ")}`);
 }
+platformReadGates.recoverAtBoot(
+  readActiveRegistryCatalog(dbReadonly).capabilities.map((row) => ({
+    capabilityId: row.id,
+    incarnationId: row.incarnation_id,
+  })),
+);
 const reconciliation = reconcileCapabilityArtifacts({
   database: db,
   artifactsRoot: DEFAULT_ARTIFACTS_ROOT,

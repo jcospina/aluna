@@ -81,6 +81,8 @@ export interface CapabilityRecordQueryRow {
 export interface CapabilityQueryScope {
   readonly target: CapabilitySpec;
   readonly dependencies?: readonly CapabilitySpec[];
+  /** Platform-owned read lease cancellation; generated code never receives the token itself. */
+  readonly signal?: AbortSignal;
 }
 
 export interface CapabilityQueryPort {
@@ -133,15 +135,22 @@ export function createCapabilityQueryPort(
 ): CapabilityQueryPort {
   return {
     all({ sql, parameters = [], result }) {
+      assertReadOwnership(scope.signal);
       registerPlatformSqlFunctions(database);
       assertScopedQuery(database, scope, sql, parameters, { allowTargetId: false });
       return executeProjectedQuery(database, sql, parameters, result);
     },
     records(input) {
+      assertReadOwnership(scope.signal);
       registerPlatformSqlFunctions(database);
       return executeRecordQuery(database, scope, input, executeProjectedQuery, normalizeQueryValue);
     },
   };
+}
+
+function assertReadOwnership(signal: AbortSignal | undefined): void {
+  if (!signal?.aborted) return;
+  throw signal.reason ?? new DOMException("The capability read was cancelled.", "AbortError");
 }
 
 function executeProjectedQuery(

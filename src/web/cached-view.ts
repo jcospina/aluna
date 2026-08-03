@@ -74,13 +74,17 @@ export function renderCachedCapabilitySurface(row: CapabilityRow): string {
  * the same entry set `GET /` restores — so opening or refreshing a capability by URL
  * never drops its siblings from the toolbar.
  */
-export function renderCachedCapabilityShell(row: CapabilityRow, database: Database): string {
+export function renderCachedCapabilityShell(
+  row: CapabilityRow,
+  database: Database,
+  catalog: readonly CapabilityRow[] = listCapabilities(database),
+): string {
   const shellHtml = readFileSync(resolve(process.cwd(), "public/index.html"), "utf8");
   return renderCapabilityShell(
     row,
-    listCapabilities(database),
+    catalog,
     renderCapabilityCollection(row),
-    withLifecycleMetricsPreview(shellHtml, database),
+    withLifecycleMetricsPreview(shellHtml, database, catalog),
   );
 }
 
@@ -90,12 +94,16 @@ export function renderCachedCapabilityShell(row: CapabilityRow, database: Databa
  * full-page paths (`GET /` and direct `GET /capability/:id`) share this, so the
  * version history the developer panel shows survives a refresh on either URL.
  */
-function withLifecycleMetricsPreview(shellHtml: string, database: Database): string {
+function withLifecycleMetricsPreview(
+  shellHtml: string,
+  database: Database,
+  catalog?: readonly CapabilityRow[],
+): string {
   const lifecycleReady = database
     .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
     .get(GENERATION_LIFECYCLE_TABLE);
   const latest = lifecycleReady ? listGenerationLifecycles(database).slice(0, 5) : [];
-  const rows = isRegistryInitialized(database) ? listCapabilities(database) : [];
+  const rows = catalog ?? (isRegistryInitialized(database) ? listCapabilities(database) : []);
   const committedVersions = rows.map((row) => ({
     capabilityId: row.id,
     incarnationId: row.incarnation_id,
