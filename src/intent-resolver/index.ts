@@ -11,6 +11,7 @@ export {
   classifyIntent,
   classifyIntentWithUsage,
   INTENT_RESOLUTION_NARRATION,
+  INTENT_RESOLVER_PROMPT_PREFIX,
   type IntentPromptContext,
   type IntentResolverSend,
 } from "./resolver.ts";

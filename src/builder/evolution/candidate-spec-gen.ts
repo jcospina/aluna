@@ -41,10 +41,7 @@ export interface GenerateCandidateSpecInput {
   readonly provider: Provider;
   /** The exact committed row being evolved — every inactive field included. */
   readonly committed: CapabilityRow;
-  /**
-   * The resolved intent. Until the real resolver is wired in front, this
-   * is hand-supplied through the dev tracer seam (`handSuppliedEvolutionIntent`).
-   */
+  /** The Intent Resolver's classification of the typed prompt this evolution answers. */
   readonly intent: IntentClassification;
   /** The immutable active dependency-generation catalog, frozen under the lease. */
   readonly dependencyCatalog: readonly DependencyGenerationCatalogEntry[];
@@ -164,28 +161,4 @@ export async function generateCandidateSpec(
   const durationMs = performance.now() - startedAt;
 
   return { candidate, durationMs, usage };
-}
-
-/**
- * TEMPORARY dev tracer seam. Until the real
- * Intent Resolver is wired in front of evolution, the resolved intent is hand-supplied:
- * a developer targets a live capability and types the change in plain words.
- * This constructs the same `IntentClassification` shape the resolver will emit,
- * so the resolver replaces this function with a real classification, nothing downstream
- * changes shape, and the seam disappears with the tracer cleanup.
- */
-export function handSuppliedEvolutionIntent(
-  committed: Pick<CapabilityRow, "id">,
-  typedIntent: string,
-): IntentClassification {
-  return {
-    type: "extend_capability",
-    confidence: 1,
-    target_capability: committed.id,
-    resolution: "extend",
-    proposed_identity: null,
-    proposed_action: typedIntent,
-    user_facing_label: "Let me think through that change.",
-    requires_confirmation: false,
-  };
 }

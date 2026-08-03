@@ -31,7 +31,6 @@ import {
   startGenerationLifecycle,
 } from "../../metrics/index.ts";
 import { type CapabilitySpec, getCapability } from "../../registry/index.ts";
-import { hardEvolutionHandlerFixture } from "../demo/hard-evolution-fixture.ts";
 import {
   activated,
   behaviorNeutralDueDateCandidate,
@@ -50,6 +49,7 @@ import {
   tearDownCommitted,
   versionDirectory,
 } from "./evolution-run.test-support.ts";
+import { hardEvolutionHandlerFixture } from "./hard-evolution-fixture.test-support.ts";
 
 let gate: CapabilityGateResult;
 let tierOnGate: CapabilityGateResult;

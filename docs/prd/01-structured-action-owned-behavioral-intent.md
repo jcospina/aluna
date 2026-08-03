@@ -119,9 +119,9 @@ AI, or required a model fallback.
 20. As a developer watching a build, I want per-Action freeze progress and a
     summary-first Gate preview, so that I can distinguish carry, compilation,
     fallback, execution, and repair without reading the full artifact.
-21. As a developer demonstrating guided repair, I want the deliberate first-pass
-    Handler failure to remain downstream of freezing, so that the demo continues
-    to prove code answers to intent.
+21. As a maintainer of the bounded-repair battery, I want the deliberate
+    first-pass Handler failure to remain downstream of freezing, so that the
+    deterministic proof that code answers to intent keeps holding.
 22. As a maintainer, I want tier-off snapshots to remain test-free, so that the
     behavioral experiment keeps a valid no-test baseline.
 23. As a maintainer, I want cancellation to stop pending fallback work and
@@ -356,9 +356,11 @@ AI, or required a model fallback.
 6. Request one genuinely unstructured, Action-specific behavior. Confirm only
    that Action reports `model_fallback`, its admitted frozen cases appear before
    units, and unrelated Actions carry.
-7. Enable **Show me the guided repair** for an eligible evolution. Confirm the
-   compact Gate summary shows the frozen failing case, attributed Handler,
-   bounded provider repair, same-case pass, and final activation.
+7. The guided-repair story is no longer a control on the page (4.8/04 removed the
+   demo surface). Read it from the deterministic battery instead: run
+   `bun test src/pipeline/evolution/evolution-frozen-repair.test.ts` and confirm
+   it still proves the frozen failing case, the attributed Handler, the bounded
+   provider repair, the same-case pass, and the final activation.
 8. Open a capability whose active snapshot predates this format. Confirm it
    still renders; perform one real evolution and verify the prior snapshot stays
    byte-identical while the new snapshot records the new intent/compiler format.

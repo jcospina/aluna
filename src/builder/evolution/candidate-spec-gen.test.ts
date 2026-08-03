@@ -12,6 +12,7 @@ import { promptCapabilitySpecSchema } from "../../registry/index.ts";
 import {
   candidateFrom,
   evolutionDependencyCatalog,
+  evolutionIntentFor,
   JOURNAL_INCARNATION_ID,
   journalCapabilityRow,
   makeCandidateProvider,
@@ -22,7 +23,6 @@ import {
   buildCandidateSpecPrompt,
   type GenerateCandidateSpecInput,
   generateCandidateSpec,
-  handSuppliedEvolutionIntent,
 } from "./candidate-spec-gen.ts";
 import { CandidateValidationError } from "./candidate-validation.ts";
 import { buildDependencyGenerationCatalog } from "./dependency-catalog.ts";
@@ -44,7 +44,7 @@ function promptInput(
   return {
     provider: makeCandidateProvider(candidateFrom(committed)).provider,
     committed,
-    intent: handSuppliedEvolutionIntent(committed, "Add a mood field to my journal"),
+    intent: evolutionIntentFor(committed, "Add a mood field to my journal"),
     dependencyCatalog: evolutionDependencyCatalog(),
     send: collectingSend().send,
     ...overrides,
@@ -148,7 +148,7 @@ describe("the generation stage", () => {
     const result = await generateCandidateSpec({
       provider,
       committed,
-      intent: handSuppliedEvolutionIntent(committed, "Add a mood field"),
+      intent: evolutionIntentFor(committed, "Add a mood field"),
       dependencyCatalog: evolutionDependencyCatalog(),
       send,
     });
@@ -174,26 +174,10 @@ describe("the generation stage", () => {
       generateCandidateSpec({
         provider,
         committed,
-        intent: handSuppliedEvolutionIntent(committed, "Drop the archive note"),
+        intent: evolutionIntentFor(committed, "Drop the archive note"),
         dependencyCatalog: evolutionDependencyCatalog(),
         send: collectingSend().send,
       }),
     ).rejects.toThrow(CandidateValidationError);
-  });
-});
-
-describe("the hand-supplied intent seam (until 4.8)", () => {
-  test("wraps the typed text as an extend_capability classification", () => {
-    const intent = handSuppliedEvolutionIntent(journalCapabilityRow(), "Track a mood too");
-    expect(intent).toEqual({
-      type: "extend_capability",
-      confidence: 1,
-      target_capability: "journal",
-      resolution: "extend",
-      proposed_identity: null,
-      proposed_action: "Track a mood too",
-      user_facing_label: "Let me think through that change.",
-      requires_confirmation: false,
-    });
   });
 });
