@@ -25,15 +25,34 @@ function identityTokens(value: string): Set<string> {
 }
 
 function sameTokens(left: Set<string>, right: Set<string>): boolean {
-  return left.size === right.size && [...left].every((token) => right.has(token));
+  return left.size > 0 && left.size === right.size && [...left].every((token) => right.has(token));
 }
 
-function hasMechanicalIdentity(value: string): boolean {
-  return /(?:[_\s-]*(?:v(?:ersion)?[_\s-]*)?\d+)$/i.test(value.trim());
+function containsIdentityTokens(container: Set<string>, identity: Set<string>): boolean {
+  return identity.size > 0 && [...identity].every((token) => container.has(token));
 }
 
 function identitiesFor(capability: Pick<CapabilityRow, "id" | "label">): readonly Set<string>[] {
   return [identityTokens(capability.id), identityTokens(capability.label)];
+}
+
+/**
+ * A trailing number/version is mechanical only when the text before it still names an
+ * existing capability. This catches Contacts 2 / contacts_v2 / Work contacts 2 while
+ * leaving semantic numbers such as Studio 54 to the resolver instead of growing a domain
+ * blacklist inside deterministic platform code.
+ */
+function hasMechanicalIdentity(
+  value: string,
+  capabilities: readonly Pick<CapabilityRow, "id" | "label">[],
+): boolean {
+  const match = /^(.*?)(?:[_\s-]*(?:v(?:ersion)?[_\s-]*)?\d+)$/i.exec(value.trim());
+  const base = match?.[1];
+  if (!base) return false;
+  const baseTokens = identityTokens(base);
+  return capabilities.some((capability) =>
+    identitiesFor(capability).some((identity) => containsIdentityTokens(baseTokens, identity)),
+  );
 }
 
 /** Validate the resolver-owned semantic identity against the frozen catalog before Builder work. */
@@ -47,7 +66,10 @@ export function validateProposedOverlapIdentity(input: {
       `The overlap source "${input.targetCapabilityId}" is not in the resolver catalog.`,
     );
   }
-  if (hasMechanicalIdentity(input.proposed.id) || hasMechanicalIdentity(input.proposed.label)) {
+  if (
+    hasMechanicalIdentity(input.proposed.id, input.capabilities) ||
+    hasMechanicalIdentity(input.proposed.label, input.capabilities)
+  ) {
     throw new OverlapIdentityValidationError(
       "A separate overlapping capability must use a meaningful identity, not a mechanical copy or version.",
     );
@@ -71,10 +93,7 @@ export function validateBuiltOverlapIdentity(input: {
   readonly proposed: SeparateCapabilityIdentity;
   readonly spec: Pick<CapabilitySpec, "id" | "label">;
 }): void {
-  if (
-    input.spec.id !== input.proposed.id ||
-    input.spec.label.trim().toLocaleLowerCase() !== input.proposed.label.trim().toLocaleLowerCase()
-  ) {
+  if (input.spec.id !== input.proposed.id || input.spec.label !== input.proposed.label) {
     throw new OverlapIdentityValidationError(
       "The built overlap identity must exactly match the resolver's semantic id and label.",
     );

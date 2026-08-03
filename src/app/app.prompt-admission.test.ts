@@ -206,6 +206,22 @@ function blankSubmissions(): ReadonlyArray<{ name: string; init: RequestInit }> 
       name: "raw text",
       init: { method: "POST", headers: { "content-type": "text/plain" }, body: "  \n " },
     },
+    {
+      name: "JSON default-ignorable/control characters",
+      init: {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: "\u200b\u2060\u0000\ufe0f" }),
+      },
+    },
+    {
+      name: "malformed multipart form",
+      init: {
+        method: "POST",
+        headers: { "content-type": "multipart/form-data; boundary=broken" },
+        body: '--broken\r\nContent-Disposition: form-data; name="prompt"\r\n\r\nhello',
+      },
+    },
   ];
 }
 
@@ -315,6 +331,93 @@ describe("blank-prompt refusal", () => {
     expect(body).toContain('data-build-job-id="typed-job"');
     expect(body).toContain('sse-connect="/build/typed-job/stream"');
     expect(calls.count).toBe(0);
+  });
+});
+
+describe("prompt submission parsing", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+  let artifactsRoot: string;
+
+  beforeEach(() => {
+    ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-prompt-parsing-"));
+  });
+
+  afterEach(() => {
+    teardownScratchDbEnv({ dir, conns, artifactsRoot });
+  });
+
+  test("content-type matching is case-insensitive, exact, and preserves parsed text", async () => {
+    const capturedPrompts: string[] = [];
+    const buildJobs = createBuildJobQueue({
+      createId: () => "mixed-case-json-job",
+      pipeline: async ({ job }) => {
+        capturedPrompts.push(job.prompt);
+      },
+    });
+    const app = createApp({
+      buildDatabases: conns,
+      artifactsRoot,
+      capabilityRouter: { databases: conns },
+      buildJobs,
+    });
+
+    const response = await app.request("/prompt", {
+      method: "POST",
+      headers: { "content-type": "Application/JSON; Charset=UTF-8" },
+      body: JSON.stringify({ prompt: "track my telescopes" }),
+    });
+    expect(buildJobIdFromSubscriber(await responseText(response))).toBe("mixed-case-json-job");
+    await buildJobs.stream(
+      "mixed-case-json-job",
+      async () => undefined,
+      () => false,
+    );
+
+    const rawResponse = await app.request("/prompt", {
+      method: "POST",
+      headers: { "content-type": "text/plain; note=application/json" },
+      body: "keep this as literal text",
+    });
+    expect(buildJobIdFromSubscriber(await responseText(rawResponse))).toBe("mixed-case-json-job");
+    await buildJobs.stream(
+      "mixed-case-json-job",
+      async () => undefined,
+      () => false,
+    );
+
+    expect(capturedPrompts).toEqual(["track my telescopes", "keep this as literal text"]);
+  });
+
+  test("format characters inside a visible prompt do not rewrite or refuse it", async () => {
+    let capturedPrompt = "";
+    const prompt = "track my family 👨‍👩‍👧‍👦 photos";
+    const buildJobs = createBuildJobQueue({
+      createId: () => "joined-emoji-job",
+      pipeline: async ({ job }) => {
+        capturedPrompt = job.prompt;
+      },
+    });
+    const app = createApp({
+      buildDatabases: conns,
+      artifactsRoot,
+      capabilityRouter: { databases: conns },
+      buildJobs,
+    });
+
+    const response = await app.request("/prompt", {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: prompt,
+    });
+    expect(buildJobIdFromSubscriber(await responseText(response))).toBe("joined-emoji-job");
+    await buildJobs.stream(
+      "joined-emoji-job",
+      async () => undefined,
+      () => false,
+    );
+
+    expect(capturedPrompt).toBe(prompt);
   });
 });
 

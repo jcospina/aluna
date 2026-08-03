@@ -31,6 +31,7 @@ import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../router/i
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "../sse/index.ts";
 import {
   BLANK_PROMPT_NOTICE,
+  hasMeaningfulPromptContent,
   readPromptSubmission,
   renderBuildSubscriber,
   renderPromptNotice,
@@ -219,15 +220,16 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
   app.post("/prompt", async (c) => {
     const submission = await readPromptSubmission(c);
 
-    // Nothing typed, nothing to build. `readPromptSubmission` trims every encoding down
-    // to one string, so this one check covers JSON, form, and raw-text bodies alike —
-    // the guard is admission's, not the parser's, and never the pipeline's: an empty
-    // prompt must not reach `runPromptJob` at all, where classification would spend a
-    // real provider call on it. Answered as 200 carrying only the out-of-band notice,
+    // Nothing meaningful typed, nothing to build. `readPromptSubmission` normalizes every
+    // encoding to one string, and the admission predicate also catches bodies made only
+    // from invisible/default-ignorable or control characters. The guard is admission's,
+    // not the parser's, and never the pipeline's: an empty-looking prompt must not reach
+    // `runPromptJob`, where classification would spend a real provider call on it.
+    // Answered as 200 carrying only the out-of-band notice,
     // the vocabulary every warm terminal already speaks: a non-2xx would leave HTMX
     // with nothing to swap, so a blank submit would look like nothing happened. No
     // subscriber fragment means no stream opens, so the prompt bar stays live.
-    if (submission.prompt.length === 0) {
+    if (!hasMeaningfulPromptContent(submission.prompt)) {
       return c.html(renderPromptNotice(BLANK_PROMPT_NOTICE), 200, {
         "cache-control": "no-store",
       });

@@ -18,4 +18,8 @@ export {
   renderPromptNotice,
   renderRehydratedShell,
 } from "./fragments.ts";
-export { readPrompt, readPromptSubmission } from "./prompt-request.ts";
+export {
+  hasMeaningfulPromptContent,
+  readPrompt,
+  readPromptSubmission,
+} from "./prompt-request.ts";
