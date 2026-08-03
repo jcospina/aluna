@@ -178,12 +178,17 @@ describe("activatePublishedSnapshot — point of no return", () => {
       finalizeMetrics: () => finalizeSuccess(conns, buildId, INCARNATION_ID),
     });
 
+    // The evolution kept the capability's label, so the commit swap is the content
+    // surface alone: no toolbar sidecar, because the entry already reads correctly.
+    // `src/web/fragments.test.ts` pins the same property on the renderer in isolation;
+    // proving it here keeps it true downstream of a *real* activation, where
+    // `previousLabel` comes off the pointer swap rather than a test argument.
     expect(commit.previousLabel).toBe("Notes");
-    expect(
-      renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel).split(
-        '<div id="developer-evolution-control"',
-      )[0],
-    ).not.toContain("hx-swap-oob");
+    expect(commit.row.label).toBe("Notes");
+    const swap = renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel);
+    expect(swap).toContain('data-active-capability-id="notes"');
+    expect(swap).not.toContain("hx-swap-oob");
+    expect(swap).not.toContain("data-capability-entry");
   });
 
   test("wrong expected incarnation and version are stale CAS writes that touch no pointer", async () => {

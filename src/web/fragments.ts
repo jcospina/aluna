@@ -44,6 +44,24 @@ const CLEAR_ON_ACCEPT_TARGETS = [
 ] as const;
 
 /**
+ * The product-voice line `/prompt` answers a blank submission with. `required` on the
+ * shell's prompt field (public/index.html) is the first line of defence; this is what a
+ * whitespace-only string — which passes HTML5 validation — and any non-browser POST get.
+ */
+export const BLANK_PROMPT_NOTICE = "What would you like me to make?";
+
+/**
+ * The out-of-band `#prompt-notice` swap: the one shape every warm, non-building answer
+ * speaks in, whether it is a terminal build outcome (`terminal-presentation.ts`), a
+ * restoration notice, or the blank-prompt refusal. Single-sourced here so the id and the
+ * swap mode cannot drift between the paths that emit it — the shell clears this element
+ * on every submission (`public/app.js`), so the line retires by itself.
+ */
+export function renderPromptNotice(notice: string): string {
+  return `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(notice)}</div>`;
+}
+
+/**
  * The per-build SSE subscriber fragment returned by an accepted `/prompt`. It opens
  * an htmx-ext-sse connection to the build's stream, appends `narration` events as
  * they arrive, and lets final `fragment` events land in the same content surface.

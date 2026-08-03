@@ -132,7 +132,6 @@ describe("the capability surface", () => {
       const app = makeScratchApp(bare, provider, recordMetrics);
       const res = await app.request("/");
       const html = await res.text();
-      expect(html).not.toContain("developer-evolution-control");
       expect(html).not.toContain("capability-evolution");
       expect(html).not.toContain("/demo/evolution/");
     } finally {

@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
 import { renderDetailModal } from "../presentation/detail-modal.ts";
-import { renderCapabilityCommitSwap, renderRehydratedShell } from "./fragments.ts";
+import {
+  BLANK_PROMPT_NOTICE,
+  renderCapabilityCommitSwap,
+  renderPromptNotice,
+  renderRehydratedShell,
+} from "./fragments.ts";
 
 // The shell's detail-modal mount placeholder (public/index.html) — where every rendered
 // shell mounts the one shared read-only detail modal. Kept in sync with fragments.ts.
@@ -73,6 +78,30 @@ async function inspectToolbarOob(fragment: string): Promise<OobInspection> {
   await new Response(rewriter.transform(new Response(fragment)).body).text();
   return { entryCount, entryInsideOobCount, oobCount, oobIsCapabilityEntry, oobValue };
 }
+
+describe("prompt notice", () => {
+  // This renderer is the *only* place `#prompt-notice` text is escaped, and the text is
+  // not always ours: the deflection path puts the provider's `user_facing_label` through
+  // it (`src/pipeline/build/deflection.ts`). Without this case, deleting `escapeHtml`
+  // from the renderer leaves the whole suite green — every other notice assertion only
+  // checks for the id and swap mode.
+  test("escapes interpolated text, so provider-authored copy cannot inject markup", () => {
+    expect(renderPromptNotice(`<img src=x onerror=alert(1)> "quoted" & 'single'`)).toBe(
+      '<div id="prompt-notice" hx-swap-oob="innerHTML">' +
+        "&lt;img src=x onerror=alert(1)&gt; &quot;quoted&quot; &amp; &#39;single&#39;" +
+        "</div>",
+    );
+  });
+
+  // The blank-prompt line is product voice under an explicit sign-off gate (4.8/09), so
+  // it is pinned as a literal here rather than only compared against itself at the route.
+  test("carries the signed-off blank-prompt copy verbatim", () => {
+    expect(BLANK_PROMPT_NOTICE).toBe("What would you like me to make?");
+    expect(renderPromptNotice(BLANK_PROMPT_NOTICE)).toBe(
+      '<div id="prompt-notice" hx-swap-oob="innerHTML">What would you like me to make?</div>',
+    );
+  });
+});
 
 describe("web fragments", () => {
   test("commit-time toolbar OOB wraps the canonical entry for htmx beforeend insertion", async () => {

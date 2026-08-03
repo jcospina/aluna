@@ -6,6 +6,7 @@ import { createPromptBuildPipeline, type RecordMetrics } from "../pipeline/index
 import { createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
 import { insertCapability } from "../registry/index.ts";
+import { BLANK_PROMPT_NOTICE, renderPromptNotice } from "../web/index.ts";
 import {
   buildJobIdFromSubscriber,
   collectSseEvents,
@@ -160,6 +161,162 @@ async function expectCompletionBeforeMetricsLease(
   expect(resolutionRows).toHaveLength(1);
   expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
 }
+
+// A provider that fails loudly if anything reaches it. A blank prompt must be refused
+// before classification, so the interesting assertion is the call count, not a status.
+function forbiddenProvider(calls: { count: number }): Provider {
+  return {
+    generate<T>(): GenerateResult<T> {
+      calls.count += 1;
+      throw new Error("a blank prompt must never reach the provider");
+    },
+  };
+}
+
+// One blank submission per body encoding `readPromptSubmission` accepts — the guard
+// must sit above the parser's content-type branch, not inside one of them. Every body
+// here is whitespace-only or absent: whitespace passes the shell field's HTML5
+// `required`, so the browser guard alone cannot cover it.
+function blankSubmissions(): ReadonlyArray<{ name: string; init: RequestInit }> {
+  const multipart = new FormData();
+  multipart.set("prompt", "\t\n  ");
+  return [
+    {
+      name: "JSON whitespace",
+      init: {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: "   " }),
+      },
+    },
+    {
+      name: "JSON with no prompt field",
+      init: {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      },
+    },
+    {
+      name: "urlencoded form",
+      init: { method: "POST", body: new URLSearchParams({ prompt: " " }) },
+    },
+    { name: "multipart form", init: { method: "POST", body: multipart } },
+    {
+      name: "raw text",
+      init: { method: "POST", headers: { "content-type": "text/plain" }, body: "  \n " },
+    },
+  ];
+}
+
+describe("blank-prompt refusal", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+  let artifactsRoot: string;
+
+  beforeEach(() => {
+    ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-blank-prompt-"));
+  });
+
+  afterEach(() => {
+    teardownScratchDbEnv({ dir, conns, artifactsRoot });
+  });
+
+  for (const { name, init } of blankSubmissions()) {
+    test(`a blank ${name} body creates no job and spends no provider call`, async () => {
+      const calls = { count: 0 };
+      let issuedJobIds = 0;
+      const mutationCoordinator = createMutationCoordinator();
+      const { resolutionRows, recordMetrics } = makeMetricsRecorder();
+      const app = createApp({
+        getProvider: () => forbiddenProvider(calls),
+        recordMetrics,
+        buildDatabases: conns,
+        artifactsRoot,
+        capabilityRouter: { databases: conns },
+        mutationCoordinator,
+        buildJobs: createBuildJobQueue({
+          createId: () => {
+            issuedJobIds += 1;
+            return `blank-job-${issuedJobIds}`;
+          },
+          pipeline: createPromptBuildPipeline({
+            getProvider: () => forbiddenProvider(calls),
+            recordMetrics,
+            buildDatabases: conns,
+            artifactsRoot,
+            mutationCoordinator,
+          }),
+        }),
+      });
+
+      const response = await app.request("/prompt", init);
+      const body = await responseText(response);
+
+      // 200 with only the out-of-band notice: HTMX does not swap a non-2xx by default,
+      // so a 422 here would make a blank submit look like nothing happened at all.
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+      expect(body).toBe(renderPromptNotice(BLANK_PROMPT_NOTICE));
+      // The signed-off line itself, pinned as a literal: comparing the body to the
+      // renderer alone would compare the implementation to itself and let a silent
+      // copy edit ship green past the sign-off gate.
+      expect(body).toContain("What would you like me to make?");
+      // No subscriber fragment means no SSE stream opens, so `promptBusy` never flips
+      // and the prompt bar stays live for the next attempt.
+      expect(body).not.toContain("data-build-job-id");
+      expect(body).not.toContain("sse-connect");
+      expect(issuedJobIds).toBe(0);
+      expect(resolutionRows).toEqual([]);
+      expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
+
+      // The provider lives behind `/build/:id/stream`, so a call count taken after the
+      // POST alone would read zero with or without the guard. Open the stream for the id
+      // the queue *would* have issued: an unknown job answers `done: missing` and runs no
+      // pipeline, which is what makes the zero call count load-bearing.
+      const stream = collectSseEvents(
+        await readSse(await app.request("/build/blank-job-1/stream")),
+      );
+      expect(stream.map((event) => `${event.event}:${event.data}`)).toEqual(["done:missing"]);
+      expect(calls.count).toBe(0);
+      expect(issuedJobIds).toBe(0);
+    });
+  }
+
+  test("the shell's own `required` guard is still in front of the server's", async () => {
+    // Defence in depth, in that order: the browser refuses a truly empty field, and the
+    // server refuses what HTML5 lets through (whitespace) plus every non-browser POST.
+    // Pinned so removing `required` from `#spec-build-prompt` cannot pass silently.
+    const html = await responseText(
+      await createApp({ capabilityRouter: { databases: conns } }).request("/"),
+    );
+    const fieldStart = html.lastIndexOf("<input", html.indexOf('id="spec-build-prompt"'));
+    const field = html.slice(fieldStart, html.indexOf(">", fieldStart) + 1);
+
+    expect(field).toContain('id="spec-build-prompt"');
+    expect(field).toContain('name="prompt"');
+    expect(field).toContain("required");
+  });
+
+  test("a typed prompt still enters the build-job lifecycle unchanged", async () => {
+    const calls = { count: 0 };
+    const { recordMetrics } = makeMetricsRecorder();
+    const app = createApp({
+      getProvider: () => forbiddenProvider(calls),
+      recordMetrics,
+      buildDatabases: conns,
+      artifactsRoot,
+      capabilityRouter: { databases: conns },
+      buildJobs: createBuildJobQueue({ createId: () => "typed-job" }),
+    });
+
+    const body = await responseText(await postPrompt(app, "track my notes"));
+
+    expect(body).toContain('data-build-job-id="typed-job"');
+    expect(body).toContain('sse-connect="/build/typed-job/stream"');
+    expect(calls.count).toBe(0);
+  });
+});
 
 describe("prompt-job admission separation", () => {
   let dir: string;

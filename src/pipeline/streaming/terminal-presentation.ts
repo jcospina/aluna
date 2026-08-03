@@ -1,5 +1,5 @@
 import type { Send } from "../../sse/index.ts";
-import { escapeHtml } from "../../web/html.ts";
+import { renderPromptNotice } from "../../web/fragments.ts";
 import { buildDemoErrorPreview } from "./previews.ts";
 
 export const DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS = 2_000;
@@ -83,7 +83,7 @@ export async function deliverFailedPresentation(
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
   metricsPreview?: string,
 ): Promise<boolean> {
-  const persistentNotice = `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(FAILED_BUILD_NOTICE)}</div>`;
+  const persistentNotice = renderPromptNotice(FAILED_BUILD_NOTICE);
   return runBoundedTerminalPresentation(
     send,
     async (sendWhileActive) => {
@@ -147,7 +147,7 @@ export async function deliverCandidateRejectedPresentation(
   restorationFragment: string,
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
 ): Promise<boolean> {
-  const persistentNotice = `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(CANDIDATE_REJECTED_NOTICE)}</div>`;
+  const persistentNotice = renderPromptNotice(CANDIDATE_REJECTED_NOTICE);
   return runBoundedTerminalPresentation(
     send,
     async (sendWhileActive) => {
@@ -174,7 +174,7 @@ export async function deliverCandidateNoChangePresentation(
   metricsPreview: string,
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
 ): Promise<boolean> {
-  const persistentNotice = `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(CANDIDATE_NO_CHANGE_NOTICE)}</div>`;
+  const persistentNotice = renderPromptNotice(CANDIDATE_NO_CHANGE_NOTICE);
   return runBoundedTerminalPresentation(
     send,
     async (sendWhileActive) => {
@@ -207,7 +207,7 @@ export async function deliverStalePresentation(
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
   metricsPreview?: string,
 ): Promise<boolean> {
-  const persistentNotice = `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(STALE_BUILD_NOTICE)}</div>`;
+  const persistentNotice = renderPromptNotice(STALE_BUILD_NOTICE);
   return runBoundedTerminalPresentation(
     send,
     async (sendWhileActive) => {

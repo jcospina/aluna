@@ -5,7 +5,7 @@ import type { Database } from "bun:sqlite";
 
 import { getCapability } from "../../registry/index.ts";
 import { renderCachedCapabilitySurface } from "../../web/cached-view.ts";
-import { escapeHtml } from "../../web/html.ts";
+import { renderPromptNotice } from "../../web/fragments.ts";
 
 export const RESTORATION_CAPABILITY_ID_FIELD = "__aluna_restore_capability_id";
 export const RESTORATION_INCARNATION_ID_FIELD = "__aluna_restore_incarnation_id";
@@ -64,8 +64,5 @@ export function renderRestorationFragment(
     }
   }
   if (notice === undefined) return restoration;
-  return [
-    restoration,
-    `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(notice)}</div>`,
-  ].join("\n");
+  return [restoration, renderPromptNotice(notice)].join("\n");
 }

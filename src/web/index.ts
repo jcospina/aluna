@@ -12,8 +12,10 @@ export {
   renderRehydratedShellPage,
 } from "./cached-view.ts";
 export {
+  BLANK_PROMPT_NOTICE,
   renderBuildSubscriber,
   renderCapabilityToolbarEntry,
+  renderPromptNotice,
   renderRehydratedShell,
 } from "./fragments.ts";
 export { readPrompt, readPromptSubmission } from "./prompt-request.ts";

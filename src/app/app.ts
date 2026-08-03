@@ -30,8 +30,10 @@ import { createProvider, type Provider } from "../provider/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../router/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "../sse/index.ts";
 import {
+  BLANK_PROMPT_NOTICE,
   readPromptSubmission,
   renderBuildSubscriber,
+  renderPromptNotice,
   renderRehydratedShellPage,
 } from "../web/index.ts";
 
@@ -216,6 +218,21 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
   // `/build/:id/stream`, never on the POST path.
   app.post("/prompt", async (c) => {
     const submission = await readPromptSubmission(c);
+
+    // Nothing typed, nothing to build. `readPromptSubmission` trims every encoding down
+    // to one string, so this one check covers JSON, form, and raw-text bodies alike —
+    // the guard is admission's, not the parser's, and never the pipeline's: an empty
+    // prompt must not reach `runPromptJob` at all, where classification would spend a
+    // real provider call on it. Answered as 200 carrying only the out-of-band notice,
+    // the vocabulary every warm terminal already speaks: a non-2xx would leave HTMX
+    // with nothing to swap, so a blank submit would look like nothing happened. No
+    // subscriber fragment means no stream opens, so the prompt bar stays live.
+    if (submission.prompt.length === 0) {
+      return c.html(renderPromptNotice(BLANK_PROMPT_NOTICE), 200, {
+        "cache-control": "no-store",
+      });
+    }
+
     const restoration = captureRestorationDescriptor(submission.restoration, registryReadonly);
     const result = buildJobs.create(submission.prompt, restoration);
 
