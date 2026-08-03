@@ -46,7 +46,8 @@ const CLEAR_ON_ACCEPT_TARGETS = [
 /**
  * The product-voice line `/prompt` answers a blank submission with. `required` on the
  * shell's prompt field (public/index.html) is the first line of defence; this is what a
- * whitespace-only string — which passes HTML5 validation — and any non-browser POST get.
+ * whitespace/invisible/control-only string — which may pass HTML5 validation — and any
+ * unusable non-browser POST get.
  */
 export const BLANK_PROMPT_NOTICE = "What would you like me to make?";
 

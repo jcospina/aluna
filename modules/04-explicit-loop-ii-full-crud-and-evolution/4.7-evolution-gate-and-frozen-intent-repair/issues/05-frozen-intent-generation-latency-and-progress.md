@@ -121,22 +121,29 @@ pre-Handler barrier.
 
 ## HITL test instructions
 
+> **Current surface after Epic 4.8:** the temporary **Evolve this capability**
+> form and **Show me the guided repair** checkbox were retired once the prompt
+> bar became the single evolution entrance. Use the prompt bar for the live
+> progress check; the deliberate repair case now lives in the deterministic
+> frozen-repair battery below.
+
 1. Keep the existing server on port 3030, or start it with:
 
    ```bash
    bun run dev
    ```
 
-2. Open `http://localhost:3030/capability/experiment_journal` and expand the
-   developer panel.
-3. Leave **Show me the guided repair** off. Request a narrow non-text addition,
-   for example: “Add an optional confidence score and make it stand out.”
+2. Open an existing tier-on capability from `http://localhost:3030/` and expand
+   the developer panel.
+3. In the prompt bar, request a narrow non-text addition, for example: “Add an
+   optional confidence score and make it stand out.”
 4. Confirm **Behavioral intent** appears before Units, updates while work runs,
    shows no fixture rows, and reaches `complete` before the first unit starts.
    With unchanged semantic `behavior`, `create` and `update` should generate
    together while `read`, `delete`, and `search` carry.
 5. Confirm the Gate panel is compact: it shows test generation/execution counts,
    repair status, and `tests/behavioral.json`, but no `setupRows`.
-6. For the repair story, make another eligible update evolution with **Show me
-   the guided repair** enabled. Confirm the same progress appears, then Gate
-   shows the failing case, `update` attribution, bounded repair, and final pass.
+6. Run `bun test src/pipeline/evolution/evolution-frozen-repair.test.ts` for the
+   repair story. Confirm it proves the frozen failing case, `update`
+   attribution, bounded repair against the same case, and final activation; no
+   production composition root can inject the deliberately weak first pass.

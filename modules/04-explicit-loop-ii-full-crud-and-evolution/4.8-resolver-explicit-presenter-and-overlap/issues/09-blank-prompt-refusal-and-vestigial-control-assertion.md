@@ -206,6 +206,11 @@ prompt of only zero-width/control characters passes `String.trim()` and still
 spends a call, and a malformed multipart body 500s out of `c.req.parseBody()`
 (pre-existing) into an HTMX response that is silently dropped.
 
+Both deferred findings were repaired by the Epic 4.8 release-readiness review in
+`issues/10-release-readiness-review-and-hardening.md`. That follow-up also
+strengthened media-type parsing and overlap-identity validation discovered by
+the wider architecture/adversarial pass.
+
 ## HITL
 
 1. `bun run dev`, open `http://localhost:3030`.
