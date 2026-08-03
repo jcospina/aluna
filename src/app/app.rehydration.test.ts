@@ -1,8 +1,7 @@
-// Registry read-side payoff (Epic 2.1) plus the /stream provider-liveness slices.
-// The rehydration cases run against a scratch db shared with the router, so an
-// injected (or freshly committed) capability shows up in the rehydrated toolbar and
-// a click serves its cached view. The /stream cases drive a fake provider — no
-// network, no spend. Shared setup and fixtures live in app.test-support.ts.
+// Registry read-side payoff (Epic 2.1). The rehydration cases run against a scratch
+// db shared with the router, so an injected (or freshly committed) capability shows
+// up in the rehydrated toolbar and a click serves its cached view. Shared setup and
+// fixtures live in app.test-support.ts.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
@@ -13,7 +12,6 @@ import type { PlatformDatabase } from "../persistence/db.ts";
 import { insertCapability } from "../registry/index.ts";
 import {
   createScratchDbEnv,
-  makeFakeProvider,
   makeMetricsRecorder,
   makeSpecProvider,
   NOTES_INCARNATION_ID,
@@ -22,28 +20,8 @@ import {
   readSse,
   responseText,
   teardownScratchDbEnv,
-  throwingProvider,
 } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
-
-// Reassemble the text of every `narration` event, in order — the greeting as the
-// client would see it typed in.
-function collectNarration(payload: string): string {
-  return payload
-    .split("\n\n")
-    .filter((block) => block.includes("event: narration"))
-    .map(
-      (block) =>
-        block
-          .split("\n")
-          .find((line) => line.startsWith("data:"))
-          // Strip the field name and the single optional separator space (SSE drops
-          // one leading space from the value), keeping the value — including a value
-          // that *is* a space.
-          ?.replace(/^data: ?/, "") ?? "",
-    )
-    .join("");
-}
 
 // The registry's read-side payoff (Epic 2.1): on load the capability toolbar
 // rehydrates from the registry — Aluna remembers you across a refresh. These run
@@ -226,59 +204,4 @@ test("GET / lists committed versions per capability in the developer preview", a
   } finally {
     teardownScratchDbEnv(env);
   }
-});
-
-describe("GET /stream (provider liveness, fake provider)", () => {
-  const greeting = "Hi — I'm so glad you're here.";
-  const invitation = "Tell me what you'd like to keep <3";
-
-  test("responds with SSE headers", async () => {
-    const app = createApp({ getProvider: () => makeFakeProvider(greeting, invitation) });
-    const res = await app.request("/stream");
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("text/event-stream");
-    expect(res.headers.get("cache-control")).toContain("no-cache");
-
-    await res.body?.cancel();
-  });
-
-  test("streams the greeting as narration, then the invitation fragment, then closes", async () => {
-    const app = createApp({ getProvider: () => makeFakeProvider(greeting, invitation) });
-    const payload = await readSse(await app.request("/stream"));
-
-    // The greeting arrived incrementally and reassembles to the whole thing.
-    expect((payload.match(/event: narration/g) ?? []).length).toBeGreaterThan(1);
-    expect(collectNarration(payload)).toBe(greeting);
-
-    // The invitation rides in an HTML fragment, with its dynamic text escaped — the
-    // raw "<3" must not reach the page as markup.
-    expect(payload).toContain("event: fragment");
-    expect(payload).toContain('<p class="intro__invitation">');
-    expect(payload).toContain("keep &lt;3");
-    expect(payload).not.toContain("keep <3");
-
-    // Terminal event, server closes cleanly.
-    expect(payload).toContain("event: done");
-  });
-});
-
-describe("GET /stream (failure surfaces clearly, not silently)", () => {
-  test("a missing key streams a product-voice apology, never a crash", async () => {
-    // createProvider would throw "Missing OMNI_API_KEY ..."; the route must turn
-    // that into a warm, jargon-free message — and still close cleanly (HTTP 200,
-    // an SSE stream, not a 500).
-    const app = createApp({ getProvider: throwingProvider("Missing OMNI_API_KEY. ...") });
-    const res = await app.request("/stream");
-    expect(res.status).toBe(200);
-
-    const payload = await readSse(res);
-    expect(payload).toContain("event: narration");
-    expect(payload).toMatch(/mind trying again/i);
-    expect(payload).toContain("event: done");
-    // No internals leak into the UI copy (ARCH §9.7).
-    expect(payload).not.toMatch(/OMNI_API_KEY|api key|provider/i);
-    // No proposal fragment on the error path.
-    expect(payload).not.toContain("event: fragment");
-  });
 });

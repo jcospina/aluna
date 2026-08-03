@@ -1,14 +1,13 @@
 // The Hono application — the platform's one route file (ARCH §4: "no framework
 // ceremony, one route file"). This is the thin wiring sheet: it assembles the
 // injectable dependencies and attaches each route, delegating the work to the
-// subsystems (sse transport, web presentation, greeting round-trip, build pipeline,
-// capability router).
+// subsystems (sse transport, web presentation, build pipeline, capability router).
 //
-// It serves the fixed shell page at `/`, static assets under /static/*, the Module 1
-// `/stream` provider-liveness endpoint, and the production `/prompt` →
-// `/build/:id/stream` build-job flow. The `/demo/*` surfaces no served fragment
-// targets — the spec-build verification route and the few-shot gallery — sit behind a
-// single dev-only guard, so a production bundle does not answer them.
+// It serves the fixed shell page at `/`, static assets under /static/*, and the
+// production `/prompt` → `/build/:id/stream` build-job flow. The `/demo/*`
+// surfaces no served fragment targets — the spec-build verification route and the
+// few-shot gallery — sit behind a single dev-only guard, so a production bundle
+// does not answer them.
 
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
@@ -37,7 +36,6 @@ import {
   renderBuildSubscriber,
   renderRehydratedShellPage,
 } from "../web/index.ts";
-import { handleStreamError, streamGreeting } from "./greeting.ts";
 
 /**
  * Whether the developer-only `/demo/*` surfaces are registered. See {@link createApp}
@@ -160,11 +158,11 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
 }
 
 /**
- * The fixed shell at `/` and the Module 1 `/stream` liveness endpoint — the latter
- * provider-driven and user-initiated, so the provider is never called on page load.
+ * The fixed shell at `/` — rendered from the registry alone, so the provider is
+ * never called on page load.
  */
-function registerShellAndLivenessRoutes(app: Hono, ctx: ResolvedAppDeps): void {
-  const { getProvider, sseHeartbeatMs, registryReadonly } = ctx;
+function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
+  const { registryReadonly } = ctx;
 
   // Root route — the fixed shell (ARCH §6.1), with its capability toolbar rehydrated
   // from the registry on load (Epic 2.1): one canonical entry per row, and the shell
@@ -182,35 +180,12 @@ function registerShellAndLivenessRoutes(app: Hono, ctx: ResolvedAppDeps): void {
         headers: { "content-type": "text/html; charset=utf-8" },
       }),
   );
-
-  // Module 1 provider-liveness endpoint. It remains testable directly even though
-  // the home page no longer shows the old "Meet Aluna" trigger. streamSSE sets the
-  // SSE headers (text/event-stream, no-cache, keep-alive) and closes the connection
-  // when the callback returns.
-  app.get("/stream", (c) =>
-    streamSSE(c, async (stream) => {
-      const transport = sseTransport(stream);
-      await withSseHeartbeat(transport, sseHeartbeatMs, async () => {
-        let aborted = false;
-        stream.onAbort(() => {
-          aborted = true;
-        });
-        const isAborted = () => aborted;
-
-        try {
-          await streamGreeting(transport.send, isAborted, getProvider());
-        } catch (err) {
-          await handleStreamError(transport.send, isAborted, err);
-        }
-      });
-    }),
-  );
 }
 
 /**
  * The legacy `/demo/spec-build` verification route (Module 2 §2.5; superseded by the
  * production `POST /prompt` flow in Epic 2.6). Its own group so the one dev-only guard
- * in {@link createApp} reaches it without also gating `/` and `/stream`.
+ * in {@link createApp} reaches it without also gating `/`.
  */
 function registerSpecBuildDemoRoute(app: Hono, ctx: ResolvedAppDeps): void {
   const {
@@ -223,7 +198,7 @@ function registerSpecBuildDemoRoute(app: Hono, ctx: ResolvedAppDeps): void {
   } = ctx;
 
   // Runs the full pipeline through commit against the configured provider and the real
-  // db/disk. User-initiated like /stream, so the provider is never called on page load.
+  // db/disk. User-initiated, so the provider is never called on page load.
   // The typed prompt rides a query param (EventSource is GET-only), with a default so
   // the bare button still works.
   app.get("/demo/spec-build", (c) =>
@@ -338,7 +313,7 @@ export function createApp(deps: AppDeps = {}): Hono {
   const ctx = resolveAppDeps(deps);
   const app = new Hono();
 
-  registerShellAndLivenessRoutes(app, ctx);
+  registerShellRoute(app, ctx);
   registerBuildJobRoutes(app, ctx);
 
   // The one guard over the `/demo/*` surfaces nothing in the served UI targets: they

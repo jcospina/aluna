@@ -1,6 +1,6 @@
 /* =============================================================================
    Living demo — the content-area surfaces driven by the build flow
-   The cold-start placeholder, the product-voice intro stream, and the raw
+   The cold-start placeholder, the product-voice build stream, and the raw
    developer stage previews (the latter rendered inside the developer panel's
    blocks). Replaced piece by piece as real capabilities land.
    ========================================================================== */
@@ -66,7 +66,7 @@
   width: min(50rem, 100%);
 }
 /* The live output box: hidden until the first chunk arrives (:empty), then a
-   bordered surface holding the streamed greeting + invitation, left-aligned. */
+   bordered surface holding the streamed build output, left-aligned. */
 .intro__output {
   align-self: stretch;
   padding: var(--space-2);
@@ -100,11 +100,6 @@
 .spec-build__preview:empty {
   display: none;
 }
-.intro__output .intro__invitation {
-  margin: var(--space-1) 0 0;
-  color: var(--color-text-subtle);
-}
-
 .build-stream {
   display: none;
 }

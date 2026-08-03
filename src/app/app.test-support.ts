@@ -2,10 +2,10 @@
 // out of app.test.ts so the per-concern sibling test files can each import exactly
 // what they use. Not a test file itself (no `*.test.ts`), so bun never runs it.
 //
-// The /stream + build paths call the AI provider — these helpers drive them through
-// a **fake** `Provider`, never the real one: no network, no spend, fully
-// deterministic. The real streamed round-trip is proven by running the app, not
-// asserted here — a test must not bill the BYO key on every run.
+// The build paths call the AI provider — these helpers drive them through a **fake**
+// `Provider`, never the real one: no network, no spend, fully deterministic. The real
+// streamed round-trip is proven by running the app and typing a prompt, not asserted
+// here — a test must not bill the BYO key on every run.
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -44,6 +44,11 @@ export { makeMetricsRecorder } from "../metrics/metrics-test-recorder.ts";
 // partialStream building up), then resolves the validated object carrying both
 // fields. No SDK, no network — it satisfies the same `Provider` contract the real
 // spine does.
+//
+// The greeting/invitation shape is a leftover of the Module 1 liveness route removed
+// in 4.8/06. No surviving caller reads the values — `app.build-jobs.test.ts` passes
+// `"unused", "unused"` and only needs *a* `Provider`. Read it as "a generic provider
+// stub that streams then resolves", not as content.
 export function makeFakeProvider(greeting: string, invitation: string): Provider {
   return {
     generate<T>(_prompt: string, _schema: ZodType<T>): GenerateResult<T> {

@@ -175,6 +175,26 @@ EventSource client that closes its own source; the htmx client must be told to.
   pattern). What stays in the codebase from 2.6a is durable: the vendored
   extension + its `<script>`, and `sse-close="done"` on `renderBuildSubscriber`.
 
+## Update (Epic 4.8 — the Module 1 `/stream` liveness route removed)
+
+The provider-backed `/stream` greeting route described in the Epic 1.5 paragraph
+below (`src/app/app.ts`, `src/app/greeting.ts`, the `.intro__invitation` rule in
+`public/css/demo.css`, and its tests) has been **removed**. Epic 2.6 replaced the
+shell's `Meet Aluna` trigger with the prompt bar, leaving the route with no entry
+point in the product; the streamed-partial + schema-validated round-trip it existed
+to prove is now proved by what the product actually does — a real prompt drives
+`partialStream` through the Builder's spec generation and the validated result
+through every generated unit, over `POST /prompt` → `GET /build/:id/stream`.
+
+Its removal took no decision with it (the 1.3 pattern, as with `/demo/swap-proof/*`
+above). The event vocabulary this ADR fixes is unchanged: `/stream` was a consumer
+of `narration`/`fragment`/`done`, never a source of them. Live provider
+verification is now a real build typed into the prompt bar on the running app —
+no test calls the real API, so that manual build is the only place the configured
+provider is exercised for real. The missing-key product-voice guarantee (a warm,
+jargon-free apology, no internals in the copy) is asserted on the production
+`/prompt` path in `src/app/app.resolver-pipeline.test.ts`.
+
 ## Historical update (Epic 1.5 — predates Module 2 finalization)
 
 This paragraph records the state at the end of Module 1. Its open-question

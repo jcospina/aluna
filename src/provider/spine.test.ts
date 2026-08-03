@@ -4,12 +4,12 @@
 //
 // There is deliberately **no test here that calls a real AI provider** — that
 // would spend money on every `bun test` run. The real streamed, structured
-// round-trip is proven by *running the app*: the shell's "Meet Aluna" trigger
-// streams a live provider greeting into the content area (src/app/app.ts `/stream`,
-// the Module-1 finalized place). The route's own wiring is covered without spend
-// in app.test.ts, which drives it through a fake `Provider` — the same fakeability
-// the contract was built for (contract.test.ts). Non-conforming output surfacing
-// on `.object` is the contract's guarantee (contract.test.ts), inherited here
+// round-trip is proven by *running the app*: type a prompt into the shell's prompt
+// bar and watch the spec stream in (`POST /prompt` → `GET /build/:id/stream`,
+// src/app/app.ts). That path's own wiring is covered without spend in the
+// src/app/app.*.test.ts files, which drive it through a fake `Provider` — the same
+// fakeability the contract was built for (contract.test.ts). Non-conforming output
+// surfacing on `.object` is the contract's guarantee (contract.test.ts), inherited here
 // because `generate` maps straight onto `streamObject`.
 
 import { describe, expect, test } from "bun:test";

@@ -87,6 +87,8 @@ The **implicit loop adds only two things the explicit loop never needs**: the **
 ### Verify by running it
 `bun run dev` → open the browser → the shell renders with an empty toolbar and a prompt bar → click *Meet Aluna* and the real AI provider streams a product-voice greeting into the content area (a structured round-trip, end to end) → the SQLite file exists with the migrations table.
 
+> **No longer runnable as written (records Module 1's exit state).** Epic 2.6 replaced the *Meet Aluna* button with the prompt bar, and Epic 4.8 removed the `/stream` route behind it. The same structured round-trip is now verified by typing a prompt into the prompt bar and watching the spec stream in — still the only place the configured provider is exercised for real, since no test calls the API.
+
 ### Exit criteria
 The app boots and stays up. Shell, SSE, AI provider, and both DB connections are independently proven. No capability logic exists anywhere.
 

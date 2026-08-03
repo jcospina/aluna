@@ -163,6 +163,12 @@ describe("GET / (shell)", () => {
 
 describe("removed transitional installer", () => {});
 
+describe("GET /stream (the Module 1 greeting liveness route, removed in 4.8/06)", () => {
+  test("is not registered — the provider round-trip is proved by the prompt bar", async () => {
+    expect((await createApp().request("/stream")).status).toBe(404);
+  });
+});
+
 describe("GET / (shell) — browser glue", () => {
   test("browser prompt glue leaves the prompt request and stream connection to HTMX", async () => {
     const app = createApp();

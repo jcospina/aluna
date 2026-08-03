@@ -66,8 +66,11 @@ Delete the surface and the stand-ins; move the coverage first.
   (`app.spec-build.test.ts`) and anything asserting the `demo-` build-id prefix.
 
 - **Remove the route.** `app.get("/demo/spec-build", …)` in
-  `registerShellAndLivenessRoutes` (`src/app/app.ts`), and update the file
-  header and that function's doc comment, which both still describe it.
+  `registerSpecBuildDemoRoute` (`src/app/app.ts`) — the whole function, which
+  exists only for this route — and update the file header, which still describes
+  it. (Issue 06 named this function `registerShellAndLivenessRoutes`; that
+  function registered `/` plus the removed `/stream` and is now
+  `registerShellRoute`, a separate group that stays.)
 - **Remove the demo module.** `src/pipeline/demo/spec-build-demo.ts` in full —
   `streamSpecBuildDemo`, `DEMO_SPEC_PROMPT`, and `handleSpecBuildError` — plus
   their re-exports from `src/pipeline/index.ts`. `handleSpecBuildError` is
