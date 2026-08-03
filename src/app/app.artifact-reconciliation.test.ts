@@ -4,13 +4,13 @@ import { join } from "node:path";
 import { finalizeGenerationLifecycleFailure, startGenerationLifecycle } from "../metrics/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import {
-  collectSseEvents,
   createScratchDbEnv,
   makeMetricsRecorder,
+  makePromptBuildProvider,
   makeScratchApp,
-  makeSpecProvider,
+  NEW_CAPABILITY_INTENT,
   NOTES_SPEC,
-  readSse,
+  runPromptBuild,
   teardownScratchDbEnv,
 } from "./app.test-support.ts";
 
@@ -54,13 +54,11 @@ test("lease-head pre-build reconciliation removes a proven abandoned staging bui
     },
     conns.readwrite,
   );
-  const { provider } = makeSpecProvider(NOTES_SPEC);
+  const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
   const { recordMetrics } = makeMetricsRecorder();
   const app = makeScratchApp({ dir, conns, artifactsRoot }, provider, recordMetrics);
 
-  const events = collectSseEvents(
-    await readSse(await app.request("/demo/spec-build?prompt=track%20my%20notes")),
-  );
+  const { events } = await runPromptBuild(app, "track my notes");
 
   expect(events.at(-1)).toMatchObject({ event: "done", data: "ok" });
   expect(existsSync(abandoned)).toBe(false);

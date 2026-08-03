@@ -13,12 +13,13 @@ import { insertCapability } from "../registry/index.ts";
 import {
   createScratchDbEnv,
   makeMetricsRecorder,
-  makeSpecProvider,
+  makePromptBuildProvider,
+  NEW_CAPABILITY_INTENT,
   NOTES_INCARNATION_ID,
   NOTES_SPEC,
   notesCapabilityRow,
-  readSse,
   responseText,
+  runPromptBuild,
   teardownScratchDbEnv,
 } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
@@ -135,7 +136,7 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
   });
 
   test("the M2 closing beat: build, refresh rehydrates the toolbar, and the note is still there", async () => {
-    const { provider } = makeSpecProvider(NOTES_SPEC);
+    const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
     const { recordMetrics } = makeMetricsRecorder();
     const app = createApp({
       getProvider: () => provider,
@@ -145,11 +146,9 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
       capabilityRouter: { databases: conns },
     });
 
-    // Build the Notes capability through the real commit path (fake provider).
-    const buildPayload = await readSse(
-      await app.request("/demo/spec-build?prompt=track%20my%20notes"),
-    );
-    expect(buildPayload).toContain("event: commit");
+    // Build the Notes capability through the prompt bar's real commit path (fake provider).
+    const { payload } = await runPromptBuild(app, "track my notes");
+    expect(payload).toContain("event: commit");
 
     // Persist a note through the committed capability's create action.
     const created = await app.request("/capability/notes/create", {

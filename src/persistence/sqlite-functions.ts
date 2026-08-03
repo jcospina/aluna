@@ -5,8 +5,6 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-export const SEARCH_NORMALIZE_SQL_FUNCTION = "platform_search_normalize";
-
 const EXTENSION_ENTRY_POINT = "sqlite3_platformnormalize_init";
 const UNICODE_MARK = /^\p{M}$/u;
 const UNICODE_DIACRITIC = /^\p{Diacritic}$/u;

@@ -143,21 +143,3 @@ export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenRes
 
   return { spec, durationMs, usage };
 }
-
-// Until the intent resolver is wired in front of the builder, the build
-// pipeline runs spec generation from a hardcoded `new_capability` intent. This
-// produces that stand-in from the raw prompt so the stage is exercisable end-to-end
-// before the resolver exists; once it does, a real `IntentClassification` flows
-// through unchanged.
-export function hardcodedNewCapabilityIntent(prompt: string): IntentClassification {
-  return {
-    type: "new_capability",
-    confidence: 1,
-    target_capability: null,
-    resolution: "new",
-    proposed_identity: null,
-    proposed_action: `Build a new capability for: ${prompt}`,
-    user_facing_label: "Got it. I'm putting that together now.",
-    requires_confirmation: false,
-  };
-}

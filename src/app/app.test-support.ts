@@ -15,6 +15,7 @@ import {
   behavioralResponseFor,
   type FullBehavioralTestSuite,
 } from "../builder/gate/gate.test-support.ts";
+import type { IntentClassification } from "../intent-resolver/index.ts";
 import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
 import { runMigrations } from "../persistence/migrations.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
@@ -151,6 +152,24 @@ export function buildJobIdFromSubscriber(fragment: string): string {
   return match[1] ?? "";
 }
 
+export interface PromptBuildRun {
+  readonly jobId: string;
+  readonly payload: string;
+  readonly events: SseEvent[];
+}
+
+// The production build in one call: submit the prompt, take the job id off the
+// subscriber fragment, then drain that job's stream. Every builder-stage suite drives
+// the platform this way — there is one admission path, and it starts at `/prompt`.
+export async function runPromptBuild(
+  app: ReturnType<typeof createApp>,
+  prompt: string,
+): Promise<PromptBuildRun> {
+  const jobId = buildJobIdFromSubscriber(await responseText(await postPrompt(app, prompt)));
+  const payload = await readSse(await app.request(`/build/${jobId}/stream`));
+  return { jobId, payload, events: collectSseEvents(payload) };
+}
+
 // The scratch db + temp artifacts lifecycle the build/rehydration describes share.
 // setup/teardown preserve the exact temp-dir + database lifecycle the original
 // describes' beforeEach/afterEach established, per test.
@@ -167,9 +186,9 @@ export function teardownScratchDbEnv(env: ScratchDbEnv): void {
   rmSync(env.dir, { recursive: true, force: true });
 }
 
-// Build the demo/prompt app wired to commit against the scratch db + temp artifacts
-// root, sharing the scratch pair with the router so a committed capability is
-// immediately routable in the same test.
+// Build the prompt app wired to commit against the scratch db + temp artifacts root,
+// sharing the scratch pair with the router so a committed capability is immediately
+// routable in the same test.
 export function makeScratchApp(
   env: ScratchDbEnv,
   provider: Provider,
@@ -446,27 +465,46 @@ export const BEHAVIORAL_SUITE: FullBehavioralTestSuite = {
   ],
 };
 
-// A fake provider that returns a valid capability spec and then the complete generated
-// inventory (item renderer, then all five handlers), recording each prompt — so the
-// builder-stage demo route is driven end-to-end without a real call.
-export function makeSpecProvider(
-  spec: unknown,
+/** The resolver answer a new-capability build suite hands back for "track my notes". */
+export const NEW_CAPABILITY_INTENT: IntentClassification = {
+  type: "new_capability",
+  confidence: 0.97,
+  target_capability: null,
+  resolution: "new",
+  proposed_identity: null,
+  proposed_action: "Create a notes capability.",
+  user_facing_label: "Got it. I'm putting that together now.",
+  requires_confirmation: false,
+};
+
+/** The generated units a build suite may override, plus the Gate's repair answers. */
+export interface PromptBuildUnits {
+  readonly item?: string;
+  readonly create?: string;
+  readonly read?: string;
+  readonly update?: string;
+  readonly delete?: string;
+  readonly search?: string;
+  readonly updateRepair?: string;
+  readonly searchRepair?: string;
+  /** Additional Gate repair responses in provider-call order. */
+  readonly repairs?: readonly string[];
+}
+
+// A fake provider for the whole production build: the resolver's classification first,
+// then the capability spec, then the complete generated inventory (item renderer, then
+// all five handlers), recording each prompt — so `POST /prompt` runs end-to-end without
+// a real call. The intent leads because the resolver sits in front of every build; there
+// is no way to reach the Builder without one.
+export function makePromptBuildProvider(
+  intent: IntentClassification,
+  spec: unknown = NOTES_SPEC,
   behavioralSuite: unknown = BEHAVIORAL_SUITE,
-  units: {
-    readonly item?: string;
-    readonly create?: string;
-    readonly read?: string;
-    readonly update?: string;
-    readonly delete?: string;
-    readonly search?: string;
-    readonly updateRepair?: string;
-    readonly searchRepair?: string;
-    /** Additional Gate repair responses in provider-call order. */
-    readonly repairs?: readonly string[];
-  } = {},
+  units: PromptBuildUnits = {},
 ): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];
   const responses = [
+    intent,
     spec,
     { content: units.item ?? ITEM_RENDERER },
     { content: units.create ?? CREATE_HANDLER },
