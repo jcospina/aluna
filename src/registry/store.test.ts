@@ -210,7 +210,7 @@ describe("capability registry store", () => {
     ).toThrow(/does not resolve to one active registry row/);
   });
 
-  test("the registry row stays lean and carries the capability incarnation", () => {
+  test("the registry row stays lean and carries incarnation plus deletion lifecycle state", () => {
     const columns = conns.readonly
       .query(`SELECT name FROM pragma_table_info('${REGISTRY_TABLE}') ORDER BY cid`)
       .all() as { name: string }[];
@@ -228,6 +228,9 @@ describe("capability registry store", () => {
       "behavioral_errors",
       "incarnation_id",
       "read_dependencies",
+      "lifecycle_state",
+      "deletion_manifest",
+      "deletion_created_at",
     ]);
   });
 });

@@ -249,11 +249,32 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
 // Capture the exact active registry identity before POST /prompt appends its dormant
 // subscriber. The server validates both hints and stores only this data-free
 // descriptor on the ephemeral job.
+/**
+ * @param {{ elt?: Element, parameters?: Record<string, unknown> }} detail
+ * @returns {boolean}
+ */
+function configureCapabilityDeletionRestoration(detail) {
+  const trigger = detail.elt;
+  if (!(trigger instanceof Element) || !trigger.matches("[data-capability-delete]")) return false;
+  if (detail.parameters) detail.parameters.restore_surface = "neutral";
+  const surface = document.querySelector("[data-active-capability-id]");
+  if (!(surface instanceof HTMLElement) || !detail.parameters) return true;
+  const capabilityId = surface.dataset.activeCapabilityId;
+  const incarnationId = surface.dataset.activeCapabilityIncarnation;
+  if (!capabilityId || !incarnationId) return true;
+  detail.parameters.restore_surface = "capability";
+  detail.parameters.restore_capability_id = capabilityId;
+  detail.parameters.restore_incarnation_id = incarnationId;
+  return true;
+}
+
 document.addEventListener("htmx:configRequest", (event) => {
   const detail =
     /** @type {CustomEvent<{ elt?: Element, parameters?: Record<string, unknown> }>} */ (event)
       .detail;
-  if (!(detail?.elt instanceof HTMLFormElement) || detail.elt.id !== "spec-build-form") return;
+  if (configureCapabilityDeletionRestoration(detail)) return;
+  const trigger = detail?.elt;
+  if (!(trigger instanceof HTMLFormElement) || trigger.id !== "spec-build-form") return;
   const surface = document.querySelector("[data-active-capability-id]");
   if (!(surface instanceof HTMLElement) || !detail.parameters) return;
   const capabilityId = surface.dataset.activeCapabilityId;
@@ -427,6 +448,94 @@ function syncActiveCapabilityUrl() {
   window.history.replaceState(window.history.state, "", capabilityUrl);
 }
 
+// A Confirm submission whose response never arrives — a dropped connection, or a
+// server that went away mid-request — swaps nothing at all. HTMX then leaves the
+// confirmation panel sitting on screen at the same URL, while the deletion itself may
+// already be permanently committed: the destructive action looks like it did nothing.
+// Never leave that stale panel up. Ask the server what is actually true and show its
+// answer, whether that is the panel again or "already gone".
+const CAPABILITY_DELETION_RECHECK_DELAYS_MS = [200, 800, 2000];
+
+/**
+ * The preflight URL for a Confirm form, carrying the same restoration evidence the
+ * submission did so a recovered panel still knows where **Keep it** goes back to.
+ * @param {Element} form
+ * @returns {string | null}
+ */
+function capabilityDeletionPreflightUrl(form) {
+  const base = form.getAttribute("data-capability-deletion-confirm");
+  if (!base) return null;
+  const query = new URLSearchParams();
+  for (const name of ["restore_surface", "restore_capability_id", "restore_incarnation_id"]) {
+    const field = form.querySelector(`input[name="${name}"]`);
+    if (field instanceof HTMLInputElement && field.value) query.set(name, field.value);
+  }
+  const suffix = query.toString();
+  return suffix ? `${base}?${suffix}` : base;
+}
+
+/** @param {string} copy */
+function writeCapabilityDeletionRecheckNotice(copy) {
+  const notice = document.getElementById("prompt-notice");
+  if (notice instanceof HTMLElement) notice.textContent = copy;
+}
+
+/**
+ * @param {string} preflightUrl
+ * @param {number} attempt
+ * @returns {Promise<void>}
+ */
+async function recheckCapabilityDeletion(preflightUrl, attempt) {
+  const delay = CAPABILITY_DELETION_RECHECK_DELAYS_MS[attempt];
+  if (delay === undefined) {
+    writeCapabilityDeletionRecheckNotice(
+      "I still can’t tell what happened. Reload the page to see the latest.",
+    );
+    return;
+  }
+  await new Promise((resolve) => setTimeout(resolve, delay));
+
+  const output = document.getElementById("spec-build-output");
+  const response = await fetch(preflightUrl, { headers: { "HX-Request": "true" } }).catch(
+    () => null,
+  );
+  if (!(output instanceof HTMLElement) || response === null || !response.ok) {
+    await recheckCapabilityDeletion(preflightUrl, attempt + 1);
+    return;
+  }
+
+  const html = await response.text();
+  const htmx =
+    /** @type {Window & { htmx?: { swap(target: Element, content: string, spec: { swapStyle: string, swapDelay: number, settleDelay: number }): void } }} */ (
+      window
+    ).htmx;
+  // Retire the "checking" line first so an out-of-band notice in the answer — the one
+  // that explains a capability turning out to be already gone — is what the user is
+  // left reading.
+  writeCapabilityDeletionRecheckNotice("");
+  if (htmx) htmx.swap(output, html, { swapStyle: "innerHTML", swapDelay: 0, settleDelay: 0 });
+  else output.innerHTML = html;
+
+  // The server decides where this leaves the user. A capability that turned out to be
+  // gone answers with the home URL, and honouring it here is what stops a reload from
+  // landing on the deleted capability's dead route. HTMX applies this header for its
+  // own requests; this one is ours, so apply it ourselves.
+  const replaceUrl = response.headers.get("HX-Replace-Url");
+  if (replaceUrl) window.history.replaceState(window.history.state, "", replaceUrl);
+}
+
+/** @param {Event} event */
+function recoverSeveredCapabilityDeletion(event) {
+  const detail = /** @type {CustomEvent<{ elt?: Element }>} */ (event).detail;
+  const form = detail?.elt;
+  if (!(form instanceof Element)) return;
+  const preflightUrl = capabilityDeletionPreflightUrl(form);
+  if (preflightUrl === null) return;
+
+  writeCapabilityDeletionRecheckNotice("Something interrupted that. Let me check what happened…");
+  void recheckCapabilityDeletion(preflightUrl, 0);
+}
+
 /** @param {Event} event */
 function focusCapabilityDeletion(event) {
   const target =
@@ -523,6 +632,8 @@ function finishTerminalPresentation(eventTarget) {
   }
 }
 
+document.addEventListener("htmx:sendError", recoverSeveredCapabilityDeletion);
+document.addEventListener("htmx:timeout", recoverSeveredCapabilityDeletion);
 document.addEventListener("htmx:oobAfterSwap", syncCapabilityPresentationState);
 document.addEventListener("htmx:afterSwap", (event) => {
   syncCapabilityPresentationState();

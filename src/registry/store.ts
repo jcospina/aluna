@@ -14,6 +14,7 @@
 
 import type { Database } from "bun:sqlite";
 import { db, dbReadonly } from "../persistence/db.ts";
+import { isCapabilityIdReservedByDeletion } from "./deletion-tombstones.ts";
 import {
   type CapabilityRow,
   type CapabilityTool,
@@ -89,6 +90,11 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
 export function insertCapability(row: CapabilityRow, database: Database = db): CapabilityRow {
   const valid = capabilityRowSchema.parse(row);
   assertActiveReadDependencies(valid, database);
+  if (isCapabilityIdReservedByDeletion(valid.id, database)) {
+    throw new StaleCapabilityRegistryError(
+      `Capability registry insert refused while deletion cleanup reserves ${valid.id}.`,
+    );
+  }
 
   database.run(
     `INSERT INTO ${REGISTRY_TABLE} (${ROW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -136,7 +142,8 @@ export function compareAndSwapCapability(
            SET label = ?, incarnation_id = ?, version = ?, schema = ?, ui_intent = ?,
                behavior = ?, behavioral_errors = ?, tools = ?, read_dependencies = ?,
                artifacts_path = ?, prompt_context = ?
-           WHERE id = ? AND incarnation_id = ? AND version = ?`,
+           WHERE id = ? AND incarnation_id = ? AND version = ?
+             AND lifecycle_state = 'active'`,
           [
             valid.label,
             valid.incarnation_id,
@@ -229,7 +236,10 @@ function resolveActiveDependency(dependency: ReadDependency, database: Database)
 // connection by convention.
 export function getCapability(id: string, database: Database = dbReadonly): CapabilityRow | null {
   const stored = database
-    .query(`SELECT ${ROW_COLUMNS} FROM ${REGISTRY_TABLE} WHERE id = ?`)
+    .query(
+      `SELECT ${ROW_COLUMNS} FROM ${REGISTRY_TABLE}
+       WHERE id = ? AND lifecycle_state = 'active'`,
+    )
     .get(id) as StoredRow | null;
 
   return stored ? parseStoredRow(stored) : null;
@@ -241,7 +251,11 @@ export function getCapability(id: string, database: Database = dbReadonly): Capa
 // one stable, deterministic order.
 export function listCapabilities(database: Database = dbReadonly): CapabilityRow[] {
   const stored = database
-    .query(`SELECT ${ROW_COLUMNS} FROM ${REGISTRY_TABLE} ORDER BY id`)
+    .query(
+      `SELECT ${ROW_COLUMNS} FROM ${REGISTRY_TABLE}
+       WHERE lifecycle_state = 'active'
+       ORDER BY id`,
+    )
     .all() as StoredRow[];
 
   return stored.map(parseStoredRow);

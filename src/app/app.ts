@@ -15,13 +15,13 @@ import { streamSSE } from "hono/streaming";
 import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
 import { renderFewShotGalleryPreviewPage } from "../builder/units/few-shot-gallery-preview.ts";
 import {
-  admitCapabilityDeletion,
-  renderCapabilityDeletionBlocked,
-  renderCapabilityDeletionBusy,
+  type CapabilityDestructionFaults,
+  createProductionCapabilityDeletionAdapters,
+  handleCapabilityDeletionConfirmation,
+  type OwnedResourceCleanupAdapter,
+  renderCapabilityDeletionAlreadyGone,
   renderCapabilityDeletionConfirmation,
-  renderCapabilityDeletionReady,
-  renderCapabilityDeletionStale,
-  renderCapabilityDeletionUnavailable,
+  resolveCapabilityDeletionRestoration,
 } from "../capability-deletion/index.ts";
 import {
   createMutationCoordinator,
@@ -62,6 +62,7 @@ import {
   hasMeaningfulPromptContent,
   readPromptSubmission,
   renderBuildSubscriber,
+  renderCachedCapabilitySurface,
   renderPromptNotice,
   renderRehydratedShellPage,
 } from "../web/index.ts";
@@ -131,8 +132,8 @@ export interface AppDeps {
   readonly mutationCoordinator?: MutationCoordinator;
   /** Per-incarnation read ownership shared by routes, preview, and deletion. */
   readonly readGates?: ReadGateCoordinator;
-  /** Lease-held continuation supplied by 4.9/03's durable destruction lifecycle. */
-  readonly onCapabilityDeletionAdmitted?: (target: CapabilityRow) => void | Promise<void>;
+  /** Fault seams used to pin deletion's pre-/post-commit boundary. */
+  readonly capabilityDestructionFaults?: CapabilityDestructionFaults;
 }
 
 /** The fully-resolved dependency set every route group below is wired from. */
@@ -148,7 +149,8 @@ interface ResolvedAppDeps {
   readonly capabilityRouter: CapabilityRouterDeps;
   readonly registryReadwrite: PlatformDatabase["readwrite"];
   readonly registryReadonly: PlatformDatabase["readonly"];
-  readonly onCapabilityDeletionAdmitted?: (target: CapabilityRow) => void | Promise<void>;
+  readonly capabilityDeletionAdapters: readonly OwnedResourceCleanupAdapter[];
+  readonly capabilityDestructionFaults?: CapabilityDestructionFaults;
 }
 
 function resolveRegistryDatabases(
@@ -204,7 +206,8 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     capabilityRouter,
     registryReadwrite: registryDatabases.readwrite,
     registryReadonly: registryDatabases.readonly,
-    onCapabilityDeletionAdmitted: deps.onCapabilityDeletionAdmitted,
+    capabilityDeletionAdapters: createProductionCapabilityDeletionAdapters(artifactsRoot),
+    capabilityDestructionFaults: deps.capabilityDestructionFaults,
   };
 }
 
@@ -427,55 +430,56 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
  * asks the resolver, or constructs a provider.
  */
 function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void {
-  app.get("/capability-deletion/:id", (c) => {
-    const target = getCapability(c.req.param("id"), ctx.registryReadonly);
-    if (!target) return c.html(renderCapabilityDeletionUnavailable(), 200);
-    const dependents = listCapabilityDependents(target, ctx.registryReadonly);
-    return c.html(renderCapabilityDeletionConfirmation(target, dependents), 200, {
+  app.get("/capability-deletion-restoration", (c) => {
+    const query = new URL(c.req.url).searchParams;
+    const restoration = resolveCapabilityDeletionRestoration(
+      query.getAll("restore_capability_id"),
+      query.getAll("restore_incarnation_id"),
+      ctx.registryReadonly,
+      query.getAll("restore_surface"),
+    );
+    const row = restoration.kind === "capability" ? restoration.row : null;
+    return c.html(row ? renderCachedCapabilitySurface(row) : "", 200, {
       "cache-control": "no-store",
+      "HX-Replace-Url": row ? `/capability/${encodeURIComponent(row.id)}` : "/",
     });
   });
 
-  app.post("/capability-deletion/:id/confirm", async (c) => {
+  app.get("/capability-deletion/:id", (c) => {
     const capabilityId = c.req.param("id");
-    const visibleTarget = getCapability(capabilityId, ctx.registryReadonly);
-    if (!visibleTarget) {
-      return c.html(renderCapabilityDeletionUnavailable(), 200, { "cache-control": "no-store" });
+    const target = getCapability(capabilityId, ctx.registryReadonly);
+    if (!target) {
+      return c.html(renderCapabilityDeletionAlreadyGone(capabilityId), 200, {
+        "cache-control": "no-store",
+        "HX-Replace-Url": "/",
+      });
     }
-
-    const form = await c.req.raw.formData();
-    const incarnationValues = form.getAll("incarnation_id");
-    const incarnationId =
-      incarnationValues.length === 1 && typeof incarnationValues[0] === "string"
-        ? incarnationValues[0]
-        : "";
-    const outcome = await admitCapabilityDeletion(
-      { capabilityId, incarnationId },
-      {
-        database: ctx.registryReadwrite,
-        mutationCoordinator: ctx.mutationCoordinator,
-        onAdmitted: ctx.onCapabilityDeletionAdmitted,
-      },
+    const dependents = listCapabilityDependents(target, ctx.registryReadonly);
+    const query = new URL(c.req.url).searchParams;
+    const restoration = resolveCapabilityDeletionRestoration(
+      query.getAll("restore_capability_id"),
+      query.getAll("restore_incarnation_id"),
+      ctx.registryReadonly,
+      query.getAll("restore_surface"),
     );
-
-    const fragment = (() => {
-      switch (outcome.status) {
-        case "busy":
-          return renderCapabilityDeletionBusy(visibleTarget);
-        case "stale": {
-          const current = getCapability(capabilityId, ctx.registryReadonly);
-          return current
-            ? renderCapabilityDeletionStale(current)
-            : renderCapabilityDeletionUnavailable();
-        }
-        case "blocked":
-          return renderCapabilityDeletionBlocked(outcome.target, outcome.dependents);
-        case "admitted":
-          return renderCapabilityDeletionReady(outcome.target);
-      }
-    })();
-    return c.html(fragment, 200, { "cache-control": "no-store" });
+    return c.html(
+      renderCapabilityDeletionConfirmation(
+        target,
+        dependents,
+        restoration.kind === "capability"
+          ? {
+              kind: "capability",
+              capabilityId: restoration.row.id,
+              incarnationId: restoration.row.incarnation_id,
+            }
+          : { kind: "neutral" },
+      ),
+      200,
+      { "cache-control": "no-store" },
+    );
   });
+
+  app.post("/capability-deletion/:id/confirm", (c) => handleCapabilityDeletionConfirmation(c, ctx));
 }
 
 /**

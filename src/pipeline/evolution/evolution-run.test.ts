@@ -25,10 +25,20 @@ import {
   createCapabilityQueryPort,
   materializeCapabilityActionRecord,
 } from "../../capability-data/index.ts";
+import {
+  createArtifactCleanupAdapter,
+  destroyCapability,
+} from "../../capability-deletion/index.ts";
 import { renderDetailFields } from "../../presentation/index.ts";
-import { type CapabilitySpec, getCapability } from "../../registry/index.ts";
+import { createReadGateCoordinator } from "../../read-gates/index.ts";
+import {
+  type CapabilitySpec,
+  getCapability,
+  listCapabilityDeletionTombstones,
+} from "../../registry/index.ts";
 import {
   activated,
+  addCommittedDependency,
   behaviorNeutralDueDateCandidate,
   committedGate,
   committedSpec,
@@ -168,6 +178,53 @@ describe("the due-date tracer", () => {
     expect(narration.length).toBeGreaterThan(0);
     expect(narration).not.toMatch(/handler|migration|schema|gate|snapshot|spec\b/i);
   });
+});
+
+describe("evolution during unrelated deletion cleanup", () => {
+  test("evolves while another capability has durable cleanup pending", async () => {
+    const archiveSpec: CapabilitySpec = {
+      ...committedSpec(),
+      id: "archive",
+      label: "Archive",
+      prompt_context: "Stores archived text entries.",
+    };
+    const archiveIncarnation = "66666666-6666-4666-8666-666666666666";
+    await addCommittedDependency(env, archiveSpec, archiveIncarnation);
+    const archive = getCapability(archiveSpec.id, env.conns.readonly);
+    if (!archive) throw new Error("archive capability did not activate");
+
+    const destruction = await destroyCapability({
+      target: archive,
+      database: env.conns.readwrite,
+      readonlyDatabase: env.conns.readonly,
+      readGates: createReadGateCoordinator(),
+      adapters: [
+        {
+          name: "pending_external_resource",
+          collect: () => ["resource-key"],
+          clean: () => {
+            throw new Error("external cleanup is temporarily unavailable");
+          },
+        },
+        createArtifactCleanupAdapter(env.artifactsRoot),
+      ],
+    });
+    const archiveV1 = join(env.artifactsRoot, archiveSpec.id, archiveIncarnation, "v1");
+    expect(destruction.status).toBe("cleanup_pending");
+    expect(getCapability(archiveSpec.id, env.conns.readonly)).toBeNull();
+    expect(listCapabilityDeletionTombstones(env.conns.readonly)).toHaveLength(1);
+    expect(verifyCapabilitySnapshot(archiveV1).manifest.incarnation_id).toBe(archiveIncarnation);
+
+    const result = await evolve(env, dueDateCandidate(), "add a due date to my notes", {
+      buildId: "due-date-with-unrelated-cleanup-pending",
+    });
+    const outcome = activated(result);
+
+    expect(outcome.publication.version).toBe(2);
+    expect(getCapability("notes", env.conns.readonly)?.version).toBe(2);
+    expect(listCapabilityDeletionTombstones(env.conns.readonly)).toHaveLength(1);
+    expect(verifyCapabilitySnapshot(archiveV1).manifest.incarnation_id).toBe(archiveIncarnation);
+  }, 30_000);
 });
 
 /**

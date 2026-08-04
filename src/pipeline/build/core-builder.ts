@@ -80,6 +80,8 @@ import type { Provider } from "../../provider/index.ts";
 import {
   type CapabilityRow,
   getCapability,
+  isCapabilityIdReservedByDeletion,
+  listCapabilityDeletionTombstones,
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
 import {
@@ -194,6 +196,17 @@ export type ResolvedRequestRevalidation =
   | { readonly kind: "new_capability" }
   | { readonly kind: "existing_capability"; readonly active: CapabilityRow };
 
+function proposedCapabilityIdIsUnavailable(
+  proposed: string,
+  database: PlatformDatabase["readonly"],
+  catalog: ReturnType<typeof readActiveRegistryCatalog>,
+): boolean {
+  return (
+    catalog.capabilities.some((row) => row.id === proposed) ||
+    isCapabilityIdReservedByDeletion(proposed, database)
+  );
+}
+
 /**
  * Revalidate a resolved request against the registry as it stands right now.
  *
@@ -229,7 +242,7 @@ export function revalidateResolvedRequest(
     // Expected-absence over a resolver-proposed semantic id. When the resolver named no
     // id, absence is the activation CAS's to prove and there is nothing to check here.
     const proposed = request.expectedAbsentCapabilityId;
-    if (proposed !== null && catalog.capabilities.some((row) => row.id === proposed)) {
+    if (proposed !== null && proposedCapabilityIdIsUnavailable(proposed, database, catalog)) {
       return refusal("expected_absent_collision");
     }
     if (catalog.fingerprint !== request.catalogFingerprint) return refusal("catalog_revision");
@@ -368,6 +381,12 @@ async function runAdmittedNewCapability(
   reconcileCapabilityArtifacts({
     database: input.buildDatabases.readwrite,
     artifactsRoot: input.artifactsRoot,
+    tombstonedIncarnations: listCapabilityDeletionTombstones(input.buildDatabases.readonly).map(
+      (tombstone) => ({
+        capabilityId: tombstone.capabilityId,
+        incarnationId: tombstone.incarnationId,
+      }),
+    ),
   });
   // Revalidation has passed, so the incarnation may now be assigned (ARCH §6.2 step 1).
   const incarnationId = createCapabilityIncarnationId();

@@ -10,15 +10,35 @@
 
 import { app, platformReadGates } from "./app/app.ts";
 import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
+import {
+  createProductionCapabilityDeletionAdapters,
+  recoverCapabilityDeletionTombstones,
+} from "./capability-deletion/index.ts";
 import { db, dbReadonly } from "./persistence/db.ts";
 import { runMigrations } from "./persistence/migrations.ts";
-import { readActiveRegistryCatalog } from "./registry/index.ts";
+import { listCapabilityDeletionTombstones, readActiveRegistryCatalog } from "./registry/index.ts";
 
 // Apply platform migrations before accepting traffic. Idempotent: a no-op once the
 // ledger is up to date, so steady-state restarts pay nothing.
 const applied = runMigrations();
 if (applied.length > 0) {
   console.log(`omni-crud applied ${applied.length} migration(s): ${applied.join(", ")}`);
+}
+const deletionRecovery = await recoverCapabilityDeletionTombstones({
+  database: db,
+  adapters: createProductionCapabilityDeletionAdapters(DEFAULT_ARTIFACTS_ROOT),
+});
+for (const result of deletionRecovery) {
+  if (result.status === "deleted") {
+    console.log(
+      `omni-crud completed pending deletion cleanup for ${result.tombstone.capabilityId}`,
+    );
+  } else {
+    console.error(
+      `omni-crud could not complete pending deletion cleanup for ${result.tombstone.capabilityId}:`,
+      result.error instanceof Error ? result.error.message : result.error,
+    );
+  }
 }
 platformReadGates.recoverAtBoot(
   readActiveRegistryCatalog(dbReadonly).capabilities.map((row) => ({
@@ -29,6 +49,10 @@ platformReadGates.recoverAtBoot(
 const reconciliation = reconcileCapabilityArtifacts({
   database: db,
   artifactsRoot: DEFAULT_ARTIFACTS_ROOT,
+  tombstonedIncarnations: listCapabilityDeletionTombstones(dbReadonly).map((tombstone) => ({
+    capabilityId: tombstone.capabilityId,
+    incarnationId: tombstone.incarnationId,
+  })),
 });
 if (reconciliation.removed.length > 0) {
   console.log(
