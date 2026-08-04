@@ -17,6 +17,7 @@
 @import "css/base.css"; /* reset, body defaults, wordmark, Alpine x-cloak     */
 @import "css/shell.css"; /* shell layout, top bar, sidebar toggle, backdrop   */
 @import "css/toolbar.css"; /* capability toolbar (left sidebar) + responsive  */
+@import "css/deletion.css"; /* permanent capability-deletion confirmation     */
 @import "css/devbar.css"; /* developer panel (right sidebar) + responsive     */
 @import "css/demo.css"; /* cold-start, build stream, raw stage previews      */
 @import "css/prompt.css"; /* bottom-pinned prompt composer                    */

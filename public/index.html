@@ -78,7 +78,7 @@
     >
       <!-- Capability toolbar — the left sidebar. Hidden at cold-start; the
            registry rehydrates its entries (and flips hasCapabilities) later. -->
-      <nav class="toolbar" id="capability-toolbar" aria-label="Capabilities">
+      <nav class="toolbar" id="capability-toolbar" aria-label="Capabilities" :inert="!open">
         <!-- Sidebar-top home of the Aluna wordmark (shown when the sidebar is). -->
         <p class="wordmark">Aluna<span class="wordmark__dot" aria-hidden="true">.</span></p>
         <!-- Capability entries render here later. -->

@@ -1,0 +1,81 @@
+/* =============================================================================
+   Permanent capability deletion
+
+   A focused inline checkpoint in the content area. It deliberately avoids a second
+   modal layer: the capability toolbar starts the action, and the full loss scope stays
+   visible beside the user's ordinary context until they confirm or return.
+   ========================================================================== */
+
+.capability-deletion {
+  display: flex;
+  width: min(100%, 42rem);
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-inline: auto;
+  padding-block: var(--space-4);
+}
+.capability-deletion h1 {
+  margin: 0;
+  font: var(--h1);
+  color: var(--color-text);
+}
+.capability-deletion h1:focus-visible {
+  outline-color: var(--color-accent-secondary);
+}
+.capability-deletion__body {
+  display: flex;
+  max-width: 68ch;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+}
+.capability-deletion__body p,
+.capability-deletion__status {
+  margin: 0;
+}
+.capability-deletion__retention {
+  font: var(--meta);
+  color: var(--color-text-subtle);
+}
+.capability-deletion__notice {
+  padding: var(--space-2);
+  color: var(--color-text);
+  background: color-mix(in oklch, var(--color-warm), var(--color-surface) 70%);
+  border: var(--border-thin) solid color-mix(in oklch, var(--color-warm), var(--color-text) 30%);
+  border-radius: var(--radius-md);
+}
+.capability-deletion__status {
+  align-self: flex-start;
+  padding: var(--space-0_5) var(--space-1);
+  font: var(--meta);
+  color: var(--color-text);
+  background: color-mix(in oklch, var(--color-info), var(--color-surface) 70%);
+  border-radius: var(--radius-sm);
+}
+.capability-deletion__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding-top: var(--space-1);
+}
+.capability-deletion__actions form {
+  margin: 0;
+}
+.btn.capability-deletion__keep {
+  background: transparent;
+}
+.btn.capability-deletion__keep:hover {
+  background: var(--color-surface);
+}
+
+@media (max-width: 639.98px) {
+  .capability-deletion {
+    padding-block: var(--space-2);
+  }
+  .capability-deletion__actions,
+  .capability-deletion__actions form,
+  .capability-deletion__actions .btn {
+    width: 100%;
+  }
+}

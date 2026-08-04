@@ -15,6 +15,15 @@ import { streamSSE } from "hono/streaming";
 import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
 import { renderFewShotGalleryPreviewPage } from "../builder/units/few-shot-gallery-preview.ts";
 import {
+  admitCapabilityDeletion,
+  renderCapabilityDeletionBlocked,
+  renderCapabilityDeletionBusy,
+  renderCapabilityDeletionConfirmation,
+  renderCapabilityDeletionReady,
+  renderCapabilityDeletionStale,
+  renderCapabilityDeletionUnavailable,
+} from "../capability-deletion/index.ts";
+import {
   createMutationCoordinator,
   type MutationCoordinator,
 } from "../mutation-coordinator/index.ts";
@@ -40,7 +49,12 @@ import {
   renderReadGatePreviewPage,
   renderReadGateSnapshot,
 } from "../read-gates/preview.ts";
-import { type CapabilityRow, readActiveRegistryCatalog } from "../registry/index.ts";
+import {
+  type CapabilityRow,
+  getCapability,
+  listCapabilityDependents,
+  readActiveRegistryCatalog,
+} from "../registry/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../router/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "../sse/index.ts";
 import {
@@ -117,6 +131,8 @@ export interface AppDeps {
   readonly mutationCoordinator?: MutationCoordinator;
   /** Per-incarnation read ownership shared by routes, preview, and deletion. */
   readonly readGates?: ReadGateCoordinator;
+  /** Lease-held continuation supplied by 4.9/03's durable destruction lifecycle. */
+  readonly onCapabilityDeletionAdmitted?: (target: CapabilityRow) => void | Promise<void>;
 }
 
 /** The fully-resolved dependency set every route group below is wired from. */
@@ -130,7 +146,16 @@ interface ResolvedAppDeps {
   readonly readGates: ReadGateCoordinator;
   readonly buildJobs: BuildJobQueue;
   readonly capabilityRouter: CapabilityRouterDeps;
+  readonly registryReadwrite: PlatformDatabase["readwrite"];
   readonly registryReadonly: PlatformDatabase["readonly"];
+  readonly onCapabilityDeletionAdmitted?: (target: CapabilityRow) => void | Promise<void>;
+}
+
+function resolveRegistryDatabases(
+  capabilityRouter: CapabilityRouterDeps,
+  defaultDatabases: PlatformDatabase,
+): PlatformDatabase {
+  return capabilityRouter.databases ?? defaultDatabases;
 }
 
 /**
@@ -163,7 +188,10 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
   // resolving it once keeps the two views of the registry consistent. Tests inject a
   // scratch pair here and a committed build shows up in the rehydrated toolbar.
   const capabilityRouter = deps.capabilityRouter ?? {};
-  const registryReadonly = capabilityRouter.databases?.readonly ?? dbReadonly;
+  const registryDatabases = resolveRegistryDatabases(capabilityRouter, {
+    readwrite: db,
+    readonly: dbReadonly,
+  });
   return {
     getProvider,
     sseHeartbeatMs,
@@ -174,7 +202,9 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     readGates,
     buildJobs,
     capabilityRouter,
-    registryReadonly,
+    registryReadwrite: registryDatabases.readwrite,
+    registryReadonly: registryDatabases.readonly,
+    onCapabilityDeletionAdmitted: deps.onCapabilityDeletionAdmitted,
   };
 }
 
@@ -392,6 +422,63 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
 }
 
 /**
+ * Platform-owned permanent-deletion chrome and admission. This is intentionally a
+ * top-level route rather than a generated capability Action: it never loads a Handler,
+ * asks the resolver, or constructs a provider.
+ */
+function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void {
+  app.get("/capability-deletion/:id", (c) => {
+    const target = getCapability(c.req.param("id"), ctx.registryReadonly);
+    if (!target) return c.html(renderCapabilityDeletionUnavailable(), 200);
+    const dependents = listCapabilityDependents(target, ctx.registryReadonly);
+    return c.html(renderCapabilityDeletionConfirmation(target, dependents), 200, {
+      "cache-control": "no-store",
+    });
+  });
+
+  app.post("/capability-deletion/:id/confirm", async (c) => {
+    const capabilityId = c.req.param("id");
+    const visibleTarget = getCapability(capabilityId, ctx.registryReadonly);
+    if (!visibleTarget) {
+      return c.html(renderCapabilityDeletionUnavailable(), 200, { "cache-control": "no-store" });
+    }
+
+    const form = await c.req.raw.formData();
+    const incarnationValues = form.getAll("incarnation_id");
+    const incarnationId =
+      incarnationValues.length === 1 && typeof incarnationValues[0] === "string"
+        ? incarnationValues[0]
+        : "";
+    const outcome = await admitCapabilityDeletion(
+      { capabilityId, incarnationId },
+      {
+        database: ctx.registryReadwrite,
+        mutationCoordinator: ctx.mutationCoordinator,
+        onAdmitted: ctx.onCapabilityDeletionAdmitted,
+      },
+    );
+
+    const fragment = (() => {
+      switch (outcome.status) {
+        case "busy":
+          return renderCapabilityDeletionBusy(visibleTarget);
+        case "stale": {
+          const current = getCapability(capabilityId, ctx.registryReadonly);
+          return current
+            ? renderCapabilityDeletionStale(current)
+            : renderCapabilityDeletionUnavailable();
+        }
+        case "blocked":
+          return renderCapabilityDeletionBlocked(outcome.target, outcome.dependents);
+        case "admitted":
+          return renderCapabilityDeletionReady(outcome.target);
+      }
+    })();
+    return c.html(fragment, 200, { "cache-control": "no-store" });
+  });
+}
+
+/**
  * Build the Hono app from {@link AppDeps}, applying the production defaults for any
  * dependency a caller does not inject, then attaching every route group.
  */
@@ -401,6 +488,7 @@ export function createApp(deps: AppDeps = {}): Hono {
 
   registerShellRoute(app, ctx);
   registerBuildJobRoutes(app, ctx);
+  registerCapabilityDeletionRoutes(app, ctx);
 
   // The one guard over the `/demo/*` surfaces nothing in the served UI targets: they
   // are developer inspection routes, not product, so a production bundle must not

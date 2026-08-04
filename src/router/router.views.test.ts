@@ -329,6 +329,8 @@ describe("deterministic capability router — toolbar rehydration and labels", (
     expect(body).toContain('data-active-capability-id="notes"');
     expect(body).toContain('hx-get="/capability/notes"');
     expect(body).toContain('hx-get="/capability/boom"');
+    expect(body).toContain('hx-get="/capability-deletion/notes"');
+    expect(body).toContain('hx-get="/capability-deletion/boom"');
   });
 
   test("direct capability navigation uses a canonical short toolbar label for legacy sentence labels", async () => {

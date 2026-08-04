@@ -105,13 +105,18 @@ export function renderCapabilityToolbarEntry(row: Pick<CapabilityRow, "id" | "la
   const id = escapeHtml(row.id);
   const label = canonicalCapabilityLabel(row);
   const url = `/capability/${id}`;
+  const deletionUrl = `/capability-deletion/${encodeURIComponent(row.id)}`;
   return [
-    "<button",
+    "<div",
     `  id="capability-toolbar-entry-${id}"`,
-    '  type="button"',
-    '  class="toolbar__entry"',
+    '  class="toolbar__item"',
     "  data-capability-entry",
     `  data-capability-id="${id}"`,
+    ">",
+    "<button",
+    '  type="button"',
+    '  class="toolbar__entry"',
+    "  data-capability-open",
     `  hx-get="${url}"`,
     '  hx-target="#spec-build-output"',
     '  hx-swap="innerHTML"',
@@ -119,6 +124,17 @@ export function renderCapabilityToolbarEntry(row: Pick<CapabilityRow, "id" | "la
     ">",
     `  ${escapeHtml(label)}`,
     "</button>",
+    `<button type="button" class="toolbar__delete" data-capability-delete` +
+      ` aria-label="Permanently delete ${escapeHtml(label)}" title="Permanently delete"` +
+      ` hx-get="${escapeHtml(deletionUrl)}"` +
+      ` hx-target="#spec-build-output" hx-swap="innerHTML">`,
+    `  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"` +
+      ` stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`,
+    `    <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" />`,
+    `    <path d="M10 11v5M14 11v5" />`,
+    "  </svg>",
+    "</button>",
+    "</div>",
   ].join("\n");
 }
 
@@ -134,8 +150,8 @@ function renderCapabilityToolbarOobEntry(row: Pick<CapabilityRow, "id" | "label"
 function renderCapabilityToolbarReplacement(row: Pick<CapabilityRow, "id" | "label">): string {
   const targetId = `capability-toolbar-entry-${escapeHtml(row.id)}`;
   return renderCapabilityToolbarEntry(row).replace(
-    "<button",
-    `<button hx-swap-oob="outerHTML:#${targetId}"`,
+    "<div",
+    `<div hx-swap-oob="outerHTML:#${targetId}"`,
   );
 }
 

@@ -165,6 +165,8 @@ describe("GET / (shell) — browser glue", () => {
   test("browser prompt glue leaves the prompt request and stream connection to HTMX", async () => {
     const app = createApp();
     const js = await responseText(await app.request("/static/app.js"));
+    const html = await responseText(await app.request("/"));
+    const toolbarCss = await responseText(await app.request("/static/css/toolbar.css"));
 
     expect(js).toContain('document.addEventListener("htmx:sseBeforeMessage"');
     expect(js).toContain('document.addEventListener("htmx:sseOpen"');
@@ -201,6 +203,13 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain('addEventListener("aluna:create-cancelled"');
     expect(js).toContain("collapseListFieldRows(form)");
     expect(js).toContain("Element.prototype.querySelectorAll.call(form");
+    expect(js).toContain("[data-capability-open], [data-capability-delete]");
+    expect(js).toContain("state.open = false");
+    expect(js).toContain("focusCapabilityDeletion(event)");
+    expect(js).toContain("[data-capability-deletion-focus]");
+    expect(html).toContain(':inert="!open"');
+    expect(toolbarCss).toMatch(/\.toolbar__delete\s*\{[^}]*width:\s*2\.75rem/s);
+    expect(toolbarCss).toMatch(/\.toolbar__delete\s*\{[^}]*height:\s*2\.75rem/s);
     expect(js).not.toContain("new EventSource");
     expect(js).not.toContain('fetch("/prompt"');
     expect(js).not.toContain('addEventListener("submit"');
