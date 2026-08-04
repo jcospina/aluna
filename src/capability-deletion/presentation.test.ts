@@ -3,8 +3,12 @@ import { describe, expect, test } from "bun:test";
 import { boomRow, notesRow } from "../router/router.test-support.ts";
 import {
   dependentCapabilityNames,
+  renderCapabilityDeletionAlreadyGone,
   renderCapabilityDeletionBlocked,
+  renderCapabilityDeletionCommitted,
   renderCapabilityDeletionConfirmation,
+  renderCapabilityDeletionPreCommitFailure,
+  renderCapabilityDeletionRefusalRestoration,
 } from "./presentation.ts";
 
 describe("capability-deletion presentation", () => {
@@ -16,11 +20,11 @@ describe("capability-deletion presentation", () => {
       "This deletes all records, every past setup, saved files and anything else it owns, plus its activity history. You can’t undo this.",
     );
     expect(html).toContain(
-      "Aluna keeps a few measurements about creating or changing Notes, but never your content",
+      "I keep a few measurements about creating or changing Notes, but never your content",
     );
     expect(html).toContain('class="capability-deletion__retention"');
     expect(html).toContain('class="btn btn--neutral capability-deletion__keep"');
-    expect(html).toContain("Delete permanently</button>");
+    expect(html).toContain("Delete permanently</span>");
     expect(html).not.toContain("Permanent deletion");
     expect(html).not.toContain("content-free");
     expect(html).toContain(`value="${notesRow().incarnation_id}"`);
@@ -53,5 +57,53 @@ describe("capability-deletion presentation", () => {
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
     expect(html).toContain("&lt;script&gt;alert(2)&lt;/script&gt;");
+  });
+
+  test("leaves the primary output truly empty after a neutral committed deletion", () => {
+    const html = renderCapabilityDeletionCommitted(notesRow(), "", false);
+
+    expect(html).toBe(
+      '<div data-capability-deletion-toolbar-removal hx-swap-oob="delete:#capability-toolbar-entry-notes"></div><div id="prompt-notice" hx-swap-oob="innerHTML">I deleted Notes permanently.</div>',
+    );
+  });
+
+  test("a neutral refusal or pre-commit failure leaves no primary bytes either", () => {
+    // Only out-of-band updates may survive: a separator would leave a text node, and a
+    // `#spec-build-output` holding one stops matching `:empty` — an empty bordered bar.
+    const failure = renderCapabilityDeletionPreCommitFailure(notesRow(), "");
+    const refusal = renderCapabilityDeletionRefusalRestoration(notesRow(), "", { kind: "busy" });
+
+    expect(failure).toBe(
+      '<div id="prompt-notice" hx-swap-oob="innerHTML">I couldn’t delete Notes. Everything you had there is still safe.</div>',
+    );
+    expect(refusal.startsWith('<div id="prompt-notice"')).toBe(true);
+    expect(refusal).toContain("I’m making another change right now");
+  });
+
+  test("Confirm carries the preflight URL the shell re-asks when a response never lands", () => {
+    const html = renderCapabilityDeletionConfirmation(notesRow(), []);
+
+    expect(html).toContain('data-capability-deletion-confirm="/capability-deletion/notes"');
+  });
+
+  test("Confirm names the act while it runs and locks both controls", () => {
+    const html = renderCapabilityDeletionConfirmation(notesRow(), []);
+
+    expect(html).toContain(
+      '<span class="capability-deletion__label" data-deletion-idle-label>Delete permanently</span>',
+    );
+    expect(html).toContain(
+      '<span class="capability-deletion__label" data-deletion-busy-label>Erasing…</span>',
+    );
+    expect(html).toContain('hx-disabled-elt="find button"');
+  });
+
+  test("an already-gone target lands on the neutral home state, not a dead-end panel", () => {
+    const html = renderCapabilityDeletionAlreadyGone("notes");
+
+    expect(html).toBe(
+      '<div data-capability-deletion-toolbar-removal hx-swap-oob="delete:#capability-toolbar-entry-notes"></div><div id="prompt-notice" hx-swap-oob="innerHTML">That’s already gone, so I didn’t delete anything.</div>',
+    );
+    expect(html).not.toContain("capability-deletion__actions");
   });
 });

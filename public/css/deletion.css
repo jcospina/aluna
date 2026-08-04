@@ -69,6 +69,30 @@
   background: var(--color-surface);
 }
 
+/* In flight. HTMX marks the submitting form `htmx-request` for exactly as long as the
+   deletion is running, so the danger control names the act ("Erasing…") and **Keep it**
+   stops being a live choice — the decision is already past. Pure CSS: no state to get
+   out of step with the request. */
+.capability-deletion__label[data-deletion-busy-label],
+form.htmx-request .capability-deletion__label[data-deletion-idle-label] {
+  display: none;
+}
+form.htmx-request .capability-deletion__label[data-deletion-busy-label] {
+  display: inline;
+}
+.capability-deletion__actions:has(form.htmx-request) .capability-deletion__keep {
+  pointer-events: none;
+  opacity: 0.5;
+}
+/* `disabled` here stops a second press; it does not un-say what the control is. The
+   danger fill stays through the act, softened rather than flattened to the surface
+   default every other disabled button falls back to. */
+.capability-deletion__actions form.htmx-request .btn--danger:disabled {
+  color: var(--color-text-on-danger);
+  background: color-mix(in oklch, var(--color-danger), var(--color-surface) 30%);
+  border-color: color-mix(in oklch, var(--color-danger), var(--color-text) 25%);
+}
+
 @media (max-width: 639.98px) {
   .capability-deletion {
     padding-block: var(--space-2);

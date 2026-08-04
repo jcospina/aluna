@@ -48,7 +48,12 @@ import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { CarriedResolverMeasurement } from "../../metrics/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
 import type { Provider, TokenUsage } from "../../provider/index.ts";
-import { type CapabilityRow, type CapabilitySpec, listCapabilities } from "../../registry/index.ts";
+import {
+  type CapabilityRow,
+  type CapabilitySpec,
+  listCapabilities,
+  listCapabilityDeletionTombstones,
+} from "../../registry/index.ts";
 import { previewingProvider } from "../build/build-run.ts";
 import type { SendBuildEvent } from "../jobs/build-jobs.ts";
 import {
@@ -367,6 +372,12 @@ async function publishAndActivate(
   reconcileCapabilityArtifacts({
     database: input.database.readwrite,
     artifactsRoot: input.artifactsRoot,
+    tombstonedIncarnations: listCapabilityDeletionTombstones(input.database.readonly).map(
+      (tombstone) => ({
+        capabilityId: tombstone.capabilityId,
+        incarnationId: tombstone.incarnationId,
+      }),
+    ),
   });
   const expected = expectedActiveCapability({
     capabilityId: active.id,

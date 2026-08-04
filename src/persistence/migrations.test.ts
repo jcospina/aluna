@@ -7,7 +7,7 @@
 
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
@@ -17,7 +17,12 @@ import {
   startGenerationLifecycle,
 } from "../metrics/lifecycle-store.ts";
 import { GENERATION_METRICS_TABLE } from "../metrics/store.ts";
-import { REGISTRY_TABLE } from "../registry/store.ts";
+import {
+  insertCapabilityDeletionTombstone,
+  listCapabilityDeletionTombstones,
+} from "../registry/deletion-tombstones.ts";
+import { insertCapability, REGISTRY_TABLE } from "../registry/store.ts";
+import { notesRow } from "../router/router.test-support.ts";
 import { openDatabase, type PlatformDatabase } from "./db.ts";
 import { MIGRATIONS, MIGRATIONS_TABLE, runMigrations } from "./migrations.ts";
 
@@ -89,6 +94,53 @@ describe("platform migrations runner", () => {
       .query(`SELECT id, applied_at FROM ${MIGRATIONS_TABLE} ORDER BY id`)
       .all() as { id: string; applied_at: string }[];
     expect(after).toEqual(before);
+  });
+
+  test("upgrades the brief separate-table deletion draft into a registry tombstone", () => {
+    const compatibilityId = "0011_registry_row_deletion_lifecycle";
+    for (const migration of MIGRATIONS) {
+      if (migration.id === "0010_capability_deletion_tombstones") break;
+      conns.readwrite.transaction(() => {
+        migration.up(conns.readwrite);
+        conns.readwrite.run(`INSERT INTO ${MIGRATIONS_TABLE} (id) VALUES (?)`, [migration.id]);
+      })();
+    }
+    conns.readwrite.exec(
+      `CREATE TABLE capability_deletion_tombstones (
+         capability_id TEXT PRIMARY KEY,
+         incarnation_id TEXT NOT NULL UNIQUE,
+         manifest TEXT NOT NULL CHECK (json_valid(manifest)),
+         created_at TEXT NOT NULL DEFAULT (datetime('now'))
+       ) STRICT;`,
+    );
+    conns.readwrite.run(`INSERT INTO ${MIGRATIONS_TABLE} (id) VALUES (?)`, [
+      "0010_capability_deletion_tombstones",
+    ]);
+    const capabilityId = "notes";
+    const incarnationId = "11111111-1111-4111-8111-111111111111";
+    const manifest = [
+      {
+        adapter: "version_artifacts",
+        key: "incarnation_root",
+        capabilityId,
+        incarnationId,
+      },
+    ];
+    conns.readwrite.run(
+      `INSERT INTO capability_deletion_tombstones
+       (capability_id, incarnation_id, manifest) VALUES (?, ?, ?)`,
+      [capabilityId, incarnationId, JSON.stringify(manifest)],
+    );
+
+    expect(runMigrations(conns.readwrite)).toEqual([compatibilityId]);
+    expect(listCapabilityDeletionTombstones(conns.readonly)).toMatchObject([
+      { capabilityId, incarnationId, manifest },
+    ]);
+    expect(
+      conns.readonly
+        .query("SELECT lifecycle_state FROM capability_registry WHERE id = ?")
+        .get(capabilityId),
+    ).toEqual({ lifecycle_state: "deletion_tombstone" });
   });
 
   test("a later boot reconciles an abandoned running generation", () => {
@@ -176,6 +228,59 @@ describe("migrations run on app boot", () => {
           .query(`SELECT id FROM ${MIGRATIONS_TABLE} WHERE id = ?`)
           .get(BASELINE_ID) as { id: string } | null;
         expect(baseline?.id).toBe(BASELINE_ID);
+      } finally {
+        booted.close();
+      }
+    } finally {
+      proc.kill();
+      await proc.exited;
+    }
+  }, 20000);
+
+  test("boot retries a durable post-commit deletion before serving", async () => {
+    const dbPath = join(dir, "data", "omni-crud.db");
+    const bootDatabase = openDatabase(dbPath);
+    const capabilityId = "notes";
+    const incarnationId = "11111111-1111-4111-8111-111111111111";
+    const incarnationDirectory = join(dir, "capabilities", capabilityId, incarnationId);
+    try {
+      runMigrations(bootDatabase.readwrite);
+      insertCapability(notesRow({ incarnation_id: incarnationId }), bootDatabase.readwrite);
+      insertCapabilityDeletionTombstone(
+        {
+          capabilityId,
+          incarnationId,
+          manifest: [
+            {
+              adapter: "version_artifacts",
+              key: "incarnation_root",
+              capabilityId,
+              incarnationId,
+            },
+          ],
+        },
+        bootDatabase.readwrite,
+      );
+    } finally {
+      bootDatabase.readonly.close();
+      bootDatabase.readwrite.close();
+    }
+    mkdirSync(incarnationDirectory, { recursive: true });
+    writeFileSync(join(incarnationDirectory, "orphaned.ts"), "old");
+
+    const entry = join(import.meta.dir, "..", "index.ts");
+    const proc = Bun.spawn(["bun", entry], {
+      cwd: dir,
+      env: { ...process.env, PORT: "0" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    try {
+      await waitForLog(proc.stdout, "listening", 15000);
+      expect(existsSync(incarnationDirectory)).toBe(false);
+      const booted = new Database(dbPath, { readonly: true });
+      try {
+        expect(listCapabilityDeletionTombstones(booted)).toEqual([]);
       } finally {
         booted.close();
       }

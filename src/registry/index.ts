@@ -10,6 +10,16 @@ export {
   fingerprintActiveRegistryCatalog,
   readActiveRegistryCatalog,
 } from "./active-catalog.ts";
+export {
+  type CapabilityDeletionTombstone,
+  DELETION_TOMBSTONE_STATE,
+  getCapabilityDeletionTombstone,
+  insertCapabilityDeletionTombstone,
+  isCapabilityIdReservedByDeletion,
+  listCapabilityDeletionTombstones,
+  type OwnedResourceEntry,
+  removeCapabilityDeletionTombstone,
+} from "./deletion-tombstones.ts";
 export { canonicalCapabilityLabel, isCapabilityNameLabel } from "./labels.ts";
 export {
   activeSpecFields,

@@ -281,6 +281,17 @@ describe("GET / (shell) — browser glue", () => {
   });
 });
 
+test("permanent deletion captures neutral or exact-capability restoration in browser glue", async () => {
+  const app = createApp();
+  const js = await responseText(await app.request("/static/app.js"));
+  const css = await responseText(await app.request("/static/css/demo.css"));
+
+  expect(js).toContain('detail.parameters.restore_surface = "neutral"');
+  expect(js).toContain('detail.parameters.restore_surface = "capability"');
+  expect(css).toContain(".intro__output:empty");
+  expect(css).not.toContain("data-capability-deletion-neutral");
+});
+
 describe("GET / (shell) — prompt admission", () => {
   test("preserves only an exact canonical revision or a truly neutral output", () => {
     const appScript = readFileSync(resolve("public/app.js"), "utf8");
