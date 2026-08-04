@@ -268,6 +268,16 @@ document.addEventListener("htmx:configRequest", (event) => {
 // and retire any explanation from the preceding request.
 document.addEventListener("htmx:beforeRequest", (event) => {
   const detail = /** @type {CustomEvent<{ elt?: Element }>} */ (event).detail;
+  const trigger = detail?.elt;
+  if (
+    typeof Element !== "undefined" &&
+    trigger instanceof Element &&
+    trigger.matches("[data-capability-open], [data-capability-delete]") &&
+    window.matchMedia("(max-width: 767.98px)").matches
+  ) {
+    const state = getShellPresentationState();
+    if (state !== null) state.open = false;
+  }
   if (!(detail?.elt instanceof HTMLFormElement) || detail.elt.id !== "spec-build-form") return;
   const output = document.querySelector("#spec-build-output");
   if (output?.querySelector("[data-build-job-id]")) {
@@ -417,6 +427,18 @@ function syncActiveCapabilityUrl() {
   window.history.replaceState(window.history.state, "", capabilityUrl);
 }
 
+/** @param {Event} event */
+function focusCapabilityDeletion(event) {
+  const target =
+    event instanceof CustomEvent && typeof event.detail === "object" && event.detail !== null
+      ? event.detail.target
+      : undefined;
+  if (!(target instanceof Element)) return;
+  const heading = target.querySelector("[data-capability-deletion-focus]");
+  if (!(heading instanceof HTMLElement)) return;
+  requestAnimationFrame(() => heading.focus());
+}
+
 /** @param {HTMLElement} subscriber */
 function terminalPresentationContent(subscriber) {
   const restoration = subscriber.querySelector("[data-build-restoration]");
@@ -502,9 +524,10 @@ function finishTerminalPresentation(eventTarget) {
 }
 
 document.addEventListener("htmx:oobAfterSwap", syncCapabilityPresentationState);
-document.addEventListener("htmx:afterSwap", () => {
+document.addEventListener("htmx:afterSwap", (event) => {
   syncCapabilityPresentationState();
   syncActiveCapabilityUrl();
+  focusCapabilityDeletion(event);
 });
 document.addEventListener("htmx:sseClose", (event) => {
   const closeType =

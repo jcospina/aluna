@@ -125,6 +125,10 @@ describe("web fragments", () => {
     expect(fragment).toContain("data-capability-toolbar-oob");
     expect(fragment).toContain("data-capability-entry");
     expect(fragment).toContain('hx-push-url="/capability/notes"');
+    expect(fragment).toContain('hx-get="/capability-deletion/notes"');
+    expect(fragment).toContain('aria-label="Permanently delete Notes"');
+    expect(fragment).toContain('title="Permanently delete"');
+    expect(fragment).toContain("data-capability-delete");
     expect(fragment).toContain(
       'data-active-capability-incarnation="11111111-1111-4111-8111-111111111111"',
     );
@@ -153,6 +157,8 @@ describe("web fragments", () => {
       oobValue: "outerHTML:#capability-toolbar-entry-notes",
     });
     expect(changed).not.toContain("beforeend:#capability-toolbar");
+    expect(changed).toContain('aria-label="Permanently delete Journal"');
+    expect(changed).not.toContain('aria-label="Permanently delete Notes"');
 
     const unchanged = renderCapabilityCommitSwap(evolved, collection, "Journal");
     expect(await inspectToolbarOob(unchanged)).toMatchObject({ entryCount: 0, oobCount: 0 });
@@ -195,6 +201,8 @@ describe("on-load toolbar rehydration", () => {
     expect(html).toContain('hx-push-url="/capability/notes"');
     expect(html).toContain('hx-get="/capability/recipes"');
     expect(html).toContain('hx-push-url="/capability/recipes"');
+    expect(html).toContain('hx-get="/capability-deletion/notes"');
+    expect(html).toContain('hx-get="/capability-deletion/recipes"');
     expect(html).toContain("Notes");
     expect(html).toContain("Recipes");
 

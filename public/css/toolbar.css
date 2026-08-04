@@ -23,8 +23,16 @@
   font-size: var(--type-lg);
   padding-block: var(--space-0_5) var(--space-2);
 }
+.toolbar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0_5);
+  border-radius: var(--radius-sm);
+}
 .toolbar__entry {
   display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   width: 100%;
   padding: var(--space-1);
   font: var(--body);
@@ -38,6 +46,29 @@
 .toolbar__entry:hover,
 .toolbar__entry:focus-visible {
   background: color-mix(in oklch, var(--color-text), transparent 92%);
+}
+.toolbar__delete {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: var(--space-0_5);
+  color: var(--color-text-subtle);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.toolbar__delete svg {
+  width: 1rem;
+  height: 1rem;
+}
+.toolbar__delete:hover,
+.toolbar__delete:focus-visible {
+  color: var(--color-danger);
+  background: color-mix(in oklch, var(--color-danger), transparent 90%);
 }
 
 /* ── Responsive — desktop full-collapse vs mobile off-canvas drawer ────────── */
