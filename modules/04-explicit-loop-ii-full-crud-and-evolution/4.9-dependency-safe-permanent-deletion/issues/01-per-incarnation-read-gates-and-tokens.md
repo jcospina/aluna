@@ -68,6 +68,11 @@ the surface 4.9/02–03 will animate.
 - Added the dev-only `/demo/read-gates` live preview. Its hold and close exercises
   use the shared coordinator; close also owns and finally releases deletion
   admission so the demo cannot bypass the production ordering contract.
+  **Retired in 4.9/04** — a demo is scaffolding for work in progress, and once
+  this issue was signed off the surface came down. Everything it demonstrated is
+  covered by `src/router/router.read-gates.test.ts`, `src/read-gates/index.test.ts`,
+  and the deletion fault battery, so its removal took no evidence with it. The
+  HITL steps below are therefore historical.
 - Closing mutation requests now retarget the existing create/edit/delete
   aria-live error regions with warm, structured feedback.
 
@@ -86,6 +91,9 @@ the surface 4.9/02–03 will animate.
   warmly refused while an unrelated capability remained browsable.
 
 ## HITL test instructions
+
+> Historical: `/demo/read-gates` was retired in 4.9/04 and these steps no longer
+> run. Kept as the record of how this issue was signed off.
 
 1. Reuse the running development server, or run `bun run dev` if port 3030 is
    not already listening.

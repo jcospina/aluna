@@ -15,6 +15,11 @@ import {
   type OwnedResourceEntry,
   removeCapabilityDeletionTombstone,
 } from "../registry/index.ts";
+import {
+  type InstalledPayloadPurgeResult,
+  NO_INSTALLED_PAYLOADS,
+  purgeInstalledCapabilityPayloads,
+} from "./installed-payloads.ts";
 
 export interface OwnedResourceCollectionContext {
   readonly target: CapabilityRow;
@@ -51,6 +56,7 @@ export interface DestroyCapabilityInput {
 export interface CapabilityDestructionResult {
   readonly status: "deleted" | "cleanup_pending";
   readonly tombstone: CapabilityDeletionTombstone;
+  readonly payloads: InstalledPayloadPurgeResult;
   readonly cleanupError?: unknown;
 }
 
@@ -122,9 +128,10 @@ function quoteSqlIdentifier(identifier: string): string {
 function commitDeletionTombstone(
   input: DestroyCapabilityInput,
   manifest: readonly OwnedResourceEntry[],
-): void {
+): InstalledPayloadPurgeResult {
   const { database, target } = input;
   const tableName = deriveCapabilityTableDdl(capabilitySpecFromRow(target)).tableName;
+  let payloads = NO_INSTALLED_PAYLOADS;
   database.transaction(() => {
     insertCapabilityDeletionTombstone(
       {
@@ -138,18 +145,37 @@ function commitDeletionTombstone(
 
     input.faults?.afterRegistryTombstoned?.();
 
-    purgeInstalledCapabilityPayloads(target, database);
+    payloads = purgeInstalledCapabilityPayloads(target, database);
     input.faults?.afterEventPayloadsPurged?.();
 
     database.exec(`DROP TABLE ${quoteSqlIdentifier(tableName)};`);
     input.faults?.afterTableDropped?.();
   })();
+  return payloads;
 }
 
-function purgeInstalledCapabilityPayloads(_target: CapabilityRow, _database: Database): void {
-  // Module 7 will extend this core-owned operation with its fixed Event Log store.
-  // Arbitrary SQL/callbacks stay outside this contract, preserving deletion's one
-  // SQLite transaction boundary until that store and provenance model exist.
+/**
+ * Discharge every durable obligation the tombstone carries, recording each entry's
+ * outcome. The first failure stops the run and leaves the tombstone intact with its
+ * complete manifest, so a retry re-runs entries that already succeeded — which is why
+ * every adapter must treat an already-absent resource as success.
+ */
+async function cleanOwnedResource(
+  entry: OwnedResourceEntry,
+  tombstone: CapabilityDeletionTombstone,
+  byName: ReadonlyMap<string, OwnedResourceCleanupAdapter>,
+): Promise<void> {
+  if (
+    entry.capabilityId !== tombstone.capabilityId ||
+    entry.incarnationId !== tombstone.incarnationId
+  ) {
+    throw new Error("Deletion tombstone contains a resource owned by another incarnation.");
+  }
+  const adapter = byName.get(entry.adapter);
+  if (!adapter) {
+    throw new Error(`Deletion cleanup adapter ${entry.adapter} is not installed.`);
+  }
+  await adapter.clean(entry, tombstone);
 }
 
 async function cleanTombstone(
@@ -159,17 +185,7 @@ async function cleanTombstone(
 ): Promise<void> {
   const byName = canonicalAdapterMap(adapters);
   for (const entry of tombstone.manifest) {
-    if (
-      entry.capabilityId !== tombstone.capabilityId ||
-      entry.incarnationId !== tombstone.incarnationId
-    ) {
-      throw new Error("Deletion tombstone contains a resource owned by another incarnation.");
-    }
-    const adapter = byName.get(entry.adapter);
-    if (!adapter) {
-      throw new Error(`Deletion cleanup adapter ${entry.adapter} is not installed.`);
-    }
-    await adapter.clean(entry, tombstone);
+    await cleanOwnedResource(entry, tombstone, byName);
   }
   if (!removeCapabilityDeletionTombstone(tombstone, database)) {
     throw new Error("Deletion tombstone changed before cleanup completed.");
@@ -190,6 +206,7 @@ export async function destroyCapability(
   input.readGates.synchronizeCatalog([incarnation]);
   const closeLease = await input.readGates.closeAndDrain(incarnation);
   let committed = false;
+  let payloads = NO_INSTALLED_PAYLOADS;
   try {
     const manifest = await collectOwnedResourceManifest(
       input.target,
@@ -197,7 +214,7 @@ export async function destroyCapability(
       input.adapters,
     );
     input.faults?.afterManifestCollected?.();
-    commitDeletionTombstone(input, manifest);
+    payloads = commitDeletionTombstone(input, manifest);
     committed = true;
     if (!input.readGates.finalizeClose(closeLease)) {
       throw new Error("Committed capability deletion could not retire its drained read gate.");
@@ -208,9 +225,9 @@ export async function destroyCapability(
     if (!tombstone) throw new Error("Committed capability deletion lost its tombstone.");
     try {
       await cleanTombstone(tombstone, input.database, input.adapters);
-      return { status: "deleted", tombstone };
+      return { status: "deleted", tombstone, payloads };
     } catch (cleanupError) {
-      return { status: "cleanup_pending", tombstone, cleanupError };
+      return { status: "cleanup_pending", tombstone, payloads, cleanupError };
     }
   } finally {
     if (!committed) input.readGates.reopen(closeLease);
@@ -257,6 +274,14 @@ export function createArtifactCleanupAdapter(
     },
   };
 }
+
+/**
+ * The adapter name the capability-owned object store will answer to when Module 6
+ * installs it. Nothing registers it yet: M4's acceptance fake claims it in tests only, and
+ * a manifest naming an adapter this process does not have is deliberately a hard failure
+ * rather than a silent skip — a real M6 obligation must never be discharged by accident.
+ */
+export const OWNED_RESOURCE_ADAPTER = "owned_files";
 
 /** The one production adapter inventory shared by live deletion and boot recovery. */
 export function createProductionCapabilityDeletionAdapters(

@@ -9,7 +9,7 @@
 // few-shot gallery — sits behind a single dev-only guard, so a production bundle does
 // not answer it.
 
-import { type Context, Hono } from "hono";
+import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { streamSSE } from "hono/streaming";
 import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
@@ -36,25 +36,8 @@ import {
 import { type BuildJobQueue, createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import { captureRestorationDescriptor } from "../pipeline/jobs/restoration.ts";
 import { createProvider, type Provider } from "../provider/index.ts";
-import {
-  type CapabilityIncarnation,
-  createReadGateCoordinator,
-  type ReadGateCloseLease,
-  type ReadGateCoordinator,
-  ReadGateDrainTimeoutError,
-  ReadGateUnavailableError,
-} from "../read-gates/index.ts";
-import {
-  type ReadGatePreviewCapability,
-  renderReadGatePreviewPage,
-  renderReadGateSnapshot,
-} from "../read-gates/preview.ts";
-import {
-  type CapabilityRow,
-  getCapability,
-  listCapabilityDependents,
-  readActiveRegistryCatalog,
-} from "../registry/index.ts";
+import { createReadGateCoordinator, type ReadGateCoordinator } from "../read-gates/index.ts";
+import { getCapability, listCapabilityDependents } from "../registry/index.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../router/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "../sse/index.ts";
 import {
@@ -130,7 +113,7 @@ export interface AppDeps {
   readonly artifactsRoot?: string;
   /** Atomic admission shared by builds, record routes, and platform writes. */
   readonly mutationCoordinator?: MutationCoordinator;
-  /** Per-incarnation read ownership shared by routes, preview, and deletion. */
+  /** Per-incarnation read ownership shared by capability routes and deletion. */
   readonly readGates?: ReadGateCoordinator;
   /** Fault seams used to pin deletion's pre-/post-commit boundary. */
   readonly capabilityDestructionFaults?: CapabilityDestructionFaults;
@@ -239,14 +222,14 @@ function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
 /**
  * The one surviving deterministic preview surface (epic 3.5) — no provider and no db.
  *
- * The 3.2–3.3 platform-presentation previews it used to sit beside are gone (4.8/07):
- * every module they showed — field renderer, list container + item wrapper, shared
- * detail modal, click-to-open — is now on the live capability surface, which `/` serves
- * through the real `renderCollection`. The gallery stays because it is the only place
- * the *injected* item-renderer prompt section can be read; production shows the
- * generated output, never the input.
+ * The 3.2–3.3 platform-presentation previews are gone (4.8/07), and 4.9's read-gate and
+ * deletion-cleanup previews went the same way (4.9/04): a demo is scaffolding for work in
+ * progress, so once the behavior it showed is built and covered by tests, the demo comes
+ * down with it. The gallery stays because it is the only place the *injected*
+ * item-renderer prompt section can be read; production shows the generated output, never
+ * the input.
  */
-function registerPreviewDemoRoutes(app: Hono, ctx: ResolvedAppDeps): void {
+function registerPreviewDemoRoutes(app: Hono): void {
   // Dev preview for the few-shot design gallery + item-renderer prompt injection
   // (epic 3.5) — the HITL surface for inspecting the repo-only exemplars and the exact
   // "vary, don't copy" prompt section. Deterministic, no provider, no db.
@@ -257,104 +240,6 @@ function registerPreviewDemoRoutes(app: Hono, ctx: ResolvedAppDeps): void {
         headers: { "content-type": "text/html; charset=utf-8" },
       }),
   );
-
-  app.get("/demo/read-gates", () => {
-    const catalog = synchronizeReadGateCatalog(ctx);
-    return new Response(
-      renderReadGatePreviewPage(previewCapabilities(catalog), ctx.readGates.snapshot()),
-      { headers: { "content-type": "text/html; charset=utf-8" } },
-    );
-  });
-  app.get("/demo/read-gates/state", (c) => {
-    const catalog = synchronizeReadGateCatalog(ctx);
-    return c.html(renderReadGateSnapshot(ctx.readGates.snapshot(), previewCapabilities(catalog)));
-  });
-  app.post("/demo/read-gates/:id/hold", async (c) => holdPreviewReader(c, ctx));
-  app.post("/demo/read-gates/:id/close", async (c) => exercisePreviewClose(c, ctx));
-}
-
-function synchronizeReadGateCatalog(ctx: ResolvedAppDeps): readonly CapabilityRow[] {
-  const catalog = readActiveRegistryCatalog(ctx.registryReadonly).capabilities;
-  ctx.readGates.synchronizeCatalog(catalog.map(readGateIncarnation));
-  return catalog;
-}
-
-function readGateIncarnation(
-  row: Pick<CapabilityRow, "id" | "incarnation_id">,
-): CapabilityIncarnation {
-  return { capabilityId: row.id, incarnationId: row.incarnation_id };
-}
-
-function previewCapabilities(
-  catalog: readonly CapabilityRow[],
-): readonly ReadGatePreviewCapability[] {
-  return catalog.map((row) => ({
-    id: row.id,
-    incarnationId: row.incarnation_id,
-    label: row.label,
-  }));
-}
-
-async function holdPreviewReader(c: Context, ctx: ResolvedAppDeps) {
-  const catalog = synchronizeReadGateCatalog(ctx);
-  const row = catalog.find((candidate) => candidate.id === c.req.param("id"));
-  if (!row) return c.body(null, 404);
-  try {
-    await ctx.readGates.withTokens(
-      {
-        catalog: catalog.map(readGateIncarnation),
-        incarnations: [readGateIncarnation(row)],
-      },
-      (tokens) => waitForPreview(3_000, tokens.signal),
-    );
-    return c.html("<span>Reader released.</span>");
-  } catch (error) {
-    if (error instanceof ReadGateUnavailableError) {
-      return c.html("<span>That incarnation is closing, so no reader began.</span>", 409);
-    }
-    throw error;
-  }
-}
-
-async function exercisePreviewClose(c: Context, ctx: ResolvedAppDeps) {
-  const catalog = synchronizeReadGateCatalog(ctx);
-  const row = catalog.find((candidate) => candidate.id === c.req.param("id"));
-  if (!row) return c.body(null, 404);
-  const mutationLease = ctx.mutationCoordinator.tryAcquireDeletion();
-  if (!mutationLease) {
-    return c.html(
-      "<span>Another change owns mutation admission, so no gate was closed.</span>",
-      409,
-    );
-  }
-  let lease: ReadGateCloseLease | undefined;
-  try {
-    lease = await ctx.readGates.closeAndDrain(readGateIncarnation(row));
-    await waitForPreview(1_500);
-    return c.html("<span>Close drained and the gate reopened safely.</span>");
-  } catch (error) {
-    if (error instanceof ReadGateDrainTimeoutError || error instanceof ReadGateUnavailableError) {
-      return c.html("<span>The close could not drain; the gate reopened safely.</span>", 409);
-    }
-    throw error;
-  } finally {
-    if (lease) ctx.readGates.reopen(lease);
-    ctx.mutationCoordinator.release(mutationLease);
-  }
-}
-
-function waitForPreview(ms: number, signal?: AbortSignal): Promise<void> {
-  if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
-  if (signal.aborted) return Promise.resolve();
-  return new Promise((resolve) => {
-    const timer = setTimeout(finish, ms);
-    function finish() {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", finish);
-      resolve();
-    }
-    signal.addEventListener("abort", finish, { once: true });
-  });
 }
 
 /**
@@ -501,7 +386,7 @@ export function createApp(deps: AppDeps = {}): Hono {
   // the surfaces stay available where they are actually used. One guard, not a
   // framework: no per-route flags, no configuration machinery.
   if (demoSurfacesEnabled()) {
-    registerPreviewDemoRoutes(app, ctx);
+    registerPreviewDemoRoutes(app);
   }
 
   // The deterministic capability router (ARCH §6.2, ADR-0004): the fixed

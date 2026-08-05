@@ -11,6 +11,10 @@ const PLATFORM_DATA_TABLES = [
   "generation_metrics",
   "generation_lifecycle_metrics",
   "event_log",
+  // Both halves of the Event Log store, or a reset leaves ownership rows pointing at
+  // event ids that no longer exist. The 4.9/04 M7 seam fake makes this table real in a
+  // dev database, so clearing only `event_log` stopped being a true reset.
+  "event_log_ownership",
 ] as const;
 
 export interface ResetRuntimeOptions {

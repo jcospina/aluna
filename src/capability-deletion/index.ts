@@ -11,6 +11,14 @@ export {
   resolveCapabilityDeletionRestoration,
 } from "./http.ts";
 export {
+  EVENT_LOG_OWNERSHIP_TABLE,
+  EVENT_LOG_TABLE,
+  type InstalledPayloadPurgeResult,
+  isInstalledEventLogPresent,
+  purgeInstalledCapabilityPayloads,
+  REDACTED_EVENT_PAYLOAD,
+} from "./installed-payloads.ts";
+export {
   type CapabilityDeletionRestorationEvidence,
   dependentCapabilityNames,
   renderCapabilityDeletionAlreadyGone,
