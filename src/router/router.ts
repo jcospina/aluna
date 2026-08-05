@@ -23,8 +23,6 @@
 // failure; the precise cause is logged for the developer, never leaked to the UI
 // (CONTEXT.md "Product voice", ARCH §9.7).
 
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import type { Context, Hono } from "hono";
 
 import {
@@ -41,11 +39,7 @@ import {
 } from "../mutation-coordinator/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../persistence/db.ts";
 import {
-  capabilityCreateErrorId,
-  capabilityDeleteErrorId,
-  capabilityEditErrorId,
   createPresentationAdapter,
-  type ItemRenderer,
   type PresentationAdapter,
   type RenderableCapability,
 } from "../presentation/index.ts";
@@ -64,34 +58,48 @@ import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../w
 import type {
   CapabilityCreateHandler,
   CapabilityDeleteHandler,
-  CapabilityHandler,
   CapabilityReadHandler,
   CapabilityUpdateHandler,
 } from "./contract.ts";
+import {
+  DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS,
+  defaultLoadHandler,
+  defaultLoadItemRenderer,
+  type HandlerLoader,
+  type ItemRendererLoader,
+  withHandlerDeadline,
+} from "./generated-code.ts";
+
+// Re-exported so the router stays the one public face of its subsystem.
+export {
+  DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS,
+  type HandlerLoader,
+  ITEM_RENDERER_FILE,
+  type ItemRendererLoader,
+} from "./generated-code.ts";
+
+import {
+  assertReadOwnership,
+  internalFailure,
+  missingRequiredFieldsFailure,
+  NOT_FOUND_FRAGMENT,
+  readUnavailable,
+  recordMutationRefusal,
+  recordNotFoundFailure,
+  WIRE_PROTOCOL_ERROR_FRAGMENT,
+} from "./failure-responses.ts";
 import {
   type ActiveCatalogReader,
   type CapturedCapabilityRead,
   capabilityIncarnation,
   captureCapabilityRead,
 } from "./read-admission.ts";
-import { assertReadOwnership, readUnavailable, recordMutationRefusal } from "./read-refusal.ts";
 import {
   type ParsedCapabilityRequest,
   parseCapabilityRequest,
   type WireProtocolAction,
   WireProtocolError,
 } from "./wire-protocol.ts";
-
-// How the router turns a row's `artifacts_path` + an action into a runnable
-// handler. Injectable so the gate (2.5) and tests can substitute loading without
-// touching disk; the default loads the real version-keyed file.
-export type HandlerLoader = (artifactsPath: string, action: string) => Promise<CapabilityHandler>;
-
-// How the router turns a row's `artifacts_path` into that capability's item renderer —
-// the composition input for its presentation adapter (epic 3.4/01, ADR-0005 §2). One
-// renderer per capability, so this takes no action. Injectable for the same reasons as
-// {@link HandlerLoader}; the default loads the version-keyed file 3.4/02 generates.
-export type ItemRendererLoader = (artifactsPath: string) => Promise<ItemRenderer>;
 
 // Registry lookup seam. Production uses the validated registry store; route tests
 // inject the coming five-Action shape before issue 4.2/04 admits/persists it.
@@ -116,6 +124,9 @@ export interface CapabilityRouterDeps {
   readonly mutationCoordinator?: MutationCoordinator;
   // Shared per-incarnation read ownership for routes and later deletion.
   readonly readGates?: ReadGateCoordinator;
+  // How long a generated Handler may run before the route abandons it. Defaults to
+  // {@link DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS}; tests shorten it to prove the bound.
+  readonly handlerTimeoutMs?: number;
 }
 
 // The fixed route and complete M4 method/Action matrix. Every capability declares
@@ -131,25 +142,6 @@ const METHOD_BY_ACTION = {
   update: "POST",
 } as const satisfies Record<WireProtocolAction, "GET" | "POST">;
 
-// The version-directory filename the item renderer is generated to (epic 3.4/02) and
-// loaded from here — the seam that lets the router build a capability's presentation
-// adapter without knowing how the renderer was written. A sibling of the handler files
-// under the same `artifacts_path`.
-export const ITEM_RENDERER_FILE = "item.ts";
-
-// Product-voice failures (CONTEXT.md). The not-found copy is deliberately the same
-// for an unknown capability and an undeclared action — the user need not, and must
-// not, learn which internal check failed. Neither names an internal (no "handler",
-// "action", "capability", "route").
-const NOT_FOUND_FRAGMENT =
-  "<p class=\"notice\">Hmm — I can't find that here. It might be something I haven't made yet.</p>";
-const INTERNAL_ERROR_FRAGMENT =
-  '<p class="notice">Hmm, something went sideways on my end just now. Mind trying again?</p>';
-const MUTATION_FAILURE_FRAGMENT =
-  '<p class="notice" data-role="error" data-error-code="mutation_failed">Hmm, something went sideways on my end just now. Mind trying again?</p>';
-const WIRE_PROTOCOL_ERROR_FRAGMENT =
-  '<p class="notice">Hmm — I couldn\'t make sense of that submission. Mind trying again?</p>';
-
 // Attach the capability router to the app (called from createApp). Generated code
 // reaches the platform only through what this builds — never the Hono context.
 export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps = {}): void {
@@ -160,6 +152,7 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
   const readActiveCatalog = deps.readActiveCatalog ?? readActiveRegistryCatalog;
   const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
   const readGates = deps.readGates ?? createReadGateCoordinator();
+  const handlerTimeoutMs = deps.handlerTimeoutMs ?? DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS;
 
   app.get(CAPABILITY_VIEW_ROUTE, (c) =>
     handleCapabilityViewRequest(c, databases, lookupCapability, readActiveCatalog, readGates),
@@ -176,6 +169,7 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
       readActiveCatalog,
       mutationCoordinator,
       readGates,
+      handlerTimeoutMs,
     ),
   );
 }
@@ -232,6 +226,7 @@ async function handleCapabilityRequest(
   readActiveCatalog: ActiveCatalogReader,
   mutationCoordinator: MutationCoordinator,
   readGates: ReadGateCoordinator,
+  handlerTimeoutMs: number,
 ): Promise<Response> {
   const target = routableTarget(c);
   if (!target) {
@@ -276,6 +271,7 @@ async function handleCapabilityRequest(
         dependencies,
         action,
         tokens.signal,
+        handlerTimeoutMs,
       );
     }
     return await executeCapabilityHandler(
@@ -287,6 +283,7 @@ async function handleCapabilityRequest(
       dependencies,
       action,
       tokens.signal,
+      handlerTimeoutMs,
     );
   } finally {
     readGates.release(tokens);
@@ -303,6 +300,7 @@ async function handleRecordMutation(
   dependencies: readonly CapabilityRow[],
   action: MutationAction,
   signal: AbortSignal,
+  handlerTimeoutMs: number,
 ): Promise<Response> {
   const mutationLease = mutationCoordinator.tryAcquireRecordWrite();
   if (!mutationLease) return recordMutationRefusal(c, row.id, action);
@@ -320,6 +318,7 @@ async function handleRecordMutation(
       dependencies,
       action,
       signal,
+      handlerTimeoutMs,
     );
     databases.readwrite.exec(response.ok ? "COMMIT" : "ROLLBACK");
     transactionOpen = false;
@@ -341,6 +340,7 @@ async function executeCapabilityHandler(
   dependencies: readonly CapabilityRow[],
   action: WireProtocolAction,
   signal: AbortSignal,
+  handlerTimeoutMs: number,
 ): Promise<Response> {
   const { id } = row;
   // Everything past validation is the build-and-run path: a throw anywhere in it —
@@ -351,16 +351,23 @@ async function executeCapabilityHandler(
     const spec = capabilitySpecFromRow(row);
     const parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
     assertReadOwnership(signal);
-    const fragment = await invokeCapabilityHandler(
-      databases,
-      loadHandler,
-      loadItemRenderer,
-      row,
-      spec,
-      dependencies,
+    // Bounded: a Handler that never settles must not pin this route's read tokens,
+    // because that would make the capability permanently undeletable.
+    const fragment = await withHandlerDeadline(
+      invokeCapabilityHandler(
+        databases,
+        loadHandler,
+        loadItemRenderer,
+        row,
+        spec,
+        dependencies,
+        action,
+        parsedRequest,
+        signal,
+      ),
+      handlerTimeoutMs,
+      id,
       action,
-      parsedRequest,
-      signal,
     );
     if (typeof fragment !== "string") {
       throw new TypeError(
@@ -405,7 +412,7 @@ async function invokeCapabilityHandler(
 
   if (action === "create") {
     assertReadOwnership(signal);
-    const mutation = createCapabilityMutationPort(spec, databases.readwrite);
+    const mutation = createCapabilityMutationPort(spec, databases.readwrite, signal);
     const present = await buildPresentationAdapter(row, loadItemRenderer);
     assertReadOwnership(signal);
     const handler = await loadHandler(row.artifacts_path, action);
@@ -426,6 +433,7 @@ async function invokeCapabilityHandler(
       requireRecordTarget(parsedRequest.recordTarget, action),
       new Set(input.submittedFields),
       databases.readwrite,
+      signal,
     );
     const present = await buildPresentationAdapter(row, loadItemRenderer);
     assertReadOwnership(signal);
@@ -446,6 +454,7 @@ async function invokeCapabilityHandler(
       spec,
       requireRecordTarget(parsedRequest.recordTarget, action),
       databases.readwrite,
+      signal,
     );
     const handler = await loadHandler(row.artifacts_path, action);
     assertReadOwnership(signal);
@@ -462,48 +471,6 @@ async function invokeCapabilityHandler(
   const fragment = await (handler as CapabilityReadHandler)({ input, query, present });
   assertReadOwnership(signal);
   return fragment;
-}
-
-function missingRequiredFieldsFailure(
-  c: Context,
-  capabilityId: string,
-  error: MissingRequiredFieldsError,
-): Response {
-  const fields = error.fields.join(" ");
-  if (error.action === "create") {
-    c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
-    c.header("HX-Reswap", "innerHTML");
-  } else if (error.action === "update") {
-    c.header("HX-Retarget", `#${capabilityEditErrorId(capabilityId)}`);
-    c.header("HX-Reswap", "innerHTML");
-  }
-  const copy =
-    error.action === "create"
-      ? "I still need a little more before I can add this."
-      : "I still need a little more before I can save this.";
-  return c.html(
-    `<p class="notice" data-role="error" data-error-code="${error.code}" data-error-fields="${fields}">${copy}</p>`,
-    422,
-  );
-}
-
-function recordNotFoundFailure(
-  c: Context,
-  capabilityId: string,
-  action: WireProtocolAction,
-  error: RecordNotFoundError,
-): Response {
-  if (action === "update") {
-    c.header("HX-Retarget", `#${capabilityEditErrorId(capabilityId)}`);
-    c.header("HX-Reswap", "innerHTML");
-  } else if (action === "delete") {
-    c.header("HX-Retarget", `#${capabilityDeleteErrorId(capabilityId)}`);
-    c.header("HX-Reswap", "innerHTML");
-  }
-  return c.html(
-    `<p class="notice" data-role="error" data-error-code="${error.code}">I couldn’t find that entry anymore. It may already be gone.</p>`,
-    404,
-  );
 }
 
 function requireRecordTarget(
@@ -574,52 +541,4 @@ function renderableFromRow(row: CapabilityRow): RenderableCapability {
     item: row.ui_intent.item,
     detail: row.ui_intent.detail,
   };
-}
-
-// The default loader: import the incarnation/version-keyed handler file and confirm it honors
-// the export half of the contract — a single default-exported function. A file URL
-// keeps the absolute path importable across platforms; dynamic import caches by
-// path, which is exactly right when `artifacts_path` is incarnation/version-namespaced.
-const defaultLoadHandler: HandlerLoader = async (artifactsPath, action) => {
-  const file = resolve(process.cwd(), artifactsPath, `${action}.ts`);
-  const loaded = (await import(pathToFileURL(file).href)) as { default?: unknown };
-  if (typeof loaded.default !== "function") {
-    throw new TypeError(`Handler file ${file} has no default-exported function.`);
-  }
-  return loaded.default as CapabilityHandler;
-};
-
-// The default item-renderer loader: import the version-keyed {@link ITEM_RENDERER_FILE}
-// and confirm it default-exports a function (the record → inner-markup renderer). Mirrors
-// {@link defaultLoadHandler} — same file-URL import, same cache-by-path behavior, which is
-// right when `artifacts_path` is incarnation/version-namespaced. Rejects when the file is absent or
-// malformed. M3 requires this file for every committed capability.
-const defaultLoadItemRenderer: ItemRendererLoader = async (artifactsPath) => {
-  const file = resolve(process.cwd(), artifactsPath, ITEM_RENDERER_FILE);
-  const loaded = (await import(pathToFileURL(file).href)) as { default?: unknown };
-  if (typeof loaded.default !== "function") {
-    throw new TypeError(`Item renderer file ${file} has no default-exported function.`);
-  }
-  return loaded.default as ItemRenderer;
-};
-
-// Surface a handler/internal failure: precise in the server log for the developer,
-// warm and jargon-free in the response (never a stack trace or internals).
-function internalFailure(c: Context, id: string, action: string, error: unknown): Response {
-  console.error(
-    `Capability ${id}/${action} failed:`,
-    error instanceof Error ? error.message : error,
-  );
-  if (action === "create" || action === "update" || action === "delete") {
-    const errorId =
-      action === "create"
-        ? capabilityCreateErrorId(id)
-        : action === "update"
-          ? capabilityEditErrorId(id)
-          : capabilityDeleteErrorId(id);
-    c.header("HX-Retarget", `#${errorId}`);
-    c.header("HX-Reswap", "innerHTML");
-    return c.html(MUTATION_FAILURE_FRAGMENT, 500);
-  }
-  return c.html(INTERNAL_ERROR_FRAGMENT, 500);
 }

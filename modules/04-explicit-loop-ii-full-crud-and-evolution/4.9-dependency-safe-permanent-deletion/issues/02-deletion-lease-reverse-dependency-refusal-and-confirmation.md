@@ -1,6 +1,6 @@
 # Deletion lease, reverse-dependency refusal, and confirmation chrome
 
-Status: ready-for-human
+Status: done
 
 ## Epic
 

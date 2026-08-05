@@ -12,6 +12,7 @@
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { pendingDeletionCleanups } from "../capability-deletion/cleanup-supervisor.ts";
 import { GENERATION_LIFECYCLE_TABLE, listGenerationLifecycles } from "../metrics/index.ts";
 import type { RenderableCapability } from "../presentation/field-renderer.ts";
 import { type CollectionLayout, renderCollection } from "../presentation/list-container.ts";
@@ -104,16 +105,21 @@ function withLifecycleMetricsPreview(
     .get(GENERATION_LIFECYCLE_TABLE);
   const latest = lifecycleReady ? listGenerationLifecycles(database).slice(0, 5) : [];
   const rows = catalog ?? (isRegistryInitialized(database) ? listCapabilities(database) : []);
+  // A deletion whose durable cleanup is still owed keeps reserving its capability id, so
+  // it belongs where a developer can see it rather than only in a boot log line.
+  const pendingDeletions = isRegistryInitialized(database) ? pendingDeletionCleanups(database) : [];
   const committedVersions = rows.map((row) => ({
     capabilityId: row.id,
     incarnationId: row.incarnation_id,
     liveVersion: row.version,
     versions: Array.from({ length: row.version }, (_, index) => index + 1),
   }));
-  if (latest.length === 0 && committedVersions.length === 0) return shellHtml;
+  if (latest.length === 0 && committedVersions.length === 0 && pendingDeletions.length === 0) {
+    return shellHtml;
+  }
   return shellHtml.replace(
     METRICS_PREVIEW_TARGET,
-    `<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true">${escapeHtml(JSON.stringify({ lifecycles: latest, committedVersions }, null, 2))}</pre>`,
+    `<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true">${escapeHtml(JSON.stringify({ lifecycles: latest, committedVersions, pendingDeletions }, null, 2))}</pre>`,
   );
 }
 

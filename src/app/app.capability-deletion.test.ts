@@ -112,7 +112,9 @@ describe("platform-owned capability deletion routes", () => {
     const preflight = await (await app.request("/capability-deletion/notes")).text();
     expect(preflight).toContain("Delete Notes permanently?");
     expect(preflight).toContain("Reading list currently uses Notes");
-    expect(preflight).toContain("Aluna will check again before deleting anything");
+    // First person, like every other line Aluna speaks (CONTEXT.md "Product voice").
+    expect(preflight).toContain("I’ll check again before deleting anything");
+    expect(preflight).not.toContain("Aluna will");
 
     const confirmation = await app.request(
       "/capability-deletion/notes/confirm",

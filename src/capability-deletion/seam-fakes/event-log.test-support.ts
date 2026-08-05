@@ -221,7 +221,7 @@ export interface StoredEventRow {
   readonly ownership: readonly CapabilityIncarnation[];
 }
 
-/** Read the store back — the evidence half of the seam, for tests and the dev preview. */
+/** Read the store back — the evidence half of the seam. */
 export function listFakeEventLogRows(database: Database): readonly StoredEventRow[] {
   const rows = database
     .query(`SELECT id, route, action, payload, redacted FROM ${EVENT_LOG_TABLE} ORDER BY id`)

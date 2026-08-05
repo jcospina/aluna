@@ -205,7 +205,16 @@ export class MutationCoordinator {
     }
   }
 
-  /** Deletion is an atomic non-queued try-acquire for the future deletion seam. */
+  /**
+   * Deletion is an atomic non-queued try-acquire.
+   *
+   * Ordering invariant: deletion takes this lease *then* closes the read gate, while a
+   * record route takes read tokens *then* asks for a lease. That inversion is only safe
+   * because every acquisition made while holding read tokens is non-blocking
+   * ({@link tryAcquireRecordWrite}). Never `await` a queued acquisition — `withBuildLease`,
+   * `withPlatformWrite` — inside a read-token scope, or the two will deadlock until
+   * deletion's drain deadline expires.
+   */
   tryAcquireDeletion(): MutationLease | undefined {
     return this.tryAcquireShort("deletion");
   }

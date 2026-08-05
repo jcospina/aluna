@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
+import type { CapabilityRow } from "../registry/index.ts";
 import { boomRow, notesRow } from "../router/router.test-support.ts";
 import {
   dependentCapabilityNames,
   renderCapabilityDeletionAlreadyGone,
-  renderCapabilityDeletionBlocked,
   renderCapabilityDeletionCommitted,
   renderCapabilityDeletionConfirmation,
   renderCapabilityDeletionPreCommitFailure,
@@ -40,12 +40,23 @@ describe("capability-deletion presentation", () => {
     expect(dependentCapabilityNames([alpha, beta, gamma])).toBe(
       "Reading list, Weekly digest, and Saved searches",
     );
-    expect(renderCapabilityDeletionBlocked(notesRow(), [alpha])).toContain(
-      "Notes can’t be deleted while Reading list uses it",
+    // Assert the grammar through the *live* refusal, not a parallel renderer: this is
+    // the copy Confirm actually answers with once lease-held revalidation refuses.
+    const blocked = (dependents: CapabilityRow[]) =>
+      renderCapabilityDeletionRefusalRestoration(notesRow(), "", { kind: "blocked", dependents });
+
+    expect(blocked([alpha])).toContain("I can’t delete Notes while Reading list uses it.");
+    expect(blocked([alpha, beta])).toContain(
+      "I can’t delete Notes while Reading list and Weekly digest use it.",
     );
-    expect(renderCapabilityDeletionBlocked(notesRow(), [alpha, beta])).toContain(
-      "Notes can’t be deleted while Reading list and Weekly digest use it",
-    );
+  });
+
+  test("the advisory preflight warns without pretending to be the answer", () => {
+    const dependent = { ...boomRow(), id: "alpha", label: "Reading list" };
+    const html = renderCapabilityDeletionConfirmation(notesRow(), [dependent]);
+
+    expect(html).toContain("Reading list currently uses Notes. I’ll check again before deleting");
+    expect(html).not.toContain("Aluna will");
   });
 
   test("escapes target and dependent labels in copy, controls, and accessible names", () => {

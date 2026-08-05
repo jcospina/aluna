@@ -32,7 +32,6 @@ import { db } from "./db.ts";
 // is a fixed platform constant (never user input), so interpolating it into SQL
 // below is safe.
 export const MIGRATIONS_TABLE = "schema_migrations";
-const LEGACY_DELETION_TOMBSTONES_TABLE = "capability_deletion_tombstones";
 
 // One ordered, idempotently-applied unit of platform schema. `id` is a stable,
 // lexically-sortable identifier (the array order is the apply order; the id is
@@ -270,67 +269,18 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // Compatibility for development databases that briefly ran a separate-table
-  // draft of 0010 before this issue was complete. Fresh databases already have
-  // the registry columns and never create that draft table.
+  // Cleanup progress lives on the tombstone so a wedged deletion is visible to an
+  // operator instead of being a console line in a process that has since restarted.
   {
-    id: "0011_registry_row_deletion_lifecycle",
+    id: "0011_deletion_cleanup_progress",
     up: (database) => {
-      const registryColumns = database.query(`PRAGMA table_info(${REGISTRY_TABLE})`).all() as {
-        name: string;
-      }[];
-      if (!registryColumns.some((column) => column.name === "lifecycle_state")) {
-        database.exec(
-          `ALTER TABLE ${REGISTRY_TABLE}
-           ADD COLUMN lifecycle_state TEXT NOT NULL DEFAULT 'active'
-             CHECK (lifecycle_state IN ('active', 'deletion_tombstone'));`,
-        );
-        database.exec(
-          `ALTER TABLE ${REGISTRY_TABLE}
-           ADD COLUMN deletion_manifest TEXT CHECK (
-             deletion_manifest IS NULL OR json_valid(deletion_manifest)
-           );`,
-        );
-        database.exec(
-          `ALTER TABLE ${REGISTRY_TABLE}
-           ADD COLUMN deletion_created_at TEXT;`,
-        );
-      }
-      const legacyExists = database
-        .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
-        .get(LEGACY_DELETION_TOMBSTONES_TABLE);
-      if (!legacyExists) return;
       database.exec(
-        `INSERT INTO ${REGISTRY_TABLE} (
-           id, label, version, schema, ui_intent, behavior, tools, artifacts_path,
-           prompt_context, behavioral_errors, incarnation_id, read_dependencies,
-           lifecycle_state, deletion_manifest, deletion_created_at
-         )
-         SELECT capability_id, capability_id, 0, '[]', '{}', '', '[]', '', '', '[]',
-                incarnation_id,
-                '{"create":[],"read":[],"update":[],"delete":[],"search":[]}',
-                'deletion_tombstone', manifest, created_at
-         FROM ${LEGACY_DELETION_TOMBSTONES_TABLE}
-         WHERE NOT EXISTS (
-           SELECT 1 FROM ${REGISTRY_TABLE} WHERE id = capability_id
-         );`,
+        `ALTER TABLE ${REGISTRY_TABLE}
+         ADD COLUMN deletion_cleanup_attempts INTEGER NOT NULL DEFAULT 0;`,
       );
       database.exec(
-        `UPDATE ${REGISTRY_TABLE}
-         SET lifecycle_state = 'deletion_tombstone',
-             deletion_manifest = (
-               SELECT manifest FROM ${LEGACY_DELETION_TOMBSTONES_TABLE}
-               WHERE capability_id = ${REGISTRY_TABLE}.id
-             ),
-             deletion_created_at = (
-               SELECT created_at FROM ${LEGACY_DELETION_TOMBSTONES_TABLE}
-               WHERE capability_id = ${REGISTRY_TABLE}.id
-             )
-         WHERE EXISTS (
-           SELECT 1 FROM ${LEGACY_DELETION_TOMBSTONES_TABLE}
-           WHERE capability_id = ${REGISTRY_TABLE}.id
-             AND incarnation_id = ${REGISTRY_TABLE}.incarnation_id
-         );`,
+        `ALTER TABLE ${REGISTRY_TABLE}
+         ADD COLUMN deletion_cleanup_error TEXT;`,
       );
     },
   },

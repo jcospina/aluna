@@ -35,8 +35,8 @@ export interface OwnedResourceCleanupAdapter {
 
 export interface CapabilityDestructionFaults {
   readonly afterManifestCollected?: () => void;
+  /** The registry row *becoming* the tombstone is one UPDATE, so this is that seam. */
   readonly afterTombstoneInserted?: () => void;
-  readonly afterRegistryTombstoned?: () => void;
   readonly afterEventPayloadsPurged?: () => void;
   readonly afterTableDropped?: () => void;
   /** A throw here simulates a process loss after SQLite's point of no return. */
@@ -143,12 +143,12 @@ function commitDeletionTombstone(
     );
     input.faults?.afterTombstoneInserted?.();
 
-    input.faults?.afterRegistryTombstoned?.();
-
     payloads = purgeInstalledCapabilityPayloads(target, database);
     input.faults?.afterEventPayloadsPurged?.();
 
-    database.exec(`DROP TABLE ${quoteSqlIdentifier(tableName)};`);
+    // `IF EXISTS` so registry/table drift is a repair rather than a wedge: a row whose
+    // table is already gone must still be deletable, not permanently undeletable.
+    database.exec(`DROP TABLE IF EXISTS ${quoteSqlIdentifier(tableName)};`);
     input.faults?.afterTableDropped?.();
   })();
   return payloads;

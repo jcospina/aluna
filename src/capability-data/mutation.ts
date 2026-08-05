@@ -9,6 +9,7 @@ import {
 } from "../registry/index.ts";
 import { deriveCapabilityTableDdl } from "./ddl.ts";
 import { sqlIdentifier } from "./internal.ts";
+import { assertReadOwnership } from "./read-ownership.ts";
 import {
   type CapabilityActionRecord,
   type CapabilityDataRow,
@@ -55,6 +56,7 @@ const PLATFORM_POPULATED_COLUMNS = new Set(["id", "created_at", "extra"]);
 export function createCapabilityMutationPort(
   spec: CapabilitySpec,
   database = db,
+  signal?: AbortSignal,
 ): CapabilityMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const { tableName } = deriveCapabilityTableDdl(parsed);
@@ -64,6 +66,7 @@ export function createCapabilityMutationPort(
 
   return {
     create(values) {
+      assertReadOwnership(signal);
       const normalized = normalizeInsertValues(parsed.id, fields, allowedInsertFields, values);
       const columns = ["id", ...fields.map((field) => field.name)];
       const sqlValues: SqlValue[] = [randomUUID()];
@@ -84,6 +87,7 @@ export function createCapabilityUpdateMutationPort(
   recordTarget: string,
   submittedFields: ReadonlySet<string>,
   database = db,
+  signal?: AbortSignal,
 ): CapabilityUpdateMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const input: BoundUpdateAuthority = {
@@ -99,6 +103,7 @@ export function createCapabilityUpdateMutationPort(
 
   return {
     update(values) {
+      assertReadOwnership(signal);
       if (!isPlainObject(values)) {
         throw new CapabilityDataValidationError(
           `Capability "${parsed.id}" update values must be an object.`,
@@ -115,6 +120,7 @@ export function createCapabilityDeleteMutationPort(
   spec: CapabilitySpec,
   recordTarget: string,
   database = db,
+  signal?: AbortSignal,
 ): CapabilityDeleteMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const target = validateBoundRecordTarget(recordTarget);
@@ -122,6 +128,7 @@ export function createCapabilityDeleteMutationPort(
 
   return {
     delete() {
+      assertReadOwnership(signal);
       const deleted = database
         .query(`DELETE FROM ${quotedTable} WHERE "id" = ? RETURNING "id"`)
         .get(target);

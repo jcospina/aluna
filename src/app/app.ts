@@ -16,7 +16,9 @@ import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
 import { renderFewShotGalleryPreviewPage } from "../builder/units/few-shot-gallery-preview.ts";
 import {
   type CapabilityDestructionFaults,
+  createDeletionCleanupSupervisor,
   createProductionCapabilityDeletionAdapters,
+  type DeletionCleanupSupervisor,
   handleCapabilityDeletionConfirmation,
   type OwnedResourceCleanupAdapter,
   renderCapabilityDeletionAlreadyGone,
@@ -117,6 +119,8 @@ export interface AppDeps {
   readonly readGates?: ReadGateCoordinator;
   /** Fault seams used to pin deletion's pre-/post-commit boundary. */
   readonly capabilityDestructionFaults?: CapabilityDestructionFaults;
+  /** Bounded in-process retry for durable post-commit cleanup. */
+  readonly deletionCleanup?: DeletionCleanupSupervisor;
 }
 
 /** The fully-resolved dependency set every route group below is wired from. */
@@ -134,6 +138,7 @@ interface ResolvedAppDeps {
   readonly registryReadonly: PlatformDatabase["readonly"];
   readonly capabilityDeletionAdapters: readonly OwnedResourceCleanupAdapter[];
   readonly capabilityDestructionFaults?: CapabilityDestructionFaults;
+  readonly deletionCleanup: DeletionCleanupSupervisor;
 }
 
 function resolveRegistryDatabases(
@@ -173,6 +178,7 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
   // resolving it once keeps the two views of the registry consistent. Tests inject a
   // scratch pair here and a committed build shows up in the rehydrated toolbar.
   const capabilityRouter = deps.capabilityRouter ?? {};
+  const capabilityDeletionAdapters = createProductionCapabilityDeletionAdapters(artifactsRoot);
   const registryDatabases = resolveRegistryDatabases(capabilityRouter, {
     readwrite: db,
     readonly: dbReadonly,
@@ -189,8 +195,15 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     capabilityRouter,
     registryReadwrite: registryDatabases.readwrite,
     registryReadonly: registryDatabases.readonly,
-    capabilityDeletionAdapters: createProductionCapabilityDeletionAdapters(artifactsRoot),
+    capabilityDeletionAdapters,
     capabilityDestructionFaults: deps.capabilityDestructionFaults,
+    deletionCleanup:
+      deps.deletionCleanup ??
+      createDeletionCleanupSupervisor({
+        database: registryDatabases.readwrite,
+        adapters: capabilityDeletionAdapters,
+        mutationCoordinator,
+      }),
   };
 }
 
@@ -206,7 +219,8 @@ function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
   // flips to `has-capabilities` when at least one exists, so a refresh restores
   // "Aluna remembers you". A fresh user (empty registry) gets the untouched
   // cold-start page. The shell file is read per request (Bun file I/O is
-  // microsecond-fast and stays live under `bun --watch`); content-type is set
+  // microsecond-fast, and `scripts/dev.ts` deliberately does not watch `public/`, so a
+  // browser reload is enough to pick up an edit); content-type is set
   // explicitly because Hono's router drops Bun's lazily-inferred header. Kept as an
   // explicit route — not a serveStatic fall-through — so `/` stays greppable and
   // `app.request("/")`-testable.
@@ -420,4 +434,14 @@ export function createApp(deps: AppDeps = {}): Hono {
 
 // The default app, wired to the real provider. src/index.ts serves this.
 export const platformReadGates = createReadGateCoordinator();
-export const app = createApp({ readGates: platformReadGates });
+export const platformMutationCoordinator = createMutationCoordinator();
+export const platformDeletionCleanup = createDeletionCleanupSupervisor({
+  database: db,
+  adapters: createProductionCapabilityDeletionAdapters(DEFAULT_ARTIFACTS_ROOT),
+  mutationCoordinator: platformMutationCoordinator,
+});
+export const app = createApp({
+  readGates: platformReadGates,
+  mutationCoordinator: platformMutationCoordinator,
+  deletionCleanup: platformDeletionCleanup,
+});

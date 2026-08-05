@@ -38,7 +38,6 @@ export interface ReadGateSnapshotEntry extends CapabilityIncarnation {
 }
 
 export interface ReadGateCoordinatorOptions {
-  readonly createId?: () => string;
   readonly drainTimeoutMs?: number;
   readonly now?: () => number;
 }
@@ -91,10 +90,6 @@ function invalidateReleasedOwnership(owned: InternalTokenSet): void {
   owned.controller.abort(
     new ReadGateReleasedError("Capability read ownership has already been released."),
   );
-}
-
-function defaultId(): string {
-  return crypto.randomUUID();
 }
 
 function copyIncarnation(incarnation: CapabilityIncarnation): CapabilityIncarnation {
@@ -164,28 +159,41 @@ function canonicalRequested(
 export class ReadGateCoordinator {
   private readonly activeTokenSets = new Map<ReadTokenSet, InternalTokenSet>();
   private readonly closeLeases = new Map<ReadGateCloseLease, string>();
-  private readonly createId: () => string;
   private readonly drainTimeoutMs: number;
   private readonly gates = new Map<string, InternalReadGate>();
   private readonly now: () => number;
+  /**
+   * Incarnations retired by {@link finalizeClose} — deletion's point of no return.
+   * Their tables are gone, so no catalog may ever bring their gate back: without this,
+   * a caller holding a catalog captured before the commit would re-create the gate as
+   * active and receive a live read token for a dropped table. The set only grows by one
+   * entry per completed deletion, and recreation uses a new incarnation, so a rebuilt
+   * capability is never shadowed by its predecessor's retirement.
+   */
+  private readonly retired = new Set<string>();
 
   constructor(options: ReadGateCoordinatorOptions = {}) {
-    this.createId = options.createId ?? defaultId;
     this.drainTimeoutMs = options.drainTimeoutMs ?? DEFAULT_READ_DRAIN_TIMEOUT_MS;
     this.now = options.now ?? Date.now;
   }
 
-  /** Register newly active incarnations without disturbing an in-flight close. */
+  /**
+   * Register newly active incarnations without disturbing an in-flight close.
+   *
+   * Additive on purpose: callers legitimately pass a *subset* (deletion passes the one
+   * incarnation it is about to close), so this must never treat absence as a reason to
+   * drop a gate. Gates for superseded incarnations are therefore retained until the
+   * process restarts; only a completed deletion removes one.
+   */
   synchronizeCatalog(catalog: readonly CapabilityIncarnation[]): void {
     for (const [key, incarnation] of canonicalCatalog(catalog)) {
-      if (!this.gates.has(key)) {
-        this.gates.set(key, {
-          incarnation,
-          readers: new Set(),
-          state: "active",
-          zeroReaderWaiters: new Set(),
-        });
-      }
+      if (this.gates.has(key) || this.retired.has(key)) continue;
+      this.gates.set(key, {
+        incarnation,
+        readers: new Set(),
+        state: "active",
+        zeroReaderWaiters: new Set(),
+      });
     }
   }
 
@@ -269,10 +277,11 @@ export class ReadGateCoordinator {
       );
     }
 
+    // Ownership is the lease *object* itself: `closeLeases` is keyed by identity and
+    // `gate.closeLease !== lease` rejects any other holder, so no separate id is needed.
     const lease = Object.freeze({
       incarnation: copyIncarnation(incarnation),
       closedAt: this.now(),
-      ownershipId: this.createId(),
     });
     gate.state = "closing";
     gate.closeLease = lease;
@@ -308,7 +317,7 @@ export class ReadGateCoordinator {
     return true;
   }
 
-  /** Future deletion seam: retire a drained gate only after the database point of no return. */
+  /** Retire a drained gate permanently — called only after the database point of no return. */
   finalizeClose(lease: ReadGateCloseLease): boolean {
     const key = this.closeLeases.get(lease);
     const gate = key ? this.gates.get(key) : undefined;
@@ -323,6 +332,7 @@ export class ReadGateCoordinator {
     }
     this.closeLeases.delete(lease);
     this.gates.delete(key);
+    this.retired.add(key);
     return true;
   }
 
@@ -340,6 +350,9 @@ export class ReadGateCoordinator {
     this.activeTokenSets.clear();
     this.closeLeases.clear();
     this.gates.clear();
+    // The registry is authoritative across a restart: anything still active survived
+    // deletion, and anything deleted is absent from this catalog anyway.
+    this.retired.clear();
     for (const [key, incarnation] of active) {
       this.gates.set(key, {
         incarnation,

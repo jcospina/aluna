@@ -203,3 +203,25 @@ destroys its records and complete history.
 ## Blocked by
 
 - modules/04-explicit-loop-ii-full-crud-and-evolution/4.9-dependency-safe-permanent-deletion/issues/02-deletion-lease-reverse-dependency-refusal-and-confirmation.md
+
+## Post-epic review hardening (2026-08-04)
+
+- **A wedged cleanup no longer retries only at boot, and is no longer invisible.**
+  `cleanup_pending` was retried once per process start, so "I still have a little tidying
+  up to do" promised work the running process never did; and a cleanup failing for a
+  reproducing cause (a permission the process lacks, an adapter this build does not carry)
+  retried identically forever, permanently reserving the capability id while reporting
+  nothing but a `console.error`. Asking Aluna to rebuild it then hit
+  `expected_absent_collision`, whose copy invites a retry that can never succeed.
+  Added `src/capability-deletion/cleanup-supervisor.ts`: a bounded in-process backoff
+  (1s / 5s / 30s) running under a **platform write lease**, with attempts and the last
+  error persisted on the tombstone (migration `0011_deletion_cleanup_progress`) so the
+  reason survives the process that hit it. Exhausted tombstones stop being retried and
+  surface in the developer panel as `pendingDeletions`.
+- **`DROP TABLE IF EXISTS`.** A registry row whose data table was already gone made the
+  capability permanently undeletable — the transaction failed on every attempt. Drift is
+  now a repair, not a wedge.
+- **`afterRegistryTombstoned` removed.** It sat between `afterTombstoneInserted()` and the
+  payload purge with zero intervening operation — an exact alias, since the single-row
+  design merged the two writes. A future battery case using it would have silently tested
+  the wrong seam.

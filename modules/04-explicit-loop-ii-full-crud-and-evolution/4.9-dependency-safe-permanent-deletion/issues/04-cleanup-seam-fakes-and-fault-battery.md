@@ -293,3 +293,18 @@ still whole, plus the retired surfaces staying retired.
 
 The M6/M7 seam evidence is no longer a browser surface. It lives in
 `bun run test src/capability-deletion`, whose names read as the acceptance list.
+
+## Post-epic review hardening (2026-08-04)
+
+- **The M6 seam fake was invisible to code review.**
+  `seam-fakes/owned-resources.test-support.ts` contained two raw NUL bytes — `.join("\0")`
+  composite-key separators written as literal NULs instead of the `"\u0000"` escape used
+  everywhere else in the codebase. Git therefore classified the file as **binary**
+  (`Bin 0 -> 10356 bytes`), so all 263 lines never appeared in any diff, including this
+  epic's own two adversarial reviews. It was the only source file in the repo with this
+  property. Fixed; git now diffs it as text. The fake itself was read in full and is sound.
+- **`event_log_ownership` reset justification corrected.** The comment claimed the 4.9/04
+  seam fake "makes this table real in a dev database" — the whole point of this issue was
+  that it no longer can. Both Event Log entries are no-ops until M7 installs the store.
+- **`.DS_Store` untracked and gitignored** (it was tracked, and this epic's final commit
+  modified it), and `design/` excluded from `biome`, so `bun run lint` exits 0.

@@ -9,7 +9,7 @@
 //
 // Module 7 installs the store for real. Until then the operation is conditional on the
 // store being present: a platform without an installed Event Log purges nothing and
-// reports zeroes, while the M7 seam fake (`seam-fakes/event-log.ts`) installs exactly
+// reports zeroes, while the M7 seam fake (`seam-fakes/event-log.test-support.ts`) installs exactly
 // this fixed shape so the purge is proven now rather than assumed later.
 //
 // Purging redacts rather than deletes. ARCH §6.3 keeps "a content-free deletion fact"

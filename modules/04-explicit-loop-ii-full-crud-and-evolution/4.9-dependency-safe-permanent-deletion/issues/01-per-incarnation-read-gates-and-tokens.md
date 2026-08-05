@@ -108,3 +108,29 @@ the surface 4.9/02–03 will animate.
    confirm it remains usable.
 6. After about 1.5 seconds, confirm the row returns to `active / 0` and the
    original capability is browsable again.
+
+## Post-epic review hardening (2026-08-04)
+
+An independent review of the closed epic found and fixed three things here:
+
+- **A retired gate could be resurrected.** `tryAcquire` runs `synchronizeCatalog`, which
+  re-created a gate `finalizeClose` had retired, so a caller holding a catalog captured
+  before the commit could receive a live read token for a dropped table. Only call-site
+  adjacency (catalog read and `tryAcquire` with no `await` between) made this
+  unreachable. The coordinator now keeps a `retired` set that no catalog can override,
+  cleared by `recoverAtBoot`; pinned by two tests in `src/read-gates/index.test.ts`.
+- **A hung Handler made a capability permanently undeletable.** Read tokens released only
+  in the router's `finally`, so a generated Handler that never settled pinned its token
+  forever and every future `closeAndDrain` timed out — with "try again" copy that could
+  never come true. Handler execution is now bounded
+  (`src/router/generated-code.ts`, `DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS`, injectable
+  per-router), and the mutation ports gained the ownership guard the query port already
+  had, so an abandoned Handler cannot write after its route rolled back.
+- **`ownershipId` was dead.** It was generated on every close lease and never read;
+  ownership is enforced by lease object identity. Removed, along with the `createId`
+  option that existed only to feed it.
+
+Gate growth is now documented rather than pruned: `synchronizeCatalog` is legitimately
+called with subsets, so pruning there would silently drop live gates. Superseded
+incarnations leave a zero-reader gate until restart — bounded and harmless, unlike the
+alternative.

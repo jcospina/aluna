@@ -18,6 +18,7 @@ export {
   isCapabilityIdReservedByDeletion,
   listCapabilityDeletionTombstones,
   type OwnedResourceEntry,
+  recordCapabilityDeletionCleanupFailure,
   removeCapabilityDeletionTombstone,
 } from "./deletion-tombstones.ts";
 export { canonicalCapabilityLabel, isCapabilityNameLabel } from "./labels.ts";

@@ -8,12 +8,8 @@
 // migrations runner (Epic 1.4) against the read-write connection — synchronously,
 // before serving, so the db is ready the moment the first request arrives.
 
-import { app, platformReadGates } from "./app/app.ts";
+import { app, platformDeletionCleanup, platformReadGates } from "./app/app.ts";
 import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
-import {
-  createProductionCapabilityDeletionAdapters,
-  recoverCapabilityDeletionTombstones,
-} from "./capability-deletion/index.ts";
 import { db, dbReadonly } from "./persistence/db.ts";
 import { runMigrations } from "./persistence/migrations.ts";
 import { listCapabilityDeletionTombstones, readActiveRegistryCatalog } from "./registry/index.ts";
@@ -24,10 +20,9 @@ const applied = runMigrations();
 if (applied.length > 0) {
   console.log(`omni-crud applied ${applied.length} migration(s): ${applied.join(", ")}`);
 }
-const deletionRecovery = await recoverCapabilityDeletionTombstones({
-  database: db,
-  adapters: createProductionCapabilityDeletionAdapters(DEFAULT_ARTIFACTS_ROOT),
-});
+// Discharge anything a previous process left owed, then hand the rest to the supervisor
+// so a failure retries here rather than waiting for the next restart.
+const deletionRecovery = await platformDeletionCleanup.runOnce();
 for (const result of deletionRecovery) {
   if (result.status === "deleted") {
     console.log(
@@ -40,6 +35,7 @@ for (const result of deletionRecovery) {
     );
   }
 }
+platformDeletionCleanup.requestRetry();
 platformReadGates.recoverAtBoot(
   readActiveRegistryCatalog(dbReadonly).capabilities.map((row) => ({
     capabilityId: row.id,

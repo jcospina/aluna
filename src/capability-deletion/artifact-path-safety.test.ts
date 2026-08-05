@@ -13,7 +13,14 @@ import type { CapabilityDeletionTombstone } from "../registry/index.ts";
 import { createArtifactCleanupAdapter } from "./two-phase-destruction.ts";
 
 function tombstoneFor(capabilityId: string, incarnationId: string): CapabilityDeletionTombstone {
-  return { capabilityId, incarnationId, manifest: [], createdAt: "2026-08-04 00:00:00" };
+  return {
+    capabilityId,
+    incarnationId,
+    manifest: [],
+    createdAt: "2026-08-04 00:00:00",
+    cleanupAttempts: 0,
+    cleanupError: null,
+  };
 }
 
 describe("artifact cleanup path safety", () => {
