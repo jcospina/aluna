@@ -116,6 +116,14 @@ capability id creates a new incarnation. It keys artifact/cache paths, declared
 read dependencies, cleanup work, and generation metrics, and is never user-facing.
 _Avoid_: capability version, capability id, generation id
 
+**Owned-resource manifest**:
+The deduplicated, incarnation-bound set of capability-owned resources a deletion
+collects while the capability's table still exists, and which its durable deletion
+tombstone then owes. Each entry names the cleanup adapter that must discharge it,
+so a manifest written by one process stays discharge-able by another; every
+adapter treats an already-absent resource as success.
+_Avoid_: cleanup list, orphan list, file list
+
 **Mutation coordinator**:
 The platform module that atomically admits every write on the shared read-write
 connection. A resolved build receives a bounded FIFO ticket and only the head

@@ -490,3 +490,9 @@ artifacts; nothing here was decided while writing it.
 - Plates I and II, and the settled specification —
   <https://claude.ai/code/artifact/d27f5e90-4bc2-42f9-b8fa-1046d7840fd7>
   (version history holds the two earlier books)
+
+Both artifacts are now consolidated into a working page in the repo at
+[`design/`](../../design/README.md) — the specification implemented rather than
+described, and the place this design continues to evolve. Every section of that
+page is itself a locked window drawn by the same code the desk uses. It is not
+wired to the live server and is not a production page.
