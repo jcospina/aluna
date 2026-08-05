@@ -231,6 +231,10 @@ describe("capability registry store", () => {
       "lifecycle_state",
       "deletion_manifest",
       "deletion_created_at",
+      // Cleanup progress rides the tombstone so a wedged deletion is visible to an
+      // operator across restarts, not just in the log of the process that hit it.
+      "deletion_cleanup_attempts",
+      "deletion_cleanup_error",
     ]);
   });
 });

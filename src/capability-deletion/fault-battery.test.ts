@@ -392,6 +392,8 @@ describe("the capability-deletion fault battery", () => {
           incarnationId: target.incarnation_id,
           manifest: [],
           createdAt: "2026-08-04 00:00:00",
+          cleanupAttempts: 0,
+          cleanupError: null,
         },
       ),
     ).not.toThrow();

@@ -20,16 +20,15 @@ export function dependentCapabilityNames(dependents: readonly CapabilityRow[]): 
   return sentenceList(dependents.map(canonicalCapabilityLabel));
 }
 
-function renderDependencyNotice(
-  targetLabel: string,
-  dependents: readonly CapabilityRow[],
-  authoritative: boolean,
-): string {
+/**
+ * The advisory preflight's dependency warning. It is deliberately *not* the refusal:
+ * the authoritative answer comes from the lease-held revalidation on Confirm, and that
+ * one speaks through {@link renderCapabilityDeletionRefusalRestoration}.
+ */
+function renderDependencyNotice(targetLabel: string, dependents: readonly CapabilityRow[]): string {
   if (dependents.length === 0) return "";
   const names = dependentCapabilityNames(dependents);
-  const copy = authoritative
-    ? `${targetLabel} can’t be deleted while ${names} ${dependents.length === 1 ? "uses" : "use"} it. Change ${names} so ${dependents.length === 1 ? "it no longer uses" : "they no longer use"} ${targetLabel}, then try again.`
-    : `${names} currently ${dependents.length === 1 ? "uses" : "use"} ${targetLabel}. Aluna will check again before deleting anything.`;
+  const copy = `${names} currently ${dependents.length === 1 ? "uses" : "use"} ${targetLabel}. I’ll check again before deleting anything.`;
   return `<p class="capability-deletion__notice" data-deletion-dependency-notice>${escapeHtml(copy)}</p>`;
 }
 
@@ -37,29 +36,19 @@ function renderDeletionPanel(
   target: Pick<CapabilityRow, "id" | "label" | "incarnation_id">,
   body: string,
   actions: string,
-  status = "",
 ): string {
   const label = canonicalCapabilityLabel(target);
   return [
     `<section class="capability-deletion" aria-labelledby="capability-deletion-title" data-capability-deletion>`,
     `  <h1 id="capability-deletion-title" tabindex="-1" data-capability-deletion-focus>Delete ${escapeHtml(label)} permanently?</h1>`,
     `  <div class="capability-deletion__body">${body}</div>`,
-    status,
     `  <div class="capability-deletion__actions">${actions}</div>`,
     `</section>`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ].join("\n");
 }
 
-function renderBackAction(
-  target: Pick<CapabilityRow, "id" | "incarnation_id">,
-  restoration: CapabilityDeletionRestorationEvidence = {
-    kind: "capability",
-    capabilityId: target.id,
-    incarnationId: target.incarnation_id,
-  },
-): string {
+/** **Keep it** always goes back to the carried restoration, never to a guessed target. */
+function renderBackAction(restoration: CapabilityDeletionRestorationEvidence): string {
   const url = capabilityDeletionRestorationUrl(restoration);
   const pushedUrl =
     restoration.kind === "capability" ? capabilityUrl(restoration.capabilityId) : "/";
@@ -101,10 +90,10 @@ export function renderCapabilityDeletionConfirmation(
   const body = [
     `<p>${escapeHtml(lossCopy)}</p>`,
     `<p class="capability-deletion__retention">${escapeHtml(metricsCopy)}</p>`,
-    renderDependencyNotice(label, dependents, false),
+    renderDependencyNotice(label, dependents),
   ].join("");
   const actions = [
-    renderBackAction(target, restoration),
+    renderBackAction(restoration),
     // The marker lets the shell recognise a confirm submission whose response never
     // arrived. A severed request swaps nothing, so without this the panel would sit
     // there unchanged while the capability is already permanently gone.
@@ -191,41 +180,6 @@ export function renderCapabilityDeletionRefusalRestoration(
   return joinRestorationWithNotice(
     restoredSurface,
     `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(notice)}</div>`,
-  );
-}
-
-export function renderCapabilityDeletionBlocked(
-  target: CapabilityRow,
-  dependents: readonly CapabilityRow[],
-): string {
-  const label = canonicalCapabilityLabel(target);
-  const body = renderDependencyNotice(label, dependents, true);
-  const retry = `<button class="btn btn--neutral" type="button" hx-get="${escapeHtml(deletionUrl(target.id))}" hx-target="#spec-build-output" hx-swap="innerHTML">Check again</button>`;
-  return renderDeletionPanel(target, body, `${renderBackAction(target)}\n${retry}`);
-}
-
-export function renderCapabilityDeletionBusy(target: CapabilityRow): string {
-  const label = canonicalCapabilityLabel(target);
-  const body = `<p>${escapeHtml(`Aluna is making another change right now, so ${label} wasn’t deleted. Try again when it’s finished.`)}</p>`;
-  const retry = `<button class="btn btn--neutral" type="button" hx-get="${escapeHtml(deletionUrl(target.id))}" hx-target="#spec-build-output" hx-swap="innerHTML">Try again</button>`;
-  return renderDeletionPanel(target, body, `${renderBackAction(target)}\n${retry}`);
-}
-
-export function renderCapabilityDeletionStale(target: CapabilityRow): string {
-  const label = canonicalCapabilityLabel(target);
-  const body = `<p>${escapeHtml(`${label} changed after you opened this page, so Aluna didn’t delete it. Review the latest version before trying again.`)}</p>`;
-  const reopen = `<button class="btn btn--neutral" type="button" hx-get="${escapeHtml(deletionUrl(target.id))}" hx-target="#spec-build-output" hx-swap="innerHTML">Review again</button>`;
-  return renderDeletionPanel(target, body, `${renderBackAction(target)}\n${reopen}`);
-}
-
-export function renderCapabilityDeletionReady(target: CapabilityRow): string {
-  const label = canonicalCapabilityLabel(target);
-  const body = `<p>${escapeHtml(`Nothing else uses ${label}. It’s ready to be deleted, but this step hasn’t removed anything yet.`)}</p>`;
-  return renderDeletionPanel(
-    target,
-    body,
-    renderBackAction(target),
-    `<p class="capability-deletion__status" role="status">Ready to delete</p>`,
   );
 }
 

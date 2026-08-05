@@ -5,6 +5,7 @@ import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { ReadGateCoordinator } from "../read-gates/index.ts";
 import { type CapabilityRow, getCapability } from "../registry/index.ts";
 import { renderCachedCapabilitySurface } from "../web/index.ts";
+import type { DeletionCleanupSupervisor } from "./cleanup-supervisor.ts";
 import { admitCapabilityDeletion } from "./front-half.ts";
 import {
   renderCapabilityDeletionAlreadyGone,
@@ -26,6 +27,8 @@ export interface CapabilityDeletionHttpDeps {
   readonly readGates: ReadGateCoordinator;
   readonly capabilityDeletionAdapters: readonly OwnedResourceCleanupAdapter[];
   readonly capabilityDestructionFaults?: CapabilityDestructionFaults;
+  /** Asked for another pass whenever a deletion commits but leaves cleanup owed. */
+  readonly deletionCleanup?: DeletionCleanupSupervisor;
 }
 
 interface CapabilityDeletionConfirmationRequest {
@@ -122,6 +125,9 @@ async function executeCapabilityDeletion(
         },
       },
     );
+    // "I still have a little tidying up to do" has to be true of *this* process, not
+    // just of the next boot.
+    if (destruction?.status === "cleanup_pending") deps.deletionCleanup?.requestRetry();
     return { kind: "admission", outcome, destruction };
   } catch {
     const current = getCapability(request.capabilityId, deps.registryReadonly);

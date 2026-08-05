@@ -21,6 +21,7 @@ import {
   executeRecordQuery,
   materializeCapabilityActionRecord,
 } from "./query-runtime.ts";
+import { assertReadOwnership } from "./read-ownership.ts";
 
 export { normalizeSearchText } from "../persistence/sqlite-functions.ts";
 export { CapabilityDataValidationError } from "./internal.ts";
@@ -146,11 +147,6 @@ export function createCapabilityQueryPort(
       return executeRecordQuery(database, scope, input, executeProjectedQuery, normalizeQueryValue);
     },
   };
-}
-
-function assertReadOwnership(signal: AbortSignal | undefined): void {
-  if (!signal?.aborted) return;
-  throw signal.reason ?? new DOMException("The capability read was cancelled.", "AbortError");
 }
 
 function executeProjectedQuery(

@@ -1,4 +1,12 @@
 export {
+  createDeletionCleanupSupervisor,
+  DEFAULT_DELETION_CLEANUP_RETRY_DELAYS_MS,
+  DeletionCleanupSupervisor,
+  type DeletionCleanupSupervisorOptions,
+  type PendingDeletionCleanup,
+  pendingDeletionCleanups,
+} from "./cleanup-supervisor.ts";
+export {
   admitCapabilityDeletion,
   type CapabilityDeletionAdmission,
   type CapabilityDeletionExpectation,
@@ -22,14 +30,10 @@ export {
   type CapabilityDeletionRestorationEvidence,
   dependentCapabilityNames,
   renderCapabilityDeletionAlreadyGone,
-  renderCapabilityDeletionBlocked,
-  renderCapabilityDeletionBusy,
   renderCapabilityDeletionCommitted,
   renderCapabilityDeletionConfirmation,
   renderCapabilityDeletionPreCommitFailure,
-  renderCapabilityDeletionReady,
   renderCapabilityDeletionRefusalRestoration,
-  renderCapabilityDeletionStale,
 } from "./presentation.ts";
 export {
   type CapabilityDeletionRecoveryResult,

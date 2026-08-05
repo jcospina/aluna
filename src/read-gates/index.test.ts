@@ -146,6 +146,39 @@ describe("ReadGateCoordinator ownership and recovery", () => {
     expect(coordinator.reopen(closingLease)).toBe(true);
   });
 
+  test("a retired incarnation can never be resurrected by a stale catalog", async () => {
+    const coordinator = createReadGateCoordinator();
+    coordinator.synchronizeCatalog([A, B]);
+    const lease = await coordinator.closeAndDrain(A);
+    expect(coordinator.finalizeClose(lease)).toBe(true);
+
+    // A request that captured the catalog *before* the commit still names A. Its table
+    // is gone, so it must receive nothing rather than a live token.
+    expect(coordinator.tryAcquire(input([A], [A, B]))).toBeUndefined();
+    expect(coordinator.tryAcquire(input([A, B], [A, B]))).toBeUndefined();
+    expect(coordinator.snapshot().map((entry) => entry.capabilityId)).toEqual(["b"]);
+
+    // B is untouched, and recreating A's semantic id at a *new* incarnation works.
+    const rebuilt = { capabilityId: "a", incarnationId: "incarnation-a2" } as const;
+    const tokens = coordinator.tryAcquire(input([rebuilt], [rebuilt, B]));
+    expect(tokens).toBeDefined();
+    if (tokens) expect(coordinator.release(tokens)).toBe(true);
+  });
+
+  test("boot recovery clears retirement so a restart rebuilds from the registry alone", async () => {
+    const coordinator = createReadGateCoordinator();
+    coordinator.synchronizeCatalog([A, B]);
+    const lease = await coordinator.closeAndDrain(A);
+    coordinator.finalizeClose(lease);
+
+    coordinator.recoverAtBoot([A, B]);
+
+    expect(coordinator.snapshot()).toEqual([
+      { ...A, state: "active", readerCount: 0 },
+      { ...B, state: "active", readerCount: 0 },
+    ]);
+  });
+
   test("boot recovery invalidates crashed ownership and reopens only the active catalog", async () => {
     const coordinator = createReadGateCoordinator();
     const staleTokens = coordinator.tryAcquire(input([A]));

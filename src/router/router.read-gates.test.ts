@@ -111,6 +111,72 @@ describe("capability router read-gate ownership", () => {
     teardownRouterTest(dir, conns);
   });
 
+  // The whole point of the deadline: generated code must not be able to make a
+  // capability permanently undeletable by simply never returning.
+  test("a Handler that never settles is abandoned, so the gate still drains for deletion", async () => {
+    install(conns, notesRow());
+    const readGates = createReadGateCoordinator();
+    const app = createApp({
+      capabilityRouter: {
+        databases: conns,
+        readGates,
+        handlerTimeoutMs: 40,
+        loadItemRenderer: async () => () => "<li></li>",
+        // Exactly the pathological case: a promise nothing will ever resolve.
+        loadHandler: readLoader(() => new Promise<string>(() => undefined)),
+      },
+    });
+
+    const response = await app.request("/capability/notes/read");
+
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("did not settle");
+    // Ownership released despite the Handler still hanging, so the gate is drainable.
+    expect(readGates.snapshot()).toMatchObject([{ capabilityId: "notes", readerCount: 0 }]);
+
+    const lease = await readGates.closeAndDrain({
+      capabilityId: "notes",
+      incarnationId: notesRow().incarnation_id,
+    });
+    expect(readGates.finalizeClose(lease)).toBe(true);
+  });
+
+  test("an abandoned Handler cannot still write once its route has moved on", async () => {
+    install(conns, notesRow());
+    let escapedWrite: unknown;
+    const released = Promise.withResolvers<void>();
+    const app = createApp({
+      capabilityRouter: {
+        databases: conns,
+        handlerTimeoutMs: 40,
+        loadItemRenderer: async () => () => "<li></li>",
+        loadHandler: readLoader(async (context) => {
+          const { mutation } = context as unknown as {
+            mutation: { create(values: Record<string, unknown>): unknown };
+          };
+          await released.promise;
+          try {
+            mutation.create({ text: "written after the route returned" });
+            escapedWrite = "committed";
+          } catch (error) {
+            escapedWrite = error;
+          }
+          return "<p></p>";
+        }),
+      },
+    });
+
+    const response = await app.request("/capability/notes/create", formBody({ text: "first" }));
+    expect(response.status).toBe(500);
+
+    released.resolve();
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(escapedWrite).toBeInstanceOf(Error);
+    expect(conns.readonly.query("SELECT id FROM cap_notes").all()).toEqual([]);
+  });
+
   test("one captured Action catalog holds target and declared dependency until the Handler settles", async () => {
     install(conns, shelvesRow());
     install(conns, notesReadingShelves());
@@ -283,6 +349,9 @@ describe("capability router read-gate ownership", () => {
         expect(await response.text()).toContain('data-error-code="read_unavailable"');
       } else {
         expect(response.status).toBe(409);
+        // The body must be structured too, or the shell drops the refusal and the
+        // click looks like it did nothing (htmx will not swap a 4xx unaided).
+        expect(await response.text()).toContain('data-error-code="read_unavailable"');
       }
       expect(handlerLoads).toBe(0);
       expect(

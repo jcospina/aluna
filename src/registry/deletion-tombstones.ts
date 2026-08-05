@@ -21,6 +21,10 @@ const deletionTombstoneSchema = z
     incarnationId: z.string().trim().min(1),
     manifest: z.array(ownedResourceEntrySchema),
     createdAt: z.string().trim().min(1),
+    /** How many times post-commit cleanup has failed for this tombstone. */
+    cleanupAttempts: z.number().int().min(0),
+    /** The most recent failure, kept so a wedged deletion can be seen, not guessed at. */
+    cleanupError: z.string().nullable(),
   })
   .strict();
 
@@ -31,14 +35,17 @@ interface StoredDeletionTombstone {
   incarnation_id: string;
   deletion_manifest: string;
   deletion_created_at: string;
+  deletion_cleanup_attempts: number;
+  deletion_cleanup_error: string | null;
 }
 
-function tombstoneColumnsExist(database: Database): boolean {
-  const columns = database.query(`PRAGMA table_info(${REGISTRY_TABLE})`).all() as {
-    name: string;
-  }[];
-  return columns.some((column) => column.name === "lifecycle_state");
-}
+const TOMBSTONE_COLUMNS =
+  "id, incarnation_id, deletion_manifest, deletion_created_at, deletion_cleanup_attempts, deletion_cleanup_error";
+
+// No schema probing here. `lifecycle_state` arrives with the registry table itself
+// (platform migration 0010), and every active-row read in `store.ts` already filters on
+// it unconditionally — so a registry without the column cannot serve any request at all,
+// and guarding these four functions for it would only hide that.
 
 function parseStoredTombstone(row: StoredDeletionTombstone): CapabilityDeletionTombstone {
   return deletionTombstoneSchema.parse({
@@ -46,6 +53,8 @@ function parseStoredTombstone(row: StoredDeletionTombstone): CapabilityDeletionT
     incarnationId: row.incarnation_id,
     manifest: JSON.parse(row.deletion_manifest),
     createdAt: row.deletion_created_at,
+    cleanupAttempts: row.deletion_cleanup_attempts,
+    cleanupError: row.deletion_cleanup_error,
   });
 }
 
@@ -53,10 +62,9 @@ export function getCapabilityDeletionTombstone(
   capabilityId: string,
   database: Database,
 ): CapabilityDeletionTombstone | null {
-  if (!tombstoneColumnsExist(database)) return null;
   const stored = database
     .query(
-      `SELECT id, incarnation_id, deletion_manifest, deletion_created_at
+      `SELECT ${TOMBSTONE_COLUMNS}
        FROM ${REGISTRY_TABLE}
        WHERE id = ? AND lifecycle_state = ?`,
     )
@@ -67,10 +75,9 @@ export function getCapabilityDeletionTombstone(
 export function listCapabilityDeletionTombstones(
   database: Database,
 ): CapabilityDeletionTombstone[] {
-  if (!tombstoneColumnsExist(database)) return [];
   const stored = database
     .query(
-      `SELECT id, incarnation_id, deletion_manifest, deletion_created_at
+      `SELECT ${TOMBSTONE_COLUMNS}
        FROM ${REGISTRY_TABLE}
        WHERE lifecycle_state = ?
        ORDER BY id`,
@@ -83,7 +90,6 @@ export function isCapabilityIdReservedByDeletion(
   capabilityId: string,
   database: Database,
 ): boolean {
-  if (!tombstoneColumnsExist(database)) return false;
   return (
     database
       .query(`SELECT 1 FROM ${REGISTRY_TABLE} WHERE id = ? AND lifecycle_state = ?`)
@@ -92,7 +98,7 @@ export function isCapabilityIdReservedByDeletion(
 }
 
 export function insertCapabilityDeletionTombstone(
-  tombstone: Omit<CapabilityDeletionTombstone, "createdAt">,
+  tombstone: Pick<CapabilityDeletionTombstone, "capabilityId" | "incarnationId" | "manifest">,
   database: Database,
 ): void {
   const manifest = tombstone.manifest.map((entry) => ownedResourceEntrySchema.parse(entry));
@@ -116,11 +122,35 @@ export function removeCapabilityDeletionTombstone(
   expectation: Pick<CapabilityDeletionTombstone, "capabilityId" | "incarnationId">,
   database: Database,
 ): boolean {
-  if (!tombstoneColumnsExist(database)) return false;
   const result = database.run(
     `DELETE FROM ${REGISTRY_TABLE}
      WHERE id = ? AND incarnation_id = ? AND lifecycle_state = ?`,
     [expectation.capabilityId, expectation.incarnationId, DELETION_TOMBSTONE_STATE],
   );
   return result.changes === 1;
+}
+
+/**
+ * Record that post-commit cleanup failed again. The tombstone itself is the durable
+ * record, so the reason a capability id is still reserved survives the process that
+ * discovered it — an operator can see a wedge instead of inferring one.
+ */
+export function recordCapabilityDeletionCleanupFailure(
+  expectation: Pick<CapabilityDeletionTombstone, "capabilityId" | "incarnationId">,
+  error: unknown,
+  database: Database,
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  database.run(
+    `UPDATE ${REGISTRY_TABLE}
+        SET deletion_cleanup_attempts = deletion_cleanup_attempts + 1,
+            deletion_cleanup_error = ?
+      WHERE id = ? AND incarnation_id = ? AND lifecycle_state = ?`,
+    [
+      message.slice(0, 500),
+      expectation.capabilityId,
+      expectation.incarnationId,
+      DELETION_TOMBSTONE_STATE,
+    ],
+  );
 }

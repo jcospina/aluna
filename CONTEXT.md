@@ -256,7 +256,30 @@ scratch database through adapters that expose only synthetic data; structural/
 static checks reject known direct bypasses. Generated execution remains
 in-process, so this is accidental-output protection rather than hostile-code
 containment (ADR-0003, ADR-0004, ADR-0005).
-_Avoid_: CI, checks, test suite
+_Avoid_: CI, checks, test suite. Unqualified "gate" always means this one — the
+per-incarnation **read gate** below is a different thing and is never shortened.
+
+**Read gate**:
+The per-incarnation admission state deletion drains against. It is `active` or
+`closing`; closing refuses new read tokens, signals cancellation to the readers it
+already tracks, and waits for them by a fixed deadline. Any failure before the
+database point of no return reopens it; the tombstone commit retires it forever.
+Distinct from the **Gate** above, which validates candidates before commit.
+_Avoid_: gate (unqualified), lock, mutex, read lock
+
+**Read token**:
+The ownership record one operation holds over the exact incarnations it can observe.
+An operation acquires its *complete* set atomically against one gate/catalog
+snapshot or receives none, and releases the complete set in `finally`. Generated code
+never receives the token — it only observes cancellation as a thrown error.
+_Avoid_: read lock, handle, reservation
+
+**Deletion tombstone**:
+The non-routable state an active registry row becomes at deletion's point of no
+return, carrying the owned-resource manifest it still owes. Resolvers, routes, and
+the toolbar see only active rows, while the tombstone reserves the semantic id until
+cleanup completes, so a recreated capability can never race stale cleanup.
+_Avoid_: soft delete, deleted flag, archive row
 
 **Frozen behavioral intent**:
 The behavioral test suite a tier-on version is held to, generated per Action from

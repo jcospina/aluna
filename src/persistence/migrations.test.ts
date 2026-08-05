@@ -96,53 +96,6 @@ describe("platform migrations runner", () => {
     expect(after).toEqual(before);
   });
 
-  test("upgrades the brief separate-table deletion draft into a registry tombstone", () => {
-    const compatibilityId = "0011_registry_row_deletion_lifecycle";
-    for (const migration of MIGRATIONS) {
-      if (migration.id === "0010_capability_deletion_tombstones") break;
-      conns.readwrite.transaction(() => {
-        migration.up(conns.readwrite);
-        conns.readwrite.run(`INSERT INTO ${MIGRATIONS_TABLE} (id) VALUES (?)`, [migration.id]);
-      })();
-    }
-    conns.readwrite.exec(
-      `CREATE TABLE capability_deletion_tombstones (
-         capability_id TEXT PRIMARY KEY,
-         incarnation_id TEXT NOT NULL UNIQUE,
-         manifest TEXT NOT NULL CHECK (json_valid(manifest)),
-         created_at TEXT NOT NULL DEFAULT (datetime('now'))
-       ) STRICT;`,
-    );
-    conns.readwrite.run(`INSERT INTO ${MIGRATIONS_TABLE} (id) VALUES (?)`, [
-      "0010_capability_deletion_tombstones",
-    ]);
-    const capabilityId = "notes";
-    const incarnationId = "11111111-1111-4111-8111-111111111111";
-    const manifest = [
-      {
-        adapter: "version_artifacts",
-        key: "incarnation_root",
-        capabilityId,
-        incarnationId,
-      },
-    ];
-    conns.readwrite.run(
-      `INSERT INTO capability_deletion_tombstones
-       (capability_id, incarnation_id, manifest) VALUES (?, ?, ?)`,
-      [capabilityId, incarnationId, JSON.stringify(manifest)],
-    );
-
-    expect(runMigrations(conns.readwrite)).toEqual([compatibilityId]);
-    expect(listCapabilityDeletionTombstones(conns.readonly)).toMatchObject([
-      { capabilityId, incarnationId, manifest },
-    ]);
-    expect(
-      conns.readonly
-        .query("SELECT lifecycle_state FROM capability_registry WHERE id = ?")
-        .get(capabilityId),
-    ).toEqual({ lifecycle_state: "deletion_tombstone" });
-  });
-
   test("a later boot reconciles an abandoned running generation", () => {
     runMigrations(conns.readwrite);
     const incarnationId = "11111111-1111-4111-8111-111111111111";

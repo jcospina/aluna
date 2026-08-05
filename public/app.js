@@ -315,7 +315,10 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   const detail = /** @type {CustomEvent<{ xhr: XMLHttpRequest, shouldSwap: boolean }>} */ (event)
     .detail;
   const response = detail?.xhr?.responseText;
-  if (![404, 422, 500].includes(detail?.xhr?.status) || typeof response !== "string") return;
+  // 409 is the read-gate refusal while a deletion drains: the capability is briefly
+  // unreadable, not broken. It has to be listed here or htmx drops it and the click
+  // looks like it did nothing.
+  if (![404, 409, 422, 500].includes(detail?.xhr?.status) || typeof response !== "string") return;
   const isStructuredFormRefusal = [
     "missing_required_fields",
     "mutation_busy",

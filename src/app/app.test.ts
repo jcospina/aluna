@@ -310,6 +310,50 @@ describe("GET / (shell) — prompt admission", () => {
     expect(shouldPreserve("neutral", null, null, false, false)).toBe(false);
   });
 
+  // htmx will not swap any 4xx on its own, so a refusal the shell does not rescue is a
+  // refusal the user never sees. This drives the real handler with the real fragments.
+  test("the shell rescues the read-gate refusal the router actually sends", async () => {
+    const listeners = new Map<string, (event: { detail: Record<string, unknown> }) => void>();
+    const appScript = readFileSync(resolve("public/app.js"), "utf8");
+    Function(
+      "document",
+      "window",
+      "requestAnimationFrame",
+      "HTMLInputElement",
+      "HTMLFormElement",
+      appScript,
+    )(
+      {
+        addEventListener(name: string, listener: (event: { detail: never }) => void) {
+          listeners.set(name, listener as never);
+        },
+        querySelector: () => null,
+        getElementById: () => null,
+      },
+      { matchMedia: () => ({ matches: false, addEventListener() {} }) },
+      () => undefined,
+      class {},
+      class {},
+    );
+
+    const beforeSwap = listeners.get("htmx:beforeSwap");
+    expect(beforeSwap).toBeDefined();
+    const swapDecision = (status: number, responseText: string) => {
+      const detail = { xhr: { status, responseText }, shouldSwap: false };
+      beforeSwap?.({ detail } as never);
+      return detail.shouldSwap;
+    };
+
+    // The exact bodies src/router/read-refusal.ts returns for a closing incarnation.
+    const readRefusal =
+      '<p class="notice" data-role="error" data-error-code="read_unavailable">I’m making a careful change here. Give me a moment, then try that again.</p>';
+
+    expect(swapDecision(409, readRefusal)).toBe(true);
+    expect(swapDecision(422, readRefusal)).toBe(true);
+    // An unmarked 4xx body is still none of the shell's business.
+    expect(swapDecision(409, '<p class="notice">something else entirely</p>')).toBe(false);
+  });
+
   test("prompt admission clears an old notice and rejects a queued sibling subscriber", () => {
     const listeners = new Map<
       string,

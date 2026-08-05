@@ -336,6 +336,8 @@ describe("the Module 6 owned-resource acceptance fake", () => {
       incarnationId: target.incarnation_id,
       manifest: [foreign],
       createdAt: "2026-08-04 00:00:00",
+      cleanupAttempts: 0,
+      cleanupError: null,
     };
 
     // The store's own guard.
