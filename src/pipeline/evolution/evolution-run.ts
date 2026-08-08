@@ -131,7 +131,7 @@ export interface RunCapabilityEvolutionInput {
   readonly faults?: ActivationFaultHooks;
   /**
    * Test-only seam: force one regenerated Handler's first pass to be deliberately wrong, so
-   * the Gate has a real behavioral failure to repair. It is how the bounded repair is
+   * the Gate has a real behavioral failure to repair. It is how the Gate's bounded repair is
    * proven deterministically (`evolution-frozen-repair.test.ts` with
    * `hard-evolution-fixture.test-support.ts`); no composition root supplies it.
    */
@@ -570,7 +570,7 @@ async function sendAssembledPreviews(
         ...(assembly.behavioralExecution
           ? { behavioralExecution: assembly.behavioralExecution }
           : {}),
-        // …and which row of the tier-transition table the two halves together landed on.
+        // …and which row of the transition table the two halves together landed on.
         // The one line of the story a tier-off evolution can still tell.
         behavioralTierTransition: assembly.behavioralTierTransition,
         gate: assembly.gate.outcomes.map((outcome) => ({

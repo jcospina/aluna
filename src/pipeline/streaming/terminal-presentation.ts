@@ -125,12 +125,14 @@ export async function deliverRestoredPresentation(
   );
 }
 
-// An evolution's two non-activating terminal outcomes, in product voice
-// with zero internals (ARCH §9.7). Neither changes anything durable beyond its own
-// metrics row: the developer preview carries the total rejection or the zero-fact Diff,
-// and the displaced View is restored beneath the notice. An accepted candidate is no
-// longer a terminal shape of its own — an accepted
-// candidate goes on to publish and activate, and ends in `commit`.
+/**
+ * An evolution's two non-activating terminal outcomes, in product voice
+ * with zero internals. Neither changes anything durable beyond its own
+ * metrics row: the developer preview carries the total rejection or the zero-fact Diff,
+ * and the displaced View is restored beneath the notice. An accepted candidate is no
+ * longer a terminal shape of its own — an accepted
+ * candidate goes on to publish and activate, and ends in `commit`.
+ */
 export const CANDIDATE_REJECTED_NOTICE =
   "Hmm, I couldn't quite shape that change safely. Mind telling me again, a little differently?";
 export const CANDIDATE_NO_CHANGE_NOTICE =
@@ -188,10 +190,12 @@ export async function deliverCandidateNoChangePresentation(
   );
 }
 
-// The lease-head stale refusal, in product voice with zero internals.
-// The user is not told about catalogs, fingerprints, incarnations or leases; they are told
-// the true thing, which is that the world moved while Aluna was queued and their words were
-// about the older one. Nothing durable changed except this build's own refusal row.
+/**
+ * The lease-head stale refusal, in product voice with zero internals.
+ * The user is not told about catalogs, fingerprints, incarnations or leases; they are told
+ * the true thing, which is that the world moved while Aluna was queued and their words were
+ * about the older one. Nothing durable changed except this build's own refusal row.
+ */
 export const STALE_BUILD_NOTICE =
   "That changed while I was getting to it, so I stopped rather than guess. Have a look and tell me again?";
 

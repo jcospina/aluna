@@ -69,10 +69,12 @@ function isMutationAction(action: WireProtocolAction): action is MutationAction 
   return action === "create" || action === "update" || action === "delete";
 }
 
-// Product-voice failures (CONTEXT.md). The not-found copy is deliberately the same
-// for an unknown capability and an undeclared action — the user need not, and must
-// not, learn which internal check failed. Neither names an internal (no "handler",
-// "action", "capability", "route").
+/**
+ * Product-voice failures (CONTEXT.md). The not-found copy is deliberately the same
+ * for an unknown capability and an undeclared action — the user need not, and must
+ * not, learn which internal check failed. Neither names an internal (no "handler",
+ * "action", "capability", "route").
+ */
 export const NOT_FOUND_FRAGMENT =
   "<p class=\"notice\">Hmm — I can't find that here. It might be something I haven't made yet.</p>";
 export const INTERNAL_ERROR_FRAGMENT =
@@ -124,8 +126,10 @@ export function recordNotFoundFailure(
   );
 }
 
-// Surface a handler/internal failure: precise in the server log for the developer,
-// warm and jargon-free in the response (never a stack trace or internals).
+/**
+ * Surface a handler/internal failure: precise in the server log for the developer,
+ * warm and jargon-free in the response (never a stack trace or internals).
+ */
 export function internalFailure(c: Context, id: string, action: string, error: unknown): Response {
   console.error(
     `Capability ${id}/${action} failed:`,

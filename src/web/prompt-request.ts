@@ -56,7 +56,7 @@ async function readPromptFromForm(c: Context): Promise<PromptSubmission> {
 /**
  * Whether a prompt contains something a person can actually see or hear as content.
  *
- * `String.trim()` removes ordinary surrounding whitespace but deliberately leaves Unicode
+ * `String.trim` removes ordinary surrounding whitespace but deliberately leaves Unicode
  * format/default-ignorable characters and most controls. A body made only from those bytes
  * looks empty while still reaching the resolver and spending a provider call. Remove them
  * only for this admission predicate: meaningful prompts retain their original text, including

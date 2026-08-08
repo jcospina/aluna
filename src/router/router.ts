@@ -1,7 +1,7 @@
 // The deterministic capability router (ARCH §6.2 router,
 // ADR-0004 consequences). The generated UI never invents routes: it targets the
 // one fixed convention `/capability/:id/:action`, and the router loads and runs
-// the matching handler. **Routing is never an AI concern** (ARCH §6.2).
+// the matching handler. **Routing is never an AI concern**.
 //
 // For each request the router, in order:
 //
@@ -10,7 +10,7 @@
 //      cleanly, in product voice, **before any handler code is loaded**.
 //   2. Parses the closed Action-specific wire contract, including the reserved
 //      record target for update/delete, before generated code loads.
-//   3. Builds the platform context (ADR-0004): parsed input (form/query — the
+//   3. Builds the platform context: parsed input (form/query — the
 //      handler never touches raw HTTP), the capability- or record-bound mutation
 //      port for write Actions, and the physically read-only free-query port.
 //   4. Loads the handler for that action from the version directory the row's
@@ -101,8 +101,10 @@ import {
   WireProtocolError,
 } from "./wire-protocol.ts";
 
-// Registry lookup seam. Production uses the validated registry store; route tests
-// inject the coming five-Action shape before the registry admits/persists it.
+/**
+ * Registry lookup seam. Production uses the validated registry store; route tests
+ * inject the coming five-Action shape before it is admitted/persisted.
+ */
 export type CapabilityLookup = (
   id: string,
   database: PlatformDatabase["readonly"],
@@ -142,8 +144,10 @@ const METHOD_BY_ACTION = {
   update: "POST",
 } as const satisfies Record<WireProtocolAction, "GET" | "POST">;
 
-// Attach the capability router to the app (called from createApp). Generated code
-// reaches the platform only through what this builds — never the Hono context.
+/**
+ * Attach the capability router to the app (called from createApp). Generated code
+ * reaches the platform only through what this builds — never the Hono context.
+ */
 export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps = {}): void {
   const databases = deps.databases ?? { readwrite: db, readonly: dbReadonly };
   const loadHandler = deps.loadHandler ?? defaultLoadHandler;
@@ -519,7 +523,7 @@ function routableTarget(
 // The artifact shape is mandatory: every committed capability has one item renderer
 // beside its handlers. A missing or malformed renderer fails the request through the
 // router's normal product-voice error boundary; there is no compatibility adapter or
-// dual-serving path (ADR-0005 §7).
+// dual-serving path.
 async function buildPresentationAdapter(
   row: CapabilityRow,
   loadItemRenderer: ItemRendererLoader,

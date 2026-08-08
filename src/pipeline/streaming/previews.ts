@@ -132,12 +132,14 @@ export interface DemoBuildErrorPreview {
   readonly diagnostic?: unknown;
 }
 
-// The developer's liveness view of the terminal commit stage: the
-// capability that just became real — its id, the version it committed at, the
-// pointer the registry row now carries, and the files written to the version
-// directory. Sent only after the migration transaction commits, so it always
-// describes a committed capability. The user-facing confirmation (the `fragment`
-// event) rides alongside it; the client-side content/toolbar swap comes later.
+/**
+ * The developer's liveness view of the terminal commit stage: the
+ * capability that just became real — its id, the version it committed at, the
+ * pointer the registry row now carries, and the files written to the version
+ * directory. Sent only after the migration transaction commits, so it always
+ * describes a committed capability. The user-facing confirmation (the `fragment`
+ * event) rides alongside it.
+ */
 export interface DemoCommitPreview {
   readonly kind: "commit-preview";
   readonly status: "committed";
@@ -199,7 +201,7 @@ function tableColumns(database: Database, tableName: string): DemoMigrationColum
  * build connection. The migration runs on the real read-write connection inside the
  * build's open transaction, so the `cap_<id>` table exists — uncommitted — and is
  * visible to this same connection; a build failure rolls it back. This is the
- * developer's liveness view, never user-facing (ARCH §9.7).
+ * developer's liveness view, never user-facing.
  */
 export function buildMigrationPreview(
   database: Database,
@@ -332,13 +334,15 @@ function behavioralGatePreview(behavioral: BehavioralGateResult): DemoBehavioral
   };
 }
 
-// The evolution-candidate preview. The evolution run's one
-// developer-panel payload: the validated candidate plus the Diff Engine's typed
-// change facts and unioned work plan, the measured no-op when the Diff finds zero
-// facts, or the total rejection with every contract violation. An accepted
-// candidate also carries the executed-work summary (`assembly`), first as the running
-// plan and then complete with the Gate verdict. It stops at the candidate on purpose:
-// an activated version is announced by `commit-preview`/`commit`, not here.
+/**
+ * The evolution-candidate preview. The evolution run's one
+ * developer-panel payload: the validated candidate plus the Diff Engine's typed
+ * change facts and unioned work plan, the measured no-op when the Diff finds zero
+ * facts, or the total rejection with every contract violation. An accepted
+ * candidate also carries the executed-work summary (`assembly`), first as the running
+ * plan and then complete with the Gate verdict. It stops at the candidate on purpose:
+ * an activated version is announced by `commit-preview`/`commit`, not here.
+ */
 export interface EvolutionCandidatePreview {
   readonly kind: "evolution-candidate-preview";
   readonly status: "accepted" | "no_change" | "rejected";
@@ -354,17 +358,19 @@ export interface EvolutionCandidatePreview {
   readonly issues?: readonly CandidateValidationIssue[];
 }
 
-// The developer-visible summary of the assembled candidate: which units the
-// matrix regenerated vs. byte-copied, the additive DDL derived, and the Gate verdict
-// over the assembled snapshot. The full unit source stays out of the preview payload —
-// the regenerated units stream into the panel's Units block as they are written.
-//
-// The plan half (units + DDL) is deterministic and known before any unit work, so it is
-// sent once as `running` the moment the Diff lands and again as `complete` with the Gate
-// verdict. `running` therefore means "this is the work being done", not a partial result.
-// A trace that does not finish its assembly closes the running plan out — `cancelled` when
-// the developer stopped it, `failed` otherwise — rather than leaving the panel showing work
-// nothing is doing. A failure itself is still reported through `build-error-preview`.
+/**
+ * The developer-visible summary of the assembled candidate: which units the
+ * matrix regenerated vs. byte-copied, the additive DDL derived, and the Gate verdict
+ * over the assembled snapshot. The full unit source stays out of the preview payload —
+ * the regenerated units stream into the panel's Units block as they are written.
+ *
+ * The plan half (units + DDL) is deterministic and known before any unit work, so it is
+ * sent once as `running` the moment the Diff lands and again as `complete` with the Gate
+ * verdict. `running` therefore means "this is the work being done", not a partial result.
+ * A trace that does not finish its assembly closes the running plan out — `cancelled` when
+ * the developer stopped it, `failed` otherwise — rather than leaving the panel showing work
+ * nothing is doing. A failure itself is still reported through `build-error-preview`.
+ */
 export interface EvolutionAssemblySummary {
   readonly status: "running" | "complete" | "failed" | "cancelled";
   readonly regeneratedUnits: readonly GeneratedUnitName[];

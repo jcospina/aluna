@@ -100,7 +100,7 @@ describe("generation-metrics store — round-trips and partial writes", () => {
     writeGenerationMetrics(metrics, conns.readwrite);
 
     // Read back through the *read-only* connection — the experiment harness's query surface —
-    // proving the write landed in the shared file (ARCH §7).
+    // proving the write landed in the shared file.
     const fetched = getGenerationMetrics("build-notes-1", conns.readonly);
     expect(fetched).toEqual({ ...metrics, createdAt: fetched?.createdAt ?? "" });
     expect(fetched?.createdAt).toBeTruthy();

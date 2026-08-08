@@ -1,5 +1,5 @@
 // The closed allow-list the runtime enforcer keys on — the *data* half of the
-// closed-value design contract (ADR-0005 §3 & §4). It mirrors the
+// closed-value design contract. It mirrors the
 // vocabulary whose single source of truth is
 // docs/design-system.md (classes) and public/css/primitives.css (their CSS). The
 // enforcer (enforcer.ts) and the design-lint gate rung both key on these sets;

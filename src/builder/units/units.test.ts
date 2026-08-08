@@ -232,7 +232,7 @@ const ITEM_RENDERER = [
 ].join("\n");
 
 // The create handler renders the inserted row through the injected `present` adapter —
-// no row markup of its own (ADR-0005 §2).
+// no row markup of its own.
 const CREATE_HANDLER = [
   "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
   "  const values: Record<string, unknown> = { text: input.values.text };",
@@ -247,7 +247,7 @@ const CREATE_HANDLER = [
 
 // The read handler maps every row through `present` and joins them — identical item
 // markup to create, by construction. No rows joins to an empty string, leaving the
-// region truly `:empty` so the platform-owned empty state shows (ADR-0005 §1); the
+// region truly `:empty` so the platform-owned empty state shows; the
 // handler never emits its own empty state.
 const READ_HANDLER = [
   "export default async function read({ query, present }: CapabilityContext): Promise<string> {",

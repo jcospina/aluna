@@ -1,8 +1,7 @@
-// Intent Resolver (ARCH 6.2).
+// Intent Resolver.
 //
-// Public surface for intent classification: prompt + registry context
-// through the provider contract, returning the full intent language even though
-// only `new_capability` is acted on so far.
+// Public surface for the classification-only call: prompt + registry context
+// through the provider contract, returning the full intent language.
 
 export {
   buildIntentPrompt,

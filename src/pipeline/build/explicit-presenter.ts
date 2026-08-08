@@ -1,4 +1,4 @@
-// The explicit-loop presenter (ADR-0002).
+// The explicit-loop presenter.
 //
 // One implementation of {@link CoreBuilderPresenter}: the foreground story a person sees
 // when they typed a prompt and are watching Aluna work. It occupies the active content

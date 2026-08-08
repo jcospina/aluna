@@ -322,14 +322,16 @@ export function assertFragment(
   }
 }
 
-// Compare a stored field value to a behavioral/smoke expected value *by the field's
-// spec type*. This is the success-path analogue of the validation tier's stable error
-// codes: assert on semantic content, not on a byte-identical representation the model
-// can't be made to emit deterministically. Datetimes compare as instants — a handler
-// may legitimately canonicalize "2025-06-01T12:00:00Z" to "2025-06-01T12:00:00.000Z"
-// (a `new Date(...).toISOString()` round-trip) while the model authors the test in the
-// raw input form; the same *moment* is a match. Strings, numbers, and booleans are
-// already normalized by the split data ports, so a value comparison is exact for them.
+/**
+ * Compare a stored field value to a behavioral/smoke expected value *by the field's
+ * spec type*. This is the success-path analogue of the validation tier's stable error
+ * codes: assert on semantic content, not on a byte-identical representation the model
+ * can't be made to emit deterministically. Datetimes compare as instants — a handler
+ * may legitimately canonicalize "2025-06-01T12:00:00Z" to "2025-06-01T12:00:00.000Z"
+ * (a `new Date(...).toISOString` round-trip) while the model authors the test in the
+ * raw input form; the same *moment* is a match. Strings, numbers, and booleans are
+ * already normalized by the split data ports, so a value comparison is exact for them.
+ */
 export function fieldValueMatches(type: FieldType, stored: unknown, expected: unknown): boolean {
   if (type === "datetime") return sameInstant(stored, expected);
   if (type === "string[]") return JSON.stringify(stored) === JSON.stringify(expected);

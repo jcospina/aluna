@@ -20,7 +20,7 @@ import {
 
 // The list scaffolding container + accessible item wrapper are platform
 // chrome — their escaping/payload/accessibility invariants are deterministic platform
-// tests, not gate rungs the model can fail (ADR-0005 §4). These pin: the closed
+// tests, not gate rungs the model can fail. These pin: the closed
 // `feed | grid` layout map (unknown layout is unrepresentable), the container's New X /
 // empty state / data-free region, and the wrapper's accessible trigger + escaped
 // `data-item` payload (round-trip, hostile values, byte guard).
@@ -221,7 +221,7 @@ describe("container scaffolding", () => {
 });
 
 // The serving mode: the records region lazy-loads live records through
-// the capability's `read` action so the platform View stays data-free (ADR-0004).
+// the capability's `read` action so the platform View stays data-free.
 describe("container scaffolding — serving mode (loadThroughRead)", () => {
   const serving = renderCollection({ capability: SAMPLE, loadThroughRead: true });
 

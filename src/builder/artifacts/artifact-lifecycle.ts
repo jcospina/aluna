@@ -130,7 +130,7 @@ export interface PublishCapabilitySnapshotInput {
    * The per-unit dependency-generation provenance this snapshot records. Omitted for a
    * fresh v1 build, whose every unit is new; an evolution supplies the manifest its Diff
    * settled, so a byte-copied unit carries its committed provenance forward instead of
-   * having it silently recomputed against the candidate (ADR-0006).
+   * having it silently recomputed against the candidate.
    */
   readonly unitProvenance?: UnitProvenanceManifest;
   /** Test-only fault seam immediately after verification and before rename. */

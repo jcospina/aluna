@@ -1,30 +1,26 @@
-// Evolution candidate assembly (ARCH §6.2 "Capability Builder"
-// steps 3–5; the change-fact matrix; ADR-0006).
-//
-// This is the stage that turns the Diff Engine's work plan into executed
-// work: it derives the additive DDL, projects each unit's generation context, and
+// Evolution candidate assembly: the stage that turns the Diff Engine's work plan into
+// executed work. It derives the additive DDL, projects each unit's generation context, and
 // assembles the complete candidate inventory — regenerating only the units the matrix
-// positively selected and byte-copying the rest — then runs the fail-closed Gate over
-// the *assembled* snapshot. It stops at a Gate-cleared candidate; publication, atomic
-// activation, and the View swap are later work, outside this stage.
+// positively selected and byte-copying the rest — then runs the fail-closed Gate over the
+// *assembled* snapshot. It stops at a Gate-cleared candidate; publication, atomic
+// activation and the View swap belong to the closing engine stage.
 //
-// Two guarantees carry the matrix's promises into bytes:
+// Three guarantees carry the matrix's promises into bytes:
 //
 //   - **Copy is proof, not model context.** A unit the work plan did not select is read
-//     verbatim from the committed snapshot on disk and never enters a generation prompt,
-//     so it was never exposed to the changed facts it is claimed not to depend on.
-//     Its dependency-generation provenance carries forward unchanged.
+//     verbatim from the committed snapshot on disk and never enters a generation prompt, so
+//     it was never exposed to the changed facts it is claimed not to depend on. Its
+//     dependency-generation provenance carries forward unchanged.
 //   - **Regeneration sees only the active projection.** A selected unit is regenerated
 //     against the candidate spec through the same per-unit prompt a v1 build uses, which
-//     projects only active fields and each dependency's active schema.
-//     Its provenance is refreshed.
-//
-// On top of those comes the third: **prior source is proven, not assumed.** A
-// regenerated unit's old committed source is offered to its prompt only when deterministic
-// admissibility checks prove it references nothing outside that unit's *candidate* contract.
-// The proof runs before any model call, so the whole copy/regenerate/
-// admit/withhold shape of an evolution is decided — and reportable — with zero spend, and a
-// withheld unit regenerates from the contract alone exactly as a v1 build does.
+//     projects only active fields and each dependency's active schema. Its provenance is
+//     refreshed.
+//   - **Prior source is proven, not assumed.** A regenerated unit's old committed source is
+//     offered to its prompt only when deterministic admissibility checks prove it
+//     references nothing outside that unit's *candidate* contract. The proof runs before any
+//     model call, so the whole copy/regenerate/admit/withhold shape of an evolution is
+//     decided with zero spend, and a withheld unit regenerates from the contract alone
+//     exactly as a v1 build does.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

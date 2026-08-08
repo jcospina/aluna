@@ -11,28 +11,28 @@ This PRD amends PLAN decisions 22–24 and ADR-0006 without weakening their core
 guarantee: frozen behavioral intent is admitted and fixed before the Handler
 bytes it judges, and repair always answers to the same frozen artifact.
 
-## Problem Statement
+## Problem statement
 
 Aluna currently asks the configured model to author one behavioral suite per
 Action before Handler generation. That ordering is safe, but it makes ordinary
 capability evolution feel stalled and expensive. A change to free-text
 `behavior` invalidates all five Action input digests, so five independent model
 calls run before the first unit can appear in the developer panel. Even an
-optional non-text field needs new `create` and `update` suites despite most of
-their mechanical cases already being implied by the canonical schema,
-platform-owned errors, and Action contracts.
+optional non-text field needs new `create` and `update` suites, even though the
+canonical schema, platform-owned errors, and Action contracts already imply most
+of their mechanical cases.
 
 The current representation also gives one global free-text sentence more scope
 than the user may have intended. A candidate that changes that sentence while
-making a presentation or field addition turns an otherwise narrow evolution
+also adding a field or changing presentation turns an otherwise narrow evolution
 into full Handler and behavioral-suite regeneration. The Diff is behaving
 correctly given its inputs, but the authored contract does not preserve enough
 Action ownership for the platform to prove a narrower result.
 
-The problem is not that frozen intent exists. The problem is that executable
-frozen cases are model-authored after the spec rather than deterministically
-compiled from a structured, Action-owned part of the authored spec whenever the
-semantics are representable.
+The problem is not that frozen intent exists. It is that executable frozen cases
+are model-authored after the spec instead of being compiled deterministically
+from a structured, Action-owned part of the authored spec whenever the semantics
+are representable.
 
 ## Solution
 
@@ -53,15 +53,15 @@ admission contract before it can join the compiled cases.
 The result remains frozen before any Handler generation or repair. Its canonical
 bytes are still digested into the immutable snapshot. A behavioral failure still
 repairs Handler bytes only and reruns the same frozen case. Existing snapshots
-remain immutable and verifiable; compatibility is handled by versioned readers
-and a canonical legacy projection, never by rewriting history.
+remain immutable and verifiable: versioned readers and a canonical legacy
+projection carry compatibility, never a rewrite of history.
 
 For the user, schema and presentation changes start unit generation promptly,
 while genuinely semantic behavior remains checked. In the developer panel, each
 Action clearly reports whether its frozen intent was carried, compiled without
 AI, or required a model fallback.
 
-## User Stories
+## User stories
 
 1. As a user evolving a capability, I want ordinary field and presentation
    changes to begin visibly without a long unexplained pause, so that I know
@@ -131,7 +131,7 @@ AI, or required a model fallback.
     behavioral-test generation rather than a fabricated Gate rung, so that
     durable lifecycle evidence remains truthful.
 
-## Implementation Decisions
+## Implementation decisions
 
 - The canonical capability spec gains a fixed-five-Action behavioral-intent
   section. Each Action entry owns an ordered list of closed structured clauses
@@ -224,7 +224,7 @@ AI, or required a model fallback.
   content-area demonstration control and does not toggle the behavioral tier or
   influence candidate intent, compilation, Diff, or fallback selection.
 
-## Acceptance Criteria
+## Acceptance criteria
 
 - A tier-on new capability with only schema-, error-, and closed-clause behavior
   freezes a complete admitted suite with zero behavioral fallback calls.
@@ -261,7 +261,7 @@ AI, or required a model fallback.
 - Focused tests, the full test suite, typecheck, lint, build, and diff checks are
   clean before this issue is marked done.
 
-## Testing Decisions
+## Testing decisions
 
 - Tests assert externally observable contracts: canonical spec admission, Diff
   work, provider call boundaries, frozen artifact bytes, Gate behavior,
@@ -298,7 +298,7 @@ AI, or required a model fallback.
 - The final living check uses the configured provider only through a
   user-initiated homepage flow. Automated tests use fake providers.
 
-## Out of Scope
+## Out of scope
 
 - Changing the global behavioral-tier experiment or making the guided-repair
   checkbox control that tier.
@@ -312,11 +312,11 @@ AI, or required a model fallback.
   normalization, permanent deletion, or Module 8 experiment analysis.
 - Rewriting, deleting, or silently upgrading historical snapshot files.
 
-## Further Notes
+## Further notes
 
 - This issue supersedes issue 4.7/01's claim that five behavioral provider calls
   are inherent to per-Action independence. Isolated Action ownership remains
-  essential; model authorship and sequential calls do not.
+  essential; model authorship and sequential calls are not.
 - The current frozen executable artifact and repair loop are valuable seams.
   This work should replace how that artifact is authored, not merge authored
   intent, execution, and repair into one module.

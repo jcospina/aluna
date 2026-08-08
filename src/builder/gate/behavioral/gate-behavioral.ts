@@ -1,7 +1,7 @@
-// Every admitted capability has the same five-Action behavioral
-// contract, and each Action's tests are generated independently from that
-// Action's total inputs and frozen before any Handler work. Keep this public module as the
-// stable Gate seam: the rung executes frozen tests, the freeze stage authors them.
+// Every admitted capability has the same five-Action behavioral contract, and each Action's
+// tests are generated independently from that Action's total inputs and frozen before any
+// Handler work. Keep this public module as the stable Gate seam: the rung executes frozen
+// tests, the freeze stage authors them.
 
 export {
   type BehavioralActionExecution,

@@ -1,4 +1,4 @@
-// The SSE transport subsystem — the wire layer for every streaming route (ADR-0002).
+// The SSE transport subsystem — the wire layer for every streaming route.
 //
 // The single public entry point: the {@link Send} primitive callers stream events
 // through, the {@link SseTransport} a route is handed, and the helpers that wrap a

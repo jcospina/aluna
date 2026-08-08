@@ -6,7 +6,7 @@
 // the previous attempt's failure fed back so the model returns a corrected unit
 // rather than a patch. The item-renderer prompt injects the closed design vocabulary
 // and the capability's chosen `collection.layout` so the item is composed *knowing*
-// how the collection arranges it (ADR-0005 §4 & §6); the Handler prompt tells the
+// how the collection arranges it; the Handler prompt tells the
 // model to render every record through the injected `present` adapter instead of
 // emitting its own row markup (ADR-0005 §2 — kills create/read drift by construction).
 

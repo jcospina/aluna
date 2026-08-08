@@ -1,9 +1,8 @@
-// The behavioral-tier transition table, end to end (ADR-0006).
-// Every one of the table's six rows, driven through the real engine over real
-// snapshots on disk, asserting the two durable things a row is a claim about: what the
-// published version *carries* (its tier, its inventory, its per-Action tier metadata) and
-// what the metrics stage vector *says it did* (the aggregate pair plus the per-Action test
-// rows). The table's rules themselves are pinned in `behavioral-tier-transition.test.ts`.
+// The behavioral-tier transition table, end to end (ADR-0006). Every one of its six rows, driven
+// through the real engine over real snapshots on disk, asserting the two durable things a row is a
+// claim about: what the published version *carries* (its tier, its inventory, its per-Action tier
+// metadata) and what the metrics stage vector *says it did* (the aggregate pair plus the per-Action
+// test rows). The table's rules themselves are pinned in `behavioral-tier-transition.test.ts`.
 //
 // The committed v1 every case starts from is tier-off (`committedGate` builds it that way),
 // so the off→ rows evolve straight off it and the on→ rows publish a tier-on v2 first.

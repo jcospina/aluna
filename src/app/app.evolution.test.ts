@@ -236,7 +236,7 @@ describe("an accepted candidate", () => {
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
-    // Foreground narration stays in product voice — no internals leak (ARCH §9.7).
+    // Foreground narration stays in product voice — no internals leak.
     const narration = eventData(events, "narration");
     expect(narration).toContain("Let me think through that change.");
     expect(narration).not.toMatch(/handler|spec|migration|schema|gate/i);
@@ -263,7 +263,7 @@ describe("an accepted candidate", () => {
     expect(preview.assembly.additiveMigration).toEqual([
       'ALTER TABLE "cap_journal" ADD COLUMN "mood" TEXT;',
     ]);
-    // And per regenerated unit, whether its prior committed source was admitted
+    // Per regenerated unit, whether its prior committed source was admitted
     // into the regeneration prompt. Adding a field takes nothing away, so all three fit.
     expect(preview.assembly.priorSource).toEqual([
       { unit: "create", admitted: true },

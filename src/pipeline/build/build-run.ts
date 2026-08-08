@@ -81,7 +81,7 @@ export function throwIfAborted(isAborted: () => boolean): void {
  * spec assemble live. This deliberately surfaces internals — that is the whole point of
  * a liveness view. `generateSpec` only awaits `object` (self-driven by the spine), so
  * consuming `partialStream` here for previews doesn't starve the stage. The returned
- * `flushPreviews()` lets the route drain every preview before the warm confirmation,
+ * `flushPreviews` lets the route drain every preview before the warm confirmation,
  * keeping the wire order narration → preview* → confirmation.
  *
  * It is a function rather than a promise because a stage can throw *before* it ever calls
@@ -407,8 +407,8 @@ function generateUnitsWithPreview(
 /**
  * Fold Gate repairs back into the units the pipeline commits. Smoke may replace exactly
  * one failing Handler per bounded turn, design lint may replace item.ts, and the
- * behavioral rung may replace the Handler(s) a failing frozen assertion is attributed to —
- * all of which land in `gate.handlers`, the bytes that actually cleared every
+ * behavioral rung may replace the Handler(s) a failing frozen assertion is attributed to
+ * — all of which land in `gate.handlers`, the bytes that actually cleared every
  * rung. Shared with the evolution assembler so a v1 build and an evolution reconcile Gate
  * repairs identically.
  */

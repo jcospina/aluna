@@ -48,20 +48,24 @@ export interface GenerateSpecInput {
   readonly send: SendBuildEvent;
 }
 
-// What the stage hands the rest of the pipeline: the validated spec plus the two
-// measurements the build's metrics row records (ARCH §6.2). The metrics *writer* is
-// separate; this stage's job is to produce the numbers, not persist them.
+/**
+ * What the stage hands the rest of the pipeline: the validated spec plus the two
+ * measurements the build's metrics row records. The metrics *writer* is
+ * separate; this stage's job is to produce the numbers, not persist them.
+ */
 export interface SpecGenResult {
   readonly spec: CapabilitySpec;
   readonly durationMs: number;
   readonly usage: TokenUsage;
 }
 
-// The instructions the model authors the spec from. Engineering language is fine
-// here — this prompt is model-facing, never user-visible (CONTEXT.md / ARCH §9.7's
-// hard rule governs only what the *user* sees; that is the narration, not this).
-// The pantry lists are read off the registry's own enums so the prompt can never
-// drift from the schema that ultimately gates the output.
+/**
+ * The instructions the model authors the spec from. Engineering language is fine
+ * here — this prompt is model-facing, never user-visible (CONTEXT.md / ARCH §9.7's
+ * hard rule governs only what the *user* sees; that is the narration, not this).
+ * The pantry lists are read off the registry's own enums so the prompt can never
+ * drift from the schema that ultimately gates the output.
+ */
 export function buildSpecPrompt(input: GenerateSpecInput): string {
   const fieldTypes = fieldTypeSchema.options.join(" | ");
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
@@ -121,10 +125,12 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
   ].join("\n");
 }
 
-// Run the stage. Narrate in product voice (driven by the intent's
-// `user_facing_label` — never internals: no "spec", no "schema" reaches the user),
-// generate the spec through the contract, validate it as the gate into the
-// pipeline, and capture how long it took and what it cost.
+/**
+ * Run the stage. Narrate in product voice (driven by the intent's
+ * `user_facing_label` — never internals: no "spec", no "schema" reaches the user),
+ * generate the spec through the contract, validate it as the gate into the
+ * pipeline, and capture how long it took and what it cost.
+ */
 export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenResult> {
   // The one user-visible line for this stage. The label is the intent's warm
   // sentence; nothing about how the spec is built crosses into it.

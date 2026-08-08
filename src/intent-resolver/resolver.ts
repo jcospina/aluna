@@ -2,8 +2,8 @@
 //
 // This assembles the registry context the Intent Resolver needs and sends exactly
 // one structured request through the existing provider contract. It deliberately
-// does not decide whether to proceed or deflect; a later change wires that business
-// path into the build job.
+// does not decide whether to proceed or deflect; that business path is wired
+// into the build job.
 
 import type { Database } from "bun:sqlite";
 import type { Provider, TokenUsage } from "../provider/index.ts";

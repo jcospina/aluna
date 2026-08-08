@@ -1,4 +1,4 @@
-// The one ownership check both halves of the injected toolbox share (ADR-0004).
+// The one ownership check both halves of the injected toolbox share.
 //
 // A Handler can outlive the request that admitted it: the read gate can cancel it
 // mid-flight for a deletion, and the router can abandon it at its execution deadline.

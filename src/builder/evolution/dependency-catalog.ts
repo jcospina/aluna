@@ -1,4 +1,4 @@
-// The dependency-generation catalog (ADR-0006).
+// The dependency-generation catalog.
 //
 // While mutation ownership is held, candidate generation receives an immutable
 // catalog of every *other* capability's generation identity: exactly

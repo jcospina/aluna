@@ -1,4 +1,4 @@
-// Freezing behavioral intent (ADR-0006).
+// Freezing behavioral intent.
 //
 // This stage runs *before* any Handler is generated or repaired. That ordering is the
 // whole point: tests that exist before the first Handler byte cannot have been written to

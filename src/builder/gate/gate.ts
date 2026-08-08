@@ -84,8 +84,8 @@ export interface BehavioralTierInput {
    */
   readonly frozen?: FrozenBehavioralTestsInput;
   /**
-   * This build's executable impact — which Handlers it authored rather than copied.
-   * The Gate folds its own bounded repairs into this before
+   * This build's executable impact — which Handlers it authored rather than copied. The
+   * Gate folds its own bounded repairs into this before
    * selecting, so a Handler the smoke rung rewrote counts as changed. Omitted, nothing can be
    * proven unaffected and the complete frozen suite runs.
    */
@@ -212,8 +212,10 @@ export type BehavioralGateResult =
       readonly reason: string;
     };
 
-// The design-lint knob. The bounded fix loop reuses `DEFAULT_UNIT_FIX_ATTEMPTS`
-// (default 2) unless overridden here — the same reused knob, not a new one.
+/**
+ * The design-lint knob. The bounded fix loop reuses `DEFAULT_UNIT_FIX_ATTEMPTS`
+ * (default 2) unless overridden here — the same reused knob, not a new one.
+ */
 export interface DesignLintTierInput {
   readonly maxAttempts?: number;
 }
@@ -222,9 +224,11 @@ export interface SmokeGateInput {
   readonly maxAttempts?: number;
 }
 
-// One turn of the design-lint fix loop: the review (attempt 1) or a regeneration + review.
-// `usage` is present only on a regeneration turn; `error` is the failure fed into the next
-// attempt (absent on the turn that passed).
+/**
+ * One turn of the design-lint fix loop: the review (attempt 1) or a regeneration + review.
+ * `usage` is present only on a regeneration turn; `error` is the failure fed into the next
+ * attempt (absent on the turn that passed).
+ */
 export interface DesignLintAttempt {
   readonly attempt: number;
   readonly durationMs: number;
@@ -232,9 +236,11 @@ export interface DesignLintAttempt {
   readonly error?: string;
 }
 
-// The design-lint rung's result: the final item renderer (the original, or the one the fix
-// loop regenerated clean), whether a fix was needed, the per-attempt record, and the token
-// usage any regeneration cost. The pipeline commits `itemRenderer`, so a fix reaches disk.
+/**
+ * The design-lint rung's result: the final item renderer (the original, or the one the fix
+ * loop regenerated clean), whether a fix was needed, the per-attempt record, and the token
+ * usage any regeneration cost. The pipeline commits `itemRenderer`, so a fix reaches disk.
+ */
 export interface DesignLintGateResult {
   readonly status: "passed";
   readonly itemRenderer: string;
@@ -249,7 +255,7 @@ export interface CapabilityGateInput {
   // scratch so smoke proves the build's own schema, not a separately-derived one.
   readonly ddl: CapabilityTableDdl;
   readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
-  // The build's generated item renderer (ADR-0005 §2). The structural rung type-checks
+  // The build's generated item renderer. The structural rung type-checks
   // it and the smoke/behavioral rungs bind it into the real `present` adapter the
   // handlers render records through — so create and read cannot drift.
   readonly itemRenderer: string;

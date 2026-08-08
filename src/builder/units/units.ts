@@ -34,8 +34,10 @@ import { buildUnitPrompt } from "./unit-prompts.ts";
 
 export const DEFAULT_UNIT_FIX_ATTEMPTS = 2;
 
-// The single generated presentation unit's name — the stem of the version-keyed file
-// the router loads it from (`item.ts`, `ITEM_RENDERER_FILE` in src/router/router.ts).
+/**
+ * The single generated presentation unit's name — the stem of the version-keyed file
+ * the router loads it from (`item.ts`, `ITEM_RENDERER_FILE` in src/router/router.ts).
+ */
 export const ITEM_RENDERER_UNIT_NAME = "item";
 
 const generatedUnitSchema = z.strictObject({ content: z.string().min(1) });
@@ -270,7 +272,7 @@ async function generateUnit(run: UnitGenerationRun): Promise<GeneratedUnit> {
     // Previews are observational: `result.object` is the authoritative outcome and
     // reports the same failure. Handle the stream's rejection the moment the promise
     // exists — on abort, `await result.object` below throws and would otherwise leave
-    // this one unobserved, surfacing as an unhandled rejection at the `abort()` call.
+    // this one unobserved, surfacing as an unhandled rejection at the `abort` call.
     const partialsSettled = observeUnitPartials(
       unit,
       attempt,

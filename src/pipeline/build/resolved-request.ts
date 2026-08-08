@@ -2,8 +2,8 @@
 //
 // This is deliberately independent of SSE and the prompt route: it is the whole of what
 // the core Builder needs, so any loop that can produce one can drive a build. The implicit
-// loop hands over a confirmed proposal in exactly this shape, already classified, and is
-// never reclassified on the way in.
+// loop hands over a confirmed proposal in exactly
+// this shape, already classified, and is never reclassified on the way in.
 //
 // Every request carries two bindings that the coordinator revalidates at the head of the
 // build lease:

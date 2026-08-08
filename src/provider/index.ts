@@ -1,10 +1,10 @@
-// The pluggable AI provider (ARCH §4, ADR-0003).
+// The pluggable AI provider.
 //
 // The single public entry point for the provider subsystem. The orchestrator
-// imports the contract and the `createProvider` factory from here
-// and depends on nothing else — never on a specific SDK. The concrete
-// provider (the AI SDK spine) goes behind this same surface; callers see only the
-// contract, so the spine stays swappable.
+// imports the contract and the `createProvider` factory from here and depends
+// on nothing else — never on a specific SDK. The concrete provider (the AI SDK
+// spine) sits behind this same surface; callers see only the contract, so the
+// spine stays swappable.
 
 export { abortableProvider, isProviderAbortError, ProviderAbortedError } from "./abort.ts";
 export {

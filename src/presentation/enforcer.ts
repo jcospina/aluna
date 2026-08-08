@@ -1,4 +1,4 @@
-// The runtime allow-list enforcer (ADR-0005 §3). The presentation adapter
+// The runtime allow-list enforcer. The presentation adapter
 // applies this to the inner markup of *every rendered record*, so a dynamic
 // field value can never become executable markup even after build-time validation
 // passes. The design-lint gate rung is the build-time catch; this is the last line

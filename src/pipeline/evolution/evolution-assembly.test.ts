@@ -1,8 +1,8 @@
 // Evolution candidate assembly. Proves the executed work the Diff
 // work plan projects: additive DDL, per-unit context projection, byte-copy of
 // positively-unaffected units, provenance carry-forward vs refresh, and the Gate over
-// the assembled (copied + regenerated) snapshot. No publication/activation happens here;
-// the assembler stops at a Gate-cleared candidate.
+// the assembled (copied + regenerated) snapshot. No publication/activation happens here
+// (that is the engine's job); the assembler stops at a Gate-cleared candidate.
 
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";

@@ -1,4 +1,4 @@
-// Hand-written fixture handler — the notes fixture's `create`.
+// Hand-written fixture handler.
 //
 // A capability `create` action written by hand to the ADR-0004 contract, BEFORE
 // any AI exists, to pin the whole runtime contract: registry -> router -> injected

@@ -96,7 +96,7 @@ describe("the point of no return", () => {
 
   test("an afterCommit fault cannot undo or relabel an activation", async () => {
     // Past the point of no return: the pointer, the DDL and the `success/activated` row
-    // committed together, so a later throw is observational (ARCH §6.2).
+    // committed together, so a later throw is observational.
     await expect(
       evolve(env, behaviorNeutralDueDateCandidate(), "add a due date", {
         buildId: "fault-afterCommit",

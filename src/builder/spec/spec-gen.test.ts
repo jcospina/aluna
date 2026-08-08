@@ -162,7 +162,7 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
     });
     expect(result.spec.ui_intent).not.toHaveProperty("views");
     expect(result.spec.ui_intent).not.toHaveProperty("modal");
-    // Measurement is captured for the build's metrics row (ARCH §6.2).
+    // Measurement is captured for the build's metrics row.
     expect(Number.isFinite(result.durationMs)).toBe(true);
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(result.usage).toEqual(usage);
@@ -313,7 +313,7 @@ describe("spec generation stage — authored modes, narration, and identity", ()
     const narration = events.filter((event) => event.event === "narration");
     expect(narration).toHaveLength(1);
     expect(narration[0]?.data).toBe(intent.user_facing_label);
-    // The hard rule (ARCH §9.7): no engineering internals in anything user-visible.
+    // The hard rule: no engineering internals in anything user-visible.
     for (const event of narration) {
       expect(event.data).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
     }

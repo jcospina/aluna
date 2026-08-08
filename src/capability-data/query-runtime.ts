@@ -141,7 +141,7 @@ function rehydrateCanonicalRows(
 function withReadSnapshot<T>(database: Database, operation: () => T): T {
   const ownsTransaction = !database.inTransaction;
   if (ownsTransaction) {
-    // A cached `.get()` statement can retain its last read snapshot until it is
+    // A cached `.get` statement can retain its last read snapshot until it is
     // reset. Finalize those cursors before opening the Action's explicit
     // selection + rehydration snapshot so a preceding registry lookup cannot
     // pin stale capability data.

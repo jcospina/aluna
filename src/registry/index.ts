@@ -1,4 +1,4 @@
-// The capability registry (ARCH §6.3).
+// The capability registry.
 //
 // The single public entry point for the registry subsystem: the validated spec
 // shape every build-loop piece consumes (DDL mapper, router, spec generation,

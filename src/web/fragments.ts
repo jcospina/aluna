@@ -70,7 +70,7 @@ export function renderPromptNotice(notice: string): string {
  * bus without reopening the old raw-EventSource path in the shell.
  *
  * `sse-close="done"` is the htmx-ext-sse equivalent of the raw-EventSource path's
- * `source.close()` on `done` (ADR-0002): the extension wraps a native EventSource,
+ * `source.close` on `done`: the extension wraps a native EventSource,
  * which auto-reconnects with backoff whenever the server closes the stream. Without
  * closing on `done` the browser would reconnect after the server-closed stream and
  * re-run the build. The `commit` region receives the terminal success swap:
@@ -216,7 +216,7 @@ export function renderCapabilityShell(
  * flips to `has-capabilities` and the sidebar shows; an empty registry returns the
  * shell untouched, so a fresh user keeps the cold-start state. The content area is
  * left empty by design — the load path only restores chrome; a toolbar click serves
- * the cached, data-free view (ADR-0004).
+ * the cached, data-free view.
  */
 export function renderRehydratedShell(
   rows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>,
@@ -225,7 +225,7 @@ export function renderRehydratedShell(
   // The shared detail modal mounts on every rendered shell — cold-start included — so
   // the first capability a fresh user builds can open it without a page refresh (the
   // commit swap adds content + a toolbar entry, not the modal). "Cold-start" means no
-  // capabilities, never no modal: the modal is data-free platform chrome (ADR-0004).
+  // capabilities, never no modal: the modal is data-free platform chrome.
   const withModal = injectDetailModal(shellHtml);
   if (rows.length === 0) {
     return withModal;
@@ -258,7 +258,7 @@ function injectToolbarEntries(shellHtml: string, entriesHtml: string): string {
 }
 
 // Mount the one shared read-only detail modal instance at the shell's placeholder
-// (public/index.html), rendered from the single renderDetailModal() source so the served
+// (public/index.html), rendered from the single renderDetailModal source so the served
 // markup can never drift from the module + its tests. Loud on a missing placeholder — same
 // fail-fast contract as the toolbar injection — so a shell that silently dropped the modal
 // (and with it every item's click-to-open) is caught in tests, not in the UI.

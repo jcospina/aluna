@@ -47,31 +47,31 @@ remain implementation detail.
    as-is.
 
 2. **Handlers follow one parsed-input and injected-toolbox contract and return
-   HTML.** Every generated Handler file exports one async function receiving a
-   platform-built context; generated code never touches raw HTTP, routing, a
-   read-write database, or a filesystem path. Parsed values preserve
-   multiplicity (`string | readonly string[]`) and carry a validated submitted-
-   field set. Spec names cannot use the reserved `__aluna_` prefix; platform forms
-   emit repeated `__aluna_present` markers and update/delete emit exactly one
-   nonblank `__aluna_record_id`. The router validates and strips that namespace,
-   rejecting missing/duplicate/unexpected targets before generated code. Record
-   identity is passed separately, never as a writable field; update therefore
-   distinguishes preserve from explicit null/false/empty-list. For active
-   `string[]` fields, the same platform seam also reads the spec's closed list
-   input mode: repeated controls preserve each value exactly, while a comma-
-   separated control splits/trims/discards empty segments. Both yield the same
-   ordered-array Handler value and required/optional empty-list semantics.
+   HTML.** Every generated Handler file exports one async function that receives
+   a platform-built context. Generated code never touches raw HTTP, routing, a
+   read-write database, or a filesystem path. Parsed values preserve multiplicity
+   (`string | readonly string[]`) and carry a validated submitted-field set. Spec
+   names cannot use the reserved `__aluna_` prefix; platform forms emit repeated
+   `__aluna_present` markers, and update/delete emit exactly one nonblank
+   `__aluna_record_id`. The router validates and strips that namespace, rejecting
+   missing/duplicate/unexpected targets before generated code runs. Record
+   identity arrives separately, never as a writable field, so update distinguishes
+   preserve from explicit null/false/empty-list. For active `string[]` fields, the
+   same platform seam also reads the spec's closed list input mode: repeated
+   controls preserve each value exactly, while a comma-separated control
+   splits/trims/discards empty segments. Both yield the same ordered-array Handler
+   value and required/optional empty-list semantics.
 
    The toolbox has separate interfaces:
 
    - **Mutations are capability/target-bound.** Create authority is bound to the
      capability; update/delete authority is additionally bound to the one
-     router-validated record target before generated code runs. The adapters expose
-     no table/capability/record selector. The interface owns
-     active-field allow-listing, platform-column protection, normalization,
-     logical requiredness, lifecycle rules, update merge, and resulting-record
-     validation. Cross-capability mutation and record-target substitution are
-     unrepresentable through the supplied interface.
+     router-validated record target before generated code runs. The adapters
+     expose no table/capability/record selector. The interface owns active-field
+     allow-listing, platform-column protection, normalization, logical
+     requiredness, lifecycle rules, update merge, and resulting-record validation.
+     Cross-capability mutation and record-target substitution are unrepresentable
+     through the supplied interface.
    - **Reads are free SQL.** Every Action may use arbitrary parameterized
      `SELECT`/joins through a connection opened physically read-only; `read` and
      `search` necessarily do. Persistent external reads are limited by that
@@ -90,24 +90,24 @@ remain implementation detail.
    may perform incidental I/O, but canonical state always goes through mutations.
 
 3. **Gate data access is isolated through supplied adapters, not process
-   containment.** The smoke rung (and the
-   behavioral rung when that tier is on) executes Handlers against scratch
-   SQLite. The target uses the candidate DDL; declared read dependencies use
-   complete physical compatibility-schema copies, all seeded only with synthetic
-   data, while model generation receives only active-field projections. Scratch exposes
-   separate read-write mutation and physically read-only query adapters satisfying
-   the live interfaces. Those adapters expose only synthetic scratch data, and
-   known direct-import/bypass shapes fail structural/static validation. Because
-   execution is still in-process, this is not a claim that deliberately
-   adversarial generated code cannot reach ambient runtime authority. This
-   distinction supports Module 4 rebuilds over real records without pretending
-   the deferred sandbox already exists.
+   containment.** The smoke rung, and the behavioral rung when that tier is on,
+   executes Handlers against scratch SQLite. The target uses the candidate DDL;
+   declared read dependencies use complete physical compatibility-schema copies,
+   all seeded only with synthetic data, while model generation receives only
+   active-field projections. Scratch exposes separate read-write mutation and
+   physically read-only query adapters satisfying the live interfaces. Those
+   adapters expose only synthetic scratch data, and known direct-import/bypass
+   shapes fail structural/static validation. Because execution is still
+   in-process, this is not a claim that deliberately adversarial generated code
+   cannot reach ambient runtime authority. This distinction supports Module 4
+   rebuilds over real records without pretending the deferred sandbox already
+   exists.
 
 ## Context / why
 
-The Handler skeleton is the most-rewritten code in the system—the AI authors it
-on v1 and selectively rewrites affected units during evolution—and four parties
-pull on the one contract:
+The Handler skeleton is the most-rewritten code in the system: the AI authors it
+on v1 and selectively rewrites affected units during evolution. Four parties pull
+on the one contract.
 
 - **The AI writes and later selectively rewrites it**: every convention (import
   paths, HTTP parsing, table names) is a fresh way for an affected build unit to

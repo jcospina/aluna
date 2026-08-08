@@ -61,7 +61,7 @@ export const frozenActionTestsSchema = z.strictObject({
 /**
  * The frozen behavioral intent for one capability version — the artifact published at
  * `tests/behavioral.json` and digested into `snapshot.json`. Frozen before any Handler
- * generation or repair begins, so no Handler byte can ever have informed it (ADR-0006).
+ * generation or repair begins, so no Handler byte can ever have informed it.
  */
 export const frozenBehavioralTestsSchema = z.strictObject({
   actions: z.array(frozenActionTestsSchema).min(1).max(5),

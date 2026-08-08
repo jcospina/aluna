@@ -2,31 +2,33 @@
 
 The practical reference coding agents consult before adding UI. Decisions and
 their *why* live in [docs/adr/0001](adr/0001-product-style-and-voice.md);
-language and product voice live in [CONTEXT.md](../CONTEXT.md). **The source of
-truth for token values is `public/app.css`** — this table mirrors it; if they
-ever disagree, the CSS wins.
+language and product voice live in [CONTEXT.md](../CONTEXT.md). Token values have
+one source of truth, `public/css/tokens.css`, which `public/app.css` imports
+first; the tables below mirror it, and where the two disagree the CSS wins.
 
-This file currently describes the authored shell. Module 3 promotes the same
-tokens into the closed generated-presentation contract from
+This file covers both the authored shell and the generated-presentation
+contract. Module 3 promoted the same tokens into the closed contract from
 [ADR-0005](adr/0005-opinionated-capability-ui-design-contract-and-gate.md) (as
 amended 2026-07-01): generated item markup reaches first for allow-listed
-semantic/primitive classes whose implementations consume these tokens —
-including Tailwind-style **layout utilities** (flex, grid, alignment, gap) so
-common arrangement needs no `style` at all. The vocabulary is sensible
-defaults, **not an all-purpose CSS framework**; when it
-doesn't suffice, inline `style` is a **token-disciplined escape
-hatch** — color only via `--color-*`, font family never declared (Outfit
-inherits), font size only via the t-shirt scale `--type-*`, spacing only via
-`--space-*`, border weight only via the thin/regular/thick border scale;
-properties outside those five axes are free, and executable markup
-stays forbidden. The platform modal, list container
-(with its closed `feed | grid` collection-layout modes, selected per capability
-via `ui_intent.collection.layout`), form, field renderers, and accessible item
-wrapper are added here when Module 3 is implemented; their exact interfaces are
-intentionally left to that Plan.
+semantic and primitive classes whose implementations consume these tokens,
+including Tailwind-style layout utilities (flex, grid, alignment, gap) so common
+arrangement needs no `style` at all.
 
-The style is **subtler neobrutalism on a Paper & Ink palette** — loud
-neobrutalism turned *down* for a quieter, PostHog-like register.
+The vocabulary is sensible defaults, not an all-purpose CSS framework. When it
+doesn't suffice, inline `style` is a token-disciplined escape hatch: color only
+via `--color-*`, font family never declared (Outfit inherits), font size only
+via the t-shirt scale `--type-*`, spacing only via `--space-*`, border weight
+only via the thin/regular/thick border scale. Properties outside those five axes
+are free, and executable markup stays forbidden.
+
+The platform modal, list container, form, field renderers, and accessible item
+wrapper all shipped in Module 3; each is documented below against the file that
+implements it. The list container carries the closed `feed | grid`
+collection-layout modes, selected per capability via
+`ui_intent.collection.layout`.
+
+The style is subtler neobrutalism on a Paper & Ink palette: loud neobrutalism
+turned down for a quieter, PostHog-like register.
 
 ## Tokens
 
@@ -50,10 +52,10 @@ neobrutalism turned *down* for a quieter, PostHog-like register.
 | `--color-danger` | `oklch(45% 0.16 25)` | final, confirmation-gated destructive actions |
 | `--color-text-on-danger` | `oklch(98% 0.012 85)` | near-white text on the danger fill |
 
-The destructive tone arrived with confirmation-gated record deletion. Other
-status tones remain additive when a concrete surface needs them. The same goes
-for a dark theme: because these are *semantic* tokens, dark is a future additive
-`:root` override — no switching machinery exists or is needed.
+The destructive tone arrived with confirmation-gated record deletion. Add any
+further status tone the same way, once a concrete surface needs it. A dark theme
+arrives that way too: because these are semantic tokens, dark is a future
+additive `:root` override, and no switching machinery exists or is needed.
 
 ### Typography — Outfit (vendored)
 
@@ -88,33 +90,32 @@ type uses the fixed scale.
 
 | Aspect | Loud neobrutalism | Aluna (subtler) |
 | --- | --- | --- |
-| Borders | 2–4px ink, on every control/panel | **1px** softened-ink, **structural surfaces only** |
-| Shadow offset | left-down `-2 / -6 / -12 / -16px` | **down-right** `2px / 4px`, low-contrast, **used sparingly** |
-| Press travel | 3–6px | **gentle 1–2px** |
+| Borders | 2–4px ink, on every control/panel | 1px softened-ink, structural surfaces only |
+| Shadow offset | left-down `-2 / -6 / -12 / -16px` | down-right `2px / 4px`, low-contrast, used sparingly |
+| Press travel | 3–6px | gentle 1–2px |
 | Radius | 10px | 10px (kept) |
-| Display face | Decorative shaded logo | **none** — wordmark is typographic Outfit |
+| Display face | Decorative shaded logo | none; the wordmark is typographic Outfit |
 
 ## Clean, not boxed
 
-Borders appear **only where they earn it** — the prompt field, form controls —
-**never a frame around every region**. Regions separate by **background tone +
-spacing**. The sole structural divider is the sidebar's `border-right` (one
-functional separator between two distinct regions, like Claude/ChatGPT).
+Borders appear only where they earn their place: the prompt field and form controls, never
+a frame around every region. Background tone and spacing do the separating. The
+one structural divider is the sidebar's `border-right`, a single functional
+separator between two distinct regions, like Claude and ChatGPT.
 
-The **prompt composer is borderless and sits directly on the page background**
-(`--color-bg`) — not raised on a white surface panel. Only the
-field inside it carries treatment (`--color-surface` fill, 1px border, 10px
-radius, accent focus ring) so it lifts off the page and reads as a composer placed
-inside the content area.
+The prompt composer is borderless and sits directly on the page background
+(`--color-bg`), not raised on a white surface panel. Only the field inside it
+carries treatment — `--color-surface` fill, 1px border, 10px radius, accent focus
+ring — so it lifts off the page and reads as a composer placed inside the content
+area.
 
-**Vertical rhythm & a bottom gutter.** Stacked sections are separated by a
-consistent vertical gap, and **every scrollable surface ends on a gutter** — the
-last section never sits flush against the bottom edge. Give a page trailing space
-below its final section (a bottom padding on the scroll container, plus the section
-spacing) so content always has room to breathe; a card, panel, or list butting
-against the viewport edge reads as truncated. (Watch percentage-height containers:
-`height: 100%` on a scrolling document strands the bottom padding at the fold — use
-`min-height` so the box grows with content.)
+A consistent vertical gap separates stacked sections, and every scrollable
+surface ends on a gutter: the last section never sits flush against the bottom
+edge. Give a page trailing space below its final section — a bottom padding on
+the scroll container, plus the section spacing — because a card, panel, or list
+butting against the viewport edge reads as truncated. Watch percentage-height
+containers: `height: 100%` on a scrolling document strands that bottom padding at
+the fold, so use `min-height` and let the box grow with content.
 
 ## Component treatments
 
@@ -123,8 +124,8 @@ against the viewport edge reads as truncated. (Watch percentage-height container
   cold-start, sidebar top once the sidebar is present.
 - **Prompt field.** `--color-surface` fill, 1px `--color-border`, `--radius-md`,
   `--body` type, comfortable padding, constrained max-width and centered. Hover =
-  quiet 1px lift + `--shadow-sm`. Focus = accent border + accent ring, **no
-  translate** (the field stays put while typing).
+  quiet 1px lift + `--shadow-sm`. Focus = accent border + accent ring and no
+  translate, so the field stays put while typing.
 - **Buttons (e.g. the sidebar toggle).** `--color-surface` fill, 1px border,
   `--radius-sm`. Gentle press: `:hover` nudges `translate(1px,1px)` + `--shadow-sm`;
   `:active` presses to `translate(2px,2px)` and flattens the shadow.
@@ -133,16 +134,16 @@ against the viewport edge reads as truncated. (Watch percentage-height container
   same gentle press. Variants: `.btn--primary` (terracotta `--color-accent`),
   `.btn--secondary` (deep blue `--color-accent-secondary`), `.btn--info`,
   `.btn--feature`, `.btn--warm`, `.btn--neutral` (surface-weight default), and
-  `.btn--ghost` (no fill until hover). Text color per fill is **WCAG-AA verified**
-  — ink on the light fills (terracotta 5.0, info 8.8, feature 10.8, warm 10.6),
-  the near-white `--color-text-on-secondary` on the dark deep-blue (8.7); each
-  filled variant carries a darker edge of its own hue. These are **platform
-  chrome** (the "New X" / Save / Delete affordances of epics 3.2 / M4), **never**
-  emitted inside generated item markup — the closed-value contract forbids
-  interactive descendants there.
+  `.btn--ghost` (no fill until hover). Every text color is WCAG-AA verified
+  against its fill: ink on the light fills (terracotta 5.0, info 8.8, feature
+  10.8, warm 10.6) and the near-white `--color-text-on-secondary` on the dark
+  deep-blue (8.7). Each filled variant carries a darker edge of its own hue.
+  These are platform chrome — the "New X", Save and Delete affordances of epics
+  3.2 and M4 — and are never emitted inside generated item markup, where the
+  closed-value contract forbids interactive descendants.
 - **Sidebar.** `--color-surface`, the one `border-right` divider. Hidden entirely
   at cold-start (no capabilities). Desktop: collapsible to full-width-reclaiming
-  zero. Mobile: off-canvas drawer + dismissable backdrop. This is **shell chrome**,
+  zero. Mobile: off-canvas drawer + dismissable backdrop. This is shell chrome,
   not deferred product interactivity.
 
 ## Do / Don't (quieter dial)
@@ -168,15 +169,17 @@ against the viewport edge reads as truncated. (Watch percentage-height container
 
 ## Capability primitive vocabulary + closed-value contract (Module 3 · epic 3.1)
 
-The closed-value design contract for **generated item-renderer markup** (ADR-0005
-§4, amended 2026-07-01; PLAN decision 4). *Closed values, open composition* — the
-closed thing is the design-**value** space (the tokens) and the executable
-surface, **never** how an item arranges one record's own fields. This is the
-single source of truth: the CSS lives in [`public/css/primitives.css`](../public/css/primitives.css),
-the runtime **allow-list enforcer** (3.1/02) and the fail-closed **design-lint
-gate rung** (3.6) both key on the vocabulary below. It is **sensible defaults, not
-an all-purpose CSS framework** — rebuilding Tailwind is a non-goal; the escape
-hatch absorbs the long tail. Eyeball it on the running app at
+The closed-value design contract for generated item-renderer markup (ADR-0005
+§4, amended 2026-07-01; PLAN decision 4). *Closed values, open composition:* what
+is closed is the design-value space — the tokens — and the executable surface,
+never how an item arranges one record's own fields.
+
+This is the single source of truth for that vocabulary. The CSS lives in
+[`public/css/primitives.css`](../public/css/primitives.css), and both the runtime
+allow-list enforcer (3.1/02) and the fail-closed design-lint gate rung (3.6) key
+on the list below. It is sensible defaults, not an all-purpose CSS framework:
+rebuilding Tailwind is a non-goal, and the escape hatch absorbs the long tail.
+Eyeball it on the running app at
 [`/static/primitives-preview.html`](../public/primitives-preview.html).
 
 ### The allow-list (classes)
@@ -198,54 +201,54 @@ design values, so they are literal.
 
 ### The inline-`style` escape hatch (token discipline)
 
-When the vocabulary doesn't suffice, item markup may carry inline `style` — but the
-**five platform-owned axes are never redeclared with raw values**:
+When the vocabulary doesn't suffice, item markup may carry inline `style`, but the
+five platform-owned axes are never redeclared with raw values:
 
 | Owned axis | Allowed only via |
 | --- | --- |
 | Color | `var(--color-*)` |
-| Font family | **never declared** — Outfit is the default and inherits from the shell |
+| Font family | never declared; Outfit is the default and inherits from the shell |
 | Type scale | `var(--type-*)` (the t-shirt tokens) |
 | Spacing | `var(--space-*)` |
 | Border weight | `var(--border-thin \| --border-regular \| --border-thick)` |
 
-Properties **outside** those axes (arrangement, alignment, aspect-ratio, width, …)
-are free; the `--radius-*`, `--shadow-*`, and motion (`--ease-*`, `--duration-*`)
-tokens exist and are **preferred** where they fit.
+Properties outside those axes — arrangement, alignment, aspect-ratio, width and
+the like — are free. The `--radius-*`, `--shadow-*`, and motion (`--ease-*`,
+`--duration-*`) tokens exist and are preferred wherever they fit.
 
 ### Forbidden absolutely
 
-Unrelaxed by the 2026-07-01 amendment (the escape hatch relaxed only *off-token
-style*, never the executable surface):
+The 2026-07-01 amendment relaxed off-token style only, never the executable
+surface, so all of these stay forbidden:
 
 - **Off-token values on the five owned axes** — a raw hex/rgb color, a px/rem font
   size or spacing, a raw border width.
 - **Fabricated or unknown classes** — anything outside the allow-list above.
-- **Interactive descendants** (the platform owns the accessible trigger and modal),
-  **scripts / event handlers** (`<script>`, `on*=`), and **unsafe interpolation of
-  user fields** into markup.
-- **Inside `style`:** `url(...)` values, `position` values that escape the item's
-  bounds, and any **field value interpolated into a `style` attribute** (styles are
-  literal in the renderer source).
+- **Interactive descendants** — the platform owns the accessible trigger and modal.
+- **Scripts and event handlers** — `<script>`, `on*=`.
+- **Unsafe interpolation of user fields** into markup.
+- **Inside `style`** — `url(...)` values, `position` values that escape the item's
+  bounds, and any field value interpolated into a `style` attribute. Styles are
+  literal in the renderer source.
 
-Enforced twice: at **build time** by the design-lint gate rung (3.6, rendering
-synthetic + hostile values within the declared collection layout) and at **render
-time** by the allow-list enforcer the presentation adapter applies to every record
-(3.1/02) — so a dynamic field value can never become executable markup even after
-build-time validation passes.
+Two enforcers run. The design-lint gate rung catches these at build time (3.6,
+rendering synthetic and hostile values within the declared collection layout),
+and the allow-list enforcer the presentation adapter applies to every record
+catches them at render time (3.1/02). So a dynamic field value can never become
+executable markup, even once build-time validation has passed.
 
 ## Capability field chrome (Module 3 · epic 3.2)
 
 Platform-owned create and detail surfaces, rendered deterministically from a spec by
 the centralized field renderer ([`src/presentation/field-renderer.ts`](../src/presentation/field-renderer.ts))
 and styled in [`public/css/fields.css`](../public/css/fields.css). This is platform
-**chrome**, distinct from the generated item vocabulary above: the *same* module
-renders both the create form the "New X" button opens and the read-only detail the
-shared modal shows, so the two can never drift, and it is **exhaustive over the
-field-type pantry** through a total switch — Module 4's list types and Module 6's `file` type
-extend exactly one place (adding a `FieldType` without a case fails the type-check).
-Eyeball it on the running app by opening a capability from the toolbar: the create form
-behind "New X" and the read-only detail in the shared modal are both this module.
+chrome, distinct from the generated item vocabulary above. One module renders both
+the create form the "New X" button opens and the read-only detail the shared modal
+shows, so the two can never drift. Its switch over the field-type pantry is total,
+so Module 4's list types and Module 6's `file` type extend exactly one place:
+adding a `FieldType` without a case fails the type-check. Eyeball it on the running
+app by opening a capability from the toolbar — the create form behind "New X" and
+the read-only detail in the shared modal are both this module.
 
 ### Field type → control (create) / display (detail)
 
@@ -257,39 +260,42 @@ behind "New X" and the read-only detail in the shared modal are both this module
 | `datetime` | `<input type="datetime-local">` | a semantic `<time>`, tidied timezone-free (`2026-06-23T09:30…` → `2026-06-23 09:30`) |
 | `date` | `<input type="date">` | a semantic `<time>`, date-only (`2026-06-23`) |
 
-Absent (null / empty-string) detail values show a muted “—”. Field labels humanize the
-SQL name (`due_date` → “Due date”). A **`boolean` never carries the HTML `required`
-attribute** — a checkbox always yields a definite value, so a *required* boolean is
-satisfied by `false` and is never forced-checked at create (only emptyable controls —
-text/number/datetime — carry `required`). Controls follow the prompt field's treatment —
-`--color-surface` fill, a 1px border, `--radius-md`, an accent focus ring, no press
-travel so a control stays put while it's filled. The actions row pairs a neutral
-**Cancel** with the primary **Add**: Cancel discards the local draft, closes the form,
-and returns focus to "New X"; Add remains the platform `.btn--primary`. Create-form
-HTMX wiring and **close-on-success** are platform-owned, not generated: on a successful
-create the form resets and dispatches a bubbling `aluna:record-created` event (exported
-as `RECORD_CREATED_EVENT`) that the list container (3.2/02) and shared modal (3.2/04)
-act on. The new record prepends into the capability's live region (`<id>-records`, via
-`capabilityRecordsRegionId`), so no user data enters the platform-rendered chrome
-(ADR-0004 "never-stale cache").
+Absent (null / empty-string) detail values show a muted "—". Field labels humanize
+the SQL name (`due_date` → "Due date"). A `boolean` never carries the HTML
+`required` attribute: a checkbox always yields a definite value, so a required
+boolean is satisfied by `false` and is never forced-checked at create. Only the
+emptyable controls — text, number, datetime — carry `required`.
+
+Controls follow the prompt field's treatment: `--color-surface` fill, a 1px
+border, `--radius-md`, an accent focus ring, and no press travel, so a control
+stays put while it's filled. The actions row pairs a neutral Cancel with the
+primary Add. Cancel discards the local draft, closes the form, and returns focus
+to "New X"; Add remains the platform `.btn--primary`.
+
+Create-form HTMX wiring and close-on-success are platform-owned, not generated.
+On a successful create the form resets and dispatches a bubbling
+`aluna:record-created` event (exported as `RECORD_CREATED_EVENT`) that the list
+container (3.2/02) and shared modal (3.2/04) act on. The new record prepends into
+the capability's live region (`<id>-records`, via `capabilityRecordsRegionId`), so
+no user data enters the platform-rendered chrome (ADR-0004 "never-stale cache").
 
 ## Collection layout + item wrapper (Module 3 · epic 3.2/02)
 
 Platform-owned list scaffolding and the accessible item wrapper, rendered
 deterministically by [`src/presentation/list-container.ts`](../src/presentation/list-container.ts)
 and styled in [`public/css/collection.css`](../public/css/collection.css). Platform
-**chrome** again — distinct from the generated item vocabulary above: the container owns
-the *collection* arrangement and the wrapper owns the per-record *frame + trigger*, while
-the generated inner markup composes one record's fields **inside** the wrapper using the
-primitives. Eyeball it on the running app by opening a capability from the toolbar: the
-collection you see is this module's output in the capability's declared layout.
+chrome again, distinct from the generated item vocabulary above: the container owns
+the *collection* arrangement, the wrapper owns the per-record frame and trigger, and
+the generated inner markup composes one record's fields inside the wrapper using the
+primitives. Eyeball it on the running app by opening a capability from the toolbar —
+the collection you see is this module's output in the capability's declared layout.
 
 ### Closed collection layouts (`feed | grid`)
 
 `ui_intent.collection.layout` is a closed enum the list container maps to a
-token-consuming platform class through a total switch — an unknown layout is
-unrepresentable (fails the build closed, symmetric with an unknown field type). `table`
-and `masonry` are deferred (ADR-0005 §6). Until 3.3/01 authors the intent, the layout
+token-consuming platform class through a total switch, so an unknown layout is
+unrepresentable and fails the build closed, symmetric with an unknown field type.
+`table` and `masonry` are deferred (ADR-0005 §6). Until 3.3/01 authors the intent, the layout
 defaults to `feed` (PLAN decision 5).
 
 | `collection.layout` | Class | Arrangement |
@@ -297,36 +303,40 @@ defaults to `feed` (PLAN decision 5).
 | `feed` (default) | `.capability-records--feed` | single vertical column, `--space-3` gap |
 | `grid` | `.capability-records--grid` | responsive `auto-fill` grid (`minmax(16rem, 1fr)`), `--space-3` gap |
 
-The container also renders the **“New X” disclosure**, an Alpine toggle opening the live
-create form from 3.2/01. It closes on this capability's `aluna:record-created` or the
-form's local `aluna:create-cancelled` event; Cancel discards the draft (including added
-repeatable rows) and returns focus to “New X.” The **empty state** is shown purely by CSS
-while the records region is `:empty`, so a server-rendered or prepended record clears it
-with no JS. The records region carries
-`id="<id>-records"` (`capabilityRecordsRegionId`), the same target the create form posts
-into, and stays **data-free**: live records arrive through the `read` action, never baked
-into the chrome. In the serving path (`renderCollection({ loadThroughRead: true })`, epic
-3.2/03) the region is emitted empty and carries `hx-get="/capability/<id>/read"
-hx-trigger="load"`, so htmx fills it after the deterministic chrome renders — preserving
-ADR-0004's never-stale cache because the cached surface holds no user data.
+The container also renders the "New X" disclosure, an Alpine toggle that opens the
+live create form from 3.2/01. It closes on this capability's `aluna:record-created`
+or the form's local `aluna:create-cancelled` event; Cancel discards the draft,
+including any added repeatable rows, and returns focus to "New X." Pure CSS shows
+the empty state while the records region is `:empty`, so a server-rendered or
+prepended record clears it with no JS.
+
+The records region carries `id="<id>-records"` (`capabilityRecordsRegionId`), the
+same target the create form posts into, and stays data-free: live records arrive
+through the `read` action, never baked into the chrome. In the serving path
+(`renderCollection({ loadThroughRead: true })`, epic 3.2/03) the region is emitted
+empty and carries `hx-get="/capability/<id>/read" hx-trigger="load"`, so htmx fills
+it after the deterministic chrome renders. That preserves ADR-0004's never-stale
+cache, because the cached surface holds no user data.
 
 ### Debounced search chrome (Module 4 · epic 4.3/03)
 
 Every committed five-Action View renders one platform-owned `role="search"` form above
 its records region. The labelled `type="search"` control uses the same quiet surface,
-border, radius, and focus-ring vocabulary as the platform field controls; a persistent
-text **Clear** action remains a full target rather than relying on browser-specific
-search-input decoration. The chrome owns a 300 ms debounce, visible and announced
-loading feedback, no-match and warm failure states, request cancellation, and
-out-of-order response suppression. Search, the initial HTMX read, and post-mutation
-reconciliation share one per-records-region request owner, so only the newest claim
-may render. Matching and ranking remain inside the generated
-`search` Handler. The platform normalizer makes composed/decomposed Unicode, letter
-case, and Latin accents equivalent, so `cafe`, `CAFE`, `Café`, and `Cáfé` share one
-match set while marks in other scripts remain meaningful; `%`, `_`, and quotes stay
-literal text rather than SQL patterns.
-Search and New share the header row; the single live feedback row sits immediately
-below it and centers no-match copy across the whole collection content area.
+border, radius, and focus-ring vocabulary as the platform field controls; a
+persistent text Clear action stays a full-size target rather than relying on
+browser-specific search-input decoration. The chrome owns a 300 ms debounce,
+visible and announced loading feedback, no-match and warm failure states, request
+cancellation, and out-of-order response suppression. Search, the initial HTMX read,
+and post-mutation reconciliation share one per-records-region request owner, so
+only the newest claim may render.
+
+Matching and ranking remain inside the generated `search` Handler. The platform
+normalizer makes composed/decomposed Unicode, letter case, and Latin accents
+equivalent, so `cafe`, `CAFE`, `Café`, and `Cáfé` share one match set while marks
+in other scripts remain meaningful; `%`, `_`, and quotes stay literal text rather
+than SQL patterns. Search and New share the header row, and the single live
+feedback row sits immediately below it, centering no-match copy across the whole
+collection content area.
 
 Nonblank input calls committed `GET /capability/:id/search?q=...` and replaces the whole
 records region with the returned shared item-renderer fragment. Clear acts immediately;
@@ -335,97 +345,109 @@ items therefore carry the same accessible trigger and detail-template hooks as o
 read results. During the approved 4.2–4.3 transition, two-Action prompt-built rows omit
 this chrome rather than advertising an undeclared route; 4.4 removes that temporary
 shape, after which every admitted capability has search.
-The same committed Action inventory drives modal chrome: a transitional two-Action
+
+The same committed Action inventory drives modal chrome, so a transitional two-Action
 record has read detail but no Edit/Delete affordances.
 
 ### The accessible item wrapper
 
 Every record is framed in one standardized trigger: a `role="button"` card with
-`aria-haspopup="dialog"`, an on-brand surface/border/radius and the shared gentle
-press + accent focus ring. It carries an **escaped `data-item` client projection**
-(`JSON.stringify`, HTML-escaped for the attribute): record target, active schema fields,
-and `created_at`. Platform-owned `extra` and inactive fields remain server-only, matching
-ADR-0005's Module 4 amendment. `file` fields ride as references, **never bytes**: raw
-`Uint8Array`/`ArrayBuffer` values are neutralized to `null` rather than serialized. Given
-an `ItemDetailRef` the wrapper also carries **`data-detail-template`**
-(the id of the record's inert detail `<template>`, cloned into the modal on open) and
-**`data-detail-title`** (the modal title — the capability label); the generic click
-controller ([`public/item-detail.js`](../public/item-detail.js)) reads them to fire the
-modal's open event on click or keyboard (Enter/Space) activation — the click-to-open wiring
-(3.3/02). The ref is optional, so the frame alone renders without it.
+`aria-haspopup="dialog"`, an on-brand surface, border and radius, and the shared
+gentle press plus accent focus ring. It carries an escaped `data-item` client
+projection (`JSON.stringify`, HTML-escaped for the attribute) holding the record
+target, the active schema fields, and `created_at`. Platform-owned `extra` and
+inactive fields remain server-only, matching ADR-0005's Module 4 amendment. `file`
+fields ride as references and never as bytes: raw `Uint8Array`/`ArrayBuffer` values
+are neutralized to `null` rather than serialized.
 
-The wrapper is **platform chrome, so the runtime enforcer never runs on it** — its
-`role`/`tabindex`/`data-item` are platform-authored and trusted. The enforcer
-(3.1/02) runs on the **inner** generated markup, applied by the presentation adapter
-(3.4/01) *before* it reaches the wrapper; `renderItemWrapper` frames already-safe markup
-and does not re-sanitize. The wrapper's card surface + press/focus live in the
-reduced-motion reset (a11y.css) alongside the other pressables.
+Given an `ItemDetailRef` the wrapper also carries `data-detail-template`, the id of
+the record's inert detail `<template>` that is cloned into the modal on open, and
+`data-detail-title`, the modal title, which is the capability label. The generic
+click controller ([`public/item-detail.js`](../public/item-detail.js)) reads both
+and fires the modal's open event on click or keyboard (Enter/Space) activation —
+the click-to-open wiring from 3.3/02. The ref is optional, so the frame alone
+renders without it.
+
+The wrapper is platform chrome, so the runtime enforcer never runs on it: its
+`role`, `tabindex` and `data-item` are platform-authored and trusted. The enforcer
+(3.1/02) runs on the inner generated markup, applied by the presentation adapter
+(3.4/01) before that markup reaches the wrapper; `renderItemWrapper` frames
+already-safe markup and does not re-sanitize. The wrapper's card surface and
+press/focus live in the reduced-motion reset (a11y.css) alongside the other
+pressables.
 
 ## Shared read/edit modal (Module 4 · epic 4.3/01)
 
 The one shared modal every capability opens to read a record in full and then, explicitly,
 edit that same record, rendered by
 [`src/presentation/detail-modal.ts`](../src/presentation/detail-modal.ts) and styled in
-[`public/css/detail-modal.css`](../public/css/detail-modal.css). Platform **chrome** and a
-platform **invariant** — a single instance the whole app reuses, never one per capability
+[`public/css/detail-modal.css`](../public/css/detail-modal.css). Platform chrome and a
+platform invariant: a single instance the whole app reuses, never one per capability
 and never model-authored (`modal: true` is not stored, ADR-0005 §6). Eyeball it on the
 running app by opening a capability from the toolbar and clicking a record.
 
 ### Native `<dialog>`, so the browser owns the hard parts
 
-The modal is a native modal `<dialog>` opened with `showModal()`. That single choice buys
-the **focus trap**, **focus restore to the trigger** on close, **Escape-to-close**, and the
-**`::backdrop`** — all native, nothing hand-rolled. The shell stays dumb (ARCH §6.1): the
-controller ([`public/detail-modal.js`](../public/detail-modal.js)) only **prefills, opens,
-and switches local read/edit presentation state**, never infers intent or mutates canonical
-state. Three close paths, in descending robustness:
-the native `<form method="dialog">` ✕ button and Escape work even if the controller never
-loads; a **backdrop click** is the controller's light-dismiss enhancement (the `<dialog>`
-is chrome-less and a padded `__panel` holds the card, so a click on the dialog element is a
-click on the backdrop). Treatment is the established Aluna card — surface fill, a 1px
-ink-tinted border, `--radius-md`, a quiet `--shadow-md` — with a bounded height so a long
-record's body scrolls while keeping its bottom gutter. **Width is explicit and
-responsive** (a native `<dialog>` otherwise shrinks to its content, rendering short
-records cramped): almost full width `<480px`, ~80vw on small tablets, and a fixed ≥600px
-on desktop (breakpoints mirror the shell's 768px line). No entrance animation (calm, and
-nothing to reset for reduced motion).
+The modal is a native modal `<dialog>` opened with `showModal()`. That one choice buys
+the focus trap, focus restore to the trigger on close, Escape-to-close, and the
+`::backdrop` — all native, nothing hand-rolled. The shell stays dumb (ARCH §6.1): the
+controller ([`public/detail-modal.js`](../public/detail-modal.js)) prefills, opens and
+switches local read/edit presentation state, and does nothing else. It never infers
+intent or mutates canonical state.
+
+Three close paths, in descending robustness: the native `<form method="dialog">` ✕
+button and Escape both work even if the controller never loads, and a backdrop click
+is the controller's light-dismiss enhancement (the `<dialog>` is chrome-less and a
+padded `__panel` holds the card, so a click on the dialog element is a click on the
+backdrop).
+
+Treatment is the established Aluna card — surface fill, a 1px ink-tinted border,
+`--radius-md`, a quiet `--shadow-md` — with a bounded height so a long record's body
+scrolls while keeping its bottom gutter. Width is explicit and responsive, because a
+native `<dialog>` otherwise shrinks to its content and renders short records cramped:
+almost full width `<480px`, ~80vw on small tablets, and a fixed ≥600px on desktop
+(breakpoints mirror the shell's 768px line). No entrance animation, which is calmer
+and leaves nothing to reset for reduced motion.
 
 ### Read actions, confirmation, and prefilled edit without a read-single route
 
-The initial read-only body is rendered by the **centralized field renderer** (3.2/01, via
+The centralized field renderer draws the initial read-only body (3.2/01, via
 `renderDetailContent`). The header keeps the capability title at the leading edge and one
 isolated, icon-only native Close control at the trailing edge. The title accepts programmatic
 focus on open; Close has an accessible name and tooltip, and its target is at least 44×44px.
 
-Read mode has one docked action area below the scrolling fields. **Delete** is a quiet,
-visibly labelled leading action and **Edit** is a visibly labelled neutral trailing action;
+Read mode has one docked action area below the scrolling fields. Delete is a quiet,
+visibly labelled leading action and Edit is a visibly labelled neutral trailing action;
 neither is reduced to an icon or crowded beside a long title. Edit switches the same modal
-to a prefilled form over every active field. **Save** exists only in that edit state and
+to a prefilled form over every active field. Save exists only in that edit state and
 posts to the committed `update` route. The field stack is the only edit scrollport, with
 horizontal overflow suppressed; Cancel and Save stay docked at the modal bottom without
-covering controls. Stable scrollbar space prevents hover/press travel from changing the
+covering controls. Stable scrollbar space keeps hover and press travel from changing the
 click geometry.
+
 During Save, the controller disables duplicate submission and every dismissal path,
 then verifies that the submitting form still owns the shared modal before closing it.
 Datetime edit controls keep the exact stored offset, seconds, and milliseconds in a
-platform-owned value mirror; changing another field cannot truncate untouched time data.
+platform-owned value mirror, so changing another field cannot truncate untouched time
+data.
 
 Delete's first activation makes no request. It replaces the read action area in place with
-the warning **“Delete this record? You won’t be able to bring it back.”**, neutral Cancel,
-and the final danger-filled **Delete record** submit. Focus moves to Cancel, the least
+the warning "Delete this record? You won’t be able to bring it back.", a neutral Cancel,
+and the final danger-filled "Delete record" submit. Focus moves to Cancel, the least
 destructive choice; Cancel restores the ordinary read actions and returns focus to Delete.
 Close, Escape, and backdrop dismissal clear the local confirmation state without deleting.
+
 Only the final confirmation emits the one record target to committed `delete`. During the
-request it reads **I’m deleting…**, refuses duplicate submission, and temporarily locks every
+request it reads "I’m deleting…", refuses duplicate submission, and temporarily locks every
 dismissal path so a late response cannot act on a different record. A warm not-found failure
 stays open, unlocks dismissal, and is announced in the confirmation's live region. Success
 reruns the current nonblank committed search or canonical `read`, replaces the whole
 records region, closes the modal, and focuses the next surviving record, then the
 previous one, or the New button when the collection is empty. If that committed refresh
-cannot complete, the controller falls back to a canonical page reload instead of leaving
-stale collection chrome or a permanently busy modal. On narrow mobile/high-zoom layouts the
-warning occupies its own row and the two confirmation actions stack at full width; labels
-never truncate into icon-only or overflow-menu forms.
+cannot complete, the controller falls back to a canonical page reload rather than leave
+stale collection chrome or a permanently busy modal. On narrow mobile and high-zoom layouts
+the warning occupies its own row and the two confirmation actions stack at full width;
+labels never truncate into icon-only or overflow-menu forms.
 
 The persistent modal controller owns in-flight Save/Delete feedback and close-on-success,
 rather than attaching that lifecycle to each cloned form. Create and edit resolve the same
@@ -433,21 +455,23 @@ authored `string[]` list-input modes, while inactive fields, `extra`, and `creat
 out of the form and client payload. Every active edit control emits its presence marker,
 and the form emits one record target so clear, false, and empty-list values remain distinct
 from omitted values.
+
 All three record writes keep the generated Handler and presentation completion inside
 one coordinator-owned SQLite transaction. A server-side failure rolls the mutation back;
 a transport-ambiguous failure reconciles the committed search/read surface and asks the
 person to check it before retrying.
 
-Each record's read and edit surfaces are materialized into an **inert
-`<template>`** at list-render time and **cloned** into the one modal on open — never
+Each record's read and edit surfaces are materialized into an inert
+`<template>` at list-render time and cloned into the one modal on open — never
 `innerHTML` from a string, never a server round-trip. So the full record shows even when the
-item visually truncates and **no read-single route is added** (ADR-0005 §3); if large-text
+item visually truncates, and no read-single route is added (ADR-0005 §3). If large-text
 lists later make this expensive, prefill moves behind the adapter to read-single-on-open and
-the payload shrinks to an id (ADR-0005 §3, post-M4). Field selection/order **honors
-`ui_intent.detail.shows`** (3.3/02): the body renders exactly those fields, in that order,
-falling back to every field in spec order when a capability carries no intent. Opening is
-driven by the `aluna:open-detail` event
-(`OPEN_DETAIL_EVENT`, [`src/presentation/detail-modal.ts`](../src/presentation/detail-modal.ts)) — the
-seam the item click-to-open controller ([`public/item-detail.js`](../public/item-detail.js))
-fires from a clicked or key-activated record. See the whole interaction end to end on a
+the payload shrinks to an id (ADR-0005 §3, post-M4). Field selection and order honor
+`ui_intent.detail.shows` (3.3/02): the body renders exactly those fields, in that order,
+falling back to every field in spec order when a capability carries no intent.
+
+Opening is driven by the `aluna:open-detail` event (`OPEN_DETAIL_EVENT`,
+[`src/presentation/detail-modal.ts`](../src/presentation/detail-modal.ts)), the seam the
+item click-to-open controller ([`public/item-detail.js`](../public/item-detail.js)) fires
+from a clicked or key-activated record. See the whole interaction end to end on a
 committed capability's live surface: click an item, read it, then hit Edit.

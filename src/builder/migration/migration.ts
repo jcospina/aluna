@@ -17,8 +17,10 @@ export interface ApplyCapabilityMigrationInput {
   readonly spec: CapabilitySpec;
 }
 
-// What the metrics writer will eventually persist for this stage. The stage
-// produces the measurement and the table identity.
+/**
+ * What the metrics writer will eventually persist for this stage. The stage
+ * produces the measurement and the table identity.
+ */
 export interface CapabilityMigrationResult {
   readonly ddl: CapabilityTableDdl;
   readonly tableName: string;

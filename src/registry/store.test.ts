@@ -95,7 +95,7 @@ describe("capability registry store", () => {
     insertCapability(row, conns.readwrite);
 
     // Read back through the *read-only* connection — the write landed in the
-    // shared file and the read path convention (ARCH §7) really serves it.
+    // shared file and the read path convention really serves it.
     const fetched = getCapability("notes", conns.readonly);
     expect(fetched).toEqual(row);
     expect(fetched?.version).toBe(1);

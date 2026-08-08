@@ -83,8 +83,10 @@ export const generationStageMeasurementSchema = z
   });
 export type GenerationStageMeasurement = z.infer<typeof generationStageMeasurementSchema>;
 
-// Content-free by construction: resolver classification and provider measurement,
-// never prompt text, proposed copy, generated artifacts, or user records.
+/**
+ * Content-free by construction: resolver classification and provider measurement,
+ * never prompt text, proposed copy, generated artifacts, or user records.
+ */
 export const carriedResolverMeasurementSchema = z.strictObject({
   intent: z.strictObject({
     type: intentTypeSchema,

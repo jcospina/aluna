@@ -1,33 +1,26 @@
-// The Diff Engine (the normative
-// "Total Diff Engine change-fact matrix"; ADR-0006 total unit diffs).
-//
-// One total, monotone change-fact contract. Given the committed spec and the
-// already-validated candidate (validation rejected every invalid difference before
-// this stage), it converts every admitted committed→candidate difference into a
-// typed change fact and projects the union of those facts onto the four kinds of
-// downstream work the platform must perform: schema/platform work, generated-unit
-// selection, behavioral-test effect, and Gate work. The mapping IS the
-// normative matrix — the table is authoritative, and admitting a new spec
-// fact requires extending both the table and this module.
+// The Diff Engine: one total, monotone change-fact contract. Given the committed spec and
+// the already-validated candidate, it converts every admitted committed→candidate
+// difference into a typed change fact and projects the union of those facts onto the four
+// kinds of downstream work — schema/platform work, generated-unit selection,
+// behavioral-test effect, and Gate work. Admitting a new spec fact requires extending both
+// the normative change-fact matrix and this module.
 //
 // Three invariants hold this contract together:
 //
-//   - **Monotone union.** Multiple facts union every column; one
-//     fact can never subtract work another fact requires. A unit is copied only
-//     when *no* fact selects it — the matrix positively proving it unaffected.
-//   - **Fails closed on the unknown.** After accounting for every
-//     region a change fact covers, the residual of the two canonical specs must
-//     be identical. Any leftover difference — a future admitted fact without a
-//     matrix row, or an immutable region that validation should have frozen — is
-//     an unmapped difference and throws {@link UnmappedChangeFactError} before any
+//   - **Monotone union.** Multiple facts union every column; one fact can never subtract
+//     work another fact requires. A unit is copied only when *no* fact selects it — the
+//     matrix positively proving it unaffected.
+//   - **Fails closed on the unknown.** After accounting for every region a change fact
+//     covers, the residual of the two canonical specs must be identical. Any leftover
+//     difference — a future admitted fact without a matrix row, or an immutable region
+//     validation should have frozen — throws {@link UnmappedChangeFactError} before any
 //     publication, never a silent no-op or an unproven copy.
-//   - **Canonical, not raw.** Equality is over the validated
-//     semantic value: object-key order is ignored and set-like facts (dependency
-//     arrays, error cases, error-field sets) use a defined canonical order, while
-//     ordered product facts (`schema.fields`, item/detail `shows`, item
-//     `direction`) preserve order and therefore diff. A zero-fact candidate is the
-//     canonical no-op: the caller performs no work and finalizes
-//     `success/no_change`.
+//   - **Canonical, not raw.** Equality is over the validated semantic value: object-key
+//     order is ignored and set-like facts (dependency arrays, error cases, error-field
+//     sets) use a defined canonical order, while ordered product facts (`schema.fields`,
+//     item/detail `shows`, item `direction`) preserve order and therefore diff. A
+//     zero-fact candidate is the canonical no-op: the caller performs no work and
+//     finalizes `success/no_change`.
 
 import {
   type CapabilitySpec,
@@ -42,7 +35,7 @@ import { canonicalCapabilityLabel } from "../../registry/labels.ts";
 // ── The typed change facts ──────────────────────────────────────────────────
 // One variant per matrix row that produces a fact. The invalid-candidate row and
 // the two terminal rows (no-op, unmapped) are not facts: invalidity is rejected
-// upstream by validation, the no-op is the empty fact set, and the unmapped case
+// upstream, the no-op is the empty fact set, and the unmapped case
 // throws. Field- and Action-scoped facts carry their subject so the union and the
 // dev preview can name exactly what changed.
 
@@ -91,14 +84,18 @@ const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
 
 // ── The work plan the matrix projects ───────────────────────────────────────
 
-// The six generated units the diff selects between: the five Action handlers and
-// the item renderer. Every unit not selected is copied byte-for-byte.
+/**
+ * The six generated units the diff selects between: the five Action handlers and
+ * the item renderer. Every unit not selected is copied byte-for-byte.
+ */
 export const GENERATED_UNITS = ["create", "read", "update", "delete", "search", "item"] as const;
 export type GeneratedUnitName = (typeof GENERATED_UNITS)[number];
 
-// The closed vocabulary of platform/schema work the matrix's first column names.
-// Each tag is one cell's worth of platform-owned work — no generated units, no
-// model context. Extending the matrix extends this list.
+/**
+ * The closed vocabulary of platform/schema work the matrix's first column names.
+ * Each tag is one cell's worth of platform-owned work — no generated units, no
+ * model context. Extending the matrix extends this list.
+ */
 export const PLATFORM_WORK_KINDS = [
   "registry_and_view_copy", // capability label → registry row + toolbar/View copy
   "resolver_catalog", // prompt_context → intent-resolver catalog

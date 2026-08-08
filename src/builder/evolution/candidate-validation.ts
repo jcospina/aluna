@@ -1,31 +1,25 @@
-// Candidate-spec validation (the
-// change-fact matrix's invalid-candidate row; ADR-0006 candidate ownership).
-//
-// The AI authors one complete candidate spec for an evolving capability; the
-// platform validates it here — **before any DDL or unit generation** — against
-// the current committed spec and the lease-frozen dependency-generation catalog.
-// A candidate that fails never reaches the Diff stage: rejection is loud and
-// total, never a partial acceptance or a silent all-Handler fallback.
-// A candidate that passes emerges as the validated canonical
-// value the Diff Engine compares against the committed spec.
+// Candidate-spec validation: the AI authors one complete candidate spec for an evolving
+// capability, and the platform validates it here — **before any DDL or unit generation** —
+// against the current committed spec and the lease-frozen dependency-generation catalog. A
+// candidate that fails never reaches the Diff stage: rejection is loud and total, never a
+// partial acceptance or a silent all-Handler fallback. A candidate that passes emerges as
+// the validated canonical value the Diff Engine compares against the committed spec.
 //
 // Three layers, in order:
 //
-//   1. The registry's own spec gate (`promptCapabilitySpecSchema`) — structural
-//      shape, the fixed five-Action inventory, Action ownership in
-//      errors/dependencies, list-input coverage, reserved names, active-only
-//      presentation references. Its strict objects also reject every
-//      platform-owned lifecycle key (`incarnation_id`, `version`, build id,
-//      snapshot metadata, `artifacts_path`) and any patch/migration/regeneration
-//      shape — the AI authors a complete spec, nothing else.
-//   2. The cross-spec field-lifecycle contract: each committed
-//      field returns exactly once with immutable name and type;
-//      `inactive → inactive` is identical; `active → inactive` changes only
-//      lifecycle; reactivation may also change label/required; a new field is
-//      born active. Omission is invalid — it is never a soft hide.
-//   3. Frozen-catalog resolution: every declared dependency pair
-//      must be exactly one catalog entry. The catalog was captured under the
-//      build lease, so this cannot race a concurrent build.
+//   1. The registry's own spec gate (`promptCapabilitySpecSchema`) — structural shape, the
+//      fixed five-Action inventory, Action ownership in errors/dependencies, list-input
+//      coverage, reserved names, active-only presentation references. Its strict objects
+//      also reject every platform-owned lifecycle key (`incarnation_id`, `version`, build
+//      id, snapshot metadata, `artifacts_path`) and any patch/migration/regeneration shape
+//      — the AI authors a complete spec, nothing else.
+//   2. The cross-spec field-lifecycle contract: each committed field returns exactly once
+//      with immutable name and type; `inactive → inactive` is identical; `active →
+//      inactive` changes only lifecycle; reactivation may also change label/required; a new
+//      field is born active. Omission is invalid — it is never a soft hide.
+//   3. Frozen-catalog resolution: every declared dependency pair must be exactly one
+//      catalog entry. The catalog was captured under the build lease, so this cannot race a
+//      concurrent build.
 
 import type { ZodError } from "zod";
 import {

@@ -1,8 +1,8 @@
-// Behavioral test execution follows executable impact (ADR-0006). Generation is settled
-// before any Handler byte, and *these* runs prove that which frozen suites then
-// execute follows the copy/regenerate split — end to end, over real snapshots on disk, with
-// the verdict landing in the assembly report, the snapshot manifest, and the metrics row.
-// Providers are fake: no network, no spend.
+// Behavioral test execution follows executable impact (ADR-0006). The engine-level half:
+// generation is settled before any Handler byte, and *these* runs prove that which frozen
+// suites then execute follows the copy/regenerate split — end to end, over real snapshots
+// on disk, with the verdict landing in the assembly report, the snapshot manifest, and the
+// metrics row. Providers are fake: no network, no spend.
 
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { readFileSync, writeFileSync } from "node:fs";

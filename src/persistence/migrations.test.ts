@@ -163,7 +163,7 @@ describe("migrations run on app boot", () => {
     });
 
     try {
-      // The "listening" line is logged only after runMigrations() returns, so
+      // The "listening" line is logged only after runMigrations returns, so
       // seeing it means migrations have run.
       await waitForLog(proc.stdout, "listening", 15000);
 

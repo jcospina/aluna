@@ -172,7 +172,7 @@ describe("on-load toolbar rehydration", () => {
     const html = renderRehydratedShell([], SHELL_FIXTURE);
 
     // Cold-start means no capabilities, never no modal: the shared detail modal is
-    // data-free platform chrome (ADR-0004) and mounts even here, so the FIRST capability a
+    // data-free platform chrome and mounts even here, so the FIRST capability a
     // fresh user builds can open it without a page refresh (the commit swap adds content +
     // a toolbar entry, not the modal). Otherwise the page stays cold-start: no toolbar
     // entries, and the shell does not flip into its has-capabilities state.

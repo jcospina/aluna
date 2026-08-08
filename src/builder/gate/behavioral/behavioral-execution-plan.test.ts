@@ -1,6 +1,6 @@
-// Execution selection for frozen behavioral suites.
-// Generation follows total inputs; execution follows executable impact. These are
-// the run/skip rules stated as facts about the plan, independent of any Gate machinery.
+// Execution selection for frozen behavioral suites. Generation follows total inputs;
+// execution follows executable impact. These are the run/skip rules stated as facts
+// about the plan, independent of any Gate machinery.
 
 import { describe, expect, test } from "bun:test";
 import type { CapabilityTool } from "../../../registry/index.ts";

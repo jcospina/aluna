@@ -286,7 +286,7 @@ describe("every change-fact matrix row, end to end", () => {
     // The reactivate direction needs a hidden field to reactivate, so it is two runs:
     // hide (v2), then bring it back (v3). Soft-hide drops no column, so neither run
     // emits DDL and the value written under v1 is still there at v3 — that is the whole
-    // point of "evolution never destroys" (ARCH §9.3).
+    // point of "evolution never destroys".
     const hidden = withFields(
       committedSpec().schema.fields.map((field) =>
         field.name === "pinned" ? { ...field, lifecycle: "inactive" as const } : field,
@@ -401,7 +401,7 @@ describe("the list-input mode row", () => {
 
     expect(factKinds(result)).toEqual(["list_input_mode"]);
     expect([...outcome.diff.workPlan.platformWork]).toEqual(["list_input_form_normalization"]);
-    // The generated units never see the choice at all (ADR-0006): every one is copied.
+    // The generated units never see the choice at all: every one is copied.
     expect([...outcome.assembly.regeneratedUnits]).toEqual([]);
     expect(result.generatedUnits).toEqual([]);
     expect([...outcome.assembly.additiveMigration.statements]).toEqual([]);

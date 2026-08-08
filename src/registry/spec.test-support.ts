@@ -10,8 +10,10 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "./spec.ts";
 
-// A minimal valid spec, fresh per call so tests can mutate freely. Overrides
-// merge shallowly — pass a whole `schema`/`ui_intent` object to change those.
+/**
+ * A minimal valid spec, fresh per call so tests can mutate freely. Overrides
+ * merge shallowly — pass a whole `schema`/`ui_intent` object to change those.
+ */
 export function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   const spec: CapabilitySpec = {
     id: "notes",

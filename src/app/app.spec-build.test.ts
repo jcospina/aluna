@@ -1,5 +1,5 @@
 // POST /prompt → GET /build/:id/stream (builder stages, fake provider) — the
-// happy-path slices of the one production build path. The build commits for real:
+// happy-path slices of the one production build path. The build commits for real
 // migration, gate, and registry insert ride a scratch db pair, and
 // committed artifacts land in a throwaway directory — never the real data file or the
 // tracked capabilities/ tree. The same scratch pair is handed to the capability router
@@ -178,7 +178,7 @@ function assertNarrationCommitAndPrompts(
   dataFor: (name: string) => string,
   prompts: string[],
 ): void {
-  // The product-voice narration must NOT leak internals (ARCH §9.7). The commit
+  // The product-voice narration must NOT leak internals. The commit
   // event carries generated HTML, including classes and HTMX attributes, so the
   // internals check stays scoped to visible narration copy.
   expect(dataFor("narration")).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);

@@ -1,8 +1,7 @@
-// Candidate-spec generation. The context test pins the
-// exact generation inputs: the committed spec including the capability's own
-// inactive fields (present), the resolved intent, the field-lifecycle catalog,
-// and the lease-frozen dependency-generation catalog whose entries carry active
-// external fields only (inactive externals absent). The stage test proves the
+// Candidate-spec generation. The context test pins the exact generation inputs: the committed
+// spec including the capability's own inactive fields (present), the resolved intent, the
+// field-lifecycle catalog, and the lease-frozen dependency-generation catalog whose entries
+// carry active external fields only (inactive externals absent). The stage test proves the
 // generate → total-validation gate with a fake provider — no network, no spend.
 
 import { describe, expect, test } from "bun:test";

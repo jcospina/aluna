@@ -1,70 +1,45 @@
-// The core Builder (ADR-0006; ARCH §6.2, §8).
-//
-// # What this is
-//
-// Everything between "a request has been resolved" and "the platform has changed": the
-// bounded build ticket, the exclusive lease, the lease-head revalidation, the durable
-// admission row, and the run itself — for a brand-new capability or an evolution of a
-// committed one. Mutation, staging, Gate, activation, and metrics all live behind this
-// one entry point and behave identically no matter who called it.
+// The core Builder: everything between "a request has been resolved" and "the platform
+// has changed" — the bounded build ticket, the exclusive lease, the lease-head
+// revalidation, the durable admission row, and the run itself, for a brand-new capability
+// or an evolution of a committed one. Mutation, staging, Gate, activation and metrics all
+// live behind this one entry point and behave identically no matter who called it.
 //
 // # The reuse seam
 //
-// This module owns no prompt route, no active DOM, and no SSE vocabulary. It takes an
-// already-classified {@link ResolvedBuildRequest} and a {@link CoreBuilderPresenter},
-// and it emits the run's terminal lifecycle event into that presenter. That is the whole
-// contract, and it is the seam the implicit loop consumes:
+// This module owns no prompt route, no active DOM and no SSE vocabulary. It takes an
+// already-classified {@link ResolvedBuildRequest} and a {@link CoreBuilderPresenter}, and
+// emits the run's terminal lifecycle event into that presenter. Because the presenter is
+// an interface rather than an SSE call, the Builder is invocable from a test with a
+// recording fake, which is how identical mutation/Gate/activation behavior is proven
+// without a transport.
 //
-//   - The **explicit loop** resolves a typed prompt, hands it here, and supplies
-//     the foreground presenter in `explicit-presenter.ts` — the one that occupies the
-//     active content area, narrates the product-voice story, and emits a single View
-//     `commit` on activation.
-//   - The **implicit loop** will hand over an already-confirmed proposal in the same
-//     `ResolvedBuildRequest` shape — *without reclassifying it* — and may choose an
-//     entirely different presenter: a quieter background one, or none at all. Nothing in
-//     this file changes for that, which is the point.
+// The split is real for the **terminal** and only the terminal. Three things still assume
+// the explicit loop's shape:
 //
-// Because the presenter is an interface rather than an SSE call, the Builder is also
-// invocable from a test with a recording fake, which is how the identical
-// mutation/Gate/activation behavior is proven without a transport.
-//
-// # What the seam does not yet cover
-//
-// The split is real for the **terminal** and only the terminal. The in-flight story still
-// leaks the explicit loop's shape in three places, and the implicit loop should expect to widen the
-// interface rather than find it ready:
-//
-//   - `send` is a liveness sink carrying ADR-0002's SSE event names (`spec-preview`,
-//     `narration`, `gate-preview`), authored inside the stages. A non-browser presenter
-//     receives vocabulary it can only ignore.
-//   - A `send` that fails is read as *the build was cancelled*. That is right for a person
-//     who closed their tab, and wrong for a background loop that never had a listener.
-//   - The product-voice wording is written by the stages, not by the presenter, so a
-//     quieter presenter cannot reword or suppress it.
-//
-// None of this is load-bearing for what the split promises — mutation, Gate, activation and
-// metrics are already presenter-independent, and the tests prove it with no transport at
-// all. It is deliberately left until there is a second real presenter to shape the wider
-// interface against, rather than guessed at now.
+//   - `send` is a liveness sink carrying SSE event names authored inside the stages, so a
+//     non-browser presenter receives vocabulary it can only ignore.
+//   - A `send` that fails is read as *the build was cancelled* — right for a person who
+//     closed their tab, wrong for a background loop that never had a listener.
+//   - The product-voice wording is written by the stages, not the presenter, so a quieter
+//     presenter cannot reword or suppress it.
 //
 // # Staleness
 //
 // A resolved request binds a target expectation and the fingerprint of the one active
-// registry catalog the resolver classified against. Both are revalidated *after* the
-// lease is acquired, because only then is the registry stable. Any mismatch — a moved
-// target, a colliding expected-absent id, or a catalog that has since changed — is a
-// **stale refusal**: it starts no provider work, never opens a `running` row, and is
-// never silently rebased, retargeted, or reclassified against the newer catalog. While
-// ownership is still held it writes one direct terminal `failed/stale` admission row with
-// every generation stage skipped, and hands the presenter a `stale` terminal.
+// registry catalog the resolver classified against. Both are revalidated *after* the lease
+// is acquired, because only then is the registry stable. Any mismatch — a moved target, a
+// colliding expected-absent id, or a catalog that has since changed — is a **stale
+// refusal**: it starts no provider work, never opens a `running` row, and is never
+// silently rebased, retargeted or reclassified against the newer catalog. While ownership
+// is still held it writes one direct terminal `failed/stale` admission row with every
+// generation stage skipped, and hands the presenter a `stale` terminal.
 //
 // The fingerprint covers *every* active row, not just the target's, so a queued build is
-// refused even when the change that landed was about some other capability. That is the
-// intended reading and not an oversight: the resolver's answer is a judgment about the
-// whole catalog — which capability owns this, whether it overlaps another, what a proposed
-// separate id should be called — so a catalog that has moved invalidates the judgment, not
-// merely the target. The price is false refusals under concurrency, paid deliberately,
-// because the alternative is acting on a classification of a world that is gone.
+// refused even when the change that landed was about some other capability. That is
+// intended: the resolver's answer is a judgment about the whole catalog, so a catalog that
+// has moved invalidates the judgment, not merely the target. The price is false refusals
+// under concurrency, paid deliberately, because the alternative is acting on a
+// classification of a world that is gone.
 
 import {
   type CommitCapabilityResult,
