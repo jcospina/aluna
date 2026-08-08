@@ -133,7 +133,7 @@ function successfulBuildProvider(): Provider {
   ];
   return {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
-      // Per-Action behavioral generation runs before the units (4.7/01), so it is answered
+      // Per-Action behavioral generation runs before the units, so it is answered
       // by prompt rather than by queue position.
       const response = (
         prompt.startsWith("Generate deterministic black-box behavioral tests")
@@ -183,7 +183,7 @@ test("a failed admitted build restores the captured live View through read", asy
   expect(restoration).toContain('data-search-state="idle"');
   expect(restoration).toContain('hx-get="/capability/notes/read" hx-trigger="load"');
   // The restored View is the collection scaffolding alone: the content-area evolution
-  // control retired with the demo route (4.8/04).
+  // control retired with the demo route.
   expect(restoration).not.toContain("capability-evolution");
   expect(restoration).not.toContain('data-living-demo="evolution"');
   expect(mutationCoordinator.snapshot().activeLease).toBeNull();

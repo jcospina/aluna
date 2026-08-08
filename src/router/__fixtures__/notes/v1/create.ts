@@ -1,4 +1,4 @@
-// Hand-written fixture handler — Module 2, Epic 2.3 tracer bullet.
+// Hand-written fixture handler.3 tracer bullet.
 //
 // A capability `create` action written by hand to the ADR-0004 contract, BEFORE
 // any AI exists, to pin the whole runtime contract: registry -> router -> injected

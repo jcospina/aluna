@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { enforceItemMarkup } from "./enforcer.ts";
 
-// The runtime allow-list enforcer is the *last line at render time* (ADR-0005 §3): it
+// The runtime allow-list enforcer is the *last line at render time*: it
 // runs on the inner markup of every rendered record, after build-time validation, so a
 // dynamic field value can never become executable markup. These tests cover the accept
 // path and each hostile category the contract enumerates (design-system.md "Forbidden

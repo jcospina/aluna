@@ -1,4 +1,4 @@
-// Tests for the platform migrations runner (Epic 1.4). The behavioral cases run
+// Tests for the platform migrations runner. The behavioral cases run
 // against a throwaway db (via openDatabase) so each is isolated; a final boot case
 // spawns the real entrypoint in a temp working directory and asserts the migration
 // runs on boot. The headline guarantees: an ordered migration is applied through
@@ -111,8 +111,8 @@ describe("platform migrations runner", () => {
   test("creates platform schema only — no capability data tables", () => {
     runMigrations(conns.readwrite);
 
-    // The platform stands up exactly its own stores: the migrations ledger (M1),
-    // the capability registry (M2), and the generation-metrics store (M2). Capability
+    // The platform stands up exactly its own stores: the migrations ledger,
+    // the capability registry, and the generation-metrics store. Capability
     // data tables (`cap_<id>`) are never migrated here — the builder derives them from
     // specs at runtime.
     expect(userTables(conns.readwrite)).toEqual(
@@ -163,7 +163,7 @@ describe("migrations run on app boot", () => {
     });
 
     try {
-      // The "listening" line is logged only after runMigrations() returns, so
+      // The "listening" line is logged only after runMigrations returns, so
       // seeing it means migrations have run.
       await waitForLog(proc.stdout, "listening", 15000);
 

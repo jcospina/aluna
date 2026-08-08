@@ -1,4 +1,4 @@
-// Evolution through the prompt bar — Module 4.8/04. Route-level proof that the platform's
+// Evolution through the prompt bar. Route-level proof that the platform's
 // one entrance works end to end: a change typed into the prompt bar is classified against
 // the live capability, and the terminal presentation is one of exactly three shapes — an
 // activated version behind a complete View swap, the measured no-op, or the warm
@@ -86,7 +86,7 @@ describe("the capability surface", () => {
     const res = await app.request("/capability/journal");
     expect(res.status).toBe(200);
     const html = await res.text();
-    // The second entrance is gone (4.8/04): no form, no hard-path checkbox, no route for
+    // The second entrance is gone: no form, no hard-path checkbox, no route for
     // either of them to post to. The prompt bar carries the whole evolution interaction.
     expect(html).not.toContain("/demo/evolution/");
     expect(html).not.toContain('name="intent"');
@@ -236,7 +236,7 @@ describe("an accepted candidate", () => {
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
-    // Foreground narration stays in product voice — no internals leak (ARCH §9.7).
+    // Foreground narration stays in product voice — no internals leak.
     const narration = eventData(events, "narration");
     expect(narration).toContain("Let me think through that change.");
     expect(narration).not.toMatch(/handler|spec|migration|schema|gate/i);
@@ -255,7 +255,7 @@ describe("an accepted candidate", () => {
     expect(preview.diff.workPlan.regeneratedUnits).toEqual(["create", "update", "search"]);
     expect(preview.diff.workPlan.platformWork).toEqual(["add_column", "platform_form_detail"]);
 
-    // 4.6/03: the executed-work summary — regenerated vs. byte-copied units, the additive
+    // The executed-work summary — regenerated vs. byte-copied units, the additive
     // DDL, and the Gate over the assembled snapshot.
     expect(preview.assembly.status).toBe("complete");
     expect(preview.assembly.regeneratedUnits).toEqual(["create", "update", "search"]);
@@ -263,7 +263,7 @@ describe("an accepted candidate", () => {
     expect(preview.assembly.additiveMigration).toEqual([
       'ALTER TABLE "cap_journal" ADD COLUMN "mood" TEXT;',
     ]);
-    // 4.6/04: and per regenerated unit, whether its prior committed source was admitted
+    // Per regenerated unit, whether its prior committed source was admitted
     // into the regeneration prompt. Adding a field takes nothing away, so all three fit.
     expect(preview.assembly.priorSource).toEqual([
       { unit: "create", admitted: true },
@@ -279,7 +279,7 @@ describe("an accepted candidate", () => {
     expect(gate.structural).toBe("passed");
     expect(gate.smoke).toBe("passed");
 
-    // 4.6/05: the run does not stop at the candidate. It publishes, activates, and swaps
+    // The run does not stop at the candidate. It publishes, activates, and swaps
     // the complete View exactly once — `commit` is reserved for a real pointer activation,
     // so there is no restoring `fragment` on this path at all.
     expect(prompts[0]).toContain("Add a mood field");
@@ -289,7 +289,7 @@ describe("an accepted candidate", () => {
     expect(eventData(events, "done")).toBe("ok");
     const commitPreview = JSON.parse(eventData(events, "commit-preview"));
     expect(commitPreview.version).toBe(2);
-    // 4.7/03: the published-version pane names the transition row this version landed on, so
+    // The published-version pane names the transition row this version landed on, so
     // "why does this version carry (no) frozen tests?" is answerable without opening the
     // predecessor's manifest. A first build has no predecessor and omits it.
     expect(commitPreview.behavioralTierTransition).toMatchObject({
@@ -460,7 +460,7 @@ describe("a stale target", () => {
     const { provider, prompts } = makeCandidateProvider(candidateFrom(journalCapabilityRow()));
     const classified = resolvedBy(journalEvolutionIntent("Add a mood field"), provider);
     // The registry moves while the classification is still in flight, so the request reaches
-    // the head of its lease holding a target that no longer exists (decision 28).
+    // the head of its lease holding a target that no longer exists.
     const racing: Provider = {
       generate<T>(prompt: string, schema: ZodType<T>) {
         if (prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)) activateCompetingJournalV2();

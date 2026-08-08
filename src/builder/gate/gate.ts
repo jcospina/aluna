@@ -1,4 +1,4 @@
-// Layered build gate — Module 2, Epic 2.5 (PLAN flow step 6, ADR-0004).
+// Layered build gate (PLAN flow step 6, ADR-0004).
 //
 // The gate is a final verdict, distinct from the unit-generation fix loop. It runs
 // always-on rungs in order: structural checks first (`gate-structural.ts`), then a
@@ -79,19 +79,19 @@ export interface SmokeGateAttempt {
 export interface BehavioralTierInput {
   readonly enabled?: boolean;
   /**
-   * The suite frozen before any Handler generation or repair (4.7/01, PLAN decision 23).
+   * The suite frozen before any Handler generation or repair.
    * Required when the tier is on: the Gate executes behavioral intent, it never authors it.
    */
   readonly frozen?: FrozenBehavioralTestsInput;
   /**
-   * This build's executable impact — which Handlers it authored rather than copied (4.7/02,
-   * decision 23's execution clause). The Gate folds its own bounded repairs into this before
+   * This build's executable impact — which Handlers it authored rather than copied. The
+   * Gate folds its own bounded repairs into this before
    * selecting, so a Handler the smoke rung rewrote counts as changed. Omitted, nothing can be
    * proven unaffected and the complete frozen suite runs.
    */
   readonly impact?: BehavioralExecutionImpact;
   /**
-   * Optional override for the rung's bounded repair budget (4.7/04). Defaults to the same
+   * Optional override for the rung's bounded repair budget. Defaults to the same
    * reused `DEFAULT_UNIT_FIX_ATTEMPTS` knob generation, design lint, and smoke spend — one
    * execution plus one repair-and-rerun — not a new per-rung dial.
    */
@@ -128,7 +128,7 @@ export interface BehavioralTestRunMetrics {
 }
 
 /**
- * One turn of the behavioral rung's bounded repair loop (4.7/04): the frozen suite ran, and
+ * One turn of the behavioral rung's bounded repair loop: the frozen suite ran, and
  * — when it failed and the budget allowed — the attributed Handlers were rewritten. `failure`
  * and `attribution` are present exactly on a turn whose run failed; `repairedHandlers` and
  * `usage` exactly on a turn that then spent provider work.
@@ -196,14 +196,14 @@ export type BehavioralGateResult =
       readonly testGen: BehavioralTestGenerationMetrics;
       readonly testRun: BehavioralTestRunMetrics;
       /**
-       * Per Action: copied or generated, executed or skipped, and why (4.7/02). The run/skip
+       * Per Action: copied or generated, executed or skipped, and why. The run/skip
        * half of the record the snapshot's tier metadata and the metrics stage vector carry.
        * This is the plan of the turn that *passed*, and the rung refuses to return unless
        * every Handler it repaired appears in it as executed.
        */
       readonly execution: BehavioralExecutionPlan;
       readonly frozenTests: FrozenBehavioralTests;
-      /** The bounded per-Handler repair record (4.7/04). */
+      /** The bounded per-Handler repair record. */
       readonly repair: BehavioralRepairResult;
     }
   | {
@@ -212,8 +212,10 @@ export type BehavioralGateResult =
       readonly reason: string;
     };
 
-// The design-lint knob. The bounded fix loop reuses M2's `DEFAULT_UNIT_FIX_ATTEMPTS`
-// (default 2) unless overridden here — the same reused knob, not a new one.
+/**
+ * The design-lint knob. The bounded fix loop reuses M2's `DEFAULT_UNIT_FIX_ATTEMPTS`
+ * (default 2) unless overridden here — the same reused knob, not a new one.
+ */
 export interface DesignLintTierInput {
   readonly maxAttempts?: number;
 }
@@ -222,9 +224,11 @@ export interface SmokeGateInput {
   readonly maxAttempts?: number;
 }
 
-// One turn of the design-lint fix loop: the review (attempt 1) or a regeneration + review.
-// `usage` is present only on a regeneration turn; `error` is the failure fed into the next
-// attempt (absent on the turn that passed).
+/**
+ * One turn of the design-lint fix loop: the review (attempt 1) or a regeneration + review.
+ * `usage` is present only on a regeneration turn; `error` is the failure fed into the next
+ * attempt (absent on the turn that passed).
+ */
 export interface DesignLintAttempt {
   readonly attempt: number;
   readonly durationMs: number;
@@ -232,9 +236,11 @@ export interface DesignLintAttempt {
   readonly error?: string;
 }
 
-// The design-lint rung's result: the final item renderer (the original, or the one the fix
-// loop regenerated clean), whether a fix was needed, the per-attempt record, and the token
-// usage any regeneration cost. The pipeline commits `itemRenderer`, so a fix reaches disk.
+/**
+ * The design-lint rung's result: the final item renderer (the original, or the one the fix
+ * loop regenerated clean), whether a fix was needed, the per-attempt record, and the token
+ * usage any regeneration cost. The pipeline commits `itemRenderer`, so a fix reaches disk.
+ */
 export interface DesignLintGateResult {
   readonly status: "passed";
   readonly itemRenderer: string;
@@ -249,14 +255,14 @@ export interface CapabilityGateInput {
   // scratch so smoke proves the build's own schema, not a separately-derived one.
   readonly ddl: CapabilityTableDdl;
   readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
-  // The build's generated item renderer (ADR-0005 §2). The structural rung type-checks
+  // The build's generated item renderer. The structural rung type-checks
   // it and the smoke/behavioral rungs bind it into the real `present` adapter the
   // handlers render records through — so create and read cannot drift.
   readonly itemRenderer: string;
   // The design-lint rung regenerates the item renderer through the provider when it
   // rejects a composition (its bounded fix loop), the smoke rung repairs a failing Handler,
   // and the behavioral rung repairs the Handler(s) a failing frozen assertion is attributed
-  // to (4.7/04). The behavioral rung never generates a *test* through it: its suite was
+  // to. The behavioral rung never generates a *test* through it: its suite was
   // authored and frozen before this Gate was called, and repair answers to that suite.
   readonly provider?: Provider;
   // Global default comes from OMNI_BEHAVIORAL_TIER (default ON); tests and future
@@ -356,7 +362,7 @@ export { CapabilityGateError, type CapabilityGateFailureMeasurement };
  * repeated smoke duration/usage is folded into the same public rung result.
  *
  * The Gate does not author behavioral tests. When the tier is on, the caller supplies the
- * suite it froze before generating any Handler (`behavioralTier.frozen`, 4.7/01).
+ * suite it froze before generating any Handler (`behavioralTier.frozen`).
  */
 export async function runCapabilityGate(input: CapabilityGateInput): Promise<CapabilityGateResult> {
   const startedAt = performance.now();
@@ -410,7 +416,7 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
 
   // Design has now fixed/frozen the renderer and smoke has executed its final bytes. Only
   // now execute the frozen behavioral suite, once, against that exact snapshot. The suite
-  // itself was authored before any Handler existed (4.7/01), so running it last costs it
+  // itself was authored before any Handler existed, so running it last costs it
   // nothing: what moved is the code under test, never the intent. Its outcome is inserted
   // before design-lint to preserve the Gate's documented public rung order even though
   // design preparation necessarily happened first.

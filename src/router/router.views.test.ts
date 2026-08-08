@@ -1,4 +1,4 @@
-// View-surface slices of the deterministic capability router (Epic 2.3): the default
+// View-surface slices of the deterministic capability router: the default
 // loader's incarnation keying, the presentation adapter injected into the toolbox, the
 // spec-rendered data-free list scaffolding, and the toolbar rehydration/label behavior.
 // Shared setup and fixtures live in router.test-support.ts.
@@ -111,8 +111,8 @@ describe("deterministic capability router — presentation adapter and empty rea
     // Seed a record so `read` has something to present.
     createCapabilityDataTool(notesSpec(), conns).insert({ text: "Buy milk", pinned: true });
 
-    // A hand-written item renderer (the composition input 3.4/02 generates) and a read
-    // handler shaped like 3.4/02's: it maps records through the injected `present` and emits
+    // A hand-written item renderer (the composition input generation produces) and a read
+    // handler shaped like a generated one: it maps records through the injected `present` and emits
     // no markup of its own — proving the adapter reaches the toolbox and does the wrapping.
     const renderItem = (rec: Record<string, unknown>) =>
       `<div class="stack"><span class="text-lg truncate">${rec.text}</span></div>`;
@@ -191,7 +191,7 @@ describe("deterministic capability router — view scaffolding", () => {
     const app = createApp({ capabilityRouter: { databases: conns } });
 
     // A toolbar click serves the platform list scaffolding rendered live from the spec
-    // (3.2/03) — no served list.html/create.html — as a bare content fragment.
+    // — no served list.html/create.html — as a bare content fragment.
     const res = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
     const body = await res.text();
 

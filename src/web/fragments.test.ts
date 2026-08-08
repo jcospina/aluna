@@ -93,7 +93,7 @@ describe("prompt notice", () => {
     );
   });
 
-  // The blank-prompt line is product voice under an explicit sign-off gate (4.8/09), so
+  // The blank-prompt line is product voice under an explicit sign-off gate, so
   // it is pinned as a literal here rather than only compared against itself at the route.
   test("carries the signed-off blank-prompt copy verbatim", () => {
     expect(BLANK_PROMPT_NOTICE).toBe("What would you like me to make?");
@@ -134,7 +134,7 @@ describe("web fragments", () => {
     );
     expect(fragment).toContain('data-active-capability-version="1"');
     // The commit swap is the collection scaffolding and its toolbar sidecar — nothing else.
-    // The content-area evolution control retired with the demo route (4.8/04).
+    // The content-area evolution control retired with the demo route.
     expect(fragment).toContain('hx-get="/capability/notes/read"');
     expect(fragment).not.toContain("capability-evolution");
     expect(fragment).not.toContain("/demo/evolution/");
@@ -172,7 +172,7 @@ describe("on-load toolbar rehydration", () => {
     const html = renderRehydratedShell([], SHELL_FIXTURE);
 
     // Cold-start means no capabilities, never no modal: the shared detail modal is
-    // data-free platform chrome (ADR-0004) and mounts even here, so the FIRST capability a
+    // data-free platform chrome and mounts even here, so the FIRST capability a
     // fresh user builds can open it without a page refresh (the commit swap adds content +
     // a toolbar entry, not the modal). Otherwise the page stays cold-start: no toolbar
     // entries, and the shell does not flip into its has-capabilities state.

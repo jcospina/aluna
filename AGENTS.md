@@ -6,7 +6,7 @@ Issues live as local markdown files under `modules/`. See `docs/agents/issue-tra
 
 ### Triage labels
 
-Uses the default five-role vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
+This repo uses the default five-role vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
@@ -14,11 +14,11 @@ Single-context repo — one `CONTEXT.md` and `docs/adr/` at the root. See `docs/
 
 ### Delivery summaries
 
-Lead every final delivery summary with clear, non-technical plain-English product 
-outcomes: what changed for the product, what users can now accomplish or what 
-problem is solved, and how the work moves the product or project forward. Put 
-technical implementation details and verification in the separate section afterward; 
-they must not lead or obscure the product outcome.
+Lead every final delivery summary with clear, non-technical plain-English product
+outcomes: what changed for the product, what a user can now accomplish or what
+problem is solved, and how the work moves the product or project forward. Put
+technical implementation details and verification in the section after that.
+Never let them lead, and never let them obscure the product outcome.
 
 Format:
 
@@ -42,10 +42,10 @@ Implementation details
 
 ### Living demo and HITL
 
-Relevant runtime work must be wired into the current homepage demo as soon as it
-can be exercised, even if the demo is temporary or ugly. The demo is replaced
-piece by piece by real functionality; do not leave integration gaps invisible
-until the final end-to-end slice.
+Wire relevant runtime work into the current homepage demo as soon as it can be
+exercised, even if the demo is temporary or ugly. Real functionality replaces the
+demo piece by piece. Do not leave an integration gap invisible until the final
+end-to-end slice.
 
 Every completed turn must end with human-in-the-loop (HITL) test instructions:
 what command to run, what URL or route to open, what prompt/action to try, and
@@ -53,7 +53,18 @@ what visible behavior confirms the work.
 
 ### How to approach an issue
 
-Repo has lots of documents that can eat up context quickly. Use subagents to read documents and get the big picture and needed details from them instead of reading them on the main session. This will keep the session clean for the actual work.
-Use subagents as well to run quality and adversarial tests before running the live test. The issue cannot be marked as done without fixing the adversarial findings.
-For subagents be sensible when choosing the model and quantity. Reading code and docs to get summaries can be done with cheaper models (i.e Sonnet for Claude or Terra for Codex). Harder tasks require the SOTA models like adversarial testing must always use SOTA models.
-Main session will always run in the most powerful model + effort combination. No subagent can run in higher settings.
+This repo holds a lot of documents, and reading them in the main session eats
+context fast. Send a subagent to read them instead, and have it report back the
+big picture plus the specific details you need. Keep the main session clear for
+the actual work.
+
+Send subagents to run quality and adversarial tests before the live test. Fix
+every adversarial finding. An issue with an unfixed adversarial finding is not
+done.
+
+Choose the model and the number of subagents deliberately. Reading code and docs
+for a summary is cheap-model work (Sonnet for Claude, Terra for Codex). Harder
+tasks need a SOTA model, and adversarial testing always does.
+
+The main session always runs the most powerful model at the highest effort. No
+subagent may run at settings higher than the main session.

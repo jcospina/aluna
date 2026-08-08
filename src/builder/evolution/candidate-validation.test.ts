@@ -1,4 +1,4 @@
-// Candidate-spec validation — Module 4.6/01. One test per rejection row of the
+// Candidate-spec validation. One test per rejection row of the
 // PLAN matrix's invalid-candidate line (field omission, rename-as-replacement,
 // duplication, type change, inactive→inactive drift, active→inactive plus
 // another change, new-field-born-inactive, tools-set change, malformed Action
@@ -76,7 +76,7 @@ describe("valid candidates", () => {
     rating.label = "Rating";
     rating.required = true;
     // The reactivated field joins the required set, so the exact
-    // missing_required_fields pair must widen with it (decision 4).
+    // missing_required_fields pair must widen with it.
     for (const errorCase of draft.behavioral_errors) {
       errorCase.fields = ["title", "old_rating"];
     }

@@ -1,4 +1,4 @@
-// The engine's fault model around the point of no return — Module 4.6/05 (ARCH §6.2
+// The engine's fault model around the point of no return (ARCH §6.2
 // steps 6–7 and "Cross-store lifecycle recovery"; PLAN decisions 27, 31; ADR-0006).
 //
 // Publication is a filesystem fact and activation is a SQLite fact, so the two cannot be
@@ -96,7 +96,7 @@ describe("the point of no return", () => {
 
   test("an afterCommit fault cannot undo or relabel an activation", async () => {
     // Past the point of no return: the pointer, the DDL and the `success/activated` row
-    // committed together, so a later throw is observational (ARCH §6.2, decision 27).
+    // committed together, so a later throw is observational.
     await expect(
       evolve(env, behaviorNeutralDueDateCandidate(), "add a due date", {
         buildId: "fault-afterCommit",

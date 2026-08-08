@@ -15,7 +15,7 @@ import { type CapabilityRow, canonicalCapabilityLabel } from "../../registry/ind
  * The product-voice narration for a deflected intent — understood, not yet
  * actionable. A `new_capability` "deflection" reuses its own `user_facing_label`
  * (it is being built, not deflected); the others explain, gently, what Aluna can't
- * do yet (ARCH §9.7).
+ * do yet.
  */
 export function deflectionNarration(intent: IntentClassification): string {
   switch (intent.type) {

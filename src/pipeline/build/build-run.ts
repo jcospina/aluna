@@ -81,7 +81,7 @@ export function throwIfAborted(isAborted: () => boolean): void {
  * spec assemble live. This deliberately surfaces internals — that is the whole point of
  * a liveness view. `generateSpec` only awaits `object` (self-driven by the spine), so
  * consuming `partialStream` here for previews doesn't starve the stage. The returned
- * `flushPreviews()` lets the route drain every preview before the warm confirmation,
+ * `flushPreviews` lets the route drain every preview before the warm confirmation,
  * keeping the wire order narration → preview* → confirmation.
  *
  * It is a function rather than a promise because a stage can throw *before* it ever calls
@@ -231,7 +231,7 @@ export async function runSpecBuildStages(
     ? await freezeBehavioralTests({ provider, spec })
     : undefined;
   // Measured where it happened, so a build that freezes five suites and then fails the Gate
-  // still reports the generation it paid for (4.7/03).
+  // still reports the generation it paid for.
   if (frozenTests) recordBehavioralFreezeMetrics(acc, frozenTests);
   throwIfAborted(isAborted);
 
@@ -324,12 +324,12 @@ function firstBuildImpact(spec: CapabilitySpec): BehavioralExecutionImpact {
 
 /**
  * Hand a run's frozen behavioral tests to the Gate. The tier is decided — and the suite
- * authored — before Handler generation (PLAN decision 23), so by here the answer is simply
+ * authored — before Handler generation, so by here the answer is simply
  * whether a frozen suite exists. Shared with the evolution assembler so both pipelines
  * report the same generated/carried split into the same metrics columns.
  *
  * `impact` states which Handlers this build authors, which is what lets the Gate skip a
- * copied suite nothing touched (4.7/02). A v1 build states the whole inventory; an
+ * copied suite nothing touched. A v1 build states the whole inventory; an
  * evolution states its Diff work plan. Omitted, the Gate runs the complete frozen suite.
  */
 export function behavioralTierInput(
@@ -392,7 +392,7 @@ function logBuildVerification(
  * Run unit generation with the live preview observer. The observer streams a
  * `units-preview` snapshot as each unit starts, streams partials, fixes, and lands —
  * the developer watches the item renderer and handlers assemble. The evolution
- * assembler (4.6/03) drives the same stream for the units it regenerates.
+ * assembler drives the same stream for the units it regenerates.
  */
 function generateUnitsWithPreview(
   send: Send,
@@ -408,7 +408,7 @@ function generateUnitsWithPreview(
  * Fold Gate repairs back into the units the pipeline commits. Smoke may replace exactly
  * one failing Handler per bounded turn, design lint may replace item.ts, and the
  * behavioral rung may replace the Handler(s) a failing frozen assertion is attributed to
- * (4.7/04) — all of which land in `gate.handlers`, the bytes that actually cleared every
+ * — all of which land in `gate.handlers`, the bytes that actually cleared every
  * rung. Shared with the evolution assembler so a v1 build and an evolution reconcile Gate
  * repairs identically.
  */
@@ -473,7 +473,7 @@ function gateRepairAttempts(
 }
 
 /**
- * The behavioral rung's own repairs of one Handler (4.7/04), shaped like the smoke/design
+ * The behavioral rung's own repairs of one Handler, shaped like the smoke/design
  * attempts this function already folds. Each turn contributes at most one entry per
  * Handler, carrying that Handler's own cost rather than the whole conservative round's, and
  * the failing frozen assertion as the attempt's error so the unit's history reads as

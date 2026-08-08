@@ -1,4 +1,4 @@
-// Classification-only resolver call - Module 2, Epic 2.4.
+// Classification-only resolver call.
 //
 // This assembles the registry context the Intent Resolver needs and sends exactly
 // one structured request through the existing provider contract. It deliberately

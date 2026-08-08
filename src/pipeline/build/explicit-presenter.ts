@@ -1,4 +1,4 @@
-// The M2–M4 explicit-loop presenter — Module 4.8/03 (PLAN decisions 29, 31; ADR-0002).
+// The M2–M4 explicit-loop presenter.
 //
 // One implementation of {@link CoreBuilderPresenter}: the foreground story a person sees
 // when they typed a prompt and are watching Aluna work. It occupies the active content
@@ -14,7 +14,7 @@
 //
 // Every non-activating terminal — stale, no_change, cancelled, or failed — resolves the
 // job's data-free restoration descriptor against the *then-current* registry and restores
-// that canonical View through `fragment` with no toolbar sidecar (decision 29). The
+// that canonical View through `fragment` with no toolbar sidecar. The
 // restoration is deliberately re-resolved rather than remembered: after a stale refusal
 // the registry is precisely the thing that moved.
 

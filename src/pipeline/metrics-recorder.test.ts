@@ -1,4 +1,4 @@
-// The behavioral tier's stage vector — Module 4.7/03 (PLAN decisions 24, 28).
+// The behavioral tier's stage vector.
 //
 // `lifecycleStages` is a pure projection of one run's accumulator, and decision 24 makes its
 // behavioral rows a claim about the tier: what this version did about its *intent*

@@ -46,7 +46,7 @@ test("a new-capability request over a resolver-proposed id carries that id as it
       type: "new_capability",
       confidence: 0.88,
       target_capability: "notes",
-      // The overlap the resolver named a separate capability for (4.8/02).
+      // The overlap the resolver named a separate capability for.
       resolution: "namespace",
       proposed_identity: { id: "work-notes", label: "Work Notes" },
       proposed_action: "Create a separate Work Notes capability.",
@@ -96,7 +96,7 @@ test("an existing-capability request binds the exact incarnation and version it 
   });
 
   // All three coordinates travel together: an id alone would not survive a rebirth, and an
-  // id plus incarnation would not survive somebody else's v4 (decision 28).
+  // id plus incarnation would not survive somebody else's v4.
   expect(request).toMatchObject({
     kind: "existing_capability",
     targetExpectation: { state: "active", capabilityId: "notes", incarnationId, version: 3 },

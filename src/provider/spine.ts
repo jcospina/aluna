@@ -1,29 +1,25 @@
-// The real provider — Module 1, Epic 1.5, issue 02 (ARCH §4, ADR-0003).
+// The one concrete implementation of the `Provider` contract (./contract.ts): a thin,
+// in-process provider spine. The Vercel AI SDK's `streamObject` does the streaming and
+// structured-output validation, behind a small registry that picks the wire shape off the
+// configured endpoint. We hand-roll none of that — no streaming client, no retry/routing,
+// no schema validation. What stays ours is exactly this seam: mapping the SDK's result onto
+// the contract the orchestrator depends on.
 //
-// This is the one concrete implementation of the `Provider` contract (./contract.ts).
-// It is the "thin, in-process provider spine" ADR-0003 settled on: the Vercel AI
-// SDK's `streamObject` does the streaming + structured-output validation, behind a
-// small registry that picks the wire shape off the configured endpoint. We hand-roll
-// none of that — no streaming client, no retry/routing, no schema validation. What
-// stays ours is exactly this seam: mapping the SDK's result onto the contract the
-// orchestrator depends on.
-//
-// Three wires (ADR-0003), each a baseURL-configurable SDK provider:
+// Three wires, each a baseURL-configurable SDK provider:
 //   - `openai`            — first-party `@ai-sdk/openai` for OpenAI's own endpoint
-//                           (Responses API, native structured outputs, tunable
-//                           reasoning effort).
+//                           (Responses API, native structured outputs, tunable reasoning
+//                           effort).
 //   - `openai-compatible` — `@ai-sdk/openai-compatible` (Chat Completions) for every
-//                           *other* OpenAI-compatible endpoint — this is the path the
-//                           open Chinese coding models take (Qwen, GLM/Zhipu,
-//                           Kimi/Moonshot, MiniMax, DeepSeek). They are first-class
-//                           targets, identical to GPT/Claude (ADR-0003).
+//                           *other* OpenAI-compatible endpoint — the path the open Chinese
+//                           coding models take (Qwen, GLM/Zhipu, Kimi/Moonshot, MiniMax,
+//                           DeepSeek). They are first-class targets, identical to
+//                           GPT/Claude.
 //   - `anthropic`         — `@ai-sdk/anthropic` for the Anthropic Messages endpoint.
 //
 // The SDK types live *only* in this file. Everything upstream imports the `Provider`
-// contract, never the SDK — swapping the spine (or the whole provider) is invisible
-// to every caller. The default is `gpt-5.6-terra` at medium reasoning effort;
-// the configured trio (key + model + endpoint, ./config.ts) makes any provider a
-// one-env swap (ADR-0003).
+// contract, never the SDK, so swapping the spine is invisible to every caller. The default
+// is `gpt-5.6-terra` at medium reasoning effort; the configured trio (key + model +
+// endpoint, ./config.ts) makes any provider a one-env swap.
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -40,12 +36,14 @@ import type { DeepPartial, GenerateResult, Provider } from "./contract.ts";
 // this file.
 type StreamObjectInput = Parameters<typeof streamObject>[0];
 
-// The wire shapes the de-facto coding-model ecosystem has converged on (ADR-0003).
-// Every provider the registry targets — GPT, Claude, Gemini, and the open Chinese
-// models (Qwen3-Coder, GLM, Kimi, MiniMax, DeepSeek) — speaks one of these. OpenAI's
-// own endpoint gets the first-party provider; every *other* OpenAI-compatible
-// endpoint (where the Chinese models live) gets the generic compatible provider,
-// which speaks Chat Completions rather than OpenAI's proprietary Responses API.
+/**
+ * The wire shapes the de-facto coding-model ecosystem has converged on.
+ * Every provider the registry targets — GPT, Claude, Gemini, and the open Chinese
+ * models (Qwen3-Coder, GLM, Kimi, MiniMax, DeepSeek) — speaks one of these. OpenAI's
+ * own endpoint gets the first-party provider; every *other* OpenAI-compatible
+ * endpoint (where the Chinese models live) gets the generic compatible provider,
+ * which speaks Chat Completions rather than OpenAI's proprietary Responses API.
+ */
 export type Wire = "openai" | "openai-compatible" | "anthropic";
 
 // A registry entry: how to build the SDK model for a wire, plus that wire's
@@ -66,7 +64,7 @@ interface WireAdapter {
 const REGISTRY: Record<Wire, WireAdapter> = {
   openai: {
     model: ({ apiKey, baseURL, model }) => createOpenAI({ apiKey, baseURL })(model),
-    // Reasoning effort for the OpenAI wire (ARCH §4): `medium` trades some latency
+    // Reasoning effort for the OpenAI wire: `medium` trades some latency
     // for reasoning quality on gpt-5.6-terra — the serving-tier knob the config
     // comment defers to the call site. OpenAI-specific (keyed `openai`), which is
     // exactly why it lives only on the first-party wire.
@@ -87,29 +85,33 @@ const REGISTRY: Record<Wire, WireAdapter> = {
   },
 };
 
-// Pick the wire shape off the endpoint — the registry "keyed by baseURL" (ADR-0003).
-// Anthropic Messages hosts get the Anthropic wire; OpenAI's own host gets the
-// first-party OpenAI wire; everything else is treated as a generic OpenAI-compatible
-// endpoint (the path for the open Chinese models). A pure function so the routing is
-// unit-testable without a network call.
+/**
+ * Pick the wire shape off the endpoint — the registry "keyed by baseURL".
+ * Anthropic Messages hosts get the Anthropic wire; OpenAI's own host gets the
+ * first-party OpenAI wire; everything else is treated as a generic OpenAI-compatible
+ * endpoint (the path for the open Chinese models). A pure function so the routing is
+ * unit-testable without a network call.
+ */
 export function selectWire(baseURL: string): Wire {
   if (/(^|\.)anthropic\.com/i.test(baseURL)) return "anthropic";
   if (/(^|\.)openai\.com/i.test(baseURL)) return "openai";
   return "openai-compatible";
 }
 
-// `streamObject` is **pull-based**: its `object` and `usage` promises only settle
-// once the partial stream is consumed (verified against a live provider — awaiting
-// `object` without reading the stream hangs indefinitely). The contract promises the
-// opposite: a caller may iterate `partialStream`, await `object` directly, or both
-// (./contract.ts). This bridges the two with a single background pump that drains the
-// SDK stream as fast as it arrives — which drives `object`/`usage` to resolve even
-// with no consumer — while replaying each snapshot to a caller that *does* iterate,
-// preserving the live timing build narration depends on. The pump never applies
-// backpressure, so a slow or absent consumer can't starve it; snapshots buffer (a
-// spec is ~100 small objects), and the buffer is drained or dropped with the result.
-// Exported for a network-free unit test (spine.test.ts), like `selectWire`. Single
-// consumer by construction — the contract's `partialStream` is read at most once.
+/**
+ * `streamObject` is **pull-based**: its `object` and `usage` promises only settle
+ * once the partial stream is consumed (verified against a live provider — awaiting
+ * `object` without reading the stream hangs indefinitely). The contract promises the
+ * opposite: a caller may iterate `partialStream`, await `object` directly, or both
+ * (./contract.ts). This bridges the two with a single background pump that drains the
+ * SDK stream as fast as it arrives — which drives `object`/`usage` to resolve even
+ * with no consumer — while replaying each snapshot to a caller that *does* iterate,
+ * preserving the live timing build narration depends on. The pump never applies
+ * backpressure, so a slow or absent consumer can't starve it; snapshots buffer (a
+ * spec is ~100 small objects), and the buffer is drained or dropped with the result.
+ * Exported for a network-free unit test (spine.test.ts), like `selectWire`. Single
+ * consumer by construction — the contract's `partialStream` is read at most once.
+ */
 export function pumpStream<U>(source: AsyncIterable<U>): AsyncIterable<U> {
   const buffer: U[] = [];
   let finished = false;
@@ -159,11 +161,13 @@ export function pumpStream<U>(source: AsyncIterable<U>): AsyncIterable<U> {
   return { [Symbol.asyncIterator]: drain };
 }
 
-// Build the one real provider behind the contract. Resolves the config trio eagerly
-// (key + model + endpoint), so a missing key fails *here*, loudly, with the
-// actionable message from `requireApiKey` — never as a confusing mid-stream error
-// (issue 02: "missing key surfaces clearly"). The returned `Provider` is reusable
-// across calls; the network round-trip happens lazily inside each `generate`.
+/**
+ * Build the one real provider behind the contract. Resolves the config trio eagerly
+ * (key + model + endpoint), so a missing key fails *here*, loudly, with the
+ * actionable message from `requireApiKey` — never as a confusing mid-stream error
+ * (issue 02: "missing key surfaces clearly"). The returned `Provider` is reusable
+ * across calls; the network round-trip happens lazily inside each `generate`.
+ */
 export function createProvider(env: NodeJS.ProcessEnv = process.env): Provider {
   const config = resolveProviderConfig(env);
   const adapter = REGISTRY[selectWire(config.baseURL)];

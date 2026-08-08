@@ -1,4 +1,4 @@
-// Tests for the deterministic capability router (Epic 2.3) — the tracer bullet.
+// Tests for the deterministic capability router — the tracer bullet.
 //
 // The headline proof: a *hand-written* fixture capability — registry row + handler
 // files written by hand to the ADR-0004 contract (src/router/__fixtures__) —

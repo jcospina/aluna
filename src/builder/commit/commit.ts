@@ -35,8 +35,10 @@ import {
   type VerifiedPublishedSnapshot,
 } from "../artifacts/artifact-lifecycle.ts";
 
-// Every committed capability starts at version 1. Later regenerations bump it (the
-// Diff Engine, a later module); M2 only ever commits a brand-new v1.
+/**
+ * Every committed capability starts at version 1. Later regenerations bump it (the
+ * Diff Engine, a later module); M2 only ever commits a brand-new v1.
+ */
 export const FIRST_CAPABILITY_VERSION = 1;
 
 export { DEFAULT_ARTIFACTS_ROOT };
@@ -71,8 +73,10 @@ export interface CommitCapabilityResult {
   readonly manifest: SnapshotManifest;
 }
 
-// Commit the build's registry pointer. Artifact publication is deliberately absent
-// from this call surface: only verified final publication evidence can cross it.
+/**
+ * Commit the build's registry pointer. Artifact publication is deliberately absent
+ * from this call surface: only verified final publication evidence can cross it.
+ */
 export function commitCapability(input: CommitCapabilityInput): CommitCapabilityResult {
   const spec = capabilitySpecSchema.parse(input.spec);
   const verified = assertVerifiedPublishedSnapshot(input.publication);

@@ -22,9 +22,11 @@ import {
 } from "../registry/index.ts";
 import type { HandlerLoader } from "./router.ts";
 
-// Each case runs against a throwaway file db so the real data file is never touched.
-// setup/teardown preserve the exact temp-dir + database lifecycle the original
-// describe's beforeEach/afterEach established, per test.
+/**
+ * Each case runs against a throwaway file db so the real data file is never touched.
+ * setup/teardown preserve the exact temp-dir + database lifecycle the original
+ * describe's beforeEach/afterEach established, per test.
+ */
 export function setupRouterTest(): { dir: string; conns: PlatformDatabase } {
   const dir = mkdtempSync(join(tmpdir(), "omni-crud-router-"));
   const conns = openDatabase(join(dir, "test.db"));
@@ -52,7 +54,9 @@ export const NOTES_ARTIFACTS = "src/router/__fixtures__/notes/v1/";
 export const BOOM_ARTIFACTS = "src/router/__fixtures__/boom/v1/";
 export const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
 
-// The notes fixture's spec — matches the hand-written handler files.
+/**
+ * The notes fixture's spec — matches the hand-written handler files.
+ */
 export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return {
     id: "notes",
@@ -103,7 +107,9 @@ export function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow 
   };
 }
 
-// A fixture whose handler throws — proves a handler failure stays friendly.
+/**
+ * A fixture whose handler throws — proves a handler failure stays friendly.
+ */
 export function boomRow(): CapabilityRow {
   return {
     id: "boom",
@@ -130,8 +136,10 @@ export function boomRow(): CapabilityRow {
   };
 }
 
-// Install a capability the way a committed build would: its data table exists and
-// its registry row is present, both on the scratch db.
+/**
+ * Install a capability the way a committed build would: its data table exists and
+ * its registry row is present, both on the scratch db.
+ */
 export function install(conns: PlatformDatabase, row: CapabilityRow): void {
   applyCapabilityTableDdl(rowSpec(row), conns.readwrite);
   insertCapability(row, conns.readwrite);
@@ -151,8 +159,10 @@ export function rowSpec(row: CapabilityRow): CapabilitySpec {
   };
 }
 
-// A loader that records its calls and never actually loads anything — used to prove
-// validation happens *before* any handler code is reached.
+/**
+ * A loader that records its calls and never actually loads anything — used to prove
+ * validation happens *before* any handler code is reached.
+ */
 export function makeSpyLoader(): {
   calls: Array<{ artifactsPath: string; action: string }>;
   loadHandler: HandlerLoader;

@@ -1,14 +1,12 @@
-// Bounded per-Handler repair against frozen behavioral intent — Module 4, Epic 4.7/04
-// (PLAN decisions 22 and 23; ADR-0003's bounded per-unit loop; ARCH §6.2 "A failure may
-// repair Handler code only and reruns the same test"; ADR-0006 frozen tests).
+// Bounded per-Handler repair against frozen behavioral intent.
 //
 // The smoke rung repairs against a fixture the platform owns. This rung repairs against a
-// suite the *model* authored — which is exactly why the loop is built the way it is: the
-// suite was frozen before any Handler byte existed (4.7/01) and admitted against the
-// platform-owned Action response contract before the rung ran, so by the time a case fails
-// the intent is settled and the code is the only variable left. Nothing here can edit,
-// regenerate, weaken, reorder, or skip a frozen case; the only lever is Handler bytes, and
-// every attempt reruns the same frozen bytes from the same artifact object.
+// suite the *model* authored, which is why the loop is built the way it is: the suite was
+// frozen before any Handler byte existed and admitted against the platform-owned Action
+// response contract before the rung ran, so by the time a case fails the intent is settled
+// and the code is the only variable left. Nothing here can edit, regenerate, weaken,
+// reorder or skip a frozen case; the only lever is Handler bytes, and every attempt reruns
+// the same frozen bytes from the same artifact object.
 //
 // Two things make that claim checkable rather than aspirational:
 //
@@ -19,12 +17,11 @@
 //     verdict about a Handler and fails the Gate closed without spending the budget.
 //
 // Repairing a Handler is also an admission that its bytes moved, so each round folds the
-// repaired Handlers back into the executable impact and re-plans (4.7/02), and the turn that
-// passes asserts that every rewritten Handler's suite actually ran. Under 4.7/02's current
-// rules neither can change the outcome — total attribution names the suite that just failed,
-// and every conservative reason already forces the full suite — so both are coupling guards
-// rather than observable behavior. They are here so that loosening either rule fails loudly
-// instead of quietly letting a repair buy a pass with an unrun suite.
+// repaired Handlers back into the executable impact and re-plans, and the turn that passes
+// asserts that every rewritten Handler's suite actually ran. Under the current planning
+// rules neither can change the outcome, so both are coupling guards rather than observable
+// behavior — they are here so that loosening either rule fails loudly instead of quietly
+// letting a repair buy a pass with an unrun suite.
 
 import { isProviderAbortError, type TokenUsage } from "../../../provider/index.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";

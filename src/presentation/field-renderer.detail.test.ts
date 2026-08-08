@@ -1,4 +1,4 @@
-// Detail-display half of the field-renderer suite (epic 3.2/01): read-only formatting
+// Detail-display half of the field-renderer suite: read-only formatting
 // per pantry type, the data-safety escaping invariants, and ui_intent.detail.shows
 // selection/order. Create-form coverage lives in field-renderer.test.ts; shared
 // fixtures live in field-renderer.test-support.ts.

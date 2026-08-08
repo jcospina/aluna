@@ -1,9 +1,9 @@
-// Tests for the capability-scoped presentation adapter (Module 3, epic 3.4/01).
+// Tests for the capability-scoped presentation adapter.
 //
-// The adapter is a deterministic seam (ADR-0005 §4): given a capability and its item
+// The adapter is a deterministic seam: given a capability and its item
 // renderer, `present(record)` is a pure record → safe wrapped item HTML function. These
 // tests drive it with a **hand-written** item renderer — the composition input a generated
-// renderer replaces in 3.4/02 — and pin the invariants the model cannot get wrong:
+// renderer replaces — and pin the invariants the model cannot get wrong:
 //
 //   • COMPOSITION — the accessible wrapper + escaped `data-item` payload + click-to-open
 //     hooks + the record's inert detail <template>, in the right order and linked by id.

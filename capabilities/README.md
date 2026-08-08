@@ -22,15 +22,17 @@ capabilities/<id>/<incarnation_id>/
 The Builder writes only to unique staging. After the Gate passes, the artifact
 lifecycle verifies `snapshot.json` and atomically publishes to a final `v<n>/`
 path with no overwrite. The registry's `artifacts_path` points only at a verified
-published snapshot. `snapshot.json` is completeness evidence; the router still
-loads the direct files under the one registry pointer—there are no overlays or
-per-unit pointers. It lists itself in the inventory but omits its own digest; all
-other files have content digests. Per derived unit it also records the exact
-dependency incarnation/version, verified dependency snapshot content
-digest/fingerprint, and active-context digest used when those bytes were last
-generated. Copied units carry their original provenance forward. This is audit
-evidence only—not authored spec, equality input, Diff fact, reverse-dependency
-input, or cascade trigger.
+published snapshot.
+
+`snapshot.json` is completeness evidence. The router still loads the direct files
+under the one registry pointer; there are no overlays and no per-unit pointers.
+`snapshot.json` lists itself in the inventory but omits its own digest, and every
+other file carries a content digest. For each derived unit it also records the
+exact dependency incarnation/version, the verified dependency snapshot content
+digest/fingerprint, and the active-context digest in force when those bytes were
+last generated. Copied units carry their original provenance forward. All of that
+is audit evidence only — never authored spec, equality input, Diff fact,
+reverse-dependency input, or cascade trigger.
 
 ## Recovery states
 
@@ -49,8 +51,8 @@ input, or cascade trigger.
   deletion tombstone reserves the id/incarnation until idempotent cleanup finishes.
 
 Handlers, `item.ts`, and tier-on tests are derived caches. Each version's
-`spec.json` is authoritative authored history and `snapshot.json` is
-platform-authored publication evidence; all committed files are immutable.
+`spec.json` is authoritative authored history, and `snapshot.json` is
+platform-authored publication evidence. Every committed file is immutable.
 Nothing here is hand-edited or checked in. This README is tracked only so the
 runtime root exists in a fresh checkout; generated contents remain ignored by
 [`.gitignore`](../.gitignore).

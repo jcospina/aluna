@@ -1,8 +1,8 @@
 // The platform presentation layer. Module 3 introduces the capability-scoped
-// presentation surface: the runtime allow-list enforcer (epic 3.1/02), the
-// centralized create/edit/detail field renderer (epic 4.3/01, deterministic from the
-// spec), the list container/item wrapper (epic 3.2/02), the shared read/edit modal
-// (epic 4.3/01), and the presentation adapter (epic 3.4/01) that composes them
+// presentation surface: the runtime allow-list enforcer, the
+// centralized create/edit/detail field renderer (deterministic from the
+// spec), the list container/item wrapper, the shared read/edit modal
+// and the presentation adapter that composes them
 // into the record → safe wrapped item HTML the router injects into every Handler.
 //
 // The enforcer is the render-time safety half of the closed-value design contract; the

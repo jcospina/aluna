@@ -1,4 +1,4 @@
-// Tests for the capability-scoped data tool (Epic 2.2). They prove scoping is a
+// Tests for the capability-scoped data tool. They prove scoping is a
 // construction property, not a convention: once a tool is created for one spec,
 // its public surface has no table/capability argument, writes ride the injected
 // read-write connection, and reads ride the injected read-only connection.

@@ -1,4 +1,4 @@
-// Routing-refusal and failure slices of the deterministic capability router (Epic 2.3):
+// Routing-refusal and failure slices of the deterministic capability router:
 // unknown capabilities, undeclared actions, wrong HTTP method/action pairs, a throwing
 // handler kept friendly. Shared setup and fixtures live in router.test-support.ts.
 
@@ -48,7 +48,7 @@ describe("deterministic capability router — routing refusals and failures", ()
     expect(res.status).toBe(404);
     const body = await res.text();
     expect(body).toMatch(/can't find that/i);
-    // No internals leak (ARCH §9.7), and no handler load was even attempted.
+    // No internals leak, and no handler load was even attempted.
     expect(body).not.toMatch(/handler|capability|registry|undefined|stack/i);
     expect(spy.calls).toHaveLength(0);
   });

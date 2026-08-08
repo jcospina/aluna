@@ -1,4 +1,4 @@
-// Decision 24's behavioral-tier transition table — Module 4.7/03.
+// Decision 24's behavioral-tier transition table.
 //
 // The table itself, row by row, over the two facts it is a function of: the committed
 // snapshot's recorded tier and the Gate's per-Action execution plan. The end-to-end half —

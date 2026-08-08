@@ -1,5 +1,5 @@
-// The runtime allow-list enforcer (epic 3.1/02; ADR-0005 §3). The presentation adapter
-// (3.4/01) applies this to the inner markup of *every rendered record*, so a dynamic
+// The runtime allow-list enforcer. The presentation adapter
+// applies this to the inner markup of *every rendered record*, so a dynamic
 // field value can never become executable markup even after build-time validation
 // passes. The design-lint gate rung (3.6) is the build-time catch; this is the last line
 // at render time.

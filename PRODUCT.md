@@ -6,19 +6,19 @@ product
 
 ## Users
 
-Aluna has two audiences. Its primary audience is a person who wants a personal app
-to keep track of something without designing software. Developers and experimenters
-are the secondary audience: they need to understand, verify, and extend the system
-without leaking its engineering machinery into the product experience.
+Aluna has two audiences. The primary one is a person who wants a personal app to
+keep track of something without designing software. Developers and experimenters
+come second: they need to understand, verify, and extend the system without its
+engineering machinery leaking into the product experience.
 
-## Product Purpose
+## Product purpose
 
 Aluna turns stated capability-level intent into a working personal app and evolves
 that app as intent changes. Success means the experience feels friendly, direct,
 and trustworthy while the architecture keeps generated behavior measurable,
 recoverable, and safe to activate.
 
-## Brand Personality
+## Brand personality
 
 Warm, grounded, quietly wondrous. Aluna speaks plainly, encourages without being
 cutesy, and carries expert confidence without sounding like an engineering tool.
@@ -30,7 +30,7 @@ or generic AI dashboard. Avoid dark themes, monospace-first typography, neon or
 purple gradients, glassmorphism, glow, over-boxed card grids, and engineering
 jargon in product-facing surfaces.
 
-## Design Principles
+## Design principles
 
 1. Make the invisible understandable through concrete stories and visible state.
 2. Keep the product friendly even when the machinery behind it is sophisticated.
@@ -38,7 +38,7 @@ jargon in product-facing surfaces.
 4. Prefer progressive disclosure over walls of explanation.
 5. Earn trust by making boundaries, recovery, and points of no return legible.
 
-## Accessibility & Inclusion
+## Accessibility and inclusion
 
 Meet WCAG AA contrast for text and controls. Support keyboard navigation, semantic
 landmarks, visible focus, reduced motion, and layouts that remain understandable

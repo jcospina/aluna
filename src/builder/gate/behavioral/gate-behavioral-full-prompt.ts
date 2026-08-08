@@ -1,4 +1,4 @@
-// Per-Action behavioral test generation prompt — Module 4.7/01 (PLAN decision 23).
+// Per-Action behavioral test generation prompt.
 //
 // The prompt takes `ActionTestInputs` and never a `CapabilitySpec`, so the closed input
 // set is enforced by the type system rather than by prompt discipline: there is no

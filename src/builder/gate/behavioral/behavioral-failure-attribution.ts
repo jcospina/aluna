@@ -1,15 +1,11 @@
-// Runtime failure attribution for the frozen behavioral rung — Module 4, Epic 4.7/04
-// (PLAN decisions 22 and 23; ARCH §6.2 "A failure may repair Handler code only and reruns
-// the same test"; ADR-0003's bounded per-unit loop).
-//
-// 4.7/02 answered "which frozen suites run?". This answers the only other question a
-// failing frozen assertion can raise: **whose fault is it?** — and it answers it without
-// ever considering the possibility that the test is wrong. The suite was frozen before a
-// single Handler byte existed, so the code is the variable and the intent is the constant.
+// Runtime failure attribution for the frozen behavioral rung: given a failing frozen
+// assertion, **whose fault is it?** — answered without ever considering the possibility
+// that the test is wrong. The suite was frozen before a single Handler byte existed, so the
+// code is the variable and the intent is the constant.
 //
 // The rule is short because the executor makes it short. `runFullBehavioralCase` seeds
-// setup rows through the platform mutation port, invokes exactly one generated Handler,
-// and reads state back through the platform query port. Exactly two generated units can be
+// setup rows through the platform mutation port, invokes exactly one generated Handler, and
+// reads state back through the platform query port. Exactly two generated units can be
 // implicated in a case: that Handler, and — only for assertions over the rendered fragment
 // — the shared item renderer. So:
 //
@@ -19,8 +15,8 @@
 //   - a failure the shared item renderer could have caused — a fragment assertion, or a
 //     throw from inside the renderer while the Handler was calling it — is that one
 //     Handler's fault *unless* the renderer may also have moved, in which case blaming the
-//     Handler would require assuming the frozen assertion is unsatisfiable — i.e. weakening
-//     the test. Decision 22 names exactly this case: the conservative Handler set.
+//     Handler would require assuming the frozen assertion is unsatisfiable. That case is
+//     the conservative Handler set.
 //
 // Repair may only ever rewrite Handlers, so a genuinely broken renderer is not repairable
 // here by design: it exhausts the bounded budget and fails the Gate closed, leaving the
@@ -101,7 +97,7 @@ export interface BehavioralFailureAttributionInput {
   readonly declaredHandlers: readonly HandlerUnitName[];
 }
 
-/** The conservative Handler set: every Action the capability declares (decision 22). */
+/** The conservative Handler set: every Action the capability declares. */
 export function declaredHandlerSet(spec: CapabilitySpec): readonly HandlerUnitName[] {
   return FULL_CAPABILITY_TOOLS.filter((action) => spec.tools.includes(action));
 }

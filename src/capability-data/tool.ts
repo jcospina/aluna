@@ -1,4 +1,4 @@
-// Split capability data ports — Module 4, Epic 4.2 (ARCH §3, §7; ADR-0004/0006).
+// Split capability data ports (ARCH §3, §7; ADR-0004/0006).
 //
 // Canonical writes use a mutation port already bound to one capability. Free reads
 // use a distinct arbitrary-SQL port backed only by the physically read-only SQLite

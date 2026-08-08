@@ -341,7 +341,7 @@ Knowingly not fixed, and why:
 3. Click that capability in the left toolbar and add a record or two so there is
    history to preserve. Confirm **Evolve this capability** appears in the content
    area.
-4. Open the developer panel with the `</>` icon. Confirm it contains previews
+4. Open the developer panel with the `</>` logo. Confirm it contains previews
    only—no Evolve input or button—and note the current version in
    **Lifecycle & committed versions**. In the content-area control, type
    `add a due date to my notes and make it stand out in the list`, then select

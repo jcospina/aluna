@@ -1,5 +1,5 @@
 // The frozen-repair battery's forced-failure fixture. Test support, and tested anyway: it
-// is what makes 4.7/04's bounded repair deterministic, and a fixture that silently stopped
+// is what makes bounded repair deterministic, and a fixture that silently stopped
 // forcing a failure would look exactly like a Gate that stopped repairing.
 
 import { describe, expect, test } from "bun:test";

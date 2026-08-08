@@ -3,7 +3,7 @@
 // and activated on disk; the fake providers the `/prompt` path is driven with; and the
 // submit-then-stream helper. Not a test file itself; bun never runs it.
 //
-// Since 4.8/04 the prompt bar is the only entrance to an evolution, so these suites drive
+// The prompt bar is the only entrance to an evolution, so these suites drive
 // `POST /prompt` → `GET /build/:id/stream` exactly as the browser does. The resolver leg
 // is faked (see {@link resolvedBy}) rather than skipped: the engine must receive a real
 // classification, because there is no longer any other way for it to receive one.

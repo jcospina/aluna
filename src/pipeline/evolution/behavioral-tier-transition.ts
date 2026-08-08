@@ -1,10 +1,5 @@
-// The behavioral-tier transition table — Module 4, Epic 4.7/03 (PLAN decision 24;
-// ADR-0006 "frozen tests and immutable snapshots").
-//
-// Decision 24 fixes what a new version carries, and what it re-proves, for every pair of
-// (prior snapshot tier, candidate tier). This module is the whole of that table, stated
-// once, over facts both sides of an evolution already have — the committed snapshot's
-// `behavioral_tier` and the Gate's own per-Action execution plan:
+// The behavioral-tier transition table: what a new version carries, and what it re-proves,
+// for every pair of (prior snapshot tier, candidate tier).
 //
 //   | Prior snapshot | Candidate tier | Test-input change            | Test artifact/execution                       |
 //   | -------------- | -------------- | ---------------------------- | --------------------------------------------- |
@@ -15,23 +10,18 @@
 //   | on             | on             | changed                      | generate, freeze, and run                      |
 //   | on             | off            | any                          | absent; no copy or execution                   |
 //
-// Nothing here decides anything: generation was settled at the freeze stage (4.7/01) and
-// execution by `planBehavioralExecution` (4.7/02). What this adds is the *name* of the row
-// those two together landed on, and the two things naming it buys:
-//
-//   - the build reports its transition while it is happening, on the one surface where the
-//     tier-off rows have anything at all to say — a tier-off version's per-Action reports
-//     are empty by construction, so without the row the panel simply shows nothing;
-//   - the crossing neither half can express on its own — a suite carried out of a snapshot
-//     that holds none, or a suite authored this build and never run — fails closed here
-//     rather than reaching publication as an ordinary copy.
+// Nothing here decides anything: generation was settled at the freeze stage and execution
+// by `planBehavioralExecution`. What this adds is the *name* of the row those two landed
+// on, which buys two things — the build can report its transition while it is happening
+// (tier-off rows have empty per-Action reports, so without the row the panel shows
+// nothing), and the crossing neither half can express on its own (a suite carried out of a
+// snapshot that holds none, or a suite authored this build and never run) fails closed
+// here rather than reaching publication as an ordinary copy.
 //
 // The row is deliberately not written into `snapshot.json`. A transition is a fact about a
-// *pair* of versions, and each half is already recorded: v(n-1) carries its own
-// `behavioral_tier` and v(n) carries its tier plus per-Action `behavioral_tests`, so a later
-// reader derives the row from two manifests it already has. Storing it would make the
-// manifest a pointer to its predecessor, which is exactly the routing overlay decision 24
-// says it must not become.
+// *pair* of versions and each half is already recorded, so a later reader derives the row
+// from two manifests it already has. Storing it would make the manifest a pointer to its
+// predecessor.
 
 import type { BehavioralActionExecution, BehavioralExecutionPlan } from "../../builder/index.ts";
 import type { CapabilityTool } from "../../registry/index.ts";

@@ -207,7 +207,7 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
     expect(dataFor("narration")).toMatch(/mind trying again/i);
     expect(dataFor("narration")).not.toMatch(/response_format|schema|expectedError/i);
     expect(dataFor("done")).toBe("error");
-    // Generation now happens before the Gate exists (4.7/01), so it carries its own typed
+    // Generation now happens before the Gate exists, so it carries its own typed
     // error — but the failure is still the behavioral tier's, and is recorded as such.
     expect(preview.errorName).toBe("BehavioralTestGenerationError");
     expect(preview.message).toContain("Invalid schema for response_format");

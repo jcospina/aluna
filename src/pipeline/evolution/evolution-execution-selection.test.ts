@@ -1,6 +1,6 @@
-// Behavioral test execution follows executable impact — Module 4.7/02 (PLAN decision 23's
-// execution clause; ADR-0006). The engine-level half of 4.7/02: generation is settled
-// before any Handler byte (4.7/01), and *these* runs prove that which frozen suites then
+// Behavioral test execution follows executable impact (PLAN decision 23's
+// execution clause; ADR-0006). The engine-level half: generation is settled
+// before any Handler byte, and *these* runs prove that which frozen suites then
 // execute follows the copy/regenerate split — end to end, over real snapshots on disk, with
 // the verdict landing in the assembly report, the snapshot manifest, and the metrics row.
 // Providers are fake: no network, no spend.

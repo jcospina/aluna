@@ -1,13 +1,13 @@
 // Committed capability Views — the platform list scaffolding rendered live from a
-// capability's spec (Module 3, epic 3.2/03; ADR-0005 §1, PLAN decision 1).
+// capability's spec.
 //
-// Opening a committed capability renders the platform list container (3.2/02)
+// Opening a committed capability renders the platform list container
 // deterministically from the registry row — no AI, no regeneration, and (since this
 // epic) no served `list.html`/`create.html`. The ADR-0004 "never-stale cache" property
 // is preserved because data never enters the chrome: records still arrive through the
 // capability's `read` action into the container's live region. The generated
 // list/create Views are no longer served from here; their *generation* is retired later
-// (3.4/02, finalized in 3.7).
+// (finalized by unit generation).
 
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
@@ -46,7 +46,7 @@ function collectionLayoutForRow(row: CapabilityRow): CollectionLayout {
 /**
  * Render a committed capability's platform list scaffolding live from its spec: the
  * "New X" create disclosure, the records region wired to load through `read`, and the
- * empty state — deterministic, no AI, and data-free (ADR-0004). The label is
+ * empty state — deterministic, no AI, and data-free. The label is
  * canonicalized so a legacy sentence label never leaks into the chrome.
  */
 function renderCapabilityCollection(row: CapabilityRow): string {

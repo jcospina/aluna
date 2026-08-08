@@ -1,4 +1,4 @@
-// Developer preview for the few-shot gallery injection (Module 3, epic 3.5).
+// Developer preview for the few-shot gallery injection.
 //
 // Served at `/demo/few-shot-gallery`, this is a HITL sign-off surface for the
 // repo-only examples and the prompt section injected into item-renderer generation.

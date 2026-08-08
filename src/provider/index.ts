@@ -1,4 +1,4 @@
-// The pluggable AI provider — Module 1, Epic 1.5 (ARCH §4, ADR-0003).
+// The pluggable AI provider.
 //
 // The single public entry point for the provider subsystem. The orchestrator
 // (later modules) imports the contract and the `createProvider` factory from here

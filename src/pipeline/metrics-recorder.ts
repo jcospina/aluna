@@ -77,7 +77,7 @@ export interface RecordMetrics {
   }) => void;
   /**
    * The one row written terminal on its first write: a lease-head stale refusal, which
-   * never opens `running` because no Builder provider work starts (decision 28).
+   * never opens `running` because no Builder provider work starts.
    */
   readonly refuseStale: (input: WriteStaleGenerationAdmissionInput) => GenerationLifecycle;
   readonly get: (buildId: string, incarnationId: string | null) => StoredGenerationLifecycle | null;
@@ -133,13 +133,13 @@ export interface DemoBuildAccumulator {
   copiedUnits?: ReadonlySet<string>;
   /**
    * Per Action, whether this build generated or copied that frozen suite and whether it
-   * executed or skipped it (4.7/02). Generation and execution are separate decisions, so the
+   * executed or skipped it. Generation and execution are separate decisions, so the
    * stage vector records them as separate per-Action rows rather than one blended verdict.
    */
   behavioralExecution?: readonly BehavioralActionExecution[];
   /**
    * Per Action, whether this build authored that suite or carried the prior frozen bytes —
-   * recorded by the freeze stage itself (4.7/01), which runs long before the Gate. Kept
+   * recorded by the freeze stage itself, which runs long before the Gate. Kept
    * separate from `behavioralExecution` precisely so a run that froze intent and then failed
    * still reports the generation work it did rather than looking like a run that never
    * reached the tier at all.
@@ -194,7 +194,7 @@ const UNIT_STAGES = [
 ] as const;
 
 // The terminal shapes the stage vector is read for: an activated build, a
-// failure, a cancellation, and the measured no-op (decision 37) whose downstream
+// failure, a cancellation, and the measured no-op whose downstream
 // stages are all skipped exactly like a never-activated build.
 type LifecycleTerminal = "activated" | "failed" | "cancelled" | "no_change";
 
@@ -246,7 +246,7 @@ function behavioralTestExecutionStageState(
 }
 
 /**
- * The per-Action behavioral test rows (4.7/02). Two subjects per Action: what this build did
+ * The per-Action behavioral test rows. Two subjects per Action: what this build did
  * about the *intent* (generated it, or copied the prior frozen bytes), and what it did about
  * the *code* (executed that suite, or skipped it because nothing it covers moved).
  */
@@ -320,7 +320,7 @@ export function lifecycleStages(
 }
 
 /**
- * Finalize a measured no-op (decision 37). The candidate was authored and totally
+ * Finalize a measured no-op. The candidate was authored and totally
  * validated, then the Diff Engine found zero change facts — so the run's already-running
  * lifecycle row resolves straight to `success/no_change` with every downstream stage
  * skipped. Spec generation is `generated` (the candidate was authored); nothing after
@@ -352,7 +352,7 @@ export function finalizeMeasuredNoChange(
 }
 
 /**
- * The stale refusal's stage vector (decision 28): every generation stage skipped. The
+ * The stale refusal's stage vector: every generation stage skipped. The
  * request was refused at the head of the lease, so there is no spec, no DDL, no unit, no
  * Gate rung, no publication and no activation to report — and, unlike a failed build,
  * nothing was even attempted.
@@ -424,7 +424,7 @@ function specGenerationIncomplete(acc: DemoBuildAccumulator): boolean {
 
 /**
  * Name the stage (and, for the gate, the rung) a failed build stopped at, for the
- * metrics row's "failure is data" record (Epic 2.7). The two structured build errors
+ * metrics row's "failure is data" record. The two structured build errors
  * carry the precise location; otherwise the failure is inferred from how far the
  * build accumulator got — spec-gen, migration, and commit all throw before producing
  * a dedicated error type. A failure once the gate's rungs are recorded (gate passed)
@@ -435,7 +435,7 @@ export function classifyBuildFailure(error: unknown, acc: DemoBuildAccumulator):
   if (error instanceof CapabilityGateError) {
     return { stage: "gate", rung: error.failedRung, message };
   }
-  // Freezing happens before either Handler generation or the Gate (4.7/01). Name that real
+  // Freezing happens before either Handler generation or the Gate. Name that real
   // stage instead of fabricating a failed behavioral rung that never entered the inventory.
   if (error instanceof BehavioralTestGenerationError) {
     return { stage: "behavioral_test_generation", message };
@@ -460,7 +460,7 @@ export function classifyBuildFailure(error: unknown, acc: DemoBuildAccumulator):
  * Record the unit-generation legs of the metrics row: code-gen (handlers) and
  * presentation-gen (the item renderer — the semantic successor to M2's html-gen,
  * ADR-0005 "metrics retain semantic continuity") wall time, the per-unit fix-loop
- * attempts (PLAN decision 5), and each unit's token usage.
+ * attempts, and each unit's token usage.
  */
 export function recordUnitMetrics(
   acc: DemoBuildAccumulator,
@@ -578,7 +578,7 @@ function addOptionalMetric(
 }
 
 /**
- * Record the behavioral tier's *generation* leg the moment the suite is frozen (4.7/01),
+ * Record the behavioral tier's *generation* leg the moment the suite is frozen,
  * which is before the first Handler byte and long before the Gate. The measured cost of
  * authoring tests is what M8 weighs the tier against the no-test baseline with; recording it
  * only on a successful Gate would attribute the spend of every failed tier-on build to

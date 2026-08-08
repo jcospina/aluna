@@ -1,4 +1,4 @@
-// Shared fixtures for the Module 4.6/01 candidate generation + validation
+// Shared fixtures for candidate generation + validation
 // suite. One committed capability with active and inactive fields (scalar and
 // string[]), one external dependency capability with an inactive field the
 // context test proves absent, and a mutable candidate draft the rejection

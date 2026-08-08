@@ -271,7 +271,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
   test("a missing provider key streams a warm apology, with no internals in the copy", async () => {
     // `createProvider` throws "Missing OMNI_API_KEY ..." before the resolver can even
     // classify. The build must still close cleanly with product-voice copy — the
-    // liveness the removed Module 1 `/stream` route used to prove (4.8/06), asserted
+    // liveness the removed Module 1 `/stream` route used to prove, asserted
     // where the product actually reaches the provider.
     const { recordMetrics } = makeMetricsRecorder();
     const app = createApp({
@@ -294,7 +294,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 
     const narration = events.filter((event) => event.event === "narration").at(-1)?.data ?? "";
     expect(narration).toMatch(/mind trying again/i);
-    // No internals leak into the UI copy (ARCH §9.7) — asserted over *every* event the
+    // No internals leak into the UI copy — asserted over *every* event the
     // page shows, transient narration and the persistent `#prompt-notice` fragment
     // alike, not just the terminal line. The raw message stays available to the
     // developer on `build-error-preview`, which is not product copy.

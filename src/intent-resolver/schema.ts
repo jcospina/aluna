@@ -1,4 +1,4 @@
-// The intent classification shape - Module 2, Epic 2.4.
+// The intent classification shape.
 //
 // PLAN decision 6 says the resolver speaks the full future-facing language from
 // day one, even while M2 only acts on `new_capability`. The reject bucket is part

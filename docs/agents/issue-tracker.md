@@ -1,10 +1,10 @@
-# Issue tracker: Local Markdown
+# Issue tracker: local Markdown
 
 Issues and PRDs for this repo live as markdown files in `modules/`.
 
 ## Hierarchy
 
-The tracker mirrors the build plan in `docs/modules.md`: **modules** contain **epics**, and epics contain **issues**.
+The tracker mirrors the build plan in `docs/modules.md`: modules contain epics, and epics contain issues.
 
 ```
 modules/<module-slug>/<epic-slug>/issues/<NN>-<slug>.md
@@ -16,19 +16,19 @@ modules/<module-slug>/<epic-slug>/issues/<NN>-<slug>.md
 - One EPIC per sub-directory: `modules/<module-slug>/<epic-slug>/` — keep the spec's epic number in the slug (e.g. `1.1-project-and-toolchain`) so it sorts and traces back to `docs/modules.md`.
 - Implementation issues live under the epic: `modules/<module-slug>/<epic-slug>/issues/<NN>-<slug>.md`, numbered from `01`.
 - An optional PRD for an epic is `modules/<module-slug>/<epic-slug>/PRD.md`.
-- **One issue belongs to exactly one epic.** An issue never spans multiple epics. An epic is covered by one or more issues — usually several small, independently-actionable ones; occasionally just one if the epic is genuinely atomic. Prefer fine granularity so an AFK agent can pick up any single issue and finish it in isolation.
+- One issue belongs to exactly one epic. An issue never spans multiple epics. An epic is covered by one or more issues — usually several small, independently-actionable ones, occasionally just one when the epic is genuinely atomic. Prefer fine granularity so an AFK agent can pick up any single issue and finish it in isolation.
 - Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings).
 - "Blocked by" references use the full repo-relative path to the blocking issue file.
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading.
 
 ## Living demo rule
 
-The homepage demo is the running integration surface for work in progress. Any
+The homepage demo is the running integration surface for work in progress. An
 issue that adds or changes runtime behavior should wire that behavior into the
-current demo route/UI as soon as the behavior can be exercised, even if the demo
-is temporary, rough, or developer-facing. The demo is allowed to show raw
-engineering previews under `/demo/*`; it exists to catch mismatched pieces before
-the final end-to-end flow lands.
+current demo route or UI as soon as the behavior can be exercised, even if the
+demo is temporary, rough, or developer-facing. The demo may show raw engineering
+previews under `/demo/*`. It exists to catch mismatched pieces before the final
+end-to-end flow lands.
 
 If an issue is genuinely not demo-relevant, say why in the implementation notes.
 Otherwise, do not mark the issue done until the issue file records how the demo
@@ -46,8 +46,8 @@ reviewer with:
 - the visible behavior that confirms the change,
 - any expected developer-only preview or console output.
 
-Every agent final response should repeat the HITL instructions in concise form so
-the human can run them without hunting through the issue file.
+Every agent's final response should repeat the HITL instructions in concise form,
+so the human can run them without hunting through the issue file.
 
 ## When a skill says "publish to the issue tracker"
 

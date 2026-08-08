@@ -1,4 +1,4 @@
-// Runtime failure attribution — Module 4, Epic 4.7/04 (PLAN decisions 22 and 23).
+// Runtime failure attribution.
 //
 // The whole rule, pinned as a table: which Handlers a failing frozen case licenses repair
 // to rewrite, and on what grounds. Kept separate from the rung's own suite because it is a

@@ -52,7 +52,7 @@ homepage and watch it leave the collection.
 
 - A delegated responsive UX research pass recommended treating Close separately
   from record actions: the header now contains only the title and isolated 44px
-  Close icon, while a docked read footer places visible **Delete** at the leading
+  Close logo, while a docked read footer places visible **Delete** at the leading
   edge and visible **Edit** at the trailing edge. This supersedes 4.3/01's interim
   pencil beside the title and keeps long titles, mobile targets, and destructive
   intent legible.

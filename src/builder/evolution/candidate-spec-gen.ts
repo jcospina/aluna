@@ -1,8 +1,8 @@
-// Candidate-spec generation — Module 4.6/01 (PLAN decisions 1, 2, 4, 22;
+// Candidate-spec generation (PLAN decisions 1, 2, 4, 22;
 // ADR-0006 candidate ownership; ARCH §6.2 evolution steps 1–2).
 //
 // Evolution's first stage: the AI authors one complete candidate spec for an
-// existing capability. It receives exactly four inputs (decision 1) — the
+// existing capability. It receives exactly four inputs — the
 // current committed spec *including every inactive field*, the resolved intent,
 // the full field-lifecycle catalog, and the lease-frozen dependency-generation
 // catalog — and returns the same canonical authored shape a new capability
@@ -10,7 +10,7 @@
 // snapshot metadata, artifacts_path) and computes every consequence; the AI
 // never returns those, nor a patch, migration, or regeneration list.
 //
-// The two context exclusions are contractual (decision 2): the capability's own
+// The two context exclusions are contractual: the capability's own
 // inactive fields ARE present (so the model can preserve or reactivate them),
 // while inactive *external* fields are NOT (the catalog carries active fields
 // only). The context test pins both directions.
@@ -51,7 +51,7 @@ export interface GenerateCandidateSpecInput {
 }
 
 export interface CandidateSpecGenResult {
-  /** The validated canonical candidate — what the Diff stage (4.6/02) receives. */
+  /** The validated canonical candidate — what the Diff stage receives. */
   readonly candidate: CapabilitySpec;
   readonly durationMs: number;
   readonly usage: TokenUsage;

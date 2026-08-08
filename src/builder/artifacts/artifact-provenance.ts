@@ -1,4 +1,4 @@
-// Per-derived-unit dependency-generation provenance (PLAN decision 24; ADR-0006).
+// Per-derived-unit dependency-generation provenance.
 //
 // Audit evidence only: for each derived unit it records the active-context digest —
 // and, when the Action reads external dependencies, the exact dependency
@@ -22,8 +22,10 @@ import { SnapshotVerificationError } from "./snapshot-error.ts";
 import { buildUnitPrompt } from "../units/unit-prompts.ts";
 import type { GeneratedUnit, UnitDescriptor } from "../units/units.ts";
 
-// The complete derived-unit inventory a snapshot carries, in canonical order — the
-// six units provenance is keyed by (the item renderer plus the five Action Handlers).
+/**
+ * The complete derived-unit inventory a snapshot carries, in canonical order — the
+ * six units provenance is keyed by (the item renderer plus the five Action Handlers).
+ */
 export const DERIVED_UNIT_FILES = [
   "item.ts",
   "create.ts",
@@ -123,7 +125,7 @@ export interface EvolutionUnitProvenanceInput {
 }
 
 /**
- * The per-unit provenance one evolution records (PLAN decision 24; ADR-0006). A
+ * The per-unit provenance one evolution records. A
  * regenerated unit gets a fresh `active_context_digest` over the candidate context it
  * was actually generated from; a byte-copied unit carries its committed provenance
  * forward verbatim, because its bytes — and the context they were generated against —

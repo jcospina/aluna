@@ -2,7 +2,7 @@
 // deterministic, provider-free demo surfaces (detail interaction, few-shot
 // gallery). The provider-driven build/stream slices live in the sibling
 // app.*.test.ts files; shared setup, fixtures, and fake providers live in
-// app.test-support.ts. app.request() drives app.fetch without binding a port.
+// app.test-support.ts. app.request drives app.fetch without binding a port.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -86,13 +86,13 @@ describe("GET / (shell)", () => {
     const app = createApp();
     const html = await responseText(await app.request("/"));
 
-    // The shared read-only detail modal (epic 3.2/04) mounts on every shell — cold-start
-    // included — so a clicked capability item (epic 3.3/02) always has the modal to open.
+    // The shared read-only detail modal mounts on every shell — cold-start
+    // included — so a clicked capability item always has the modal to open.
     // Exactly one shared instance: a platform invariant, not one-per-capability.
     expect(html).toContain('<dialog id="aluna-detail-modal"');
     expect(html).toContain('id="aluna-detail-modal-body"');
     expect(html.split('<dialog id="aluna-detail-modal"').length - 1).toBe(1);
-    // Both dumb glue files load: the modal mechanics and the item click-to-open (ARCH §6.1).
+    // Both dumb glue files load: the modal mechanics and the item click-to-open.
     expect(html).toContain('<script type="module" src="/static/detail-modal.js"></script>');
     expect(html).toContain('<script type="module" src="/static/search-chrome.js"></script>');
     expect(html).toContain('src="/static/item-detail.js"');
@@ -478,7 +478,7 @@ describe("GET / (shell) — stream close glue", () => {
   });
 });
 
-// The few-shot gallery + injection harness HITL surface (epic 3.5). The route is
+// The few-shot gallery + injection harness HITL surface. The route is
 // deterministic and provider-free: it previews repo-owned exemplars and the exact
 // prompt section the item-renderer generator receives.
 describe("GET /demo/few-shot-gallery (few-shot gallery, epic 3.5)", () => {
@@ -516,10 +516,10 @@ describe("GET /demo/few-shot-gallery (few-shot gallery, epic 3.5)", () => {
   });
 });
 
-// The dev-only guard over the surviving `/demo/*` inspection routes (epic 4.8/07). A
+// The dev-only guard over the surviving `/demo/*` inspection routes. A
 // production bundle must not answer them, and that must be provable here rather than
 // resting on someone remembering to run `bun run build` — hence the guard reads the
-// environment per `createApp()` call instead of freezing at import.
+// environment per `createApp` call instead of freezing at import.
 describe("the dev-only guard on the remaining /demo/* inspection routes", () => {
   const previous = process.env.NODE_ENV;
   afterEach(() => {
@@ -538,7 +538,7 @@ describe("the dev-only guard on the remaining /demo/* inspection routes", () => 
   });
 
   test("epic 4.9's previews are unregistered in every environment", async () => {
-    // Both came down with 4.9/04. A demo is scaffolding for work in progress: the read
+    // Both came down. A demo is scaffolding for work in progress: the read
     // gates' atomic token sets and drain/reopen are covered by
     // src/router/router.read-gates.test.ts, and the cleanup seam by the deletion fault
     // battery and the two seam-fake suites, so neither removal took evidence with it.
@@ -565,7 +565,7 @@ describe("the dev-only guard on the remaining /demo/* inspection routes", () => 
 
   test("the retired build surfaces are unregistered in every environment", async () => {
     // The evolution tracer's content-area control and its routes retired together
-    // (4.8/04), and the legacy spec-build demo followed (4.8/08), so `/prompt` is the
+    // and the legacy spec-build demo followed, so `/prompt` is the
     // single admission path for every build. Nothing answers here any more — 404 is
     // Hono's "no such route", not a route reporting an unknown capability.
     for (const nodeEnv of ["production", "development"]) {

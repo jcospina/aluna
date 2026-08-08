@@ -1,4 +1,4 @@
-// Repo-only few-shot item-renderer gallery (Module 3, epic 3.5).
+// Repo-only few-shot item-renderer gallery.
 // biome-ignore-all lint/suspicious/noTemplateCurlyInString: exemplar source strings intentionally include item.ts template placeholders.
 //
 // These examples are generation guidance, not user-facing product UI. The builder

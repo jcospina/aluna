@@ -41,15 +41,17 @@ export interface ScratchDbEnv {
 
 export { makeMetricsRecorder } from "../metrics/metrics-test-recorder.ts";
 
-// A fake provider: streams `greeting` one character at a time (like the real
-// partialStream building up), then resolves the validated object carrying both
-// fields. No SDK, no network — it satisfies the same `Provider` contract the real
-// spine does.
-//
-// The greeting/invitation shape is a leftover of the Module 1 liveness route removed
-// in 4.8/06. No surviving caller reads the values — `app.build-jobs.test.ts` passes
-// `"unused", "unused"` and only needs *a* `Provider`. Read it as "a generic provider
-// stub that streams then resolves", not as content.
+/**
+ * A fake provider: streams `greeting` one character at a time (like the real
+ * partialStream building up), then resolves the validated object carrying both
+ * fields. No SDK, no network — it satisfies the same `Provider` contract the real
+ * spine does.
+ *
+ * The greeting/invitation shape is a leftover of the Module 1 liveness route removed
+ * No surviving caller reads the values — `app.build-jobs.test.ts` passes
+ * `"unused", "unused"` and only needs *a* `Provider`. Read it as "a generic provider
+ * stub that streams then resolves", not as content.
+ */
 export function makeFakeProvider(greeting: string, invitation: string): Provider {
   return {
     generate<T>(_prompt: string, _schema: ZodType<T>): GenerateResult<T> {
@@ -70,15 +72,19 @@ export function makeFakeProvider(greeting: string, invitation: string): Provider
   };
 }
 
-// A provider factory that throws — stands in for a missing key (createProvider
-// throws, naming OMNI_API_KEY) without touching the environment.
+/**
+ * A provider factory that throws — stands in for a missing key (createProvider
+ * throws, naming OMNI_API_KEY) without touching the environment.
+ */
 export function throwingProvider(message: string): () => Provider {
   return () => {
     throw new Error(message);
   };
 }
 
-// Drain an SSE response body to a single string.
+/**
+ * Drain an SSE response body to a single string.
+ */
 export async function readSse(res: Response): Promise<string> {
   const reader = res.body?.getReader();
   if (!reader) throw new Error("expected a readable SSE body");
@@ -108,8 +114,10 @@ export function collectSseEvents(payload: string): SseEvent[] {
     });
 }
 
-// Join the data of every event of one type, in order — the per-type view the
-// build tests read (each test used to inline this as a local `dataFor`).
+/**
+ * Join the data of every event of one type, in order — the per-type view the
+ * build tests read (each test used to inline this as a local `dataFor`).
+ */
 export function eventData(events: SseEvent[], name: string): string {
   return events
     .filter((event) => event.event === name)
@@ -117,9 +125,11 @@ export function eventData(events: SseEvent[], name: string): string {
     .join("\n");
 }
 
-// The data of the *last* event of one type — the terminal snapshot of a preview that
-// streams repeatedly (units, and from 4.6/03 the evolution candidate). Joining those
-// with `eventData` yields concatenated JSON no test can parse.
+/**
+ * The data of the *last* event of one type — the terminal snapshot of a preview that
+ * streams repeatedly (units, and the evolution candidate). Joining those
+ * with `eventData` yields concatenated JSON no test can parse.
+ */
 export function lastEventData(events: SseEvent[], name: string): string {
   return events.filter((event) => event.event === name).at(-1)?.data ?? "";
 }
@@ -158,9 +168,11 @@ export interface PromptBuildRun {
   readonly events: SseEvent[];
 }
 
-// The production build in one call: submit the prompt, take the job id off the
-// subscriber fragment, then drain that job's stream. Every builder-stage suite drives
-// the platform this way — there is one admission path, and it starts at `/prompt`.
+/**
+ * The production build in one call: submit the prompt, take the job id off the
+ * subscriber fragment, then drain that job's stream. Every builder-stage suite drives
+ * the platform this way — there is one admission path, and it starts at `/prompt`.
+ */
 export async function runPromptBuild(
   app: ReturnType<typeof createApp>,
   prompt: string,
@@ -170,9 +182,11 @@ export async function runPromptBuild(
   return { jobId, payload, events: collectSseEvents(payload) };
 }
 
-// The scratch db + temp artifacts lifecycle the build/rehydration describes share.
-// setup/teardown preserve the exact temp-dir + database lifecycle the original
-// describes' beforeEach/afterEach established, per test.
+/**
+ * The scratch db + temp artifacts lifecycle the build/rehydration describes share.
+ * setup/teardown preserve the exact temp-dir + database lifecycle the original
+ * describes' beforeEach/afterEach established, per test.
+ */
 export function createScratchDbEnv(prefix: string): ScratchDbEnv {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   const conns = openDatabase(join(dir, "test.db"));
@@ -186,9 +200,11 @@ export function teardownScratchDbEnv(env: ScratchDbEnv): void {
   rmSync(env.dir, { recursive: true, force: true });
 }
 
-// Build the prompt app wired to commit against the scratch db + temp artifacts root,
-// sharing the scratch pair with the router so a committed capability is immediately
-// routable in the same test.
+/**
+ * Build the prompt app wired to commit against the scratch db + temp artifacts root,
+ * sharing the scratch pair with the router so a committed capability is immediately
+ * routable in the same test.
+ */
 export function makeScratchApp(
   env: ScratchDbEnv,
   provider: Provider,
@@ -249,8 +265,10 @@ export function notesCapabilityRow(overrides: Partial<CapabilityRow> = {}): Capa
   } as CapabilityRow;
 }
 
-// The one generated presentation surface — record → inner markup, composed from the
-// closed primitive vocabulary and escaping the field value.
+/**
+ * The one generated presentation surface — record → inner markup, composed from the
+ * closed primitive vocabulary and escaping the field value.
+ */
 export const ITEM_RENDERER = [
   "export default function renderItem(record: Record<string, unknown>): string {",
   "  const text = escapeHtml(record.text);",
@@ -268,8 +286,10 @@ export const ITEM_RENDERER = [
   "}",
 ].join("\n");
 
-// The handlers render records through the injected `present` adapter — no row markup of
-// their own (ADR-0005 §2), so create and read cannot drift.
+/**
+ * The handlers render records through the injected `present` adapter — no row markup of
+ * their own, so create and read cannot drift.
+ */
 export const CREATE_HANDLER = [
   "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
   '  if (String(input.values.text ?? "").trim().length === 0) return \'<div data-role="error" data-error-code="missing_required_fields" data-error-fields="text">Tell me what to save.</div>\';',
@@ -491,11 +511,13 @@ export interface PromptBuildUnits {
   readonly repairs?: readonly string[];
 }
 
-// A fake provider for the whole production build: the resolver's classification first,
-// then the capability spec, then the complete generated inventory (item renderer, then
-// all five handlers), recording each prompt — so `POST /prompt` runs end-to-end without
-// a real call. The intent leads because the resolver sits in front of every build; there
-// is no way to reach the Builder without one.
+/**
+ * A fake provider for the whole production build: the resolver's classification first,
+ * then the capability spec, then the complete generated inventory (item renderer, then
+ * all five handlers), recording each prompt — so `POST /prompt` runs end-to-end without
+ * a real call. The intent leads because the resolver sits in front of every build; there
+ * is no way to reach the Builder without one.
+ */
 export function makePromptBuildProvider(
   intent: IntentClassification,
   spec: unknown = NOTES_SPEC,
@@ -519,7 +541,7 @@ export function makePromptBuildProvider(
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
       prompts.push(prompt);
-      // Behavioral tests are generated per Action and *before* the units (4.7/01), so they
+      // Behavioral tests are generated per Action and *before* the units, so they
       // are answered by prompt rather than by queue position; the queue keeps the spec and
       // unit order it always had.
       const response = prompt.startsWith("Generate deterministic black-box behavioral tests")

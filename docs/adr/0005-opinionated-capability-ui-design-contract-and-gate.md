@@ -7,9 +7,9 @@ Settled in the Module 3 grilling session (2026-06-26). Exact class names, token
 names, module interfaces, and the exemplar set remain implementation detail, decided
 inside Module 3.
 
-**Amended 2026-06-30.** Two changes: (a) **collection layout** is added as a
+**Amended 2026-06-30.** Two changes: (a) collection layout is added as a
 closed `ui_intent.collection.layout` value (`feed | grid`) the platform list
-container reads (§2, §6). (b) **§7's preservation cutover is deferred.** The
+container reads (§2, §6). (b) §7's preservation cutover is deferred. The
 project is greenfield and under development, so the M2→M3 artifact-*shape* change
 is handled by `bun run reset` + rebuild; M3 introduces no persisted
 `artifact_contract` marker and no migrate-without-reset machinery. The
@@ -19,17 +19,16 @@ compatibility does not drive design while the project is under development.
 
 **Amended 2026-07-01.** §4's blanket inline-style ban is relaxed. A closed class
 list cannot anticipate every composition a capability needs — the vocabulary is
-**sensible defaults, not an all-purpose CSS framework** (even Tailwind doesn't
-cover every case with ease; rebuilding it is a non-goal) — so inline `style`
-becomes a **token-disciplined escape hatch**: allowed when the primitive
-vocabulary doesn't suffice, but the five design axes the platform already owns —
-**color** (theme tokens), **font family** (Outfit is the default and is never
-declared), **type scale** (the t-shirt-size tokens), **spacing** (the base
-spacing unit's tokens), and **border weight** (the thin | regular | thick
-scale) — are never redeclared with raw values. The
-executable-markup bans are untouched. *Closed values, open composition* now
-reads literally: the closed thing is the design-**value** space (the tokens),
-not the CSS property space.
+sensible defaults, not an all-purpose CSS framework (even Tailwind doesn't cover
+every case with ease; rebuilding it is a non-goal) — so inline `style` becomes a
+token-disciplined escape hatch: allowed when the primitive vocabulary doesn't
+suffice, but the five design axes the platform already owns — **color** (theme
+tokens), **font family** (Outfit is the default and is never declared), **type
+scale** (the t-shirt-size tokens), **spacing** (the base spacing unit's tokens),
+and **border weight** (the thin | regular | thick scale) — are never redeclared
+with raw values. The executable-markup bans are untouched. *Closed values, open
+composition* now reads literally: the closed thing is the design-*value* space
+(the tokens), not the CSS property space.
 
 **Amended 2026-07-06.** The field-type pantry gains a **`date`** type (a calendar
 day) alongside `datetime` (an instant), so a "due date" asks for a day rather than a
@@ -38,8 +37,8 @@ timestamp. It is an additive extension applied through the centralized field ren
 (`date` → `TEXT`), the data tool, and the gate's sample generator — and supersedes the
 "pantry untouched" note in §Consequences below. `file` still remains M6.
 
-**Amended 2026-07-10 for Module 4.** §3's “full record” means the complete
-canonical row remains available to platform code on the server; it does **not**
+**Amended 2026-07-10 for Module 4.** §3's "full record" means the complete
+canonical row remains available to platform code on the server; it does not
 mean inactive fields or `extra` are serialized into the client payload. From M4,
 record-producing queries return target ids and the platform rehydrates canonical
 rows, then projects only the record target, active detail/edit fields, and the
@@ -60,41 +59,41 @@ markup or a user-facing form builder.
 
 ## Problem
 
-A capability is born usable but **ugly**. The unit-generation prompts hand the
-model a *structural* contract (routes, data-free views, no scripts) and the spec,
-but **no design guidance** — no tokens, no primitives, no example. With nothing to
-imitate, the model reproduces the same bare *[title][empty state][form]* scaffold
-every build. Aluna is a self-evolving platform: generation is **hidden from the
-user, one-shot, and re-run on every version bump**, with no developer reviewing
-the output before it ships. So consistency cannot be hoped for per build — it must
-be **structural**.
+A capability is born usable but ugly. The unit-generation prompts hand the model
+a *structural* contract (routes, data-free views, no scripts) and the spec, but no
+design guidance: no tokens, no primitives, no example. With nothing to imitate,
+the model reproduces the same bare *[title][empty state][form]* scaffold every
+build. Aluna is a self-evolving platform, so generation is hidden from the user,
+one-shot, and re-run on every version bump, with no developer reviewing the output
+before it ships. Consistency therefore cannot be hoped for per build; it has to be
+structural.
 
 The field has converged on a three-legged answer (v0/shadcn, the
 design-system-for-LLM writeups, and the *impeccable* design skill's detector
-rules): a **closed token + primitive vocabulary**, **spec/example context** fed to
-the model, and **automated auditing that rejects violations**. Aluna already owns
-two of the three legs — a closed-ish token layer (`public/css/tokens.css`,
+rules): a closed token and primitive vocabulary, spec and example context fed to
+the model, and automated auditing that rejects violations. Aluna already owns two
+of those legs — a closed-ish token layer (`public/css/tokens.css`,
 `docs/design-system.md`) and a layered, fail-closed gate. This ADR puts all three
 to work.
 
 ## Decision
 
 Seven interlocking choices. The governing line, inherited from ADR-0004 and ARCH §1,
-is unchanged: **the platform may own *presentation*, never *business logic*.** ARCH
+is unchanged: the platform may own *presentation*, never *business logic*. ARCH
 §7's platform-owned `data_query` auto-table is the standing precedent that
 presentational platform code is allowed.
 
 1. **Thick shell, thin generation: structural chrome is platform-owned and
-   presentational.** The **modal** (open/close/prefill/focus), the **list
-   scaffolding** (container, empty state, the "New X" button), the accessible
-   **item wrapper**, and the **create/edit/detail fields** (rendered
-   deterministically from the spec, with HTMX wiring and close-on-success) become
-   fixed platform modules. They implement no capability rule and persist no
-   canonical state. Consequently `list.html` and `create.html` **cease to be
-   generated units**. Field rendering is centralized and exhaustive so Module 4's
-   list types and Module 6's file types extend one platform module. For active
-   `string[]` fields, that module also interprets the closed authored list input
-   mode and normalizes both controls to the same ordered-array Handler contract.
+   presentational.** The modal (open/close/prefill/focus), the list scaffolding
+   (container, empty state, the "New X" button), the accessible item wrapper, and
+   the create/edit/detail fields (rendered deterministically from the spec, with
+   HTMX wiring and close-on-success) become fixed platform modules. They implement
+   no capability rule and persist no canonical state. Consequently `list.html` and
+   `create.html` cease to be generated units. Field rendering is centralized and
+   exhaustive so Module 4's list types and Module 6's file types extend one
+   platform module. For active `string[]` fields, that module also interprets the
+   closed authored list input mode and normalizes both controls to the same
+   ordered-array Handler contract.
 
 2. **The item renderer is the single generated creative surface.** Each
    capability has one versioned generated item-renderer unit. It produces the
@@ -103,9 +102,9 @@ presentational platform code is allowed.
    tiles, text-forward) to fit the data. How records are arranged as a
    *collection* (feed vs. grid) is a separate, closed-value choice the platform
    list container reads from `ui_intent.collection.layout` (§6) — not something a
-   per-record renderer can or should emit. The renderer is generated **knowing**
-   the chosen collection layout, so item composition and collection arrangement
-   are co-designed.
+   per-record renderer can or should emit. The renderer is generated knowing the
+   chosen collection layout, so item composition and collection arrangement are
+   co-designed.
    `create.ts`, `read.ts`, `update.ts`, and `search.ts` all receive the same
    renderer through a capability-scoped presentation adapter in their injected
    toolbox; delete success refreshes through the platform's current read/search
@@ -118,33 +117,30 @@ presentational platform code is allowed.
    escaped client projection containing the record target plus active detail/edit
    values and the closed `created_at` platform field (`file` user fields are
    references, never bytes — ARCH §7), and attaches click-to-open behavior.
-   `extra` remain server-only. The model
-   owns composition, not serialization, escaping the payload, accessibility
-   mechanics, safe insertion of record content, or modal wiring. The adapter
-   enforces the allowed HTML/class/style surface on every rendered item —
-   sanitizing style declarations along with elements and classes — so dynamic
-   record values cannot turn into executable markup even after build-time
-   validation. The modal opens **prefilled** with untruncated values from the
-   allowed active detail/edit projection even when the item visually truncates;
-   inactive fields and `extra` remain server-only, while the record target and
-   closed `created_at` descriptor accompany the projection only under the platform
-   contract. The fixed `create + read` route convention is unchanged. If
-   large-text capabilities make materializing the list expensive,
-   prefill can move behind the same adapter to read-single-on-open after M4 adds
-   the per-item action; the item payload shrinks to an id without changing
-   committed item composition.
+   `extra` remain server-only. The model owns composition, not serialization,
+   payload escaping, accessibility mechanics, safe insertion of record content, or
+   modal wiring. The adapter enforces the allowed HTML/class/style surface on every
+   rendered item, sanitizing style declarations along with elements and classes, so
+   dynamic record values cannot turn into executable markup even after build-time
+   validation. The modal opens prefilled with untruncated values from the allowed
+   active detail/edit projection even when the item visually truncates; inactive
+   fields and `extra` remain server-only, while the record target and closed
+   `created_at` descriptor accompany the projection only under the platform
+   contract. The fixed `create + read` route convention is unchanged. If large-text
+   capabilities make materializing the list expensive, prefill can move behind the
+   same adapter to read-single-on-open after M4 adds the per-item action; the item
+   payload shrinks to an id without changing committed item composition.
 
 4. **A closed-value design contract, enforced by a new gate rung.** (Amended
    2026-07-01.) Generated item markup reaches first for an allow-list of
    semantic/primitive classes whose implementations consume the design tokens —
-   the sensible defaults, including Tailwind-style **layout utilities** (flex,
-   grid, alignment, gap) so common arrangement never needs `style` at all. The
-   vocabulary is deliberately **not** an all-purpose CSS framework. When it
-   doesn't suffice, inline `style`
-   is allowed as a **token-disciplined escape hatch**: the five design axes the
-   platform owns are never redeclared with raw values — **color** (only
-   `var(--color-*)`), **font family** (never declared; Outfit inherits from the
-   shell), **type scale** (only the t-shirt tokens `var(--type-*)`),
+   the sensible defaults, including Tailwind-style layout utilities (flex, grid,
+   alignment, gap) so common arrangement never needs `style` at all. That
+   vocabulary is deliberately not an all-purpose CSS framework, so when it does not
+   suffice, inline `style` is allowed as a token-disciplined escape hatch: the five
+   design axes the platform owns are never redeclared with raw values — **color**
+   (only `var(--color-*)`), **font family** (never declared; Outfit inherits from
+   the shell), **type scale** (only the t-shirt tokens `var(--type-*)`),
    **spacing** (only `var(--space-*)`), and **border weight** (only the
    thin | regular | thick border tokens). Properties outside those axes
    (arrangement, alignment, aspect ratio, …) are free; radius/shadow/motion
@@ -153,29 +149,28 @@ presentational platform code is allowed.
    descendants, scripts/event handlers, unsafe interpolation of user fields —
    and, inside styles, `url(...)` values, position values that escape the
    item's bounds, and field values interpolated into a `style` attribute
-   (styles are literal in the renderer source). A new **fail-closed
-   design-lint rung** renders hostile synthetic values — within the
-   capability's declared collection layout — and feeds violations through the
-   same bounded fix loop as the existing checks.
-   Platform-owned payload, wrapper, and modal invariants are ordinary platform
-   tests; they are not requirements the model can get wrong. *Closed values,
-   open composition*: the contract closes the design-**value** space (the
+   (styles are literal in the renderer source). A new fail-closed design-lint rung
+   renders hostile synthetic values, within the capability's declared collection
+   layout, and feeds violations through the same bounded fix loop as the existing
+   checks. Platform-owned payload, wrapper, and modal invariants are ordinary
+   platform tests; they are not requirements the model can get wrong. *Closed
+   values, open composition*: the contract closes the design-*value* space (the
    tokens) and the executable surface, never the arrangement.
 
 5. **The builder is steered by injection, not a runtime tool.** Unit generation is
    one-shot structured output — agentic only *within* a unit's write→check→fix
    loop, never a roaming agent (ADR-0003). So design guidance reaches the model by
-   **injection** (the contract plus a curated, **repo-only** few-shot gallery of
-   2–3 deliberately different exemplars, with *"vary, don't copy"* framing) and is
-   **enforced** by the gate rung (§4). No live "read the design system" tool is
+   injection (the contract plus a curated, repo-only few-shot gallery of 2–3
+   deliberately different exemplars, with *"vary, don't copy"* framing) and is
+   enforced by the gate rung (§4). No live "read the design system" tool is
    added; that would fight the deterministic-across-units discipline and add
-   measured build latency (a thesis metric). The exemplars are LLM-facing only —
-   **never rendered to the user**.
+   measured build latency (a thesis metric). The exemplars are LLM-facing only and
+   are never rendered to the user.
 
 6. **`ui_intent` records only capability-specific presentation intent.** M2's
    `views: ["list", "create"]` describes generated scaffolding that disappears in
-   M3. Its replacement records (a) the item design direction, (b) the
-   **collection layout** — a closed enum (`feed | grid`) the platform list
+   M3. Its replacement records (a) the item design direction, (b) the collection
+   layout — a closed enum (`feed | grid`) the platform list
    container reads to arrange items, (c) the fields/order the detail surface
    shows, and, from Module 4, (d) exactly one closed list input mode for every
    active `string[]`. `comma_separated` is limited to comma-free atomic values
@@ -183,10 +178,10 @@ presentational platform code is allowed.
    quotes/addresses/citations where commas may be data. Collection layout and
    list input mode are the same *kind* of structural presentation fact the
    platform already interprets (field type, required state, detail order):
-   one closed value mapped to a platform container class, **not** a model-emitted
+   one closed value mapped to a platform container class, not a model-emitted
    view tree (fully declarative SDUI stays rejected, below). An unknown value
    fails the build closed, exactly as an unknown field type does. `table` and
-   `masonry` are deliberately **out of M3's set** — a true table dissolves the
+   `masonry` are deliberately out of M3's set — a true table dissolves the
    per-record creative surface (the platform would render aligned cells from
    fields, bypassing the item renderer) and overlaps M5's `data_query`
    auto-table; either can be added additively later as a platform-rendered
@@ -198,15 +193,15 @@ presentational platform code is allowed.
 
 7. **The artifact *shape* changes; preservation of existing capabilities is
    deferred.** M3 re-cuts what a capability's generated artifacts *are* (views
-   give way to one item renderer, §1–§2). Because the project is **greenfield and
-   under development**, that shape change is applied the simplest way: change the
+   give way to one item renderer, §1–§2). Because the project is greenfield and
+   under development, that shape change is applied the simplest way: change the
    generators, `bun run reset`, and rebuild capabilities fresh under the new
-   shape. M3 introduces **no** persisted `artifact_contract` marker, **no**
-   dual-serving of old and new artifacts, and **no** atomic migrate-without-reset
-   cutover. The original preservation design — keeping committed capabilities live
-   and re-deriving them across a contract change without a reset — is **deferred
-   until the platform is feature-complete (post-M8)**, when real user data exists
-   to preserve; it remains the platform artifact-contract upgrade the architecture
+   shape. M3 introduces no persisted `artifact_contract` marker, no dual-serving
+   of old and new artifacts, and no atomic migrate-without-reset cutover. The
+   original preservation design — keeping committed capabilities live and
+   re-deriving them across a contract change without a reset — is deferred until
+   the platform is feature-complete (post-M8), when real user data exists to
+   preserve; it remains the platform artifact-contract upgrade the architecture
    still describes as the end state (ARCH §2, §9.1). Until then, backwards
    compatibility does not drive design.
 

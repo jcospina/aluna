@@ -1,4 +1,4 @@
-// Test support for 4.7/04's bounded-repair battery (`evolution-frozen-repair.test.ts`).
+// Test support for the bounded-repair battery (`evolution-frozen-repair.test.ts`).
 // Not a test file itself; bun never runs it, and no composition root can reach it.
 //
 // The repair story is the hardest part of the Gate to *prove*: on a healthy build it never

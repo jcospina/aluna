@@ -1,5 +1,5 @@
 // From the 4.4 reset every admitted capability has the same five-Action behavioral
-// contract, and from 4.7/01 each Action's tests are generated independently from that
+// contract, and each Action's tests are generated independently from that
 // Action's total inputs and frozen before any Handler work. Keep this public module as the
 // stable Gate seam: the rung executes frozen tests, the freeze stage authors them.
 

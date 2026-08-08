@@ -1,4 +1,4 @@
-// Deterministic DDL derivation for capability data tables — Module 2, Epic 2.2
+// Deterministic DDL derivation for capability data tables
 // (ARCH §3, §6.3 "Data Tables", §7 "Writes", PLAN decision 8, ADR-0004).
 //
 // The AI authors only the validated capability spec. The platform owns table

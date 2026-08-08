@@ -1,8 +1,8 @@
-// Tests for the dual SQLite connections (Epic 1.4). The behavioral cases run
+// Tests for the dual SQLite connections. The behavioral cases run
 // against a throwaway db file per test (via openDatabase) so they're isolated and
 // deterministic; a final case asserts the shared singletons are wired to the
 // documented location. The headline guarantee — a write on the read-only
-// connection is physically impossible (ARCH §3, §7) — is proven for both DML and
+// connection is physically impossible — is proven for both DML and
 // DDL, since the boundary must hold regardless of what SQL is issued.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";

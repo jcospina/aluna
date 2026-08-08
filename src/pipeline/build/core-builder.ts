@@ -1,70 +1,45 @@
-// The core Builder — Module 4.8/03 (PLAN decisions 28, 30, 31; ADR-0006; ARCH §6.2, §8).
+// The core Builder: everything between "a request has been resolved" and "the platform
+// has changed" — the bounded build ticket, the exclusive lease, the lease-head
+// revalidation, the durable admission row, and the run itself, for a brand-new capability
+// or an evolution of a committed one. Mutation, staging, Gate, activation and metrics all
+// live behind this one entry point and behave identically no matter who called it.
 //
-// # What this is
+// # The reuse seam
 //
-// Everything between "a request has been resolved" and "the platform has changed": the
-// bounded build ticket, the exclusive lease, the lease-head revalidation, the durable
-// admission row, and the run itself — for a brand-new capability or an evolution of a
-// committed one. Mutation, staging, Gate, activation, and metrics all live behind this
-// one entry point and behave identically no matter who called it.
+// This module owns no prompt route, no active DOM and no SSE vocabulary. It takes an
+// already-classified {@link ResolvedBuildRequest} and a {@link CoreBuilderPresenter}, and
+// emits the run's terminal lifecycle event into that presenter. Because the presenter is
+// an interface rather than an SSE call, the Builder is invocable from a test with a
+// recording fake, which is how identical mutation/Gate/activation behavior is proven
+// without a transport.
 //
-// # The reuse seam (decision 31)
+// The split is real for the **terminal** and only the terminal. Three things still assume
+// the explicit loop's shape:
 //
-// This module owns no prompt route, no active DOM, and no SSE vocabulary. It takes an
-// already-classified {@link ResolvedBuildRequest} and a {@link CoreBuilderPresenter},
-// and it emits the run's terminal lifecycle event into that presenter. That is the whole
-// contract, and it is the seam Module 7's implicit loop consumes:
+//   - `send` is a liveness sink carrying SSE event names authored inside the stages, so a
+//     non-browser presenter receives vocabulary it can only ignore.
+//   - A `send` that fails is read as *the build was cancelled* — right for a person who
+//     closed their tab, wrong for a background loop that never had a listener.
+//   - The product-voice wording is written by the stages, not the presenter, so a quieter
+//     presenter cannot reword or suppress it.
 //
-//   - The **explicit loop** (M2–M4) resolves a typed prompt, hands it here, and supplies
-//     the foreground presenter in `explicit-presenter.ts` — the one that occupies the
-//     active content area, narrates the product-voice story, and emits a single View
-//     `commit` on activation.
-//   - The **implicit loop** (M7) will hand over an already-confirmed proposal in the same
-//     `ResolvedBuildRequest` shape — *without reclassifying it* — and may choose an
-//     entirely different presenter: a quieter background one, or none at all. Nothing in
-//     this file changes for that, which is the point.
-//
-// Because the presenter is an interface rather than an SSE call, the Builder is also
-// invocable from a test with a recording fake, which is how the identical
-// mutation/Gate/activation behavior is proven without a transport.
-//
-// # What the seam does not yet cover
-//
-// The split is real for the **terminal** and only the terminal. The in-flight story still
-// leaks the explicit loop's shape in three places, and M7 should expect to widen the
-// interface rather than find it ready:
-//
-//   - `send` is a liveness sink carrying ADR-0002's SSE event names (`spec-preview`,
-//     `narration`, `gate-preview`), authored inside the stages. A non-browser presenter
-//     receives vocabulary it can only ignore.
-//   - A `send` that fails is read as *the build was cancelled*. That is right for a person
-//     who closed their tab, and wrong for a background loop that never had a listener.
-//   - The product-voice wording is written by the stages, not by the presenter, so a
-//     quieter presenter cannot reword or suppress it.
-//
-// None of this is load-bearing for what 4.8/03 promises — mutation, Gate, activation and
-// metrics are already presenter-independent, and the tests prove it with no transport at
-// all. It is deliberately left until there is a second real presenter to shape the wider
-// interface against, rather than guessed at now (4.8/03 review, finding 4).
-//
-// # Staleness (decision 28)
+// # Staleness
 //
 // A resolved request binds a target expectation and the fingerprint of the one active
-// registry catalog the resolver classified against. Both are revalidated *after* the
-// lease is acquired, because only then is the registry stable. Any mismatch — a moved
-// target, a colliding expected-absent id, or a catalog that has since changed — is a
-// **stale refusal**: it starts no provider work, never opens a `running` row, and is
-// never silently rebased, retargeted, or reclassified against the newer catalog. While
-// ownership is still held it writes one direct terminal `failed/stale` admission row with
-// every generation stage skipped, and hands the presenter a `stale` terminal.
+// registry catalog the resolver classified against. Both are revalidated *after* the lease
+// is acquired, because only then is the registry stable. Any mismatch — a moved target, a
+// colliding expected-absent id, or a catalog that has since changed — is a **stale
+// refusal**: it starts no provider work, never opens a `running` row, and is never
+// silently rebased, retargeted or reclassified against the newer catalog. While ownership
+// is still held it writes one direct terminal `failed/stale` admission row with every
+// generation stage skipped, and hands the presenter a `stale` terminal.
 //
 // The fingerprint covers *every* active row, not just the target's, so a queued build is
-// refused even when the change that landed was about some other capability. That is the
-// intended reading and not an oversight: the resolver's answer is a judgment about the
-// whole catalog — which capability owns this, whether it overlaps another, what a proposed
-// separate id should be called — so a catalog that has moved invalidates the judgment, not
-// merely the target. The price is false refusals under concurrency, paid deliberately,
-// because the alternative is acting on a classification of a world that is gone.
+// refused even when the change that landed was about some other capability. That is
+// intended: the resolver's answer is a judgment about the whole catalog, so a catalog that
+// has moved invalidates the judgment, not merely the target. The price is false refusals
+// under concurrency, paid deliberately, because the alternative is acting on a
+// classification of a world that is gone.
 
 import {
   type CommitCapabilityResult,
@@ -124,7 +99,7 @@ export interface StaleBuildRefusal {
   readonly reason: StaleRefusalReason;
   /**
    * The expected incarnation for an evolution. Null only for a new-capability refusal,
-   * which is refused before any incarnation is assigned (decision 28).
+   * which is refused before any incarnation is assigned.
    */
   readonly incarnationId: string | null;
   readonly capabilityId: string | null;
@@ -254,7 +229,7 @@ export function revalidateResolvedRequest(
   if (!current || current.incarnation_id !== target.incarnationId) return refusal("target_missing");
   // The expected-version comparison lives here, before any candidate is authored, so a
   // request aimed at a superseded version is refused as stale rather than reaching the
-  // Diff Engine and being mistaken for a semantic no-op (decision 37).
+  // Diff Engine and being mistaken for a semantic no-op.
   if (current.version !== target.version) return refusal("target_version");
   if (catalog.fingerprint !== request.catalogFingerprint) return refusal("catalog_revision");
   return { kind: "existing_capability", active: current };
@@ -280,7 +255,7 @@ export async function runCoreBuild(input: CoreBuildInput): Promise<BuildPipeline
     );
   } catch (error) {
     // Reservation expiry or cancellation before the lease was ever granted. No durable
-    // generation guarantee is claimed here (decision 28) — there is no row to close.
+    // generation guarantee is claimed here — there is no row to close.
     //
     // A queued build the user cancelled is a cancellation, not a failure. Telling them it
     // failed would be false, and it is precisely the moment they are most likely to press

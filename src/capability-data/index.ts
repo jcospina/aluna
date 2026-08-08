@@ -1,4 +1,4 @@
-// Capability data-table infrastructure — Module 2, Epic 2.2.
+// Capability data-table infrastructure.
 
 export {
   type AdditiveCapabilityMigration,

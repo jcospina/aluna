@@ -1,5 +1,5 @@
-// The closed per-Action test-input projection and its content address (4.7/01,
-// PLAN decision 23). These tests are the mechanical statement of what "total inputs"
+// The closed per-Action test-input projection and its content address.
+// These tests are the mechanical statement of what "total inputs"
 // means: what is in, what is out, and which spec edits can and cannot move a digest.
 
 import { describe, expect, test } from "bun:test";

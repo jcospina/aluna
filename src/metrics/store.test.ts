@@ -1,4 +1,4 @@
-// Tests for the generation-metrics store (Epic 2.7). Each case runs against a
+// Tests for the generation-metrics store. Each case runs against a
 // throwaway db (openDatabase + runMigrations) so the real data file is never
 // touched. The headline guarantees: a complete build row round-trips deep-equal
 // through the read-only connection; the writer is callable with partial knowledge
@@ -100,7 +100,7 @@ describe("generation-metrics store — round-trips and partial writes", () => {
     writeGenerationMetrics(metrics, conns.readwrite);
 
     // Read back through the *read-only* connection — the M8 query surface — proving
-    // the write landed in the shared file (ARCH §7).
+    // the write landed in the shared file.
     const fetched = getGenerationMetrics("build-notes-1", conns.readonly);
     expect(fetched).toEqual({ ...metrics, createdAt: fetched?.createdAt ?? "" });
     expect(fetched?.createdAt).toBeTruthy();

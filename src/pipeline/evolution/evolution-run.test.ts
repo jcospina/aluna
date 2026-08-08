@@ -1,4 +1,4 @@
-// The engine tracer, end to end — Module 4.6/05 (Epic 4.6's acceptance battery; PLAN
+// The engine tracer, end to end (Epic 4.6's acceptance battery; PLAN
 // decisions 13, 21, 22, 24, 27, 37; ADR-0006).
 //
 // The flagship flow: "add a due date to my notes and make it stand out in the list", run
@@ -91,7 +91,7 @@ describe("the due-date tracer", () => {
         "item_presentation",
         "behavior",
       ]);
-      // Unioned: free-text behavior takes all five Handlers (decision 22), item.shows
+      // Unioned: free-text behavior takes all five Handlers, item.shows
       // takes the renderer — every unit is written, none copied.
       expect(outcome.assembly.regeneratedUnits).toEqual([
         "create",
@@ -310,7 +310,7 @@ describe("a behavior-neutral additive change", () => {
     );
 
     // Copied units carry their committed provenance forward rather than acquiring a fresh
-    // digest for bytes nothing regenerated (decision 24).
+    // digest for bytes nothing regenerated.
     const before = verifyCapabilitySnapshot(versionDirectory(env, 1));
     const after = verifyCapabilitySnapshot(versionDirectory(env, 2));
     expect(after.manifest.unit_provenance["read.ts"]).toEqual(
@@ -336,7 +336,7 @@ describe("the canonical no-op", () => {
     expect(getCapability("notes", env.conns.readonly)?.version).toBe(1);
     expect(existsSync(versionDirectory(env, 2))).toBe(false);
     expect(verifyCapabilitySnapshot(versionDirectory(env, 1)).manifest).toEqual(before.manifest);
-    // The measurement is the whole durable effect (decision 37).
+    // The measurement is the whole durable effect.
     expect(result.lifecycles.at(-1)).toMatchObject({
       lifecycleStatus: "success",
       outcome: "no_change",
@@ -351,7 +351,7 @@ describe("the canonical no-op", () => {
 
   test("a key reorder is still the no-op — canonical equality, not raw JSON", async () => {
     // Serialization order is not a product fact: the same spec with its object keys
-    // authored in a different order must not manufacture a version (decision 37).
+    // authored in a different order must not manufacture a version.
     const base = committedSpec();
     const reordered = {
       prompt_context: base.prompt_context,
@@ -398,7 +398,7 @@ describe("an unmapped difference fails closed", () => {
   });
 });
 
-// ── Frozen behavioral intent (4.7/01, PLAN decision 23) ─────────────────────────────
+// ── Frozen behavioral intent ─────────────────────────────
 
 function assertBehavioralProgressBeforeUnits(
   events: readonly { readonly event: string; readonly data: string }[],
@@ -544,7 +544,7 @@ describe("frozen behavioral intent under evolution", () => {
 
     // …and nothing ran. A label rename regenerates `item.ts` alone; the renderer covers no
     // Action and no Handler moved, so there is no code any frozen assertion has not already
-    // judged (4.7/02). This is the living-demo case: an item-only change runs none.
+    // judged. This is the living-demo case: an item-only change runs none.
     expect(secondOutcome.assembly.regeneratedUnits).toEqual(["item"]);
     expectEveryFrozenSuiteSkipped(second, secondOutcome, versionDirectory(env, 3));
   });

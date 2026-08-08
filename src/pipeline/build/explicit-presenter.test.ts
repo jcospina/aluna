@@ -1,4 +1,4 @@
-// The explicit presenter's delivery bound — Module 4.8/03 (PLAN decisions 28, 29, 31;
+// The explicit presenter's delivery bound (PLAN decisions 28, 29, 31;
 // ADR-0002).
 //
 // Terminal delivery is bounded because the build lease is held for the whole of it, so a

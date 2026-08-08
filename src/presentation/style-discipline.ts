@@ -1,5 +1,5 @@
 // Token-discipline for the inline-`style` escape hatch (ADR-0005 §4 as amended
-// 2026-07-01; epic 3.1/01, docs/design-system.md "The inline-`style` escape hatch").
+// 2026-07-01; docs/design-system.md "The inline-`style` escape hatch").
 //
 // The escape hatch relaxed only *off-token style*, never the executable surface. So
 // `sanitizeStyle` works declaration by declaration: it *drops* a declaration that sets

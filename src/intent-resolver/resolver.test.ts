@@ -1,4 +1,4 @@
-// Tests for the classification-only Intent Resolver slice (Epic 2.4).
+// Tests for the classification-only Intent Resolver slice.
 //
 // No test calls a real provider. The fake below records the prompt/schema and
 // validates the returned object through the same provider contract shape the real

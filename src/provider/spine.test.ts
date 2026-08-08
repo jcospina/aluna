@@ -27,7 +27,7 @@ describe("selectWire (the registry, keyed by baseURL)", () => {
   });
 
   test("routes every other endpoint to the generic OpenAI-compatible wire", () => {
-    // The open Chinese coding models are first-class targets (ADR-0003): they reach
+    // The open Chinese coding models are first-class targets: they reach
     // the compatible wire — Chat Completions, not OpenAI's Responses API — by
     // endpoint alone, no code path of their own.
     expect(selectWire("https://api.moonshot.cn/v1")).toBe("openai-compatible"); // Kimi
@@ -54,7 +54,7 @@ describe("createProvider (failure modes surface clearly)", () => {
 
   test("constructs without a network call once a key is present", () => {
     // Building the provider is pure wiring; nothing is sent until `generate` runs.
-    // `not.toThrow()` alone would not notice a request going out, and this is the
+    // `not.toThrow` alone would not notice a request going out, and this is the
     // test standing between a refactor and a billed call on every suite run — so
     // count the requests rather than trusting the construction to be quiet.
     const originalFetch = globalThis.fetch;

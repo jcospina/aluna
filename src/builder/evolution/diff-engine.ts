@@ -1,33 +1,26 @@
-// The Diff Engine — Module 4.6/02 (PLAN decisions 21, 22, 37 and the normative
-// "Total Diff Engine change-fact matrix"; ADR-0006 total unit diffs).
-//
-// One total, monotone change-fact contract. Given the committed spec and the
-// already-validated candidate (4.6/01 rejected every invalid difference before
-// this stage), it converts every admitted committed→candidate difference into a
-// typed change fact and projects the union of those facts onto the four kinds of
-// downstream work the platform must perform: schema/platform work, generated-unit
-// selection, behavioral-test effect, and Gate work. The mapping IS the PLAN's
-// normative matrix — the table there is authoritative, and admitting a new spec
-// fact requires extending both the table and this module (decision 21).
+// The Diff Engine: one total, monotone change-fact contract. Given the committed spec and
+// the already-validated candidate, it converts every admitted committed→candidate
+// difference into a typed change fact and projects the union of those facts onto the four
+// kinds of downstream work — schema/platform work, generated-unit selection,
+// behavioral-test effect, and Gate work. Admitting a new spec fact requires extending both
+// the normative change-fact matrix and this module.
 //
 // Three invariants hold this contract together:
 //
-//   - **Monotone union (decision 21).** Multiple facts union every column; one
-//     fact can never subtract work another fact requires. A unit is copied only
-//     when *no* fact selects it — the matrix positively proving it unaffected.
-//   - **Fails closed on the unknown (decision 21).** After accounting for every
-//     region a change fact covers, the residual of the two canonical specs must
-//     be identical. Any leftover difference — a future admitted fact without a
-//     matrix row, or an immutable region that validation should have frozen — is
-//     an unmapped difference and throws {@link UnmappedChangeFactError} before any
+//   - **Monotone union.** Multiple facts union every column; one fact can never subtract
+//     work another fact requires. A unit is copied only when *no* fact selects it — the
+//     matrix positively proving it unaffected.
+//   - **Fails closed on the unknown.** After accounting for every region a change fact
+//     covers, the residual of the two canonical specs must be identical. Any leftover
+//     difference — a future admitted fact without a matrix row, or an immutable region
+//     validation should have frozen — throws {@link UnmappedChangeFactError} before any
 //     publication, never a silent no-op or an unproven copy.
-//   - **Canonical, not raw (decision 37).** Equality is over the validated
-//     semantic value: object-key order is ignored and set-like facts (dependency
-//     arrays, error cases, error-field sets) use a defined canonical order, while
-//     ordered product facts (`schema.fields`, item/detail `shows`, item
-//     `direction`) preserve order and therefore diff. A zero-fact candidate is the
-//     canonical no-op (decision 37): the caller performs no work and finalizes
-//     `success/no_change`.
+//   - **Canonical, not raw.** Equality is over the validated semantic value: object-key
+//     order is ignored and set-like facts (dependency arrays, error cases, error-field
+//     sets) use a defined canonical order, while ordered product facts (`schema.fields`,
+//     item/detail `shows`, item `direction`) preserve order and therefore diff. A
+//     zero-fact candidate is the canonical no-op: the caller performs no work and
+//     finalizes `success/no_change`.
 
 import {
   type CapabilitySpec,
@@ -42,7 +35,7 @@ import { canonicalCapabilityLabel } from "../../registry/labels.ts";
 // ── The typed change facts ──────────────────────────────────────────────────
 // One variant per matrix row that produces a fact. The invalid-candidate row and
 // the two terminal rows (no-op, unmapped) are not facts: invalidity is rejected
-// upstream in 4.6/01, the no-op is the empty fact set, and the unmapped case
+// upstream, the no-op is the empty fact set, and the unmapped case
 // throws. Field- and Action-scoped facts carry their subject so the union and the
 // dev preview can name exactly what changed.
 
@@ -91,14 +84,18 @@ const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
 
 // ── The work plan the matrix projects ───────────────────────────────────────
 
-// The six generated units the diff selects between: the five Action handlers and
-// the item renderer. Every unit not selected is copied byte-for-byte (decision 21).
+/**
+ * The six generated units the diff selects between: the five Action handlers and
+ * the item renderer. Every unit not selected is copied byte-for-byte.
+ */
 export const GENERATED_UNITS = ["create", "read", "update", "delete", "search", "item"] as const;
 export type GeneratedUnitName = (typeof GENERATED_UNITS)[number];
 
-// The closed vocabulary of platform/schema work the matrix's first column names.
-// Each tag is one cell's worth of platform-owned work — no generated units, no
-// model context. Extending the matrix extends this list.
+/**
+ * The closed vocabulary of platform/schema work the matrix's first column names.
+ * Each tag is one cell's worth of platform-owned work — no generated units, no
+ * model context. Extending the matrix extends this list.
+ */
 export const PLATFORM_WORK_KINDS = [
   "registry_and_view_copy", // capability label → registry row + toolbar/View copy
   "resolver_catalog", // prompt_context → intent-resolver catalog
@@ -131,7 +128,7 @@ export interface DiffGatePlan {
   readonly smoke: boolean;
   /** Design lint runs whenever the item renderer regenerates. */
   readonly designLint: boolean;
-  /** The behavioral tier follows the projected test plan (decision 23). */
+  /** The behavioral tier follows the projected test plan. */
   readonly behavioral: BehavioralTestPlan;
 }
 
@@ -146,12 +143,12 @@ export interface DiffWorkPlan {
 export interface CapabilityDiff {
   readonly facts: readonly ChangeFact[];
   readonly workPlan: DiffWorkPlan;
-  /** True exactly when `facts` is empty — the canonical no-op (decision 37). */
+  /** True exactly when `facts` is empty — the canonical no-op. */
   readonly isNoop: boolean;
 }
 
 /**
- * The fail-closed guard (decision 21): a committed→candidate difference the matrix
+ * The fail-closed guard: a committed→candidate difference the matrix
  * does not map. It carries the residual JSON of both sides so the shared build-error
  * preview surfaces exactly what could not be explained.
  */
@@ -174,7 +171,7 @@ export class UnmappedChangeFactError extends Error {
  * {@link UnmappedChangeFactError} if any difference is left unexplained.
  *
  * Both inputs are the validated canonical value (the committed row's authored view
- * and the 4.6/01-validated candidate), so this never re-checks the invalid-candidate
+ * and the validated candidate), so this never re-checks the invalid-candidate
  * row — it only classifies admitted differences and proves totality.
  */
 export function diffCapabilitySpec(
@@ -217,7 +214,7 @@ function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): read
 
 // schema.fields is the busiest region: order is an ordered product fact, new
 // fields, label/required/lifecycle each map to their own fact. Name and type are
-// immutable (validated in 4.6/01), so they never diff here — they anchor the
+// immutable (validated upstream), so they never diff here — they anchor the
 // residual totality check instead.
 function detectSchemaFacts(
   committed: CapabilitySpec,
@@ -313,7 +310,7 @@ function detectPresentationFacts(
 
 // read_dependencies is one fact per Action whose declared dependency identities
 // changed. The arrays are validated canonical-ordered, but compare as sets so a
-// serialization reorder could never manufacture a fact (decision 37).
+// serialization reorder could never manufacture a fact.
 function detectReadDependencyFacts(
   committed: CapabilitySpec,
   candidate: CapabilitySpec,
@@ -331,7 +328,7 @@ function detectReadDependencyFacts(
 // The behavioral_errors fact names every Action whose error contract changed —
 // the union of the Actions owning each added or removed canonical case. Cases are
 // compared as a set with canonical-ordered fields, so reordering the array or an
-// error's fields is not a change (decision 37).
+// error's fields is not a change.
 function changedBehavioralErrorActions(
   committed: CapabilitySpec,
   candidate: CapabilitySpec,
@@ -391,7 +388,7 @@ type FieldScopedFact = Extract<
 type GlobalScopedFact = Exclude<ChangeFact, FieldScopedFact>;
 
 // Each fact contributes only additions to the sink — the union is monotone by
-// construction, so no fact can ever remove work another fact required (decision 21).
+// construction, so no fact can ever remove work another fact required.
 // Field-scoped facts split out because their work depends on the field's type and
 // its place in the candidate's item.shows.
 function contributeFact(fact: ChangeFact, candidate: CapabilitySpec, sink: WorkSink): void {
@@ -471,7 +468,7 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
       return;
     case "behavior":
       // Free text cannot identify one Action: regenerate all five Handlers and run
-      // the complete candidate suite (decision 22).
+      // the complete candidate suite.
       for (const action of FULL_CAPABILITY_TOOLS) sink.units.add(action);
       sink.fullSuite = true;
       return;
@@ -554,7 +551,7 @@ function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<st
 
 // Deep clone with object keys sorted; arrays keep their order (an ordered product
 // fact), primitives pass through. This is what makes object-key reordering a no-op
-// while preserving ordered facts (decision 37).
+// while preserving ordered facts.
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value !== null && typeof value === "object") {

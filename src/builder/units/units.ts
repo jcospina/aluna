@@ -1,11 +1,11 @@
-// Unit generation — Module 2 Epic 2.5, re-cut by Module 3 Epic 3.4/02 (ARCH §6.2
+// Unit generation (ARCH §6.2
 // "Capability Builder" step 3, ADR-0003 bounded tool-loop, ADR-0004 generated
 // artifact contract as amended by ADR-0005 §2).
 //
 // Module 4.4 extends Module 3's one item renderer + Handler model to the complete
 // fixed Action inventory. The item renderer turns one record into the capability-specific inner
 // markup, generated **knowing** the chosen `collection.layout`; the Handlers receive
-// the presentation adapter (3.4/01) through their injected toolbox and call it instead
+// the presentation adapter through their injected toolbox and call it instead
 // of emitting their own row markup — so create and read render identical item markup by
 // construction, and the list/create Views are gone (the platform renders them
 // deterministically from the spec). Generation is agentic only inside one unit at a
@@ -34,8 +34,10 @@ import { buildUnitPrompt } from "./unit-prompts.ts";
 
 export const DEFAULT_UNIT_FIX_ATTEMPTS = 2;
 
-// The single generated presentation unit's name — the stem of the version-keyed file
-// the router loads it from (`item.ts`, `ITEM_RENDERER_FILE` in src/router/router.ts).
+/**
+ * The single generated presentation unit's name — the stem of the version-keyed file
+ * the router loads it from (`item.ts`, `ITEM_RENDERER_FILE` in src/router/router.ts).
+ */
 export const ITEM_RENDERER_UNIT_NAME = "item";
 
 const generatedUnitSchema = z.strictObject({ content: z.string().min(1) });
@@ -76,7 +78,7 @@ export interface GenerateCapabilityUnitsInput {
   readonly spec: CapabilitySpec;
   readonly dependencyCatalog?: readonly CapabilityRow[];
   // Config knob from PLAN decision 5. Defaults to two attempts: the initial write
-  // plus one fix pass. Reused (not new) for the item renderer (ADR-0005 decision 6).
+  // plus one fix pass. Reused (not new) for the item renderer.
   readonly maxAttempts?: number;
   readonly observer?: UnitGenerationObserver;
 }
@@ -85,7 +87,7 @@ export interface GenerateCapabilityUnitsResult {
   readonly units: readonly GeneratedUnit[];
   readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
   // The one generated presentation surface — the composition input the router binds
-  // into each Handler's presentation adapter (3.4/01), and the content the commit
+  // into each Handler's presentation adapter, and the content the commit
   // stage writes to `item.ts`.
   readonly itemRenderer: string;
 }
@@ -154,7 +156,7 @@ export { buildUnitPrompt } from "./unit-prompts.ts";
  * Generate the complete unit inventory declared by `spec`, in fixed order — the item
  * renderer first (the creative surface, generated knowing `collection.layout`), then
  * each canonical Action Handler through its bounded write→check→fix loop. Every spec
- * declares the fixed five Actions (decision 16), so this always generates item.ts plus
+ * declares the fixed five Actions, so this always generates item.ts plus
  * all five Handlers. Returns the generated units plus the handler map and item-renderer
  * content the gate and commit consume. Throws {@link UnitGenerationError} if any unit
  * never passes its checks.
@@ -202,7 +204,7 @@ export interface GenerateCapabilityUnitInput {
   readonly observer?: UnitGenerationObserver;
   readonly dependencyCatalog?: readonly CapabilityRow[];
   /**
-   * An evolution's prior committed source for this unit (4.6/04). Optional regeneration
+   * An evolution's prior committed source for this unit. Optional regeneration
    * context, never an entitlement: it is re-proven against `spec` here and dropped unless
    * it references nothing outside this unit's current generation contract.
    */
@@ -270,7 +272,7 @@ async function generateUnit(run: UnitGenerationRun): Promise<GeneratedUnit> {
     // Previews are observational: `result.object` is the authoritative outcome and
     // reports the same failure. Handle the stream's rejection the moment the promise
     // exists — on abort, `await result.object` below throws and would otherwise leave
-    // this one unobserved, surfacing as an unhandled rejection at the `abort()` call.
+    // this one unobserved, surfacing as an unhandled rejection at the `abort` call.
     const partialsSettled = observeUnitPartials(
       unit,
       attempt,

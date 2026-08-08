@@ -1,4 +1,4 @@
-// Shared fixtures for the Module 4.6/05 consolidated engine battery. One committed
+// Shared fixtures for the consolidated engine battery. One committed
 // `notes` v1 published on disk with a record already stored, a fake provider that answers
 // whatever the engine asks for, and one `evolve` call that runs the whole engine over it.
 // Not a test file itself; bun never runs it.
@@ -80,7 +80,7 @@ export function committedGate(
  * carry a frozen suite forward. It matters for more than coverage: a carried suite's setup
  * rows were written against v1's schema, so once an evolution adds a column those rows are
  * the Gate's *existing records*, holding a historical `null` in a column that did not exist
- * when the intent was frozen (4.7/04).
+ * when the intent was frozen.
  */
 export function committedTierOnGate(
   spec: CapabilitySpec = committedSpec(),
@@ -357,7 +357,7 @@ export async function evolve(
   const outcome = await runCapabilityEvolution({
     active,
     intentText,
-    // The engine only ever runs behind the resolver (4.8/04); a case that cares about the
+    // The engine only ever runs behind the resolver; a case that cares about the
     // classification itself passes its own.
     resolvedIntent: options.resolvedIntent ?? evolutionIntentFor(active, intentText),
     provider,

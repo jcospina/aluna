@@ -1,4 +1,4 @@
-// Registry read-side payoff (Epic 2.1). The rehydration cases run against a scratch
+// Registry read-side payoff. The rehydration cases run against a scratch
 // db shared with the router, so an injected (or freshly committed) capability shows
 // up in the rehydrated toolbar and a click serves its cached view. Shared setup and
 // fixtures live in app.test-support.ts.
@@ -24,7 +24,7 @@ import {
 } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
 
-// The registry's read-side payoff (Epic 2.1): on load the capability toolbar
+// The registry's read-side payoff: on load the capability toolbar
 // rehydrates from the registry — Aluna remembers you across a refresh. These run
 // against a scratch db shared with the router, so an injected (or freshly committed)
 // capability shows up in the rehydrated toolbar and a click serves its cached view.

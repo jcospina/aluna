@@ -2,11 +2,11 @@
 
 **Describe what you want to keep track of. Aluna turns it into a working personal app while you watch.**
 
-Aluna is an active research prototype for an app that shapes itself around your intent. It begins with a small, dependable shell and no predefined domain model. When you ask for a capability—notes, recipes, a reading diary, or something entirely your own—Aluna uses AI to define it, build it, check it, and keep the result locally.
+Aluna is an active research prototype for an app that shapes itself around your intent. It starts as a small, dependable shell with no predefined domain model. Ask it for a capability—notes, recipes, a reading diary, or something entirely your own—and Aluna uses AI to define that capability, build it, check it, and keep the result on your machine.
 
 [Explore the architecture](https://jcospina.github.io/aluna/) · [Read the canonical architecture](docs/architecture.md) · [Follow the roadmap](docs/modules.md)
 
-> The architecture tour is the only hosted surface. Aluna itself is intentionally not deployed: building capabilities makes paid AI-provider calls, and this proof of concept is designed for a local, single-user runtime with persisted local data.
+> The architecture tour is the only hosted surface. Aluna itself is deliberately not deployed: building a capability makes paid AI-provider calls, and this proof of concept runs locally for a single user, keeping its data on that machine.
 
 ## What you can explore today
 
@@ -16,18 +16,18 @@ Aluna is an active research prototype for an app that shapes itself around your 
 - Open the developer panel to inspect the raw build stages without turning the product into a coding tool.
 - Restart the app and find your capabilities and records still there.
 
-Aluna is in active development, not production software. Today the explicit “build me something new” loop is the working path. Extending an existing capability, one-off cross-capability questions, file handling, behavior-driven proposals, and the experiment dashboard remain on the [roadmap](docs/modules.md).
+Aluna is in active development, not production software. The working path today is the explicit "build me something new" loop. Extending an existing capability, one-off cross-capability questions, file handling, behavior-driven proposals, and the experiment dashboard remain on the [roadmap](docs/modules.md).
 
 ## How Aluna works
 
-Aluna keeps a deliberate boundary between a small platform and everything it creates:
+A deliberate boundary runs between the small platform and everything it creates:
 
 - The platform owns the shell, routing, storage boundaries, shared presentation, and safety checks.
-- AI authors each capability’s data shape, behavior, presentation intent, and executable actions.
+- AI authors each capability's data shape, behavior, presentation intent, and executable actions.
 - A candidate must pass structural, smoke, design, and optionally AI-authored behavioral checks before it can become active.
 - SQLite holds the registry, records, events, and generation metrics; generated code is versioned on disk.
 
-The result is the project’s core experiment: can a personal app become what someone needs without asking them to design schemas, routes, forms, or code?
+The whole arrangement exists to test one question: can a personal app become what someone needs without asking them to design schemas, routes, forms, or code?
 
 For the full model, decisions, and boundaries, see the [visual architecture tour](https://jcospina.github.io/aluna/), [architecture document](docs/architecture.md), [domain language](CONTEXT.md), and [ADRs](docs/adr/).
 
@@ -37,7 +37,7 @@ For the full model, decisions, and boundaries, see the [visual architecture tour
 
 - [Bun](https://bun.sh/) 1.3 or newer
 - Git
-- A C compiler and SQLite extension headers, used to build Aluna’s search-normalization bridge
+- A C compiler and SQLite extension headers, used to build Aluna's search-normalization bridge
 - An API key for OpenAI, Anthropic, or another OpenAI-compatible provider when using AI-powered flows
 
 On macOS, install extension-capable SQLite with Homebrew:
@@ -46,7 +46,7 @@ On macOS, install extension-capable SQLite with Homebrew:
 brew install sqlite
 ```
 
-On Linux, install your distribution’s C build tools and SQLite development package. If your compiler is not available as `cc`, set `CC`; on macOS, if SQLite is outside Homebrew’s standard paths, set `OMNI_CRUD_SQLITE_LIBRARY`.
+On Linux, install your distribution's C build tools and SQLite development package. If your compiler is not available as `cc`, set `CC`. On macOS, if SQLite sits outside Homebrew's standard paths, set `OMNI_CRUD_SQLITE_LIBRARY`.
 
 ### Install and start
 
@@ -69,9 +69,9 @@ Then start the development server:
 bun run dev
 ```
 
-Open [http://localhost:3030](http://localhost:3030), enter a request such as “I want to keep a reading diary with a title, author, rating, and notes,” and watch Aluna put it together. The first run creates `data/omni-crud.db` and applies platform migrations automatically.
+Open [http://localhost:3030](http://localhost:3030), enter a request such as "I want to keep a reading diary with a title, author, rating, and notes," and watch Aluna put it together. The first run creates `data/omni-crud.db` and applies platform migrations automatically.
 
-Provider calls can incur charges. Usage depends on the model, the capability, and whether the behavioral-test tier is enabled.
+Provider calls can incur charges. What you spend depends on the model, the capability, and whether the behavioral-test tier is enabled.
 
 ## Environment variables
 
@@ -99,7 +99,7 @@ Bun loads `.env` automatically. The checked-in [.env.example](.env.example) docu
 | `bun run format` | Formats supported files with Biome. |
 | `bun run build` | Builds the Bun server into `dist/`. |
 | `bun run start` | Starts the built server. Run `bun run build` first. |
-| `bun run reset` | **Deletes local runtime content:** generated capabilities, records, metrics/events, and stored blobs. It keeps the database file and tracked directory placeholders. |
+| `bun run reset` | Deletes local runtime content: generated capabilities, records, metrics/events, and stored blobs. Keeps the database file and the tracked directory placeholders. |
 
 ## Testing
 
@@ -108,8 +108,8 @@ bun run test
 ```
 
 Test files are sharded across worker processes. Each shard is a fresh process, so
-one file cannot leak state into another through a module singleton — cross-file
-order dependence is structurally impossible rather than merely unlikely.
+one file cannot leak state into another through a module singleton: cross-file
+order dependence is structurally impossible, not merely unlikely.
 
 | Flag | What it does |
 | --- | --- |
@@ -120,15 +120,15 @@ order dependence is structurally impossible rather than merely unlikely.
 | `--junit=out.xml` | Writes a merged JUnit report for CI. |
 | `--write-durations` | Refreshes the shard-balancing weights. |
 
-**The run is deterministic.** Files are sorted, then packed longest-first using
-the recorded weights in `scripts/test-durations.json`, so the same files and the
-same `--shards` produce the same assignment on every machine. Refresh the weights
-with `--write-durations` after adding slow tests; balance affects speed only,
-never results.
+The run is deterministic. Files are sorted, then packed longest-first using the
+recorded weights in `scripts/test-durations.json`, so the same files and the same
+`--shards` produce the same assignment on every machine. Refresh the weights with
+`--write-durations` after adding slow tests; balance affects speed only, never
+results.
 
-A worker that dies without reporting — segfault, out-of-memory — is surfaced as a
-first-class failure with its tail output, so a crash can never be misread as a
-pass.
+A worker can die without reporting — a segfault, an out-of-memory kill. The
+runner surfaces that as a first-class failure and prints the worker's tail
+output, so a crash is never misread as a pass.
 
 No test may call a real AI provider. Every test drives the Builder through fake
 providers, so the suite costs nothing to run.
@@ -145,11 +145,11 @@ data/          Local SQLite database and sidecars
 storage/       Local capability-owned file storage
 ```
 
-Generated contents under `capabilities/`, `data/`, and `storage/` are ignored by Git. Their tracked README files document the runtime contracts.
+Git ignores the generated contents of `capabilities/`, `data/`, and `storage/`. The tracked README in each one documents that directory's runtime contract.
 
 ## Security boundary
 
-Aluna is a local proof of concept. Generated code is checked against deterministic contracts and exercised with synthetic data before activation, but it still runs in-process. Those checks protect against accidental model output; they are not a sandbox for deliberately hostile generated code or untrusted public access. Do not expose this runtime as a multi-user service.
+Aluna is a local proof of concept. Before activation, generated code is checked against deterministic contracts and exercised with synthetic data, but it still runs in-process. Those checks catch accidental model output. They are not a sandbox for deliberately hostile generated code, and they are not protection against untrusted public access. Do not expose this runtime as a multi-user service.
 
 ## License
 

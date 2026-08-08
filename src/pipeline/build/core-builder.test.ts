@@ -1,4 +1,4 @@
-// The core Builder / presenter split and lease-head stale revalidation — Module 4.8/03
+// The core Builder / presenter split and lease-head stale revalidation
 // (PLAN decisions 28, 31, 37; ADR-0006; ARCH §6.2 step 1).
 //
 // Two things are proven here, and neither of them involves SSE.

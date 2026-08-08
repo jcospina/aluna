@@ -1,6 +1,6 @@
 // The production `/prompt` pipeline — resolution, then admission (Epics 2.5, 4.8).
 //
-// This is the explicit loop's *route* half, and after 4.8/03 that is all it is. It reads
+// This is the explicit loop's *route* half, and that is all it is. It reads
 // one active registry catalog, classifies the typed prompt against it (with a
 // deterministic duplicate short circuit), and turns a build-shaped classification into a
 // `ResolvedBuildRequest` bound to its target expectation and that catalog's fingerprint.

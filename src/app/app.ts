@@ -56,7 +56,7 @@ import {
  * Whether the developer-only `/demo/*` surfaces are registered. See {@link createApp}
  * for why this is one check rather than per-route configuration.
  *
- * Read per `createApp()` call, not once at import: a module-level constant would be
+ * Read per `createApp` call, not once at import: a module-level constant would be
  * frozen before any test could set `NODE_ENV`, leaving the guard permanently unprovable
  * and free to be deleted under a green suite. `bun run build` defines NODE_ENV as
  * "production", so this still folds to `false` in the bundle.
@@ -77,41 +77,21 @@ export interface AppDeps {
    * missing key does not stop the server from booting — it surfaces in the stream.
    */
   readonly getProvider?: () => Provider;
-  /**
-   * Capability router wiring (Epic 2.3). Defaults to the platform db singletons and
-   * the real file loader; tests inject a scratch db pair (and, where they assert load
-   * ordering, a spy loader).
-   */
+  /** Defaults to the platform db singletons and the real file loader. */
   readonly capabilityRouter?: CapabilityRouterDeps;
-  /**
-   * Build-job queue (Epic 2.5). Defaults to the real prompt pipeline: classify on the
-   * job stream, deflect unsupported intents, or build a new capability. Tests can
-   * still inject deterministic ids and paused pipelines.
-   */
+  /** Defaults to the real prompt pipeline: classify, deflect, or build. */
   readonly buildJobs?: BuildJobQueue;
-  /**
-   * SSE transport heartbeat interval. Defaults below Bun's server idle timeout; tests
-   * lower it to prove silent long-running stages keep the connection open.
-   */
+  /** Defaults below Bun's server idle timeout, so a silent stage keeps the connection. */
   readonly sseHeartbeatMs?: number;
-  /**
-   * Generation-metrics writer (Epic 2.7). Defaults to the real writer on the platform
-   * read-write connection; tests inject a capturing stub so a build's metrics wiring
-   * is assertable without writing to the real data file.
-   */
+  /** Defaults to the real writer on the platform read-write connection. */
   readonly recordMetrics?: RecordMetrics;
   /**
-   * The read-write/read-only pair the build's migration, gate, and commit ride (Epic
-   * 2.5g). Defaults to the platform singletons; tests inject the same scratch pair
-   * they hand the router, so a committed capability is immediately routable without
-   * touching the real data file.
+   * The read-write/read-only pair the build's migration, Gate and commit ride. Tests
+   * inject the same scratch pair they hand the router, so a committed capability is
+   * immediately routable.
    */
   readonly buildDatabases?: PlatformDatabase;
-  /**
-   * Where commit writes a capability's version directory (Epic 2.5g). Defaults to the
-   * tracked `capabilities/` root; tests point it at a throwaway directory so a
-   * committed build's artifacts never land in the repo tree.
-   */
+  /** Where commit writes a capability's version directory. Defaults to `capabilities/`. */
   readonly artifactsRoot?: string;
   /** Atomic admission shared by builds, record routes, and platform writes. */
   readonly mutationCoordinator?: MutationCoordinator;
@@ -214,16 +194,11 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
 function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
   const { registryReadonly } = ctx;
 
-  // Root route — the fixed shell (ARCH §6.1), with its capability toolbar rehydrated
-  // from the registry on load (Epic 2.1): one canonical entry per row, and the shell
-  // flips to `has-capabilities` when at least one exists, so a refresh restores
-  // "Aluna remembers you". A fresh user (empty registry) gets the untouched
-  // cold-start page. The shell file is read per request (Bun file I/O is
-  // microsecond-fast, and `scripts/dev.ts` deliberately does not watch `public/`, so a
-  // browser reload is enough to pick up an edit); content-type is set
-  // explicitly because Hono's router drops Bun's lazily-inferred header. Kept as an
-  // explicit route — not a serveStatic fall-through — so `/` stays greppable and
-  // `app.request("/")`-testable.
+  // The shell file is read per request: Bun file I/O is microsecond-fast and
+  // `scripts/dev.ts` deliberately does not watch `public/`, so a browser reload picks up
+  // an edit. Content-type is set explicitly because Hono's router drops Bun's lazily
+  // inferred header. Kept as an explicit route rather than a serveStatic fall-through so
+  // `/` stays greppable and `app.request("/")`-testable.
   app.get(
     "/",
     () =>
@@ -234,18 +209,14 @@ function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
 }
 
 /**
- * The one surviving deterministic preview surface (epic 3.5) — no provider and no db.
- *
- * The 3.2–3.3 platform-presentation previews are gone (4.8/07), and 4.9's read-gate and
- * deletion-cleanup previews went the same way (4.9/04): a demo is scaffolding for work in
- * progress, so once the behavior it showed is built and covered by tests, the demo comes
- * down with it. The gallery stays because it is the only place the *injected*
- * item-renderer prompt section can be read; production shows the generated output, never
- * the input.
+ * The one surviving deterministic preview surface — no provider and no db. A demo is
+ * scaffolding: once the behavior it showed is built and covered by tests, it comes down.
+ * The gallery stays because it is the only place the *injected* item-renderer prompt
+ * section can be read; production shows the generated output, never the input.
  */
 function registerPreviewDemoRoutes(app: Hono): void {
   // Dev preview for the few-shot design gallery + item-renderer prompt injection
-  // (epic 3.5) — the HITL surface for inspecting the repo-only exemplars and the exact
+  // — the HITL surface for inspecting the repo-only exemplars and the exact
   // "vary, don't copy" prompt section. Deterministic, no provider, no db.
   app.get(
     "/demo/few-shot-gallery",
@@ -263,7 +234,7 @@ function registerPreviewDemoRoutes(app: Hono): void {
 function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
   const { buildJobs, sseHeartbeatMs, registryReadonly } = ctx;
 
-  // Prompt submission enters the build-job lifecycle (Epic 2.5). The POST does
+  // Prompt submission enters the build-job lifecycle. The POST does
   // only synchronous ephemeral job creation and returns the per-build SSE subscriber
   // fragment immediately; intent resolution and later builder stages run from
   // `/build/:id/stream`, never on the POST path.
@@ -403,7 +374,7 @@ export function createApp(deps: AppDeps = {}): Hono {
     registerPreviewDemoRoutes(app);
   }
 
-  // The deterministic capability router (ARCH §6.2, ADR-0004): the fixed
+  // The deterministic capability router: the fixed
   // `/capability/:id/:action` convention the generated UI targets. It validates the
   // action against the registry row's tools, loads the version-keyed handler, builds
   // the scoped context, and wraps the returned fragment — routing is never an AI
@@ -432,7 +403,9 @@ export function createApp(deps: AppDeps = {}): Hono {
   return app;
 }
 
-// The default app, wired to the real provider. src/index.ts serves this.
+/**
+ * The default app, wired to the real provider. src/index.ts serves this.
+ */
 export const platformReadGates = createReadGateCoordinator();
 export const platformMutationCoordinator = createMutationCoordinator();
 export const platformDeletionCleanup = createDeletionCleanupSupervisor({

@@ -1,4 +1,4 @@
-// The spec-preview decorator's drain contract — Module 2, hardened in 4.6/03.
+// The spec-preview decorator's drain contract.
 //
 // Callers drain previews in a `finally` so every `spec-preview` is on the wire before the
 // terminal presentation. That makes the drain a liveness hazard: a stage that throws

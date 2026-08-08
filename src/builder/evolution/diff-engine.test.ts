@@ -1,4 +1,4 @@
-// The Diff Engine table battery — Module 4.6/02 (PLAN decisions 21, 22, 37 and
+// The Diff Engine table battery (PLAN decisions 21, 22, 37 and
 // the normative change-fact matrix). One test per matrix row's fact→work mapping,
 // including every None column; the monotone multi-fact union; the canonical no-op
 // (key/set reorder) versus the ordered-product diffs (field order, item/detail
@@ -428,7 +428,7 @@ describe("fail closed on an unmapped difference (decision 21)", () => {
   });
 
   test("an immutable difference validation should have caught also fails closed", () => {
-    // The Diff Engine trusts 4.6/01 ran; a field type change reaching it anyway is
+    // The Diff Engine trusts validation ran; a field type change reaching it anyway is
     // unexplained by every fact and must fail closed rather than silently copy.
     expect(() =>
       diffOf((draft) => {

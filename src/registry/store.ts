@@ -1,12 +1,12 @@
-// The capability registry access module — Module 2, Epic 2.1 (ARCH §6.3
+// The capability registry access module (ARCH §6.3
 // "Capability Registry", §7, PLAN decision 8).
 //
 // The registry is the source of truth for everything Aluna has become: one lean
 // row per capability — spec + incarnation + version + artifacts pointer. Handlers, the item renderer,
 // and tests are version-keyed caches derived from the spec; this table is the thing
-// they are derived *from* (ARCH §2).
+// they are derived *from*.
 //
-// Access follows the platform's data access model (ARCH §3, §7): the insert
+// Access follows the platform's data access model: the insert
 // rides `db`, the single constrained write path; reads default to `dbReadonly`,
 // the read path on which a write is physically impossible. Both sides of the
 // round-trip validate against the Zod row shape — a malformed row can neither
@@ -22,9 +22,11 @@ import {
   type ReadDependency,
 } from "./spec.ts";
 
-// The registry table, created by platform migration 0002 (src/persistence/migrations.ts).
-// A fixed platform constant (never user input), so interpolating it into the
-// SQL below is safe — same convention as the migrations ledger.
+/**
+ * The registry table, created by platform migration 0002 (src/persistence/migrations.ts).
+ * A fixed platform constant (never user input), so interpolating it into the
+ * SQL below is safe — same convention as the migrations ledger.
+ */
 export const REGISTRY_TABLE = "capability_registry";
 
 export type CapabilityRegistryExpectation =
@@ -82,11 +84,13 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
   });
 }
 
-// Insert one capability row through the read-write connection. The row is
-// validated first — an invalid row throws (ZodError) and writes nothing, which
-// is the loud failure the build's commit step leans on. A duplicate id throws
-// the primary-key violation: duplicates are the resolver's job to deflect
-// (PLAN decision 6 — no collision logic here), so reaching this is a bug.
+/**
+ * Insert one capability row through the read-write connection. The row is
+ * validated first — an invalid row throws (ZodError) and writes nothing, which
+ * is the loud failure the build's commit step leans on. A duplicate id throws
+ * the primary-key violation: duplicates are the resolver's job to deflect
+ * (PLAN decision 6 — no collision logic here), so reaching this is a bug.
+ */
 export function insertCapability(row: CapabilityRow, database: Database = db): CapabilityRow {
   const valid = capabilityRowSchema.parse(row);
   assertActiveReadDependencies(valid, database);
@@ -231,9 +235,11 @@ function resolveActiveDependency(dependency: ReadDependency, database: Database)
   return row;
 }
 
-// Fetch one capability by id, or null when it doesn't exist — the router's
-// lookup for `/capability/:id/:action` (2.3). Reads ride the read-only
-// connection by convention.
+/**
+ * Fetch one capability by id, or null when it doesn't exist — the router's
+ * lookup for `/capability/:id/:action` (2.3). Reads ride the read-only
+ * connection by convention.
+ */
 export function getCapability(id: string, database: Database = dbReadonly): CapabilityRow | null {
   const stored = database
     .query(
@@ -245,10 +251,12 @@ export function getCapability(id: string, database: Database = dbReadonly): Capa
   return stored ? parseStoredRow(stored) : null;
 }
 
-// List every capability — toolbar rehydration on load and the intent resolver's
-// classification context both consume this (ARCH §6.3: the resolver scans every
-// row, which is why the row stays lean). Ordered by id so both consumers see
-// one stable, deterministic order.
+/**
+ * List every capability — toolbar rehydration on load and the intent resolver's
+ * classification context both consume this (ARCH §6.3: the resolver scans every
+ * row, which is why the row stays lean). Ordered by id so both consumers see
+ * one stable, deterministic order.
+ */
 export function listCapabilities(database: Database = dbReadonly): CapabilityRow[] {
   const stored = database
     .query(
@@ -261,11 +269,13 @@ export function listCapabilities(database: Database = dbReadonly): CapabilityRow
   return stored.map(parseStoredRow);
 }
 
-// Whether the registry table exists yet. False on a brand-new platform db that has
-// not run the platform migrations (Epic 1.4). The shell's on-load rehydration
-// consults this so `GET /` renders the cold-start shell *before* the first migration
-// instead of failing on a missing table; every other reader runs post-migration and
-// need not ask.
+/**
+ * Whether the registry table exists yet. False on a brand-new platform db that has
+ * not run the platform migrations. The shell's on-load rehydration
+ * consults this so `GET /` renders the cold-start shell *before* the first migration
+ * instead of failing on a missing table; every other reader runs post-migration and
+ * need not ask.
+ */
 export function isRegistryInitialized(database: Database = dbReadonly): boolean {
   const found = database
     .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")

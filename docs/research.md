@@ -1,4 +1,4 @@
-# Omni-CRUD: Research Grounding & Draft Architecture
+# Omni-CRUD: research grounding and draft architecture
 
 > **Purpose**: Ground the omni-crud concept in existing research and prior art before architectural decisions are made. This is a PoC exploring new UI/UX patterns in the AI era — not a production app.
 >
@@ -8,27 +8,23 @@
 > explored below, including React/Next.js, fully declarative UI rendering, and a
 > process sandbox for the local single-user PoC.
 
----
+## 1. What this is (and isn't)
 
-## 1. What This Is (and Isn't)
+omni-crud is a self-building runtime. The user never writes code or approves implementation plans; they state intent, and the app evolves to fulfill it. Five traits distinguish it:
 
-**omni-crud** is a self-building runtime. The user never writes code or approves implementation plans. They state intent, and the app evolves to fulfill it. The distinguishing traits:
+- **No predefined UI**, except the prompt shell.
+- **No predefined business logic or schemas.**
+- **Intent-driven**: intent arrives explicitly as typed prompts and implicitly as behavioral signals like clicks.
+- **Self-evolving**: capabilities accumulate as the app runs, so each session builds on the last.
+- **Complete event tracking**: every user action is captured, which is what makes retroactive intent inference possible.
 
-- **No predefined UI** (except the prompt shell)
-- **No predefined business logic or schemas**
-- **Intent-driven**: both explicit (typed prompts) and implicit (behavioral signals like clicks)
-- **Self-evolving**: capabilities accumulate as the app runs; each session builds on the last
-- **Complete event tracking**: every user action is captured, enabling retroactive intent inference
-
-It is **not** a code agent (user never sees code), **not** a site builder (no static output, the runtime IS the app), and **not** a low-code platform (no form-based configuration).
+It is not a code agent (the user never sees code), not a site builder (no static output — the runtime *is* the app), and not a low-code platform (no form-based configuration).
 
 The closest published inspiration is [flipbook.page](https://flipbook.page/) — described as "an infinite visual browser generated entirely on demand in real time."
 
----
+## 2. Prior art and related work
 
-## 2. Prior Art & Related Work
-
-### 2.1 Self-Evolving Software Architecture
+### 2.1 Self-evolving software architecture
 
 **SelfEvolve** (arXiv 2604.16314) is the closest published architecture to omni-crud's ambition. It is an agentic pipeline that adds new capabilities to running software at runtime:
 
@@ -39,15 +35,13 @@ The closest published inspiration is [flipbook.page](https://flipbook.page/) —
 
 **Takeaway**: The sandboxed executor + context memory pattern is directly applicable. omni-crud needs a safe evaluation environment for generated UI/logic and a persistent capability context.
 
----
-
 ### 2.2 Generative UI
 
-Three relevant bodies of work:
+The relevant work splits into academic research and industry protocols.
 
 **Academic**:
 - *"Generative UI: LLMs are Effective UI Generators"* (arXiv 2604.09577, 2026) — demonstrates LLMs generating the interface itself, not just selecting from predefined components. Validates the core rendering premise.
-- *"Towards a Working Definition of Designing Generative UI"* (arXiv 2505.15049, DIS 2025) — identifies five core themes: hybrid creation, curation-based workflows, AI-assisted refinement. Positions GenUI as an iterative co-creative process.
+- *"Towards a Working Definition of Designing Generative UI"* (arXiv 2505.15049, DIS 2025) — identifies five core themes, among them hybrid creation, curation-based workflows, and AI-assisted refinement. Positions GenUI as an iterative co-creative process.
 - *"Frontend Diffusion"* (arXiv 2408.00778) — abstract-to-detailed task transitions in UI generation; directly maps to how omni-crud should interpret vague user prompts.
 
 **Industry protocols**:
@@ -60,9 +54,7 @@ Three relevant bodies of work:
 
 **Takeaway**: Don't invent a proprietary UI spec. AG-UI + A2UI are open standards with widespread tooling. The declarative tier (AI generates a spec, renderer interprets) maps cleanly to omni-crud's capability registry approach.
 
----
-
-### 2.3 Intent Detection from Behavioral Signals
+### 2.3 Intent detection from behavioral signals
 
 **UI-JEPA** (arXiv 2409.04081, Apple ML Research) is the state of the art for inferring user intent from UI action sequences:
 - Self-supervised learning with masking strategies over UI interaction embeddings
@@ -77,9 +69,7 @@ Three relevant bodies of work:
 
 **Takeaway**: For the PoC, a simplified intent pipeline is feasible: capture event sequences → send to LLM with context → LLM infers intent → propose feature. Full self-supervised learning (UI-JEPA style) is post-PoC.
 
----
-
-### 2.4 Dynamic Schema Generation
+### 2.4 Dynamic schema generation
 
 **Schema Inference as a Scalable SQL Function** (arXiv 2411.13278) — schema inference as a native DBMS function rather than external framework. Two-phase: local inference + global schema merging. Demonstrated in Apache AsterixDB.
 
@@ -91,33 +81,27 @@ Three relevant bodies of work:
 
 **Takeaway**: SQLite with a JSON column as an escape hatch is the fastest PoC path. Migrate to a proper schema-adaptive store (Postgres JSONB, AsterixDB, or Firestore) once patterns stabilize.
 
----
-
-### 2.5 CRUD Automation & Model-Driven Engineering
+### 2.5 CRUD automation and model-driven engineering
 
 **AutoCRUD** (WebRatio / IFML) — automated CRUD specification from interaction flow models. Reduces ~60% of CRUD boilerplate. The pattern: a declarative spec → UI generation → persistence wiring is proven at scale.
 
 **Automatic CRUD from UML Models** (2025) — model-driven engineering for low-code platforms following MVC/MVP. Validates that a structured intermediate representation (the capability spec) is the right abstraction layer.
 
-**Takeaway**: The capability registry IS the model. It plays the same role as UML in MDE, but generated by AI from natural language rather than drawn by a developer.
+**Takeaway**: The capability registry *is* the model. It plays the same role as UML in MDE, but generated by AI from natural language rather than drawn by a developer.
 
----
-
-### 2.6 Capability Registries & Knowledge Graphs at Runtime
+### 2.6 Capability registries and knowledge graphs at runtime
 
 **SAP Beyond Joule** — knowledge graph driven runtime: one endpoint resolves across all capability patterns. Includes validation with evidence logging (query, response, timestamp, user context). Directly maps to omni-crud's capability registry + event tracking requirement.
 
 **Runtime Knowledge Graph for Smart Home** (IEEE) — design-time authoring vs. runtime resolution. The architecture separates *what capabilities exist* from *how they are invoked at runtime*.
 
-**Takeway**: The capability registry needs:
+**Takeaway**: The capability registry needs:
 1. A semantic layer (what this capability is, when it's useful)
 2. A schema layer (what data it owns)
 3. A UI spec layer (what components render it)
 4. An event log (every invocation, with context)
 
----
-
-## 3. Research Gaps omni-crud Explores
+## 3. Research gaps omni-crud explores
 
 No published work fully unifies these three loops in a single runtime:
 
@@ -127,9 +111,7 @@ No published work fully unifies these three loops in a single runtime:
 
 This is the design space omni-crud occupies. It's novel enough to be worth exploring as a PoC.
 
----
-
-## 4. Draft High-Level Architecture
+## 4. Draft high-level architecture
 
 ### 4.1 Layers
 
@@ -155,8 +137,6 @@ This is the design space omni-crud occupies. It's novel enough to be worth explo
 │  Per-capability tables generated at runtime              │
 └─────────────────────────────────────────────────────────┘
 ```
-
----
 
 ### 4.2 Components
 
@@ -195,7 +175,7 @@ Sends to LLM with full context: current capability registry, recent event log, a
 
 **Diff Engine** — computes the minimal delta between current and new capability spec, so the UI only re-renders what changed. Analogous to React's virtual DOM diffing, but at the capability spec level.
 
-#### Capability Registry
+#### Capability registry
 
 The central artifact. Each capability entry:
 
@@ -223,15 +203,13 @@ The central artifact. Each capability entry:
 
 Stored in a fast, queryable format (SQLite JSON columns for PoC, later Postgres JSONB or a document store).
 
-#### Data Layer
+#### Data layer
 
-Per-capability tables generated at runtime via DDL. Schema evolution via migrations generated by the Capability Builder. For the PoC: SQLite + Drizzle ORM with schema push.
+Per-capability tables are generated at runtime via DDL, and schema evolution runs through migrations generated by the Capability Builder. For the PoC: SQLite + Drizzle ORM with schema push.
 
-Key constraint: **every data mutation writes an event** to the event log with full before/after context, not just the change.
+Key constraint: every data mutation writes an event to the event log with the full before/after context, not just the change.
 
----
-
-### 4.3 The Two Loops
+### 4.3 The two loops
 
 **Loop 1: Explicit (Prompt → Capability)**
 
@@ -266,9 +244,7 @@ User confirms → Capability Builder runs Loop 1 from here
 User ignores → event logged, threshold raised for this pattern
 ```
 
----
-
-### 4.4 Tech Stack Candidates (PoC)
+### 4.4 Tech stack candidates (PoC)
 
 | Layer | Candidate | Rationale |
 |---|---|---|
@@ -281,9 +257,7 @@ User ignores → event logged, threshold raised for this pattern
 | Schema migrations | Drizzle Kit | Generate migrations from spec delta |
 | Component sandboxing | `@mdx-js` or `react-live` | Safe eval of AI-generated component code |
 
----
-
-### 4.5 Critical Open Questions (In Priority Order)
+### 4.5 Critical open questions (in priority order)
 
 1. **Component rendering safety**: AI generates a UI spec — does it generate JSX code (eval risk) or a declarative JSON spec that a fixed renderer interprets? JSON spec is safer and more predictable; JSX gives more flexibility. **Recommended: JSON spec for PoC, migrate to controlled JSX eval if needed.**
 
@@ -295,11 +269,9 @@ User ignores → event logged, threshold raised for this pattern
 
 5. **Capability conflicts and merging**: What happens when a new capability has overlapping schema with an existing one? (e.g., "contacts" and "people" both need a name field.) **Recommended: LLM-mediated merge proposal presented to user before committing.**
 
----
+## 5. What this PoC proves (or disproves)
 
-## 5. What This PoC Proves (or Disproves)
-
-| Hypothesis | How to Test |
+| Hypothesis | How to test |
 |---|---|
 | LLMs can reliably generate valid, renderable UI specs from natural language | Run 20 diverse prompts, measure render success rate |
 | Schema inference from a single user prompt is accurate enough (no clarifying questions needed) | Compare inferred schema to what user actually stored |
@@ -307,9 +279,7 @@ User ignores → event logged, threshold raised for this pattern
 | Capability accumulation feels like "the app learning me" rather than "I built this app" | User study: 5 minutes of use, ask "did it feel like you configured something?" |
 | Event log is rich enough to retroactively understand intent | Replay events; can LLM explain what user was trying to do? |
 
----
-
-## 6. Key References
+## 6. Key references
 
 | Topic | Source |
 |---|---|

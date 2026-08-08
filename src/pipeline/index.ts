@@ -1,4 +1,4 @@
-// The build pipeline — turning a prompt into a committed capability (Module 2).
+// The build pipeline — turning a prompt into a committed capability.
 //
 // The single public entry point for the orchestration layer that sits above the
 // builder stages (`src/builder`): the production `/prompt` pipeline a queued job
@@ -12,9 +12,9 @@
 //                 prompt into a `ResolvedBuildRequest`; `core-builder.ts` takes it from
 //                 there (lease, lease-head stale revalidation, admission row, run) behind a
 //                 presenter interface, and `explicit-presenter.ts` is the explicit loop's
-//                 implementation of that interface — the seam Module 7 reuses (4.8/03)
-//   evolution/  — the one evolution path: candidate assembly (4.6/03) and the
-//                 complete run through publication and activation (4.6/05)
+//                 implementation of that interface — the seam Module 7 reuses
+//   evolution/  — the one evolution path: candidate assembly and the
+//                 complete run through publication and activation
 //   streaming/  — what goes on the wire during a run: dev `*-preview` events and the
 //                 product-voice terminal presentation
 //   metrics-recorder.ts — cross-cutting: one durable metrics row per run, for a v1 build

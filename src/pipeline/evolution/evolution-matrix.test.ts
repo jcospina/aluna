@@ -1,4 +1,4 @@
-// Every change-fact matrix row, end to end — Module 4.6/05 (the normative "Total Diff
+// Every change-fact matrix row, end to end (the normative "Total Diff
 // Engine change-fact matrix" in the Module 4 PLAN; decisions 21, 22; ADR-0006).
 //
 // The fact→work *mapping* is table-tested pure in `builder/evolution/diff-engine.test.ts`.
@@ -287,7 +287,7 @@ describe("every change-fact matrix row, end to end", () => {
     // The reactivate direction needs a hidden field to reactivate, so it is two runs:
     // hide (v2), then bring it back (v3). Soft-hide drops no column, so neither run
     // emits DDL and the value written under v1 is still there at v3 — that is the whole
-    // point of "evolution never destroys" (ARCH §9.3).
+    // point of "evolution never destroys".
     const hidden = withFields(
       committedSpec().schema.fields.map((field) =>
         field.name === "pinned" ? { ...field, lifecycle: "inactive" as const } : field,
@@ -402,7 +402,7 @@ describe("the list-input mode row", () => {
 
     expect(factKinds(result)).toEqual(["list_input_mode"]);
     expect([...outcome.diff.workPlan.platformWork]).toEqual(["list_input_form_normalization"]);
-    // The generated units never see the choice at all (ADR-0006): every one is copied.
+    // The generated units never see the choice at all: every one is copied.
     expect([...outcome.assembly.regeneratedUnits]).toEqual([]);
     expect(result.generatedUnits).toEqual([]);
     expect([...outcome.assembly.additiveMigration.statements]).toEqual([]);

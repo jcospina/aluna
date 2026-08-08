@@ -1,6 +1,6 @@
 // The closed allow-list the runtime enforcer keys on — the *data* half of the
-// closed-value design contract (ADR-0005 §3 & §4; PLAN decision 4). It mirrors the
-// vocabulary authored in epic 3.1/01 whose single source of truth is
+// closed-value design contract. It mirrors the
+// vocabulary whose single source of truth is
 // docs/design-system.md (classes) and public/css/primitives.css (their CSS). The
 // enforcer (enforcer.ts) and the design-lint gate rung (3.6) both key on these sets;
 // vocabulary.test.ts cross-checks ALLOWED_CLASSES against primitives.css so the two

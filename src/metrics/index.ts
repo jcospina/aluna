@@ -1,4 +1,4 @@
-// The generation-metrics store — Module 2, Epic 2.7 (ARCH §6.3 "Generation
+// The generation-metrics store (ARCH §6.3 "Generation
 // Metrics", §6.2, PLAN flow step 8).
 //
 // The single public entry point for the metrics subsystem: the validated row

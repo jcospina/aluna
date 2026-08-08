@@ -1,6 +1,6 @@
-// Behavioral execution *selection* — 4.7/02, PLAN decision 23's execution clause.
+// Behavioral execution *selection* — PLAN decision 23's execution clause.
 //
-// Generation follows total per-Action inputs (4.7/01); execution follows executable impact.
+// Generation follows total per-Action inputs; execution follows executable impact.
 // The selection rules themselves are pinned in `behavioral-execution-plan.test.ts`. These
 // are the facts only the running rung can prove: that a skip really executes nothing, that
 // coverage is one Handler because of how a case runs, and that the Gate's own bounded

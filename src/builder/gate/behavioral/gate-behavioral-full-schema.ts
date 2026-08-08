@@ -49,7 +49,7 @@ export const actionBehavioralTestSuiteSchema = z.strictObject({
 
 /**
  * One Action's frozen tests, content-addressed to the exact closed inputs they were
- * generated from (4.7/01). The digest is what later builds compare: equal digests mean
+ * generated from. The digest is what later builds compare: equal digests mean
  * the Action's total inputs did not change, so its frozen cases carry forward untouched.
  */
 export const frozenActionTestsSchema = z.strictObject({
@@ -61,7 +61,7 @@ export const frozenActionTestsSchema = z.strictObject({
 /**
  * The frozen behavioral intent for one capability version — the artifact published at
  * `tests/behavioral.json` and digested into `snapshot.json`. Frozen before any Handler
- * generation or repair begins, so no Handler byte can ever have informed it (ADR-0006).
+ * generation or repair begins, so no Handler byte can ever have informed it.
  */
 export const frozenBehavioralTestsSchema = z.strictObject({
   actions: z.array(frozenActionTestsSchema).min(1).max(5),

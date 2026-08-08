@@ -159,7 +159,7 @@ Verified 2026-07-23 (America/Bogota):
 2. Click a capability in the left toolbar (e.g. **Experiment journal**). In the
    content-area **Evolve this capability** control, type a change — e.g.
    `Add an optional short conclusion note to each experiment` — and select
-   **Evolve**. Open the developer panel with the `</>` icon only to observe.
+   **Evolve**. Open the developer panel with the `</>` logo only to observe.
 4. Confirm the narration stays warm ("Let me think through that change." → "Here's
    how I'd shape that change…"), the **Evolution candidate** preview fills with the
    accepted candidate JSON (every existing field preserved, the new field `active`),

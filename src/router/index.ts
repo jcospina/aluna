@@ -1,4 +1,4 @@
-// The deterministic capability router — Module 2, Epic 2.3 (ARCH §6.2, ADR-0004).
+// The deterministic capability router.
 //
 // The single public entry point for the router subsystem: the handler contract
 // (the shape generated handlers are authored against and the gate asserts) and the

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="An interactive, plain-language guide to the Aluna architecture."
+      content="How a typed request becomes a working capability in Aluna: the shell, the builder, the Gate, and what gets remembered."
     >
     <title>How Aluna works</title>
     <link rel="icon" href="data:,">
@@ -1665,8 +1665,9 @@
           <span class="eyebrow">The whole idea</span>
           <h1>Thought becomes capability.</h1>
           <p class="hero__lead">
-            A person says what they want to keep track of. Aluna works out the shape, builds the
-            behavior, checks it, and makes it part of one living personal app.
+            A person says what they want to keep track of. Aluna writes the spec, generates the
+            code, and proves it works. The new capability appears in the app they were already
+            using.
           </p>
           <div class="hero__actions">
             <a class="button button--primary" href="#map">
@@ -1716,8 +1717,8 @@
         <div class="principle-band__content reveal">
           <h2>Aluna is internally a platform, but it must always feel like an app.</h2>
           <p>
-            The machinery is real and measurable. The person using Aluna never chooses frameworks,
-            fields, migrations, routes, or generated code.
+            The person using Aluna never chooses a framework, a field type, a migration, a route, or
+            a line of generated code.
           </p>
         </div>
       </section>
@@ -1818,7 +1819,7 @@
                 data-map-key="router"
                 aria-pressed="false"
               >
-                Router
+                Deterministic router
               </button>
               <button
                 class="map-node map-node--generated"
@@ -1851,7 +1852,7 @@
                 data-map-key="sqlite"
                 aria-pressed="false"
               >
-                SQLite records
+                Capability records
               </button>
               <button
                 class="map-node map-node--stored"
@@ -1888,7 +1889,7 @@
             <div>
               <p class="map-detail__copy" id="map-detail-copy">
                 The always-visible place where a person states intent. It knows which capability is
-                active, so a short request can still have the right context.
+                active, so a short request still carries the right context.
               </p>
               <p class="map-detail__rule" id="map-detail-rule">
                 It sends intent. It does not decide what the intent means.
@@ -1905,7 +1906,7 @@
             <h2>Nothing jumps straight to live.</h2>
           </div>
           <p>
-            “Add a due date to my notes” becomes one complete candidate, moves through a total
+            "Add a due date to my notes" becomes one complete candidate, moves through a total
             change plan, and reaches the screen only after a recoverable activation.
           </p>
         </div>
@@ -1955,8 +1956,8 @@
                 <div class="journey-stage__why">
                   <strong>Why it matters</strong>
                   <span id="journey-why"
-                    >Classification stays separate from building, so the same resolved request can
-                    be executed once and measured honestly.</span
+                    >The resolver names the request and the Builder only carries it out, so one
+                    request runs once and the metrics count it once.</span
                   >
                 </div>
               </div>
@@ -1983,8 +1984,8 @@
             <h2>Reads flow. Writes take turns.</h2>
           </div>
           <p>
-            This one rule explains most of Aluna’s data architecture. Reading can stay expressive
-            and concurrent. Every canonical change crosses a small, owned seam.
+            Reading stays expressive and concurrent. Every canonical change crosses one small, owned
+            seam. Most of Aluna's data architecture follows from that split.
           </p>
         </div>
 
@@ -2019,14 +2020,14 @@
               </div>
               <h3>Mutation is constrained.</h3>
               <p>
-                Builds receive bounded tickets. Record changes use short leases. One mutation
-                coordinator ensures that unrelated work never slips into an open transaction.
+                One mutation coordinator hands out bounded tickets to builds and short leases to
+                record changes. Nothing unrelated slips into an open transaction.
               </p>
             </div>
             <ul class="access-points">
               <li>No raw mutation SQL in generated behavior</li>
               <li>Update and delete are bound to a validated record</li>
-              <li>Builds recheck stale context before starting</li>
+              <li>A build rechecks its context before starting, in case it went stale</li>
             </ul>
           </article>
         </div>
@@ -2036,9 +2037,11 @@
           <div>
             <strong>Evolution preserves. Confirmed deletion destroys.</strong>
             <p>
-              Normal evolution adds or soft-hides fields. Permanent capability deletion is a
-              separate, zero-AI path with confirmation, dependency checks, a tombstone, and
-              idempotent cleanup across records, snapshots, files, and owned event payloads.
+              Normal evolution adds or soft-hides fields. Permanent capability deletion takes a
+              separate path with no AI in it. It asks for confirmation, checks what still depends on
+              the capability, writes a tombstone, then clears out records, snapshots, files, and
+              owned event payloads. That cleanup is idempotent, so an interrupted deletion can be
+              run again.
             </p>
           </div>
         </aside>
@@ -2052,7 +2055,7 @@
           </div>
           <p>
             The explicit loop begins with words. The implicit loop begins with a pattern in
-            behavior. Both eventually hand one resolved request to the same build lifecycle.
+            behavior. Both hand one resolved request to the same build lifecycle.
           </p>
         </div>
 
@@ -2102,7 +2105,7 @@
               <div class="loop-node">
                 <span class="loop-node__mark">3</span>
                 <h3>Narrate</h3>
-                <p>The explicit presenter tells a friendly foreground story over SSE.</p>
+                <p>The explicit presenter narrates the build in the foreground over SSE.</p>
               </div>
               <div class="loop-node">
                 <span class="loop-node__mark">4</span>
@@ -2116,8 +2119,8 @@
               </div>
             </div>
             <p class="loop-note">
-              Typed intent proceeds directly. There is no preview-and-steer coding loop, and a
-              one-time data question takes the separate ephemeral read path.
+              Typed intent proceeds directly. There is no preview-and-steer coding loop. A one-time
+              data question takes the separate ephemeral read path instead.
             </p>
           </div>
 
@@ -2142,12 +2145,14 @@
               <div class="loop-node">
                 <span class="loop-node__mark">3</span>
                 <h3>Resolve async</h3>
-                <p>Inference happens away from the interaction path.</p>
+                <p>
+                  The model runs off the interaction path, so nothing the person does waits on it.
+                </p>
               </div>
               <div class="loop-node">
                 <span class="loop-node__mark">4</span>
                 <h3>Ask first</h3>
-                <p>A friendly proposal must be explicitly confirmed.</p>
+                <p>Aluna proposes; the person has to say yes.</p>
               </div>
               <div class="loop-node">
                 <span class="loop-node__mark">5</span>
@@ -2156,8 +2161,9 @@
               </div>
             </div>
             <p class="loop-note">
-              The proposal’s placement, timing, and post-confirmation presentation remain deliberate
-              Module 7 design work. The fixed rule is simpler: nothing builds without confirmation.
+              Where the proposal appears, when it appears, and what the screen does after
+              confirmation are still open Module 7 design work. One rule is already fixed: nothing
+              builds without confirmation.
             </p>
           </div>
         </div>
@@ -2249,8 +2255,8 @@
               <h3>The registry says what Aluna is now.</h3>
               <p>
                 One active row per capability holds the authored spec, incarnation, version, and
-                pointer to a complete snapshot. The resolver reads its lean prompt context on every
-                classification.
+                pointer to a complete snapshot. Every time the resolver classifies a request, it
+                reads a lean prompt context out of those rows.
               </p>
               <span class="memory-sheet__rule">The authored spec is the source of truth.</span>
             </article>
@@ -2265,9 +2271,9 @@
             >
               <h3>Each capability owns a table.</h3>
               <p>
-                Canonical records live in isolated SQLite tables with no foreign keys. Fields are
-                added or soft-hidden during evolution. Cross-capability relationships happen through
-                reads.
+                Canonical records live in isolated SQLite tables with no foreign keys. Evolution
+                adds fields or soft-hides them. Two capabilities relate to each other only at read
+                time.
               </p>
               <span class="memory-sheet__rule"
                 >Evolution is additive. Confirmed deletion is explicit.</span
@@ -2320,8 +2326,9 @@
             >
               <h3>Bytes live outside SQLite.</h3>
               <p>
-                Opaque keys point to an S3-shaped object store. Durable ownership and cleanup keep
-                failed uploads, replacements, record deletion, and capability deletion recoverable.
+                Opaque keys point to an S3-shaped object store. SQLite records durable ownership of
+                every object, so a failed upload, a replacement, a deleted record, and a deleted
+                capability all stay recoverable.
               </p>
               <span class="memory-sheet__rule">The AI uses storage. It never builds storage.</span>
             </article>
@@ -2336,8 +2343,9 @@
             <h2>Stable mechanics, generated meaning.</h2>
           </div>
           <p>
-            Aluna stays coherent because platform code owns the invariants shared by every
-            capability while AI authors the parts that must understand this capability.
+            Aluna stays coherent because the line never moves: platform code owns what every
+            capability shares, and the AI authors only the parts that have to understand this
+            capability.
           </p>
         </div>
 
@@ -2355,10 +2363,10 @@
           <article class="ownership__side ownership__side--generated">
             <h3>The AI authors</h3>
             <ul>
-              <li>The capability’s complete spec and user-facing intent</li>
+              <li>The capability's complete spec and user-facing intent</li>
               <li>Five Action Handlers for create, read, update, delete, and search</li>
-              <li>One item renderer for capability-specific record composition</li>
-              <li>Behavioral tests when the experiment’s test tier is on</li>
+              <li>One item renderer that composes this capability's record</li>
+              <li>Behavioral tests when the experiment's test tier is on</li>
             </ul>
           </article>
         </div>
@@ -2485,7 +2493,7 @@
       prompt: {
         title: "Prompt bar",
         kind: "Platform-owned",
-        copy: "The always-visible place where a person states intent. It knows which capability is active, so a short request can still have the right context.",
+        copy: "The always-visible place where a person states intent. It knows which capability is active, so a short request still carries the right context.",
         rule: "It sends intent. It does not decide what the intent means.",
       },
       toolbar: {
@@ -2498,49 +2506,49 @@
         title: "Platform presentation",
         kind: "Platform-owned",
         copy: "Shared forms, fields, list layouts, modal behavior, and accessible record frames. It reads structural spec facts but never invents capability behavior.",
-        rule: "The platform owns consistent mechanics. Generated code owns capability-specific composition.",
+        rule: "The platform keeps the mechanics consistent. Generated code composes one capability's record from them.",
       },
       tracker: {
         title: "Event tracker",
         kind: "Platform-owned",
-        copy: "A deliberately dumb recorder for clicks, focus, dwell, scroll, and context. It batches evidence for the future implicit loop without making decisions in the browser.",
+        copy: "A deliberately dumb recorder for clicks, focus, dwell, scroll, and context. It batches evidence for the implicit loop still to come, and decides nothing in the browser.",
         rule: "Capture in the shell. Infer on the server.",
       },
       resolver: {
         title: "Intent resolver",
         kind: "Platform-owned orchestration",
-        copy: "Classifies intent as new, extend, presentation change, one-time data question, or reject. It also resolves overlap and produces one friendly label.",
-        rule: "Resolution happens before mutation admission and is never silently redone inside the Builder.",
+        copy: "Classifies intent as new, extend, presentation change, one-time data question, or reject. It also resolves overlap and gives the request one friendly label.",
+        rule: "The resolver runs before the coordinator admits a write. The Builder never quietly redoes that work.",
       },
       coordinator: {
         title: "Mutation coordinator",
         kind: "Platform-owned safety",
-        copy: "The only door to the shared read-write SQLite connection. Builds wait in a bounded queue; record and platform writes take short leases; deletion only tries when the system is clear.",
+        copy: "The only door to the shared read-write SQLite connection. Builds wait in a bounded queue; record and platform writes take short leases; a delete waits until the system is clear.",
         rule: "One write owner at a time. Reads never wait here.",
       },
       builder: {
         title: "Capability builder",
         kind: "Platform-owned orchestration",
-        copy: "Consumes an already-resolved request, produces one complete candidate, emits lifecycle events, runs the Gate, publishes, and activates. It does not own prompt routing or the foreground UI.",
-        rule: "One Builder can serve both explicit prompts and confirmed implicit proposals.",
+        copy: "Takes an already-resolved request, authors one complete candidate, emits lifecycle events, runs the Gate, publishes, and activates. It does not own prompt routing or the foreground UI.",
+        rule: "One Builder handles both explicit prompts and confirmed implicit proposals.",
       },
       router: {
         title: "Deterministic router",
         kind: "Platform-owned",
         copy: "Maps the fixed Action set to generated Handlers, validates methods and target markers, and binds update or delete to the exact record before generated code runs.",
-        rule: "Routing and record selection are never AI concerns.",
+        rule: "The platform decides which Handler runs and which record it touches. The AI does not.",
       },
       units: {
         title: "Generated units",
         kind: "AI-authored, versioned",
-        copy: "Five Action Handlers implement capability behavior. One item renderer composes a record. Tier-on behavioral tests independently express intended behavior.",
-        rule: "Every unit is derived from the complete authored spec and its admitted context.",
+        copy: "Five Action Handlers implement capability behavior. One item renderer composes a record. When the test tier is on, behavioral tests state that behavior in their own words.",
+        rule: "Every unit comes from the complete authored spec and its admitted context.",
       },
       registry: {
         title: "Capability registry",
         kind: "Persisted in SQLite",
         copy: "One active row per capability holds the authored spec, opaque incarnation, current version, and pointer to a complete immutable snapshot.",
-        rule: "The registry is the authority for what is live now.",
+        rule: "The registry decides what is live now.",
       },
       sqlite: {
         title: "Capability records",
@@ -2557,8 +2565,8 @@
       metrics: {
         title: "Events and metrics",
         kind: "Persisted evidence",
-        copy: "The Event Log gives the implicit loop behavioral context. Generation metrics record lifecycle, outcomes, time, models, tokens, Gate work, and overlap decisions.",
-        rule: "The experiment should be answerable from data, not intuition.",
+        copy: "The Event Log gives the implicit loop its behavioral context. Generation metrics record lifecycle, outcomes, time, models, tokens, Gate work, and overlap decisions.",
+        rule: "The experiment gets its answers from these rows.",
       },
       objects: {
         title: "Object store",
@@ -2573,12 +2581,12 @@
         label: "Intent resolver",
         title: "Understand the request in context.",
         copy: "The resolver sees the active capability and the current catalog. It decides whether this is a new capability, an evolution, a presentation change, a one-time data question, or a friendly refusal.",
-        why: "Classification stays separate from building, so the same resolved request can be executed once and measured honestly.",
+        why: "The resolver names the request and the Builder only carries it out, so one request runs once and the metrics count it once.",
       },
       {
         label: "Mutation coordinator",
         title: "Wait for an owned turn.",
-        copy: "The resolved request gets a bounded ticket. At the head of the queue it rechecks the target version and the resolver’s catalog fingerprint before any AI build work begins.",
+        copy: "The resolved request gets a bounded ticket. At the head of the queue it rechecks the target version and the resolver's catalog fingerprint before any AI build work begins.",
         why: "Queued intent cannot quietly run against a different world. A mismatch becomes a measured stale result.",
       },
       {
@@ -2590,7 +2598,7 @@
       {
         label: "Total Diff Engine",
         title: "Turn every change into work.",
-        copy: "Deterministic change facts decide additive schema work, platform View work, which generated units change, and which Gate work runs. Effects only add together.",
+        copy: "Deterministic change facts decide the additive schema work, the platform View work, which generated units change, and which Gate checks run. Effects only add together.",
         why: "Unchanged code is copied only with positive proof. Any admitted fact without a mapping fails closed.",
       },
       {
@@ -2602,13 +2610,13 @@
       {
         label: "Publication and activation",
         title: "Publish safely, then point live.",
-        copy: "Aluna writes and verifies a unique immutable snapshot, publishes it without overwrite, then uses one SQLite transaction for additive DDL, the registry pointer, and success metrics.",
-        why: "That database commit is the point of no return. Before it, the prior version stays live. After it, transport failure cannot undo success.",
+        copy: "Aluna writes and verifies a unique immutable snapshot, publishes it without overwrite, then commits the additive DDL, the registry pointer, and the success metrics in one SQLite transaction.",
+        why: "That database commit is the point of no return. Before it, the prior version stays live. After it, a dropped connection cannot undo the commit.",
       },
       {
         label: "Presenter",
         title: "Show only committed reality.",
-        copy: "The explicit presenter swaps one complete View after activation and refreshes the toolbar only when needed. No-change, stale, cancellation, or failure restores the current canonical View instead.",
+        copy: "The explicit presenter swaps one complete View after activation and refreshes the toolbar only when needed. A no-change, stale, cancelled, or failed build restores the current canonical View instead.",
         why: "The screen follows the registry. It never pretends an unactivated candidate became real.",
       },
     ];
@@ -2631,7 +2639,7 @@
         title: "Give every capability coherent presentation.",
         copy: "Move stable forms, fields, collection layouts, item frames, and the shared detail modal into platform presentation. Keep one generated item renderer inside a closed design-value contract.",
         milestone:
-          "Milestone: capabilities can look distinct without breaking Aluna’s shared interaction language.",
+          "Milestone: capabilities can look distinct without breaking Aluna's shared interaction language.",
       },
       {
         module: "Module 4",
@@ -2656,7 +2664,7 @@
       {
         module: "Module 7",
         title: "Turn behavior into a confirmed proposal.",
-        copy: "Capture rich interaction context, wait for a deterministic server-side gate, resolve patterns asynchronously, and hand an accepted proposal to the existing Builder without reclassification.",
+        copy: "Capture the full interaction context, wait for a deterministic server-side gate, resolve patterns asynchronously, and hand an accepted proposal to the existing Builder without reclassification.",
         milestone: "Milestone: both intent loops are live, and implicit change always asks first.",
       },
       {

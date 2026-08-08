@@ -1,4 +1,4 @@
-// Freezing behavioral intent — Module 4.7/01 (PLAN decision 23; ADR-0006).
+// Freezing behavioral intent.
 //
 // This stage runs *before* any Handler is generated or repaired. That ordering is the
 // whole point: tests that exist before the first Handler byte cannot have been written to
@@ -12,7 +12,7 @@
 // regenerates nothing, while a new required field regenerates exactly `create`/`update`.
 //
 // Which frozen suites then *execute*, the impact-driven run/skip selection and its
-// full-suite fallback, is 4.7/02 and deliberately not decided here.
+// full-suite fallback, is deliberately not decided here.
 
 import type { Provider, TokenUsage } from "../../../provider/index.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../../registry/index.ts";

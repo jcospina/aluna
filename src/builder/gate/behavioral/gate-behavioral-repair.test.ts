@@ -1,4 +1,4 @@
-// Bounded per-Handler repair against frozen behavioral intent — Module 4, Epic 4.7/04
+// Bounded per-Handler repair against frozen behavioral intent
 // (PLAN decisions 22 and 23; ADR-0003 bounded per-unit loop; ADR-0006 frozen tests).
 //
 // The claim under test is one sentence: **repair answers to the frozen suite, never the

@@ -1,33 +1,25 @@
-// The design-lint rung — Module 3, Epic 3.6 (ADR-0005 §4 as amended 2026-07-01,
-// PLAN decision 6 & flow step 5, ARCH §6.2 gate, docs/modules.md §3.6).
+// The design-lint rung: the Gate's last, always-on verdict. It renders the generated item
+// renderer with **synthetic and hostile** field values, within the capability's declared
+// collection layout, and rejects anything outside the closed-value design contract —
+// off-token styling on the token-owned axes (color/font/type/spacing/border), forbidden
+// style constructs (`url(...)`, item-escaping position), field values interpolated into
+// `style`, fabricated classes, executable markup, and unsafe field interpolation.
 //
-// The gate's last, always-on verdict: it renders the generated item renderer with
-// **synthetic and hostile** field values, *within the capability's declared collection
-// layout*, and rejects anything outside the closed-value design contract — off-token
-// styling on the token-owned axes (color/font/type/spacing/border), forbidden style
-// constructs (`url(...)`, item-escaping position), field values interpolated into
-// `style`, fabricated/unknown classes, executable markup, and unsafe field interpolation.
-//
-// Detection reuses the *render-time* enforcer (epic 3.1/02) as the *build-time* rejecter:
-// the presentation adapter neutralizes off-contract markup on every rendered record, so a
+// Detection reuses the *render-time* enforcer as the *build-time* rejecter: the
+// presentation adapter neutralizes off-contract markup on every rendered record, so a
 // renderer whose output the enforcer has to change emitted something off-contract. This
 // rung renders each probe record's inner markup and asks whether `enforceItemMarkup` left
 // it byte-identical; when it didn't, the difference *is* the violation. On top of that it
-// closes the one documented enforcer residual — a *named* CSS color inside a mixed
-// shorthand (`background: white`), which is inert at render time but still off-token — with
-// a build-time raw-color scan (3.1/02 "caught at build time by the design-lint gate rung").
-// Controlled benign contrasts also prove every declared item field affects perceivable
-// composition; AST access alone cannot prove that the value reaches the user.
+// closes the one enforcer residual — a *named* CSS color inside a mixed shorthand
+// (`background: white`), inert at render time but still off-token — with a build-time
+// raw-color scan. Controlled benign contrasts also prove every declared item field affects
+// perceivable composition, which AST access alone cannot.
 //
-// On a violation the affected unit — the item renderer — re-enters the *same* bounded fix
-// loop as the type-check rung: regenerate it with the precise failure fed back
-// (`generateUnitContent`, the shared write step), re-validate the fresh unit's shape/type
-// (`checkGeneratedUnit`, the structural rung's job re-applied — a regenerated renderer
-// never saw structural), then re-render and re-detect. The loop is capped by the existing
-// `DEFAULT_UNIT_FIX_ATTEMPTS` knob (default 2; reused, not new). On exhaustion it throws;
-// the gate wraps that into a fail-closed `CapabilityGateError`, so the build rolls back
-// with no version bump and no pointer flip. A clean pass — or a fix — returns the final
-// item renderer, which the pipeline commits in place of the original.
+// On a violation the item renderer re-enters the *same* bounded fix loop as the type-check
+// rung: regenerate with the precise failure fed back, re-validate the fresh unit's
+// shape/type, then re-render and re-detect. The loop is capped by `DEFAULT_UNIT_FIX_ATTEMPTS`.
+// On exhaustion it throws; the Gate wraps that into a fail-closed `CapabilityGateError`, so
+// the build rolls back with no version bump and no pointer flip.
 
 import {
   collectionLayoutClass,
@@ -430,7 +422,7 @@ function findRecordContentViolation(
  * allow-listed structure, and on-token style. They deliberately carry **no** dangerous URL
  * scheme (`javascript:` / `vbscript:` / `data:`): a field flowing into an allow-listed URL
  * attribute (`<img src>`) is the intended media pattern, and sanitizing a hostile URL
- * *value* there per record is the runtime enforcer's job (3.1/02), not a renderer contract
+ * *value* there per record is the runtime enforcer's job, not a renderer contract
  * violation — injecting one would wrongly reject a legitimate media renderer. A renderer
  * that *hard-codes* a dangerous URL is still caught, by the synthetic probe.
  */
@@ -439,7 +431,7 @@ const HOSTILE_FIELD_VALUES: readonly string[] = [
   '<script>alert(1)</script><img src=x onerror="alert(1)">',
   // Attribute breakout that smuggles an event handler and a fabricated class.
   '"><span class="fabricated-danger" onclick="alert(1)">x</span>',
-  // Style-attribute injection: off-token color, item-escaping position, and a url().
+  // Style-attribute injection: off-token color, item-escaping position, and a url.
   'red; position: fixed; background-image: url("https://evil.example/x.png")',
   // Interactive-element injection via tag breakout — links/buttons/inputs the platform owns.
   '</p><a>tap</a><button type="button">go</button><input value="x">',
@@ -451,7 +443,7 @@ const HOSTILE_FIELD_VALUES: readonly string[] = [
 // The render-time enforcer drops raw hex and color-function values everywhere and rejects
 // named colors on the strict color-only properties, but a *named* color inside a mixed
 // shorthand (`background: white`, a named-color gradient/shadow) is inert yet still passes
-// it — the one documented residual 3.1/02 hands to this build-time rung. This scan closes
+// it — the one documented residual the render-time enforcer hands to this rung. This scan closes
 // it: any CSS named color appearing as a standalone token in a `style` value is off-token.
 
 const STYLE_ATTR_PATTERN = /style\s*=\s*("([^"]*)"|'([^']*)')/gi;

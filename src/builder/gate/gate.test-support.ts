@@ -94,9 +94,11 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
   };
 }
 
-// The handlers render records through the injected `present` adapter (ADR-0005 §2), so
-// the smoke and behavioral rungs exercise the real adapter path — create and read cannot
-// drift. `text: input.values.text,` is kept verbatim so the trim test can patch it.
+/**
+ * The handlers render records through the injected `present` adapter, so
+ * the smoke and behavioral rungs exercise the real adapter path — create and read cannot
+ * drift. `text: input.values.text,` is kept verbatim so the trim test can patch it.
+ */
 export const CREATE_HANDLER = [
   "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
   '  if (String(input.values.text ?? "").trim().length === 0) return \'<div data-role="error" data-error-code="missing_required_fields" data-error-fields="text">Required.</div>\';',
@@ -117,8 +119,10 @@ export const READ_HANDLER = [
   "}",
 ].join("\n");
 
-// A spec-specific conforming renderer. Every test fixture reads only the exact fields
-// declared by item.shows, matching the generated-unit contract the Gate enforces.
+/**
+ * A spec-specific conforming renderer. Every test fixture reads only the exact fields
+ * declared by item.shows, matching the generated-unit contract the Gate enforces.
+ */
 export function itemRendererFor(spec: CapabilitySpec): string {
   const values = spec.ui_intent.item.shows.map((field) => `record.${field}`).join(", ");
   return [
@@ -133,11 +137,13 @@ export function itemRendererFor(spec: CapabilitySpec): string {
   ].join("\n");
 }
 
-// Generic five-Action Handler builders. From the 4.4 cutover every capability is
-// five-Action, so a gate test composes a complete Handler set: a per-test create/read
-// plus these deterministic update/delete/search Handlers derived from the spec. The
-// search Handler mirrors the frozen normalized-substring, AND-across-terms contract the
-// smoke rung's adversarial baseline asserts.
+/**
+ * Generic five-Action Handler builders. From the 4.4 cutover every capability is
+ * five-Action, so a gate test composes a complete Handler set: a per-test create/read
+ * plus these deterministic update/delete/search Handlers derived from the spec. The
+ * search Handler mirrors the frozen normalized-substring, AND-across-terms contract the
+ * smoke rung's adversarial baseline asserts.
+ */
 export const DELETE_HANDLER = [
   "export default async function remove({ mutation }: CapabilityDeleteContext): Promise<string> {",
   "  mutation.delete();",
@@ -145,9 +151,11 @@ export const DELETE_HANDLER = [
   "}",
 ].join("\n");
 
-// A generic create Handler over the spec's active fields — required active fields are
-// validated, every submitted active field is written. Mirrors `updateHandlerFor` for
-// specs the constant CREATE_HANDLER (notes-shaped) does not fit.
+/**
+ * A generic create Handler over the spec's active fields — required active fields are
+ * validated, every submitted active field is written. Mirrors `updateHandlerFor` for
+ * specs the constant CREATE_HANDLER (notes-shaped) does not fit.
+ */
 export function createHandlerFor(spec: CapabilitySpec): string {
   const lines = [
     "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
@@ -181,7 +189,9 @@ export function createHandlerFor(spec: CapabilitySpec): string {
   return lines.join("\n");
 }
 
-// A generic read Handler for any capability: newest records first, target ids only.
+/**
+ * A generic read Handler for any capability: newest records first, target ids only.
+ */
 export function readHandlerFor(spec: CapabilitySpec): string {
   return [
     "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
@@ -253,8 +263,10 @@ export function searchHandlerFor(spec: CapabilitySpec): string {
   ].join("\n");
 }
 
-// Compose a complete five-Action Handler set: the caller's create/read (plus any
-// override) over the generic update/delete/search derived from the spec.
+/**
+ * Compose a complete five-Action Handler set: the caller's create/read (plus any
+ * override) over the generic update/delete/search derived from the spec.
+ */
 export function fullHandlersFor(
   spec: CapabilitySpec,
   base: Readonly<Partial<Record<HandlerUnitName, string>>>,
@@ -391,7 +403,9 @@ interface FullBehavioralFixture {
 }
 
 /** Build the sole steady-state behavioral-suite shape from deterministic row values. */
-// biome-ignore lint/complexity/noExcessiveLinesPerFunction: the explicit case inventory mirrors the provider schema field-for-field.
+/**
+ * biome-ignore lint/complexity/noExcessiveLinesPerFunction: the explicit case inventory mirrors the provider schema field-for-field.
+ */
 export function fullBehavioralSuiteFor(
   spec: CapabilitySpec,
   fixture: FullBehavioralFixture,
@@ -585,7 +599,7 @@ export const MULTI_REQUIRED_VALIDATION_SUITE = fullBehavioralSuiteFor(articlesSp
 /**
  * Group a whole-capability fixture suite into the frozen per-Action artifact, digesting
  * each Action's real closed inputs. This is the shape the pipeline freezes before Handler
- * generation and hands the Gate (4.7/01).
+ * generation and hands the Gate.
  */
 export function frozenBehavioralTestsFor(
   spec: CapabilitySpec,

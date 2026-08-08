@@ -1,5 +1,5 @@
-// The evolution run's streamed liveness — Module 4.6/05, driven through the prompt bar
-// since 4.8/04. Assembly is the long half of a
+// The evolution run's streamed liveness.6/05, driven through the prompt bar
+// Assembly is the long half of a
 // run: several live regenerations plus the Gate. It streams like a v1 build rather than
 // landing as one terminal payload — the derived plan first (it needs no model call), then
 // the units, then the Gate — and a run that dies or is cancelled mid-assembly must close

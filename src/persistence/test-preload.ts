@@ -1,7 +1,7 @@
 // Test preload — pins the SQLite runtime and seals the network before any test
 // file is evaluated.
 //
-// `configureSqliteRuntime()` must run before the process opens its first SQLite
+// `configureSqliteRuntime` must run before the process opens its first SQLite
 // connection (Bun's macOS SQLite is Apple's extension-disabled build, so the
 // platform points Bun at Homebrew's before anything connects). Only `db.ts`
 // called it, at module scope, which made the invariant depend on which test file

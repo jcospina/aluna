@@ -12,7 +12,7 @@ import {
   renderDetailFields,
 } from "./field-renderer.ts";
 
-// The centralized field renderer (epic 3.2/01) is the one platform module that turns
+// The centralized field renderer is the one platform module that turns
 // a spec into create controls and read-only detail — exhaustive over the pantry
 // (string | number | boolean | datetime | date | string[]). These tests cover every pantry type in
 // both modes from one fixture, the platform-owned create-form wiring + close-on-

@@ -1,7 +1,7 @@
-// Behavioral test execution selection — Module 4, Epic 4.7/02 (PLAN decision 23's
+// Behavioral test execution selection (PLAN decision 23's
 // execution clause; ADR-0006 "frozen tests and immutable snapshots"; ARCH §6.2 step 5).
 //
-// Generation follows total per-Action inputs (4.7/01). *Execution* follows executable
+// Generation follows total per-Action inputs. *Execution* follows executable
 // impact, and this module is the whole of that decision:
 //
 //   - a suite this build generated has never run against any code, so it runs;

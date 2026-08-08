@@ -1,11 +1,11 @@
-// Platform entrypoint — Module 1, Epic 1.2: boot the Hono server on Bun.
+// Platform entrypoint: boot the Hono server on Bun.
 //
 // Starts Bun's built-in HTTP server with the Hono app (src/app/app.ts) and logs the
 // URL it is listening on. The port is configurable via the PORT environment
 // variable, defaulting to 3030. Started by `bun run dev` (bun --watch).
 //
 // On boot it first brings the platform-owned schema up to date by running the
-// migrations runner (Epic 1.4) against the read-write connection — synchronously,
+// migrations runner against the read-write connection — synchronously,
 // before serving, so the db is ready the moment the first request arrives.
 
 import { app, platformDeletionCleanup, platformReadGates } from "./app/app.ts";
@@ -70,7 +70,7 @@ const port = Number.isInteger(requestedPort) && requestedPort >= 0 ? requestedPo
 // narration line, then quiet until the structured result lands (the spec-gen stage
 // and, later, the build pipeline's longer stages) — so the default would cut a slow
 // generation off mid-flight. Raised to give a generation room to finish; each stream
-// still ends deterministically on the server's `done` event (ADR-0002), so this only
+// still ends deterministically on the server's `done` event, so this only
 // bounds how long a genuinely *stalled* stream lingers before Bun reclaims it.
 const STREAM_IDLE_TIMEOUT_SECONDS = 120;
 

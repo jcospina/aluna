@@ -1,4 +1,4 @@
-// The dependency-generation catalog — Module 4.6/01 (PLAN decision 1, ADR-0006).
+// The dependency-generation catalog.
 //
 // While mutation ownership is held, candidate generation receives an immutable
 // catalog of every *other* capability's generation identity: exactly
@@ -7,7 +7,7 @@
 // `read_dependencies` — a declared pair that does not resolve here is rejected
 // before DDL or unit generation (candidate-validation.ts).
 //
-// Two exclusions are the contract, not an optimization (PLAN decision 2):
+// Two exclusions are the contract, not an optimization:
 // inactive external fields are not generation context (`active_schema` carries
 // only each dependency's active fields), and the evolving capability itself is
 // absent (self-dependency is implicit and never declared). Freshness is the

@@ -1,4 +1,4 @@
-// Prior-source admissibility — Module 4.6/04 (PLAN decision 21 ¶2; ADR-0006).
+// Prior-source admissibility (PLAN decision 21 ¶2; ADR-0006).
 //
 // Prior source is optional regeneration context, not an entitlement. These tests pin the
 // proof: clean prior source is admitted verbatim, while source that reaches outside the

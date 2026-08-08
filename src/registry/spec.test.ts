@@ -178,7 +178,7 @@ describe("capability spec shape — rejected types & relations", () => {
   test("rejects the `auto` concept — the recorded deviation from ARCH §6.3's example", () => {
     const spec = validSpec({
       schema: {
-        // @ts-expect-error — `auto` does not exist in M2's pantry (PLAN decision 8).
+        // @ts-expect-error — `auto` does not exist in M2's pantry.
         fields: [{ name: "logged_at", type: "datetime", required: false, auto: true }],
       },
     });

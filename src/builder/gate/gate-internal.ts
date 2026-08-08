@@ -64,12 +64,12 @@ export interface LoadedHandlers {
  * loads the build's generated item renderer and binds it to the capability, so the smoke
  * and behavioral rungs exercise handlers through the *exact same* adapter the router
  * injects at runtime. Because create and read both render records through this one adapter,
- * the smoke rung proves their item markup is identical by construction (3.4/02). A renderer
+ * the smoke rung proves their item markup is identical by construction. A renderer
  * that fails to load throws here and fails the rung loudly rather than rendering blank.
  */
 /**
  * A throw from inside the generated item renderer, marked so a rung can tell it apart from
- * a Handler's own failure. It matters for runtime failure attribution (4.7/04): the renderer
+ * a Handler's own failure. It matters for runtime failure attribution: the renderer
  * executes *inside* the Handler call, so without this marker a renderer defect would look
  * like a Handler defect and license rewriting an innocent unit.
  */
@@ -322,14 +322,16 @@ export function assertFragment(
   }
 }
 
-// Compare a stored field value to a behavioral/smoke expected value *by the field's
-// spec type*. This is the success-path analogue of the validation tier's stable error
-// codes: assert on semantic content, not on a byte-identical representation the model
-// can't be made to emit deterministically. Datetimes compare as instants — a handler
-// may legitimately canonicalize "2025-06-01T12:00:00Z" to "2025-06-01T12:00:00.000Z"
-// (a `new Date(...).toISOString()` round-trip) while the model authors the test in the
-// raw input form; the same *moment* is a match. Strings, numbers, and booleans are
-// already normalized by the split data ports, so a value comparison is exact for them.
+/**
+ * Compare a stored field value to a behavioral/smoke expected value *by the field's
+ * spec type*. This is the success-path analogue of the validation tier's stable error
+ * codes: assert on semantic content, not on a byte-identical representation the model
+ * can't be made to emit deterministically. Datetimes compare as instants — a handler
+ * may legitimately canonicalize "2025-06-01T12:00:00Z" to "2025-06-01T12:00:00.000Z"
+ * (a `new Date(...).toISOString` round-trip) while the model authors the test in the
+ * raw input form; the same *moment* is a match. Strings, numbers, and booleans are
+ * already normalized by the split data ports, so a value comparison is exact for them.
+ */
 export function fieldValueMatches(type: FieldType, stored: unknown, expected: unknown): boolean {
   if (type === "datetime") return sameInstant(stored, expected);
   if (type === "string[]") return JSON.stringify(stored) === JSON.stringify(expected);

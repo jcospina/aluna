@@ -1,4 +1,4 @@
-// Execution selection for frozen behavioral suites — 4.7/02, PLAN decision 23's execution
+// Execution selection for frozen behavioral suites — PLAN decision 23's execution
 // clause. Generation follows total inputs; execution follows executable impact. These are
 // the run/skip rules stated as facts about the plan, independent of any Gate machinery.
 

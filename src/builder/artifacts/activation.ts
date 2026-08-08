@@ -1,4 +1,4 @@
-// Recoverable cross-store activation (Module 4.5, decision 27).
+// Recoverable cross-store activation.
 //
 // Filesystem publication has already completed before this module is entered.
 // SQLite then owns the sole point of no return: additive migration, exact registry

@@ -26,3 +26,6 @@ data/*
 
 # macOS Finder metadata
 .DS_Store
+
+# Internal working notes, kept out of the repo
+.internal/

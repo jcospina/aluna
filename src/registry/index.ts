@@ -1,4 +1,4 @@
-// The capability registry — Module 2, Epic 2.1 (ARCH §6.3, PLAN decision 8).
+// The capability registry.
 //
 // The single public entry point for the registry subsystem: the validated spec
 // shape every Module 2 piece consumes (DDL mapper, router, spec generation,

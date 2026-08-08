@@ -185,7 +185,7 @@ describe("capability artifact lifecycle — snapshot shape", () => {
 
     expect(publication.files).toEqual(TIER_OFF_FILES);
     expect(publication.manifest.behavioral_tier).toBe("off");
-    // No tests, and therefore nothing to say about running them (4.7/02).
+    // No tests, and therefore nothing to say about running them.
     expect(publication.manifest.behavioral_tests).toBeUndefined();
     expect(publication.files.some((path) => path.startsWith("tests/"))).toBe(false);
     expect(existsSync(join(publication.directory, "tests"))).toBe(false);
@@ -210,7 +210,7 @@ describe("capability artifact lifecycle — snapshot shape", () => {
   });
 
   test("tier-on records the per-Action run/skip verdict as durable tier metadata", () => {
-    // 4.7/02: the snapshot answers "was this version's frozen intent re-proven against these
+    // The snapshot answers "was this version's frozen intent re-proven against these
     // bytes?" — a question the frozen tests alone cannot answer, since they are identical
     // whether they ran or not.
     const publication = publish({ gate: tierOnGate });

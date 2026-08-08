@@ -1,49 +1,35 @@
-// Prior-source admissibility — Module 4.6/04 (PLAN decision 21 ¶2; ADR-0006).
-//
-// Prior source is optional regeneration context, not an entitlement. Before an affected
-// Handler or `item.ts` receives its old source in a regeneration prompt, deterministic
-// checks must prove that source references nothing outside the candidate unit's **current**
-// generation contract: no inactive or undeclared fields, no undeclared dependency data, no
-// forbidden platform authority, and no imports or other context the fresh unit is not
-// allowed to see. If the proof fails, the unit regenerates *without* old source.
+// Prior-source admissibility: prior source is optional regeneration context, not an
+// entitlement. Before an affected Handler or `item.ts` receives its old source in a
+// regeneration prompt, deterministic checks must prove that source references nothing
+// outside the candidate unit's **current** generation contract. If the proof fails, the
+// unit regenerates *without* old source.
 //
 // The proof is two halves, both run against the **candidate** spec and the candidate's
 // frozen dependency catalog — never the committed ones the source was written for:
 //
-//   - **The unit's static contract.** The same checks a freshly generated unit must pass
-//     (`checkHandlerSourceContract` / `checkItemRendererSourceContract`). This is what
-//     catches an import, raw HTTP, raw mutation SQL, direct connection access, an item
+//   - **The unit's static contract.** The same checks a freshly generated unit must pass,
+//     catching an import, raw HTTP, raw mutation SQL, direct connection access, an item
 //     renderer reading outside `ui_intent.item.shows`, or query SQL against a table this
 //     Action no longer declares.
 //   - **The hidden-name boundary.** No *inactive* field name and no *undeclared capability
 //     table* may appear anywhere in the source — identifier, property name, object key,
-//     string literal, SQL text, or comment. Those are the two names that carry data the
-//     candidate unit is not allowed to see, and a dead string or a leftover comment
-//     smuggles them into the prompt exactly as a live read would.
+//     string literal, SQL text, or comment. A dead string or a leftover comment smuggles
+//     those names into the prompt exactly as a live read would.
 //
-// What is deliberately *not* forbidden is an **active** field of the target that this
-// Action's field list happens not to project. Decision 21 ¶2 says "inactive or undeclared",
-// and an active field is neither: the spec's `behavior` text reaches every Action's prompt
-// verbatim, and the read/search prompts authorize SQL over the target table — so a `read`
-// Handler naming an active column in an ORDER BY is inside its contract, not outside it.
-// Where that boundary is real it is already enforced structurally: `item.shows` by the
-// item renderer's AST field-access check, and dependency scope by the query catalog check.
+// An **active** field the Action's field list happens not to project is deliberately not
+// forbidden: the spec's `behavior` text reaches every Action's prompt verbatim and the
+// read/search prompts authorize SQL over the target table, so a `read` Handler naming an
+// active column in an ORDER BY is inside its contract. Where that boundary is real it is
+// already enforced structurally.
 //
 // Two deliberate properties:
 //
 //   - **It withholds on doubt, never admits on doubt.** The name scan is over raw source
-//     text, so a capability that hides a field named after a common markup or SQL token
-//     (`text`, `value`, `code`) can lose an admission it would have deserved — the platform's
-//     own boilerplate contains those words. That direction is free: the unit regenerates
-//     from the contract alone, which is what a v1 build does. The other direction leaks.
-//   - **It is not a process sandbox** (decision 21). It governs what enters *model context*.
-//     Execution safety is the Gate's, the router's, and the toolbox's job, unchanged.
-//
-// One channel this does not govern, noted so it is not mistaken for one it does: the Gate's
-// design-lint rung quotes a *rejected unit's rendered markup* back into its own repair
-// prompt. That is the Gate's failure feedback over bytes it was handed, not prior source
-// entering a regeneration prompt — `generateUnitContent`, which both repair rungs use, has
-// no prior-source parameter at all.
+//     text, so a capability hiding a field named after a common token (`text`, `value`,
+//     `code`) can lose an admission it deserved. That direction is free — the unit
+//     regenerates from the contract alone, as a v1 build does. The other direction leaks.
+//   - **It is not a process sandbox.** It governs what enters *model context*; execution
+//     safety remains the Gate's, the router's and the toolbox's job.
 
 import ts from "typescript";
 
@@ -67,7 +53,7 @@ export type PriorSourceAdmissibility =
 /**
  * One unit's recorded admissibility decision — the audit line a developer reads in the
  * evolution work plan. Recorded for every unit the work plan regenerates; a copied unit
- * has none, because copy never enters model context at all (4.6/03).
+ * has none, because copy never enters model context at all.
  */
 export interface PriorSourceDecision {
   readonly unit: GeneratedUnitName;

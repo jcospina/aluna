@@ -1,26 +1,23 @@
-// The centralized create/edit/detail field renderer — Module 4, epic 4.3/01
-// (ADR-0005 §1, PLAN decision 1). The single platform module that renders a
-// capability's fields deterministically from its spec, in two modes:
+// The centralized create/edit/detail field renderer: the single platform module that
+// renders a capability's fields deterministically from its spec, in three modes.
 //
-//   • CREATE — the platform-owned <form> of input controls the "New X" button
-//     (3.2/02) opens, with its HTMX wiring and cancel/close behavior baked in.
-//   • EDIT — the same controls, prefilled for the shared modal and wired to update.
-//   • DETAIL — the read-only label/value display the shared modal (3.2/04) shows,
-//     prefilled from a record payload.
+//   • CREATE — the platform-owned <form> of input controls the "New X" button opens,
+//     with its HTMX wiring and cancel/close behavior baked in.
+//   • EDIT   — the same controls, prefilled for the shared modal and wired to update.
+//   • DETAIL — the read-only label/value display the shared modal shows, prefilled from
+//     a record payload.
 //
-// Both modes dispatch on the field-type pantry (string | number | boolean |
-// datetime | date | string[]) through a **total switch**, so an unhandled type cannot ship silently:
-// Module 4's list types and Module 6's file types extend exactly one place (the two
-// switches below), and until they do the type-checker refuses to build. The
-// exhaustiveness keys on registry `FieldType`, the one source of truth for the
-// pantry.
+// Every mode dispatches on the field-type pantry (string | number | boolean | datetime |
+// date | string[]) through a **total switch**, so an unhandled type cannot ship silently:
+// a new field type extends exactly one place (the switches below), and until it does the
+// type-checker refuses to build. The exhaustiveness keys on registry `FieldType`, the one
+// source of truth for the pantry.
 //
-// Presentation only — no capability rule, no canonical state, and no user data
-// cached in the module (ADR-0005 §1; ADR-0004 as amended). Live values arrive at
-// render time as function arguments, so the platform View stays data-free. Every
-// interpolated field name and record value is escaped on the way into markup; the
-// form itself is platform chrome (not generated item markup), so the runtime
-// allow-list enforcer never runs on it.
+// Presentation only — no capability rule, no canonical state, and no user data cached in
+// the module. Live values arrive at render time as function arguments, so the platform
+// View stays data-free. Every interpolated field name and record value is escaped on the
+// way into markup; the form itself is platform chrome rather than generated item markup,
+// so the runtime allow-list enforcer never runs on it.
 
 import { listInputModeForField } from "../list-input/index.ts";
 import {
@@ -58,7 +55,7 @@ export interface RenderableCapability {
   readonly item?: { readonly shows: readonly string[] };
   /**
    * Which fields the read-only DETAIL surface shows, and in what order —
-   * `ui_intent.detail.shows` (ADR-0005 §6). The CREATE form ignores this (it always
+   * `ui_intent.detail.shows`. The CREATE form ignores this (it always
    * renders every field, so a record can be fully entered); only the detail body honors
    * it. Absent (a demo/test that omits it, or a pre-reshape row) → the detail falls back
    * to every field in spec order, so it still renders. Spec validation guarantees each
@@ -69,8 +66,8 @@ export interface RenderableCapability {
 
 /**
  * The DOM event a successful create dispatches (bubbling) once the platform form's
- * close-on-success wiring fires. The list container (3.2/02) and the shared modal
- * (3.2/04) listen for it to close and refresh — exported so those modules key on
+ * close-on-success wiring fires. The list container and the shared modal
+ * listen for it to close and refresh — exported so those modules key on
  * one constant rather than re-typing the string.
  */
 export const RECORD_CREATED_EVENT = "aluna:record-created";
@@ -87,7 +84,7 @@ const EMPTY_VALUE = "—";
 
 /**
  * The id of a capability's live records region — the create form's `hx-target`,
- * rendered by the list container (3.2/02). Derived from the engineering id (itself
+ * rendered by the list container. Derived from the engineering id (itself
  * `[a-z][a-z0-9_]*`, so the result is a safe HTML id) so both modules agree by
  * construction rather than by a copied string literal.
  */
@@ -207,10 +204,10 @@ export function renderEditForm(
 /**
  * Render the read-only detail display for one record: a `<dl>` of humanized field
  * labels and formatted values, in the fields/order the capability's
- * `detail.shows` names (3.3/02; falls back to every field in spec order when
+ * `detail.shows` names (falls back to every field in spec order when
  * absent — see {@link detailFieldOrder}). The record is untrusted live data — every
  * value is escaped and an absent one shows the placeholder — so the module holds no
- * state between renders (ADR-0004).
+ * state between renders.
  */
 export function renderDetailFields(
   capability: RenderableCapability,

@@ -1,33 +1,21 @@
-// The shared read/edit modal — Module 4, epic 4.3/01 (ADR-0005 §1, §3 & §6,
-// PLAN decisions 1, 3 & 7). The single platform modal every capability opens to show
-// one record in full and then edit it explicitly — platform-owned, presentational only:
-// no capability rule, no
-// canonical state (ADR-0005 §1). `modal: true` is never model-authored state; the
-// shared modal is a fixed platform invariant (ADR-0005 §6).
+// The shared read/edit modal: the single platform modal every capability opens to show
+// one record in full and then edit it explicitly. Platform-owned and presentational only
+// — no capability rule, no canonical state. `modal: true` is never model-authored state.
 //
 // Two halves, split the way this repo splits every presentation module:
 //
 //   • MARKUP (this file) — renderDetailModal: the one shared <dialog> instance, and
-//     renderDetailContent: the read-only detail body for one record, rendered through
-//     the centralized field renderer (3.2/01). Pure string functions, deterministically
-//     tested.
-//   • MECHANICS (public/detail-modal.js) — open / close / prefill / focus-trap +
-//     restore. Delegated to the native <dialog>: showModal() traps focus and restores
-//     it to the trigger on close, Escape closes, and ::backdrop dims the page — the
-//     browser owns the hard parts, so the controller only prefills and opens (ARCH §6.1:
-//     "the shell … may open, prefill, and focus the shared modal", never infer intent).
+//     renderDetailContent: the read-only detail body for one record, rendered through the
+//     centralized field renderer. Pure string functions, deterministically tested.
+//   • MECHANICS (public/detail-modal.js) — open / close / prefill / focus-trap and
+//     restore, delegated to the native <dialog>: showModal traps focus and restores it
+//     to the trigger on close, Escape closes, and ::backdrop dims the page. The browser
+//     owns the hard parts, so the controller only prefills and opens.
 //
-// Prefill rides the inert detail template emitted beside each item wrapper, so the
-// full record shows even when the item visually truncates and **no read-single route
-// is added** (ADR-0005 §3). The detail body is materialized by the centralized
-// renderer at list-render time and cloned into this one modal on open;
-// there is no client-side re-implementation of field formatting and no server round-trip.
-//
-// Field selection/order renders in **spec order** here; it defers to
-// `ui_intent.detail.shows` in 3.3/02, and the click-to-open wiring that reads a
-// clicked item's payload into this modal is 3.3/02. Both hook the seams below
-// (renderDetailContent for the body, OPEN_DETAIL_EVENT for the open call) without
-// changing this module.
+// Prefill rides the inert detail template emitted beside each item wrapper, so the full
+// record shows even when the item truncates and no read-single route is needed. The body
+// is materialized by the centralized renderer at list-render time and cloned into this one
+// modal on open — no client-side re-implementation of field formatting, no round-trip.
 
 import { ALUNA_RECORD_ID_MARKER } from "../router/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
@@ -41,41 +29,34 @@ import {
 import { itemElementIdForTemplate } from "./list-container.ts";
 
 /**
- * The id of the one shared modal instance. A single element the whole app reuses — the
- * modal is a platform invariant (ADR-0005 §6), not one-per-capability. The controller
- * (public/detail-modal.js) and the click wiring (3.3/02) find it by this id; exported so
- * every consumer keys on one constant rather than a copied string.
+ * The id of the one shared modal instance — a single element the whole app reuses, not
+ * one per capability. Exported so every consumer keys on one constant rather than a
+ * copied string.
  */
 export const DETAIL_MODAL_ID = "aluna-detail-modal";
 
-/** The modal title element's id — the `<dialog aria-labelledby>` target, so the accessible
- *  name is the visible heading. The controller sets its text on open. */
+/** The `<dialog aria-labelledby>` target, so the accessible name is the visible heading. */
 export const DETAIL_MODAL_TITLE_ID = "aluna-detail-modal-title";
 
 /** The modal body region's id — where the controller injects the detail content on open. */
 export const DETAIL_MODAL_BODY_ID = "aluna-detail-modal-body";
 
 /**
- * The DOM event that opens the modal — the seam between the mechanics (here) and
- * whatever triggers an open. The item click-to-open controller (public/item-detail.js)
- * dispatches it after reading a clicked or key-activated item's `data-item`.
- * `detail` carries `{ title, sourceId }`: the title text (set via `textContent`, so it
- * cannot inject markup) and the id of a `<template>` whose already-safe, server-rendered
- * content is cloned into the body. Exported so dispatchers and tests share one name.
+ * The DOM event that opens the modal — the seam between the mechanics and whatever
+ * triggers an open. `detail` carries `{ title, sourceId }`: the title text (set via
+ * `textContent`, so it cannot inject markup) and the id of a `<template>` whose
+ * already-safe, server-rendered content is cloned into the body.
  */
 export const OPEN_DETAIL_EVENT = "aluna:open-detail";
 
 /**
- * Render the one shared detail `<dialog>` instance (empty — content is prefilled on
- * open). A native modal dialog so the browser supplies the focus trap, focus restore to
- * the trigger, Escape-to-close, and the `::backdrop`; the close control is a native
- * `<form method="dialog">` submit so it closes (and restores focus) even if the
- * controller script never loads. `aria-labelledby` points at the heading, so the dialog
- * announces the capability it is showing.
+ * Render the one shared detail `<dialog>` instance, empty — content is prefilled on open.
+ * A native modal dialog, so the browser supplies the focus trap, focus restore, Escape
+ * and the `::backdrop`. The close control is a native `<form method="dialog">` submit, so
+ * it closes even if the controller script never loads.
  *
- * The dialog itself carries no padding: the padded `__panel` is the visible card, so a
- * click on the dialog element is a click on the `::backdrop` (outside the card) — the
- * controller uses that to dismiss. Structural, deterministic, never generated.
+ * The dialog carries no padding: the padded `__panel` is the visible card, so a click on
+ * the dialog element is a click on the `::backdrop`, which the controller uses to dismiss.
  */
 export function renderDetailModal(): string {
   return (
@@ -163,11 +144,11 @@ function renderEditMode(
 
 /**
  * Render the read-only detail body for one record — the modal's prefill content, produced
- * by the **centralized field renderer** (3.2/01) so the create form and the detail modal
+ * by the **centralized field renderer** so the create form and the detail modal
  * can never drift and every record value is escaped exactly once, in one place.
  *
  * This is the modal module's body seam: today it renders every spec field in spec order;
- * 3.3/02 narrows/orders it by `ui_intent.detail.shows`, and M4 adds the edit affordance —
+ * It is narrowed and ordered by `ui_intent.detail.shows` —
  * both extend here, not at the call sites. `record` is untrusted live data the renderer
  * escapes; this function caches nothing between renders (ADR-0004 data-free View).
  */

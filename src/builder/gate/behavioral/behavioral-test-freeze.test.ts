@@ -1,4 +1,4 @@
-// Freezing behavioral intent before any Handler work (4.7/01, PLAN decision 23).
+// Freezing behavioral intent before any Handler work.
 
 import { describe, expect, test } from "bun:test";
 

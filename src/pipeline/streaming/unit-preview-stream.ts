@@ -3,7 +3,7 @@
 // One unit inventory assembles in the panel's Units block as generation runs: each unit
 // appears when it starts, its content grows as partials arrive, a failed check flips it to
 // "fixing", and it lands complete. Extracted from the v1 build path so evolution's partial
-// regeneration (4.6/03) drives the *same* surface: a v1 build and an evolution differ only
+// regeneration drives the *same* surface: a v1 build and an evolution differ only
 // in which units are generated and which arrive already-complete, never in how a developer
 // watches them.
 //
@@ -34,7 +34,7 @@ export interface UnitPreviewStream {
   readonly observer: UnitGenerationObserver;
   /**
    * Place an already-complete unit in the live view without any generation having run —
-   * evolution's byte-copied units, which never enter a generation prompt (decision 21).
+   * evolution's byte-copied units, which never enter a generation prompt.
    */
   record(unit: GeneratedUnit): void;
   /** Send the current snapshot. Throttled unless `force`; silent once aborted. */

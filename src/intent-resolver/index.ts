@@ -1,4 +1,4 @@
-// Intent Resolver - Module 2, Epic 2.4 (ARCH 6.2, PLAN decision 6).
+// Intent Resolver.
 //
 // Public surface for the classification-only slice: prompt + registry context
 // through the provider contract, returning the full intent language even though

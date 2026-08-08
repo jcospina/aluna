@@ -1,7 +1,7 @@
-// The evolution engine's one run — Module 4.6/05 (ARCH §6.2 "Capability Builder"
+// The evolution engine's one run (ARCH §6.2 "Capability Builder"
 // steps 2–7; PLAN decisions 1, 2, 4, 21, 22, 24, 27, 37; ADR-0006).
 //
-// This is the whole engine end to end, and after 4.6/05 it is the *only* evolution
+// This is the whole engine end to end, and it is the *only* evolution
 // path in the platform: freeze the dependency-generation catalog, author one complete
 // candidate spec, validate it totally, diff it into typed change facts and a unioned
 // work plan, then — for a real change — derive additive DDL, regenerate the proven
@@ -11,11 +11,11 @@
 // finalizes `success/activated` together. Only after that commit may the caller swap the
 // complete View.
 //
-// A zero-fact candidate is the canonical no-op (decision 37): no DDL, no unit work, no
+// A zero-fact candidate is the canonical no-op: no DDL, no unit work, no
 // snapshot, no version, no `commit` — just a measured `success/no_change` row.
 //
 // Every run carries the resolver's classification of the typed prompt — there is no
-// hand-supplied stand-in any more (4.8/04). The caller holds the exclusive build lease
+// hand-supplied stand-in any more. The caller holds the exclusive build lease
 // while this runs, so the dependency-generation catalog captured here is the immutable
 // lease-frozen catalog decision 1 requires.
 
@@ -96,7 +96,7 @@ export interface RunCapabilityEvolutionInput {
    * The resolver's classification of {@link intentText}. Required, and narrowed to the two
    * intent types an evolution can answer: a run that reached the engine without a
    * classification — or under one that was never about changing an existing capability —
-   * would be acting on nobody's judgment, and neither is representable (4.8/04). Only the
+   * would be acting on nobody's judgment, and neither is representable. Only the
    * pairing with {@link active} is left to check at runtime.
    */
   readonly resolvedIntent: EvolutionIntentClassification;
@@ -131,7 +131,7 @@ export interface RunCapabilityEvolutionInput {
   readonly faults?: ActivationFaultHooks;
   /**
    * Test-only seam: force one regenerated Handler's first pass to be deliberately wrong, so
-   * the Gate has a real behavioral failure to repair. It is how 4.7/04's bounded repair is
+   * the Gate has a real behavioral failure to repair. It is how the Gate's bounded repair is
    * proven deterministically (`evolution-frozen-repair.test.ts` with
    * `hard-evolution-fixture.test-support.ts`); no composition root supplies it.
    */
@@ -208,7 +208,7 @@ export async function runCapabilityEvolution(
   const isAborted = input.isAborted ?? (() => false);
   // Freeze the immutable active dependency-generation catalog — every other
   // capability's { capability_id, incarnation_id, label, prompt_context,
-  // active_schema } — while mutation ownership is held (decision 1).
+  // active_schema } — while mutation ownership is held.
   const activeRows = listCapabilities(input.database.readonly);
   const dependencyRows = activeRows.filter((row) => row.id !== active.id);
   const dependencyCatalog = buildDependencyGenerationCatalog(activeRows, active.id);
@@ -262,7 +262,7 @@ async function runEvolutionStages(
   const isAborted = input.isAborted ?? (() => false);
   const generated = await authorCandidate(input, state, dependencyCatalog, intent);
 
-  // The Diff Engine (4.6/02): the committed row's authored view against the validated
+  // The Diff Engine: the committed row's authored view against the validated
   // candidate. Total and monotone — an unmapped difference throws.
   state.stage = "diff";
   const diff = diffCapabilitySpec(committedSpecView(active), generated.candidate);
@@ -278,7 +278,7 @@ async function runEvolutionStages(
   if (diff.isNoop) {
     // The measured no-op's durable effect: its own `success/no_change` row. It runs
     // under the held lease, before presentation, so the record survives a dropped
-    // client exactly like an activation does (decision 37).
+    // client exactly like an activation does.
     finalizeMeasuredNoChange(input.recordMetrics, {
       buildId: input.buildId,
       incarnationId: active.incarnation_id,
@@ -393,7 +393,7 @@ async function publishAndActivate(
     units: assembly.units,
     gate: assembly.gate,
     // Copied units keep the provenance they were generated under; only the units this
-    // evolution actually wrote get a fresh active-context digest (decision 24).
+    // evolution actually wrote get a fresh active-context digest.
     unitProvenance: assembly.unitProvenance,
     artifactsRoot: input.artifactsRoot,
     ...(input.beforePublish ? { beforePublish: input.beforePublish } : {}),
@@ -494,7 +494,7 @@ async function assembleCandidate(
       // The durable measurement of the freeze stage, recorded by the assembler the moment it
       // authors the suite. It deliberately does not ride on `progress.onTestsFrozen`: that
       // hook exists for the developer panel and is optional, so a future headless evolution
-      // would silently stop measuring the tokens the tier costs (4.7/03).
+      // would silently stop measuring the tokens the tier costs.
       measurement: acc,
       // The raw provider (not the spec-preview wrapper) generates regenerated units so
       // their partials are not mislabeled as spec previews.
@@ -570,7 +570,7 @@ async function sendAssembledPreviews(
         ...(assembly.behavioralExecution
           ? { behavioralExecution: assembly.behavioralExecution }
           : {}),
-        // …and which row of decision 24's table the two halves together landed on (4.7/03).
+        // …and which row of decision 24's table the two halves together landed on.
         // The one line of the story a tier-off evolution can still tell.
         behavioralTierTransition: assembly.behavioralTierTransition,
         gate: assembly.gate.outcomes.map((outcome) => ({

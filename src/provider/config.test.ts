@@ -1,6 +1,6 @@
-// Tests for provider configuration (Epic 1.5). The BYO-key and single-global-model
+// Tests for provider configuration. The BYO-key and single-global-model
 // rules are the headline guarantees: the key comes from the environment and fails
-// loudly when absent (ARCH §4, ADR-0003), and exactly one model is configured —
+// loudly when absent, and exactly one model is configured —
 // overridable in one place, never selected per call. Each case passes its own env
 // object, so nothing mutates the real process environment.
 

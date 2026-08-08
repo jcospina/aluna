@@ -14,13 +14,13 @@ import {
 import type { RenderableCapability } from "./field-renderer.ts";
 import { renderDetailFields } from "./field-renderer.ts";
 
-// The shared read-only detail modal (epic 3.2/04) is platform chrome — its
+// The shared read-only detail modal is platform chrome — its
 // open/close/prefill/focus invariants are deterministic platform tests, not gate rungs
-// the model can fail (ADR-0005 §4). The hard mechanics (focus trap + restore, Escape,
+// the model can fail. The hard mechanics (focus trap + restore, Escape,
 // backdrop) are delegated to the native <dialog>, so these pin: that the markup IS a
 // native modal dialog wired for those (labelled, native close, empty data-free body),
 // that the body is rendered through the ONE centralized field renderer, and that the
-// client controller agrees with the server on the shared ids + open event + showModal()
+// client controller agrees with the server on the shared ids + open event + showModal
 // (the no-DOM analogue of the container's CSS-parity test).
 
 const SAMPLE: RenderableCapability = {
@@ -61,7 +61,7 @@ describe("renderDetailModal — the one shared dialog instance", () => {
 
   test("is a native <dialog> carrying the shared instance id", () => {
     // A native modal <dialog> is what supplies the focus trap + restore + Escape + backdrop
-    // (via showModal()); pinning the element and its id is pinning those mechanics.
+    // (via showModal); pinning the element and its id is pinning those mechanics.
     expect(modal.startsWith(`<dialog id="${DETAIL_MODAL_ID}"`)).toBe(true);
     expect(modal.trimEnd().endsWith("</dialog>")).toBe(true);
   });
@@ -250,7 +250,7 @@ describe("detail modal — CSS parity", () => {
 describe("detail modal — controller contract parity (server ⇄ client)", () => {
   // No DOM in Bun, so the open/close/focus mechanics live in a browser file this test can
   // only read. It pins that the client agrees with the server on the shared ids + open
-  // event, and that it opens via native showModal() — the source of focus trap + restore.
+  // event, and that it opens via native showModal — the source of focus trap + restore.
   const controller = readFileSync(join(import.meta.dir, "../../public/detail-modal.js"), "utf8");
 
   test("references the same shared ids the server renders", () => {

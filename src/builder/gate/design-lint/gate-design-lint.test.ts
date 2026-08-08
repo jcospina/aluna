@@ -1,4 +1,4 @@
-// Tests for the design-lint gate rung (Epic 3.6).
+// Tests for the design-lint gate rung.
 // biome-ignore-all lint/suspicious/noTemplateCurlyInString: renderer source is authored as string data; the `${...}` placeholders are TypeScript for the generated item.ts, not this file's template literals.
 //
 // Two surfaces: the detector (`findDesignViolation` — does the renderer's composition
@@ -262,7 +262,7 @@ describe("design-lint detector (findDesignViolation)", () => {
   test("passes a media renderer that interpolates an escaped field into <img src>", () => {
     // Flowing a user field into an allow-listed URL attribute is the intended media pattern
     // (the photo-grid exemplar does exactly this). A hostile URL *value* is sanitized
-    // per-record by the runtime enforcer (3.1/02), not rejected here as a renderer violation
+    // per-record by the runtime enforcer, not rejected here as a renderer violation
     // — this guards the false-positive that once flagged that exemplar.
     const media = renderer(
       '`<figure class="media-frame media-frame--square"><img src="${text}" alt="" loading="lazy" decoding="async"></figure>`',
@@ -414,7 +414,7 @@ describe("design-lint final-renderer integrity", () => {
       ),
     ).toBe(true);
     expect(rendererCalls).toHaveLength(1);
-    // The suite was frozen before any of this ran (4.7/01), so a design-lint repair
+    // The suite was frozen before any of this ran, so a design-lint repair
     // cannot reach it: the Gate asks the provider for behavioral tests exactly never.
     expect(behavioralCalls).toHaveLength(0);
   });

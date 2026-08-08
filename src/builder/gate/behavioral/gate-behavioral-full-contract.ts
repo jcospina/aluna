@@ -1,4 +1,4 @@
-// The platform-owned behavioral test contract — Module 4.7/01 (PLAN decision 23).
+// The platform-owned behavioral test contract.
 //
 // Generated tests are model output, so the platform decides what an Action's observable
 // response *is*; a suite that contradicts the response-shape matrix is rejected before it
@@ -139,7 +139,7 @@ function assertCaseContract(spec: CapabilitySpec, testCase: FullBehavioralTestCa
  *
  * This is what makes carrying a suite forward safe. An Action's fixtures depend on the
  * active field set even when its *contract* does not: `read` and `delete` project no
- * schema (decision 23), so hiding a field moves neither digest, yet the prior version's
+ * schema, so hiding a field moves neither digest, yet the prior version's
  * rows still name the hidden field. Catching it here turns that into a regeneration
  * (`behavioral-test-freeze.ts`) instead of a suite that is admitted, frozen, published as
  * intent, and only then rejected by the executor on every retry forever.

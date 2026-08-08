@@ -1,4 +1,4 @@
-// Spec generation — Module 2, Epic 2.5 (ARCH §6.2 "Capability Builder" step 1,
+// Spec generation (ARCH §6.2 "Capability Builder" step 1,
 // §9.1, PLAN decision 8 & flow step 3).
 //
 // The first real stage of the build job's pipeline: prompt + resolved intent → the
@@ -42,26 +42,30 @@ export interface GenerateSpecInput {
   // The resolved intent. In M2 the builder only acts on `new_capability`; the
   // stage reads `proposed_action` and `user_facing_label` for context and
   // narration. Carried as the existing classification type so wiring the resolver
-  // in front (epic 2.4) is a pass-through, no shape change here.
+  // in front is a pass-through, no shape change here.
   readonly intent: IntentClassification;
   // The job's stream. Narration rides it in product voice while the spec generates.
   readonly send: SendBuildEvent;
 }
 
-// What the stage hands the rest of the pipeline: the validated spec plus the two
-// measurements the build's metrics row records (ARCH §6.2). The metrics *writer* is
-// epic 2.7; this stage's job is to produce the numbers, not persist them.
+/**
+ * What the stage hands the rest of the pipeline: the validated spec plus the two
+ * measurements the build's metrics row records. The metrics *writer* is
+ * epic 2.7; this stage's job is to produce the numbers, not persist them.
+ */
 export interface SpecGenResult {
   readonly spec: CapabilitySpec;
   readonly durationMs: number;
   readonly usage: TokenUsage;
 }
 
-// The instructions the model authors the spec from. Engineering language is fine
-// here — this prompt is model-facing, never user-visible (CONTEXT.md / ARCH §9.7's
-// hard rule governs only what the *user* sees; that is the narration, not this).
-// The pantry lists are read off the registry's own enums so the prompt can never
-// drift from the schema that ultimately gates the output.
+/**
+ * The instructions the model authors the spec from. Engineering language is fine
+ * here — this prompt is model-facing, never user-visible (CONTEXT.md / ARCH §9.7's
+ * hard rule governs only what the *user* sees; that is the narration, not this).
+ * The pantry lists are read off the registry's own enums so the prompt can never
+ * drift from the schema that ultimately gates the output.
+ */
 export function buildSpecPrompt(input: GenerateSpecInput): string {
   const fieldTypes = fieldTypeSchema.options.join(" | ");
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
@@ -121,10 +125,12 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
   ].join("\n");
 }
 
-// Run the stage. Narrate in product voice (driven by the intent's
-// `user_facing_label` — never internals: no "spec", no "schema" reaches the user),
-// generate the spec through the contract, validate it as the gate into the
-// pipeline, and capture how long it took and what it cost.
+/**
+ * Run the stage. Narrate in product voice (driven by the intent's
+ * `user_facing_label` — never internals: no "spec", no "schema" reaches the user),
+ * generate the spec through the contract, validate it as the gate into the
+ * pipeline, and capture how long it took and what it cost.
+ */
 export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenResult> {
   // The one user-visible line for this stage. The label is the intent's warm
   // sentence; nothing about how the spec is built crosses into it.

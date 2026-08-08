@@ -2,7 +2,7 @@ import { CandidateValidationError, type CapabilityDiff } from "../../builder/ind
 import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { CapabilityRow } from "../../registry/index.ts";
 
-/** The only two classifications an evolution can answer (4.8/02). */
+/** The only two classifications an evolution can answer. */
 export type EvolutionIntentClassification = IntentClassification & {
   readonly type: "extend_capability" | "ui_change";
 };
@@ -18,7 +18,7 @@ const UI_CHANGE_FACTS = new Set([
 
 /**
  * The resolver's classification, re-checked against the capability the run is actually
- * aimed at. The intent *type* is already narrowed at the type level (4.8/04), so all that
+ * aimed at. The intent *type* is already narrowed at the type level, so all that
  * is left is the pairing: a classification about one capability may never author a
  * candidate for another. `/prompt` resolves `active` **by** `target_capability` and
  * revalidates it at the lease head, so this cannot fire from there — it is the guard for

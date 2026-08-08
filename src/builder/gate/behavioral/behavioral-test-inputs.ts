@@ -1,10 +1,7 @@
-// Canonical per-Action behavioral test inputs — Module 4.7/01 (PLAN decision 23,
-// ADR-0004 behavioral tier, ADR-0006 frozen behavioral intent).
-//
-// Decision 23 fixes the *total* input set one Action's behavioral tests may be
-// generated from: free-text `behavior`, that Action's own `behavioral_errors` plus
-// their stable markers, its declared dependency identities, and a closed schema
-// projection:
+// Canonical per-Action behavioral test inputs: the *total* input set one Action's
+// behavioral tests may be generated from — free-text `behavior`, that Action's own
+// `behavioral_errors` plus their stable markers, its declared dependency identities, and a
+// closed schema projection:
 //
 //   | Action           | Canonical schema test input                                |
 //   | ---------------- | ---------------------------------------------------------- |
@@ -12,20 +9,17 @@
 //   | search           | active string/string[] field names/types                    |
 //   | read, delete     | none; canonical-row/delete mechanics stay in always-on smoke|
 //
-// Handler source is never an input. Neither is anything presentational — field
-// labels, field order, `ui_intent`, the capability label, `prompt_context` — nor a
-// dependency's schema: a dependency contributes its *identity* only. Current active
-// dependency projections are unit-generation context and full physical compatibility
-// schemas are scratch-fixture context; decision 23 keeps both out of the versioned
-// equality input.
+// Handler source is never an input. Neither is anything presentational — field labels,
+// field order, `ui_intent`, the capability label, `prompt_context` — nor a dependency's
+// schema: a dependency contributes its *identity* only.
 //
 // This module is the one place that projection is computed, and it computes it
-// *canonically*: active fields sorted by name, each error case's fields sorted, error
-// cases and dependency identities sorted by their own stable identity, and every
-// object key sorted at serialization. Two specs differing only in a label or a field's
-// position therefore serialize to identical bytes and hash to the same digest — which
-// is what makes "a label-only or field-order-only change regenerates no tests" a
-// mechanical fact about a content address rather than a claim about a prompt.
+// *canonically*: active fields sorted by name, each error case's fields sorted, error cases
+// and dependency identities sorted by their own stable identity, and every object key
+// sorted at serialization. Two specs differing only in a label or a field's position
+// therefore serialize to identical bytes and hash to the same digest — which is what makes
+// "a label-only or field-order-only change regenerates no tests" a mechanical fact about a
+// content address rather than a claim about a prompt.
 
 import {
   activeSpecFields,
@@ -82,7 +76,7 @@ export interface ActionTestInputs {
 /**
  * The synthetic-row vocabulary a generated case may build fixtures from: every active
  * field, whatever the Action is. This is **scratch-fixture context, never a versioned
- * equality input** (decision 23 ¶3) — it reaches the prompt and is deliberately absent
+ * equality input** — it reaches the prompt and is deliberately absent
  * from {@link ActionTestInputs} and therefore from the digest.
  *
  * It has to be said out loud because `read` and `delete` project no schema at all, so

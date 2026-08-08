@@ -57,8 +57,10 @@ function legacyTerminalRow(
   );
 }
 
-// Test-only in-memory lifecycle. The legacy `rows` projection keeps older pipeline
-// assertions readable while `lifecycles` exposes every running/identity/terminal transition.
+/**
+ * Test-only in-memory lifecycle. The legacy `rows` projection keeps older pipeline
+ * assertions readable while `lifecycles` exposes every running/identity/terminal transition.
+ */
 export function makeMetricsRecorder(): {
   rows: GenerationMetrics[];
   resolutionRows: IntentResolutionMetrics[];

@@ -1,4 +1,4 @@
-// The shared live units view — Module 4.6/03. The v1 build and an evolution both drive
+// The shared live units view. The v1 build and an evolution both drive
 // this stream, so the rules it enforces (lifecycle transitions always send, partials are
 // throttled, a byte-copied unit lands complete without any generation) are pinned once
 // here rather than re-proved through each pipeline.

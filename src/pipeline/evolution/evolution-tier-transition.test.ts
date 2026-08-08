@@ -1,4 +1,4 @@
-// The behavioral-tier transition table, end to end — Module 4.7/03 (PLAN decision 24;
+// The behavioral-tier transition table, end to end (PLAN decision 24;
 // ADR-0006). Every one of decision 24's six rows, driven through the real engine over real
 // snapshots on disk, asserting the two durable things a row is a claim about: what the
 // published version *carries* (its tier, its inventory, its per-Action tier metadata) and

@@ -1,4 +1,4 @@
-// Migration apply stage — Module 2, Epic 2.5 (ARCH §6.2 "Capability Builder"
+// Migration apply stage (ARCH §6.2 "Capability Builder"
 // step 2, §9.3, PLAN flow step 4).
 //
 // The stage does not author SQL. It receives the validated capability spec and
@@ -17,8 +17,10 @@ export interface ApplyCapabilityMigrationInput {
   readonly spec: CapabilitySpec;
 }
 
-// What the metrics writer will eventually persist for this stage. The writer is
-// Epic 2.7; this stage produces the measurement and the table identity.
+/**
+ * What the metrics writer will eventually persist for this stage. The writer is
+ * Epic 2.7; this stage produces the measurement and the table identity.
+ */
 export interface CapabilityMigrationResult {
   readonly ddl: CapabilityTableDdl;
   readonly tableName: string;

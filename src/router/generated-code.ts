@@ -10,21 +10,27 @@ import { pathToFileURL } from "node:url";
 import type { ItemRenderer } from "../presentation/index.ts";
 import type { CapabilityHandler } from "./contract.ts";
 
-// How the router turns a row's `artifacts_path` + an action into a runnable
-// handler. Injectable so the gate (2.5) and tests can substitute loading without
-// touching disk; the default loads the real version-keyed file.
+/**
+ * How the router turns a row's `artifacts_path` + an action into a runnable
+ * handler. Injectable so the gate (2.5) and tests can substitute loading without
+ * touching disk; the default loads the real version-keyed file.
+ */
 export type HandlerLoader = (artifactsPath: string, action: string) => Promise<CapabilityHandler>;
 
-// How the router turns a row's `artifacts_path` into that capability's item renderer —
-// the composition input for its presentation adapter (epic 3.4/01, ADR-0005 §2). One
-// renderer per capability, so this takes no action. Injectable for the same reasons as
-// {@link HandlerLoader}; the default loads the version-keyed file 3.4/02 generates.
+/**
+ * How the router turns a row's `artifacts_path` into that capability's item renderer —
+ * the composition input for its presentation adapter. One
+ * renderer per capability, so this takes no action. Injectable for the same reasons as
+ * {@link HandlerLoader}; the default loads the version-keyed file unit generation writes.
+ */
 export type ItemRendererLoader = (artifactsPath: string) => Promise<ItemRenderer>;
 
-// The version-directory filename the item renderer is generated to (epic 3.4/02) and
-// loaded from here — the seam that lets the router build a capability's presentation
-// adapter without knowing how the renderer was written. A sibling of the handler files
-// under the same `artifacts_path`.
+/**
+ * The version-directory filename the item renderer is generated to and
+ * loaded from here — the seam that lets the router build a capability's presentation
+ * adapter without knowing how the renderer was written. A sibling of the handler files
+ * under the same `artifacts_path`.
+ */
 export const ITEM_RENDERER_FILE = "item.ts";
 
 /**
@@ -82,10 +88,12 @@ export async function withHandlerDeadline<T>(
   }
 }
 
-// The default loader: import the incarnation/version-keyed handler file and confirm it honors
-// the export half of the contract — a single default-exported function. A file URL
-// keeps the absolute path importable across platforms; dynamic import caches by
-// path, which is exactly right when `artifacts_path` is incarnation/version-namespaced.
+/**
+ * The default loader: import the incarnation/version-keyed handler file and confirm it honors
+ * the export half of the contract — a single default-exported function. A file URL
+ * keeps the absolute path importable across platforms; dynamic import caches by
+ * path, which is exactly right when `artifacts_path` is incarnation/version-namespaced.
+ */
 export const defaultLoadHandler: HandlerLoader = async (artifactsPath, action) => {
   const file = resolve(process.cwd(), artifactsPath, `${action}.ts`);
   const loaded = (await import(pathToFileURL(file).href)) as { default?: unknown };
@@ -95,11 +103,13 @@ export const defaultLoadHandler: HandlerLoader = async (artifactsPath, action) =
   return loaded.default as CapabilityHandler;
 };
 
-// The default item-renderer loader: import the version-keyed {@link ITEM_RENDERER_FILE}
-// and confirm it default-exports a function (the record → inner-markup renderer). Mirrors
-// {@link defaultLoadHandler} — same file-URL import, same cache-by-path behavior, which is
-// right when `artifacts_path` is incarnation/version-namespaced. Rejects when the file is absent or
-// malformed. M3 requires this file for every committed capability.
+/**
+ * The default item-renderer loader: import the version-keyed {@link ITEM_RENDERER_FILE}
+ * and confirm it default-exports a function (the record → inner-markup renderer). Mirrors
+ * {@link defaultLoadHandler} — same file-URL import, same cache-by-path behavior, which is
+ * right when `artifacts_path` is incarnation/version-namespaced. Rejects when the file is absent or
+ * malformed. M3 requires this file for every committed capability.
+ */
 export const defaultLoadItemRenderer: ItemRendererLoader = async (artifactsPath) => {
   const file = resolve(process.cwd(), artifactsPath, ITEM_RENDERER_FILE);
   const loaded = (await import(pathToFileURL(file).href)) as { default?: unknown };

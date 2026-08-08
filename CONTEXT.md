@@ -1,23 +1,23 @@
 # Aluna
 
-The single-context domain doc for this repo. **Aluna** is internally a platform
+The single-context domain doc for this repo. Internally, Aluna is a platform
 where stated intent becomes a working app: the user describes the capability-level
 outcome they want, and the app builds — and rebuilds — itself to fit. The product
 must always read as a friendly consumer app, never a coding agent, coding platform,
 site builder, or engineering tool (ARCH §1, §9.7).
 
-> The repository name **"omni-crud" is an engineering name** (it contains "CRUD")
-> and must never appear as user-facing branding (ARCH §9.7). **Aluna** is the
-> user-facing brand.
+> "omni-crud" is the repository's engineering name (it contains "CRUD") and must
+> never appear as user-facing branding (ARCH §9.7). Aluna is the user-facing
+> brand.
 
 ## Language
 
-Use these terms verbatim in UI copy, issues, code, tests, and docs. The left
-column is the word to use; `_Avoid_` lists the synonyms to keep out.
+Use these terms verbatim in UI copy, issues, code, tests, and docs. The bolded
+term is the word to use; `_Avoid_` lists the synonyms to keep out.
 
 **Aluna**:
 The product. A Kogi word for the realm of thought/spirit from which the material
-world is born — a precise metaphor for a platform where stated capability-level
+world is born, and so a metaphor for a platform where stated capability-level
 intent becomes a working personal app. Internally it is a self-building runtime;
 to the user it is an app, never a coding agent, coding platform, or site builder.
 The user-facing brand and wordmark.
@@ -90,7 +90,7 @@ An anthropomorphic *spark of Aluna* — a small luminous companion with a face t
 lives on the prompt bar, walks along it, and talks from there. A first-class
 delight feature carrying no business logic. Defined now, deferred to a later issue
 (full spec: [docs/pet.md](docs/pet.md)); its name is a TBD authentic Kogi word (do
-not fabricate one). It is *related to* Aluna but is **not Aluna herself**.
+not fabricate one). It is related to Aluna, but it is **not Aluna herself**.
 _Avoid_: orb (the superseded concept), mascot, avatar, assistant, bot, spinner
 
 **Product voice**:
@@ -113,15 +113,15 @@ _Avoid_: endpoint, route, operation
 The platform-owned, opaque identity for one lifetime of a capability. Evolution
 preserves it; permanent deletion followed by rebuilding the same semantic
 capability id creates a new incarnation. It keys artifact/cache paths, declared
-read dependencies, cleanup work, and generation metrics, and is never user-facing.
+read dependencies, cleanup work, and generation metrics. It is never user-facing.
 _Avoid_: capability version, capability id, generation id
 
 **Owned-resource manifest**:
 The deduplicated, incarnation-bound set of capability-owned resources a deletion
 collects while the capability's table still exists, and which its durable deletion
 tombstone then owes. Each entry names the cleanup adapter that must discharge it,
-so a manifest written by one process stays discharge-able by another; every
-adapter treats an already-absent resource as success.
+so one process can write a manifest that another process discharges. Every adapter
+treats an already-absent resource as success.
 _Avoid_: cleanup list, orphan list, file list
 
 **Mutation coordinator**:
@@ -139,19 +139,18 @@ _Avoid_: busy flag, build-only queue, mutation lock check
 Everything between an already-resolved build request and a changed platform: the
 bounded ticket, the exclusive lease, lease-head revalidation, the durable
 admission row, and the run itself — spec or candidate, migration, units, Gate,
-publication, activation. It owns no prompt route, no active DOM, and no SSE; it
-takes a **resolved build request** and a **build presenter**, and emits one
-terminal lifecycle event into that presenter while its lease is still held. This
-is the reuse seam: the explicit loop resolves a typed prompt and supplies the
-foreground presenter, while Module 7's implicit loop will hand over an
-already-confirmed proposal in the same shape — never reclassified — and choose a
-presenter of its own. Mutation, staging, Gate, activation, and metrics are
-identical either way (PLAN decision 31, ADR-0006, ARCH §6.2). The seam is
-**terminal-only today**: the in-flight liveness sink still carries ADR-0002 SSE
-event names, a dead sink is read as cancellation, and the product-voice narration
-is authored inside the stages. Module 7 can swap the terminal presenter but not
-yet the in-flight story; widening it waits for a second real presenter to shape
-it against.
+publication, activation. It owns no prompt route, no active DOM, and no SSE. It
+takes a **resolved build request** and a **build presenter**, and emits one terminal
+lifecycle event into that presenter while its lease is still held. This is the
+reuse seam: the explicit loop resolves a typed prompt and supplies the foreground
+presenter, while Module 7's implicit loop will hand over an already-confirmed
+proposal in the same shape — never reclassified — and choose a presenter of its
+own. Mutation, staging, Gate, activation, and metrics are identical either way
+(PLAN decision 31, ADR-0006, ARCH §6.2). Today the seam is terminal-only: the
+in-flight liveness sink still carries ADR-0002 SSE event names, a dead sink is
+read as cancellation, and the product-voice narration is authored inside the
+stages. Module 7 can swap the terminal presenter but not yet the in-flight story;
+widening it waits for a second real presenter to shape it against.
 _Avoid_: build pipeline, the builder service, prompt pipeline
 
 **Resolved build request**:
@@ -249,15 +248,14 @@ _Avoid_: template, page, screen
 
 **Gate**:
 The layered, fail-closed validation every publishable candidate must clear before
-commit —
-type-check, signature assertion, smoke run, and (when the tier is on) behavioral
-tests; Module 3 adds design lint for generated item markup. Runs against a
-scratch database through adapters that expose only synthetic data; structural/
-static checks reject known direct bypasses. Generated execution remains
-in-process, so this is accidental-output protection rather than hostile-code
-containment (ADR-0003, ADR-0004, ADR-0005).
+commit — type-check, signature assertion, smoke run, and (when the tier is on)
+behavioral tests; Module 3 adds design lint for generated item markup. It runs
+against a scratch database through adapters that expose only synthetic data, and
+its structural/static checks reject known direct bypasses. Generated code still
+executes in-process, so the Gate protects against accidental output rather than
+containing hostile code (ADR-0003, ADR-0004, ADR-0005).
 _Avoid_: CI, checks, test suite. Unqualified "gate" always means this one — the
-per-incarnation **read gate** below is a different thing and is never shortened.
+per-incarnation read gate below is a different thing and is never shortened.
 
 **Read gate**:
 The per-incarnation admission state deletion drains against. It is `active` or
@@ -315,16 +313,17 @@ _Avoid_: affected tests, dirty tests, invalidation
 
 ## Product voice
 
-The voice every piece of UI copy speaks in, and the guide every future coding
-agent follows when it writes copy. (Authored here, in the durable doc, because it
-steers all generated copy — not just this issue's.)
+The voice every piece of UI copy speaks in, and the guide every coding agent
+follows when it writes copy. It lives in this durable doc, not in the issue that
+first needed it, because it steers all generated copy.
 
-- **Persona:** warm, encouraging, gently curious. Speaks in **first person**,
-  addresses the user directly ("you"). Plainspoken and concise, with a quiet
-  thread of wonder. Friendly and clear — not cutesy, not cryptic.
-- **Hard rule (ARCH §9.7):** never expose internals. No "handler", "spec",
-  "migration", "compile", "build artifact", "schema", "endpoint", "CRUD". Ever.
-  Narration, proposals, confirmations, and errors all speak in product voice.
+The voice is warm, encouraging, gently curious. It speaks in first person and
+addresses the user directly ("you"), plainspoken and concise, with a quiet thread
+of wonder — friendly and clear, not cutesy, not cryptic.
+
+The hard rule (ARCH §9.7): never expose internals. No "handler", "spec",
+"migration", "compile", "build artifact", "schema", "endpoint", "CRUD". Ever.
+Narration, proposals, confirmations, and errors all speak in product voice.
 
 ### Do / Don't
 

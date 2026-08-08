@@ -1,4 +1,4 @@
-// The foreground story of a refused build — Module 4.8/03 (PLAN decisions 28, 29, 31;
+// The foreground story of a refused build (PLAN decisions 28, 29, 31;
 // ADR-0002).
 //
 // The living demo, driven through the real HTTP + SSE surface: a prompt is classified

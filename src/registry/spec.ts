@@ -1,44 +1,36 @@
-// The capability spec shape — Module 2, Epic 2.1 plus Module 3's presentation
-// intent reshape (ARCH §2 "The generated artifacts", §6.3 "Capability Registry",
-// PLAN 3.3 decision 7, ADR-0005 §6).
+// The capability spec shape: the structured object the AI authors and the platform derives
+// everything else from — DDL, handlers, presentation intent, behavioral tests. It is the
+// only artifact that cannot be reconstructed from something else, so this shape is the
+// single gate every generated spec must clear before anything downstream sees it.
+// Validation is loud on purpose: a non-conforming spec throws here rather than flowing
+// onward malformed, and the spec-gen stage maps that throw onto the build's failure path.
 //
-// The spec is the structured object the AI authors and the platform derives
-// everything else from — DDL, handlers, presentation intent, behavioral tests. It is the only
-// artifact that cannot be reconstructed from something else (ARCH §2), so this
-// shape is the single gate every generated spec must clear before anything
-// downstream sees it. Validation is loud on purpose: a non-conforming spec
-// throws here rather than flowing onward malformed (the 2.5 spec-gen stage maps
-// that throw onto the build's failure path).
+// The pantry is deliberately tiny:
 //
-// The reset-bounded M4 pantry remains deliberately tiny (PLAN decision 5):
-//
-//   - Field types: `string | number | boolean | datetime | date | string[]`, each
-//     with `required`. (`date` — a calendar day, distinct from the `datetime`
-//     instant — was added in M3; M4 adds only `string[]` behind the closed list
-//     vocabulary below.) No other list types, no `file`/`file[]` (M6), no
-//     relations (never — no foreign keys). Every object is strict, so any
-//     extra key — `auto`, `references`, `added_in_version` — fails validation.
-//   - `ui_intent` records only capability-specific presentation choices:
-//     item direction, the closed collection layout (`feed | grid`), the
-//     detail fields/order, and one closed input mode for every active `string[]`.
-//     It never stores `views` or `modal: true`; the shared
-//     modal is a platform invariant (ADR-0005 §6). `tools` is the fixed
-//     five-Action tuple (decision 16); `read_dependencies` carries exactly one
-//     array per Action; `behavior` is free text the behavioral tier
-//     generates tests from; `behavioral_errors` is the stable validation error
-//     contract product copy must not stand in for.
-//   - The platform trio — `id`, `created_at`, `extra` — is platform-owned, never
-//     a spec field. A spec naming one of them is rejected. This deviates from
-//     ARCH §6.3's example (`created_at` with `auto`) deliberately, per the PLAN:
-//     making the trio platform-owned removes the `auto` concept from M2 entirely.
+//   - Field types: `string | number | boolean | datetime | date | string[]`, each with
+//     `required`. (`date` is a calendar day, distinct from the `datetime` instant.) No
+//     other list types, no `file`/`file[]`, and no relations — there are no foreign keys.
+//     Every object is strict, so any extra key fails validation.
+//   - `ui_intent` records only capability-specific presentation choices: item direction,
+//     the closed collection layout (`feed | grid`), the detail fields/order, and one closed
+//     input mode for every active `string[]`. It never stores `views` or `modal: true` —
+//     the shared modal is a platform invariant. `tools` is the fixed five-Action tuple;
+//     `read_dependencies` carries exactly one array per Action; `behavior` is free text the
+//     behavioral tier generates tests from; `behavioral_errors` is the stable validation
+//     error contract product copy must not stand in for.
+//   - The platform trio — `id`, `created_at`, `extra` — is platform-owned, never a spec
+//     field, and a spec naming one of them is rejected. Making the trio platform-owned is
+//     what removes the `auto` concept from the spec entirely.
 
 import { z } from "zod";
 import { isCapabilityNameLabel } from "./labels.ts";
 
-// Columns every capability data table gets from the platform, never from the
-// spec (PLAN decision 8): `id` (PK), `created_at` (uniform — pre-pays M5's
-// NL→SQL catalog), `extra` (the JSON escape-hatch column, present from birth).
-// Exported for the 2.2 spec→DDL mapper, which emits them on every table.
+/**
+ * Columns every capability data table gets from the platform, never from the
+ * spec: `id` (PK), `created_at` (uniform — pre-pays M5's
+ * NL→SQL catalog), `extra` (the JSON escape-hatch column, present from birth).
+ * Exported for the 2.2 spec→DDL mapper, which emits them on every table.
+ */
 export const PLATFORM_COLUMNS = ["id", "created_at", "extra"] as const;
 
 // Capability ids and field names both end up inside SQL identifiers — the data
@@ -63,9 +55,11 @@ const capabilityNameText = nonBlankText.refine(
 export const SCALAR_FIELD_TYPES = ["string", "number", "boolean", "datetime", "date"] as const;
 export const LIST_FIELD_TYPES = ["string[]"] as const;
 
-// The closed field pantry. Future list types extend LIST_FIELD_TYPES first, which
-// makes every exhaustive FieldType consumer fail type-check until it handles the
-// new storage, Gate, and presentation behavior.
+/**
+ * The closed field pantry. Future list types extend LIST_FIELD_TYPES first, which
+ * makes every exhaustive FieldType consumer fail type-check until it handles the
+ * new storage, Gate, and presentation behavior.
+ */
 export const fieldTypeSchema = z.enum([...SCALAR_FIELD_TYPES, ...LIST_FIELD_TYPES]);
 export type FieldType = z.infer<typeof fieldTypeSchema>;
 export type ListFieldType = (typeof LIST_FIELD_TYPES)[number];
@@ -77,8 +71,10 @@ export function isListFieldType(type: string): type is ListFieldType {
 export const fieldLifecycleSchema = z.enum(["active", "inactive"]);
 export type FieldLifecycle = z.infer<typeof fieldLifecycleSchema>;
 
-// One user field: name, type, required — nothing else validates. Strictness is
-// what rejects ARCH §6.3's `auto` example key, per the PLAN's recorded deviation.
+/**
+ * One user field: name, type, required — nothing else validates. Strictness is
+ * what rejects ARCH §6.3's `auto` example key, per the PLAN's recorded deviation.
+ */
 export const specFieldSchema = z.strictObject({
   name: z
     .string()
@@ -109,9 +105,11 @@ export type PresentationFieldDescriptor =
   | Pick<SpecField, "name" | "label" | "type">
   | typeof CREATED_AT_DESCRIPTOR;
 
-// Closed collection-layout values the platform list container knows how to map
-// to presentation classes. Unknown values fail here, symmetric with unknown field
-// types failing the spec gate.
+/**
+ * Closed collection-layout values the platform list container knows how to map
+ * to presentation classes. Unknown values fail here, symmetric with unknown field
+ * types failing the spec gate.
+ */
 export const uiCollectionLayoutSchema = z.enum(["feed", "grid"]);
 export type UiCollectionLayout = z.infer<typeof uiCollectionLayoutSchema>;
 
@@ -151,9 +149,11 @@ export const uiIntentSchema = z.strictObject({
 });
 export type UiIntent = z.infer<typeof uiIntentSchema>;
 
-// From the 4.4 steady-state cutover the five Actions are mandatory and fixed
-// (decision 16): every capability is born with the complete ordered inventory and
-// no evolution can drop one. There is no longer any narrower admitted shape.
+/**
+ * From the 4.4 steady-state cutover the five Actions are mandatory and fixed
+ * every capability is born with the complete ordered inventory and
+ * no evolution can drop one. There is no longer any narrower admitted shape.
+ */
 export const FULL_CAPABILITY_TOOLS = ["create", "read", "update", "delete", "search"] as const;
 export const capabilityToolSchema = z.enum(FULL_CAPABILITY_TOOLS);
 export type CapabilityTool = z.infer<typeof capabilityToolSchema>;
@@ -170,14 +170,18 @@ const capabilityToolsSchema = z
     `must be exactly [${FULL_CAPABILITY_TOOLS.join(", ")}] in canonical order`,
   );
 
-// One read-dependency identity: which prior capability incarnation an Action reads.
+/**
+ * One read-dependency identity: which prior capability incarnation an Action reads.
+ */
 export const readDependencySchema = z.strictObject({
   capability_id: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
   incarnation_id: incarnationIdSchema,
 });
 export type ReadDependency = z.infer<typeof readDependencySchema>;
 
-// One key per fixed Action — the same complete five-Action inventory as `tools`.
+/**
+ * One key per fixed Action — the same complete five-Action inventory as `tools`.
+ */
 export const readDependenciesSchema = z.strictObject({
   create: z.array(readDependencySchema),
   read: z.array(readDependencySchema),
@@ -245,7 +249,7 @@ const commonSpecShape = {
   }),
   ui_intent: uiIntentSchema,
   // Free text. The behavioral tier generates tests from this — from stated
-  // intent, never from handler code (ARCH §2).
+  // intent, never from handler code.
   behavior: nonBlankText,
   // Stable validation-error behavior that the generated handler and independent
   // behavioral tests both consume. User-facing copy can vary; this contract is
@@ -253,7 +257,7 @@ const commonSpecShape = {
   behavioral_errors: z.array(behavioralErrorCaseSchema).max(MAX_BEHAVIORAL_ERRORS),
   tools: capabilityToolsSchema,
   read_dependencies: readDependenciesSchema,
-  // What the intent resolver reads to understand this capability (ARCH §6.3).
+  // What the intent resolver reads to understand this capability.
   prompt_context: nonBlankText,
 };
 
@@ -267,18 +271,22 @@ export const capabilitySpecSchema = z
   .superRefine(validateSpecSemantics);
 export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 
-// The prompt Builder and the registry now admit exactly one shape. `capabilitySpecSchema`
-// already pins the complete fixed five-Action inventory (decision 16), so the prompt-build
-// path validates against that same schema — there is no separate, looser registry shape.
+/**
+ * The prompt Builder and the registry now admit exactly one shape. `capabilitySpecSchema`
+ * already pins the complete fixed five-Action inventory, so the prompt-build
+ * path validates against that same schema — there is no separate, looser registry shape.
+ */
 export const promptCapabilitySpecSchema = capabilitySpecSchema;
 
-// One registry row (ARCH §6.3): the spec plus the platform-assigned incarnation,
-// version, and artifact pointer. The opaque incarnation identifies one complete
-// capability lifetime and is deliberately absent from the AI-authored spec.
-// `version` (bumped per regeneration; keys the derived-artifact caches) and
-// `artifacts_path` (the version directory holding the item renderer and handlers). The row
-// stays lean — spec + incarnation + version + pointer — because the intent resolver scans
-// every row on every classification; nothing bulky lives here.
+/**
+ * One registry row: the spec plus the platform-assigned incarnation,
+ * version, and artifact pointer. The opaque incarnation identifies one complete
+ * capability lifetime and is deliberately absent from the AI-authored spec.
+ * `version` (bumped per regeneration; keys the derived-artifact caches) and
+ * `artifacts_path` (the version directory holding the item renderer and handlers). The row
+ * stays lean — spec + incarnation + version + pointer — because the intent resolver scans
+ * every row on every classification; nothing bulky lives here.
+ */
 export const capabilityRowSchema = z
   .strictObject({
     ...commonSpecShape,

@@ -1,4 +1,4 @@
-// Candidate-spec generation — Module 4.6/01. The context test pins decision 1's
+// Candidate-spec generation. The context test pins decision 1's
 // exact generation inputs: the committed spec including the capability's own
 // inactive fields (present), the resolved intent, the field-lifecycle catalog,
 // and the lease-frozen dependency-generation catalog whose entries carry active
@@ -54,7 +54,7 @@ function promptInput(
 describe("the generation context (decision 1, pinned)", () => {
   test("the prompt carries the committed spec with its own inactive fields present", () => {
     const prompt = buildCandidateSpecPrompt(promptInput());
-    // Own inactive fields are candidate-spec context (decision 2).
+    // Own inactive fields are candidate-spec context.
     expect(prompt).toContain("archived_reason");
     expect(prompt).toContain("old_labels");
     expect(prompt).toContain("old_rating");
@@ -75,7 +75,7 @@ describe("the generation context (decision 1, pinned)", () => {
     expect(prompt).toContain(`"incarnation_id": "${SHELVES_INCARNATION_ID}"`);
     expect(prompt).toContain('"prompt_context": "Stores the user\'s labelled shelves."');
     expect(prompt).toContain("shelf_name");
-    // Inactive external fields are not generation context (decision 2).
+    // Inactive external fields are not generation context.
     expect(prompt).not.toContain("shelf_secret");
   });
 

@@ -1,4 +1,4 @@
-// Complete-View restoration for foreground explicit work (Module 4.5, decision 29).
+// Complete-View restoration for foreground explicit work.
 // Jobs retain only registry identity, never records or a version-directory path.
 
 import type { Database } from "bun:sqlite";

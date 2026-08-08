@@ -225,7 +225,7 @@ Original round, verified 2026-07-24 (America/Bogota):
 2. Click a capability in the left toolbar (e.g. **Coffee tasting diary**). In the
    content-area **Evolve this capability** control, type a new-field change — e.g.
    `Add an optional grind size to each coffee` — and select **Evolve**. Open the
-   developer panel with the `</>` icon only to observe.
+   developer panel with the `</>` logo only to observe.
 4. Watch it stream rather than waiting for one payload. Within a second of the
    Diff resolving, the **Evolution candidate** block shows
    `assembly.status: "running"` with the `ADD COLUMN` and the

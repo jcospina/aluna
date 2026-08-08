@@ -3,7 +3,7 @@
 // outcomes, recovery after process interruption, and semantic stage state.
 //
 // One row is written directly terminal rather than opening `running` first: the
-// lease-head stale refusal (PLAN decision 28, 4.8/03). It never enters `running`
+// lease-head stale refusal. It never enters `running`
 // because no Builder provider work ever starts, and for a new capability refused
 // before incarnation assignment it has no incarnation at all. That absence is real
 // domain knowledge, so the public row shape carries `incarnationId: null` — but the
@@ -83,8 +83,10 @@ export const generationStageMeasurementSchema = z
   });
 export type GenerationStageMeasurement = z.infer<typeof generationStageMeasurementSchema>;
 
-// Content-free by construction: resolver classification and provider measurement,
-// never prompt text, proposed copy, generated artifacts, or user records.
+/**
+ * Content-free by construction: resolver classification and provider measurement,
+ * never prompt text, proposed copy, generated artifacts, or user records.
+ */
 export const carriedResolverMeasurementSchema = z.strictObject({
   intent: z.strictObject({
     type: intentTypeSchema,
@@ -141,7 +143,7 @@ const generationLifecycleBaseSchema = z.strictObject({
   buildId: z.string().min(1),
   /**
    * Null only for a new-capability stale refusal that never reached incarnation
-   * assignment (decision 28). Every other row — including an evolution's stale
+   * assignment. Every other row — including an evolution's stale
    * refusal, which carries its expected incarnation — names one.
    */
   incarnationId: z.string().uuid().nullable(),
@@ -209,7 +211,7 @@ export interface FinalizeGenerationLifecycleInput {
 /**
  * The lease-head stale refusal's row. It is written directly terminal — there is no
  * `running` row to update, because the refusal happens before the first Builder
- * provider call (decision 28).
+ * provider call.
  */
 export interface WriteStaleGenerationAdmissionInput {
   readonly buildId: string;

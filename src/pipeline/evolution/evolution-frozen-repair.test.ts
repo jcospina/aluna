@@ -1,5 +1,5 @@
 // Frozen-intent bounded repair, end to end through the evolution engine — Module 4,
-// Epic 4.7/04 (PLAN decisions 22 and 23; ADR-0003 bounded per-unit loop; ADR-0006).
+// (ADR-0003 bounded per-unit loop; ADR-0006).
 //
 // The rung's own battery (`builder/gate/behavioral/gate-behavioral-repair.test.ts`) pins
 // who gets rewritten and how often. This one pins what that means for a *product*: an

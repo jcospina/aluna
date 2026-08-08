@@ -235,7 +235,7 @@ Verified 2026-07-26 (America/Bogota):
 2. Click **Experiment journal** in the left toolbar. In the content-area
    **Evolve this capability** control, type a *hide* intent — e.g.
    `The tags are no longer useful — hide them from each experiment` — and select
-   **Evolve**. Open the developer panel with the `</>` icon only to observe.
+   **Evolve**. Open the developer panel with the `</>` logo only to observe.
 4. The moment the Diff resolves, the **Evolution candidate** block shows
    `assembly.status: "running"` with `priorSource` **already complete**: the
    admit/withhold decision per regenerated unit is deterministic, so it is known

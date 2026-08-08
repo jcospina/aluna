@@ -162,7 +162,7 @@ Verified 2026-07-23 (America/Bogota):
 2. Click a capability in the left toolbar. In the content-area **Evolve this
    capability** control, type a real change — e.g.
    `Add an optional rating field` — and select **Evolve**. Open the developer
-   panel with the `</>` icon only to observe. Confirm the
+   panel with the `</>` logo only to observe. Confirm the
    **Evolution candidate** panel shows `diff.facts` (e.g. a `new_active_field`
    fact) and `diff.workPlan` (e.g. `regeneratedUnits: ["create","update","search"]`),
    followed by one View swap and a version increment.

@@ -1,4 +1,4 @@
-// The SSE transport — the wire layer beneath every streaming route (ADR-0002).
+// The SSE transport — the wire layer beneath every streaming route.
 //
 // Owns the two transport-level concerns the route handlers and build pipeline
 // should not have to think about: app-level monotonic event ids, and id-less

@@ -1,4 +1,4 @@
-// The direct terminal admission row — Module 4.8/03 (PLAN decision 28).
+// The direct terminal admission row.
 //
 // Every other row in this store opens `running` and is later closed. A lease-head stale
 // refusal is written terminal on its first and only write, because nothing ever ran. For a

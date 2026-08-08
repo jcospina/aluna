@@ -1,4 +1,4 @@
-// Tests for the deterministic spec -> DDL mapper (Epic 2.2). These pin the SQL
+// Tests for the deterministic spec -> DDL mapper. These pin the SQL
 // the platform derives from a validated spec.
 
 import { Database } from "bun:sqlite";

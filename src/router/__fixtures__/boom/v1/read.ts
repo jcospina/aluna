@@ -1,4 +1,4 @@
-// Hand-written fixture handler — Module 2, Epic 2.3.
+// Hand-written fixture handler.
 //
 // A deliberately failing handler. It throws to prove the router turns *any* handler
 // failure into a warm, product-voice fragment — never a stack trace or internals
