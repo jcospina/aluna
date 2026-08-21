@@ -1,0 +1,572 @@
+/*
+ * Form controls — every control a capability's form can put on screen.
+ *
+ * A drawn boundary is two SVG layers sandwiching real content, so the element
+ * carrying it must be able to have children. `<input>` is a void element and
+ * `<select>` admits only `<option>`, so neither can be drawn directly. Every control
+ * is therefore a shell plus a bare native element:
+ *
+ *     <span class="field__control">        the shell: boundary, fill, padding
+ *       <input class="field__input">       bare: no border, no background
+ *     </span>
+ *
+ * The shell is where focus, hover, disabled and invalid live.
+ */
+
+:root {
+  /* One height for everything on a row, so a field and a button align without
+   * a nudge, with a smaller and a larger either side of it. */
+  --control-h: 36px;
+  --control-h-sm: 28px;
+  --control-h-lg: 44px;
+
+  /* The shell's horizontal padding, and the size of the text sitting in it. */
+  --control-pad-x: 11px;
+  --control-text: var(--type-base);
+
+  /* The fill an invalid well takes. The boundary stays ink: recolouring a drawn
+   * line would make a second one. */
+  --well-alert: color-mix(in oklab, var(--signal), var(--surface) 89%);
+}
+
+/* ── The field ────────────────────────────────────────────────────────────── */
+
+.field {
+  display: block;
+}
+
+.field__label {
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+.field__optional {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-3);
+  margin-left: var(--space-2);
+}
+
+/* ── The shell ────────────────────────────────────────────────────────────── */
+
+.field__control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  padding: 0 var(--control-pad-x);
+  border: var(--line) solid var(--ink);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--control-text);
+  /* The ink paints just outside the box it is drawn on. Never clip a shell. */
+  overflow: visible;
+}
+
+/* A shell holding a textarea is a block, not a row, and pads on all four sides. */
+.field__control--area {
+  align-items: stretch;
+  padding: 7px var(--control-pad-x);
+}
+
+.field__control--select {
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* ── The bare control inside it ───────────────────────────────────────────── */
+
+/* The shell owns the boundary, fill and padding; this owns the caret and text. */
+.field__input,
+.field__textarea,
+.field__select {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--control-text);
+  line-height: 1.45;
+  color: var(--ink);
+  appearance: none;
+}
+
+.field__input::placeholder,
+.field__textarea::placeholder {
+  color: var(--ink-3);
+}
+
+/*
+ * The ring belongs to the shell, so the control inside it must not draw a
+ * second one 2px further in.
+ */
+.field__control :is(input, textarea, select):focus-visible {
+  outline: none;
+}
+
+.field__control:focus-within {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.field__input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.field__input[type="number"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The textarea ─────────────────────────────────────────────────────────── */
+
+/* No resize grip: the field grows with what is typed, then scrolls. See
+ * `scripts/controls-main.js`. */
+.field__textarea {
+  display: block;
+  width: 100%;
+  resize: none;
+  overflow-y: hidden;
+}
+
+/* ── Guidance, and what it says when something is wrong ───────────────────── */
+
+.field__guidance {
+  display: block;
+  font-size: var(--caps-size);
+  color: var(--ink-3);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.field__guidance.is-over {
+  color: var(--signal);
+  font-weight: 700;
+}
+
+/* Invalid changes the well and the guidance, never the boundary — the drawn line
+ * is one ink and cannot recolour. */
+.field.is-invalid .field__control {
+  background: var(--well-alert);
+}
+
+.field.is-invalid .field__guidance {
+  color: var(--signal);
+  font-weight: 700;
+}
+
+.field__control:has([readonly]) {
+  background: var(--surface);
+}
+
+.field__control:has([readonly]) .field__input {
+  color: var(--ink-2);
+}
+
+/* Disabled fades the whole object: a drawn boundary cannot be greyed on its own
+ * without becoming a second ink. */
+.field__control:has(:disabled),
+.btn:disabled,
+.choice:has(:disabled) {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.field__control:has(:disabled) {
+  background: var(--surface-2);
+}
+
+.btn:disabled:active {
+  transform: none;
+}
+
+/* ── The listbox ──────────────────────────────────────────────────────────── */
+
+/* See `scripts/listbox.js` for why the native `<select>` cannot be here. */
+
+.listbox {
+  position: relative;
+}
+
+.listbox__button {
+  width: 100%;
+  font-family: inherit;
+}
+
+.listbox__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listbox__value.is-placeholder {
+  color: var(--ink-3);
+}
+
+.listbox__chevron {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .listbox__chevron {
+    transition: transform var(--dur-fast) var(--ease-rise);
+  }
+}
+
+.listbox.is-open .listbox__chevron {
+  transform: rotate(180deg);
+}
+
+.listbox__panel {
+  --ink-hand: frame;
+
+  position: absolute;
+  z-index: 60;
+  /* `top` and `bottom` are set by `#place()` — off the button, not off the
+     field, which also contains a label and a line of guidance. */
+  top: 100%;
+  left: 0;
+  right: 0;
+  min-width: 100%;
+  padding: 3px;
+  border: var(--line) solid var(--ink);
+  background: var(--surface);
+}
+
+/* The scroller is one level in: a drawn element must not clip its own ink. */
+.listbox__scroll {
+  max-height: 244px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.listbox__group {
+  padding: var(--space-2) 9px var(--space-1);
+}
+
+.listbox__option {
+  padding: 7px 9px;
+  font-size: var(--control-text);
+  line-height: 1.35;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* Where the keyboard is. A fill, not an edge: a row outlined inside a box that
+ * already has an edge reads as two boxes. */
+.listbox__option.is-active {
+  background: var(--ground-deep);
+}
+
+/* The selected rule comes last so it wins outright when active and selected
+ * coincide — which they do every time the panel opens. */
+.listbox__option[aria-selected="true"],
+.listbox__option[aria-selected="true"].is-active {
+  background: var(--sun);
+  font-weight: 600;
+}
+
+.listbox__option[aria-disabled="true"] {
+  color: var(--ink-3);
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.listbox__note {
+  font-size: var(--type-sm);
+  color: var(--ink-2);
+  flex-shrink: 0;
+}
+
+.listbox__option[aria-selected="true"] .listbox__note {
+  color: var(--ink);
+}
+
+/* ── The native select, for comparison ────────────────────────────────────── */
+
+/* The same shell with a real `<select>` in it, kept as side-by-side evidence that
+ * the panel it opens cannot be styled. */
+.field__select {
+  cursor: pointer;
+}
+
+.field__select option {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* ── Choice controls ──────────────────────────────────────────────────────── */
+
+/*
+ * The real input is hidden and stays the thing focused, checked and submitted; the
+ * mark beside it is what gets drawn. `appearance: none` on the input itself is a
+ * dead end for the same reason `<select>` is — an input cannot hold the SVG layers.
+ */
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.choice__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.choice__mark {
+  --ink-hand: close;
+
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  /* Aligns the mark's optical centre with the first line of its label. */
+  margin-top: 1px;
+  border: var(--line) solid var(--ink);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.choice--radio .choice__mark {
+  border-radius: 50%;
+}
+
+.choice__glyph {
+  display: flex;
+  opacity: 0;
+  transform: scale(0.7);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .choice__glyph {
+    transition:
+      opacity var(--dur-fast) var(--ease-rise),
+      transform var(--dur-fast) var(--ease-rise);
+  }
+}
+
+.choice__input:checked + .choice__mark {
+  background: var(--leaf);
+  color: var(--surface);
+}
+
+.choice__input:checked + .choice__mark .choice__glyph {
+  opacity: 1;
+  transform: none;
+}
+
+/* A radio's mark is drawn as a fill on a child rather than a second ring: a ring
+ * inside a drawn ring is two lines where the language allows one. */
+.choice--radio .choice__glyph {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.choice__input:focus-visible + .choice__mark {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.choice__body {
+  display: block;
+}
+
+.choice__title {
+  display: block;
+  font-size: var(--control-text);
+  line-height: 1.4;
+}
+
+.choice__hint {
+  display: block;
+  font-size: var(--type-sm);
+  color: var(--ink-2);
+  line-height: 1.35;
+}
+
+.choice-set {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+/*
+ * Two rules generate the whole spectrum: the fill names the role, over a default
+ * that fills with `--surface`; and the text is ink unless the fill is too dark to
+ * carry it, which is true of shade and signal only.
+ */
+
+@property --btn-fill {
+  syntax: "*";
+  inherits: false;
+}
+
+.btn {
+  /* No fill. `--btn-fill` is what a variant sets, and a button without one is the
+   * outline button — see `.btn--outline`, which names that state so markup can
+   * ask for it rather than relying on the absence of a class. */
+  --btn-fill: transparent;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  padding: 0 var(--space-4);
+  background: var(--btn-fill);
+}
+
+.btn--sm {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  font-size: 9.5px;
+}
+
+.btn--lg {
+  min-height: var(--control-h-lg);
+  padding: 0 var(--space-5);
+  font-size: 11.5px;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+/* Shade. The routine, expected, affirmative action. One per surface. Dark enough
+ * to need surface, which is the rule rather than an exception to it: 5.18:1. */
+.btn--primary {
+  --btn-fill: var(--shade);
+  color: var(--surface);
+}
+
+/* Leaf. Primary's quieter partner: the second thing you might do. The lighter of
+ * the two greens, so it takes ink like every other light anchor — 4.54:1. */
+.btn--secondary {
+  --btn-fill: var(--leaf);
+  color: var(--ink);
+}
+
+/* Sky. Informational, and the calmest thing that is still a colour. */
+.btn--info {
+  --btn-fill: var(--sky);
+  color: var(--ink);
+}
+
+/* Clay. The one that wants to be found — a feature, an upgrade, the new thing. */
+.btn--feature {
+  --btn-fill: var(--clay);
+  color: var(--ink);
+}
+
+/* Sun. Warm, and the same fill a pressed segmented button takes. */
+.btn--warm {
+  --btn-fill: var(--sun);
+  color: var(--ink);
+}
+
+/* Nothing but the line. The action you take when you are not taking the action. */
+/* The action you take when you are not taking the action. The only unfilled
+ * button, and the name for what the base already is. */
+.btn--outline {
+  color: var(--ink);
+}
+
+/* Signal, and only here. Reserved for destructive confirmation, never available as
+ * a capability colour, so a red on screen always means one thing. */
+.btn--danger {
+  --btn-fill: var(--signal);
+  color: var(--surface);
+}
+
+/* Hover steps the fill toward ink, derived rather than declared, so there is no
+ * second palette of hover colours to keep in step. */
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--btn-fill), var(--ink) 13%);
+  }
+
+  .btn--outline:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--surface-2), var(--ink) 6%);
+  }
+}
+
+/*
+ * Pressing displaces the button 2px into the paper — a hard offset with no blur and
+ * no lift, the same physics the rest of the surface uses.
+ */
+.btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+}
+
+/* ── Rows of controls ─────────────────────────────────────────────────────── */
+
+.control-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.control-row > .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.form__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.form > * + * {
+  margin-top: var(--space-4);
+}
+
+/* A line that divides is ruled, not drawn — so this one is a real CSS border. */
+.form__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: var(--line) solid var(--ink-hair);
+}
+
+.form__spacer {
+  flex: 1;
+}
+
+@media (max-width: 620px) {
+  .form__pair {
+    grid-template-columns: 1fr;
+  }
+
+  .form__actions {
+    flex-wrap: wrap;
+  }
+}

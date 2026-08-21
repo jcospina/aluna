@@ -1,0 +1,160 @@
+/*
+ * Base — the reset, the faces, and the document defaults.
+ * Nothing here belongs to a component.
+ */
+
+@font-face {
+  font-family: "Outfit";
+  src: url("../assets/fonts/outfit-variable.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("../assets/fonts/fraunces-variable.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Display and headings — Fraunces, with its axes set per role ──────── */
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--type-display);
+  font-weight: 700;
+  font-variation-settings:
+    "SOFT" 90,
+    "WONK" 1,
+    "opsz" 120;
+  line-height: 1.03;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+
+h3 {
+  font-size: var(--type-lg);
+  font-weight: 600;
+  font-variation-settings:
+    "SOFT" 70,
+    "WONK" 1;
+  letter-spacing: -0.012em;
+}
+
+h4 {
+  font-size: var(--type-md);
+  font-weight: 600;
+  font-variation-settings:
+    "SOFT" 70,
+    "WONK" 1;
+  margin-bottom: var(--space-1);
+}
+
+p {
+  margin: 0 0 var(--space-3);
+}
+
+p:last-of-type {
+  margin-bottom: 0;
+}
+
+a {
+  color: var(--signal);
+  text-underline-offset: 2px;
+}
+
+strong {
+  font-weight: 600;
+}
+
+/* ── Text roles ───────────────────────────────────────────────────────── */
+
+.lede {
+  font-size: var(--type-md);
+  color: var(--ink-2);
+}
+
+.sm {
+  font-size: var(--type-base);
+  color: var(--ink-2);
+}
+
+.xs {
+  font-size: var(--type-sm);
+  color: var(--ink-2);
+}
+
+/* Small caps: labels, counts, kickers. A role, not a size. */
+.caps {
+  font-size: var(--caps-size);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--caps-tracking);
+  color: var(--ink-2);
+}
+
+.kicker {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--shade);
+  margin: 0 0 var(--space-3);
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.21em;
+  color: var(--teal);
+  margin-bottom: var(--space-3);
+}
+
+/* `code` deliberately stays in Outfit — no monospace face appears anywhere in the
+ * product surface. */
+code {
+  font-family: inherit;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.015em;
+  background: var(--surface-2);
+  border: 1px solid var(--ink-hair);
+  padding: 0 var(--space-1);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/*
+ * Motion is opted into rather than overridden. Every transition in this
+ * surface is declared inside `prefers-reduced-motion: no-preference`, so a
+ * reader who asked for less motion simply never gets the rule — no blanket
+ * `!important` reset, which would also flatten anything added later.
+ */

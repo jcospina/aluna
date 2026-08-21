@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "aluna",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3030
+    },
+    {
+      "name": "design-pages",
+      "runtimeExecutable": "bunx",
+      "runtimeArgs": ["--bun", "serve", "design", "-l", "4173"],
+      "port": 4173
+    }
+  ]
+}

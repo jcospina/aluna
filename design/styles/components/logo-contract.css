@@ -1,0 +1,145 @@
+/*
+ * The logo, as the contract defines it.
+ *
+ * This is the product's own logo treatment, not page furniture — `logo.html`
+ * documents it and the desk will render it, so the numbers live here rather
+ * than inline on a page. Everything a logo is made of is in this file: the
+ * tile, its corner, its shadow, and how the name is written under it.
+ *
+ * In the manifest, because the desk now draws its logos from here. Every logo on
+ * every page is this file: the specimens on `logo.html` and the capabilities
+ * standing on the desk are the same tile under the same rules, so the two
+ * cannot drift apart.
+ */
+
+/* ── The tile ─────────────────────────────────────────────────────────── */
+
+.logo-tile {
+  /*
+   * 64px, and one size. The rendered size of a logo somewhere else is a
+   * rendering, not a second tile size.
+   */
+  width: 64px;
+  height: 64px;
+
+  /*
+   * The corner, and the shell's alone. A percentage rather than a px value so
+   * the same shape holds at every size a logo is drawn at.
+   *
+   * It clears the largest corner mask the service produces on its own (8.5% of
+   * the tile), which is what makes it deterministic: where a generation paints
+   * white wedges over its own square, the clip removes them entirely and the
+   * capability's colour continues underneath.
+   */
+  border-radius: 10%;
+
+  /* No border. The artwork's colour field is the silhouette. */
+  background-size: cover;
+  background-position: center;
+
+  /*
+   * The surface's shadow, cast onto the desk: displaced 3 across and 4 down,
+   * ink at 24%, never blurred. Ruled rather than drawn because there is no
+   * drawn edge beside it to disagree with — the rule that makes a shadow a path
+   * exists so a true shadow edge never sits next to a deviating one.
+   */
+  box-shadow: 3px 4px 0 rgb(32 48 28 / 0.24);
+}
+
+/* ── The name ─────────────────────────────────────────────────────────── */
+
+/*
+ * Set straight onto the desk: light type carried by a soft shadow, no plate.
+ *
+ * 12px rather than the 10.5px a plate label can afford — paper does the
+ * separating for a label that sits on some, and type read off a photograph has
+ * to do it alone. It is also where macOS sets a desktop label.
+ *
+ * The shadow is three passes, all straight down and none of them wide. It is a
+ * SHADOW and not an outline: an outline rings every glyph in hard ink and reads
+ * as a sticker, where a shadow sits under the type and is never the thing you
+ * look at. Stacking three graded passes rather than deepening one is what lets
+ * it go this dark without the type looking embossed — one shadow at the same
+ * total alpha separates from its letters.
+ *
+ * These are the only blurred pixels in Aluna, deliberately. The hard-shadow
+ * rule governs the shadow an *object* casts onto the desk, where a soft edge
+ * would fake depth the flat-band model does not have. A glyph casts nothing.
+ */
+.logo-label {
+  max-width: 96px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--surface);
+  text-shadow:
+/* the glyph's own edge, so the letterform stays crisp */
+    0 1px 1px rgb(32 48 28 / 0.85),
+    /* the near shadow, which is what does the reading */
+    0 1px 3px rgb(32 48 28 / 0.85),
+    /* the deep pass, which only really shows over pale ground */
+    0 2px 7px rgb(32 48 28 / 0.7);
+}
+
+/* ── A logo, assembled ────────────────────────────────────────────────── */
+/*
+ * The tile, then the name, seven pixels apart. A logo button on the desk and a
+ * specimen on this page are the same stack, so the gap is set once rather than
+ * kept in step in two places. The button around it — its padding, its cursor
+ * and what it does when pressed — belongs to `desk.css`.
+ */
+
+.specimen-logo,
+.desk .logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+/* ── Specimens on this page ───────────────────────────────────────────── */
+/*
+ * Page furniture. The desk lays logos out in its own grid; this is only how
+ * they are stood in a row for inspection.
+ */
+
+.specimens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5) var(--space-4);
+  align-items: flex-start;
+  padding: var(--space-5) var(--space-4);
+}
+
+.specimens--labels {
+  align-items: center;
+  min-height: 96px;
+}
+
+/* ── The prompt, quoted ───────────────────────────────────────────────── */
+/*
+ * The prompt is the contract's other half, so it is set as a quoted block
+ * rather than as prose: it is a thing that is sent verbatim, and it should look
+ * like one. Drawn, like every other bounded thing on the surface.
+ */
+
+.prompt-block {
+  border: var(--line) solid var(--ink);
+  background: var(--surface-2);
+  padding: var(--space-4) var(--space-5);
+}
+
+.prompt-block p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+/* The two slots, so what varies is visible at a glance. */
+.prompt-block mark {
+  background: var(--sun);
+  color: var(--ink);
+  padding: 1px 5px;
+  font-weight: 600;
+}

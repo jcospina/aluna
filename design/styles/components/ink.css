@@ -1,0 +1,70 @@
+/*
+ * The seam between the stylesheet and `scripts/ink.js`. Loaded last, so `.is-ink`
+ * takes over from whatever a component declared.
+ *
+ * The contract a drawn component keeps:
+ *
+ *   - It declares its border as normal. Mounting recolours that border to
+ *     transparent rather than removing it, so it still occupies its 2px and nothing
+ *     moves.
+ *   - It keeps its background. The drawn line covers ±1px against a maximum 0.9px
+ *     deviation, so a true rectangle of background can never escape it.
+ *   - If it casts a shadow, it hands it over as `--ink-shadow: <x> <y> <alpha>` —
+ *     the one part landing outside the ink, where a straight edge would show.
+ *   - It may ask for the full hand with `--ink-hand: frame`.
+ */
+
+/* Custom properties inherit by default and these three must not — they describe
+ * *this* boundary, not everything enclosed by it. Declaring them stops that at the
+ * source rather than by writing `none` on every component that has no shadow. */
+
+@property --ink-shadow {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --ink-hand {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --ink-weight {
+  syntax: "*";
+  inherits: false;
+}
+
+/* The hands: `frame` for the surfaces that hold (the window, the prompt rail),
+ * `fine` for everything drawn inside one, which is the default. The numbers live in
+ * `scripts/spec.js` under HAND, because they are geometry, not style. */
+
+/*
+ * Note what is NOT here: `position: relative`. The layers need a positioned
+ * ancestor, but this file loads last and would beat a component that positions
+ * itself. `mountInk` sets it instead, and only when the element is actually static.
+ */
+.is-ink {
+  /* A stacking context, so the ground layer's negative z-index stays inside the
+   * component and cannot slide behind an ancestor's background. */
+  isolation: isolate;
+
+  /* Kept and made invisible, so the element still reserves the 2px its line
+   * occupies and nothing moves. */
+  border-color: transparent;
+}
+
+.is-ink > .ink__ground,
+.is-ink > .ink__layer {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Behind the content but in front of the element's own background — safe, because
+ * the shadow is cut to the crescent that falls clear of the element. */
+.is-ink > .ink__ground {
+  z-index: -1;
+}
+
+.is-ink > .ink__layer {
+  z-index: 1;
+}

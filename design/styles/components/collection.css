@@ -1,0 +1,173 @@
+/*
+ * The collection — search, live count, create action, then the records — and
+ * the record view it swaps to.
+ *
+ * The order is fixed by the shell and is the same for every capability. So is
+ * the swap: opening a record replaces the collection inside the window rather
+ * than opening anything over it (D2). There is no modal on this surface.
+ */
+
+/* The window's content, holding whichever of the two views is current. */
+.collection-host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.collection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+/* Row 2 — the count and the create action, the two collection-level facts. */
+.collection__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.collection__count {
+  color: var(--ink-2);
+}
+
+/* Row 3 — the feed or grid, per the capability's declared layout. */
+.records {
+  display: grid;
+  gap: var(--space-2);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  /*
+   * A scroller clips on both axes, and a drawn card overhangs its own box by
+   * about 1.5px — half the stroke, plus the deviation. This gutter gives that
+   * overhang somewhere to go; the negative margin hands the space straight
+   * back, so nothing on the row moved.
+   */
+  padding: 3px;
+  margin: -3px;
+}
+
+.records--feed {
+  grid-template-columns: 1fr;
+}
+
+.records--grid {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+.records__empty {
+  margin: 0;
+  padding: var(--space-3) 0;
+}
+
+/*
+ * A record is a button. Opening one is the only thing you can do with it, and a
+ * button is what the keyboard already knows how to reach — no role, no tabindex
+ * and no key handling of our own.
+ */
+.record {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  border: var(--line) solid var(--ink);
+  background: var(--surface-2);
+  padding: 8px 12px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .record {
+    transition: background var(--dur-fast) ease;
+  }
+}
+
+.record:hover {
+  background: var(--surface);
+}
+
+.record__text {
+  min-width: 0;
+}
+
+.record__title {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.record__detail {
+  margin: 1px 0 0;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.records--grid .record {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+/* ── The record, in the window ────────────────────────────────────────── */
+/*
+ * Back is navigation and sits above the form; Cancel is the form's own escape.
+ * Both exist because the window is the whole surface — with nothing behind it
+ * to click, there has to be a way out at the top.
+ */
+
+.detail {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.detail__bar {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.detail__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--type-sm);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.detail__back:hover {
+  color: var(--ink);
+}
+
+.detail__arrow {
+  display: inline-flex;
+  translate: 0 1px;
+}
+
+.detail__title {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

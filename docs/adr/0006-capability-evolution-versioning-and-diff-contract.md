@@ -7,6 +7,42 @@ case- and Latin-accent-insensitive. It removes combining diacritics only after a
 Latin-script base, so Latin accents fold without corrupting voicing, vowel, or
 tone marks in other scripts.
 
+Amendment (2026-08-20): deletion's content-area sentences are restated in window
+terms (`modules/05-the-desk/PLAN.md`, decisions 14, 15 and 19–23). The doorway is a **context menu
+on the capability's logo**, carrying Rename and Delete, opened by right-click,
+press-and-hold, or the keyboard menu key — never window chrome, so no lamp goes
+signal red. **Rename changes the effective label and nothing else** through a
+logo-anchored inline Save/Cancel form and a platform-owned display-label override
+— not the authored spec/snapshot,
+capability id, address, version or artwork — so it selects no generated work in
+this document's contract. The coordinator-owned write changes the resolver
+catalog binding. **Confirmation fills the window** in authored product voice, and
+the path stays zero-AI. **On commit the tile vanishes.** The window puts itself
+away when the deleted capability was previously open or the desk was bare; if the
+confirmation displaced another open capability, its current canonical collection
+returns. There is no in-window terminal state for the deleted capability.
+Where the deletion section below says the capability leaves the toolbar and the
+content becomes neutral, read: the logo leaves the desk and the window closes or
+restores the unrelated displaced capability under the rule above. A
+link to a deleted capability loads the bare desk with a brief notice, which
+covers the second-tab, bookmark and reload cases without a window state of its
+own. Delete is also the only word for the act, in UI copy and in every document.
+
+A drain that exceeds its raised deadline returns the distinct typed outcome
+`deletion_drain_timeout`; it is not flattened into the generic pre-commit failure,
+so the window can explain that active work did not finish in time.
+
+Refusal, timeout or failure before the tombstone commits still reopens reads and
+restores what the deletion displaced, and it now has somewhere to say so: the
+window's build narration, in the same voice. The drain deadline is raised above
+the longest a single handler may run, so a well-behaved reader can never cause a
+spurious deletion failure, and reads are not capped downward to speed up a rare
+operation. The incarnation model needs no amendment. The cross-capability read
+skew that might have argued for a staleness bus, a version stamp or a refresh
+lamp dissolves with one window — only one capability is visible, every open is a
+fresh read, and builds and deletions both take the window — so nothing is added
+here and nothing is reopened.
+
 The fixed-five-Action candidate clauses below describe the steady state after
 Module 4 epic 4.4; immutable snapshot/publication clauses apply after 4.5's
 greenfield reset/rebuild makes v1 under that contract. The Module 4 PLAN's
@@ -26,7 +62,9 @@ the complete field-lifecycle catalog — including inactive fields — plus
 per Action, including empty arrays. Candidate generation also receives the exact
 active-field projection of the dependency catalog while mutation ownership is
 held. The platform owns incarnation, version, build id, snapshot metadata,
-artifact pointer, SQL identifiers, and additive DDL.
+artifact pointer, SQL identifiers, additive DDL, and a nullable
+`display_label_override`. The override is outside authored candidates and
+survives evolution; resolver/shell reads use it ahead of authored `label`.
 
 Existing field names/types and capability id are immutable, and omitting a
 committed field is invalid rather than a soft hide. `inactive→inactive` preserves
@@ -43,10 +81,24 @@ that commas are separators rather than meaningful element data for that field;
 canonical rows internally and projects only Action-safe active values plus an
 opaque record handle to generated Handlers; the item renderer narrows again to
 its declared fields. Client state contains only the record target, allowed active
-detail/edit fields, and `created_at`, so inactive/forward-compatible state never
+form fields, and `created_at`, so inactive/forward-compatible state never
 leaks from canonical target rows into generated code, markup, or the DOM.
 Update/delete mutation authority is bound to the router-validated target before
 generated code runs; the Handler cannot substitute another record.
+
+Module 5 extends the same total contract with `choice` and scalar-string
+`max_length`. Choice option values are stable and append-only; removing or
+renaming one fails before Diff. Presentation labels, groups, notes and order are
+View facts. Appending an option or changing its disabled state also changes
+create/update validation shape and behavioral total-input digests. An already
+stored value that becomes disabled remains valid and preservable but cannot be
+newly selected. Long-text and guidance are View facts only. A max-length change
+affects platform create/update validation and their behavioral total inputs, and
+activation is refused if a lease-held scan finds active or inactive committed
+physical data beyond a new or lower limit. Soft-hide preserves the declaration
+exactly. None selects logo or DDL work, and every admitted fact has a positive
+matrix entry. Generated Handlers receive admitted values rather than duplicating
+these structural validators.
 
 The Diff Engine converts every admitted old→candidate difference into a typed
 change fact. One normative matrix maps every fact to schema work, platform View
@@ -190,13 +242,14 @@ The core Builder consumes an already-resolved request and emits lifecycle events
 it owns neither prompt routing, active DOM, nor SSE. The explicit presenter turns
 those events into the foreground product-voice story and emits one complete View
 swap only after commit. Before foreground replacement it stores a data-free
-active-capability/neutral restoration descriptor. No-change, stale/collision,
+active-capability/neutral restoration descriptor. It never captures search,
+record, edit, delete-confirm or draft data. No-change, stale/collision,
 cancellation, and failure resolve that descriptor against the current registry,
-restore the canonical View/read state via `fragment` without a toolbar sidecar,
+restore the canonical View/read state via `fragment` without a logo-layer sidecar,
 clear search, close modal/edit/delete-confirm state, and send `done`; `commit`
 remains activation-only. Terminal presenter work is bounded and active ownership
 releases in `finally`. A failed post-activation delivery is recovered by normal
-shell/toolbar registry rehydration and leaves `success/activated` intact. Module 7
+desk/logo registry rehydration and leaves `success/activated` intact. Module 8
 may reuse the same Builder with a different confirmed-proposal presenter without
 reclassification.
 

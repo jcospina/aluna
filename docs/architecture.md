@@ -18,7 +18,7 @@ parts and contains no domain logic:
 - **generation-time tooling** (the tools the AI uses to build a capability, like a coding agent using its tools),
 - the **router** (deterministic dispatch from UI to capability),
 - the **capability API** (the UI↔server contract),
-- **platform presentation** (shared list, modal, form, field, and item-wrapper behavior),
+- **platform presentation** (shared list, record view, form, field, and item-wrapper behavior),
 - **schema/DDL ownership** (the platform manages the database structure).
 
 The AI generates everything capability-specific at runtime, and the platform
@@ -75,8 +75,8 @@ the first:
    reconstructed from something else.
 2. **Handler code** — real `.ts` files on disk implementing the capability's logic.
 3. **Item renderer** — real generated code for the capability-specific
-   presentation of one record. Platform-owned list, form, modal, and item-wrapper
-   modules compose it into the View.
+   presentation of one record. Platform-owned list, form, record-view, and
+   item-wrapper modules compose it into the View.
 4. **Behavioral tests** *(tiered)* — executable assertions derived independently
    from `behavior`, Action-owned `behavioral_errors`, the Action's canonical
    schema projection, and dependency identities, never from Handler code. Only
@@ -105,7 +105,7 @@ pointer manifest.
 
 An explicit platform artifact-contract upgrade mechanism may eventually re-derive
 caches without pretending user intent changed, but its registry/serving marker and
-preservation machinery are deferred until after M8. M8 may add a metrics-only
+preservation machinery are deferred until after M9. M9 may add a metrics-only
 artifact-shape dimension for historical comparisons; that is not a serving marker.
 
 ### What is deliberately *not* locked in
@@ -119,7 +119,7 @@ built:
   templates, libraries, colors, copy — none of it is specified here. Pinning it
   down now would be guesswork the build is free to overrule.
 - **The implicit-loop UX.** §8 defines the backstage of the implicit loop; where
-  and how the proposal reaches the user is Module 7's call.
+  and how the proposal reaches the user is Module 8's call.
 
 Software is not specified front-to-back in advance: constraints surface, tools
 change, and better ideas arrive mid-build. What is locked here is the skeleton
@@ -138,7 +138,7 @@ It shows up on every axis:
 | **Data access** | Capability-bound mutation interface (no raw mutation SQL) | Parameterized read-only SQL (`SELECT` + joins); persistent cross-capability dependencies declared |
 | **Structure** | Isolated table per capability, no foreign keys | Relationships materialize at query time via joins |
 | **Schema lifecycle** | Platform-derived evolution DDL is additive-only; explicit confirmed capability deletion purges that capability's structure | — |
-| **Records** | User deletes own records through platform-owned confirmation (recorded once M7's Event Log exists) | — |
+| **Records** | User deletes own records through platform-owned confirmation (recorded once M8's Event Log exists) | — |
 | **Orchestration** | One mutation coordinator atomically admits every shared-connection write — builds, record/platform writes, and deletion | Prompt resolution/reads stay outside; deletion briefly closes the target incarnation to new reads |
 
 Every danger of unconstrained access — corruption, drop-table, integrity drift,
@@ -163,9 +163,10 @@ generate HTML, SQL, and TypeScript natively and reliably.
 | **AI** | Fast variants of flagship models — Claude Opus (fast mode), top GPT (fast tier), pluggable — behind the Vercel AI SDK as the in-process provider spine | Capability quality matters more than per-call cost; latency is part of the thesis. BYO-key keeps the open-sourced demo free. The SDK supplies streaming + structured output + a bounded tool-loop so we don't hand-build a streaming client; provider-agnosticism comes from targeting the Anthropic-/OpenAI-compatible wire shapes (see ADR-0003) |
 | **Spec format** | JSON (AG-UI–aligned shape) | Open, structured, diffable. Not invented from scratch |
 
-The shell ships as a single static HTML page with HTMX attributes. Fixed
-platform presentation renders its structural surfaces; capability-specific item
-markup and handler responses are generated.
+The shell ships as one HTML page with HTMX attributes: a wallpaper, a layer of
+capability logos and a prompt bar, with a window created over them when there is
+something to show. Fixed platform presentation renders the window's structural
+surfaces; capability-specific item markup and handler responses are generated.
 
 ### Model strategy
 
@@ -199,9 +200,12 @@ SHELL (fixed)
        │                       │
        │                       └─resolved build request─▶ explicit presenter ─┐
        │                                                                      │
-  Event Tracker ─batch─▶ M7 gate + resolver ─confirmed resolved request─▶ chosen presenter
+  Event Tracker ─batch─▶ M8 gate + resolver ─confirmed resolved request─▶ chosen presenter
                                                                               │
-  Toolbar ──Action request──▶ deterministic Router                             ▼
+  Logo layer                                                                  │
+       │ open                                                                 │
+       ▼                                                                      │
+  Window ──Action request──▶ deterministic Router                             ▼
        ▲                         │                                  Capability Builder
        │                         ▼                                  ├─ Diff Engine
        │                   generated Handler                         ├─ layered Gate
@@ -227,38 +231,103 @@ generated at runtime. Data flows down on action; HTML streams back up on respons
 
 ### 6.1 Shell — the only fixed UI
 
-A single static HTML page. It never changes after first load. Three parts — the
-Prompt Bar, the Capability Toolbar and the Event Tracker — around a content area
-that the toolbar swaps into:
+A desk. A wallpaper fills the viewport, the logo of every capability the app has
+built sits on the ground, and a prompt bar floats above them and never leaves.
+When there is something to show, a window opens over the wallpaper, and that
+window is the content area. The page is not inert after first load: the window is
+created and destroyed, and exactly two presentation records — the capability
+window's and the developer panel's, each carrying its desktop box and flags —
+live in `localStorage`.
 
-**Prompt Bar** — an always-visible free-form text input. It is context-aware: it
-knows which capability is active, if any, so "add a due date" scopes to the open
-capability. It submits to the orchestrator and receives streamed HTML back.
+**Prompt Bar** — an always-visible free-form text input, clear of all four edges.
+It is context-aware: it knows which capability is open, if any, so "add a due
+date" scopes to that capability. It submits to the orchestrator and receives
+streamed HTML back. The bar also speaks for itself, and explains anything refused
+before a build starts: the desk has no notice component, and the window is not yet
+involved. Its one replaceable live slot preserves refused input/focus, clears stale
+copy when the user edits, and never stacks or times away competing messages.
 
-**Capability Toolbar** — empty for a fresh user, otherwise rehydrated from the
-registry on load. Every capability the app has built gets an entry, and clicking
-one loads that capability's View into the content area. This is the only
-navigation. The server can update the toolbar out-of-band (`hx-swap-oob`), so a
-single response to a build updates toolbar and content together.
+**Logo layer** — empty for a fresh user, otherwise rehydrated from the registry on
+load. Clicking a logo opens that capability's View in the window, and clicking
+another swaps what is inside the same window. This is the only navigation. There
+is no toolbar and no taskbar, and an empty desk is a wallpaper and a prompt bar,
+which needs no special case. After resolution admits a new-capability build, the
+server may put a presentation-only, build-id-keyed provisional tile on the ground
+out-of-band (`hx-swap-oob`). Activation replaces it with the registry-backed tile;
+every non-activating terminal removes it, and evolution/non-build outcomes create
+none. After v1 presentation terminates and the build lease releases, artwork is
+generated once through an atomically claimed follow-up and is never remade;
+ADR-0007 owns its incarnation-keyed delivery,
+bounded retry and cost. Only an `absent` tile emits the no-store, load-triggered
+POST that claims an attempt and returns tile-scoped markup; this lets the build
+stream close before provider work and keeps paid mutation off GET. Attempt
+responses are inert even when failure returns to `absent`; only a fresh desk
+render/activation arms one, preventing recursive retry in one page load.
 
-From Module 4, each entry also exposes platform-owned capability deletion: a
-deterministic, confirmation-gated toolbar action with authored product-voice copy,
-never an Intent Resolver classification or an AI call.
+From Module 4, a capability can also be permanently deleted, and the desk gives
+that action its doorway: a short context menu on the logo — right-click,
+press-and-hold, or the keyboard menu key — holding Rename and Delete. Both are
+deterministic zero-AI actions, never an Intent Resolver classification or model
+call. Delete is confirmation-gated in authored product voice; Rename uses the
+user's validated label. Rename changes a platform-owned effective
+label override through an inline Save/Cancel form anchored to the logo, and
+nothing else: authored snapshots, id, address, version and artwork all stay as
+they were. Its short coordinator write advances the resolver
+catalog binding. The
+doorway is the capability's own face rather than the window chrome, so no window
+control ever means destruction.
 
-**Platform presentation** — what fills that content area. It is a platform
-component in its own right (§1), not a fourth part of the page: the reusable,
-data-free mechanics every capability shares — list scaffolding, empty state,
-accessible item wrapper, create/detail modal, spec-rendered fields, and safe
-composition of generated item output. It may
-read structural spec facts — field type, required state, detail ordering, the
-collection layout (`ui_intent.collection.layout`, a closed value selecting how the
-list container arranges items), and the closed per-`string[]` list input mode — but
-it may not implement capability behavior. The model chooses `comma_separated` only
+**The window** — one window, and it is the content area. A collection, one record,
+a confirmation and the narration of a build all land in the same frame. Nothing
+opens over anything else, which is why Aluna has no modal. The user drags the
+window, resizes it, maximises it and puts it away; putting it away changes nothing
+in storage and leaves the logo where it was. Put-away, logo switching and
+Back/Forward while a build/evolution is running warn first inside the still-mounted
+run surface, because each would remove the run and replacing that surface merely
+to ask would cancel it prematurely. Confirmation uses the one cancel teardown and
+then performs the captured navigation without transient restoration or duplicate
+history. The
+developer panel is the one exception to a single window: read-only, opened from
+its own tile, and allowed to sit beside the capability it reports on. Its tile
+focuses an already-open panel; the clay lamp alone puts it away. Below 720px
+both use the full-screen phone form and only the frontmost is exposed; their stored
+desktop boxes and flags are ignored without being overwritten, then restored and
+clamped when widened.
+Forget remembered boxes clears the layout storage entry and resets mounted
+geometry without replacing content, changing the capability address or cancelling
+work; it resets only the developer panel's next-load open preference.
+
+Logo open/switch and put-away push `/capability/:id` or `/` into browser history;
+`popstate` renders that identity without pushing another entry, and focusing the
+already-open capability adds none. Search, record subview and draft remain
+DOM-only and are not encoded in history. During a build the address stays on the
+displaced identity; successful v1 activation pushes the new capability only when
+its canonical collection takes the window, while evolution and non-activation do
+not add a route entry.
+
+A logo action refused before it may take the capability window speaks on the
+prompt bar. In particular, Delete cannot replace a build or evolution that is
+still mounted; it leaves the run untouched instead of becoming a second cancel
+path. After that preflight, deletion still relies on coordinator admission and
+lease-held revalidation rather than treating the browser check as authority.
+Deletion drain expiry is the distinct typed outcome `deletion_drain_timeout`, so
+the window can explain timed-out active work instead of reusing a generic
+pre-commit failure sentence.
+
+**Platform presentation** — what fills the window. It is a platform component in
+its own right (§1), not a fourth part of the desk: the reusable, data-free
+mechanics every capability shares — list scaffolding, empty state, accessible item
+wrapper, the in-window record view, which a list item and the create action both
+open into, spec-rendered fields, and safe composition of generated item output.
+It may read structural spec facts — field type, required state, the collection
+layout (`ui_intent.collection.layout`, a closed value selecting how the list
+container arranges items), and the closed per-`string[]` list input mode — but it
+may not implement capability behavior. The model chooses `comma_separated` only
 for comma-free atomic values such as tags, genres, or categories; free-form list
 elements that may contain commas use `repeatable`. The platform renders both modes
 and normalizes them to the same ordered array before generated code sees them.
 Field rendering stays centralized, so later field types (lists in Module 4, files
-in Module 6) extend one place instead of every generated artifact. Item composition
+in Module 7) extend one place instead of every generated artifact. Item composition
 stays capability-specific and generated, but the platform enforces the allowed
 HTML/class surface at runtime, so record content cannot become executable markup.
 
@@ -268,10 +337,12 @@ the lot to the server, and it holds no inference logic. Recording the incarnatio
 lets explicit capability deletion later purge or redact product payloads without
 guessing from text.
 
-> The shell is dumb on purpose. It may perform fixed local presentation behavior
-> such as opening, prefilling, and focusing the shared modal, but it never infers
-> intent, applies capability rules, or mutates canonical state. It renders what
-> the server sends and reports what the user does.
+> The shell may remember how things look to the user. It never decides what is
+> true. Window geometry, maximised state and where the user likes things are
+> presentation state and are the shell's to keep. Which records exist, what is
+> valid, what a capability means and what an intent was are canonical state and are
+> the server's alone. The shell renders what the server sends and reports what the
+> user does.
 
 ### 6.2 Orchestrator — the brain (server-side)
 
@@ -309,8 +380,8 @@ into a structured object:
 ```
 
 Typed explicit intents proceed directly and therefore carry
-`requires_confirmation: false`; only an M7 behavior-derived proposal sets it true,
-and confirmation belongs to M7's proposal surface before Builder hand-off.
+`requires_confirmation: false`; only an M8 behavior-derived proposal sets it true,
+and confirmation belongs to M8's proposal surface before Builder hand-off.
 
 Two responsibilities live here rather than in separate modules:
 
@@ -345,9 +416,18 @@ The core Builder emits lifecycle events and owns neither the prompt route, the
 active DOM, nor SSE. The explicit-loop presenter turns those events into the
 foreground product-voice story, and a later confirmed implicit proposal can reuse
 the same Builder without being reclassified or forced into that presenter. Before
-replacing the content area, the explicit presenter records only a restoration
-descriptor — the active capability id and incarnation, or neutral — never user data
-or a pinned artifact path.
+the build takes the window, the explicit presenter records only a restoration
+descriptor — the open capability's id and incarnation, or the bare desk — never
+user data or a pinned artifact path.
+
+ADR-0002's contract survives the window. `commit` and `fragment` keep addressing
+one stable id, and the client guarantees that id exists whenever a swap can be in
+flight. Two things make that promise keepable. Teardown belongs to the content
+rather than to the window, so whatever a view started — in-flight fetches, search
+controllers, server read tokens — is released when that content is replaced or
+removed, and nothing can arrive at a region that has gone. And the window cannot be
+closed out from under running work: closing during a build or an evolution warns
+first and proceeds only through the existing cancel path.
 
 The lifecycle is spec-first and recoverable across SQLite and the filesystem:
 
@@ -407,6 +487,13 @@ The lifecycle is spec-first and recoverable across SQLite and the filesystem:
    activation point of no return. Only afterward may the presenter attempt the
    terminal complete View `commit` swap.
 
+For a newly activated v1, that transaction also commits seed plus logo lifecycle
+`absent/0`. Only after the presenter terminates and the long build lease releases
+may a follow-up offer the logo subsystem its first atomic attempt claim. It runs
+after success is authoritative, outside immutable snapshot inventory, and cannot
+relabel or roll back the build; desk-load recovery uses the same claim after a
+crash in the gap.
+
 A database failure after publication leaves an unreferenced complete candidate,
 never a live partial one. For an active incarnation at version `N`, every verified
 `v1..vN` directory is committed history even when no longer active; only staging
@@ -414,21 +501,30 @@ and a verified `v>N` path that never activated are candidates for recovery.
 Failure rolls back product state, finalizes failure metrics separately, and leaves
 candidate paths for guarded reconciliation. Startup marks interrupted metrics and
 reconciles only paths proven never committed. The prior version stays live
-throughout failure. Restore/changelog work in M8 must add a durable activation
+throughout failure. Restore/changelog work in M9 must add a durable activation
 ledger before anything may reclaim committed history.
 
 After the activation transaction commits, rendering, SSE delivery, client
 disconnect, or terminal-signal failure cannot roll back the pointer or reclassify
 the build as failed. The registry and `success/activated` row remain authoritative;
-normal shell/toolbar rehydration recovers the live View.
+a reload rehydrates the ground from the registry, and the address puts the live
+View back in the window.
 
 Any non-activating terminal path — `no_change`, stale or collision, cancellation,
 or failure — resolves the presenter's descriptor against the then-current registry.
 Through ADR-0002's `fragment` event it restores that canonical live View plus its
-`read` result, or the neutral surface, clears search, closes modal, edit, and
-delete-confirm state, and then sends `done`. It emits no toolbar sidecar. Terminal
-presenter work is bounded, and active ownership releases in `finally`. `commit` is
-reserved for a real pointer activation.
+`read` result, or the bare desk, clears search, and returns the window's record,
+edit, and delete-confirm state to the collection before sending `done`. It puts no
+permanent logo on the ground and removes any build-id provisional tile. Terminal presenter work is bounded, and active ownership
+releases in `finally`. `commit` is reserved for a real pointer activation.
+
+Restoration waits whenever Aluna has something to say. A build that fails, is
+refused as stale, or comes back a measured no-op adds one final line to the
+narration in the window, in the same voice, and holds the window until the user
+dismisses it; only then does the presenter give back what the build displaced.
+Cancellation restores at once, because the user already knows why. A structured
+refusal lands the same way any other message does: inside the window it renders in
+the window, and from the prompt bar it renders on the bar.
 
 The behavioral rung is a tier rather than an always-on default because generating
 and executing a suite adds measured latency. A global toggle keeps tier-off
@@ -451,7 +547,7 @@ create no generation row. Each admitted record write keeps the generated Handler
 its mutation call, and presentation completion inside one SQLite transaction, and
 any non-success response rolls the write back before the short lease releases.
 Module 2's historical `html-gen` is the first presentation-gen shape; from Module 3
-on, item renderer generation is recorded under the semantic stage name. Module 8
+on, item renderer generation is recorded under the semantic stage name. Module 9
 need not assume every version writes `.html` or behavioral tests.
 
 `reject` and `data_query` create no generation row. Their classification, timing,
@@ -501,10 +597,9 @@ runs the full frozen suite. Malformed authored Action ownership fails before Dif
 Code failure never regenerates or weakens assertions.
 
 Minimality applies to AI calls and validation scope, not to DOM patches. The
-explicit evolution presenter already occupies the content area, so activation swaps
-the complete data-free View and reloads records through the committed `read`
-Handler, while non-activation restores through `fragment` rather than pretending a
-commit.
+explicit evolution presenter already holds the window, so activation swaps the
+complete data-free View and reloads records through the committed `read` Handler,
+while non-activation restores through `fragment` rather than pretending a commit.
 
 ### 6.3 Persistence — partly generated at runtime
 
@@ -517,17 +612,23 @@ store on disk.
 One active row per capability. The structured authored spec is canonical; the
 platform-owned incarnation/version and pointer to one complete immutable snapshot
 live alongside it. A row may temporarily become a non-routable deletion tombstone
-carrying cleanup work; resolvers, routes, and the toolbar see only active rows.
-Through M8 there is no registry/serving artifact-contract upgrade marker:
+carrying cleanup work; resolvers, routes, and the ground see only active rows.
+Through M9 there is no registry/serving artifact-contract upgrade marker:
 greenfield shape changes use reset + rebuild (ADR-0005 §7). Snapshot publication
-metadata is per-version completeness evidence, and an optional M8 metrics-only
+metadata is per-version completeness evidence, and an optional M9 metrics-only
 shape label is analytical, not preservation machinery.
 
 ```json
 {
   "id": "notes",
   "label": "Notes",
+  "subject": "an open notebook",
+  "ground": "leaf",
+  "noun": "note",
+  "display_label_override": null,
   "incarnation_id": "4a80b52d-60a1-47e9-971c-765766a6a3b2",
+  "seed": 184206,
+  "logo": { "status": "present", "attempts": 1 },
   "version": 3,
   "schema": {
     "fields": [
@@ -539,14 +640,16 @@ shape label is analytical, not preservation machinery.
     "form": {
       "list_inputs": [
         { "field": "tags", "mode": "comma_separated" }
-      ]
+      ],
+      "choice_inputs": [],
+      "long_text": ["text"],
+      "guidance": []
     },
     "item": {
       "direction": "A text-forward card that emphasizes text and treats tags and date as metadata.",
       "shows": ["text", "tags", "created_at"]
     },
-    "collection": { "layout": "feed" },
-    "detail": { "shows": ["text", "tags", "created_at"] }
+    "collection": { "layout": "feed" }
   },
   "behavior": "Text is trimmed and required. Search ranks by recency. Tagging 'urgent' is allowed but not special.",
   "behavioral_errors": [
@@ -591,16 +694,25 @@ shape label is analytical, not preservation machinery.
 ```
 
 The AI authors `id` on v1 and thereafter returns it unchanged, along with `label`,
-`schema`, `ui_intent`, `behavior`, `behavioral_errors`, the fixed M4 `tools`,
-`read_dependencies`, and `prompt_context`. The platform owns `incarnation_id`,
-`version`, snapshot metadata, build id, and `artifacts_path`. Fixed platform
-choices such as "detail uses the shared modal" do not belong in the AI-authored
+the logo birth facts `subject`/`ground` and empty-state `noun`, `schema`,
+`ui_intent`, `behavior`, `behavioral_errors`, the fixed M4 `tools`,
+`read_dependencies`, and `prompt_context`. Subject and ground are immutable for
+the incarnation; noun may evolve as a View-only fact. The platform owns
+`display_label_override`, `incarnation_id`, `seed`, logo lifecycle, `version`,
+snapshot metadata, build id, and `artifacts_path`. The effective user-facing name
+is `display_label_override ?? label`; rename mutates only the override through a
+short coordinator write and advances the resolver catalog binding. Fixed platform
+choices such as "a record opens in the window" do not belong in the AI-authored
 spec.
 
 `ui_intent` records only capability-specific choices: the item's free design
 direction and ordered presentation dependencies, the collection layout (a closed
-`feed | grid` value the platform list container reads), the entries and order shown
-in detail, and exactly one closed list input mode for every active `string[]`. Form
+`feed | grid` value the platform list container reads), exactly one closed list
+input mode for every active `string[]`, one presentation entry per active choice
+field, scalar-string fields rendered as long text, and optional guidance. It
+carries no detail entry: a record opens
+in the form, in edit mode, so no read-only surface exists whose fields and order
+the model could name, and it says how a record looks by building that form. Form
 list-input entries follow active `string[]` schema-field order and use
 `comma_separated | repeatable`; missing, duplicate, scalar, inactive,
 unknown-field, or unknown-mode entries fail validation. Choosing `comma_separated`
@@ -608,6 +720,33 @@ asserts that commas separate elements of that field rather than belong to elemen
 data; `repeatable` preserves commas inside each element. Presentation lists may
 name active user fields plus the closed platform field `created_at`, and `id`,
 `extra`, and inactive fields are forbidden.
+
+A choice field stores one stable string `value` from its declared option objects;
+option values are append-only through evolution, while labels, notes, grouping,
+disabled state and picker/radio/segmented presentation may change under the total
+Diff contract. Each choice owns an ordered `groups` declaration array with stable
+unique ids and nonblank headings; options may refer only to a group on that field,
+ids cannot be renamed, and referenced groups cannot be removed. A disabled value
+already present in a row remains renderable and preservable but cannot be newly
+selected. Undeclared and newly disabled choices
+fail before generated code as typed 422 `invalid_choice` and `choice_disabled`,
+carrying the affected field in `data-error-fields`. `max_length` is a positive-integer
+constraint only on scalar string fields, preserved exactly by soft-hide, enforced
+by platform mutation validation, and refused at evolution activation if any
+committed physical value already exceeds a new or lower limit. Generated Handlers
+receive admitted values rather than reimplementing these structural constraints;
+crafted overflow returns typed 422 `max_length_exceeded` with the same field
+marker. These three structural codes and their authored platform sentences do not
+enter model-authored `behavioral_errors`. Older active rows may omit Module 5's new form
+collections; omission canonicalizes to empty without rewriting historical
+snapshots, while new specs emit the complete form shape.
+
+The drawn picker implements the select-only combobox keyboard and ARIA contract:
+open keys, arrow/Home/End movement, typeahead, commit, Escape/click-away, focus
+held on the button and active-descendant reporting, with disabled options skipped.
+Radio uses native radio inputs; segmented remains a mutually exclusive,
+keyboard-operable button set. Presentation changes do not change the stored wire
+value.
 
 `artifacts_path` points to the incarnation/version directory holding the exact
 `spec.json`, all Handlers, the item renderer, platform-authored `snapshot.json`,
@@ -619,22 +758,32 @@ inventories and tests stay in snapshot files. Each persistent read dependency is
 strict `{ capability_id, incarnation_id }` pair resolving to an active row; arrays
 are unique and canonically ordered, and the target capability is implicit. Naming
 exact live incarnations lets permanent deletion find reverse dependencies without
-inspecting generated code. Through M8 there is no registry/serving
-artifact-contract upgrade marker (ADR-0005 §7); an M8 metrics-only shape label may
+inspecting generated code. Through M9 there is no registry/serving
+artifact-contract upgrade marker (ADR-0005 §7); an M9 metrics-only shape label may
 classify historical rows. Keeping the active registry set lean matters because the
 Intent Resolver scans every row on every classification, reading `prompt_context`
 to understand the capabilities that already exist.
+
+The logo file is not part of `artifacts_path` or any version inventory. It lives
+once at `capabilities/<id>/<incarnation_id>/logo.svg`, beside `vN/`, so bounded
+post-activation retry never mutates an immutable snapshot. Platform rendering
+serves it from `/capability/:id/:incarnation_id/logo.svg` under the exact
+incarnation read gate; delete-and-recreate receives a different immutable URL.
+Only `present` emits/serves that immutable URL. Placeholder or missing-file
+responses are `no-store`, and a `present` row whose accepted file disappears is
+reconciled to `abandoned` rather than generating a second artwork.
 
 Field types include `file` and `file[]`. A file field stores only a reference in
 the data table — storage key, mime, size, original name — never the bytes (see
 §6.3 Object Store and §7 Files). A `photos` capability is therefore an ordinary
 capability whose schema has a `file`-typed field.
 
-The platform form/detail renderer is exhaustive over the committed field-type
+The platform form renderer is exhaustive over the committed field-type
 vocabulary. Module 4 extends that one renderer when list types arrive and lets
 the authored form intent select between the two platform list-input modes without
-exposing the choice to generated Handlers; Module 6 extends it again for file
-controls and file detail presentation. Unknown types or list-input modes fail
+exposing the choice to generated Handlers; Module 5 adds choice/long-text form
+contracts, and Module 7 extends it again for file controls and form presentation.
+Unknown types or list-input modes fail
 closed rather than falling back to an arbitrary text field.
 
 #### Event Log — append-only during ordinary operation
@@ -653,7 +802,7 @@ production; it does not trust client- or model-supplied incarnation labels.
 Ingestion uses a short coordinator write and atomically validates and appends the
 derived set only while every pair is still active and current, so a late
 pre-deletion batch is rejected after closing or tombstoning and cannot resurrect
-purged content. That lets M7 extend M4's cleanup seam without guessing from free
+purged content. That lets M8 extend M4's cleanup seam without guessing from free
 text.
 
 #### Data Tables — additive-only, generated DDL
@@ -720,16 +869,22 @@ ordering is asymmetric and explicit:
   verified `v1..vN` is committed history even when it is not the live pointer. A
   post-publication database failure can create a never-activated verified `v>N`
   candidate for reconciliation, and recovery never treats historical versions as
-  garbage merely because the registry points at a newer one.
+  garbage merely because the registry points at a newer one. A v1 logo attempt
+  starts only after that activation, writes outside every `vN` inventory with
+  no-overwrite installation, and has its own durable claim/recovery state; it can
+  fail without changing the build outcome.
 - **Capability deletion:** close/drain reads → collect all owned resources while
   the table exists → commit a non-routable registry tombstone, installed
   SQLite-owned payload cleanup, and table drop → idempotently delete
   artifacts/external resources → remove tombstone. A post-commit external failure
   creates durable retry work, not a live dangling pointer. Before commit the
-  committed toolbar/View remains authoritative and failure restores it; at commit
-  the capability becomes absent from toolbar/routes. The content becomes neutral
-  only when the deleted capability was active; otherwise the current active View
-  remains. Later cleanup retries do not resurrect the deleted surface.
+  committed ground and View remain authoritative and failure restores them; at
+  commit the capability becomes absent from the ground and from routes. The window
+  puts itself away only when the deleted capability was the open one; otherwise the
+  displaced open View is restored from its current canonical state. A direct
+  address for an absent capability loads the bare desk and speaks its brief notice
+  through the prompt bar's existing message region. Later cleanup retries do not
+  resurrect the deleted surface.
 
 Boot recovery runs before serving affected routes. It never infers ownership from
 arbitrary stored paths, follows symlinks outside configured roots, overwrites a
@@ -805,7 +960,7 @@ selects an extension-capable Homebrew SQLite (or `OMNI_CRUD_SQLITE_LIBRARY`)
 instead of Apple's extension-disabled library; setup details live in
 `data/README.md`.
 
-M5 `data_query` is the ephemeral whole-catalog reader and persists no reverse
+M6 `data_query` is the ephemeral whole-catalog reader and persists no reverse
 dependency. A cheap classifier may route or reject obvious non-queries early
 ("delete everything" → friendly refusal), but it is never the safety seam.
 
@@ -835,10 +990,14 @@ swappable to R2, S3, or Garage by config.
 
 `data_query` ("how many photos tagged sunset?", "notes from last week") builds
 nothing. The AI translates NL → read-only SQL and a platform-owned generic
-auto-table renders a bounded result. The query creates no registry row, toolbar
-entry, version, artifact, cache, or persisted read dependency. Once M7 exists the
-Event Log may still record the ordinary user action, which does not turn the query
-into a built capability. Scope follows the context-aware prompt bar.
+auto-table renders a bounded result. The query creates no registry row, no logo on
+the ground, and no version, artifact, cache, or persisted read dependency. Once M8
+exists the Event Log may still record the ordinary user action, which does not turn
+the query into a built capability. Scope follows the context-aware prompt bar.
+
+Where that answer appears is not settled. An answer is disposable and the window
+holds what persists, so the surface waits on the companion — a talking pet that is
+not designed yet — and Module 6 inherits the question rather than an answer.
 
 ## 8. The two loops
 
@@ -849,7 +1008,7 @@ User types in Prompt Bar
         │
         ▼
 Intent Resolver  ── classify (new/extend/ui/query) + overlap resolve + friendly label
-        ├─ data_query ──▶ M5 ephemeral query path
+        ├─ data_query ──▶ M6 ephemeral query path
         ├─ reject ──────▶ friendly refusal
         └─ resolved request + target/catalog fingerprint binding
                     │
@@ -869,9 +1028,9 @@ Intent Resolver  ── classify (new/extend/ui/query) + overlap resolve + frien
                     │
                     ▼
           Presenter terminal branch
-                    ├─ activated: one committed View swap
-                    │  (+ conditional toolbar sidecar)
-                    └─ not activated: restore live/neutral View via fragment + done
+                    ├─ activated: one committed View swap in the window
+                    │  (+ conditional logo sidecar)
+                    └─ not activated: restore live View or bare desk via fragment + done
 ```
 
 The user watches the UI assemble itself, narrated in friendly language and never in
@@ -890,7 +1049,7 @@ Intent Resolver  ── async, off the interaction path: reads event batch + con
         │
         ├─ confidence < threshold ──▶ log only, back off (raise bar for this pattern)
         │
-        └─ confidence ≥ threshold ──▶ M7-owned friendly proposal surface
+        └─ confidence ≥ threshold ──▶ M8-owned friendly proposal surface
                                               │
                                   ┌───────────┴───────────┐
                                   ▼                       ▼
@@ -910,10 +1069,12 @@ request to the same Builder that Loop 1 uses, and re-runs no prompt classificati
 
 > The implicit UX is deliberately not yet defined. Event capture, the server-side
 > gate, async inference, explicit confirmation, and resolved-request hand-off are
-> fixed. Module 7 decides where and when the proposal appears, and which Builder
+> fixed. Module 8 decides where and when the proposal appears, and which Builder
 > lifecycle presenter follows confirmation — a foreground interruption, or a
-> quieter background presentation. The Builder itself is independent of the
-> explicit prompt/SSE presenter. Nothing builds without confirmation.
+> quieter background presentation. The desk does not settle it: a proposal is Aluna
+> speaking unprompted, and the expected carrier is the companion, a talking pet
+> that is not designed yet. The Builder itself is independent of the explicit
+> prompt/SSE presenter. Nothing builds without confirmation.
 
 ### Overlap resolution: extend or create a separate capability
 
@@ -943,10 +1104,13 @@ separately, and leases release through an ownership-validated `finally`, never a
 `isBusy` observation. That stops a request from accidentally joining another
 open transaction.
 
-Explicit-loop builds and evolutions use the foreground SSE presenter: the active
-content becomes generation, record mutation routes refuse while the build lease is
-held, and commit swaps the complete View. That presentation is not a core Builder
-invariant; Module 7 may choose another presenter after confirmation.
+Explicit-loop builds and evolutions use the foreground SSE presenter: the build
+takes the window and narrates there, record mutation routes refuse while the build
+lease is held, and commit swaps the complete View into that same window. Meanwhile
+a build-id provisional tile marks the ground only after new-capability admission,
+so the build stays visible whether or not the user is watching the window. It is
+replaced on activation and removed on every non-activation. That presentation is not a core Builder invariant;
+Module 8 may choose another presenter after confirmation.
 
 Reads remain concurrent and never enter the mutation coordinator. Capability
 deletion adds a per-incarnation closing step: once it is admitted, new routes,
@@ -956,15 +1120,30 @@ Any operation that can observe multiple incarnations acquires the complete token
 atomically against one gate/catalog snapshot or receives none, and all tokens
 release in `finally`.
 
+Cross-capability reads need no invalidation channel. A capability may read another
+capability's table and can never write to it, one window means one visible
+capability, and every open is a fresh read, so nothing has to be kept in step. A
+second browser tab is the only remaining route to a stale view, and it is an
+accepted edge rather than a reason to build a bus, a version stamp, or the refresh
+control the window deliberately does not have.
+
 Any UI dependency preflight is advisory. Confirm revalidates the target incarnation
 and its reverse dependencies after the atomic try-acquire, and declared dependents
 block deletion rather than leaving survivors broken. A new capability has no delete
 surface before commit, and a pending deletion reserves its semantic id until cleanup
-completes. Before tombstone commit the committed toolbar and View stay
-authoritative, and pre-commit failure restores them; at commit the toolbar entry and
-route disappear. Deleting the active target moves content to neutral, while deleting
-an inactive one preserves the current active View. External cleanup retries cannot
-resurrect the deleted surface.
+completes.
+
+Deletion runs in the window like everything else. The doorway is the logo's context
+menu and never the window chrome, and the confirmation fills the window in authored
+product voice. Before tombstone commit the committed ground and View stay
+authoritative, and pre-commit failure restores them. At commit the logo vanishes;
+the window puts itself away when the deleted capability was previously open or the
+desk was bare, and otherwise restores the unrelated capability the confirmation
+displaced. There is no terminal state for the deleted capability. A link to a
+deleted capability loads the bare desk and speaks a brief notice through the
+prompt bar, which covers a reload, a bookmark and a second tab without a window
+state or third notice component of its own.
+External cleanup retries cannot resurrect the deleted surface.
 
 ## 9. Operating principles
 
@@ -972,14 +1151,14 @@ resurrect the deleted surface.
    Handlers, item renderer, and tier-on tests are version-keyed caches. A total
    positive-proof Diff Engine chooses between regeneration and copy, and snapshot
    metadata proves completeness. The arrow only points spec → derived artifacts.
-   Through M8, platform artifact-shape changes still reset and rebuild rather than
+   Through M9, platform artifact-shape changes still reset and rebuild rather than
    using the deferred preserving-upgrade marker (ADR-0005 §7).
 
 2. **Mutation constrained and coordinated, reads free and declared where
    persistent.** Canonical writes go through capability-bound and
    validated-target-bound mutations under the one coordinator. Reads use physically
    read-only SQL through supplied adapters. Persistent cross-capability Handler
-   dependencies are committed lifecycle facts, while M5 queries remain ephemeral.
+   dependencies are committed lifecycle facts, while M6 queries remain ephemeral.
    (See §3, §7.)
 
 3. **Evolution never destroys; explicit deletion does.** Migrations are
@@ -1020,11 +1199,17 @@ resurrect the deleted surface.
 
 7. **Friendly app, never a coding agent or engineering tool.** Users state the
    capability-level outcome they want; they do not choose types, migrations,
-   frameworks, generated code, CSS values, or build steps. No internals surface in
-   product UI — no "handler," "migration," "compile," or "spec." Narration,
-   proposals, confirmations, and errors all speak in product voice. The read-only
-   developer panel may reveal internals for curiosity and verification, but it
-   never steers the build. "Look how easy / friendly / fast" is part of the thesis.
+   frameworks, generated code, CSS values, or build steps. Presentation is not
+   theirs to steer either, and a capability's logo is presentation: its subject
+   comes from the intent, and a prompt that tries to art-direct it is refused by the
+   Intent Resolver under the same rule that refuses "move this 2px right." The
+   general rule is the whole defence; no logo-specific validator exists. No
+   internals surface in product UI — no "handler," "migration," "compile," or
+   "spec." Narration, proposals, confirmations, and errors all speak in product
+   voice, in the window showing the work or on the prompt bar that received them.
+   The read-only developer panel may reveal internals for curiosity and
+   verification, but it never steers the build. "Look how easy / friendly / fast" is
+   part of the thesis.
 
 8. **Determinism supports the AI experiment; it does not replace it.** Platform
    code should be deterministic where safety demands it, where shared chrome is

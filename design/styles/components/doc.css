@@ -1,0 +1,375 @@
+/*
+ * Document furniture: notes, specification tables, swatches, benches. These belong
+ * to the design pages, not to the product.
+ */
+
+/* ── Notes ────────────────────────────────────────────────────────────── */
+
+.note {
+  border: var(--line) solid var(--ink);
+  background: var(--surface-2);
+  padding: var(--space-4) var(--space-4);
+}
+
+/* The title bar's palest pane, borrowed: it is the only pale sky in the
+ * palette, and the `--sky` anchor itself is far stronger. */
+.note--sky {
+  background: var(--pane-5);
+}
+
+.note--sun {
+  background: #fbebc6;
+}
+
+.note--clay {
+  background: #fbdfd0;
+}
+
+/* ── Specification tables ─────────────────────────────────────────────── */
+
+/*
+ * The frame is drawn, so the table cannot be the thing that scrolls: a
+ * scroller clips, and the ink overhangs the box it is drawn on. The scroll
+ * lives one level in, and the background is on the frame so the 2px the line
+ * occupies is paper.
+ */
+.spec {
+  border: var(--line) solid var(--ink);
+  background: var(--surface);
+}
+
+.spec__scroll {
+  overflow-x: auto;
+}
+
+.spec table {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--surface);
+  min-width: 480px;
+}
+
+.spec th,
+.spec td {
+  text-align: left;
+  padding: 9px var(--space-3);
+  font-size: var(--type-base);
+  border-bottom: 1.5px solid var(--ink-hair);
+  vertical-align: top;
+}
+
+.spec th {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--caps-tracking);
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border-bottom: var(--line) solid var(--ink);
+}
+
+.spec tr:last-child td {
+  border-bottom: 0;
+}
+
+.spec td:first-child {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Two prose columns, split evenly. `nowrap` on a paragraph is not a narrow column,
+ * it is a column wider than its container. */
+.spec--even table {
+  table-layout: fixed;
+}
+
+.spec--even th,
+.spec--even td {
+  width: 50%;
+}
+
+.spec--even td:first-child {
+  font-weight: inherit;
+  white-space: normal;
+}
+
+/* ── The numbers, stated once ─────────────────────────────────────────── */
+
+/*
+ * The outer boundary is drawn; the grid lines inside are ruled. `nth-of-type`
+ * rather than `nth-child` throughout, because the two SVG layers the ink
+ * system mounts are children too — and a rule that counts children would then
+ * count them and put the borders on the wrong cells.
+ */
+.numbers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: var(--line) solid var(--ink);
+  background: var(--surface);
+}
+
+.numbers > div {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: var(--surface);
+  border-right: var(--line) solid var(--ink);
+  border-bottom: var(--line) solid var(--ink);
+}
+
+.numbers > div:nth-of-type(3n) {
+  border-right: 0;
+}
+
+.numbers > div:nth-last-of-type(-n + 3) {
+  border-bottom: 0;
+}
+
+.numbers em {
+  display: block;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--teal);
+  margin-bottom: var(--space-1);
+}
+
+.numbers b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--type-xl);
+  font-weight: 700;
+  font-variation-settings:
+    "SOFT" 90,
+    "WONK" 1,
+    "opsz" 60;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+
+.numbers small {
+  display: block;
+  font-size: var(--type-sm);
+  color: var(--ink-2);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+  .numbers {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .numbers > div {
+    border-right: var(--line) solid var(--ink);
+    border-bottom: var(--line) solid var(--ink);
+  }
+
+  .numbers > div:nth-of-type(2n) {
+    border-right: 0;
+  }
+
+  .numbers > div:nth-last-of-type(-n + 2) {
+    border-bottom: 0;
+  }
+}
+
+/* ── Swatches ─────────────────────────────────────────────────────────── */
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: var(--space-2);
+}
+
+.swatch {
+  border: var(--line) solid var(--ink);
+  background: var(--surface);
+}
+
+/*
+ * The chip is pulled out under the transparent border so it still meets the
+ * drawn line. Without this it would stop 2px short and sit in a cream gutter —
+ * the border is still there, it is just no longer the thing you can see.
+ */
+.swatch__chip {
+  height: 62px;
+  margin: calc(var(--line) * -1) calc(var(--line) * -1) 0;
+  border-bottom: var(--line) solid var(--ink);
+}
+
+.swatch__meta {
+  padding: 7px 10px 9px;
+}
+
+.swatch__meta b {
+  display: block;
+  font-size: var(--type-base);
+  font-weight: 600;
+}
+
+.swatch__meta code {
+  font-size: 10.5px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--ink-2);
+  letter-spacing: 0.03em;
+}
+
+.swatch__meta small {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-3);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+/* ── Benches — a live specimen on a stage ─────────────────────────────── */
+
+/*
+ * A stage keeps its wallpaper. This is the case the ink system was shaped
+ * around: the fill is not redrawn in SVG, so a background-image survives the
+ * boundary being drawn. `overflow` is visible because the ink paints just
+ * outside the box it is drawn on.
+ */
+.stage {
+  position: relative;
+  border: var(--line) solid var(--ink);
+  background-color: var(--ground);
+  background-size: cover;
+  background-position: center 58%;
+  padding: var(--space-6) var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.stage--flush {
+  padding: 0;
+  display: block;
+  min-height: 0;
+}
+
+/*
+ * A paper stage. The ground is a property of what is being shown, not of the bench:
+ * a stage defaults to the desk (where a window stands), and this is the one for
+ * everything that lives *inside* a window — the same `surface` the window body is,
+ * which is the fill those components are designed against.
+ */
+.stage--paper {
+  background-color: var(--surface);
+  background-image: none;
+}
+
+/*
+ * Drawn in the close hand. The border must be the full 2px: the reserved width has
+ * to match the drawn stroke, or the ink lands half a pixel off the box it was
+ * measured against.
+ */
+.stage__tag {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 40;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+  padding: 1px 9px;
+  --ink-hand: close;
+}
+
+/* A specimen window is a real window, sized by the bench rather than by flow. */
+.stage .window--specimen {
+  width: 100%;
+  max-width: 420px;
+}
+
+/* ── Control galleries — furniture for `controls.html` ────────────────── */
+
+/* Not drawn and not filled: a bench that framed its contents would put a second
+ * boundary round every control on it. */
+.rack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rack--tight {
+  gap: var(--space-2);
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: var(--space-5) var(--space-4);
+}
+
+.gallery--wide {
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+}
+
+.gallery__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.gallery__name {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--caps-tracking);
+  color: var(--teal);
+}
+
+/* Tabular so a column of measured facts lines up. */
+.gallery__meta {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.gallery__meta.is-short {
+  color: var(--signal);
+  font-weight: 700;
+}
+
+.forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(272px, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 620px) {
+  .gallery,
+  .gallery--wide {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ── Type specimens ───────────────────────────────────────────────────── */
+
+.specimen {
+  border: var(--line) solid var(--ink);
+  background: var(--surface);
+  padding: var(--space-4);
+}
+
+.specimen__meta {
+  margin-top: var(--space-2);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--caps-tracking);
+  color: var(--teal);
+}

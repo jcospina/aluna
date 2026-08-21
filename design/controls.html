@@ -1,0 +1,1264 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Aluna Desktop · the controls</title>
+    <meta
+      name="description"
+      content="Every form control Aluna can put on screen in the new language: drawn, mitred and flat, plus the two that did not exist yet, a textarea and a listbox."
+    >
+    <link rel="stylesheet" href="./styles/index.css">
+    <script type="module" src="./scripts/controls-main.js"></script>
+  </head>
+  <body>
+    <div class="menubar">
+      <span class="menubar__mark">Aluna · controls</span>
+      <nav aria-label="Sections">
+        <a href="./index.html">← The desk</a>
+        <a href="#shell">The shell</a>
+        <a href="#buttons">Buttons</a>
+        <a href="#fields">Fields</a>
+        <a href="#long">Long text</a>
+        <a href="#enum">Enums</a>
+        <a href="#choice">Choice</a>
+        <a href="#form">Assembled</a>
+        <a href="#decisions">Decisions</a>
+        <a href="#open">Still open</a>
+        <a href="./logo.html">The logo →</a>
+      </nav>
+    </div>
+
+    <main class="page">
+      <!-- ══ Hero ══════════════════════════════════════════════════════ -->
+      <section class="window--section" id="intro" data-window data-title="The controls">
+        <p class="eyebrow">The control set · working design page</p>
+        <h1>The controls a generated form can reach for, and how each one is drawn.</h1>
+        <p class="lede">
+          The desk page settled the <em>treatment</em>: mitred, drawn, inked twice and flat. This
+          page settles the <em>set</em>. It holds every control a generated form can use, in each
+          state it can be in, plus the two that did not exist yet.
+        </p>
+        <p class="lede">
+          Everything here is real, so you can type into the fields, open the listboxes, tick the
+          boxes and watch the long-text field grow. A control that only looks right in a screenshot
+          is what this page is meant to catch.
+        </p>
+
+        <div class="note note--sky">
+          <p>
+            <strong>Three assumptions from the old surface no longer hold.</strong>
+            There is <strong>no radius</strong>, and no radius token to reach for. There is
+            <strong>no shadow</strong>
+            on a button, a field or an open dropdown. And ink is the
+            <strong>only border colour</strong>. That last one has consequences: a field cannot turn
+            its boundary red to say it is wrong, so the error state had to be carried somewhere
+            else.
+          </p>
+        </div>
+
+        <div class="row">
+          <button class="btn btn--outline" type="button" data-reink>Re-ink everything</button>
+          <span class="xs"
+            >Redraws every boundary on the page with a fresh hand. The treatment does not change and
+            no two results are the same.</span
+          >
+        </div>
+      </section>
+
+      <!-- ══ The shell ═════════════════════════════════════════════════ -->
+      <section class="window--section" id="shell" data-window data-title="The shell">
+        <p class="sm">
+          A drawn boundary is two SVG layers sandwiching real content, so whatever carries one has
+          to be able to <em>have</em> children. <code>&lt;input&gt;</code> is a void element, and
+          <code>&lt;select&gt;</code>
+          admits only <code>&lt;option&gt;</code>. Neither can hold a layer, so neither can be
+          drawn. Every control below is shaped around that.
+        </p>
+
+        <div class="note">
+          <h4>Every control is a shell plus a bare native element</h4>
+          <p class="sm">
+            The shell is an ordinary <code>span</code>, and it carries the boundary, the fill and
+            the padding. The real <code>input</code>, <code>textarea</code> or <code>select</code>
+            sits inside it with no border and no background of its own. The search rail already
+            worked this way before it was named as a pattern.
+          </p>
+          <p class="sm">
+            The shell buys two more things beyond the line. Focus, hover, disabled and invalid all
+            live on it, so each state is declared once and every control inherits it. And an
+            affordance such as a chevron, a unit or a counter sits <em>inside</em> the boundary
+            instead of beside it.
+          </p>
+        </div>
+
+        <div class="numbers">
+          <div>
+            <em>Corner</em><b>Mitred</b><small>Every control. There is no radius token.</small>
+          </div>
+          <div>
+            <em>Weight</em><b>2 px</b><small>The same line as the window, with no ladder.</small>
+          </div>
+          <div>
+            <em>Hand</em><b>Fine</b
+            ><small>0.45px, a bow every 42px at any length. Windows get 0.9.</small>
+          </div>
+          <div>
+            <em>Close hand</em><b>0.28 px</b
+            ><small>The third hand, for parts under 24px, on a 20px wave.</small>
+          </div>
+          <div>
+            <em>Row height</em><b>36 px</b><small>Field and button, so a row aligns.</small>
+          </div>
+          <div>
+            <em>Typed text</em><b>15 px</b
+            ><small>Up from 12.5, because a field is composed in and a mock is read.</small>
+          </div>
+        </div>
+
+        <div class="cols">
+          <div class="note note--sun">
+            <h4>Why the shadow question never comes up here</h4>
+            <p class="sm">
+              A shadow is cast onto the desk, and every control on this page lives inside a window.
+              So the open dropdown further down does not float on a shadow. It reads as being in
+              front because it is drawn in the <strong>frame hand</strong> over the lightest fill on
+              the palette. Depth here is ordered bands first and hands second, and never a blur.
+            </p>
+          </div>
+          <div class="note note--clay">
+            <h4>Why an invalid field keeps its black line</h4>
+            <p class="sm">
+              There is one ink, and the drawn line uses it. A boundary that changed colour would be
+              a second ink, which the palette does not allow. So invalid is carried by the well,
+              which takes a wash of signal at the strength a flat surface can hold, and by the
+              guidance, which switches from advice to the reason for the error. The division also
+              does more work: an outline says
+              <em>that</em>
+              something is wrong, and a sentence says <em>what</em>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Buttons ═══════════════════════════════════════════════════ -->
+      <section class="window--section" id="buttons" data-window data-title="Buttons">
+        <p class="sm">
+          Two rules generate the whole spectrum. <strong>The fill names the role</strong>, and it
+          comes from the tint anchors and the surface fill, never from a new hue or a shade of an
+          existing one.
+          <strong>The text is ink unless the fill is too dark to carry it</strong>, which on this
+          palette is true of exactly two fills.
+        </p>
+        <p class="sm">
+          Seven variants and a default. <code>outline</code> is the only unfilled one, for the
+          action you take when you are not taking the action, and it is what
+          <code>ghost</code>
+          was called before the set was settled. There is no
+          <code>neutral</code>: it filled with <code>ground-deep</code>, which is the desk's band
+          colour, and a button standing inside a window has no business wearing it.
+        </p>
+
+        <h3 class="kicker">The spectrum</h3>
+        <div class="gallery">
+          <div class="gallery__item">
+            <span class="gallery__name">Primary</span>
+            <button class="btn btn--primary" type="button">Save changes</button>
+            <span class="gallery__meta">shade · surface<br>5.2 : 1</span>
+          </div>
+          <div class="gallery__item">
+            <span class="gallery__name">Secondary</span>
+            <button class="btn btn--secondary" type="button">Save and add</button>
+            <span class="gallery__meta">leaf · ink<br>4.5 : 1</span>
+          </div>
+          <div class="gallery__item">
+            <span class="gallery__name">Outline</span>
+            <button class="btn btn--outline" type="button">Cancel</button>
+            <span class="gallery__meta">none · ink<br>13.7 : 1 on surface</span>
+          </div>
+          <div class="gallery__item">
+            <span class="gallery__name">Info</span>
+            <button class="btn btn--info" type="button">What changed</button>
+            <span class="gallery__meta">sky · ink<br>8.1 : 1</span>
+          </div>
+          <div class="gallery__item">
+            <span class="gallery__name">Feature</span>
+            <button class="btn btn--feature" type="button">Grow one</button>
+            <span class="gallery__meta">clay · ink<br>4.7 : 1</span>
+          </div>
+          <div class="gallery__item">
+            <span class="gallery__name">Warm</span>
+            <button class="btn btn--warm" type="button">Remind me</button>
+            <span class="gallery__meta">sun · ink<br>7.5 : 1</span>
+          </div>
+          <div class="gallery__item">
+            <span class="gallery__name">Danger</span>
+            <button class="btn btn--danger" type="button">Delete it</button>
+            <span class="gallery__meta">signal · surface<br>4.7 : 1</span>
+          </div>
+        </div>
+
+        <div class="note note--clay">
+          <h4>Why teal and violet are not buttons</h4>
+          <p class="sm">
+            Ink clears 4.5:1 on every tint anchor except those two, landing at 4.34 on teal and 4.38
+            on violet. Neither is dark enough to carry surface either, at 3.16 and 3.12. No text
+            colour works on them, so they stay what they already were: colours a capability wears on
+            a logo band or a chip, where nothing has to be read off them at 10.5px.
+          </p>
+        </div>
+
+        <h3 class="kicker">Sizes</h3>
+        <div class="rack">
+          <button class="btn btn--sm" type="button">Small · 28px</button>
+          <button class="btn" type="button">Medium · 36px</button>
+          <button class="btn btn--lg" type="button">Large · 44px</button>
+        </div>
+        <p class="xs" style="margin-top: 12px">
+          Three heights and one line weight. The 2px does not scale with the button, because it is
+          the same pen used on a smaller object. A field and a button share the middle height, so a
+          control row aligns without a nudge, and <code>btn--block</code> takes a button full width.
+        </p>
+
+        <h3 class="kicker">States</h3>
+        <div class="cols">
+          <div class="note" data-state-bench>
+            <div class="rack">
+              <button class="btn btn--primary" type="button">Save</button>
+              <button class="btn btn--outline" type="button">Cancel</button>
+              <button class="btn btn--danger" type="button">Delete</button>
+            </div>
+            <div class="rack" style="margin-top: 16px">
+              <label class="field" style="flex: 1">
+                <span class="field__label caps">Title</span>
+                <span class="field__control">
+                  <input class="field__input" type="text" value="Quarterly review">
+                </span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <p class="sm">
+              Hover steps the fill 13% toward ink. It is derived, not declared, so a new variant
+              costs one line and there is no second palette of hover colours to keep in step. Press
+              displaces the button 2px into the paper. That used to be a move onto the button's own
+              shadow, and it still reads as a press without one.
+            </p>
+            <p class="sm">
+              <strong>Disabled prints the whole object lighter</strong>, with line, fill and text
+              together at 42%. Greying the boundary on its own would make it a second ink.
+            </p>
+            <div class="row">
+              <button
+                class="btn btn--outline"
+                type="button"
+                data-disable-toggle
+                aria-pressed="false"
+              >
+                Disable the row
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Fields ════════════════════════════════════════════════════ -->
+      <section class="window--section" id="fields" data-window data-title="Fields">
+        <p class="sm">
+          One shell holds six field types, and the states are declared on the shell, not on any of
+          them. The label sits in small caps above the control and the guidance below it in subtle
+          ink, so the label is read before the control it names.
+        </p>
+        <p class="sm">
+          <strong>Guidance is a key on the field, and there is no placeholder key.</strong>
+          A hint written into the control disappears the moment you start typing, which is when a
+          format hint matters; guidance survives it. Guidance also carries the sentence announcing a
+          default, so a default needs no key of its own. When the field is wrong, the error takes
+          the guidance's place — one slot, one voice, and nothing else on the field moves.
+        </p>
+
+        <div class="forms">
+          <div>
+            <h3 class="kicker">The types</h3>
+            <div class="form">
+              <label class="field">
+                <span class="field__label caps">Title</span>
+                <span class="field__control">
+                  <input class="field__input" type="text">
+                </span>
+                <span class="field__guidance">What you will look for this record by.</span>
+              </label>
+
+              <label class="field">
+                <span class="field__label caps"
+                  >Amount <span class="field__optional">optional</span></span
+                >
+                <span class="field__control">
+                  <input class="field__input" type="number" step="any">
+                </span>
+                <span class="field__guidance">Before tax, to two decimal places.</span>
+              </label>
+
+              <div class="form__pair">
+                <label class="field">
+                  <span class="field__label caps">Due</span>
+                  <span class="field__control">
+                    <input class="field__input" type="date" value="2026-09-14">
+                  </span>
+                </label>
+                <label class="field">
+                  <span class="field__label caps">Reminder</span>
+                  <span class="field__control">
+                    <input class="field__input" type="datetime-local" value="2026-09-14T09:30">
+                  </span>
+                </label>
+              </div>
+
+              <div class="field">
+                <span class="field__label caps">Search within</span>
+                <div class="search">
+                  <span class="search__glyph"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="13"
+                      height="13"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      aria-hidden="true"
+                    >
+                      <circle cx="10" cy="10" r="7"></circle>
+                      <path d="M15 15l6 6" stroke-linecap="round"></path>
+                    </svg></span
+                  >
+                  <input
+                    class="search__input"
+                    type="search"
+                    placeholder="Search invoices…"
+                    aria-label="Search invoices"
+                  >
+                </div>
+                <span class="field__guidance"
+                  >The search rail used this shell before it was a pattern.</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="kicker">The states</h3>
+            <div class="form">
+              <label class="field">
+                <span class="field__label caps">Filled</span>
+                <span class="field__control">
+                  <input class="field__input" type="text" value="Northwind Traders">
+                </span>
+                <span class="field__guidance">The well is surface-2, the fill you compose on.</span>
+              </label>
+
+              <label class="field is-invalid">
+                <span class="field__label caps">Invalid</span>
+                <span class="field__control">
+                  <input
+                    class="field__input"
+                    type="text"
+                    value="not-an-address"
+                    aria-invalid="true"
+                  >
+                </span>
+                <span class="field__guidance"
+                  >That needs an @ in it. The error is in the guidance's place, and the boundary
+                  stays ink.</span
+                >
+              </label>
+
+              <label class="field">
+                <span class="field__label caps">Read-only</span>
+                <span class="field__control">
+                  <input class="field__input" type="text" value="INV-2026-0431" readonly>
+                </span>
+                <span class="field__guidance">Paper, not a well: printed text in a box.</span>
+              </label>
+
+              <label class="field">
+                <span class="field__label caps">Disabled</span>
+                <span class="field__control">
+                  <input class="field__input" type="text" value="Waiting on approval" disabled>
+                </span>
+                <span class="field__guidance">The whole object at 42%, line included.</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="cols">
+          <div class="note note--sun">
+            <h4>Optional is marked, and required is not</h4>
+            <p class="sm">
+              The usual way round puts an asterisk on most of the fields on screen to say the
+              unremarkable thing, and puts it in signal, a colour reserved for something having gone
+              wrong. Marking the exception instead costs one quiet word and leaves signal reserved
+              for errors. The spec already knows which fields are required, so this costs nothing
+              but the renderer, and so do read-only and disabled.
+            </p>
+          </div>
+          <div class="note note--clay">
+            <h4>Who writes the words in an error</h4>
+            <p class="sm">
+              Not the generated form. Showing an error under the field it belongs to is presentation
+              and the platform's; the sentence for a business rule the capability declared is
+              <em>content</em>
+              and belongs to that declaration. A form that wrote its own copy for a declared error
+              would put two versions of the same rule on screen, in two voices, out of step from the
+              first evolution onwards.
+            </p>
+            <p class="sm">
+              The browser also checks required fields before submitting. That recovers the native
+              constraint validation a drawn picker gives up, in the same place and the same style,
+              with no round-trip.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Long text ═════════════════════════════════════════════════ -->
+      <section class="window--section" id="long" data-window data-title="Long text">
+        <div class="note note--sky">
+          <p>
+            <strong>New, and settled.</strong>
+            Aluna has no long-text control today. A field holding three sentences gets the same
+            single-line input a title does, and the text scrolls sideways past a caret you cannot
+            follow. It is a key on the form's declared intent, beside the list-input modes, and it
+            fixes every notes, description, review and journal field there will ever be.
+          </p>
+        </div>
+
+        <div class="forms">
+          <div>
+            <h3 class="kicker">Growing</h3>
+            <label class="field">
+              <span class="field__label caps">Notes</span>
+              <span class="field__control field__control--area">
+                <textarea
+                  class="field__textarea"
+                  rows="3"
+                  data-grow
+                  data-grow-max="220"
+                  placeholder="Type a few lines and watch the field keep up…"
+                ></textarea>
+              </span>
+              <span class="field__guidance">Grows to fit, then scrolls at 220px.</span>
+            </label>
+            <p class="xs" style="margin-top: 16px">
+              <strong>There is no resize grip.</strong>
+              A textarea's own grip is three diagonal lines drawn by the operating system in the
+              bottom-right corner. It cannot be styled or drawn, and it would be the only mark on
+              this page that is not ours. Losing it also improves the behaviour, since dragging a
+              box to fit text you have already written is work the box can do on its own.
+            </p>
+          </div>
+
+          <div>
+            <h3 class="kicker">With a limit</h3>
+            <label class="field">
+              <span class="field__label caps">Summary</span>
+              <span class="field__control field__control--area">
+                <textarea
+                  class="field__textarea"
+                  rows="4"
+                  data-grow
+                  data-grow-max="260"
+                  data-count-into="#summary-count"
+                  data-count-limit="180"
+                  data-sample="Ambient interfaces change what people choose to track. The vocabulary sharpens once the first records exist."
+                ></textarea>
+              </span>
+              <span class="field__guidance" id="summary-count"></span>
+            </label>
+            <p class="xs" style="margin-top: 16px">
+              The count lives in the guidance slot, which is where a field already says things about
+              itself. It turns signal only once the limit is passed, because a counter that goes red
+              for the last twenty characters trains you to ignore it. The limit is declared once on
+              the field and drives both this counter and the handler's validation, so the number you
+              are counting down to and the number the server enforces cannot drift apart.
+            </p>
+          </div>
+        </div>
+
+        <div class="note">
+          <h4>What decides between an input and a textarea</h4>
+          <p class="sm">
+            The field type cannot decide it, since both hold a <code>string</code>. It is a
+            presentation choice, so it belongs in the capability's declared intent beside
+            <code>collection.layout</code>
+            and
+            <code>item.shows</code>
+            and not in its schema. A
+            <code>form.long_text</code>
+            list naming the fields that get one has the same shape as the
+            <code>form.list_inputs</code>
+            list that already picks between a comma-separated and a repeatable list input, which is
+            why that is the shape it takes.
+          </p>
+        </div>
+      </section>
+
+      <!-- ══ Enums ═════════════════════════════════════════════════════ -->
+      <section class="window--section" id="enum" data-window data-title="Enums">
+        <div class="note note--sky">
+          <p>
+            <strong>New, and settled.</strong>
+            A closed set of values has no control at all today. An enum is stored as a
+            <code>string</code>
+            and typed by hand into a text field, which leaves a validation rule doing the work a
+            control should do. This is the second missing control, and the only one on the surface
+            that a native element cannot carry.
+          </p>
+          <p>
+            It becomes a field type of its own, a scalar that
+            <strong>carries its own declared values</strong>, with the full picker below it: options
+            in groups, a note under an option, and an option that is there but cannot be chosen.
+            Which control it renders as — picker, radio group or segmented — is
+            <strong>declared per field</strong>
+            in the spec, and never inferred from how many options there happen to be.
+          </p>
+        </div>
+
+        <div class="forms">
+          <div>
+            <h3 class="kicker">Ours · a drawn listbox</h3>
+            <div
+              class="field listbox"
+              data-listbox
+              data-name="status"
+              data-placeholder="Choose a status…"
+            >
+              <span class="field__label caps" id="status-label">Status</span>
+              <button
+                class="field__control field__control--select listbox__button"
+                type="button"
+                role="combobox"
+                aria-expanded="false"
+                aria-labelledby="status-label"
+              >
+                <span class="listbox__value"></span>
+                <span class="listbox__chevron"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 9l6 6 6-6"></path>
+                  </svg></span
+                >
+              </button>
+              <div class="listbox__panel" hidden>
+                <div class="listbox__scroll">
+                  <div class="listbox__option" role="option" data-value="draft">Draft</div>
+                  <div class="listbox__option" role="option" data-value="sent" aria-selected="true">
+                    Sent
+                  </div>
+                  <div class="listbox__option" role="option" data-value="paid">
+                    Paid<span class="listbox__note">closes the record</span>
+                  </div>
+                  <div class="listbox__option" role="option" data-value="overdue">Overdue</div>
+                  <div class="listbox__option" role="option" data-value="void" aria-disabled="true">
+                    Void<span class="listbox__note">needs a reason</span>
+                  </div>
+                </div>
+              </div>
+              <span class="field__guidance"
+                >Chosen: <code data-listbox-echo>sent</code>, reported as one bubbling event.</span
+              >
+            </div>
+
+            <p class="xs" style="margin-top: 18px">
+              Open it with <strong>Enter</strong>, <strong>Space</strong> or an arrow key. Walk the
+              list with the arrows or <strong>Home</strong> and <strong>End</strong>, jump by typing
+              a letter, commit with <strong>Enter</strong>, and leave with <strong>Escape</strong>.
+              Focus never moves off the button, and the active row is reported through
+              <code>aria-activedescendant</code>. That keeps the five ways out of the panel from
+              each needing their own focus-restoring code.
+            </p>
+
+            <div class="row" style="margin-top: 16px">
+              <div
+                class="field listbox"
+                data-listbox
+                data-placeholder="Choose a currency…"
+                style="min-width: 220px"
+              >
+                <span class="field__label caps" id="ccy-label">A long one, scrolling</span>
+                <button
+                  class="field__control field__control--select listbox__button"
+                  type="button"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-labelledby="ccy-label"
+                >
+                  <span class="listbox__value"></span>
+                  <span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  >
+                </button>
+                <div class="listbox__panel" hidden>
+                  <div class="listbox__scroll">
+                    <div class="listbox__group caps" role="presentation">Americas</div>
+                    <div class="listbox__option" role="option" data-value="cop">Colombian peso</div>
+                    <div class="listbox__option" role="option" data-value="usd">US dollar</div>
+                    <div class="listbox__option" role="option" data-value="brl">Brazilian real</div>
+                    <div class="listbox__option" role="option" data-value="cad">
+                      Canadian dollar
+                    </div>
+                    <div class="listbox__group caps" role="presentation">Europe</div>
+                    <div class="listbox__option" role="option" data-value="eur">Euro</div>
+                    <div class="listbox__option" role="option" data-value="gbp">Pound sterling</div>
+                    <div class="listbox__option" role="option" data-value="chf">Swiss franc</div>
+                    <div class="listbox__group caps" role="presentation">Asia</div>
+                    <div class="listbox__option" role="option" data-value="jpy">Japanese yen</div>
+                    <div class="listbox__option" role="option" data-value="cny">Chinese yuan</div>
+                    <div class="listbox__option" role="option" data-value="inr">Indian rupee</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="kicker">Theirs · a native select</h3>
+            <label class="field">
+              <span class="field__label caps">Status</span>
+              <span class="field__control field__control--select">
+                <select class="field__select">
+                  <option>Draft</option>
+                  <option selected>Sent</option>
+                  <option>Paid</option>
+                  <option>Overdue</option>
+                </select>
+                <span class="field__chevron"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 9l6 6 6-6"></path>
+                  </svg></span
+                >
+              </span>
+              <span class="field__guidance">Closed it is the same control. Open it.</span>
+            </label>
+
+            <div class="note note--clay" style="margin-top: 20px">
+              <h4>Open them both, one after the other</h4>
+              <p class="sm">
+                Closed, the two are indistinguishable. The shell pattern gets the native one exactly
+                as far as the drawn boundary and no further. Open, one is this surface and the other
+                is macOS.
+              </p>
+              <p class="sm">
+                A <code>&lt;select&gt;</code>'s popup is drawn by the browser, entirely outside the
+                stylesheet's reach. It arrives rounded, shadowed, blue-highlighted and set in the
+                system face. On a surface where every boundary is drawn, that popup is visibly
+                foreign.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="cols">
+          <div class="note">
+            <h4>What the panel does instead of a shadow</h4>
+            <p class="sm">
+              Nothing inside a window casts a shadow, and a dropdown is inside a window. So the
+              panel comes forward using two things the language already has. It is drawn in the
+              <strong>frame hand</strong>, at the window's amplitude instead of a component's, and
+              it is filled with
+              <code>surface</code>, the lightest fill, over the <code>surface-2</code> well it
+              covers. Light in front, dark behind, and the heavier hand on the thing that holds.
+            </p>
+          </div>
+          <div class="note">
+            <h4>What it costs</h4>
+            <p class="sm">
+              About 300 well-trodden lines: the ARIA select-only combobox pattern, arrow keys,
+              typeahead, click-outside handling, and a flip when there is no room below. In
+              exchange, an enum stops being a text field with a rule attached, and the control
+              generation reaches for most often no longer breaks the surface.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Choice ════════════════════════════════════════════════════ -->
+      <section class="window--section" id="choice" data-window data-title="Choice">
+        <p class="sm">
+          A boolean field, and the two choice controls that show every option at once instead of
+          opening. The real input is still the thing that is focused, checked and submitted, and the
+          mark beside it is what gets drawn, for the same reason every other control has a shell.
+        </p>
+        <p class="sm">
+          Which of the three a choice field uses is
+          <strong>declared on the field</strong>, not inferred from the number of options. Four
+          statuses might be a picker in one capability and a radio group in another, and the
+          capability is what knows whether they are worth the room — a count cannot tell you that,
+          and a rule based on one would keep changing the control under a user every time an option
+          was added.
+        </p>
+
+        <div class="forms" data-hand-bench data-hand="close">
+          <div>
+            <h3 class="kicker">Checkbox</h3>
+            <div class="choice-set">
+              <label class="choice">
+                <input class="choice__input" type="checkbox" checked>
+                <span class="choice__mark"
+                  ><span class="choice__glyph"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3.4"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12.5l4.6 4.5L19 7"></path>
+                    </svg></span
+                  ></span
+                >
+                <span class="choice__body">
+                  <span class="choice__title">Send a receipt</span>
+                  <span class="choice__hint">Emailed the moment the record is marked paid.</span>
+                </span>
+              </label>
+
+              <label class="choice">
+                <input class="choice__input" type="checkbox">
+                <span class="choice__mark"
+                  ><span class="choice__glyph"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3.4"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12.5l4.6 4.5L19 7"></path>
+                    </svg></span
+                  ></span
+                >
+                <span class="choice__body">
+                  <span class="choice__title">Recurring</span>
+                </span>
+              </label>
+
+              <label class="choice">
+                <input class="choice__input" type="checkbox" disabled>
+                <span class="choice__mark"
+                  ><span class="choice__glyph"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3.4"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12.5l4.6 4.5L19 7"></path>
+                    </svg></span
+                  ></span
+                >
+                <span class="choice__body">
+                  <span class="choice__title">Auto-chase</span>
+                  <span class="choice__hint">Needs a reminder schedule first.</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="kicker">Radio</h3>
+            <div class="choice-set" role="radiogroup" aria-label="Terms">
+              <label class="choice choice--radio">
+                <input class="choice__input" type="radio" name="terms" checked>
+                <span class="choice__mark"><span class="choice__glyph"></span></span>
+                <span class="choice__body">
+                  <span class="choice__title">Due on receipt</span>
+                </span>
+              </label>
+              <label class="choice choice--radio">
+                <input class="choice__input" type="radio" name="terms">
+                <span class="choice__mark"><span class="choice__glyph"></span></span>
+                <span class="choice__body">
+                  <span class="choice__title">Net 15</span>
+                </span>
+              </label>
+              <label class="choice choice--radio">
+                <input class="choice__input" type="radio" name="terms">
+                <span class="choice__mark"><span class="choice__glyph"></span></span>
+                <span class="choice__body">
+                  <span class="choice__title">Net 30</span>
+                  <span class="choice__hint">What most of these records use.</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="kicker">Segmented</h3>
+            <div class="segmented" role="group" aria-label="Layout">
+              <button type="button" aria-pressed="true">Feed</button>
+              <button type="button" aria-pressed="false">Grid</button>
+            </div>
+            <p class="xs" style="margin-top: 14px">
+              For a set the capability wants read at a glance and switched between, where a radio
+              group would spend a column on the same two words. The outer boundary is drawn and the
+              seams between the buttons stay ruled, following the rule that a line which encloses is
+              drawn and a line which divides stays true.
+            </p>
+          </div>
+        </div>
+
+        <div class="note note--sun">
+          <h4>The third hand, and why these needed one</h4>
+          <p class="sm">
+            The marks above are 22px and drawn in the <strong>close hand</strong>, at 0.28px on a
+            20px wavelength, against the fine hand's 0.45 on 42. The rule they broke said that parts
+            under about 20px stay ruled, because a short edge never completes a cycle of the
+            deviation. The status chip had already shown that the objection was about
+            <em>perimeter</em>
+            and not height, and a 22px square has 88px of perimeter. That is four cycles at this
+            wavelength, and none at the fine hand's.
+          </p>
+          <p class="sm">
+            So the question was which hand to use, not whether to draw at all. The alternative was a
+            ruled checkbox sitting beside a drawn field, which would leave the last visible CSS
+            border on the surface in the one place it is easiest to compare.
+          </p>
+        </div>
+      </section>
+
+      <!-- ══ Assembled ═════════════════════════════════════════════════ -->
+      <section class="window--section" id="form" data-window data-title="A record, assembled">
+        <p class="sm">
+          Every control on this page in one form, laid out the way the record form already is: label
+          in small caps above its control, guidance below in subtle ink, related short fields paired
+          two-up, and an actions row separated by a rule with the destructive action kept on the
+          right.
+        </p>
+
+        <div class="stage stage--flush stage--paper" style="padding: 22px; max-width: 560px">
+          <div class="form">
+            <label class="field">
+              <span class="field__label caps">Customer</span>
+              <span class="field__control">
+                <input class="field__input" type="text" value="Northwind Traders">
+              </span>
+            </label>
+
+            <div class="form__pair">
+              <div
+                class="field listbox"
+                data-listbox
+                data-name="status2"
+                data-placeholder="Choose…"
+              >
+                <span class="field__label caps" id="assembled-status">Status</span>
+                <button
+                  class="field__control field__control--select listbox__button"
+                  type="button"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-labelledby="assembled-status"
+                >
+                  <span class="listbox__value"></span>
+                  <span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  >
+                </button>
+                <div class="listbox__panel" hidden>
+                  <div class="listbox__scroll">
+                    <div class="listbox__option" role="option" data-value="draft">Draft</div>
+                    <div
+                      class="listbox__option"
+                      role="option"
+                      data-value="sent"
+                      aria-selected="true"
+                    >
+                      Sent
+                    </div>
+                    <div class="listbox__option" role="option" data-value="paid">Paid</div>
+                    <div class="listbox__option" role="option" data-value="overdue">Overdue</div>
+                  </div>
+                </div>
+              </div>
+
+              <label class="field">
+                <span class="field__label caps">Amount</span>
+                <span class="field__control">
+                  <input class="field__input" type="number" step="any" value="2480">
+                </span>
+              </label>
+            </div>
+
+            <label class="field">
+              <span class="field__label caps">Issued</span>
+              <span class="field__control">
+                <input class="field__input" type="date" value="2026-08-14">
+              </span>
+              <span class="field__guidance">Defaults to today.</span>
+            </label>
+
+            <label class="field">
+              <span class="field__label caps"
+                >Notes <span class="field__optional">optional</span></span
+              >
+              <span class="field__control field__control--area">
+                <textarea
+                  class="field__textarea"
+                  rows="3"
+                  data-grow
+                  data-grow-max="180"
+                  placeholder="Anything worth remembering next time…"
+                ></textarea>
+              </span>
+            </label>
+
+            <label class="choice">
+              <input class="choice__input" type="checkbox" checked>
+              <span class="choice__mark"
+                ><span class="choice__glyph"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12.5l4.6 4.5L19 7"></path>
+                  </svg></span
+                ></span
+              >
+              <span class="choice__body">
+                <span class="choice__title">Send a receipt when this is paid</span>
+              </span>
+            </label>
+
+            <div class="form__actions">
+              <button class="btn btn--primary" type="button">Save changes</button>
+              <button class="btn btn--outline" type="button">Cancel</button>
+              <span class="form__spacer"></span>
+              <button class="btn btn--danger" type="button">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <p class="xs" style="margin-top: 14px">
+          This one stands on <strong>paper</strong>. A stage defaults to the ground because the
+          first stage on these pages was showing a window, and a window stands on the desk. A form
+          does not. It stands on <code>surface</code>, inside a window, which is the fill every
+          control above was designed against. The earlier benches were testing a stack that never
+          occurs: three greens deep, with the wallpaper underneath.
+        </p>
+      </section>
+
+      <!-- ══ Decisions ═════════════════════════════════════════════════ -->
+      <section class="window--section" id="decisions" data-window data-title="What this settles">
+        <div class="spec">
+          <div class="spec__scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">Decision</th>
+                  <th scope="col">Where you can see it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>C1</td>
+                  <td>
+                    <strong>Every control is a shell plus a bare native element.</strong>
+                    A void or replaced element cannot hold the two SVG layers, so it cannot be
+                    drawn. The boundary, the fill and the state live on a wrapper
+                  </td>
+                  <td class="sm">
+                    Every field on the page, and the search rail, which did it first
+                  </td>
+                </tr>
+                <tr>
+                  <td>C2</td>
+                  <td>
+                    <strong>No radius on any control.</strong>
+                    There is no radius token. The status chip stays a stadium, remains the only one,
+                    and is not a control
+                  </td>
+                  <td class="sm">Everything with an edge</td>
+                </tr>
+                <tr>
+                  <td>C3</td>
+                  <td>
+                    <strong>No shadow, including under an open dropdown.</strong>
+                    A shadow is cast onto the desk, and every control is inside a window. Depth
+                    comes from ordered bands and the hands
+                  </td>
+                  <td class="sm">Open a listbox and look under its panel</td>
+                </tr>
+                <tr>
+                  <td>C4</td>
+                  <td>
+                    <strong>The boundary is always ink.</strong>
+                    Invalid is carried by the well and the guidance, and disabled by printing the
+                    whole object lighter. A coloured boundary would be a second ink
+                  </td>
+                  <td class="sm">
+                    The invalid and disabled fields under <a href="#fields">Fields</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>C5</td>
+                  <td>
+                    <strong
+                      >The fill names the button's role; the text is ink unless the fill is too
+                      dark.</strong
+                    >
+                    Two fills on this palette are too dark: shade and signal. Two anchors carry no
+                    text at all, so they are not buttons
+                  </td>
+                  <td class="sm">The spectrum, with each pairing's measured ratio under it</td>
+                </tr>
+                <tr>
+                  <td>C6</td>
+                  <td>
+                    <strong>An enum gets a drawn listbox, not a native select.</strong>
+                    A native popup is the browser's, and no stylesheet reaches inside it
+                  </td>
+                  <td class="sm">The two side by side under <a href="#enum">Enums</a></td>
+                </tr>
+                <tr>
+                  <td>C7</td>
+                  <td>
+                    <strong>Long text grows; it is never dragged.</strong>
+                    The native resize grip is the operating system's mark and the only one on the
+                    page that would not be ours
+                  </td>
+                  <td class="sm">Type into either field under <a href="#long">Long text</a></td>
+                </tr>
+                <tr>
+                  <td>C8</td>
+                  <td>
+                    <strong>Optional is marked; required is not.</strong>
+                    The other way round spends an asterisk, in signal, on most of the fields on
+                    screen
+                  </td>
+                  <td class="sm">The Amount and Notes fields</td>
+                </tr>
+                <tr>
+                  <td>C9</td>
+                  <td>
+                    <strong>One row height.</strong>
+                    36px for a field and a button alike, so a control row aligns without a nudge. 28
+                    and 44px are the two other sizes, and <code>btn--block</code> takes a button the
+                    full width instead of a fourth height
+                  </td>
+                  <td class="sm">The sizes rack under <a href="#buttons">Buttons</a></td>
+                </tr>
+                <tr>
+                  <td>C10</td>
+                  <td>
+                    <strong>The focus ring is violet, and it is painted on the shell.</strong>
+                    It used to be signal, which spent a colour reserved for alerts on the most
+                    ordinary event on the surface. Violet has no other job and carries no readable
+                    text at either end, so it is free to mean one thing. The inner control's own
+                    ring is suppressed, so nothing ever shows a second ring further in.
+                    <strong>A text input shows its ring on any focus</strong>, mouse click included,
+                    because the ring tells you where typing will land and that is real information;
+                    every other control shows it on keyboard focus only
+                  </td>
+                  <td class="sm">Tab through any field on this page, then click into one</td>
+                </tr>
+                <tr>
+                  <td>C11</td>
+                  <td>
+                    <strong>There is a third hand.</strong>
+                    Close, at 0.28px on a 20px wavelength, for parts under about 24px, which are
+                    drawn after all. The perimeter is what has to complete a cycle, not the edge
+                  </td>
+                  <td class="sm">
+                    The checkbox and radio marks under <a href="#choice">Choice</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>C12</td>
+                  <td>
+                    <strong>The two greens changed places, and nothing fails.</strong>
+                    Primary was leaf under a light label at 3.01. It is now
+                    <strong>shade</strong>
+                    at 5.18, which is dark enough to need a light label rather than an exception to
+                    the rule, and leaf is the secondary at 4.54 under ink, like every other light
+                    anchor. Every pairing a button uses passes. One observation outlives the
+                    failure: ink on leaf loses its counters at 10.5px small caps, so the harder
+                    pairing now sits on the second thing you might do rather than the first, and
+                    dropping small caps on a button is still available if it reads badly
+                  </td>
+                  <td class="sm">The spectrum's second cell, with the ratio stated under it</td>
+                </tr>
+                <tr>
+                  <td>C13</td>
+                  <td>
+                    <strong
+                      >A choice field carries its own values, and declares its control.</strong
+                    >
+                    The values ride on the field, which is what makes an enum a type rather than a
+                    string with a rule attached. Picker, radio group or segmented is declared per
+                    field, never inferred from how many options there are, and grouped options, a
+                    note per option and a disabled option are the picker's to carry
+                  </td>
+                  <td class="sm">
+                    The currency listbox under <a href="#enum">Enums</a>, and the three under
+                    <a href="#choice">Choice</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>C14</td>
+                  <td>
+                    <strong
+                      >Guidance and a length limit are keys on the field; a placeholder is not.</strong
+                    >
+                    Guidance survives typing, which is when a format hint matters, and it carries
+                    the sentence announcing a default so a default needs no key. One
+                    <code>max_length</code>
+                    drives both the counter and the handler's validation
+                  </td>
+                  <td class="sm">
+                    Every field's second line, and the counter under
+                    <a href="#long">Long text</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>C15</td>
+                  <td>
+                    <strong
+                      >An error replaces that field's guidance, and the form never writes it.</strong
+                    >
+                    One slot under the control says what the field wants and, when it is wrong, why.
+                    Showing it there is presentation; the words for a declared business error belong
+                    to the capability's own declaration. The browser checks required fields before
+                    submitting, which recovers what a drawn picker gives up
+                  </td>
+                  <td class="sm">The invalid field under <a href="#fields">Fields</a></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Still open ════════════════════════════════════════════════ -->
+      <section class="window--section" id="open" data-window data-title="Still open">
+        <div class="note note--sky">
+          <p class="sm">
+            <strong>The three questions this page opened are closed.</strong>
+            The focus ring is violet, the choice marks get a third hand, and a primary button
+            carries a light label on a fill dark enough to need one, which is shade rather than
+            leaf. They are <a href="#decisions">C10, C11 and C12</a> now.
+          </p>
+          <p class="sm">
+            <strong>So is the question of where a control's shape is declared.</strong>
+            Long text is a key on the form's declared intent, shaped like the list-input modes that
+            already sit there. The harder half went the other way, as it had to: an enum's
+            <em>values</em>
+            are a schema change, so a choice field became a type of its own that carries them, and
+            which control it renders as is declared per field beside them (<a href="#decisions"
+              >C13</a
+            >).
+          </p>
+        </div>
+
+        <div class="cols">
+          <div class="note note--sun">
+            <h4>The date and number pickers are still the browser's</h4>
+            <p class="sm">
+              A calendar popup and a spinner, both replaced elements, and both outside the
+              stylesheet in the same way <code>&lt;select&gt;</code> is. A date field with no way to
+              open a picker costs more than a foreign glyph does, so both stay for now and only
+              their colour is claimed.
+            </p>
+            <p class="sm">
+              If the calendar ever has to be ours, it costs the same 300 lines the listbox did, and
+              it also has to know about months.
+            </p>
+          </div>
+
+          <div class="note note--sun">
+            <h4>A list-of-strings field has no picture here</h4>
+            <p class="sm">
+              It is a type Aluna already ships, in two input modes — comma-separated and repeatable
+              — and this page draws neither. It gets a drawn control like everything else, and what
+              that control looks like is a present gap rather than a future one.
+            </p>
+            <p class="sm">
+              A file field is the other absence, and it is not a gap. Files do not exist yet; the
+              control arrives with the module that gives them somewhere to live.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <p class="page__foot">
+        The control set, in the language settled by <a href="./index.html">the desk page</a>.<br>
+        Every boundary here is drawn by the same code the desk uses. Nothing on this page is wired
+        to the live server.
+      </p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,248 @@
+/*
+ * Buttons, fields, search and status chips.
+ *
+ * The `border` declarations below are drawn rather than ruled — `ink.js` takes each
+ * one over on mount. What that means here: the border stays (it reserves the line's
+ * 2px) and the background stays.
+ */
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+
+.btn {
+  font-family: inherit;
+  font-size: var(--caps-size);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: var(--ink);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+  padding: 6px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn {
+    transition: transform var(--dur-fast) ease;
+  }
+}
+
+/*
+ * Pressing displaces the button 2px into the paper — a hard offset with no blur and
+ * no lift, the same physics the rest of the surface uses.
+ */
+.btn:active {
+  transform: translate(2px, 2px);
+}
+
+.btn--primary {
+  background: var(--leaf);
+  color: var(--surface);
+}
+
+.btn--warm {
+  background: var(--sun);
+  color: var(--ink);
+}
+
+/* Signal red, and only here — reserved for alerts and destructive confirmation. */
+.btn--danger {
+  background: var(--signal);
+  color: #fff0f2;
+}
+
+/* ── Search ───────────────────────────────────────────────────────────── */
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: var(--line) solid var(--ink);
+  background: var(--surface-2);
+  padding: 5px 14px;
+}
+
+.search__glyph {
+  display: flex;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.search__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  padding: 2px 0;
+}
+
+.search__input::placeholder {
+  color: var(--ink-3);
+}
+
+.search__input:focus {
+  outline: none;
+}
+
+.search:focus-within {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── Fields ───────────────────────────────────────────────────────────── */
+
+.field {
+  display: block;
+}
+
+.field__label {
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+.field__control {
+  display: block;
+  border: var(--line) solid var(--ink);
+  background: var(--surface-2);
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+
+.field__control--select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.field__chevron {
+  display: flex;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.field__guidance {
+  display: block;
+  font-size: var(--caps-size);
+  color: var(--ink-3);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.form__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.form > * + * {
+  margin-top: var(--space-3);
+}
+
+/* The actions row: routine actions left, destructive isolated right. */
+.form__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: var(--line) solid var(--ink-hair);
+}
+
+.form__spacer {
+  flex: 1;
+}
+
+/* ── Status chips ─────────────────────────────────────────────────────── */
+/*
+ * The one rounded thing on the surface: a chip reports state and cannot be pressed,
+ * and squared it is indistinguishable from a small button.
+ *
+ * Rounded is not an exemption from the line — `ink.js` reads this radius straight off
+ * the computed style and draws the chip like everything else.
+ */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 3px 10px;
+  border: var(--line) solid var(--ink);
+  /* Clamped to half the height by the sampler; the number only means "full". */
+  border-radius: 999px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.pill--ok {
+  background: var(--leaf);
+  color: var(--surface);
+}
+
+.pill--wait {
+  background: var(--sun);
+  color: var(--ink);
+}
+
+/* ── Segmented control — page chrome, for the live benches ────────────── */
+
+/*
+ * The outer boundary is drawn; the seams between buttons stay ruled — a line that
+ * encloses is drawn, a line that divides is true. The background is here so the 2px
+ * the drawn line occupies is paper rather than a gap onto the page.
+ */
+.segmented {
+  display: inline-flex;
+  border: var(--line) solid var(--ink);
+  background: var(--surface);
+}
+
+.segmented button {
+  font-family: inherit;
+  font-size: var(--type-sm);
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface);
+  border: 0;
+  padding: 7px 14px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.segmented button + button {
+  border-left: var(--line) solid var(--ink);
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--sun);
+}
+
+.segmented button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -3px;
+}
+
+/* ── Range — page chrome ──────────────────────────────────────────────── */
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.control > .caps {
+  color: var(--ink-2);
+}
+
+.control input[type="range"] {
+  accent-color: var(--leaf);
+  width: 100%;
+  max-width: 260px;
+}

@@ -1,0 +1,1097 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Aluna Desktop · the logo contract</title>
+    <meta
+      name="description"
+      content="How a capability's logo is made: the request Aluna sends once, after a build clears its gate, and what the shell applies to whatever comes back."
+    >
+    <link rel="stylesheet" href="./styles/index.css">
+    <script type="module" src="./scripts/logo-main.js"></script>
+  </head>
+  <body>
+    <div class="menubar">
+      <span class="menubar__mark">Aluna · the logo</span>
+      <nav aria-label="Sections">
+        <a href="./index.html">← The desk</a>
+        <a href="#shape">The shape</a>
+        <a href="#request">The request</a>
+        <a href="#prompt">The prompt</a>
+        <a href="#label">The label</a>
+        <a href="#division">Who owns what</a>
+        <a href="#evidence">How it was settled</a>
+        <a href="#decisions">Decisions</a>
+        <a href="#open">Nothing open</a>
+        <a href="./controls.html">Controls →</a>
+      </nav>
+    </div>
+
+    <main class="page">
+      <!-- ══ Hero ══════════════════════════════════════════════════════ -->
+      <section class="window--section" id="intro" data-window data-title="The logo contract">
+        <p class="eyebrow">The logo · settled specification</p>
+        <h1>Logo contract</h1>
+        <p class="lede">
+          The desk page settled what a logo <em>is</em>: the standing list of what exists, a
+          capability's permanent identity, and the way back to a window you closed. This page
+          settles how one is made. The contract has two halves: a request sent once, as the last
+          step of a build that has already cleared its gate, and a set of things the shell applies
+          to whatever comes back.
+        </p>
+        <div class="note note--sky">
+          <p>
+            <strong>Why this is a contract.</strong>
+            Generation is asked for exactly two things: a subject and a ground colour. The corner,
+            the shadow, the size and the name under it are all applied afterwards, by code that
+            never varies. Whatever the model decides can differ between two logos on the same desk,
+            so the list of what it decides is kept as short as it can be.
+          </p>
+        </div>
+
+        <div class="stage stage--flush" data-ground>
+          <div class="specimens">
+            <div class="specimen-logo">
+              <div
+                class="logo-tile"
+                style="background-image: url('./assets/logos/reading-journal.svg')"
+              ></div>
+              <div class="logo-label">Reading journal</div>
+            </div>
+            <div class="specimen-logo">
+              <div
+                class="logo-tile"
+                style="background-image: url('./assets/logos/coffee-tasting-log.svg')"
+              ></div>
+              <div class="logo-label">Coffee tasting log</div>
+            </div>
+            <div class="specimen-logo">
+              <div
+                class="logo-tile"
+                style="background-image: url('./assets/logos/telescope-observations.svg')"
+              ></div>
+              <div class="logo-label">Telescope observations</div>
+            </div>
+            <div class="specimen-logo">
+              <div
+                class="logo-tile"
+                style="background-image: url('./assets/logos/recipes.svg')"
+              ></div>
+              <div class="logo-label">Recipes</div>
+            </div>
+          </div>
+        </div>
+
+        <p class="xs">
+          Four real generations, unretouched, on the settled wallpaper at the size the desk draws
+          them.
+        </p>
+      </section>
+
+      <!-- ══ The shape ═════════════════════════════════════════════════ -->
+      <section class="window--section" id="shape" data-window data-title="The shape">
+        <p class="sm">
+          Six numbers decide the tile, and none of them is generation's to choose. The artwork
+          arrives as a square and the shell does the rest: it clips the corner, casts the shadow and
+          sets the size.
+        </p>
+
+        <div class="numbers">
+          <div>
+            <em>Tile</em><b>64 px</b
+            ><small>One size on the desk, whatever it is drawn at elsewhere.</small>
+          </div>
+          <div>
+            <em>Corner</em><b>10 %</b
+            ><small>A percentage, so the shape holds at 256px and at 20px.</small>
+          </div>
+          <div>
+            <em>Edge</em><b>None</b><small>The artwork's own colour field is the silhouette.</small>
+          </div>
+          <div>
+            <em>Shadow</em><b>3 px / 4 px</b><small>Ink at 24%. Hard offset, never blurred.</small>
+          </div>
+          <div>
+            <em>Artwork</em><b>Full bleed</b
+            ><small>Edge to edge, with no frame or inner margin.</small>
+          </div>
+          <div>
+            <em>Label gap</em><b>7 px</b><small>Between the tile and the name under it.</small>
+          </div>
+        </div>
+
+        <div class="cols">
+          <div class="note">
+            <h4>Why the tile carries no line</h4>
+            <p class="sm">
+              Every other boundary on this surface is drawn, and this one is not. A logo is a
+              picture, and a picture that arrives as a solid colour field already reports where it
+              stops. Ringing it in ink would put a second edge inside the first, which
+              <a href="./index.html#line">the line</a>
+              does nowhere else. What seats the tile on the desk is the shadow, and it is the
+              surface's own: displaced 3 across and 4 down, never blurred.
+            </p>
+          </div>
+          <div class="note note--sun">
+            <h4>Why the corner is the shell's, and rounded</h4>
+            <p class="sm">
+              The colour field arrives as a full-bleed 2048² path that touches its own corner, in
+              every case measured. Where the service rounds a corner at all it paints four white
+              wedges <em>over</em> that square instead of cutting a mask into it, so the
+              capability's own colour is already underneath. A clip applied here therefore lands
+              identically on every generation, including the ones that came back square, and the
+              white cannot survive it: the largest wedge measured 175 of 2048, or 8.5%, against a
+              clip of 10%. Probed on the rendered pixels, <code>reading-journal</code> reads
+              <code>254,254,252</code>
+              two pixels in from the corner and its own gold,
+              <code>242,179,44</code>, on the clip line.
+            </p>
+            <p class="sm">
+              What that guarantees is <strong>no white</strong>, not a uniform corner. The clip
+              reveals whatever the artwork put under there, and a generation that painted something
+              other than its flat ground in the corner still shows it. That is a prompt defect, not
+              a corner one.
+            </p>
+            <p class="sm">
+              It is the only rounded corner on the surface, and it goes against
+              <a href="./index.html#decisions">D11</a>. Two things make it the exception: a logo is
+              a picture where everything else here is a boundary, and it has to read as something
+              you can press at 20px.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ The request ═══════════════════════════════════════════════ -->
+      <section class="window--section" id="request" data-window data-title="The request">
+        <p class="sm">
+          One call per capability, made once, as the <strong>last step of the build</strong> — after
+          the gate has cleared and nothing can still refuse the capability (<a href="#decisions"
+            >L10</a
+          >). Everything except the colours and the subject is fixed, and no caller may vary it.
+        </p>
+        <p class="sm">
+          Ordering it last is what makes the price safe. A build that fails, goes stale or is
+          cancelled costs nothing, because nothing was ordered; and a capability whose call fails
+          after that is finished, usable, and keeps its placeholder until a retry succeeds (<a
+            href="#decisions"
+            >L11</a
+          >).
+        </p>
+
+        <div class="spec">
+          <div class="spec__scroll">
+            <table>
+              <caption class="caps" style="text-align: left; padding: 9px 12px">
+                Held constant for every capability
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Field</th>
+                  <th scope="col">Value</th>
+                  <th scope="col">Why</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Endpoint</td>
+                  <td><code>POST external.api.recraft.ai/v1/images/generations</code></td>
+                  <td class="sm">
+                    Recraft, bearer token. $0.08 a vector generation, paid once and only after the
+                    build has cleared its gate, so this is nobody's hot path and no failed build
+                    ever pays it
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>model</code></td>
+                  <td><code>recraftv3_vector</code></td>
+                  <td class="sm">
+                    Returns real SVG. The v4 vector models accept no style, substyle or controls at
+                    all, so none of the rest of this table would apply
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>style</code> / <code>substyle</code></td>
+                  <td><code>vector_illustration</code> / <code>bold_stroke</code></td>
+                  <td class="sm">
+                    Enforces the flatness in the request instead of asking for it in words. Without
+                    this pairing the model shades
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>size</code></td>
+                  <td><code>1024x1024</code></td>
+                  <td class="sm">Square. The tile is square and nothing is ever stretched</td>
+                </tr>
+                <tr>
+                  <td><code>response_format</code></td>
+                  <td><code>b64_json</code></td>
+                  <td class="sm">
+                    Returned URLs expire in about 24 hours, and a logo has to outlast that
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>controls.no_text</code></td>
+                  <td><code>true</code></td>
+                  <td class="sm">
+                    Not sufficient on its own. It does not stop a symbol the model reads as part of
+                    the object, so the prompt forbids text in words as well
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="spec spec--even">
+          <div class="spec__scroll">
+            <table>
+              <caption class="caps" style="text-align: left; padding: 9px 12px">
+                Per capability
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Field</th>
+                  <th scope="col">What Aluna supplies</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>controls.colors</code></td>
+                  <td>
+                    <strong>Exactly two.</strong>
+                    The capability's ground colour first, then its shell-derived companion from the
+                    closed leaf/shade, teal/sky, sun/ochre and clay/violet lookup. Passing the full
+                    palette returns a busier drawing at seven times the file size, and gives the
+                    model enough colour to build a horizon out of
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>controls.background_color</code></td>
+                  <td>
+                    <strong>Pinned to the first colour.</strong>
+                    The same colour is also named in the prompt, in words. Naming it in only one of
+                    the two places does not work: the control alone is ignored
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>random_seed</code></td>
+                  <td>
+                    Stable per capability, so a logo is the same after a retry. It is stored with
+                    the capability, never derived from its name or position
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>prompt</code></td>
+                  <td>The block below, with one slot filled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="spec">
+          <div class="spec__scroll">
+            <table>
+              <caption class="caps" style="text-align: left; padding: 9px 12px">
+                What the API will not do, checked against live calls
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Reached for</th>
+                  <th scope="col">What comes back</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>recraftv4_vector</code>, and v4.1</td>
+                  <td class="sm">
+                    Prompt only. No <code>style</code>, no <code>substyle</code>, no
+                    <code>controls</code>, not even <code>no_text</code>, so nothing else in this
+                    section could be sent
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>style: "logo"</code></td>
+                  <td class="sm">
+                    Exists, takes no substyle, and is rejected by every vector model
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>logo_raster</code> with <code>line_art</code></td>
+                  <td class="sm">
+                    An invalid pairing, and <code>logo_raster</code> returns pixels in any case
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    The <code>icon</code> substyles, <code>outline</code> and
+                    <code>pictogram</code>
+                  </td>
+                  <td class="sm">On <code>recraftv2_vector</code> only. Not on v3</td>
+                </tr>
+                <tr>
+                  <td>A stroke on the returned paths</td>
+                  <td class="sm">
+                    The SVG is filled paths and nothing else, zero strokes. A contour cannot be
+                    applied to it afterwards, which is one reason
+                    <a href="#shape">the tile carries no line</a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="note note--clay">
+          <p class="sm">
+            <strong>The ground colour is one of eight, named by the model.</strong>
+            Leaf, shade, teal, sky, sun, ochre, clay or violet, the tint anchors under
+            <a href="./index.html#palette">High Meadow</a>. Signal is reserved and is not offered.
+            The model choosing rather than Aluna hashing is what keeps the colour apt — telescope on
+            sky, recipes on ochre — and a closed list is what makes the check a word against a list.
+            Nothing measures chroma or lightness, because all eight were chosen saturated and light
+            enough for daylight and there is nowhere else to go. Two capabilities landing on the
+            same ground is fine and expected: the palette is small, and
+            <a href="#decisions">L9</a>
+            spends nothing on preventing it.
+          </p>
+          <p class="sm">
+            <strong>A user cannot steer any of this.</strong>
+            The subject comes from what the capability is for, never from art direction typed into
+            the prompt bar. A prompt trying to direct a logo is refused where "move this 2px right"
+            is refused, by the intent classifier, under the general rule that presentation is not
+            the user's to set. There is no logo-specific defence, because none is owed one.
+          </p>
+        </div>
+      </section>
+
+      <!-- ══ The prompt ════════════════════════════════════════════════ -->
+      <section class="window--section" id="prompt" data-window data-title="The prompt">
+        <p class="sm">
+          One block for every capability. Two slots: the subject, and the ground named in words.
+          Nothing else varies, so four logos on one desk read as a set.
+        </p>
+
+        <div class="prompt-block">
+          <p>
+            A flat colour square of <mark>&lt;subject&gt;</mark>, on
+            <mark>&lt;a flat warm golden yellow&gt;</mark>
+            background. One single flat colour fills the whole background from edge to edge — an
+            unbroken field, not panels, not blocks, not stripes, not a checkerboard, no floor, no
+            wall, no horizon, no ground line, no perspective. The object sits centred on that field,
+            large, filling most of the square with an even margin. Bold flat shapes with a confident
+            dark contour, three or four flat colours in total, no gradient, no texture, no shadow.
+            One object seen from one angle. Every surface is blank and unmarked: no text, no
+            letters, no numerals, no labels, no engraving, no writing of any kind. Legible at 64
+            pixels. Daylight colours at high chroma — no near-blacks, no dark backgrounds, no
+            pastels, no greys.
+          </p>
+        </div>
+
+        <p class="xs">
+          The subject slot takes one object described in a phrase:
+          <em
+            >an open book lying flat, one page half-turned, with a ribbon bookmark curling out from
+            the spine</em
+          >. It comes from what the capability actually holds, and it is emitted during spec
+          generation alongside the ground colour.
+        </p>
+
+        <div class="cols">
+          <div class="note">
+            <h4>Six rules the wording keeps</h4>
+            <p class="sm">
+              Describe the style, never name it: "ligne claire" returns shaded comic illustration,
+              while describing an even contour and flat fills returns clear line. Say what you want
+              instead of what you don't, since negative lists barely steer this model; the bans that
+              survive are the ones about
+              <em>content</em>, and bans on treatment do not hold. Offer one colour, never a
+              palette: given eight anchors the model reaches for green every time, or blocks the
+              ground into quadrants. Keep spatial words out of the style wording, because they do
+              not stay there — "stacked", written to describe how the shapes sit, leaked into the
+              subject and returned a stack of books for Customers. Never say screenprint, poster or
+              app icon: the first two pull typography into the image, and the third pulls bevels,
+              rounded rectangles and long shadows. And wrap the injected description, or the model
+              letters it into the drawing.
+            </p>
+          </div>
+          <div class="note">
+            <h4>What still gets through, and is kept</h4>
+            <p class="sm">
+              Gradients are defined in every generation measured, despite the ban. Corners sometimes
+              arrive with an icon-mask artifact the words did not ask for. Backgrounds occasionally
+              block themselves into panels, which the two-colour rule reduces without eliminating.
+              The corner clip removes the first artifact and the other two are simply kept: a logo
+              is generated once and used as it arrives, so whatever a capability is born with is
+              what it looks like. None of this is <a href="#open">open</a> — it is decided.
+            </p>
+          </div>
+        </div>
+
+        <div class="note note--sun">
+          <h4>The contour is asked for and never arrives</h4>
+          <p class="sm">
+            The block says "a confident dark contour" and no generation has returned one. Every form
+            reads as one flat colour directly against another, which is what the specimens above are
+            and what the surface has been designed around. So the colour-against-colour look is
+            emergent rather than specified, which is worth knowing because it means the phrase is
+            not what earns it. The phrase is part of the block all the same: both reference
+            generations carried it, the flatness it steers towards is worth more than the contour it
+            fails to buy, and the block goes out as it stands.
+          </p>
+        </div>
+      </section>
+
+      <!-- ══ The label ═════════════════════════════════════════════════ -->
+      <section class="window--section" id="label" data-window data-title="The label">
+        <p class="sm">
+          The name is written straight onto the desk, in light type carried by a soft shadow. It is
+          the macOS desktop treatment in this surface's colours.
+        </p>
+
+        <div class="numbers">
+          <div>
+            <em>Face</em><b>Outfit 600</b
+            ><small>The working face. No display face on a logo.</small>
+          </div>
+          <div>
+            <em>Size</em><b>12 px</b><small>Larger than the 10.5px a plate label uses.</small>
+          </div>
+          <div>
+            <em>Colour</em><b>surface</b><small>#FAFEF3, the only light type on the surface.</small>
+          </div>
+          <div>
+            <em>Shadow</em><b>Three passes</b><small>All straight down. None of them wide.</small>
+          </div>
+          <div>
+            <em>Measure</em><b>96 px</b
+            ><small>The logo column. Two lines, centred, then an ellipsis.</small>
+          </div>
+          <div>
+            <em>Plate</em><b>None</b><small>Nothing at all behind the type.</small>
+          </div>
+        </div>
+
+        <div class="stage stage--flush" data-ground>
+          <div class="specimens specimens--labels">
+            <div class="specimen-logo">
+              <div class="logo-label">Reading journal</div>
+            </div>
+            <div class="specimen-logo">
+              <div class="logo-label">Telescope observations</div>
+            </div>
+            <div class="specimen-logo">
+              <div class="logo-label">Recipes</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <div class="spec__scroll">
+            <table>
+              <caption class="caps" style="text-align: left; padding: 9px 12px">
+                The shadow, pass by pass
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Pass</th>
+                  <th scope="col">Value</th>
+                  <th scope="col">What it does</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Edge</td>
+                  <td><code>0 1px 1px</code> ink at 85%</td>
+                  <td class="sm">Gives the glyph its own edge, so the letterform stays crisp</td>
+                </tr>
+                <tr>
+                  <td>Near</td>
+                  <td><code>0 1px 3px</code> ink at 85%</td>
+                  <td class="sm">The shadow that does the reading, on any ordinary ground</td>
+                </tr>
+                <tr>
+                  <td>Deep</td>
+                  <td><code>0 2px 7px</code> ink at 70%</td>
+                  <td class="sm">
+                    Only shows over pale ground, which is where the logo grid stands: the
+                    wallpaper's horizon is low
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="note note--sky">
+          <h4>Where those three numbers come from</h4>
+          <p class="sm">
+            Apple does not publish its values. KDE does, and it solves the same problem on the same
+            kind of ground: <code>FolderItemDelegate.qml</code> puts a <code>DropShadow</code> under
+            the desktop label at
+            <strong>offset 1/1, blur radius 2, spread 0.15, in black</strong>. The shipped technique
+            is a tight shadow, barely more than a displacement, and not a glow.
+          </p>
+          <p class="sm">
+            Offset and blur fail in opposite directions. A small offset keeps its alpha undiluted
+            but protects only the glyph edges it happens to fall on; a large blur reaches every edge
+            and dilutes itself into nothing. What works is a small offset plus just enough blur to
+            reach the far side of the stem, and then stacking rather than deepening. That is the
+            table above.
+          </p>
+        </div>
+
+        <p class="sm">
+          Three grounds decided it, because the desk is one photograph and a capability can be
+          dragged anywhere on it: the pale sky the logo grid stands in, the mid-green meadow below,
+          and the dark foliage on the right. Light type over light ground is the one stated failure
+          mode, and this wallpaper walks into it, since the grid sits in the upper left.
+        </p>
+
+        <div class="spec spec--even">
+          <div class="spec__scroll">
+            <table>
+              <caption class="caps" style="text-align: left; padding: 9px 12px">
+                Four treatments, all at 12px, over the wallpaper's three grounds
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Treatment</th>
+                  <th scope="col">Sky</th>
+                  <th scope="col">Meadow</th>
+                  <th scope="col">Foliage</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>A plate: ink on drawn paper · dropped</td>
+                  <td class="sm">Holds</td>
+                  <td class="sm">Holds</td>
+                  <td class="sm">Holds</td>
+                </tr>
+                <tr>
+                  <td>Bare ink, nothing behind it · dropped</td>
+                  <td class="sm">Holds</td>
+                  <td class="sm">Weakening</td>
+                  <td class="sm"><strong>Fails</strong></td>
+                </tr>
+                <tr>
+                  <td>Ink type, light shadow · dropped</td>
+                  <td class="sm">Holds</td>
+                  <td class="sm">Holds</td>
+                  <td class="sm">Holds</td>
+                </tr>
+                <tr>
+                  <td><strong>Light type, dark shadow</strong> · settled</td>
+                  <td class="sm">Holds, and weakest here</td>
+                  <td class="sm">Holds</td>
+                  <td class="sm">Best of the four</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <p class="sm">
+          The plate holds everywhere because it brings its own ground, and that is where the surface
+          started. It is also four more rectangles on a desk that already has four pictures standing
+          on it. Bare ink fails outright on foliage. The inverse, ink type over a light shadow, held
+          on all three and was the safer choice on paper, and it was dropped anyway, because it is
+          not the treatment this desk is quoting. What the settled one buys with its deep third pass
+          is sky, which is the weakest of its three grounds and the only one that matters day to
+          day.
+          <strong>Sky is the ground to re-check</strong>
+          after any change to the wallpaper or to the shadow.
+        </p>
+
+        <div class="cols">
+          <div class="note note--sun">
+            <h4>A shadow, not an outline</h4>
+            <p class="sm">
+              An outline rings every glyph in hard ink and reads as a sticker. A shadow sits under
+              the type, mostly below it, and is never the thing you look at. This is easy to get
+              wrong in one particular way: reaching for stacked hard offsets because the surface
+              bans blur.
+            </p>
+            <p class="sm">
+              <strong>The no-blur rule does not reach here.</strong>
+              It governs the shadow an <em>object</em> casts onto the desk, where a soft edge would
+              fake depth the flat-band model does not have. Type read straight off a photograph is a
+              different problem, and one this surface had not met before, because until now a name
+              always sat on paper. These three passes are the only blurred thing in Aluna.
+            </p>
+          </div>
+          <div class="note">
+            <h4>Why three passes and not one</h4>
+            <p class="sm">
+              Stacking lets the shadow go this dark without the type looking embossed. One shadow at
+              the same total alpha starts to separate from its letters; three at graded blur do not.
+              It is also why the type had to grow: 10.5px was a size the
+              <em>plate</em>
+              could choose, because paper does the separating for it. Read off a photograph it
+              cannot, and 12px is where macOS sets a desktop label for the same reason.
+            </p>
+          </div>
+        </div>
+
+        <p class="xs">
+          Sources:
+          <a href="https://bbs.archlinux.org/viewtopic.php?id=227284"
+            >KDE's <code>FolderItemDelegate</code> shadow parameters</a
+          >
+          ·
+          <a href="https://mrec.github.io/blog/2025/text-shadow/"
+            >text-shadow, offset against blur, and stacking</a
+          >
+          ·
+          <a href="https://www.nngroup.com/articles/text-over-images/"
+            >NN/g on high contrast for text over images</a
+          >
+          ·
+          <a href="https://github.com/pop-os/cosmic-files/issues/1484"
+            >cosmic-files #1484, desktop label shadows</a
+          >
+        </p>
+      </section>
+
+      <!-- ══ Who owns what ═════════════════════════════════════════════ -->
+      <section class="window--section" id="division" data-window data-title="Who owns what">
+        <p class="sm">
+          Anything in the left column can differ between two capabilities. Nothing in the right
+          column ever does.
+        </p>
+
+        <div class="spec spec--even">
+          <div class="spec__scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Aluna emits</th>
+                  <th scope="col">The shell applies</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong>One subject</strong>, as a phrase describing a single object taken from
+                    what the capability holds
+                  </td>
+                  <td>
+                    <strong>The whole prompt around it</strong>, unchanged for every capability on
+                    every desk
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>One ground colour</strong>, named from the eight tint anchors, plus one
+                    companion colour derived by the shell's closed pairing
+                  </td>
+                  <td>
+                    <strong>The request</strong>: model, style, substyle, size, response format and
+                    the text control
+                  </td>
+                </tr>
+                <tr>
+                  <td>Nothing else</td>
+                  <td>
+                    <strong>The corner</strong>
+                    at 10%, <strong>the shadow</strong> at 3/4 in ink at 24%,
+                    <strong>the size</strong>
+                    at 64px, and the fact that there is no edge
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    The capability's <strong>name</strong>, which is its label everywhere else on
+                    the surface too
+                  </td>
+                  <td>
+                    <strong>How that name is written</strong>: face, size, colour, measure and all
+                    three shadow passes
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="note note--clay">
+          <p class="sm">
+            <strong>The seed and the artwork are both stored.</strong>
+            A logo is a capability's permanent identity, so the returned SVG is kept exactly as it
+            arrived and the call is never repeated to redraw one. Evolving the capability does not
+            reach the logo; only deleting the capability and growing it again produces a different
+            one. The artwork is a file in the capability's own directory and the seed is a value
+            beside it in the registry, kept as the record of what drew it and never derived from the
+            capability's name or position — the rule every seed on this surface keeps (<a
+              href="./index.html#decisions"
+              >D11</a
+            >).
+          </p>
+        </div>
+      </section>
+
+      <!-- ══ How it was settled ════════════════════════════════════════ -->
+      <section class="window--section" id="evidence" data-window data-title="How it was settled">
+        <p class="sm">
+          Every number above was measured off generations that were made, and the failures decided
+          as much as the keepers did. So what each one was worth is written here and the pictures
+          are gone. The earlier sweeps went the same way: substyle registers, uniform desks,
+          abstract marks and local raster models were all dead ends.
+        </p>
+
+        <h3 class="kicker">Why two colours, and why the ground is pinned</h3>
+        <p class="sm">
+          The construction was found on a pair of generations, both <code>recraftv3_vector</code> at
+          seed 41276 and alike in everything but their colour handling. Two colours with the ground
+          pinned to one of them returned a simple form on a single flat field, 16 kB of SVG. The
+          whole palette passed instead returned a busier composition at 111 kB, and gave the model
+          enough colour to build a horizon out of. Same model, same substyle, same seed, so
+          <strong>the colour count is the lever</strong>, which is where the two-colour rule comes
+          from. Passing many colours <em>without</em> pinning <code>background_color</code> got a
+          ground blocked into quadrants, so the list is the fault and the control is not.
+        </p>
+        <p class="sm">
+          Eight generations settled it on 2026-08-07: four capabilities made twice, holding model,
+          substyle, size, seed and <code>no_text</code>, with the subject phrase fixed per
+          capability so that colour handling was the only difference. The two-colour construction
+          won and the other was dropped.
+          <strong>There is one construction now, and one prompt.</strong>
+          The block under <a href="#prompt">the prompt</a> is sent as it stands, the request around
+          it does not vary, and what a caller fills in is a subject and a ground colour. Nothing
+          else on this page is a knob.
+        </p>
+
+        <h3 class="kicker">What came back that the prompt asked against</h3>
+
+        <div class="spec spec--even">
+          <div class="spec__scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">What arrived</th>
+                  <th scope="col">Where, and what it means</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>A corner painted over the ground</td>
+                  <td class="sm">
+                    Two of the four above. <code>reading-journal</code> is near-white,
+                    <code>254,254,252</code>, two pixels in, and
+                    <code>telescope-observations</code>
+                    a lighter teal, <code>129,197,194</code>; both are back on their own ground by
+                    4% in. This is the app-icon leak, from a base prompt that opened with
+                    <em>a flat colour app icon of…</em>. Fatal on a mitred surface, removed entirely
+                    by the 10% clip, and the reason <a href="#prompt">the prompt</a> now says
+                    <em>square</em>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Gradients</td>
+                  <td class="sm">
+                    Every generation measured, against <em>no gradient</em>. The four above define
+                    and reference one, two, three and four of them respectively, and none is
+                    conspicuous. Kept as they are, under <a href="#decisions">L8</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>A background blocked into panels</td>
+                  <td class="sm">
+                    The <code>recipes</code> above, against
+                    <em>an unbroken field, not panels, not blocks</em>: gold panels across the
+                    violet, reaching every edge midpoint while all four corners stay violet. It had
+                    two colours and a pinned ground and did it anyway, so the recorded cause is
+                    narrower than the real one. Violet is the one anchor neither reference
+                    generation used
+                  </td>
+                </tr>
+                <tr>
+                  <td><s>A frame inside the artwork</s></td>
+                  <td class="sm">
+                    Recorded during the sweep and <strong>not reproducible</strong> in any file that
+                    shipped, so it is corrected here rather than carried forward. A ring probed 3%
+                    inside <code>telescope-observations</code> is 91% its own flat ground; the dark
+                    teal that read as a frame is the telescope's barrel and legs, and the tile is a
+                    field like the other three
+                  </td>
+                </tr>
+                <tr>
+                  <td>A horizon</td>
+                  <td class="sm">
+                    One of the four made with the whole palette passed: a teal landform across the
+                    lower third, against <em>no horizon, no ground line</em>. The two-colour
+                    generation of the same subject at the same seed has none, so a long colour list
+                    is what buys the model a second colour to build a ground out of
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="note">
+          <h4>Why a local model never enters the path</h4>
+          <p class="sm">
+            Free local rigs were used to refine wording before spending credits, and they cannot
+            judge this style. A general-purpose raster model returned detailed illustration across
+            eight different constructions and ignored the palette every time: the flatness in the
+            keepers was enforced by Recraft's vector substyle, not prompted into existence. So local
+            raster can help decide what to draw and in what colours, and cannot tell you whether the
+            register is right. A local model that emits SVG directly does exist and works, at around
+            45 seconds a generation on an M4 Max, which is still minutes per capability in a path
+            that has none to spare.
+          </p>
+          <p class="sm">
+            <strong>Licences bind even the refinement rig.</strong>
+            FLUX.1-dev is non-commercial, so nothing it touches may ship. Qwen-Image, Z-Image Turbo
+            and SDXL are commercially clean. OmniSVG's weights are Apache 2.0 but its training set
+            is CC-BY-NC-SA, which would have to be settled before any output of it were used.
+          </p>
+        </div>
+      </section>
+
+      <!-- ══ Decisions ═════════════════════════════════════════════════ -->
+      <section class="window--section" id="decisions" data-window data-title="Locked decisions">
+        <div class="spec">
+          <div class="spec__scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">Decision</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>L1</td>
+                  <td>
+                    <strong>Logos come from a hosted service, once per capability.</strong>
+                    No local model in the creation path. Local rigs are for refining this prompt for
+                    free and never produce a logo that ships
+                  </td>
+                </tr>
+                <tr>
+                  <td>L2</td>
+                  <td>
+                    <strong>Two colours, and the ground is pinned in both places.</strong>
+                    <code>controls.colors</code>
+                    carries exactly two, <code>background_color</code>
+                    is the first of them, and the prompt names that colour in words. The second is
+                    the ground's fixed companion from the closed palette lookup, never another
+                    authored choice
+                  </td>
+                </tr>
+                <tr>
+                  <td>L3</td>
+                  <td>
+                    <strong>Generation decides a subject and a colour. Nothing else.</strong>
+                    Every other property of a logo is applied by code that does not vary. The colour
+                    is one of the eight tint anchors by name, so validating it is checking a word
+                    against a list; the subject comes from what the capability is for, and a user
+                    asking for a particular drawing is refused by the intent classifier, like any
+                    other attempt to steer presentation
+                  </td>
+                </tr>
+                <tr>
+                  <td>L4</td>
+                  <td>
+                    <strong>The tile has no edge and a 10% rounded corner.</strong>
+                    The artwork's colour field is the silhouette. This is the surface's only rounded
+                    corner and the only exception to D11
+                  </td>
+                </tr>
+                <tr>
+                  <td>L5</td>
+                  <td>
+                    <strong>The name is set on the desk, not on paper.</strong>
+                    Outfit 600 at 12px in <code>surface</code>, over three straight-down shadow
+                    passes. No plate
+                  </td>
+                </tr>
+                <tr>
+                  <td>L6</td>
+                  <td>
+                    <strong>That shadow is the only blurred thing in Aluna</strong>, and it is a
+                    shadow, not an outline. The hard-shadow rule governs objects casting onto the
+                    desk, which a glyph does not do
+                  </td>
+                </tr>
+                <tr>
+                  <td>L7</td>
+                  <td>
+                    <strong>A logo is made once and never remade.</strong>
+                    It is stored with its seed and used unchanged for the whole life of that
+                    capability. Rendering does not regenerate it and
+                    <strong>evolving the capability does not touch it</strong>
+                    — v2, v3 and vn all keep the drawing v1 was born with. Deleting the capability
+                    and creating it again is the only route to a different logo
+                  </td>
+                </tr>
+                <tr>
+                  <td>L8</td>
+                  <td>
+                    <strong>Whatever comes back is used as it stands.</strong>
+                    The returned SVG is stored as received, gradients and all: no stripping, no path
+                    rewriting, no cleanup, no retouching. Everything the shell adds sits outside the
+                    file — the clip, the shadow and the size
+                  </td>
+                </tr>
+                <tr>
+                  <td>L9</td>
+                  <td>
+                    <strong>Two capabilities are allowed to look alike.</strong>
+                    The palette is small, so a shared ground or a repeated subject is not a defect,
+                    and nothing in the request spends effort keeping two logos apart
+                  </td>
+                </tr>
+                <tr>
+                  <td>L10</td>
+                  <td>
+                    <strong>The logo is the last step, after the gate.</strong>
+                    The request is made once the build has cleared everything that could still
+                    refuse it, and never before. A build that fails, is refused as stale, or is
+                    cancelled costs nothing, because nothing was ordered. The consequence is that a
+                    capability exists on the desk for a moment before it has a face: until the
+                    artwork lands its tile is a <strong>placeholder</strong>, which is also what
+                    marks the ground while the build is still running (<a
+                      href="./index.html#decisions"
+                      >D6</a
+                    >)
+                  </td>
+                </tr>
+                <tr>
+                  <td>L11</td>
+                  <td>
+                    <strong>A logo that fails to arrive is retried, never faked.</strong>
+                    Offline, rate-limited or down, the capability is finished and usable and keeps
+                    the placeholder; the request is retried later and the artwork swaps in when it
+                    succeeds. Nothing substitutes a drawn stand-in for a logo, because a stand-in
+                    that persists becomes the capability's face by accident — and L7 would then
+                    forbid replacing it. <strong>Loading the desk is the retry</strong>: it sweeps
+                    every faceless capability once, which needs no scheduler, and stops for good
+                    after three attempts, after which the placeholder is permanent. At $0.08 a call
+                    the expensive failure is a loop, not a few extra tries
+                  </td>
+                </tr>
+                <tr>
+                  <td>L12</td>
+                  <td>
+                    <strong>The artwork is a file, served from its own address.</strong>
+                    It sits in the capability's artifacts directory rather than in a registry
+                    column, so it dies with the capability for free and a registry read stops
+                    carrying a picture nobody asked for. The route serves one capability's logo as
+                    <code>image/svg+xml</code>, marked
+                    <strong>immutable</strong>
+                    — which L7 is what makes safe, since a logo is never remade — and carrying the
+                    headers that make it picture-only, so opening its address renders an image and
+                    runs nothing. The stored bytes are never touched, which is L8 kept literally.
+                    The provenance manifest is a flat 4.4 kB and is kept; the response is compressed
+                    instead, which recovers more than stripping it would
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Still open ════════════════════════════════════════════════ -->
+      <section class="window--section" id="open" data-window data-title="Nothing open">
+        <p class="sm">
+          Nothing about a logo is undecided. What was open is kept here with the reason it closed,
+          so that a later reader does not reopen it. Three of these closed as decisions rather than
+          as fixes: the thing described is real, it is allowed, and no code goes looking for it.
+        </p>
+
+        <div class="spec">
+          <div class="spec__scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Was open</th>
+                  <th scope="col">How it closed</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><s>The desk still draws the other logo</s> (closed)</td>
+                  <td>
+                    <a href="./index.html">The desk</a>
+                    now stands its capabilities on these four generations, under the tile and label
+                    rules in
+                    <code>styles/components/logo-contract.css</code>, which the desk page loads from
+                    the same stylesheet manifest. The shell-drawn
+                    <em>landform tile</em>
+                    (a sky band, two coloured horizons, and a black-and-white subject fitted to a
+                    32px box) is gone from the tree: its renderer, its geometry and drawing modules,
+                    its frozen subject set and the subject prompt that fed it have all been deleted,
+                    along with the two ink helpers that existed only to draw it. There is one logo
+                    system now, and this page is it
+                  </td>
+                </tr>
+                <tr>
+                  <td><s>Two subjects colliding on one desk</s> (closed)</td>
+                  <td>
+                    <strong>Accepted, and not worth engineering against.</strong>
+                    The palette is small, so two capabilities sharing a ground is going to happen
+                    however hard the request works, and a repeated subject is no worse. Nothing is
+                    passed to keep two logos apart and nothing checks for it afterwards.
+                    <a href="#decisions">L9</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><s>Icon conventions arriving uninvited</s> (closed)</td>
+                  <td>
+                    <strong>Already solved by the corner clip.</strong>
+                    Two of the four specimens carry a corner artifact:
+                    <code>reading-journal</code>
+                    is near-white at 2% in and
+                    <code>telescope-observations</code>
+                    a lighter teal, and both are back on their own ground by 4% in, well inside a
+                    clip set at 10%. Neither is visible anywhere the logo is drawn. The inner frame
+                    this row used to also claim is
+                    <strong>not present</strong>
+                    in any shipped file: a ring probed 3% inside
+                    <code>telescope-observations</code>
+                    is 91% flat ground, and the dark teal in it is the telescope's own drawing
+                  </td>
+                </tr>
+                <tr>
+                  <td><s>Backgrounds blocking into panels</s> (closed)</td>
+                  <td>
+                    <strong>Accepted as what that capability looks like.</strong>
+                    <code>recipes</code>
+                    has it, measurably: gold panels across the violet, reaching every edge midpoint
+                    while the corners stay violet. There is no regeneration path to fix it against —
+                    a logo is made once and evolution never touches it, so the drawing a capability
+                    is born with is its drawing. <a href="#decisions">L7</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><s>Gradients</s> (closed)</td>
+                  <td>
+                    <strong>Left alone.</strong>
+                    All four specimens define and reference at least one, against the prompt: one,
+                    two, three and four respectively. Nothing is stripped, rewritten or cleaned on
+                    the way in, because the file is used as it arrives.
+                    <a href="#decisions">L8</a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <p class="page__foot">
+        This page is the settled <em>logo contract</em> for Aluna Desktop, and the whole of it.<br>
+        The four specimens are real generations made to it. What was tried and dropped on the way is
+        under <a href="#evidence">how it was settled</a>; nothing about a logo is kept anywhere
+        else.
+      </p>
+    </main>
+  </body>
+</html>
