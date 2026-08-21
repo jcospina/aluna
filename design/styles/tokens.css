@@ -1,0 +1,164 @@
+/*
+ * High Meadow — the token layer.
+ *
+ * Nothing here is invented: every value is a locked decision, transcribed from
+ * the plate books the design was settled in. This file is where they live —
+ * `index.html` renders its swatches by reading these properties back, so a
+ * value cannot be stated twice and cannot drift.
+ *
+ * Two rules bind everything below:
+ *   - `ink` is for lines and type only. Never a background, never a fill.
+ *   - There is no dark theme. This palette is daylight and does not invert.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ── Structure — the five that build every surface ──────────────────── */
+  --ground: #dcf0ce; /* the desk */
+  --ground-deep: #c8e5b8; /* bands, wells */
+  --surface: #fafef3; /* windows, cards */
+  --surface-2: #eef8e2; /* inputs, items */
+  --ink: #20301c; /* lines and type only */
+
+  /* Ink at reading strengths. Type only — these never draw a line. */
+  --ink-2: #55684e; /* secondary text, field labels */
+  --ink-3: #8b9c82; /* placeholders, guidance, faint detail */
+
+  /* ── Tint anchors — the defaults Aluna reaches for first ────────────── */
+  --leaf: #3fa65b;
+  --shade: #2a7a45;
+  --teal: #3e9e92;
+  --sky: #7fd2e0;
+  --sun: #f2b32c;
+  --ochre: #c9902f;
+  --clay: #e8763c;
+  --violet: #9a86c4;
+
+  /* ── Reserved ───────────────────────────────────────────────────────── */
+  --signal: #d6304b; /* alerts and destructive confirmation only */
+
+  /* ── Ink at partial strength ────────────────────────────────────────── */
+  --ink-shadow: rgba(32, 48, 28, 0.24); /* hard offset shadow, flat ground */
+  --ink-shadow-wall: rgba(32, 48, 28, 0.4); /* the same shadow over wallpaper */
+  --ink-hair: rgba(32, 48, 28, 0.13); /* the one softened rule, inside forms */
+
+  /* ── Title-bar panes — five cells at 10% each, hard cuts ────────────── */
+  --pane-1: #f7e4bc;
+  --pane-2: #f5d4bc;
+  --pane-3: #cfe8c6;
+  --pane-4: #c6e7e2;
+  --pane-5: #c9eaf1;
+
+  /* `surface` from 0-50%, then the five panes. Vertical edges, no blur. */
+  --title-bar: linear-gradient(
+    90deg,
+    var(--surface) 0 50%,
+    var(--pane-1) 50% 60%,
+    var(--pane-2) 60% 70%,
+    var(--pane-3) 70% 80%,
+    var(--pane-4) 80% 90%,
+    var(--pane-5) 90% 100%
+  );
+
+  /* ── The line ───────────────────────────────────────────────────────── */
+  /*
+   * Every boundary is 2px; there is no weight ladder. The logo's subject is not a
+   * boundary but a drawing inside one, so it carries the 1.25px nib.
+   *
+   * A `border` declaration is not the finished line — it is the space the line will
+   * occupy, which `scripts/ink.js` takes over and draws. See ink.css.
+   */
+  --line: 2px;
+  --line-logo-tile: 2px;
+  --line-logo-subject: 1.25px;
+  --line-plate: 1px; /* the label plate hairline — the one thing under 2px */
+
+  /* ── Corners ────────────────────────────────────────────────────────── */
+  /*
+   * Every corner on the surface is mitred. There are no radius tokens because a
+   * square corner is the absence of a declaration. A circle is not a corner: the
+   * lamps stay round because roundness there is the shape of the object, not the
+   * treatment of its edge.
+   */
+
+  /* ── Shadows — displacement, never blur, and outer only ─────────────── */
+  /*
+   * Only the things that sit on the desk cast: windows, the prompt rail and the logo
+   * tile. Nothing inside a window casts.
+   *
+   * Stated as `<x> <y> <alpha>` rather than as a `box-shadow` because these are paths
+   * and not boxes — a drawn element's shadow is its own silhouette, displaced,
+   * deviating exactly as the line it belongs to. Handed to the ink system as
+   * `--ink-shadow`.
+   */
+  --shadow-window: 5 6 0.24;
+  --shadow-window-wall: 5 6 0.4;
+
+  /* ── Typography ─────────────────────────────────────────────────────── */
+  /*
+   * Fraunces for display and window titles; Outfit for everything a capability
+   * generates. Monospace appears in exactly one place and it is not the
+   * product: the developer panel (D13) shows raw payloads, stands outside the
+   * product voice, and is read by people for whom a proportional face makes
+   * the payload worse. Nothing a capability generates may reach for it.
+   */
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Outfit", system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --type-xs: 0.72rem;
+  --type-sm: 0.82rem;
+  --type-base: 0.94rem;
+  --type-md: 1.06rem;
+  --type-lg: 1.2rem;
+  --type-xl: 1.5rem;
+  --type-title: 20px; /* window title — locked */
+  --type-display: clamp(2rem, 0.9rem + 3.9vw, 3.4rem);
+
+  /* Small caps is a role, not a size: labels, counts, kickers. */
+  --caps-size: 10.5px;
+  --caps-tracking: 0.14em;
+
+  /* ── Spacing ────────────────────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 22px;
+  --space-6: 30px;
+  --space-7: 44px;
+  --space-8: 64px;
+
+  /* ── The desk ───────────────────────────────────────────────────────── */
+  /* The strip the prompt bar reserves along the bottom. Nothing may be dragged,
+   * resized or laid out into it. The stylesheet owns this number; `desk.js`
+   * reads it back rather than restating it. */
+  --prompt-clearance: 78px;
+
+  /* One logo's box on the ground: 4px padding, the 64px tile, a 7px gap, and a
+   * label that wraps to two 15px lines and no further. */
+  --logo-cell-w: 96px;
+  --logo-cell-h: 109px;
+
+  /* ── The focus ring ─────────────────────────────────────────────────── */
+  /* Painted on the enclosing shell, with the inner control's own ring
+   * suppressed. Never `--signal`, which is reserved for alerts and destructive
+   * confirmation. Declared here rather than beside the controls because
+   * `base.css` paints the default ring for the whole surface. */
+  --focus-ring: var(--violet);
+
+  /* ── Motion ─────────────────────────────────────────────────────────── */
+  --ease-rise: cubic-bezier(0.2, 0.85, 0.25, 1);
+  --dur-fast: 140ms;
+  --dur-rise: 440ms;
+}
+
+/*
+ * D-locked: the viewer's OS preference is deliberately ignored, in both
+ * directions. A dark theme was decided against, not deferred.
+ */
+:root[data-theme="dark"],
+:root[data-theme="light"] {
+  color-scheme: light;
+}

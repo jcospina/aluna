@@ -1,0 +1,399 @@
+/*
+ * The desk, its logos, and the floating prompt bar.
+ *
+ * There is no taskbar, and nothing here should ever grow into one.
+ */
+
+.desk {
+  position: relative;
+  min-height: 660px;
+  overflow: hidden;
+  background-color: var(--ground);
+  background-size: cover;
+  background-position: center 58%;
+  touch-action: none;
+}
+
+/* ── Logos ────────────────────────────────────────────────────────────── */
+/*
+ * Capabilities live on the ground, and they fill the way every desktop fills:
+ * down a column, then wrap to the next one to the right. The grid is bounded top
+ * and bottom, so `auto-fill` derives the row count from the desk's own height —
+ * a taller screen simply holds more, and a product whose premise is "make as
+ * many tools as you want" carries no fixed ceiling.
+ *
+ * The bottom edge stops clear of the prompt bar, which is the same floor a
+ * window may not be dragged past.
+ */
+
+.desk__logos {
+  position: absolute;
+  inset: 20px auto calc(20px + var(--prompt-clearance)) 20px;
+  z-index: 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(auto-fill, var(--logo-cell-h));
+  grid-auto-columns: var(--logo-cell-w);
+  align-content: start;
+  justify-content: start;
+  gap: var(--space-3) var(--space-2);
+}
+
+/* The button only. What is inside it is the logo contract's — see
+   `logo-contract.css`, which stacks the tile and the name. */
+.logo {
+  padding: var(--space-1);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .logo {
+    transition: transform var(--dur-fast) ease;
+  }
+}
+
+.logo:hover {
+  transform: translateY(-2px);
+}
+
+.logo:active {
+  transform: translateY(0) scale(0.96);
+}
+
+/* ── The tile of something being built ────────────────────────────────── */
+/*
+ * D6: pressing Grow it puts a tile on the ground straight away and it stays
+ * until the build is done. It is the ambient half of the signal — the window
+ * carries the narration, and this carries the fact, visible from anywhere on
+ * the desk.
+ *
+ * There is no artwork yet and there deliberately is not: the logo is requested
+ * last, once the build has cleared its gate, so nothing is paid for a
+ * capability that can still be refused (L10).
+ */
+
+.logo-tile--pending {
+  background-color: var(--surface-2);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--ground-deep) 0 6px,
+    var(--surface-2) 6px 12px
+  );
+  background-size: 200% 200%;
+}
+
+/*
+ * It works while the build runs and rests afterwards. A capability whose build
+ * has finished but whose logo request has not landed is finished and usable —
+ * it just has no face yet (L11), and a tile still animating would say
+ * otherwise.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .logo-tile--working {
+    animation: tile-working 900ms linear infinite;
+  }
+}
+
+@keyframes tile-working {
+  to {
+    background-position: 17px 0;
+  }
+}
+
+.logo--dev .logo-label {
+  opacity: 0.85;
+}
+
+/* ── The developer tile ───────────────────────────────────────────────── */
+/*
+ * D13. It stands with the apps because it is one. Drawn rather than generated,
+ * so nothing mistakes it for a capability: no artwork, no ground colour, and
+ * the surface's own line around it.
+ */
+
+.logo-tile--dev {
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--ink-2);
+  letter-spacing: -0.03em;
+}
+
+/* ── Windows on the desk ──────────────────────────────────────────────── */
+
+.desk__windows {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/*
+ * Position, size and stacking arrive as custom properties set by the desk, so
+ * the phone layout below can override them by ordinary cascade. Dragging
+ * writes only `--win-x` / `--win-y`, which is a transform and nothing else.
+ */
+.window--desk {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--win-w);
+  height: var(--win-h);
+  transform: translate(var(--win-x, 0), var(--win-y, 0));
+  z-index: var(--win-z, 1);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.window--desk .window__body {
+  padding: var(--space-4);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+.window--desk .desk-window__content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.window__bar--draggable {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.window--desk.is-dragging .window__bar--draggable {
+  cursor: grabbing;
+}
+
+/* The resize grip. A size change is the one thing that redraws the frame. */
+.window__grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  z-index: 4;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.window__grip::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 9px;
+  height: 9px;
+  border-right: var(--line) solid var(--ink);
+  border-bottom: var(--line) solid var(--ink);
+  opacity: 0.45;
+}
+
+.window--desk.is-focused .window__grip::after {
+  opacity: 0.75;
+}
+
+/* ── The prompt bar ───────────────────────────────────────────────────── */
+/*
+ * Floats clear of all four edges with ground visible beneath and beside it. Never
+ * full width: a bar welded to the bottom edge is a taskbar. Keeps the full hand —
+ * it sits on the desk beside the windows rather than inside one.
+ */
+
+.prompt-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: min(540px, calc(100% - 96px));
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 8px 10px 8px 22px;
+  background: var(--surface);
+  --ink-hand: frame;
+  --ink-shadow: var(--shadow-window-wall);
+}
+
+.prompt-bar__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+  padding: 6px 0;
+}
+
+.prompt-bar__input::placeholder {
+  color: var(--ink-3);
+}
+
+.prompt-bar__input:focus {
+  outline: none;
+}
+
+.prompt-bar:focus-within {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* A blank prompt is refused rather than growing nothing. */
+.prompt-bar.is-refused .prompt-bar__input::placeholder {
+  color: var(--signal);
+}
+
+/* ── The developer panel ──────────────────────────────────────────────── */
+/*
+ * D13: a second window, and the one exempt from D1 — it may sit beside a
+ * capability, because watching a build and reading what the build actually did
+ * is one activity. Read-only, and outside the product voice: this is the only
+ * surface in Aluna set in a monospace face, because it shows raw payloads and a
+ * proportional face makes them worse.
+ */
+
+.window--dev .window__body {
+  padding: var(--space-3);
+}
+
+.devpanel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.devpanel__block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.devpanel__stage {
+  font-size: var(--caps-size);
+  letter-spacing: var(--caps-tracking);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.devpanel__pre {
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--ground-deep);
+  border-left: var(--line) solid var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── A build, in the window ───────────────────────────────────────────── */
+/*
+ * D6: the window opens at submit, not at commit, because a window that does not
+ * exist yet cannot hold the story of its own construction. It takes over
+ * whatever was open, which is what puts Cancel here — the build has to be able
+ * to give the window back.
+ */
+
+.build {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.build__log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.build__line {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.build__line:last-child {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.build__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: var(--line-plate) solid var(--ink-hair);
+}
+
+.build__note {
+  color: var(--ink-3);
+}
+
+/* ── Phone ────────────────────────────────────────────────────────────── */
+/*
+ * D1 is one window everywhere; the phone only changes how that window is
+ * placed. It stops floating and takes the surface, and the desk behind it reads
+ * as a phone home screen.
+ */
+
+@media (max-width: 720px) {
+  .desk {
+    min-height: 560px;
+  }
+
+  .desk__logos {
+    position: static;
+    display: grid;
+    grid-auto-flow: row;
+    grid-template-rows: none;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: var(--space-4) var(--space-2);
+    padding: var(--space-4) var(--space-3) 96px;
+  }
+
+  .window--desk {
+    inset: 0;
+    width: auto;
+    height: auto;
+    transform: none;
+    z-index: 10;
+  }
+
+  .window__grip {
+    display: none;
+  }
+
+  .prompt-bar {
+    width: calc(100% - 40px);
+  }
+}

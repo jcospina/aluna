@@ -1,0 +1,883 @@
+// @ts-check
+/**
+ * The desk.
+ *
+ * Aluna's product surface is a desktop and every capability is an app on it: a
+ * logo on the ground, a window when opened, a life cycle you can see. There is
+ * no taskbar.
+ *
+ * One window (D1). The desk shows a single capability window, and that window
+ * is the content area (D2): opening a second capability swaps what is inside
+ * the frame rather than adding another frame beside it. A record, a build and a
+ * confirmation all land in the same place for the same reason. The developer
+ * panel (D13) is the one exception, and it is furniture rather than a
+ * capability.
+ *
+ * This is a working implementation of the locked decisions, not a mock-up of
+ * one. What it stands in for:
+ *
+ *   - `localStorage` holds the two remembered boxes (D9). Nothing is kept per
+ *     capability, because which capability is open is the address's job (D14) —
+ *     and the readout under the desk stands in for an address bar this page
+ *     does not own.
+ *   - the capabilities are fixtures rather than generated units, and a build is
+ *     a timer rather than a model.
+ *
+ * The window-manager rule holds: CSS transforms and a two-level stack, never a
+ * framework, and the frame path is rebuilt on resize only.
+ */
+
+import {
+  clampPosition,
+  clampSize,
+  fillDesk,
+  fitToDesk,
+  PHONE,
+  placeWindow,
+} from "./desk-geometry.js";
+import { renderCollection } from "./patterns.js";
+import { mountPromptBar } from "./prompt-bar.js";
+import { wallpaperUrl } from "./wallpaper.js";
+import { AlunaWindow } from "./window.js";
+
+const STORAGE_KEY = "aluna.desk.layout.v2";
+
+/* Where each window lands the first time, before anything is remembered. */
+const DEFAULT_WINDOW = { x: 236, y: 40, w: 470, h: 330 };
+const DEFAULT_DEV = { x: 300, y: 150, w: 430, h: 260 };
+
+const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** @typedef {import("./data/capabilities.js").Capability} Capability */
+
+/** @typedef {import("./desk-geometry.js").Box} Box */
+
+/**
+ * A box as it is remembered. Maximised is a flag rather than a size, so it is
+ * recomputed against whatever screen the desk comes back on, and the box the
+ * window had before is kept beside it to un-maximise to.
+ * @typedef {Box & { max?: boolean, restore?: Box }} StoredBox
+ */
+
+/**
+ * Everything the browser remembers (D9). Two boxes and the flags that say how
+ * they are shown — no rows, no z-order, and nothing belonging to a
+ * capability's own schema. All of it is how things look to the user, which is
+ * the shell's to keep.
+ * @typedef {{ window: StoredBox, dev: StoredBox & { open: boolean } }} Layout
+ */
+
+/**
+ * A mounted window and what the desk keeps about it.
+ * @typedef {{ kind: "capability" | "dev", win: AlunaWindow, el: HTMLElement,
+ *             box: StoredBox, maximised: boolean }} DeskWindow
+ */
+
+/** A build in flight: what it will become, and what it took the window from. */
+/** @typedef {{ id: string, displaced: string | null, timers: number[] }} Build */
+
+/**
+ * The eight stages, in the order they arrive: the key the developer panel files
+ * the raw payload under, and the line the window narrates while it runs.
+ *
+ * Records rather than pairs, for the reason `main.js` gives: a two-element array
+ * of unlike things widens to a union on the way in.
+ */
+const STAGES = [
+  { key: "metrics", line: "Recent lifecycle metrics" },
+  { key: "spec", line: "Reading what you asked for" },
+  { key: "candidate", line: "Drawing the shape of the data" },
+  { key: "behavioral-tests", line: "Writing what it must never get wrong" },
+  { key: "migration", line: "Making room for it" },
+  { key: "units", line: "Building the pieces" },
+  { key: "gate", line: "Checking the whole thing" },
+  { key: "commit", line: "Putting it on the desk" },
+];
+
+export class Desk {
+  /**
+   * @param {HTMLElement} root
+   * @param {Capability[]} capabilities
+   * @param {{ onAddress?: (path: string) => void }} [opts]
+   */
+  constructor(root, capabilities, opts = {}) {
+    this.root = root;
+    this.capabilities = [...capabilities];
+    this.onAddress = opts.onAddress ?? (() => {});
+    this.layout = this.#load();
+
+    /** The one capability window, or nothing on a bare desk. */
+    /** @type {DeskWindow | null} */
+    this.win = null;
+    /** @type {DeskWindow | null} */
+    this.dev = null;
+    /** Which capability the window is showing. The address's other half. */
+    /** @type {string | null} */
+    this.openId = null;
+    /** @type {Build | null} */
+    this.build = null;
+
+    const surface = this.#buildSurface();
+    this.logoLayer = surface.logoLayer;
+    this.windowLayer = surface.windowLayer;
+    this.promptBar = surface.promptBar;
+
+    this.#watchViewport();
+    this.renderLogos();
+    if (this.layout.dev.open) this.openDev();
+    this.#announce();
+  }
+
+  /* ── the two remembered boxes ─────────────────────────────────────────── */
+
+  /** @returns {Layout} */
+  #load() {
+    /** @type {Layout} */
+    const fresh = { window: { ...DEFAULT_WINDOW }, dev: { ...DEFAULT_DEV, open: false } };
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
+      if (!stored || typeof stored !== "object") return fresh;
+      return {
+        window: { ...fresh.window, ...stored.window },
+        dev: { ...fresh.dev, ...stored.dev },
+      };
+    } catch {
+      return fresh;
+    }
+  }
+
+  #save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout));
+    } catch {
+      /* A desk that cannot persist is still a working desk. */
+    }
+  }
+
+  /* ── the desk's own edges ─────────────────────────────────────────────── */
+
+  /**
+   * Fit a box to the desk as it is right now and place the window on it: the
+   * maximised size if the window is maximised, and inside the edges and above
+   * the prompt bar's strip if it is not.
+   *
+   * Takes the three pieces rather than a mounted window, because the first
+   * call happens while one is still being built.
+   *
+   * On a phone this does nothing. The window is the screen there and the
+   * stylesheet places it, so the remembered box is left as it is rather than
+   * being squashed to a phone and carried back to a desk that way.
+   *
+   * @param {HTMLElement} el
+   * @param {StoredBox} box
+   * @param {boolean} maximised
+   */
+  #refit(el, box, maximised) {
+    if (this.#phone()) return;
+    const bounds = this.root.getBoundingClientRect();
+    if (maximised) fillDesk(bounds, box);
+    else fitToDesk(bounds, box);
+    placeWindow(el, box);
+  }
+
+  /** Whether the desk is below the breakpoint, where the window is the screen. */
+  #phone() {
+    return this.root.classList.contains("desk--phone");
+  }
+
+  /**
+   * The desk's one `window` listener. A screen can change size between two
+   * visits and during one, so what is remembered is re-fitted rather than
+   * trusted: a maximised window is recomputed against the screen it came back
+   * on, and every other box is clamped to it.
+   *
+   * The phone flag is set here too. Below the breakpoint the window is the
+   * screen — no drag, no resize, no maximise — and the flag is what the
+   * pointer handlers read to stand down.
+   */
+  #watchViewport() {
+    const phone = window.matchMedia(PHONE);
+
+    const onResize = () => {
+      this.root.classList.toggle("desk--phone", phone.matches);
+      for (const entry of [this.win, this.dev]) {
+        if (entry) this.#refit(entry.el, entry.box, entry.maximised);
+      }
+      this.#save();
+    };
+
+    phone.addEventListener("change", onResize);
+    window.addEventListener("resize", onResize);
+    onResize();
+  }
+
+  /** Forget both boxes. The capabilities themselves are untouched. */
+  resetLayout() {
+    this.close();
+    this.closeDev();
+    this.layout = { window: { ...DEFAULT_WINDOW }, dev: { ...DEFAULT_DEV, open: false } };
+    this.#save();
+    this.renderLogos();
+  }
+
+  /* ── the address ──────────────────────────────────────────────────────── */
+
+  /**
+   * What the address bar would read (D14). One window is what makes a single
+   * path enough to describe the whole desk: a capability, or nothing.
+   */
+  #announce() {
+    this.onAddress(this.openId ? `/capability/${this.openId}` : "/");
+  }
+
+  /* ── surface ──────────────────────────────────────────────────────────── */
+
+  /**
+   * Build the desk's own furniture, and hand back the parts it keeps. Returned
+   * rather than assigned from in here so the constructor establishes every
+   * field — see the same note on `AlunaWindow`.
+   *
+   * @returns {{ logoLayer: HTMLElement, windowLayer: HTMLElement,
+   *             promptBar: ReturnType<typeof mountPromptBar> }}
+   */
+  #buildSurface() {
+    this.root.classList.add("desk");
+    this.root.style.backgroundImage = wallpaperUrl();
+
+    const logoLayer = document.createElement("div");
+    logoLayer.className = "desk__logos";
+
+    const windowLayer = document.createElement("div");
+    windowLayer.className = "desk__windows";
+
+    this.root.append(logoLayer, windowLayer);
+
+    /* The prompt bar floats above the desk, and the strip it occupies is a
+     * floor no window may be dragged or resized into. */
+    const promptBar = mountPromptBar(this.root, {
+      onSubmit: (text) => this.grow(text),
+    });
+
+    return { logoLayer, windowLayer, promptBar };
+  }
+
+  /* ── logos ────────────────────────────────────────────────────────────── */
+
+  renderLogos() {
+    this.logoLayer.replaceChildren(
+      ...this.capabilities.map((capability) => this.#logoButton(capability)),
+      this.#devTile(),
+    );
+  }
+
+  /**
+   * A logo, assembled to the contract: the stored artwork full-bleed on the
+   * tile, and the capability's name written straight onto the desk beneath it.
+   * The corner, the shadow, the size, the gap and the way the name is set are
+   * all in `logo-contract.css` — nothing about a logo is decided here.
+   *
+   * A capability has no artwork until its build has cleared the gate, because
+   * that is when the request is made and nothing pays for a build that can
+   * still fail (L10). Until then the tile is a placeholder — working while the
+   * build runs, which is the ambient signal that something is being made (D6),
+   * and at rest afterwards if the logo request has not landed yet (L11).
+   *
+   * @param {Capability} capability
+   * @returns {HTMLButtonElement}
+   */
+  #logoButton(capability) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "logo";
+    button.dataset.capability = capability.id;
+    button.setAttribute("aria-label", `Open ${capability.label}`);
+
+    const building = this.build?.id === capability.id;
+    const tile = document.createElement("span");
+    tile.className = "logo-tile";
+    if (capability.pending) {
+      /* No artwork yet. It works while the build runs, and rests while it
+       * waits on a logo request that has not landed. */
+      tile.classList.add("logo-tile--pending");
+      if (building) tile.classList.add("logo-tile--working");
+    } else if (capability.logo) {
+      tile.style.backgroundImage = `url("${capability.logo}")`;
+    }
+    if (building) button.setAttribute("aria-label", `${capability.label} — being made`);
+
+    const label = document.createElement("span");
+    label.className = "logo-label";
+    label.textContent = capability.label;
+
+    button.append(tile, label);
+    /*
+     * D4 makes the logo load-bearing: with no taskbar it is the capability's
+     * permanent identity and the only way back to a window you closed.
+     */
+    button.addEventListener("click", () => this.open(capability.id));
+    return button;
+  }
+
+  /**
+   * The developer panel's tile (D13). It stands with the apps because it is
+   * one, and it is drawn rather than generated so nothing mistakes it for a
+   * capability.
+   *
+   * @returns {HTMLButtonElement}
+   */
+  #devTile() {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "logo logo--dev";
+    button.dataset.dev = "true";
+    button.setAttribute("aria-label", "Open the developer panel");
+
+    const tile = document.createElement("span");
+    tile.className = "logo-tile logo-tile--dev";
+    tile.textContent = "</>";
+
+    const label = document.createElement("span");
+    label.className = "logo-label";
+    label.textContent = "Developer";
+
+    button.append(tile, label);
+    button.addEventListener("click", () => this.toggleDev());
+    return button;
+  }
+
+  /* ── the one window ───────────────────────────────────────────────────── */
+
+  /**
+   * Open a capability. If the window is already up it keeps its box and its
+   * hand, and only its contents and its title change — the frame does not move
+   * and does not re-roll (D2, D10).
+   *
+   * @param {string} id
+   * @returns {DeskWindow | null}
+   */
+  open(id) {
+    const capability = this.capabilities.find((c) => c.id === id);
+    if (!capability) return null;
+    /*
+     * Only a capability still being built has nothing to show. One whose logo
+     * has not arrived yet is finished and usable — it just has no face (L11).
+     */
+    if (this.build?.id === id) return this.win;
+
+    const entry = this.#ensureWindow();
+    this.openId = id;
+    entry.win.setTitle(capability.label);
+    this.#setBody(entry, renderCollection(capability));
+    this.#focus(entry);
+    this.#announce();
+    return entry;
+  }
+
+  /**
+   * Close means put away. The window disappears, the logo stays, nothing in
+   * storage changes, and the address falls back to the bare desk.
+   */
+  close() {
+    if (this.build) this.cancelBuild({ silent: true });
+    if (!this.win) return;
+    this.win.win.destroy();
+    this.win.el.remove();
+    this.win = null;
+    this.openId = null;
+    this.#announce();
+  }
+
+  /** @returns {DeskWindow} */
+  #ensureWindow() {
+    if (this.win) return this.win;
+    this.win = this.#mount("capability", "", this.layout.window);
+    return this.win;
+  }
+
+  /**
+   * Swap what the window holds. The frame, the box and the hand are untouched.
+   *
+   * @param {DeskWindow} entry
+   * @param {HTMLElement} node
+   */
+  #setBody(entry, node) {
+    const body = entry.el.querySelector(".desk-window__content");
+    if (body instanceof HTMLElement) body.replaceChildren(node);
+  }
+
+  /* ── the developer panel ──────────────────────────────────────────────── */
+
+  toggleDev() {
+    if (this.dev) this.closeDev();
+    else this.openDev();
+  }
+
+  openDev() {
+    if (this.dev) {
+      this.#focus(this.dev);
+      return;
+    }
+    this.dev = this.#mount("dev", "Developer", this.layout.dev);
+    this.dev.el.classList.add("window--dev");
+    this.#setBody(this.dev, this.#devBody());
+    this.layout.dev.open = true;
+    this.#focus(this.dev);
+    this.#save();
+  }
+
+  closeDev() {
+    if (!this.dev) return;
+    this.dev.win.destroy();
+    this.dev.el.remove();
+    this.dev = null;
+    this.layout.dev.open = false;
+    this.#save();
+  }
+
+  /**
+   * Read-only, and out of the product voice. Each stage's raw payload as it
+   * streams — the same eight blocks the panel carries today, set as a terminal.
+   *
+   * @returns {HTMLElement}
+   */
+  #devBody() {
+    const shell = document.createElement("div");
+    shell.className = "devpanel";
+    for (const { key, line } of STAGES) {
+      const block = document.createElement("div");
+      block.className = "devpanel__block";
+      block.dataset.stage = key;
+
+      const head = document.createElement("b");
+      head.className = "devpanel__stage";
+      head.textContent = key;
+
+      const body = document.createElement("pre");
+      body.className = "devpanel__pre";
+      body.textContent = "—";
+      body.title = line;
+
+      block.append(head, body);
+      shell.append(block);
+    }
+    return shell;
+  }
+
+  /**
+   * @param {string} stage
+   * @param {string} payload
+   */
+  #devWrite(stage, payload) {
+    const pre = this.dev?.el.querySelector(`[data-stage="${stage}"] .devpanel__pre`);
+    if (pre instanceof HTMLElement) pre.textContent = payload;
+  }
+
+  /** Clear every block back to its resting dash. */
+  #devClear() {
+    const blocks = this.dev?.el.querySelectorAll(".devpanel__pre") ?? [];
+    for (const pre of blocks) if (pre instanceof HTMLElement) pre.textContent = "—";
+  }
+
+  /* ── mounting, focus and stacking ─────────────────────────────────────── */
+
+  /**
+   * Every window on the desk is built here, capability or panel. The hand is
+   * rolled when the window opens and is not stored (D10): swapping contents
+   * cannot re-roll it, because nothing opens.
+   *
+   * @param {"capability" | "dev"} kind
+   * @param {string} title
+   * @param {StoredBox} box
+   * @returns {DeskWindow}
+   */
+  #mount(kind, title, box) {
+    const el = document.createElement("section");
+    el.className = "window window--desk";
+    el.dataset.title = title;
+
+    /* What was remembered is fitted to the desk this window is opening on
+     * before anything measures it: a maximised window is recomputed against
+     * that desk, and any other box that no longer fits is pulled inside. */
+    const maximised = box.max === true;
+    el.classList.toggle("is-maximised", maximised);
+    this.#refit(el, box, maximised);
+
+    const body = document.createElement("div");
+    body.className = "desk-window__content";
+    el.append(body);
+    this.windowLayer.append(el);
+
+    const win = new AlunaWindow(el, {
+      title,
+      seed: Math.floor(Math.random() * 9000) + 10,
+      /* Over a wallpaper, windows carry their shadow at 40% rather than 24%. */
+      shadowAlpha: 0.4,
+    });
+
+    /** @type {DeskWindow} */
+    const entry = { kind, win, el, box, maximised };
+    this.#addGrip(entry);
+    this.#addDrag(entry);
+    this.#addLamps(entry);
+
+    el.addEventListener("pointerdown", () => this.#focus(entry));
+
+    if (!prefersReducedMotion()) {
+      el.animate(
+        [
+          { opacity: 0, transform: `translate(${box.x}px, ${box.y}px) scale(0.96)` },
+          { opacity: 1, transform: `translate(${box.x}px, ${box.y}px) scale(1)` },
+        ],
+        { duration: 180, easing: "cubic-bezier(0.2,0.85,0.25,1)" },
+      );
+    }
+    return entry;
+  }
+
+  /**
+   * Two windows at most, so stacking is a pair rather than a counter: the one
+   * you touched last is in front.
+   *
+   * @param {DeskWindow} entry
+   */
+  #focus(entry) {
+    for (const other of [this.win, this.dev]) {
+      if (!other) continue;
+      const focused = other === entry;
+      other.win.setFocused(focused);
+      other.el.classList.toggle("is-focused", focused);
+      other.el.style.setProperty("--win-z", focused ? "6" : "5");
+    }
+  }
+
+  /* ── dragging ─────────────────────────────────────────────────────────── */
+
+  /** @param {DeskWindow} entry */
+  #addDrag(entry) {
+    const bar = entry.el.querySelector(".window__bar");
+    if (!(bar instanceof HTMLElement)) return;
+    bar.classList.add("window__bar--draggable");
+
+    bar.addEventListener("pointerdown", (event) => {
+      const { target } = event;
+      if (target instanceof Element && target.closest(".lamp")) return;
+      if (entry.maximised) return;
+      if (this.#phone()) return;
+
+      const { box } = entry;
+      const bounds = this.root.getBoundingClientRect();
+      const startX = event.clientX - box.x;
+      const startY = event.clientY - box.y;
+      bar.setPointerCapture(event.pointerId);
+      entry.el.classList.add("is-dragging");
+      this.#focus(entry);
+
+      /*
+       * Dragging is a transform and nothing else. The path is untouched, so
+       * the hand never re-rolls mid-drag.
+       */
+      /** @param {PointerEvent} e */
+      const move = (e) => {
+        box.x = e.clientX - startX;
+        box.y = e.clientY - startY;
+        clampPosition(bounds, box);
+        placeWindow(entry.el, box);
+      };
+      const up = () => {
+        bar.removeEventListener("pointermove", move);
+        bar.removeEventListener("pointerup", up);
+        entry.el.classList.remove("is-dragging");
+        this.#save();
+      };
+      bar.addEventListener("pointermove", move);
+      bar.addEventListener("pointerup", up);
+    });
+  }
+
+  /* ── resizing ─────────────────────────────────────────────────────────── */
+
+  /** @param {DeskWindow} entry */
+  #addGrip(entry) {
+    const grip = document.createElement("button");
+    grip.type = "button";
+    grip.className = "window__grip";
+    grip.setAttribute("aria-label", "Resize this window");
+    entry.el.append(grip);
+
+    grip.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      if (entry.maximised) return;
+      /* On a phone the window is the screen (D1). The grip is painted out
+       * there, and this is the handler standing down with it. */
+      if (this.#phone()) return;
+      const { box } = entry;
+      const bounds = this.root.getBoundingClientRect();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startW = box.w;
+      const startH = box.h;
+      grip.setPointerCapture(event.pointerId);
+      this.#focus(entry);
+
+      /* A size change is the one thing that does invalidate the path. */
+      /** @param {PointerEvent} e */
+      const move = (e) => {
+        box.w = startW + (e.clientX - startX);
+        box.h = startH + (e.clientY - startY);
+        clampSize(bounds, box);
+        placeWindow(entry.el, box);
+      };
+      const up = () => {
+        grip.removeEventListener("pointermove", move);
+        grip.removeEventListener("pointerup", up);
+        this.#save();
+      };
+      grip.addEventListener("pointermove", move);
+      grip.addEventListener("pointerup", up);
+    });
+  }
+
+  /* ── lamps ────────────────────────────────────────────────────────────── */
+
+  /** @param {DeskWindow} entry */
+  #addLamps(entry) {
+    entry.el.addEventListener("window:lamp", (event) => {
+      event.stopPropagation();
+      const { action } = /** @type {CustomEvent<{ action: string }>} */ (event).detail;
+      if (action === "maximise" && !this.#phone()) this.#toggleMaximise(entry);
+      if (action === "putaway") {
+        if (entry.kind === "dev") this.closeDev();
+        else this.close();
+      }
+    });
+  }
+
+  /**
+   * Maximised is a flag, never a size (D9). What is remembered is that the
+   * window was maximised and what box to give back when it is not, so a desk
+   * that comes back on a different screen fills that screen instead of the one
+   * it left.
+   *
+   * @param {DeskWindow} entry
+   */
+  #toggleMaximise(entry) {
+    const { box } = entry;
+
+    if (entry.maximised) {
+      entry.maximised = false;
+      entry.el.classList.remove("is-maximised");
+      if (box.restore) Object.assign(box, box.restore);
+    } else {
+      entry.maximised = true;
+      box.restore = { x: box.x, y: box.y, w: box.w, h: box.h };
+      entry.el.classList.add("is-maximised");
+    }
+    box.max = entry.maximised;
+    this.#refit(entry.el, box, entry.maximised);
+    this.#focus(entry);
+    this.#save();
+  }
+
+  /* ── growing a capability ─────────────────────────────────────────────── */
+
+  /**
+   * What the user watches when they ask Aluna to build something (D6).
+   *
+   * Two things happen at once and neither is decoration. A placeholder tile
+   * lands in the logo grid and stays until the build is done, which is the
+   * ambient signal — visible whether or not you are looking at the window. And
+   * the window opens on the narration straight away, taking over whatever was
+   * in it, because there is one window and a build is what it is doing now.
+   *
+   * Taking the window over is what puts restoration back on the table: cancel,
+   * and whatever the build displaced comes back.
+   *
+   * @param {string} text what was typed into the prompt bar
+   * @returns {Capability | null}
+   */
+  grow(text) {
+    /* One build at a time, which is a lease question rather than a window one. */
+    if (this.build) return null;
+
+    const label = titleCase(text) || "Untitled";
+    const id = `grown-${Date.now()}`;
+
+    /** @type {Capability} */
+    const capability = {
+      id,
+      label,
+      noun: label.toLowerCase().replace(/s$/, ""),
+      logo: "",
+      pending: true,
+      seed: Math.floor(Math.random() * 9000) + 10,
+      records: [],
+      fields: [{ label: "Name", value: "", guidance: "What to call this one" }],
+    };
+
+    /* Registered before the logos are drawn, so the new tile draws working. */
+    this.build = { id, displaced: this.openId, timers: [] };
+    this.capabilities.push(capability);
+    this.renderLogos();
+
+    const entry = this.#ensureWindow();
+    this.openId = null;
+    entry.win.setTitle("Making it");
+    this.#setBody(entry, this.#buildBody(label));
+    this.#focus(entry);
+    this.#announce();
+    this.#devClear();
+    this.#runBuild(capability);
+    return capability;
+  }
+
+  /**
+   * The narration surface. A window that does not hold a capability yet holds
+   * the story of its own construction instead, which is the whole reason the
+   * window opens at submit rather than at commit.
+   *
+   * @param {string} label
+   * @returns {HTMLElement}
+   */
+  #buildBody(label) {
+    const shell = document.createElement("div");
+    shell.className = "build";
+
+    const log = document.createElement("div");
+    log.className = "build__log";
+    log.setAttribute("role", "log");
+    log.setAttribute("aria-live", "polite");
+
+    const foot = document.createElement("div");
+    foot.className = "build__foot";
+    const note = document.createElement("span");
+    note.className = "build__note xs";
+    note.textContent = `Making ${label}`;
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "btn btn--outline";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", () => this.cancelBuild());
+    foot.append(note, cancel);
+
+    shell.append(log, foot);
+    return shell;
+  }
+
+  /**
+   * Eight stages on a timer. In the product these arrive over SSE and the logo
+   * request is made after the gate clears — money is never spent on a build
+   * that can still fail (L10).
+   *
+   * @param {Capability} capability
+   */
+  #runBuild(capability) {
+    const build = this.build;
+    if (!build) return;
+
+    STAGES.forEach(({ key, line }, index) => {
+      const timer = window.setTimeout(
+        () => {
+          this.#say(line);
+          this.#devWrite(key, `{ "stage": "${key}", "capability": "${capability.id}" }`);
+          if (index === STAGES.length - 1) this.#commit(capability);
+        },
+        420 + index * 380,
+      );
+      build.timers.push(timer);
+    });
+  }
+
+  /** @param {string} line */
+  #say(line) {
+    const log = this.win?.el.querySelector(".build__log");
+    if (!(log instanceof HTMLElement)) return;
+    const row = document.createElement("p");
+    row.className = "build__line sm";
+    row.textContent = line;
+    log.append(row);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  /**
+   * The build cleared. The artwork is requested now — last, once nothing can
+   * still refuse the capability — so the tile is a placeholder for a moment
+   * longer and then becomes the logo it keeps for life (L7, L10).
+   *
+   * @param {Capability} capability
+   */
+  #commit(capability) {
+    this.build = null;
+    capability.records = [];
+    this.renderLogos();
+    this.open(capability.id);
+
+    /* The logo request, which the gate has already cleared the way for. */
+    window.setTimeout(() => {
+      capability.pending = false;
+      capability.logo = this.#borrowArtwork(capability);
+      this.renderLogos();
+    }, 700);
+  }
+
+  /**
+   * Cancel, fail, go stale or come back a no-op: the window has to give back
+   * what the build took. With one window that path is alive rather than
+   * vestigial, which is the cost of the window being the content area.
+   *
+   * @param {{ silent?: boolean }} [opts]
+   */
+  cancelBuild(opts = {}) {
+    const build = this.build;
+    if (!build) return;
+    for (const timer of build.timers) window.clearTimeout(timer);
+    this.build = null;
+
+    this.capabilities = this.capabilities.filter((c) => c.id !== build.id);
+    this.renderLogos();
+    if (opts.silent) return;
+
+    if (build.displaced) this.open(build.displaced);
+    else this.close();
+  }
+
+  /**
+   * The artwork a grown capability stands on here.
+   *
+   * In the product this half of the logo is generated once, for that capability
+   * alone, and never comes from a pool — there is no Aluna on this page to have
+   * one drawn, so a new capability borrows the artwork of one already on the
+   * desk. The contract's rule that two capabilities should not arrive on the
+   * same ground cannot be kept by borrowing; avoiding the one created before it
+   * is as far as a page with no generation can go.
+   *
+   * @param {Capability} grown
+   * @returns {string}
+   */
+  #borrowArtwork(grown) {
+    const drawn = this.capabilities.filter((c) => c.id !== grown.id && c.logo);
+    const previous = drawn.at(-1)?.logo;
+    const others = drawn.filter((c) => c.logo !== previous);
+    const pool = others.length ? others : drawn;
+    return pool[Math.floor(Math.random() * pool.length)]?.logo ?? "";
+  }
+}
+
+/**
+ * @param {string} text
+ * @returns {string}
+ */
+function titleCase(text) {
+  const cleaned = String(text)
+    .replace(/^(build|make|create|grow|add|track)\s+(me\s+)?(an?\s+)?/i, "")
+    .replace(/\s+(app|tracker|capability|table)$/i, "")
+    .trim();
+  if (!cleaned) return "";
+  return (
+    cleaned
+      .split(/\s+/)
+      .slice(0, 2)
+      /* Split on whitespace after trimming, so no word is ever empty. */
+      .map((w) => (w[0] ?? "").toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ")
+  );
+}

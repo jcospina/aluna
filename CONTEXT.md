@@ -20,20 +20,27 @@ The product. A Kogi word for the realm of thought/spirit from which the material
 world is born, and so a metaphor for a platform where stated capability-level
 intent becomes a working personal app. Internally it is a self-building runtime;
 to the user it is an app, never a coding agent, coding platform, or site builder.
-The user-facing brand and wordmark.
+The name is the whole of the user-facing brand: the styled wordmark went with the
+header row that carried it, and nothing on the desk or anywhere else replaces it
+([M5 plan](modules/05-the-desk/PLAN.md)).
 _Avoid_: omni-crud (engineering name only), coding agent, coding platform, site
 builder, "the app", "the platform" (in UI copy)
 
 **Shell**:
-The single static HTML page that is Aluna's one fixed UI surface. It ships once
-and never changes; everything inside its regions is generated at runtime and
-streamed in. The shell is dumb on purpose — it renders what the server sends and
-reports what the user does, nothing more (ARCH §6.1).
+Aluna's one fixed UI surface: the wallpaper, the logo layer, the prompt bar and
+the window. The platform owns all of it and generation writes none of it. The
+shell may remember **how things look to the user**; it never decides **what is
+true**. Window geometry, maximised state and where the user likes things are
+**presentation state**, the shell's to keep in `localStorage`. Which records
+exist, what is valid, what a capability means and what an intent was are
+**canonical state**, the server's alone
+(M5 plan 2).
 _Avoid_: page, layout, frame
 
 **Capability**:
 One thing Aluna has built for the user to keep track of (e.g. their photos, their
-recipes). Each capability the app has built is an entry in the capability toolbar.
+recipes). Each capability the app has built has a logo on the desk and opens into
+the window.
 _Avoid_: feature, module, CRUD, resource, entity, model
 
 **Separate capability**:
@@ -45,52 +52,139 @@ _Avoid_: duplicate capability, namespaced capability, suffixed capability
 **Capability deletion**:
 The explicit, user-confirmed permanent removal of one capability, all records it
 owns, its complete version history, and any capability-owned resource or Event Log
-payload. Content-free generation metrics remain as experiment data.
-_Avoid_: archive, remove, hide, deactivate
+payload. Content-free generation metrics remain as experiment data. The doorway is
+the logo's context menu; the confirmation fills the window in authored product
+voice; on commit the logo vanishes and the window puts itself away unless the
+confirmation displaced a different open capability, whose canonical collection
+then returns. Delete is the
+one name for this act, in UI copy and in every document (M5 plan 19, 20).
+_Avoid_: retire, archive, remove, hide, deactivate
 
-**Capability toolbar** (a.k.a. **sidebar**):
-The left sidebar listing the user's capabilities. Starts empty on a fresh user and
-rehydrates from the registry on load; clicking an entry loads that capability into
-the content area. This is the only navigation, and it is the thing that *grows*.
-_Avoid_: nav, menu, drawer (the off-canvas mobile presentation is a "drawer", but
-the region is the "sidebar")
+**Desk**:
+The whole surface Aluna occupies: a wallpaper, the logo of every capability the
+user has, the prompt bar floating clear of all four edges, and one window. Logos
+fill down a column and wrap to the next, taking as many columns as the desk
+holds. There is no taskbar, so the logos are the only standing list of what
+exists, and a fresh user sees a wallpaper and a prompt bar with nothing withheld
+until a first capability arrives. The address `/` is the bare desk and
+`/capability/:id` is the desk with that capability in the window
+([design/index.html](design/index.html) D4, D14; M5 plan 3, 4, 6).
+_Avoid_: capability toolbar, sidebar, header row (all three superseded), nav,
+menu, drawer, taskbar, dock
+
+**Window**:
+The single frame every capability appears in. It floats on the desk, drags by its
+title bar, resizes from the bottom-right corner, and carries two lamps: leaf
+maximises, clay puts it away. There is no minimise, and there is never a second
+window except the developer panel's. Everything a capability shows happens
+inside it — the collection, one record, a confirmation, the narration of a build
+— so opening a record swaps what the frame holds and opening another capability
+swaps the contents without the frame moving. Nothing in Aluna opens over anything
+else. Below the 720px breakpoint the window is the screen, and it neither drags,
+resizes nor maximises; desktop geometry is ignored rather than overwritten, and
+only the frontmost window is exposed if the developer panel is also open (design
+D1, D2, D12; M5 plan 47, 48).
+_Avoid_: content area and detail modal (both superseded), modal, dialog, popup,
+main panel, canvas, workspace, body
+
+**Put away**:
+What the clay lamp does. The window disappears, the logo stays where it was, the
+address falls back to `/`, and nothing in storage changes; the same click on the
+same logo brings the window back. Putting the window away while a build or an
+evolution is running warns first, because it kills the run, and proceeds only on
+confirmation through an inline row that leaves the run mounted. Deleting a
+capability is a different action and is deliberately
+unreachable from window chrome, which is why no lamp is signal red (design D3;
+M5 plan 17, 19).
+The same leave-run warning guards switching to another capability logo and
+Back/Forward while a build or evolution is mounted; confirmation uses the one
+cancel teardown and then completes the requested navigation.
+_Avoid_: minimise, hide, dismiss, exit; "close" names the gesture, "put away" is
+what it does
+
+**Logo**:
+A capability's picture, and its permanent identity on the desk. A hosted vector
+service draws it in a follow-up after v1 has activated, its presenter has
+terminated and the long build lease has released, from a subject phrase and a
+ground colour the model names and nothing else. The shell derives the request's
+second colour from the closed leaf/shade, teal/sky, sun/ochre and clay/violet
+companion lookup. The returned SVG is stored as received once at
+the capability incarnation root, beside its immutable version snapshots, and
+served immutable from an incarnation-keyed route. It is made once and never
+remade: evolving a capability keeps the drawing v1 was born with, and
+deleting the capability and building it again is the only route to a different
+one. Until the artwork lands the tile is a placeholder, which is also what marks
+the ground while a build runs; a logo that fails to arrive is retried through one
+durable atomic claim path on desk load to a hard cap of three total attempts,
+after which the placeholder is permanent.
+The shell adds the 10% rounded corner, the shadow, the size and the name beneath,
+and never anything inside the file. The logo also carries the context menu that
+opens Rename and Delete, reached by right-click, press-and-hold, or the keyboard
+menu key. Rename changes the platform-owned effective-label override and nothing
+else through an inline Save/Cancel label form — not the authored snapshot, id,
+address, version or artwork
+([ADR-0007](docs/adr/0007-capability-logo-contract.md);
+M5 plan 19).
+_Avoid_: icon, avatar, thumbnail, favicon (the "tile" is the shell's frame around
+the artwork, not the artwork)
+
+**Ground colour**:
+The colour a logo's artwork sits on, which the model names as one of the
+palette's eight tint anchors: leaf, shade, teal, sky, sun, ochre, clay or violet.
+Signal red is reserved and never offered. The set is closed for this one purpose,
+so validating a ground is a word-list check rather than a measurement — the eight
+anchors are already saturated and light enough for daylight, with no near-blacks,
+no pastels and no greys. Two capabilities may share one. Distinct from the desk's
+ground, which is where logos sit (M5 plan 39).
+_Avoid_: background colour, brand colour, accent, theme colour
 
 **Prompt bar**:
-The always-visible, free-form text input pinned to the bottom of the content
-column. Context-aware: it scopes to the active capability. The user types intent
-here and watches the app build above.
+The always-visible, free-form text input floating above the desk, clear of all
+four edges and never full width. Context-aware: it scopes to the capability in
+the window. The user types intent here and watches the app build in the window.
+No window drags or resizes into the strip it occupies. Anything Aluna refuses
+before a build starts is explained here rather than in the window (design D5;
+M5 plan 5, 24).
 _Avoid_: search box, command bar, chat input, composer (acceptable when describing
 the field itself, but the region is the "prompt bar")
 
-**Content area**:
-The surface that fills the space above the prompt bar and below the header row.
-Capabilities and build narration render here. At cold-start it is a neutral,
-deliberately-empty surface (the brand lives in the header row, not here).
-_Avoid_: main panel, canvas, workspace, body
-
-**Header row**:
-The always-present top bar of the content column. Three slots on one line: the
-capability-toolbar toggle (left, shown once capabilities exist), the centred Aluna
-wordmark, and the developer-panel toggle (right, the `</>` icon).
-_Avoid_: topbar, banner, masthead
+**Drawn line**:
+Every visible boundary in Aluna, drawn rather than ruled. A drawn edge deviates
+from true on a fixed wavelength, is inked twice from two seeds, and is mitred at
+every corner. The weight is 2px everywhere and the hierarchy lives in the
+amplitude: a full hand for the things that hold others, a fine hand for what sits
+inside a window, a close hand for small parts. It reaches into generated content,
+so the cards, rows and tables a capability produces are drawn too, seeded from
+the record's own id and therefore stable across a view swap and a resize. No seed
+ever comes from where an element sits. Only what sits on the desk casts a shadow,
+and the logo tile's 10% corner is the surface's one rounded corner. Because the
+ink system owns every boundary, generated markup never declares `border`,
+`border-radius`, `box-shadow` or a font family, and takes colour, type size and
+spacing only from the sets in `design/styles/` (design D10, D11;
+M5 plan 9, 10).
+_Avoid_: CSS border, rule, stroke, outline, sketchy, hand-drawn effect
 
 **Developer panel**:
-The right sidebar, mirroring the capability toolbar's look but anchored right and
-toggled by the header's `</>` icon. A developer-facing verification surface holding
-the build's raw generation internals — each stage's JSON (spec, migration, units,
-gate, commit) — shown as it streams. It is read-only and observational: a curiosity
-surface for people who want to see how Aluna works, never a place to steer code,
-schema, framework, or styling decisions. Not product UI; product-voice narration
-stays in the content area.
-_Avoid_: console, debug drawer, inspector (the off-canvas mobile presentation is a
-"drawer", but the region is the "developer panel")
+The second window, and the only exception to there being one. It is read-only,
+opens from its own tile on the desk, and may sit beside the capability being
+watched, because reading what a build did while it does it is one activity. It
+holds the build's raw generation internals — each stage's JSON (spec, migration,
+units, gate, commit) — shown as it streams, and it is the one place in Aluna a
+monospace face appears, because it shows raw payloads and stands outside the
+product voice. It is a curiosity surface for people who want to see how Aluna
+works, never a place to steer code, schema, framework, or styling decisions.
+Module 9's experimenter surface lives in it too (design D13; M5 plan).
+_Avoid_: console, debug drawer, inspector, right sidebar
 
 **The pet**:
 An anthropomorphic *spark of Aluna* — a small luminous companion with a face that
 lives on the prompt bar, walks along it, and talks from there. A first-class
 delight feature carrying no business logic. Defined now, deferred to a later issue
 (full spec: [docs/pet.md](docs/pet.md)); its name is a TBD authentic Kogi word (do
-not fabricate one). It is related to Aluna, but it is **not Aluna herself**.
+not fabricate one). It is related to Aluna, but it is **not Aluna herself**. Two
+surfaces wait on its design: where a disposable query answer appears (Module 6)
+and where a behavioural proposal appears (Module 8). The pet is expected to carry
+Aluna's narration once it lands (M5 plan).
 _Avoid_: orb (the superseded concept), mascot, avatar, assistant, bot, spinner
 
 **Product voice**:
@@ -143,13 +237,13 @@ publication, activation. It owns no prompt route, no active DOM, and no SSE. It
 takes a **resolved build request** and a **build presenter**, and emits one terminal
 lifecycle event into that presenter while its lease is still held. This is the
 reuse seam: the explicit loop resolves a typed prompt and supplies the foreground
-presenter, while Module 7's implicit loop will hand over an already-confirmed
+presenter, while Module 8's implicit loop will hand over an already-confirmed
 proposal in the same shape — never reclassified — and choose a presenter of its
 own. Mutation, staging, Gate, activation, and metrics are identical either way
 (PLAN decision 31, ADR-0006, ARCH §6.2). Today the seam is terminal-only: the
 in-flight liveness sink still carries ADR-0002 SSE event names, a dead sink is
 read as cancellation, and the product-voice narration is authored inside the
-stages. Module 7 can swap the terminal presenter but not yet the in-flight story;
+stages. Module 8 can swap the terminal presenter but not yet the in-flight story;
 widening it waits for a second real presenter to shape it against.
 _Avoid_: build pipeline, the builder service, prompt pipeline
 
@@ -164,12 +258,12 @@ _Avoid_: build job, build intent, classification
 
 **Build presenter**:
 The adapter that turns the Core Builder's terminal lifecycle event into what a
-person sees. The explicit-loop presenter occupies the active content area,
-narrates the foreground product-voice story, and emits one View `commit` — only
-for a real pointer activation. Every non-activating terminal instead restores the
-canonical committed View through `fragment` with no toolbar sidecar. Presentation
-is not a Builder invariant: Module 7 may choose another presenter entirely
-(PLAN decisions 29, 31; ADR-0002).
+person sees. The explicit-loop presenter takes the window, narrates the
+foreground product-voice story, and emits one View `commit` — only for a real
+pointer activation. Every non-activating terminal instead gives back what the
+build displaced, restoring the canonical committed View through `fragment` with
+no sidecar for the desk. Presentation is not a Builder invariant: Module 8 may
+choose another presenter entirely (PLAN decisions 29, 31; ADR-0002).
 _Avoid_: renderer, view layer, the SSE handler
 
 **Stale refusal**:
@@ -224,8 +318,9 @@ The single generated presentation unit for one capability. It turns one projecte
 record into capability-specific inner markup used by `create`, `read`, `update`,
 and `search`; delete refreshes the collection without rendering a deleted record.
 Platform-owned list-item chrome supplies the accessible trigger, safe active-field
-client projection, and modal behavior; Handlers receive the renderer
-through their injected presentation adapter rather than importing it
+client projection, and the swap that puts one record in the window; Handlers
+receive the renderer through their injected presentation adapter rather than
+importing it
 (ADR-0005). How the records are *arranged* as a collection (feed vs. grid) is
 not the renderer's concern: that is the platform list container reading the
 capability's `ui_intent.collection.layout`. The renderer is generated knowing
@@ -239,21 +334,25 @@ until that Handler is regenerated (ADR-0006).
 _Avoid_: row helper, card component, template
 
 **View**:
-A capability's data-free content-area surface. Module 2 generates and caches the
-initial `list`/`create` scaffolding; Module 3 moves that structural chrome into
-platform rendering while live data continues to arrive through capability
-handlers. A View never contains cached user data (ADR-0004, amended by
-ADR-0005).
+A capability's data-free surface inside the window. Module 2 generates and caches
+the initial `list`/`create` scaffolding; Module 3 moves that structural chrome
+into platform rendering while live data continues to arrive through capability
+handlers. Module 5 makes the window the only place a View lands, and ties
+teardown to the content it replaces rather than to the window, so a swap from the
+collection to one record and back releases what each left running. A View never
+contains cached user data (ADR-0004, amended by ADR-0005; M5 plan 13).
 _Avoid_: template, page, screen
 
 **Gate**:
 The layered, fail-closed validation every publishable candidate must clear before
 commit — type-check, signature assertion, smoke run, and (when the tier is on)
-behavioral tests; Module 3 adds design lint for generated item markup. It runs
-against a scratch database through adapters that expose only synthetic data, and
-its structural/static checks reject known direct bypasses. Generated code still
-executes in-process, so the Gate protects against accidental output rather than
-containing hostile code (ADR-0003, ADR-0004, ADR-0005).
+behavioral tests; Module 3 adds design lint for generated item markup, which
+Module 5 re-derives against the drawn line — three properties picked from the
+High Meadow sets, four never declared at all. It runs against a scratch database
+through adapters that expose only synthetic data, and its structural/static
+checks reject known direct bypasses. Generated code still executes in-process, so
+the Gate protects against accidental output rather than containing hostile code
+(ADR-0003, ADR-0004, ADR-0005; M5 plan 10).
 _Avoid_: CI, checks, test suite. Unqualified "gate" always means this one — the
 per-incarnation read gate below is a different thing and is never shortened.
 
@@ -275,7 +374,7 @@ _Avoid_: read lock, handle, reservation
 **Deletion tombstone**:
 The non-routable state an active registry row becomes at deletion's point of no
 return, carrying the owned-resource manifest it still owes. Resolvers, routes, and
-the toolbar see only active rows, while the tombstone reserves the semantic id until
+the desk see only active rows, while the tombstone reserves the semantic id until
 cleanup completes, so a recreated capability can never race stale cleanup.
 _Avoid_: soft delete, deleted flag, archive row
 

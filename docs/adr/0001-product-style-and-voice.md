@@ -2,6 +2,42 @@
 
 Status: accepted
 
+**Amended 2026-08-20 — the visual half is superseded, the voice half is not.**
+This ADR settles four separable things, and the desktop design session
+(`modules/05-the-desk/PLAN.md`, decision 7) supersedes exactly one of them.
+
+*Superseded.* The Paper & Ink palette, the neobrutalist border and shadow ladder,
+the 10px radius, the single `public/app.css` with one `:root` (since split into
+`public/css/`), and the Outfit-only typography all give way to the **High
+Meadow** system in `design/styles/`. That directory is the shipped stylesheet
+rather than a reference mockup, and it is the source of truth for the visual
+system **including token names**, so the `--color-*` vocabulary introduced here
+does not survive the move. High Meadow pairs a display face (Fraunces) with
+Outfit as the body face, which retires "no separate display face is carried
+over"; both are still vendored locally, so the offline, build-free, no-CDN part
+of the typography decision holds. The 10px radius gets no successor value: every
+corner is mitred and there are no radius tokens at all. ADR-0005's closed design
+axes re-derive against High Meadow names, in its own 2026-08-20 amendment.
+
+*Survives.* The warm, encouraging, first-person product voice with zero internals
+jargon is untouched, and `CONTEXT.md` stays its home as durable guidance for
+every coding agent's copy. Aluna stays the user-facing wordmark. The styled
+lockup that carried the name in the deleted shell goes with that shell — the
+design handbook's wordmark section is a deletion rather than a rewrite (§7a) —
+but the name this ADR introduced stands.
+
+*The pet is still deferred, and has since gained a direction.* It remains
+unimplemented and undesigned, so a future issue still implements it cold. What
+changed is that it is no longer only a delight layer: the companion is a talking
+pet, expected to carry the product's narration once it lands (§13). That is why
+the surfaces for a disposable query answer and for a behavioural proposal wait on
+it rather than being drawn now.
+
+*Retired.* "A dark theme stays a purely additive future override" no longer
+holds. High Meadow is daylight and does not invert, and no dark theme is planned
+(§12f). The semantic-token insurance below bought a future that has since been
+declined.
+
 ## Decision
 
 Aluna's base visual style is subtler neobrutalism on a Paper & Ink palette,

@@ -1,0 +1,139 @@
+/*
+ * The window.
+ *
+ * The element itself has no border, no background and no radius: every one of
+ * those is drawn by SVG, because a CSS border cannot deviate 0.9px from true
+ * and cannot be inked twice. CSS owns layout here and nothing else.
+ *
+ * Two SVG layers sandwich the content — `ground` behind it, `ink` in front —
+ * so the frame is genuinely in front of what it frames.
+ */
+
+.window {
+  position: relative;
+  background: transparent;
+  isolation: isolate;
+}
+
+.window__ground,
+.window__ink {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.window__ground {
+  z-index: 0;
+}
+
+.window__ink {
+  z-index: 3;
+}
+
+/* ── Title bar ────────────────────────────────────────────────────────── */
+/* The panes are painted by the SVG beneath; this layer is type and lamps. */
+
+.window__bar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 11px 18px;
+  background: transparent;
+}
+
+/* The title sits bare on the chrome — no lozenge, plate or badge. */
+.window__title {
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 700;
+  font-variation-settings:
+    "SOFT" 80,
+    "WONK" 1,
+    "opsz" 60;
+  letter-spacing: -0.012em;
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* ── Lamps ────────────────────────────────────────────────────────────── */
+/*
+ * Maximise and put away, and there is no third: with no taskbar, minimise has
+ * nowhere to put a window where you could still see it waiting. Both are
+ * reversible, so neither is signal red.
+ */
+
+.window__lamps {
+  display: flex;
+  gap: 7px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.lamp {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: var(--line) solid var(--ink);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lamp {
+    transition: transform var(--dur-fast) ease;
+  }
+}
+
+.lamp:hover {
+  transform: scale(1.22);
+}
+
+.lamp:active {
+  transform: scale(0.94);
+}
+
+.lamp--leaf {
+  background: var(--leaf);
+}
+
+.lamp--clay {
+  background: var(--clay);
+}
+
+/* ── Body ─────────────────────────────────────────────────────────────── */
+
+.window__body {
+  position: relative;
+  z-index: 1;
+  padding: var(--space-6);
+}
+
+.window__body > * + * {
+  margin-top: var(--space-5);
+}
+
+/* Rolled up: the window is its own title bar, and the rule is gone with it. */
+.window.is-rolled .window__body {
+  display: none;
+}
+
+/* Unfocused: the title bar desaturates. The frame and content do not. */
+.window.is-unfocused .window__title {
+  opacity: 0.72;
+}
+
+/* ── Stacking ─────────────────────────────────────────────────────────── */
+/*
+ * Section windows in the document flow need room for the shadow and for the
+ * title-bar rule, which runs 5px past the frame on each side.
+ */
+.window--section {
+  margin: var(--space-7) 0 0;
+}
+
+.window--section:first-child {
+  margin-top: 0;
+}

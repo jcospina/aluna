@@ -57,6 +57,97 @@ raw-form normalization, submitted-field presence, and the canonical ordered-arra
 Handler value. This remains closed structural presentation, not generated form
 markup or a user-facing form builder.
 
+**Amended 2026-08-20 for the desktop design system.** §4's five closed axes
+become **three plus four bans** (`modules/05-the-desk/PLAN.md`, decision 10),
+re-derived
+against High Meadow in `design/styles/`, which supersedes Paper & Ink as the
+token layer and takes the token *names* with it (ADR-0001's 2026-08-20
+amendment). Colour, type size and spacing stay pick-from-a-list against High
+Meadow names: the type and spacing families keep their `--type-*` and `--space-*`
+shapes with new values, while the colour family loses its `--color-*` prefix
+entirely and generated markup picks from the palette's own names. Font family,
+**border**, **border-radius** and **box-shadow** are never declared, and the
+border-weight axis gets no successor list.
+
+Each ban has its own reason. Font family still inherits from the surface an item
+sits on. **Border** goes because the ink system owns every boundary, and the
+drawn line now reaches all the way into the record cards, rows and tables a
+capability generates (§6b); a drawn card's hand is seeded from the record's own
+id, so the generation pipeline never learns the ink system exists.
+**Border-radius** goes because High Meadow has no radius tokens to pick from —
+every corner is mitred, and a square corner is the absence of a declaration
+rather than a value. **Box-shadow** goes because nothing inside a window casts,
+and because the shadow tokens are bare `<x> <y> <alpha>` numbers describing a
+path's displacement rather than a box, so `box-shadow: var(--shadow-window)`
+produces an invalid value that fails silently. A ban is the only thing that
+catches that last one: a value lint would have to know it was looking at a
+non-value.
+
+The **border-weight** ladder is gone rather than shortened. Every boundary is
+2px, and hierarchy rides on the ink system's deviation — frame, fine and close
+hands — instead of on line weight. The platform's grip tightens by exactly that
+much, which is the intended trade. Radius and shadow are likewise absences in
+High Meadow rather than shorter lists, so §4's "radius/shadow/motion tokens exist
+and are preferred where they fit" survives for motion alone (`--dur-*`,
+`--ease-*`). The executable-markup bans are untouched, as they were by the
+2026-07-01 amendment.
+
+**The class allow-list keeps its names.** `.stack`, `.cluster`, the flex and grid
+utilities, `.gap-*`, `.text-*`, `.truncate`, `.line-clamp-*` and `.media-frame`
+are reimplemented as a real stylesheet under `design/styles/`, under exactly the
+names generated code already speaks (§7b). Keeping the kit preserves §4's goal
+that common arrangement never needs inline `style`, which is what keeps the
+gate's surface small. One collision is settled the cheap way: `layout.css`'s own
+`.stack`, a 22px page column, is renamed rather than the vocabulary one, and
+leaving both would have given a generated stack a page column's spacing with no
+error anywhere.
+
+**`docs/design-system.md` moves into `design/` and stops stating values** (§7a).
+It owns names and rules — which classes exist, which properties are
+pick-from-a-list, which are never declared, what is banned — and every number in
+it points at `design/styles/`. Values live once, in CSS, so the tie-breaker it
+used to carry ("where the doc and the CSS disagree, the CSS wins") has nothing
+left to arbitrate. This supersedes the last bullet under Consequences below.
+
+**Amended 2026-08-20 for the desk's one record surface.**
+`ui_intent.detail.shows` is deleted in Module 5's initial reset-bounded cut
+(`modules/05-the-desk/PLAN.md`, decisions 8 and 29).
+§6's third recorded fact — the fields and order a detail surface shows — named a
+read-only surface that no longer exists. The desk has no modal and no read mode:
+clicking a record opens it in edit mode, in the form, and the form ignores the
+key. A key with no reader goes. The model still says how a record looks, and it
+says it by building that form; §6's other facts — item direction and
+dependencies, collection layout, and the per-`string[]` list input mode — are
+untouched. Removing the key touches `uiIntentSchema`, its validation in
+`spec.ts`, `detailFieldOrder`, the detail branch of `field-renderer.ts`, and the
+generator prompt. This supersedes §6's detail clause and the "detail
+fields/order" half of the spec-schema bullet under Consequences; §6's closing
+"Module 3 ships detail read-only" stands only as a record of what M3 shipped.
+
+**Amended 2026-08-20 for the Module 5 form contract.** The centralized form
+renderer gains `choice`, long text, guidance, `max_length`, and drawn controls for
+both existing `string[]` modes. A choice stores one stable string value from an
+ordered array of option objects; values are append-only through evolution, while
+labels, grouping, notes, disabled state and the closed picker/radio/segmented
+presentation may change. Platform normalization and mutation validation reject
+undeclared choice values and over-limit scalar strings before generated Handlers
+or canonical state see them. A newly disabled value cannot be selected, but an
+already-stored disabled value remains renderable and survives unrelated edits.
+Soft-hide preserves `max_length`, and adding or lowering it is refused before
+activation if any committed physical value, active or inactive, already exceeds
+it. These structural validation facts enter canonical equality,
+the total Diff matrix and behavioral total-input digests; generated code does not
+become a second validator.
+
+The one marked product-voice sentence returned by a Handler for a declared
+business error remains authoritative. Platform presentation uses the existing
+`data-error-fields` marker to relocate it into the affected field without
+rewriting it or inventing a second copy source; `behavioral_errors` fixes semantic
+markers and fields, not prose. Required/max-length platform failures keep their
+one authored platform sentence. Older active rows may omit the new form-intent
+collections; omission canonicalizes to empty, new candidates emit the complete
+shape, and immutable historical snapshots are not rewritten.
+
 ## Problem
 
 A capability is born usable but ugly. The unit-generation prompts hand the model
@@ -73,7 +164,7 @@ design-system-for-LLM writeups, and the *impeccable* design skill's detector
 rules): a closed token and primitive vocabulary, spec and example context fed to
 the model, and automated auditing that rejects violations. Aluna already owns two
 of those legs — a closed-ish token layer (`public/css/tokens.css`,
-`docs/design-system.md`) and a layered, fail-closed gate. This ADR puts all three
+`design/design-system.md`) and a layered, fail-closed gate. This ADR puts all three
 to work.
 
 ## Decision

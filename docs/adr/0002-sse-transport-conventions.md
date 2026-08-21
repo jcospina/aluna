@@ -200,6 +200,44 @@ provider is exercised for real. The missing-key product-voice guarantee (a warm,
 jargon-free apology, no internals in the copy) is asserted on the production
 `/prompt` path in `src/app/app.resolver-pipeline.test.ts`.
 
+## Update (2026-08-20 — the swap target outlives a region that comes and goes)
+
+The desk replaces the always-present content area with a window the client
+creates and destroys (`modules/05-the-desk/PLAN.md`, decisions 13 and 16). Nothing in the
+vocabulary above changes. `commit` and `fragment` keep addressing a **stable
+id**, and the server still knows nothing about whether a window is open. What
+moves is the obligation: **the client guarantees that id exists whenever a swap
+can be in flight**. That is a client-side invariant rather than a protocol
+change, so a build that has been streaming since before the user reached for the
+close control still has somewhere to land.
+
+Two decisions make the promise keepable. **Teardown is tied to content
+replacement rather than to the window.** Whatever a content region started —
+in-flight fetches, search controllers, server read tokens — is released when that
+content is replaced or removed, so a view swap inside the window (list → record →
+back) releases exactly as putting the window away does. A window-scoped hook
+would have leaked on every swap and left the same hole open. And **a window
+cannot be closed out from under work in progress**: putting it away while a build
+or an evolution is running warns first, and proceeds only on confirmation, which
+routes through the existing cancel path. The run therefore ends the way this
+vocabulary already describes, rather than by losing its target mid-flight.
+
+`#capability-toolbar` is now **the logo layer**. The toolbar is deleted with the
+rest of the old shell, and a capability's standing entry on the desk is its logo
+(ADR-0007). The `commit` sidecar keeps its shape and its out-of-band delivery and
+changes only what it targets: a newly committed capability appends a logo, and an
+evolution that changed the label replaces the name written under one. Page
+assembly collapses to that single anchor, because the window is created
+client-side and the shell holds no placeholder for it; the one anchor swap that
+fails silently today (`class="shell"`, `src/web/fragments.ts`) throws like the
+others.
+
+Before activation, an admitted new-capability job may own a provisional
+build-id-keyed tile. It is presentation state, not a registry entry: `commit`
+replaces it exactly once with the registry-backed tile, while every
+non-activating terminal removes it. Evolution and resolver outcomes that never
+admit a new capability create none. This adds no app-level SSE event name.
+
 ## Historical update (Epic 1.5 — predates Module 2 finalization)
 
 This paragraph records the state at the end of Module 1. Its open-question
