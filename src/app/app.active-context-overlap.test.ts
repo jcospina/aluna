@@ -166,9 +166,6 @@ describe("homepage existing-capability evolution", () => {
           direction: "Emphasize the due date as timely contact follow-up metadata.",
           shows: [...CONTACTS_SPEC.ui_intent.item.shows, "due_date"],
         },
-        detail: {
-          shows: [...CONTACTS_SPEC.ui_intent.detail.shows, "due_date"],
-        },
       },
     };
     const { provider } = makeSequenceProvider([

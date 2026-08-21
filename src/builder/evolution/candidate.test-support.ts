@@ -86,7 +86,6 @@ export function journalCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
         shows: ["title", "tags"],
       },
       collection: { layout: "feed" },
-      detail: { shows: ["title", "tags", "created_at"] },
     },
     behavior: "A title is required. Newest entries appear first.",
     behavioral_errors: [
@@ -158,7 +157,6 @@ export function shelvesCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
       form: { list_inputs: [] },
       item: { direction: "A compact shelf name chip.", shows: ["shelf_name"] },
       collection: { layout: "grid" },
-      detail: { shows: ["shelf_name"] },
     },
     behavior: "A shelf name is required.",
     behavioral_errors: [
@@ -228,7 +226,6 @@ export interface CandidateDraft {
     form: { list_inputs: Array<{ field: string; mode: string }> };
     item: { direction: string; shows: string[] };
     collection: { layout: string };
-    detail: { shows: string[] };
   };
   behavior: string;
   behavioral_errors: Array<{

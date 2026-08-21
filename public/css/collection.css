@@ -35,9 +35,8 @@
    platform form sits on its own quiet card above the list. */
 .capability-collection__create {
   padding: var(--space-3);
-  background: var(--color-surface);
-  border: var(--border-thin) solid var(--color-border);
-  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
 }
 
 /* ── Search chrome ─────────────────────────────────────────────────────────────
@@ -60,7 +59,7 @@
   left: var(--space-2);
   width: 1.125rem;
   height: 1.125rem;
-  color: var(--color-text-subtle);
+  color: var(--ink-3);
   pointer-events: none;
 }
 .capability-search__input {
@@ -68,19 +67,20 @@
   min-height: 2.75rem;
   padding: var(--space-1) calc(var(--space-6) + var(--space-3)) var(--space-1)
     calc(var(--space-2) + 1.125rem + var(--space-1));
-  font: var(--body);
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: var(--border-thin) solid var(--color-border);
-  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--type-base);
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
 }
 .capability-search__input::placeholder {
-  color: var(--color-text-subtle);
+  color: var(--ink-3);
 }
 .capability-search__input:focus-visible {
-  outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-accent), transparent 70%);
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-color: var(--focus-ring);
 }
 /* Suppress the inconsistent browser-owned clear glyph; the labelled platform Clear
    button has a stable target and owns the canonical-read action. */
@@ -93,19 +93,21 @@
   min-width: 3.5rem;
   min-height: 2.25rem;
   padding: 0 var(--space-1);
-  font: var(--body-emph);
-  color: var(--color-text-subtle);
+  font-family: var(--font-body);
+  font-size: var(--type-base);
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--ink-3);
   background: transparent;
   border: 0;
-  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .capability-search__clear:hover {
-  color: var(--color-text);
-  background: var(--color-bg);
+  color: var(--ink);
+  background: var(--ground);
 }
 .capability-search__clear:focus-visible {
-  outline: var(--border-regular) solid var(--color-accent-secondary);
+  outline: var(--line) solid var(--focus-ring);
   outline-offset: 1px;
 }
 .capability-search__feedback {
@@ -116,18 +118,20 @@
   justify-content: center;
   gap: var(--space-1);
   padding-inline: var(--space-1);
-  font: var(--meta);
-  color: var(--color-text-subtle);
+  font-family: var(--font-body);
+  font-size: var(--type-sm);
+  line-height: 1.4;
+  color: var(--ink-3);
   text-align: center;
 }
 .capability-search__loading {
   display: none;
   width: 0.9rem;
   height: 0.9rem;
-  border: var(--border-regular) solid var(--color-border);
-  border-top-color: var(--color-accent-secondary);
+  border: var(--line) solid var(--ink);
+  border-top-color: var(--leaf);
   border-radius: 50%;
-  animation: capability-search-spin var(--duration-slow) linear infinite;
+  animation: capability-search-spin var(--dur-rise) linear infinite;
 }
 .capability-collection[data-search-state="idle"] > .capability-search__feedback {
   position: absolute;
@@ -149,8 +153,10 @@
   min-height: 0;
   margin: 0;
   padding: var(--space-4) var(--space-3);
-  font: var(--body);
-  color: var(--color-text-subtle);
+  font-family: var(--font-body);
+  font-size: var(--type-base);
+  line-height: 1.5;
+  color: var(--ink-3);
   text-align: center;
 }
 @keyframes capability-search-spin {
@@ -182,8 +188,10 @@
 .capability-empty {
   margin: 0;
   padding: var(--space-6) var(--space-3);
-  font: var(--body);
-  color: var(--color-text-subtle);
+  font-family: var(--font-body);
+  font-size: var(--type-base);
+  line-height: 1.5;
+  color: var(--ink-3);
   text-align: center;
 }
 .capability-collection[data-search-state="loading"] > .capability-empty,
@@ -221,28 +229,25 @@
 .capability-item {
   display: block;
   padding: var(--space-2);
-  background: var(--color-surface);
-  border: var(--border-thin) solid var(--color-border);
-  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
   color: inherit;
   text-align: inherit;
   cursor: pointer;
   transition:
-    transform var(--duration-fast) var(--ease-pop),
-    box-shadow var(--duration-fast) var(--ease-pop);
+    transform var(--dur-fast) var(--ease-rise),
+    box-shadow var(--dur-fast) var(--ease-rise);
 }
 .capability-item:hover {
   transform: translate(1px, 1px);
-  box-shadow: var(--shadow-sm);
 }
 .capability-item:active {
   transform: translate(2px, 2px);
-  box-shadow: var(--shadow-none);
 }
 /* The wrapper owns its accent ring on keyboard focus; the global :focus-visible
    ring (a11y.css) would otherwise double it up on this rounded card. */
 .capability-item:focus-visible {
-  outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-accent), transparent 70%);
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-color: var(--focus-ring);
 }

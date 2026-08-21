@@ -21,7 +21,7 @@ axes re-derive against High Meadow names, in its own 2026-08-20 amendment.
 
 *Survives.* The warm, encouraging, first-person product voice with zero internals
 jargon is untouched, and `CONTEXT.md` stays its home as durable guidance for
-every coding agent's copy. Aluna stays the user-facing wordmark. The styled
+every coding agent's copy. Aluna stays the user-facing name. The styled
 lockup that carried the name in the deleted shell goes with that shell — the
 design handbook's wordmark section is a deletion rather than a rewrite (§7a) —
 but the name this ADR introduced stands.
@@ -38,7 +38,7 @@ holds. High Meadow is daylight and does not invert, and no dark theme is planned
 (§12f). The semantic-token insurance below bought a future that has since been
 declined.
 
-## Decision
+## Original decision (visual half superseded above)
 
 Aluna's base visual style is subtler neobrutalism on a Paper & Ink palette,
 typeset in Outfit (vendored locally) and expressed through semantic CSS
@@ -86,8 +86,8 @@ pending verification of an authentic Kogi word; nothing is fabricated.
 
 ## Consequences
 
-- A dark theme, status/tone color tokens (error/success), and the pet are all
-  additive future work; none of them requires reworking what ships here.
-- Coding agents must consult `docs/design-system.md` for the practical reference
+- High Meadow is daylight-only; a dark theme is declined. The talking pet remains
+  future work, while the voice guidance continues to govern every current surface.
+- Coding agents must consult `design/design-system.md` for the practical reference
   and `CONTEXT.md` for language and voice before adding UI. The CSS in
-  `public/app.css` is the source of truth for token *values*.
+  `design/styles/` is the source of truth for token *values* and names.

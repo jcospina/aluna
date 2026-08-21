@@ -54,7 +54,6 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         shows: ["title", "amount", "done", "logged_at"],
       },
       collection: { layout: "feed" },
-      detail: { shows: ["title", "amount", "done", "logged_at"] },
     },
     behavior: "Required title, optional amount and log time, newest records first.",
     behavioral_errors: [
@@ -86,11 +85,6 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         ...spec.ui_intent,
         item: {
           ...spec.ui_intent.item,
-          shows: spec.schema.fields
-            .filter((field) => field.lifecycle === "active")
-            .map((field) => field.name),
-        },
-        detail: {
           shows: spec.schema.fields
             .filter((field) => field.lifecycle === "active")
             .map((field) => field.name),
@@ -223,7 +217,6 @@ describe("capability table DDL mapper", () => {
           form: { list_inputs: [{ field: "tags", mode: "repeatable" }] },
           item: { direction: "A tag-forward note.", shows: ["tags"] },
           collection: { layout: "feed" },
-          detail: { shows: ["tags"] },
         },
         behavioral_errors: [],
       });
@@ -345,7 +338,6 @@ describe("additive capability migration", () => {
         form: { list_inputs: [{ field: "tags", mode: "repeatable" }] },
         item: { direction: "A title-forward card with tags.", shows: activeNames },
         collection: { layout: "feed" },
-        detail: { shows: activeNames },
       },
     });
 

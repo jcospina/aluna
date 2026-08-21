@@ -155,4 +155,4 @@ Aluna is a local proof of concept. Before activation, generated code is checked 
 
 Aluna is open source under the [GNU Affero General Public License v3.0 only](LICENSE). Commercial use, modification, forks, and redistribution are allowed. Covered distributions must remain under the AGPL, and anyone who runs a modified version for users over a network must offer those users the corresponding source code at no charge. Preserve the license and the copyright attribution in [NOTICE](NOTICE).
 
-Third-party dependencies and assets remain under their own licenses, including the Outfit font license in [`public/fonts/OFL.txt`](public/fonts/OFL.txt).
+Third-party dependencies and assets remain under their own licenses, including the Outfit and Fraunces font licenses in [`design/assets/fonts/`](design/assets/fonts/README.md).

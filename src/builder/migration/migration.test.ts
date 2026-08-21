@@ -48,7 +48,6 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         shows: ["title", "amount", "done", "logged_at"],
       },
       collection: { layout: "feed" },
-      detail: { shows: ["title", "amount", "done", "logged_at"] },
     },
     behavior: "Required title, optional amount and log time, newest records first.",
     behavioral_errors: [
@@ -78,7 +77,6 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ...spec,
       ui_intent: {
         ...spec.ui_intent,
-        detail: { shows: spec.schema.fields.map((field) => field.name) },
       },
     };
   }

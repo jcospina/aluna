@@ -63,7 +63,6 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
       form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
-      detail: { shows: ["text"] },
     },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
@@ -105,7 +104,6 @@ function recipesRow(): CapabilityRow {
       form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the recipe name.", shows: ["title"] },
       collection: { layout: "feed" },
-      detail: { shows: ["title"] },
     },
     behavior: "Recipes have titles and cooking notes.",
     behavioral_errors: [

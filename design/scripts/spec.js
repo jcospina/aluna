@@ -134,29 +134,3 @@ export const fineHand = () => HAND.fine;
 
 /** Hard offset shadow, in px. Displacement, never blur. */
 export const SHADOW_OFFSET = Object.freeze({ x: 5, y: 6 });
-
-/** The five title-bar panes, in order, each 10% of the bar. */
-export const PANES = Object.freeze(["#F7E4BC", "#F5D4BC", "#CFE8C6", "#C6E7E2", "#C9EAF1"]);
-
-/**
- * The palette, for the parts that are drawn into SVG rather than styled by
- * CSS. Kept in sync with styles/tokens.css by hand — there are only a few.
- */
-export const COLOR = Object.freeze({
-  ink: "#20301C",
-  ink2: "#55684E",
-  ink3: "#8B9C82",
-  surface: "#FAFEF3",
-  surface2: "#EEF8E2",
-  ground: "#DCF0CE",
-  groundDeep: "#C8E5B8",
-  sky: "#7FD2E0",
-  leaf: "#3FA65B",
-  shade: "#2A7A45",
-  teal: "#3E9E92",
-  sun: "#F2B32C",
-  ochre: "#C9902F",
-  clay: "#E8763C",
-  violet: "#9A86C4",
-  signal: "#D6304B",
-});

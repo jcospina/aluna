@@ -85,9 +85,11 @@ boundary and a drawn line is an SVG path rather than a CSS edge. `border-radius`
 has no token to pick from, because there are none: every corner on the surface is
 mitred, and a square corner is the absence of a declaration rather than a value of
 zero. `box-shadow` is the one that fails quietly — nothing inside a window casts,
-and the shadow tokens are bare `<x> <y> <alpha>` numbers rather than shadows, so
-`box-shadow: var(--shadow-window)` produces an invalid value that does nothing and
-says nothing.
+and the object-shadow tokens are bare `<x> <y> <alpha>` numbers rather than CSS
+shadows, so `box-shadow: var(--shadow-window)` produces an invalid value that does
+nothing and says nothing. `--shadow-desk-label` is the named exception: a complete
+three-pass `text-shadow` treatment for type read directly from the wallpaper, never
+an inline-style or generated-markup option.
 
 Outside those three axes and these four properties, inline `style` is free:
 arrangement, alignment, aspect ratio, width and the rest.
@@ -177,13 +179,14 @@ prompt rail is raised and framed on `--surface`: it stands on the desk beside th
 windows, takes the full hand, and casts. It is not a borderless field lying on the
 ground.
 
-Blur appears in exactly two places. One is the logo label's text-shadow, three
-graded passes straight down, which `design/logo.html` defends as the only blurred
-thing in Aluna: the hard-shadow rule governs what an *object* casts onto the desk,
-where a soft edge would fake a depth the flat-band model does not have, and a
-glyph casts nothing. The other is the companion's light. Glow, bloom, particles
-and rays belong to the spark, and the drawn-line rules govern surfaces rather than
-light.
+Blur appears in exactly two treatments. One is the desk label's text-shadow,
+three graded passes straight down, shared by a capability name and the prompt
+notice because both are read directly from the wallpaper. `design/logo.html`
+defends it as the only blurred type treatment in Aluna: the hard-shadow rule
+governs what an *object* casts onto the desk, where a soft edge would fake a depth
+the flat-band model does not have, and a glyph casts nothing. The other is the
+companion's light. Glow, bloom, particles and rays belong to the spark, and the
+drawn-line rules govern surfaces rather than light.
 
 ## The window and the collection
 

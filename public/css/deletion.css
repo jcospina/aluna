@@ -16,41 +16,46 @@
 }
 .capability-deletion h1 {
   margin: 0;
-  font: var(--h1);
-  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--type-xl);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
 }
 .capability-deletion h1:focus-visible {
-  outline-color: var(--color-accent-secondary);
+  outline-color: var(--focus-ring);
 }
 .capability-deletion__body {
   display: flex;
   max-width: 68ch;
   flex-direction: column;
   gap: var(--space-1);
-  color: var(--color-text-muted);
+  color: var(--ink-2);
 }
 .capability-deletion__body p,
 .capability-deletion__status {
   margin: 0;
 }
 .capability-deletion__retention {
-  font: var(--meta);
-  color: var(--color-text-subtle);
+  font-family: var(--font-body);
+  font-size: var(--type-sm);
+  line-height: 1.4;
+  color: var(--ink-3);
 }
 .capability-deletion__notice {
   padding: var(--space-2);
-  color: var(--color-text);
-  background: color-mix(in oklch, var(--color-warm), var(--color-surface) 70%);
-  border: var(--border-thin) solid color-mix(in oklch, var(--color-warm), var(--color-text) 30%);
-  border-radius: var(--radius-md);
+  color: var(--ink);
+  background: color-mix(in oklch, var(--sun), var(--surface) 70%);
+  border: var(--line) solid color-mix(in oklch, var(--sun), var(--ink) 30%);
 }
 .capability-deletion__status {
   align-self: flex-start;
-  padding: var(--space-0_5) var(--space-1);
-  font: var(--meta);
-  color: var(--color-text);
-  background: color-mix(in oklch, var(--color-info), var(--color-surface) 70%);
-  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-1);
+  font-family: var(--font-body);
+  font-size: var(--type-sm);
+  line-height: 1.4;
+  color: var(--ink);
+  background: color-mix(in oklch, var(--sky), var(--surface) 70%);
 }
 .capability-deletion__actions {
   display: flex;
@@ -66,7 +71,7 @@
   background: transparent;
 }
 .btn.capability-deletion__keep:hover {
-  background: var(--color-surface);
+  background: var(--surface);
 }
 
 /* In flight. HTMX marks the submitting form `htmx-request` for exactly as long as the
@@ -88,9 +93,9 @@ form.htmx-request .capability-deletion__label[data-deletion-busy-label] {
    danger fill stays through the act, softened rather than flattened to the surface
    default every other disabled button falls back to. */
 .capability-deletion__actions form.htmx-request .btn--danger:disabled {
-  color: var(--color-text-on-danger);
-  background: color-mix(in oklch, var(--color-danger), var(--color-surface) 30%);
-  border-color: color-mix(in oklch, var(--color-danger), var(--color-text) 25%);
+  color: var(--surface);
+  background: color-mix(in oklch, var(--signal), var(--surface) 30%);
+  border-color: color-mix(in oklch, var(--signal), var(--ink) 25%);
 }
 
 @media (max-width: 639.98px) {

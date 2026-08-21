@@ -6,8 +6,8 @@ on:
     paths:
       - ".github/workflows/pages.yml"
       - "docs/aluna-architecture.html"
-      - "public/fonts/OFL.txt"
-      - "public/fonts/outfit-variable.woff2"
+      - "design/styles/**"
+      - "design/assets/**"
   workflow_dispatch:
 
 permissions:
@@ -29,10 +29,10 @@ jobs:
 
       - name: Prepare architecture site
         run: |
-          mkdir -p _site/assets
-          sed 's#../public/fonts/outfit-variable.woff2#assets/outfit-variable.woff2#' docs/aluna-architecture.html > _site/index.html
-          cp public/fonts/outfit-variable.woff2 _site/assets/outfit-variable.woff2
-          cp public/fonts/OFL.txt _site/assets/OFL.txt
+          mkdir -p _site/design
+          sed 's#../design/#design/#g' docs/aluna-architecture.html > _site/index.html
+          cp -R design/styles _site/design/styles
+          cp -R design/assets _site/design/assets
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v4

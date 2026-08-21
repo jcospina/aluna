@@ -91,7 +91,6 @@ describe("capability spec shape — list-input modes", () => {
         },
         item: { direction: "Show the title with its tags.", shows: ["title", "tags"] },
         collection: { layout: "feed" },
-        detail: { shows: ["title", "tags", "quotes"] },
       },
       behavioral_errors: defaultBehavioralErrorsForSchema(schema),
     });
@@ -218,7 +217,6 @@ describe("capability spec shape — rejected & reserved field names", () => {
         form: { list_inputs: [] },
         item: { direction: "A reserved-name probe.", shows: ["__aluna_present"] },
         collection: { layout: "feed" },
-        detail: { shows: ["__aluna_present"] },
       },
       behavioral_errors: [],
     });

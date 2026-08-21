@@ -49,7 +49,7 @@
 /* Signal red, and only here — reserved for alerts and destructive confirmation. */
 .btn--danger {
   background: var(--signal);
-  color: #fff0f2;
+  color: var(--surface);
 }
 
 /* ── Search ───────────────────────────────────────────────────────────── */

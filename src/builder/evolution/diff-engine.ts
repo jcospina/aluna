@@ -18,7 +18,7 @@
 //   - **Canonical, not raw.** Equality is over the validated semantic value: object-key
 //     order is ignored and set-like facts (dependency arrays, error cases, error-field
 //     sets) use a defined canonical order, while ordered product facts (`schema.fields`,
-//     item/detail `shows`, item `direction`) preserve order and therefore diff. A
+//     item `shows` and `direction`) preserve order and therefore diff. A
 //     zero-fact candidate is the canonical no-op: the caller performs no work and
 //     finalizes `success/no_change`.
 
@@ -52,7 +52,6 @@ export type ChangeFact =
       readonly transition: "hide" | "reactivate";
     }
   | { readonly kind: "list_input_mode"; readonly field: string }
-  | { readonly kind: "detail_shows" }
   | { readonly kind: "item_presentation" }
   | { readonly kind: "collection_layout" }
   | { readonly kind: "read_dependencies"; readonly action: CapabilityTool }
@@ -74,7 +73,6 @@ const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
   "field_label",
   "field_lifecycle",
   "list_input_mode",
-  "detail_shows",
   "item_presentation",
   "collection_layout",
   "read_dependencies",
@@ -105,7 +103,6 @@ export const PLATFORM_WORK_KINDS = [
   "resulting_record_validation", // required change → resulting-record validation
   "list_input_intent", // hide/reactivate → remove/require active list-input intent
   "list_input_form_normalization", // list input mode → create/edit form + raw-input normalization
-  "platform_detail_view", // detail.shows/order → platform detail View
   "platform_list_container", // collection feed|grid → platform list container
   "read_catalog", // read_dependencies → read catalog / reverse index
   "behavioral_error_contract", // behavioral_errors → stable semantic contract
@@ -292,9 +289,6 @@ function detectPresentationFacts(
   candidate: CapabilitySpec,
   facts: ChangeFact[],
 ): void {
-  if (!sameSequence(committed.ui_intent.detail.shows, candidate.ui_intent.detail.shows)) {
-    facts.push({ kind: "detail_shows" });
-  }
   const committedItem = committed.ui_intent.item;
   const candidateItem = candidate.ui_intent.item;
   if (
@@ -450,9 +444,6 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
       return;
     case "list_input_mode":
       sink.platform.add("list_input_form_normalization");
-      return;
-    case "detail_shows":
-      sink.platform.add("platform_detail_view");
       return;
     case "item_presentation":
       sink.units.add("item");

@@ -24,7 +24,7 @@
   /* <480px: almost full width, a thin gutter each side. */
   width: calc(100vw - var(--space-3));
   padding: 0;
-  color: var(--color-text);
+  color: var(--ink);
   background: transparent;
   border: 0;
 }
@@ -42,10 +42,9 @@
     max-width: calc(100vw - var(--space-4));
   }
 }
-/* Dim the page behind the modal — ink at low opacity, matching the app's paper-and-ink
-   register (no blur, no glassmorphism; docs/design-system.md "Don't"). */
+/* Dim the page behind the modal with High Meadow ink at low opacity. */
 .detail-modal::backdrop {
-  background: color-mix(in oklch, var(--color-text), transparent 55%);
+  background: color-mix(in oklch, var(--ink), transparent 55%);
 }
 
 /* The visible card. A bounded-height column: the header stays put while a tall record's
@@ -56,10 +55,8 @@
   flex-direction: column;
   max-height: 85dvh;
   padding: var(--space-3);
-  background: var(--color-surface);
-  border: var(--border-thin) solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
 }
 
 /* Title row. A single hairline under it separates "what this is" from the record
@@ -74,12 +71,15 @@
   gap: var(--space-2);
   padding-bottom: var(--space-2);
   margin-bottom: var(--space-2);
-  border-bottom: var(--border-thin) solid var(--color-border);
+  border-bottom: var(--line) solid var(--ink);
 }
 .detail-modal__title {
   min-width: 0;
   margin: 0;
-  font: var(--h3);
+  font-family: var(--font-display);
+  font-size: var(--type-lg);
+  font-weight: 700;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 .detail-modal__close {
@@ -96,16 +96,17 @@
 }
 .detail-modal__close::after {
   position: absolute;
-  top: calc(100% + var(--space-0_5));
+  top: calc(100% + var(--space-1));
   right: 0;
   z-index: 2;
-  padding: var(--space-0_5) var(--space-1);
-  color: var(--color-text-on-secondary);
-  font: var(--meta);
+  padding: var(--space-1) var(--space-1);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--type-sm);
+  line-height: 1.4;
   white-space: nowrap;
   content: attr(data-tooltip);
-  background: var(--color-accent-secondary);
-  border-radius: var(--radius-sm);
+  background: var(--leaf);
   opacity: 0;
   pointer-events: none;
 }
@@ -160,8 +161,8 @@
   flex: 0 0 auto;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-2) var(--space-0_5) var(--space-0_5);
-  border-top: var(--border-thin) solid var(--color-border);
+  padding: var(--space-2) var(--space-1) var(--space-1);
+  border-top: var(--line) solid var(--ink);
 }
 .detail-modal__read-actions {
   display: flex;
@@ -189,7 +190,7 @@
   margin: 0;
 }
 .detail-modal__delete-error {
-  margin-top: var(--space-0_5);
+  margin-top: var(--space-1);
 }
 .detail-modal__delete-actions {
   display: flex;

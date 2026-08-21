@@ -55,7 +55,7 @@ export type PresentationAdapter = (record: CapabilityActionRecord) => string;
 export type PlatformPresentationAdapter = (record: PresentableRecord) => string;
 
 /** What {@link createPresentationAdapter} closes over: the capability (for the label,
- *  `detail.shows`, and the id namespacing the detail templates) and its item renderer. */
+ *  active schema-field order, and the id namespacing the detail templates) and its item renderer. */
 export interface PresentationAdapterOptions {
   readonly capability: RenderableCapability;
   readonly renderItem: ItemRenderer;

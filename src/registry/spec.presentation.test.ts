@@ -1,5 +1,5 @@
 // Presentation-facing slices of the capability spec shape: `ui_intent` (item,
-// closed collection layout, real detail fields), presentation lists including
+// closed collection layout), item presentation lists including
 // `created_at`, and the label/lifecycle guarantees. Field-type and field-name
 // shape live in `spec.test.ts`; the shared `validSpec` fixture lives in
 // `spec.test-support.ts`.
@@ -13,13 +13,12 @@ import {
 } from "./spec.ts";
 
 describe("capability spec shape — ui_intent presentation", () => {
-  test("ui_intent records item, closed collection layout, and real detail fields only", () => {
+  test("ui_intent records form, item, and the closed collection layout only", () => {
     const grid = validSpec({
       ui_intent: {
         form: { list_inputs: [] },
         item: { direction: "A visual tile that foregrounds the primary field.", shows: ["text"] },
         collection: { layout: "grid" },
-        detail: { shows: ["text"] },
       },
     });
     expect(capabilitySpecSchema.safeParse(grid).success).toBe(true);
@@ -34,12 +33,11 @@ describe("capability spec shape — ui_intent presentation", () => {
         item: { direction: "A visual tile that foregrounds the primary field.", shows: ["text"] },
         // @ts-expect-error — unknown collection layouts must fail closed.
         collection: { layout: "masonry" },
-        detail: { shows: ["text"] },
       },
     });
     expect(capabilitySpecSchema.safeParse(unknownLayout).success).toBe(false);
 
-    const unknownDetailField = validSpec({
+    const unknownItemField = validSpec({
       ui_intent: {
         form: { list_inputs: [] },
         item: {
@@ -47,12 +45,11 @@ describe("capability spec shape — ui_intent presentation", () => {
           shows: ["missing"],
         },
         collection: { layout: "feed" },
-        detail: { shows: ["missing"] },
       },
     });
-    expect(capabilitySpecSchema.safeParse(unknownDetailField).success).toBe(false);
+    expect(capabilitySpecSchema.safeParse(unknownItemField).success).toBe(false);
 
-    const duplicateDetailField = validSpec({
+    const duplicateItemField = validSpec({
       ui_intent: {
         form: { list_inputs: [] },
         item: {
@@ -60,17 +57,21 @@ describe("capability spec shape — ui_intent presentation", () => {
           shows: ["text", "text"],
         },
         collection: { layout: "feed" },
-        detail: { shows: ["text", "text"] },
       },
     });
-    expect(capabilitySpecSchema.safeParse(duplicateDetailField).success).toBe(false);
+    expect(capabilitySpecSchema.safeParse(duplicateItemField).success).toBe(false);
+
+    const retiredDetailIntent = {
+      ...grid,
+      ui_intent: { ...grid.ui_intent, detail: { shows: ["text"] } },
+    };
+    expect(capabilitySpecSchema.safeParse(retiredDetailIntent).success).toBe(false);
 
     const modalFlag = validSpec({
       ui_intent: {
         form: { list_inputs: [] },
         item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
         collection: { layout: "feed" },
-        detail: { shows: ["text"] },
         // @ts-expect-error — the shared modal is a platform invariant, not stored state.
         modal: true,
       },
@@ -99,7 +100,6 @@ describe("capability spec shape — presentation lists & created_at", () => {
         form: { list_inputs: [] },
         item: { direction: "Show the entry and its age.", shows: ["text", "created_at"] },
         collection: { layout: "feed" },
-        detail: { shows: ["created_at", "text"] },
       },
       behavioral_errors: defaultBehavioralErrorsForSchema(schema),
     });

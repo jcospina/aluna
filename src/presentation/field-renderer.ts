@@ -22,11 +22,9 @@
 import { listInputModeForField } from "../list-input/index.ts";
 import {
   activeSpecFields,
-  CREATED_AT_DESCRIPTOR,
   type FieldType,
   isListFieldType,
   type ListFieldType,
-  type PresentationFieldDescriptor,
   type SpecField,
   type UiFormIntent,
 } from "../registry/index.ts";
@@ -53,15 +51,6 @@ export interface RenderableCapability {
   /** The committed closed Action inventory; platform chrome fails closed against it. */
   readonly actions: readonly WireProtocolAction[];
   readonly item?: { readonly shows: readonly string[] };
-  /**
-   * Which fields the read-only DETAIL surface shows, and in what order —
-   * `ui_intent.detail.shows`. The CREATE form ignores this (it always
-   * renders every field, so a record can be fully entered); only the detail body honors
-   * it. Absent (a demo/test that omits it, or a pre-reshape row) → the detail falls back
-   * to every field in spec order, so it still renders. Spec validation guarantees each
-   * name is a real, unique `schema.fields` entry (`src/registry/spec.ts`).
-   */
-  readonly detail?: { readonly shows: readonly string[] };
 }
 
 /**
@@ -204,8 +193,7 @@ export function renderEditForm(
 /**
  * Render the read-only detail display for one record: a `<dl>` of humanized field
  * labels and formatted values, in the fields/order the capability's
- * `detail.shows` names (falls back to every field in spec order when
- * absent — see {@link detailFieldOrder}). The record is untrusted live data — every
+ * active schema fields in authored order. The record is untrusted live data — every
  * value is escaped and an absent one shows the placeholder — so the module holds no
  * state between renders.
  */
@@ -213,38 +201,10 @@ export function renderDetailFields(
   capability: RenderableCapability,
   record: Readonly<Record<string, unknown>>,
 ): string {
-  const rows = detailFieldOrder(capability)
+  const rows = activeSpecFields(capability.schema.fields)
     .map((field) => renderDetailField(field, record[field.name]))
     .join("");
   return `<dl class="detail-fields">${rows}</dl>`;
-}
-
-/**
- * The fields the detail body renders, in order. When the capability carries
- * `detail.shows` (ADR-0005 §6, the reshaped `ui_intent`), the detail surface shows
- * exactly those fields in that order — the model's per-capability presentation
- * choice. Otherwise it renders every field in spec order, so a demo/test that omits
- * the intent (or a pre-reshape row) still shows the whole record rather than nothing.
- *
- * Spec validation already guarantees every `shows` name is a real, unique field
- * (`src/registry/spec.ts`), so the name miss is only reachable from a hand-built
- * capability; it is skipped, and an all-miss list falls back to spec order rather
- * than rendering an empty `<dl>`.
- */
-function detailFieldOrder(
-  capability: RenderableCapability,
-): readonly PresentationFieldDescriptor[] {
-  const shows = capability.detail?.shows;
-  const activeFields = activeSpecFields(capability.schema.fields);
-  if (!shows || shows.length === 0) return activeFields;
-
-  const fieldsByName = new Map(activeFields.map((field) => [field.name, field]));
-  const selected = shows
-    .map((name) =>
-      name === CREATED_AT_DESCRIPTOR.name ? CREATED_AT_DESCRIPTOR : fieldsByName.get(name),
-    )
-    .filter((field) => field !== undefined);
-  return selected.length > 0 ? selected : activeFields;
 }
 
 // ── Create controls ─────────────────────────────────────────────────────────
@@ -543,7 +503,7 @@ function renderRepeatableListField(capabilityId: string, field: SpecField): stri
 
 // ── Detail values ───────────────────────────────────────────────────────────
 
-function renderDetailField(field: PresentationFieldDescriptor, value: unknown): string {
+function renderDetailField(field: SpecField, value: unknown): string {
   const label = escapeHtml(field.label);
   const emptyModifier = isEmptyValue(value) ? " detail-field__value--empty" : "";
   const rendered = formatDetailValue(field.type, value);

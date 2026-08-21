@@ -533,8 +533,7 @@ async function buildPresentationAdapter(
 }
 
 // The slice of a row the presentation adapter needs: the id (namespaces the detail
-// templates), the user-facing label (the modal title), the fields (the detail body), and
-// `ui_intent.detail` (which fields the detail surface shows, and in what order).
+// templates), the user-facing label (the modal title), and the fields (the detail body).
 function renderableFromRow(row: CapabilityRow): RenderableCapability {
   return {
     id: row.id,
@@ -543,6 +542,5 @@ function renderableFromRow(row: CapabilityRow): RenderableCapability {
     form: row.ui_intent.form,
     actions: row.tools,
     item: row.ui_intent.item,
-    detail: row.ui_intent.detail,
   };
 }

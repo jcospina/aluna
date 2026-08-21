@@ -39,7 +39,6 @@ function spec(): CapabilitySpec {
       form: { list_inputs: [] },
       item: { direction: "A text-forward note.", shows: ["text"] },
       collection: { layout: "feed" },
-      detail: { shows: ["text"] },
     },
     behavior: "Text is required.",
     behavioral_errors: [
@@ -78,7 +77,6 @@ function listSpec(
       form: { list_inputs: [{ field: "tags", mode }] },
       item: { direction: "A tag-forward note.", shows: ["tags"] },
       collection: { layout: "feed" },
-      detail: { shows: ["tags"] },
     },
     behavioral_errors: required
       ? [

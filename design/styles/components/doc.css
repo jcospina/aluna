@@ -18,11 +18,11 @@
 }
 
 .note--sun {
-  background: #fbebc6;
+  background: var(--pane-1);
 }
 
 .note--clay {
-  background: #fbdfd0;
+  background: var(--pane-2);
 }
 
 /* ── Specification tables ─────────────────────────────────────────────── */

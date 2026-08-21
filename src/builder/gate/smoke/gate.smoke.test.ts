@@ -385,7 +385,6 @@ describe("capability gate — item renderer samples", () => {
         form: { list_inputs: [] },
         item: { direction: "Show the entry and its age.", shows: ["text", "created_at"] },
         collection: { layout: "feed" },
-        detail: { shows: ["text", "created_at"] },
       },
     });
     const renderer = [
@@ -440,7 +439,6 @@ describe("capability gate — string[] ordered-list samples", () => {
         form: { list_inputs: [{ field: "tags", mode: "repeatable" }] },
         item: { direction: "Show each tag in order.", shows: ["tags"] },
         collection: { layout: "feed" },
-        detail: { shows: ["tags"] },
       },
       behavior: "At least one tag is required and tag order is preserved.",
       behavioral_errors: [

@@ -98,7 +98,6 @@ describe("valid candidates", () => {
     tags.lifecycle = "inactive";
     draft.ui_intent.form.list_inputs = [];
     draft.ui_intent.item.shows = ["title"];
-    draft.ui_intent.detail.shows = ["title", "created_at"];
     const validated = validate(draft);
     expect(validated.ui_intent.form.list_inputs).toEqual([]);
   });
@@ -181,7 +180,6 @@ describe("the invalid-candidate matrix row", () => {
     if (!title) throw new Error("fixture is missing title");
     title.name = "heading";
     draft.ui_intent.item.shows = ["heading", "tags"];
-    draft.ui_intent.detail.shows = ["heading", "tags", "created_at"];
     for (const errorCase of draft.behavioral_errors) {
       errorCase.fields = ["heading"];
     }
@@ -230,7 +228,6 @@ describe("the invalid-candidate matrix row", () => {
     tags.label = "Old tags";
     draft.ui_intent.form.list_inputs = [];
     draft.ui_intent.item.shows = ["title"];
-    draft.ui_intent.detail.shows = ["title", "created_at"];
     expectRejected(draft, 'hiding "tags" may change only its lifecycle');
   });
 

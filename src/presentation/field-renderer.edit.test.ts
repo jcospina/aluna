@@ -61,7 +61,6 @@ const CAPABILITY: RenderableCapability = {
     ],
   },
   actions: ["create", "read", "update", "delete"],
-  detail: { shows: ["entry", "reflection", "created_at"] },
 };
 
 const RECORD = {

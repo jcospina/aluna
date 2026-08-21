@@ -95,6 +95,17 @@
   --shadow-window: 5 6 0.24;
   --shadow-window-wall: 5 6 0.4;
 
+  /*
+   * Type read directly from the wallpaper uses one shared exception to the no-blur
+   * rule: the capability name and the prompt notice both need the same crisp edge,
+   * near shadow and pale-ground pass. Components consume this whole treatment so
+   * its three grades cannot drift.
+   */
+  --shadow-desk-label:
+    0 1px 1px color-mix(in srgb, var(--ink) 85%, transparent),
+    0 1px 3px color-mix(in srgb, var(--ink) 85%, transparent),
+    0 2px 7px color-mix(in srgb, var(--ink) 70%, transparent);
+
   /* ── Typography ─────────────────────────────────────────────────────── */
   /*
    * Fraunces for display and window titles; Outfit for everything a capability

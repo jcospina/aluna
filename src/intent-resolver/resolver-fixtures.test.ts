@@ -60,7 +60,6 @@ const recipes = notesCapabilityRow({
     },
     item: { direction: "Show each recipe clearly.", shows: ["title", "genres", "quotes"] },
     collection: { layout: "feed" },
-    detail: { shows: ["title", "genres", "quotes"] },
   },
 });
 const catalogRows: readonly CapabilityRow[] = [notesCapabilityRow(), contacts, recipes];

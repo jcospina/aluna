@@ -43,7 +43,7 @@
    * drawn edge beside it to disagree with — the rule that makes a shadow a path
    * exists so a true shadow edge never sits next to a deviating one.
    */
-  box-shadow: 3px 4px 0 rgb(32 48 28 / 0.24);
+  box-shadow: 3px 4px 0 var(--ink-shadow);
 }
 
 /* ── The name ─────────────────────────────────────────────────────────── */
@@ -62,7 +62,8 @@
  * it go this dark without the type looking embossed — one shadow at the same
  * total alpha separates from its letters.
  *
- * These are the only blurred pixels in Aluna, deliberately. The hard-shadow
+ * This is Aluna's only blurred type treatment, deliberately, and is shared with
+ * the prompt notice because it is also read directly from the wallpaper. The hard-shadow
  * rule governs the shadow an *object* casts onto the desk, where a soft edge
  * would fake depth the flat-band model does not have. A glyph casts nothing.
  */
@@ -73,13 +74,7 @@
   line-height: 1.25;
   text-align: center;
   color: var(--surface);
-  text-shadow:
-/* the glyph's own edge, so the letterform stays crisp */
-    0 1px 1px rgb(32 48 28 / 0.85),
-    /* the near shadow, which is what does the reading */
-    0 1px 3px rgb(32 48 28 / 0.85),
-    /* the deep pass, which only really shows over pale ground */
-    0 2px 7px rgb(32 48 28 / 0.7);
+  text-shadow: var(--shadow-desk-label);
 }
 
 /* ── A logo, assembled ────────────────────────────────────────────────── */

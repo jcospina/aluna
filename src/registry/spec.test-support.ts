@@ -27,7 +27,6 @@ export function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
       form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
-      detail: { shows: ["text"] },
     },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
@@ -65,11 +64,6 @@ export function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
             },
             item: {
               ...spec.ui_intent.item,
-              shows: spec.schema.fields
-                .filter((field) => field.lifecycle === "active")
-                .map((field) => field.name),
-            },
-            detail: {
               shows: spec.schema.fields
                 .filter((field) => field.lifecycle === "active")
                 .map((field) => field.name),
