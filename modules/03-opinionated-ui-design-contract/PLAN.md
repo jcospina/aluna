@@ -59,7 +59,7 @@ fix loop). Terms per [CONTEXT.md](../../CONTEXT.md) ("Engineering language"):
    arranging one record's own fields, Tailwind-style **layout utilities** —
    flex, grid, alignment, gap — so common arrangement never needs `style`, …)
    whose CSS consumes the existing tokens
-   ([design-system.md](../../docs/design-system.md)) — the sensible defaults,
+   ([design-system.md](../../design/design-system.md)) — the sensible defaults,
    deliberately **not** an all-purpose CSS framework (rebuilding Tailwind is a
    non-goal; the escape hatch absorbs the long tail).
    When the vocabulary doesn't suffice, inline `style` is a **token-disciplined

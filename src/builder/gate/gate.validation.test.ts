@@ -124,7 +124,6 @@ describe("capability gate — datetime instant matching", () => {
           shows: ["title", "happens_at"],
         },
         collection: { layout: "feed" },
-        detail: { shows: ["title", "happens_at"] },
       },
       behavior: "Title and happens_at are required. Newest events appear first.",
       behavioral_errors: [

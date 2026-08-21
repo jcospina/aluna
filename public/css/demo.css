@@ -5,9 +5,8 @@
    blocks). Replaced piece by piece as real capabilities land.
    ========================================================================== */
 
-/* Cold-start composition (zero capabilities): wordmark on top + a neutral,
-   deliberately-blank placeholder, centred. Switches off when capabilities land
-   (then the wordmark lives in the sidebar and capabilities fill this area). */
+/* Cold-start composition (zero capabilities): a deliberately blank prompt surface.
+   Switches off when capabilities land and the active capability fills this area. */
 .cold-start {
   display: flex;
   flex-direction: column;
@@ -25,14 +24,19 @@
   justify-content: center;
   padding: var(--space-4);
 }
-.content__active:has(#spec-build-output:empty),
-.content__active:has(
-  #spec-build-output
-    > .build-stream:only-child:not(:has(.build-stream__narration:not(:empty))):not(
-      :has(.build-stream__commit:not(:empty))
-    )
-) {
+.content__active:has(#spec-build-output:empty) {
   display: none;
+}
+.content__active:has(#spec-build-output > .build-stream:only-child) {
+  display: none;
+}
+.content__active:has(
+  #spec-build-output > .build-stream:only-child > .build-stream__narration:not(:empty)
+),
+.content__active:has(
+  #spec-build-output > .build-stream:only-child > .build-stream__commit:not(:empty)
+) {
+  display: flex;
 }
 .shell.has-capabilities .cold-start {
   display: none;
@@ -42,16 +46,12 @@
 .content:has(#spec-build-output > .build-stream > .build-stream__commit:not(:empty)) .cold-start {
   display: none;
 }
-.cold-start .wordmark {
-  font-size: var(--type-wordmark);
-}
 /* Neutral empty-state block: a muted, low-contrast canvas, no copy, no frame —
    "empty on purpose", friendly rather than built-out. */
 .cold-start__placeholder {
   width: min(28rem, 72%);
   height: clamp(7rem, 18vh, 11rem);
-  border-radius: var(--radius-md);
-  background: color-mix(in oklch, var(--color-text), transparent 94%);
+  background: color-mix(in oklch, var(--ink), transparent 94%);
 }
 
 /* ── Builder-stage verification stream (Module 2 §2.5+) ──────────────────────
@@ -70,12 +70,13 @@
 .intro__output {
   align-self: stretch;
   padding: var(--space-2);
-  font: var(--body);
-  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--type-base);
+  line-height: 1.5;
+  color: var(--ink);
   text-align: left;
-  background: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
 }
 .intro__output:empty {
   display: none;
@@ -89,13 +90,12 @@
   overflow: auto;
   padding: var(--space-2);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.8125rem;
+  font-size: var(--type-sm);
   text-align: left;
   white-space: pre-wrap;
-  color: var(--color-text-subtle);
-  background: color-mix(in oklch, var(--color-text), transparent 96%);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
+  color: var(--ink-3);
+  background: color-mix(in oklch, var(--ink), transparent 96%);
+  border: var(--line) solid var(--ink);
 }
 .spec-build__preview:empty {
   display: none;

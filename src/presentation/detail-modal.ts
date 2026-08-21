@@ -147,9 +147,8 @@ function renderEditMode(
  * by the **centralized field renderer** so the create form and the detail modal
  * can never drift and every record value is escaped exactly once, in one place.
  *
- * This is the modal module's body seam: today it renders every spec field in spec order;
- * It is narrowed and ordered by `ui_intent.detail.shows` —
- * both extend here, not at the call sites. `record` is untrusted live data the renderer
+ * This is the modal module's body seam: today it renders every active form field in
+ * schema order. `record` is untrusted live data the renderer
  * escapes; this function caches nothing between renders (ADR-0004 data-free View).
  */
 export function renderDetailContent(

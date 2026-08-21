@@ -84,13 +84,8 @@ describe("the due-date tracer", () => {
       const outcome = activated(result);
 
       // The facts the flow produces: the nullable field (with its requiredness), the
-      // item's dependency + direction, the detail order, and the behavior change.
-      expect(factKinds(result)).toEqual([
-        "new_active_field",
-        "detail_shows",
-        "item_presentation",
-        "behavior",
-      ]);
+      // item's dependency + direction and the behavior change.
+      expect(factKinds(result)).toEqual(["new_active_field", "item_presentation", "behavior"]);
       // Unioned: free-text behavior takes all five Handlers, item.shows
       // takes the renderer — every unit is written, none copied.
       expect(outcome.assembly.regeneratedUnits).toEqual([
@@ -102,11 +97,7 @@ describe("the due-date tracer", () => {
         "item",
       ]);
       expect(outcome.assembly.copiedUnits).toEqual([]);
-      expect(outcome.diff.workPlan.platformWork).toEqual([
-        "add_column",
-        "platform_form_detail",
-        "platform_detail_view",
-      ]);
+      expect(outcome.diff.workPlan.platformWork).toEqual(["add_column", "platform_form_detail"]);
       expect(outcome.diff.workPlan.gate.behavioral.fullSuite).toBe(true);
       // Additive DDL only — one nullable column, so every historical row still reads.
       expect(outcome.assembly.additiveMigration.statements).toEqual([
@@ -141,7 +132,6 @@ describe("the due-date tracer", () => {
           form: candidate.ui_intent.form,
           actions: candidate.tools,
           item: candidate.ui_intent.item,
-          detail: candidate.ui_intent.detail,
         },
         { ...stored, created_at: "2026-07-27T00:00:00Z" },
       );
@@ -360,7 +350,6 @@ describe("the canonical no-op", () => {
       behavioral_errors: base.behavioral_errors,
       behavior: base.behavior,
       ui_intent: {
-        detail: base.ui_intent.detail,
         collection: base.ui_intent.collection,
         item: { shows: base.ui_intent.item.shows, direction: base.ui_intent.item.direction },
         form: base.ui_intent.form,

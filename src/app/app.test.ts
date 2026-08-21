@@ -215,17 +215,6 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).not.toContain('addEventListener("submit"');
   });
 
-  test("keeps a pending stream dormant until foreground narration begins", async () => {
-    const app = createApp();
-    const css = await responseText(await app.request("/static/css/demo.css"));
-
-    expect(css).toMatch(/\.build-stream\s*\{[^}]*display:\s*none/s);
-    expect(css).toContain(".build-stream__narration:not(:empty)");
-    expect(css).toContain("#spec-build-output:has(> .build-stream");
-    expect(css).toContain(".build-stream:only-child:not(:has");
-    expect(css).toMatch(/only-child[^{}]+build-stream__commit:not\(:empty\)/s);
-  });
-
   test("structured create validation swaps into its retarget without becoming a successful create", () => {
     const listeners = new Map<string, (event: { detail: Record<string, unknown> }) => void>();
     const documentStub = {
@@ -279,6 +268,26 @@ describe("GET / (shell) — browser glue", () => {
       expect(detail.successful).toBe(false);
     }
   });
+});
+
+test("keeps a pending stream dormant until foreground narration begins", async () => {
+  const app = createApp();
+  const css = await responseText(await app.request("/static/css/demo.css"));
+
+  expect(css).toMatch(/\.build-stream\s*\{[^}]*display:\s*none/s);
+  expect(css).toContain(".build-stream__narration:not(:empty)");
+  expect(css).toContain("#spec-build-output:has(> .build-stream");
+  expect(css).toMatch(/build-stream:only-child\)\s*\{\s*display:\s*none/s);
+  expect(css).toContain(
+    "#spec-build-output > .build-stream:only-child > .build-stream__narration:not(:empty)",
+  );
+  expect(css).toContain(
+    "#spec-build-output > .build-stream:only-child > .build-stream__commit:not(:empty)",
+  );
+  expect(css).toMatch(
+    /build-stream__narration:not\(:empty\)[\s\S]*?build-stream__commit:not\(:empty\)[\s\S]*?\)\s*\{\s*display:\s*flex/,
+  );
+  expect(css).not.toMatch(/:has\([^)]*:has\(/);
 });
 
 test("permanent deletion captures neutral or exact-capability restoration in browser glue", async () => {
@@ -478,49 +487,7 @@ describe("GET / (shell) — stream close glue", () => {
   });
 });
 
-// The few-shot gallery + injection harness HITL surface. The route is
-// deterministic and provider-free: it previews repo-owned exemplars and the exact
-// prompt section the item-renderer generator receives.
-describe("GET /demo/few-shot-gallery (few-shot gallery, epic 3.5)", () => {
-  test("renders the repo-only examples through the live presentation path", async () => {
-    const app = createApp();
-    const res = await app.request("/demo/few-shot-gallery");
-    const html = await res.text();
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type") ?? "").toContain("text/html");
-    expect(html).toContain("Text-forward note card");
-    expect(html).toContain("Media-forward grid tile");
-    expect(html).toContain("Compact metadata row");
-    expect(html.match(/class="capability-item"/g)?.length).toBe(6);
-    expect(html).toContain('class="capability-records capability-records--feed"');
-    expect(html).toContain('class="capability-records capability-records--grid"');
-    expect(html).toContain("Workshop wall before launch");
-    expect(html).toContain("Token discipline for generated interfaces");
-    expect(html).toContain("data-detail-template=");
-    expect(html).toContain('<dialog id="aluna-detail-modal"');
-    expect(html).toContain('src="/static/detail-modal.js"');
-    expect(html).toContain('src="/static/item-detail.js"');
-  });
-
-  test("previews the injected prompt section with vary-dont-copy framing and layout context", async () => {
-    const app = createApp();
-    const html = await responseText(await app.request("/demo/few-shot-gallery"));
-
-    expect(html).toContain("Injected prompt preview");
-    expect(html).toContain("Few-shot gallery. Vary, don&#39;t copy");
-    expect(html).toContain("Chosen collection layout for this capability: &quot;feed&quot;");
-    expect(html).toContain("Chosen collection layout for this capability: &quot;grid&quot;");
-    expect(html).toContain("style=&quot;grid-template-columns");
-    expect(html).toContain("var(--border-thin) solid var(--color-border)");
-  });
-});
-
-// The dev-only guard over the surviving `/demo/*` inspection routes. A
-// production bundle must not answer them, and that must be provable here rather than
-// resting on someone remembering to run `bun run build` — hence the guard reads the
-// environment per `createApp` call instead of freezing at import.
-describe("the dev-only guard on the remaining /demo/* inspection routes", () => {
+describe("the unregistered /demo/* inspection routes", () => {
   const previous = process.env.NODE_ENV;
   afterEach(() => {
     if (previous === undefined) delete process.env.NODE_ENV;
@@ -546,6 +513,7 @@ describe("the dev-only guard on the remaining /demo/* inspection routes", () => 
       process.env.NODE_ENV = nodeEnv;
       const app = createApp();
       for (const path of [
+        "/demo/few-shot-gallery",
         "/demo/read-gates",
         "/demo/read-gates/state",
         "/demo/deletion-cleanup",

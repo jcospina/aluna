@@ -175,11 +175,13 @@ function parseOptions(argv: readonly string[]): Options {
 }
 
 /**
- * Leave headroom: each worker holds its own SQLite runtime and JSC heap, so
- * oversubscribing the machine slows every shard instead of adding throughput.
+ * Leave headroom: each worker holds its own SQLite runtime and JSC heap, and the
+ * Gate-heavy files fan out to TypeScript compiler processes of their own. More than
+ * two top-level shards oversubscribes common development and CI hosts, turning the
+ * 30-second hang guard into an accidental load-dependent performance assertion.
  */
 function defaultShardCount(): number {
-  return Math.max(1, Math.min(8, availableParallelism() - 1));
+  return Math.max(1, Math.min(2, availableParallelism() - 1));
 }
 
 /** Sorted so shard assignment never depends on filesystem iteration order. */

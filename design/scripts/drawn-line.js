@@ -45,7 +45,7 @@ const uid = (prefix) => `${prefix}-${++uidCounter}`;
  */
 export function strokeAttrs(weight = SPEC.weight) {
   return (
-    `fill="none" stroke="#20301C" stroke-linejoin="round" ` +
+    `fill="none" stroke="var(--ink)" stroke-linejoin="round" ` +
     `stroke-linecap="round" stroke-width="${weight}"`
   );
 }
@@ -124,7 +124,7 @@ export function buildBoxFrame({
     ground +=
       `<defs><clipPath id="${clipId}"><path d="${field}"/></clipPath></defs>` +
       `<path class="ink-shadow" clip-path="url(#${clipId})" d="${cast}" ` +
-      `fill="rgba(32,48,28,${shadow.alpha})"/>`;
+      `fill="${shadow.alpha === 0.4 ? "var(--ink-shadow-wall)" : "var(--ink-shadow)"}"/>`;
   }
 
   const attrs = strokeAttrs(weight);

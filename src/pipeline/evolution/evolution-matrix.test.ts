@@ -179,15 +179,6 @@ const MATRIX: readonly MatrixCase[] = [
     tests: ["create", "update"],
   },
   {
-    row: "detail.shows → platform detail View, no units",
-    intent: "show whether it is pinned when I open one",
-    candidate: () => withUiIntent({ detail: { shows: ["text", "pinned"] } }),
-    facts: ["detail_shows"],
-    platformWork: ["platform_detail_view"],
-    regenerated: [],
-    ddl: [],
-  },
-  {
     row: "item direction / item.shows → the item renderer alone",
     intent: "make each note quieter in the list",
     candidate: () =>

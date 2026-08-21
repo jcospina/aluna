@@ -12,7 +12,7 @@
 //     other list types, no `file`/`file[]`, and no relations — there are no foreign keys.
 //     Every object is strict, so any extra key fails validation.
 //   - `ui_intent` records only capability-specific presentation choices: item direction,
-//     the closed collection layout (`feed | grid`), the detail fields/order, and one closed
+//     the closed collection layout (`feed | grid`), and one closed
 //     input mode for every active `string[]`. It never stores `views` or `modal: true` —
 //     the shared modal is a platform invariant. `tools` is the fixed five-Action tuple;
 //     `read_dependencies` carries exactly one array per Action; `behavior` is free text the
@@ -139,12 +139,6 @@ export const uiIntentSchema = z.strictObject({
   }),
   collection: z.strictObject({
     layout: uiCollectionLayoutSchema,
-  }),
-  detail: z.strictObject({
-    shows: z
-      .array(z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE))
-      .min(1)
-      .refine(allUnique, "detail fields must be unique"),
   }),
 });
 export type UiIntent = z.infer<typeof uiIntentSchema>;
@@ -482,11 +476,10 @@ function validatePresentationShows(
 ): void {
   const fieldsByName = new Map(spec.schema.fields.map((field) => [field.name, field]));
   validateShowsList("item", spec.ui_intent.item.shows, fieldsByName, ctx);
-  validateShowsList("detail", spec.ui_intent.detail.shows, fieldsByName, ctx);
 }
 
 function validateShowsList(
-  surface: "item" | "detail",
+  surface: "item",
   shows: readonly string[],
   fieldsByName: ReadonlyMap<string, SpecField>,
   ctx: z.RefinementCtx,

@@ -99,7 +99,7 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
     "- ui_intent.item.direction is one concise sentence of capability-specific item design direction.",
     "- ui_intent.form.list_inputs contains exactly one { field, mode } entry for every active string[] field, in schema-field order — no scalar, inactive, or unknown fields. A hidden string[] field loses its entry; a new or reactivated active string[] field gains one.",
     `- list input mode is exactly ${listInputModes}. Choose comma_separated only for short atomic values whose grammar cannot meaningfully contain commas (tags, genres, categories, skills). Choose repeatable when an element may contain a comma (quotes, addresses, citations, or names as entered).`,
-    "- ui_intent.item.shows and ui_intent.detail.shows are ordered lists of active schema field names; they may also include created_at. Never show an inactive field.",
+    "- ui_intent.item.shows is an ordered list of active schema field names; it may also include created_at. Never show an inactive field.",
     `- ui_intent.collection.layout is one of: ${collectionLayouts}.`,
     "- Do not include ui_intent.views. Do not include modal: true; the shared modal is a platform invariant.",
     "",

@@ -36,7 +36,7 @@ Remove four; keep two.
   item-renderer generator receives*. That prompt text has no other inspection
   surface; production shows you the generated output, never the injected input.
 - `/static/primitives-preview.html` — the closed vocabulary from 3.1/01 on one
-  page. `docs/design-system.md` links it as the canonical visual reference and
+  page. `design/design-system.md` links it as the canonical visual reference and
   `vocabulary.test.ts` cross-checks `ALLOWED_CLASSES` against
   `primitives.css`, so the page and the enforcer stay honest together.
 
@@ -74,7 +74,7 @@ Work to do:
   `enforcer.test.ts` do not already prove that a `<script>`/`<img src=x>` record
   reaches neither the list nor the detail template, move that test there rather
   than dropping it.
-- **Update the docs.** `docs/design-system.md` links the four removed pages at
+- **Update the docs.** `design/design-system.md` links the four removed pages at
   lines 248, 285, 372, 450, and 452. Replace each link with the module it
   documents (or with the live capability surface, where that is the honest
   answer) — do not leave dead `/demo/*` links in the design system. The
@@ -95,7 +95,7 @@ Work to do:
       mode, confirmation-gated delete, and debounced search
 - [x] Hostile-record escaping is proved in the presentation module suites, not
       in an app route test
-- [x] `docs/design-system.md` contains no link to a removed route
+- [x] `design/design-system.md` contains no link to a removed route
 - [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
@@ -151,7 +151,7 @@ previews rendered.
     edit-mode input seed — was genuinely uncovered.
   Two new tests pin the guard itself (`app.test.ts`): production serves `/` but
   404s the two gated routes, and the evolution tracer still answers.
-- **Docs.** The five dead `/demo/*` links in `docs/design-system.md` now point
+- **Docs.** The five dead `/demo/*` links in `design/design-system.md` now point
   at the live capability surface or the owning module. Also fixed two stale
   comments the deletion exposed: `detail-modal.ts:60` still credited "the demo's
   dev trigger" for dispatching `OPEN_DETAIL_EVENT` (the only dispatcher left is

@@ -114,7 +114,6 @@ describe("split capability data ports", () => {
         lifecycle: "active",
       });
       recipes.ui_intent.item.shows = ["title", "summary"];
-      recipes.ui_intent.detail.shows = ["title", "summary"];
       applyCapabilityTableDdl(notes, databases.readwrite);
       applyCapabilityTableDdl(recipes, databases.readwrite);
       createCapabilityMutationPort(recipes, databases.readwrite).create({ title: "Soup" });
@@ -123,7 +122,6 @@ describe("split capability data ports", () => {
         field.name === "title" ? { ...field, lifecycle: "inactive" } : field,
       );
       hiddenRecipes.ui_intent.item.shows = ["summary"];
-      hiddenRecipes.ui_intent.detail.shows = ["summary"];
       hiddenRecipes.behavioral_errors = [];
       const query = createCapabilityQueryPort(databases.readonly, {
         target: notes,
@@ -163,7 +161,6 @@ describe("split capability data ports", () => {
         },
         ui_intent: {
           ...notesSpec().ui_intent,
-          detail: { shows: ["text", "added_later"] },
         },
       });
       const recipes = recipesSpec();

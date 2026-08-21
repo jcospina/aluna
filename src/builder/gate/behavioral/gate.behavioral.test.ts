@@ -209,7 +209,6 @@ describe("capability gate — behavioral search coverage", () => {
         form: { list_inputs: [] },
         item: { direction: "Show the reading.", shows: ["reading"] },
         collection: { layout: "feed" },
-        detail: { shows: ["reading", "created_at"] },
       },
       behavioral_errors: [],
     };

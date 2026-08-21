@@ -10,7 +10,7 @@ import {
   REMOVED_ELEMENTS,
 } from "./vocabulary.ts";
 
-// docs/design-system.md names the primitive vocabulary as the single source of truth, and
+// design/design-system.md names the primitive vocabulary as the single source of truth, and
 // public/css/primitives.css is where those classes actually live. The enforcer hard-codes
 // the allow-list (so render time stays dependency-free), so this test pins the two
 // together: if the CSS gains or loses a class, the allow-list must move with it.

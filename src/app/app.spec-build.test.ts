@@ -91,7 +91,7 @@ function assertSpecAndMigrationPreview(dataFor: (name: string) => string): void 
   expect(dataFor("spec-preview")).toContain("ui_intent");
   expect(dataFor("spec-preview")).toContain("collection");
   expect(dataFor("spec-preview")).toContain("feed");
-  expect(dataFor("spec-preview")).toContain("detail");
+  expect(dataFor("spec-preview")).not.toContain('"detail"');
   expect(dataFor("spec-preview")).toContain('"tools":["create","read","update","delete","search"]');
   expect(dataFor("spec-preview")).toContain(
     '"read_dependencies":{"create":[],"read":[],"update":[],"delete":[],"search":[]}',

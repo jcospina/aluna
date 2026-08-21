@@ -54,7 +54,7 @@ No functional onboarding/welcome flow here — that depends on the prompt actual
 - [x] **No engineering/internal jargon** visible anywhere (ARCH §9.7); "omni-crud" never user-facing
 - [x] Styles, fonts, and assets ship static from `/static/…` with **no build step**
 - [x] Layout holds up at common desktop and mobile viewport widths
-- [x] **Durable docs created:** `CONTEXT.md`, `docs/adr/0001-product-style-and-voice.md`, `docs/design-system.md` (see plan)
+- [x] **Durable docs created:** `CONTEXT.md`, `docs/adr/0001-product-style-and-voice.md`, `design/design-system.md` (see plan)
 - [x] **The pet is fully documented as a deferred component** (concept, placement, states, rendering constraints, reduced-motion) — and *not* implemented
 
 ## Implementation plan
@@ -75,7 +75,7 @@ Create three files. The repo currently has none of these; `docs/agents/domain.md
 - Context/why: derived from `momo` (`~/personal/momo`, `DESIGN.md` + `src/lib/theme/themes.config.ts` **Paper & Ink theme**), turned down for a quieter PostHog-like register; light-only because the owner is locking Paper & Ink; pet deferred because the thesis is the self-building app.
 - Cite the referenced momo Paper & Ink palette as the token source.
 
-**0.3 `docs/design-system.md`** — the practical reference coding agents consult.
+**0.3 `design/design-system.md`** — the practical reference coding agents consult.
 - Token table (mirrors `public/app.css`; values' source of truth is the CSS).
 - The neobrutalism dial: 1px softened-ink borders (structural surfaces only), two-step `2px/4px` down-right hard shadows (low-contrast, used sparingly), gentle 1–2px press, 10px radius.
 - **Clean, not boxed:** borders only where they earn it (the prompt field, form controls), never a frame around every region; regions separate by background tone + spacing. The prompt composer is borderless and sits directly on the page background (`--color-bg`) — unlike momo's chat, which sits on a white surface panel.
@@ -245,7 +245,7 @@ Cross-cutting defaults (apply here and in issue 02): logos are **inline SVG** (n
 - **Orb → pet, and pet DEFERRED.** The orb is replaced by an **anthropomorphic spark of Aluna** that walks/talks at the prompt bar (persistent companion; inherits the build-indicator duty; never shrinks to a spinner). Deliberately **defined-but-not-implemented** this issue — the thesis is the self-building app, and the pet is a delight layer to build afterward. State vocabulary, placement, rendering constraints, and voice are specced; name left **TBD** pending verification of an authentic Kogi word (no fabrication).
 - **Cold-start re-scoped.** With the pet deferred and the greeting (delight) dropped: sidebar hidden, **Aluna wordmark on top + a neutral centered placeholder**, inert prompt with a product-voice `placeholder`. No reserved pet DOM slot — the layout switches when the pet lands.
 - **Product voice = warm/encouraging/gently curious**, first person, direct address, zero internals jargon (§9.7). Authored as durable guidance because it steers all future coding agents.
-- **Durable docs added to scope:** `CONTEXT.md` (glossary + framing + voice guide), `docs/adr/0001-product-style-and-voice.md` (decision record citing momo Paper & Ink), `docs/design-system.md` (token table + the dial + do/don'ts). These are the lazy-created domain docs `docs/agents/domain.md` expects.
+- **Durable docs added to scope:** `CONTEXT.md` (glossary + framing + voice guide), `docs/adr/0001-product-style-and-voice.md` (decision record citing momo Paper & Ink), `design/design-system.md` (token table + the dial + do/don'ts). These are the lazy-created domain docs `docs/agents/domain.md` expects.
 
 **Open / deferred sub-trees:** the pet (whole implementation — rendering technique, walking/talking animation, live narration wiring in M2, mood/care/persistence mechanics, click interaction); the pet's Kogi name (needs source verification); dark theme; status/tone color tokens (add when a capability surfaces errors); collapse-state persistence.
 
@@ -254,7 +254,7 @@ Cross-cutting defaults (apply here and in issue 02): logos are **inline SVG** (n
 Durable docs (Phase 0):
 - `CONTEXT.md` — glossary (Aluna, shell, capability, capability toolbar/sidebar, prompt bar, content area, the pet, product voice) with `_Avoid_` lists, product framing, and the full product-voice guide (persona, hard rule, do/don't table).
 - `docs/adr/0001-product-style-and-voice.md` — the decision record (subtler neobrutalism on Paper & Ink, Outfit, single `:root`/no theming, product voice, pet deferred, Aluna wordmark), citing momo's `themes.config.ts` `paper` theme as the token source and the dial it's turned down from.
-- `docs/design-system.md` — token table (mirrors `public/app.css`), the neobrutalism dial vs momo, "clean not boxed", component treatments, do/don'ts.
+- `design/design-system.md` — token table (mirrors `public/app.css`), the neobrutalism dial vs momo, "clean not boxed", component treatments, do/don'ts.
 - `docs/pet.md` — **new**, beyond the three planned docs: the deferred pet gets a durable, findable home (concept, placement, state vocabulary, rendering constraints, reduced-motion, voice, TBD-name) so a future issue implements it cold rather than spelunking this closed issue. Linked from the CONTEXT.md glossary.
 
 Build (Phases 1–5):

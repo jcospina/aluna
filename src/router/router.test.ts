@@ -255,7 +255,6 @@ describe("deterministic capability router — create presence for scalars and bo
         form: { list_inputs: [] },
         item: { direction: "A text-forward note.", shows: ["text"] },
         collection: { layout: "feed" },
-        detail: { shows: ["text", "summary", "pinned"] },
       },
     });
     install(

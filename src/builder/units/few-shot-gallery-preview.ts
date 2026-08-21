@@ -70,6 +70,7 @@ export function renderFewShotGalleryPreviewPage(): string {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="data:,">
     <title>Aluna - few-shot gallery preview</title>
+    <link rel="stylesheet" href="/design/styles/index.css">
     <link rel="stylesheet" href="/static/app.css">
     <script defer src="/static/vendor/alpine.min.js"></script>
     <script type="module" src="/static/detail-modal.js"></script>
@@ -85,22 +86,24 @@ export function renderFewShotGalleryPreviewPage(): string {
       .preview-banner {
         margin: 0 0 var(--space-4);
         padding: var(--space-1) var(--space-2);
-        font: var(--meta);
-        color: var(--color-text-muted);
-        background: color-mix(in oklch, var(--color-accent), transparent 90%);
-        border-radius: var(--radius-sm);
+        font-family: var(--font-body);
+        font-size: var(--type-sm);
+        color: var(--ink-2);
+        background: color-mix(in oklch, var(--shade), transparent 90%);
       }
       .preview-section {
         margin-block: var(--space-6);
       }
       .preview-title {
         margin: 0 0 var(--space-1);
-        font: var(--h3);
+        font-family: var(--font-display);
+        font-size: var(--type-lg);
       }
       .preview-note {
         margin: 0 0 var(--space-2);
-        font: var(--meta);
-        color: var(--color-text-subtle);
+        font-family: var(--font-body);
+        font-size: var(--type-sm);
+        color: var(--ink-3);
       }
       .gallery-example {
         display: grid;
@@ -111,17 +114,18 @@ export function renderFewShotGalleryPreviewPage(): string {
       .gallery-example__layout {
         display: inline-flex;
         margin: 0 0 var(--space-1);
-        padding: var(--space-0_5) var(--space-1);
-        font: var(--meta);
-        color: var(--color-text);
-        border: var(--border-thin) solid var(--color-border);
-        border-radius: var(--radius-pill);
+        padding: var(--space-1) var(--space-1);
+        font-family: var(--font-body);
+        font-size: var(--type-sm);
+        color: var(--ink);
+        border: var(--line) solid var(--ink);
       }
       .gallery-example__notes {
         margin: var(--space-2) 0 0;
         padding-left: var(--space-2);
-        font: var(--meta);
-        color: var(--color-text-muted);
+        font-family: var(--font-body);
+        font-size: var(--type-sm);
+        color: var(--ink-2);
       }
       .gallery-example__rendered .capability-collection__header,
       .gallery-example__rendered .capability-empty,
@@ -133,8 +137,9 @@ export function renderFewShotGalleryPreviewPage(): string {
       }
       .gallery-example__source summary {
         cursor: pointer;
-        font: var(--meta);
-        color: var(--color-text-muted);
+        font-family: var(--font-body);
+        font-size: var(--type-sm);
+        color: var(--ink-2);
       }
       .gallery-example__source pre,
       .prompt-preview pre {
@@ -142,11 +147,10 @@ export function renderFewShotGalleryPreviewPage(): string {
         overflow: auto;
         padding: var(--space-2);
         font: 0.8125rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-        color: var(--color-text);
+        color: var(--ink);
         white-space: pre-wrap;
-        background: color-mix(in oklch, var(--color-text), transparent 96%);
-        border: var(--border-thin) solid var(--color-border);
-        border-radius: var(--radius-md);
+        background: color-mix(in oklch, var(--ink), transparent 96%);
+        border: var(--line) solid var(--ink);
       }
       .prompt-preview {
         display: grid;

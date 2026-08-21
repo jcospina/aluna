@@ -1,7 +1,7 @@
 // The Diff Engine table battery (PLAN decisions 21, 22, 37 and
 // the normative change-fact matrix). One test per matrix row's fact→work mapping,
 // including every None column; the monotone multi-fact union; the canonical no-op
-// (key/set reorder) versus the ordered-product diffs (field order, item/detail
+// (key/set reorder) versus the ordered-product diffs (field order and item
 // shows); and the fail-closed unknown-difference guard. Pure: no db, no provider.
 
 import { describe, expect, test } from "bun:test";
@@ -166,13 +166,12 @@ describe("field label → platform form/detail; item only when the field is show
 describe("hide/reactivate field → writes; search for text/list-text; item via shows", () => {
   test("hiding a field selects create/update and no destructive DDL work", () => {
     const diff = diffOf((draft) => {
-      // Hide `tags` (active string[]) and drop it from every presentation surface so
-      // the lifecycle fact is isolated from the item.shows/detail.shows facts.
+      // Hide `tags` (active string[]) and drop it from the item surface so the
+      // lifecycle fact is isolated from the item.shows fact.
       const tags = draft.schema.fields.find((field) => field.name === "tags");
       if (tags) tags.lifecycle = "inactive";
       draft.ui_intent.form.list_inputs = [];
       draft.ui_intent.item.shows = ["title"];
-      draft.ui_intent.detail.shows = ["title", "created_at"];
     });
     const lifecycle = diff.facts.find((fact) => fact.kind === "field_lifecycle");
     expect(lifecycle).toEqual({ kind: "field_lifecycle", field: "tags", transition: "hide" });
@@ -209,17 +208,6 @@ describe("active string[] list input mode → platform form only", () => {
     expect(diff.workPlan.platformWork).toEqual(["list_input_form_normalization"]);
     expect(diff.workPlan.regeneratedUnits).toEqual([]);
     expect(diff.workPlan.gate.behavioral).toEqual({ actions: [], fullSuite: false });
-  });
-});
-
-describe("detail.shows/order → platform detail View, no units", () => {
-  test("reordering detail.shows selects the platform detail View only", () => {
-    const diff = diffOf((draft) => {
-      draft.ui_intent.detail.shows = ["tags", "title", "created_at"];
-    });
-    expect(factKinds(diff)).toEqual(["detail_shows"]);
-    expect(diff.workPlan.platformWork).toEqual(["platform_detail_view"]);
-    expect(diff.workPlan.regeneratedUnits).toEqual([]);
   });
 });
 

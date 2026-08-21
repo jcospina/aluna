@@ -94,7 +94,6 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
-      detail: { shows: ["text"] },
     },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
@@ -158,7 +157,6 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
       form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
-      detail: { shows: ["text"] },
     });
     expect(result.spec.ui_intent).not.toHaveProperty("views");
     expect(result.spec.ui_intent).not.toHaveProperty("modal");
@@ -248,7 +246,7 @@ describe("spec generation stage — authored prompt", () => {
     expect(prompt).toContain("quotes, addresses, citations, or names as entered");
     expect(prompt).toContain("never choose it for comma-bearing element semantics");
     expect(prompt).toContain("ui_intent.collection.layout is one of: feed | grid");
-    expect(prompt).toContain("ui_intent.detail.shows");
+    expect(prompt).not.toContain("ui_intent.detail");
     expect(prompt).toContain("Do not include ui_intent.views");
     expect(prompt).toContain("Do not include modal: true");
     expect(prompt).toContain("string | number | boolean | datetime | date | string[]");
@@ -292,7 +290,6 @@ describe("spec generation stage — authored modes, narration, and identity", ()
           form: { list_inputs: [{ field, mode }] },
           item: { direction: `Show ${field} in their authored order.`, shows: [field] },
           collection: { layout: "feed" },
-          detail: { shows: [field] },
         },
         behavioral_errors: [],
       });
@@ -380,7 +377,6 @@ describe("spec generation stage — rejects non-conforming specs", () => {
             form: { list_inputs: [] },
             item: { direction: "A visual tile.", shows: ["text"] },
             collection: { layout: "masonry" },
-            detail: { shows: ["text"] },
           },
         },
       },
@@ -392,7 +388,6 @@ describe("spec generation stage — rejects non-conforming specs", () => {
             form: { list_inputs: [] },
             item: { direction: "A visual tile.", shows: ["text"] },
             collection: { layout: "grid" },
-            detail: { shows: ["text"] },
             modal: true,
           },
         },
@@ -405,7 +400,6 @@ describe("spec generation stage — rejects non-conforming specs", () => {
             form: { list_inputs: [] },
             item: { direction: "A text-forward card.", shows: ["missing"] },
             collection: { layout: "feed" },
-            detail: { shows: ["missing"] },
           },
         },
       },

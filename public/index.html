@@ -14,16 +14,17 @@
       runtime and streamed in by later epics. Layout is the Claude/ChatGPT shape:
       a collapsible left sidebar (the capability toolbar) beside a content column
       whose content area fills the space and whose prompt bar is pinned to the
-      bottom. Style is subtler neobrutalism on Paper & Ink — see
-      docs/design-system.md and docs/adr/0001.
+      bottom. High Meadow is the shipped product surface; see
+      design/design-system.md.
     -->
 
     <!-- Aluna is the user-facing brand (ARCH §9.7); the repository's engineering
          name never appears in the UI (not even in this page's source). -->
     <title>Aluna</title>
 
-    <!-- Authored style — semantic tokens, Outfit (vendored), the shell layout.
-         Static from /static/app.css, no build step. -->
+    <!-- High Meadow ships from its source directory; app.css only bridges the
+         temporary Module 1–4 shell onto that token and component layer. -->
+    <link rel="stylesheet" href="/design/styles/index.css">
     <link rel="stylesheet" href="/static/app.css">
 
     <!--
@@ -79,8 +80,6 @@
       <!-- Capability toolbar — the left sidebar. Hidden at cold-start; the
            registry rehydrates its entries (and flips hasCapabilities) later. -->
       <nav class="toolbar" id="capability-toolbar" aria-label="Capabilities" :inert="!open">
-        <!-- Sidebar-top home of the Aluna wordmark (shown when the sidebar is). -->
-        <p class="wordmark">Aluna<span class="wordmark__dot" aria-hidden="true">.</span></p>
         <!-- Capability entries render here later. -->
       </nav>
 
@@ -91,15 +90,12 @@
       <!-- Content column — the content area fills the space above the
            bottom-pinned prompt bar. -->
       <div class="content-column">
-        <!-- Top bar — the always-present header row. Three slots on one line:
-             the capability-toolbar toggle (left, revealed once capabilities
-             exist), the Aluna wordmark (centre), and the developer-panel toggle
-             (right). Explicit grid columns keep the wordmark centred even while
-             the left toggle is hidden at cold-start. -->
-        <div class="content-topbar">
+        <!-- Temporary controls for the two legacy drawers. The branded header row
+             is gone; these controls remain only to keep those surfaces functional. -->
+        <div class="shell-controls">
           <button
             type="button"
-            class="sidebar-toggle content-topbar__toolbar-toggle"
+            class="sidebar-toggle shell-controls__toolbar-toggle"
             x-cloak
             x-show="hasCapabilities"
             @click="open = !open"
@@ -121,16 +117,11 @@
             </svg>
           </button>
 
-          <!-- Aluna wordmark — centred home of the brand (was the cold-start hero). -->
-          <p class="wordmark content-topbar__brand">
-            Aluna<span class="wordmark__dot" aria-hidden="true">.</span>
-          </p>
-
           <!-- Developer-panel toggle — the classic </> code icon. Opens the right
                sidebar holding the build's raw generation internals. -->
           <button
             type="button"
-            class="sidebar-toggle content-topbar__dev-toggle"
+            class="sidebar-toggle shell-controls__dev-toggle"
             @click="devbarOpen = !devbarOpen"
             :aria-expanded="devbarOpen ? 'true' : 'false'"
             aria-controls="developer-panel"
@@ -153,9 +144,7 @@
         </div>
 
         <!-- Content area — empty surface; capabilities and SSE streams render
-             here later. At cold-start it shows the Aluna wordmark and the
-             current builder-stage verification output (hidden once
-             capabilities exist). -->
+             here later. At cold-start it shows only current builder narration. -->
         <main class="content">
           <div class="content__active">
             <div class="intro">

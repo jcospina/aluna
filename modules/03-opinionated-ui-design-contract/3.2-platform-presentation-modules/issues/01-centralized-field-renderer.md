@@ -57,7 +57,7 @@ Presentation only — no capability rule, no canonical state.
   modes, wiring, escaping/hostile values, and a schema-driven exhaustiveness sweep.
 - `src/presentation/field-renderer-preview.ts` + route `GET /demo/field-renderer`
   — the HITL preview, rendering the **live** module output for a sample spec.
-- `docs/design-system.md` — new "Capability field chrome (Module 3 · epic 3.2)"
+- `design/design-system.md` — new "Capability field chrome (Module 3 · epic 3.2)"
   section (type → control/display table, close-on-success contract).
 
 Verified: `bun run typecheck` clean · `bun run lint` clean · `bun test` 255 pass /

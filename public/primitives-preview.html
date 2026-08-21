@@ -12,6 +12,7 @@
          sample items below are composed ONLY from the capability primitive
          vocabulary (public/css/primitives.css); the page chrome and the wrapper
          stand-in are preview-only, and themselves consume the tokens. -->
+    <link rel="stylesheet" href="/design/styles/index.css">
     <link rel="stylesheet" href="/static/app.css">
 
     <style>
@@ -23,32 +24,34 @@
     .preview-banner {
       margin: 0 0 var(--space-4);
       padding: var(--space-1) var(--space-2);
-      font: var(--meta);
-      color: var(--color-text-muted);
-      background: color-mix(in oklch, var(--color-accent), transparent 90%);
-      border-radius: var(--radius-sm);
+      font-family: var(--font-body);
+      font-size: var(--type-sm);
+      color: var(--ink-2);
+      background: color-mix(in oklch, var(--shade), transparent 90%);
     }
     .preview-section {
       margin-block: var(--space-6);
     }
     .preview-title {
       margin: 0 0 var(--space-1);
-      font: var(--h3);
+      font-family: var(--font-display);
+      font-size: var(--type-lg);
     }
     .preview-note {
       margin: 0 0 var(--space-2);
-      font: var(--meta);
-      color: var(--color-text-subtle);
+      font-family: var(--font-body);
+      font-size: var(--type-sm);
+      color: var(--ink-3);
     }
     /* Stand-in for the 3.2 platform item wrapper: a surface with a thin-border
-                               card and the item type baseline. Item CONTENT inside uses only the
-                               vocabulary classes; nothing here anticipates 3.2's real wrapper. */
+                                   card and the item type baseline. Item CONTENT inside uses only the
+                                   vocabulary classes; nothing here anticipates 3.2's real wrapper. */
     .preview-item {
       padding: var(--space-2);
-      font: var(--body);
-      background: var(--color-surface);
-      border: var(--border-thin) solid var(--color-border);
-      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-size: var(--type-base);
+      background: var(--surface);
+      border: var(--line) solid var(--ink);
     }
     .preview-item + .preview-item {
       margin-top: var(--space-2);
@@ -56,7 +59,7 @@
     .preview-item p {
       margin: 0;
     }
-    /* Border-weight swatches — eyeball the thin / regular / thick scale. */
+    /* Line swatches — High Meadow has one boundary weight. */
     .swatches {
       display: flex;
       gap: var(--space-2);
@@ -64,17 +67,11 @@
     .swatch {
       flex: 1;
       padding: var(--space-2);
-      font: var(--meta);
+      font-family: var(--font-body);
+      font-size: var(--type-sm);
       text-align: center;
-      background: var(--color-surface);
-      border: var(--border-thin) solid var(--color-text);
-      border-radius: var(--radius-md);
-    }
-    .swatch--regular {
-      border-width: var(--border-regular);
-    }
-    .swatch--thick {
-      border-width: var(--border-thick);
+      background: var(--surface);
+      border: var(--line) solid var(--ink);
     }
     </style>
   </head>
@@ -102,17 +99,14 @@
       </div>
     </section>
 
-    <!-- ── Border-weight scale ─────────────────────────────────────────────── -->
+    <!-- ── Boundary line ──────────────────────────────────────────────────── -->
     <section class="preview-section">
-      <p class="preview-title">Border weights</p>
+      <p class="preview-title">Boundary line</p>
       <p class="preview-note">
-        Turned down from the heavier 2/4px typical of neobrutalism — thin is the shell's hairline
-        default, thick stays under the loud 4px.
+        High Meadow uses one token-owned weight for every component boundary.
       </p>
       <div class="swatches">
-        <div class="swatch">thin · 1px</div>
-        <div class="swatch swatch--regular">regular · 2px</div>
-        <div class="swatch swatch--thick">thick · 3px</div>
+        <div class="swatch">line · 2px</div>
       </div>
     </section>
 
@@ -181,11 +175,11 @@
       <p class="preview-note">
         When the vocabulary doesn't suffice, inline <code>style</code> is allowed — but the five
         owned axes stay on-token. Here: an accent flag via
-        <code>border-inline-start: var(--border-thick) solid var(--color-accent)</code>.
+        <code>border-inline-start: var(--line) solid var(--shade)</code>.
       </p>
       <article
         class="preview-item stack gap-1"
-        style="border-inline-start: var(--border-thick) solid var(--color-accent)"
+        style="border-inline-start: var(--line) solid var(--shade)"
       >
         <p class="text-bold truncate">Renew passport</p>
         <p class="text-sm text-muted">Flagged — border weight and color both come from tokens.</p>

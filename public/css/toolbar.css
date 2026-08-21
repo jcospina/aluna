@@ -12,22 +12,16 @@
   min-height: 0;
   overflow: auto;
   padding: var(--space-2);
-  background: var(--color-surface);
-  border-right: var(--border-width) solid var(--color-border);
+  background: var(--surface);
+  border-right: var(--line) solid var(--ink);
 }
 .shell.has-capabilities .toolbar {
   display: flex;
 }
-/* Sidebar-top home of the wordmark (shown when the sidebar is present). */
-.toolbar .wordmark {
-  font-size: var(--type-lg);
-  padding-block: var(--space-0_5) var(--space-2);
-}
 .toolbar__item {
   display: flex;
   align-items: center;
-  gap: var(--space-0_5);
-  border-radius: var(--radius-sm);
+  gap: var(--space-1);
 }
 .toolbar__entry {
   display: block;
@@ -35,17 +29,18 @@
   min-width: 0;
   width: 100%;
   padding: var(--space-1);
-  font: var(--body);
+  font-family: var(--font-body);
+  font-size: var(--type-base);
+  line-height: 1.5;
   text-align: left;
-  color: var(--color-text);
+  color: var(--ink);
   background: transparent;
   border: 0;
-  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .toolbar__entry:hover,
 .toolbar__entry:focus-visible {
-  background: color-mix(in oklch, var(--color-text), transparent 92%);
+  background: color-mix(in oklch, var(--ink), transparent 92%);
 }
 .toolbar__delete {
   display: inline-flex;
@@ -54,11 +49,10 @@
   justify-content: center;
   width: 2.75rem;
   height: 2.75rem;
-  padding: var(--space-0_5);
-  color: var(--color-text-subtle);
+  padding: var(--space-1);
+  color: var(--ink-3);
   background: transparent;
   border: 0;
-  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .toolbar__delete svg {
@@ -67,8 +61,8 @@
 }
 .toolbar__delete:hover,
 .toolbar__delete:focus-visible {
-  color: var(--color-danger);
-  background: color-mix(in oklch, var(--color-danger), transparent 90%);
+  color: var(--signal);
+  background: color-mix(in oklch, var(--signal), transparent 90%);
 }
 
 /* ── Responsive — desktop full-collapse vs mobile off-canvas drawer ────────── */
@@ -79,8 +73,8 @@
   .shell.has-capabilities .toolbar {
     overflow: hidden;
     transition:
-      flex-basis var(--duration-toggle) var(--ease-pop),
-      padding var(--duration-toggle) var(--ease-pop);
+      flex-basis var(--dur-rise) var(--ease-rise),
+      padding var(--dur-rise) var(--ease-rise);
   }
   .shell.has-capabilities:not(.sidebar-open) .toolbar {
     flex-basis: 0;
@@ -99,13 +93,11 @@
     width: 16rem;
     flex-basis: auto;
     transform: translateX(-100%);
-    transition: transform var(--duration-toggle) var(--ease-pop);
+    transition: transform var(--dur-rise) var(--ease-rise);
   }
   .shell.has-capabilities.sidebar-open .toolbar {
     transform: translateX(0);
-    /* Horizontal-only hard shadow: a full-height left drawer casts to the right,
-       so drop the down-offset of --shadow-md (it left a gap at the top edge). */
-    box-shadow: 4px 0 0 var(--color-shadow);
+    /* Horizontal-only hard shadow for the temporary full-height drawer. */
   }
   .shell.has-capabilities.sidebar-open .backdrop {
     display: block;

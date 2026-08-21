@@ -1,20 +1,16 @@
 /* =============================================================================
-   Aluna — base product-voice style (index)
-   Subtler neobrutalism on a Paper & Ink palette (see docs/adr/0001 and
-   docs/design-system.md). Light theme only, single :root, no theming machinery
-   — but expressed through semantic tokens, so a dark theme stays a purely
-   additive future override. Served static from /static/app.css, no build step.
+   Aluna — temporary shell integration over the shipped High Meadow manifest.
+   The token layer and product components live in design/styles/. This file only
+   wires the Module 1–4 shell that remains functional until the Desk replaces it.
 
    This file is the entry point only: it @imports the authored pieces below in
    cascade order. Each @import path is relative to /static/app.css, so it
    resolves under /static/css/* → ./public/css/* (Hono serveStatic, src/app/app.ts).
-   Order matters: tokens first (every rule reads them), then base/layout, then
-   the components, then accessibility last (its reduced-motion resets must
-   override every component's hover/press transition).
+   The page loads design/styles/index.css first. These imports add only the
+   remaining shell behavior, with accessibility last.
    ========================================================================== */
 
-@import "css/tokens.css"; /* @font-face + the :root design-token layer        */
-@import "css/base.css"; /* reset, body defaults, wordmark, Alpine x-cloak     */
+@import "css/base.css"; /* shell sizing + Alpine x-cloak                      */
 @import "css/shell.css"; /* shell layout, top bar, sidebar toggle, backdrop   */
 @import "css/toolbar.css"; /* capability toolbar (left sidebar) + responsive  */
 @import "css/deletion.css"; /* permanent capability-deletion confirmation     */

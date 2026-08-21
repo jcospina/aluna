@@ -24,7 +24,21 @@ import {
   sharpRectPoints,
   wobbleLine,
 } from "./lib/geometry.js";
-import { COLOR, HAND, PANES, SHADOW_OFFSET, SPEC } from "./spec.js";
+import { HAND, SHADOW_OFFSET, SPEC } from "./spec.js";
+
+const SURFACE = "var(--surface)";
+const PANES = Object.freeze([
+  "var(--pane-1)",
+  "var(--pane-2)",
+  "var(--pane-3)",
+  "var(--pane-4)",
+  "var(--pane-5)",
+]);
+
+/** @param {number} alpha */
+function shadowFill(alpha) {
+  return alpha === 0.4 ? "var(--ink-shadow-wall)" : "var(--ink-shadow)";
+}
 
 let uidCounter = 0;
 /**
@@ -141,7 +155,7 @@ export function buildFrame({
   const barFillH = divider ? barH + bleed : h + bleed * 2;
   let bar =
     `<rect x="${-bleed}" y="${-bleed}" width="${w + bleed * 2}" ` +
-    `height="${barFillH}" fill="${COLOR.surface}"/>`;
+    `height="${barFillH}" fill="${SURFACE}"/>`;
   PANES.forEach((color, i) => {
     bar +=
       `<rect x="${f(w * (0.5 + i * 0.1))}" y="${-bleed}" ` +
@@ -149,11 +163,11 @@ export function buildFrame({
   });
 
   let ground =
-    `<path d="${silhouette}" fill="rgba(32,48,28,${shadowAlpha})" ` +
+    `<path d="${silhouette}" fill="${shadowFill(shadowAlpha)}" ` +
     `transform="translate(${SHADOW_OFFSET.x},${SHADOW_OFFSET.y})"/>`;
   ground += `<g clip-path="url(#${clipId})">`;
   ground += unfocused ? `<g filter="url(#${desatId})">${bar}</g>` : bar;
-  if (divider) ground += `<path d="${bodyFill}" fill="${COLOR.surface}"/>`;
+  if (divider) ground += `<path d="${bodyFill}" fill="${SURFACE}"/>`;
   ground += `</g>`;
 
   const defs =

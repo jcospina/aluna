@@ -3,15 +3,15 @@
    epic 3.1). This is the allow-list of semantic/primitive classes generated
    *item renderer* markup reaches for first: sensible defaults for arranging one
    record's own fields, on-brand by construction because every class consumes the
-   design tokens (public/css/tokens.css) — no raw color/spacing/size literals.
+   design tokens (design/styles/tokens.css) — no raw color/spacing/size literals.
 
    *Closed values, open composition.* The closed thing is the design-VALUE space
    (the tokens), never how an item arranges a record. This is deliberately NOT an
    all-purpose CSS framework — rebuilding Tailwind is a non-goal. When the
    vocabulary doesn't suffice, item markup may carry inline `style` under the
-   token-discipline rules in docs/design-system.md (the escape hatch).
+   token-discipline rules in design/design-system.md (the escape hatch).
 
-   The single source of truth for the allow-list is docs/design-system.md; the
+   The single source of truth for the allow-list is design/design-system.md; the
    runtime enforcer (3.1/02) and the design-lint gate rung (3.6) both key on the
    vocabulary authored here. Loaded late in app.css (after the shell chrome,
    before a11y) so these utilities win where they apply and reduced-motion still
@@ -83,7 +83,7 @@
 
 /* Gaps map 1:1 onto the spacing tokens — `.gap-2` is `--space-2`, and so on. */
 .gap-0_5 {
-  gap: var(--space-0_5);
+  gap: var(--space-1);
 }
 .gap-1 {
   gap: var(--space-1);
@@ -129,13 +129,13 @@
   font-size: var(--type-xl);
 }
 .text-bold {
-  font-weight: var(--weight-bold);
+  font-weight: 700;
 }
 .text-muted {
-  color: var(--color-text-muted);
+  color: var(--ink-2);
 }
 .text-subtle {
-  color: var(--color-text-subtle);
+  color: var(--ink-3);
 }
 
 /* ── Truncation ──────────────────────────────────────────────────────────────
@@ -172,8 +172,7 @@
   display: block;
   overflow: hidden;
   aspect-ratio: 4 / 3;
-  border-radius: var(--radius-md);
-  background: color-mix(in oklch, var(--color-text), transparent 92%);
+  background: color-mix(in oklch, var(--ink), transparent 92%);
 }
 .media-frame > img,
 .media-frame > video {

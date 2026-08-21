@@ -130,7 +130,7 @@ carried it, the desk puts none anywhere else, and only the name is left.
    every value and no second token layer to drift against. Paper & Ink is
    superseded and deleted. Three things follow. The Gate's approved-value list
    re-derives against High Meadow names (decision 10). `design-system.md`'s
-   tie-breaker — "the CSS wins, and the CSS is `public/css/tokens.css`" — repoints
+   tie-breaker — "the CSS wins, and the CSS is `design/styles/tokens.css`" — repoints
    at `design/styles/tokens.css`. And ADR-0001's visual half is superseded while
    its voice half stands unchanged. The silent-rename hazard that would normally
    make a token swap dangerous does not arise, because nothing survives that
@@ -191,7 +191,7 @@ carried it, the desk puts none anywhere else, and only the name is left.
     longer express hierarchy through line weight, and hierarchy rides on the ink
     system's deviation — the frame, fine and close hands — instead.
 
-11. **`docs/design-system.md` is rewritten against High Meadow, moves into
+11. **`design/design-system.md` is rewritten against High Meadow, moves into
     `design/`, and states no values.** The agent handbook survives, because it is
     what a coding agent reads before adding UI, but its scope narrows on the same
     move: it owns names and rules — which classes exist, which properties pick

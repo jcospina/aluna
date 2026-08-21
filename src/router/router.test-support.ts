@@ -71,7 +71,6 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
       form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
-      detail: { shows: ["text"] },
     },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
@@ -125,7 +124,6 @@ export function boomRow(): CapabilityRow {
       form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["note"] },
       collection: { layout: "feed" },
-      detail: { shows: ["note"] },
     },
     behavior: "Always fails, to prove failures stay friendly.",
     behavioral_errors: [],

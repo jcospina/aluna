@@ -41,7 +41,6 @@ describe("resolved evolution intent scope", () => {
           shows: ["title", "tags"],
         },
         collection: { layout: "grid" as const },
-        detail: { shows: ["tags", "title", "created_at"] },
       },
     };
     const diff = diffCapabilitySpec(committed, candidate);
@@ -51,7 +50,6 @@ describe("resolved evolution intent scope", () => {
       "capability_label",
       "field_label",
       "list_input_mode",
-      "detail_shows",
       "item_presentation",
       "collection_layout",
     ]);

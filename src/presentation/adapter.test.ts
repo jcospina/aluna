@@ -26,9 +26,8 @@ import {
 import type { RenderableCapability } from "./field-renderer.ts";
 import { ITEM_PAYLOAD_ATTR, ITEM_TRIGGER_CLASS } from "./list-container.ts";
 
-// `detail.shows` is a reordered subset of the schema (drops `author`), so a test can prove
-// the adapter routes the capability's detail intent into the record's detail template —
-// not just dumps every field.
+// The schema contains one inactive field so the adapter can prove the temporary detail
+// surface follows active form-field order without leaking stored retired values.
 const CAPABILITY: RenderableCapability = {
   id: "reading",
   label: "Reading list",
@@ -50,7 +49,6 @@ const CAPABILITY: RenderableCapability = {
   form: { list_inputs: [] },
   actions: ["create", "read", "update", "delete", "search"],
   item: { shows: ["title", "author", "created_at"] },
-  detail: { shows: ["title", "rating", "note"] },
 };
 
 /** A conforming hand-written item renderer — primitive vocabulary only, every value escaped. */
@@ -124,7 +122,6 @@ describe("createPresentationAdapter — composition", () => {
       form: { list_inputs: [] },
       actions: ["create", "read", "update", "delete", "search"],
       item: { shows: ["fields", "handle"] },
-      detail: { shows: ["fields", "handle"] },
     };
     const present = createPresentationAdapter({
       capability: collisionCapability,
@@ -213,7 +210,7 @@ describe("createPresentationAdapter — composition", () => {
     expect(second).not.toContain("detail-reading-aaa");
   });
 
-  test("routes the capability's detail.shows into the record's detail template", () => {
+  test("routes active schema fields into the record's detail template in form order", () => {
     const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
@@ -222,11 +219,12 @@ describe("createPresentationAdapter — composition", () => {
     const body = detailTemplateBody(html, "detail-reading-rec-1");
     const readMode = body.slice(0, body.indexOf("data-detail-edit-mode"));
 
-    // detail.shows is [title, rating, note] — the detail body shows those and drops author,
-    // even though the active author value remains in the client payload for future edit UI.
+    // The temporary detail surface follows active form-field order and excludes only the
+    // inactive stored field.
     expect(readMode).toContain("Piranesi");
+    expect(readMode).toContain("Susanna Clarke");
     expect(readMode).toContain("Tides through endless halls.");
-    expect(readMode).not.toContain("Susanna Clarke");
+    expect(readMode).not.toContain("still stored");
     expect(body).toContain('name="author" value="Susanna Clarke"');
     expect(readBackPayload(html)).toMatchObject({ author: "Susanna Clarke" });
   });
@@ -326,7 +324,7 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
     const html = present(record({ title: hostileTitle }));
     const body = detailTemplateBody(html, `${DETAIL_TEMPLATE_ID_PREFIX}-reading-rec-1`);
 
-    // `title` is first in detail.shows and also seeds the edit-mode input, so the hostile
+    // `title` is the first active schema field and also seeds the edit-mode input, so the hostile
     // value lands in this body twice — both times as inert escaped text. Assert on the
     // element openings, which are what would execute: the `onerror=alert(2)` characters
     // legitimately survive as text inside the escaped `&lt;img …&gt;`.

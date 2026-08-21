@@ -253,7 +253,6 @@ describe("capability spec shape — behavioral error field identity", () => {
         form: { list_inputs: [] },
         item: { direction: "Show the entry.", shows: ["text"] },
         collection: { layout: "feed" },
-        detail: { shows: ["text", "note"] },
       },
       behavioral_errors: defaultBehavioralErrorsForSchema(schema),
     });

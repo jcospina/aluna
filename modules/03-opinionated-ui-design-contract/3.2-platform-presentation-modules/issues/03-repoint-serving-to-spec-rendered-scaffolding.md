@@ -84,7 +84,7 @@ arrive through the `read` **Action**.
   never enters either serving path's chrome, yet is retrievable through `read`) and
   re-frames the two view tests as spec-rendered; `fragments.test.ts` / `app.test.ts`
   updated to the new signatures/wording.
-- `docs/design-system.md` — the collection section's forward-reference to 3.2/03 is
+- `design/design-system.md` — the collection section's forward-reference to 3.2/03 is
   realized (documents the `loadThroughRead` serving path and why it preserves ADR-0004).
 
 Verified: `bun run typecheck` clean · `bun run lint` clean · `bun test` 286 pass / 0 fail.

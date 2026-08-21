@@ -182,7 +182,10 @@ describe("behavioral repair — adversarial timing and cancellation", () => {
     if (gate.behavioral.tier !== "on") throw new Error("expected a tier-on Gate result");
     const failed = gate.behavioral.repair.attempts[0];
     if (!failed?.repairDurationMs) throw new Error("expected measured repair time");
-    expect(failed.durationMs - failed.repairDurationMs).toBeLessThan(30);
+    // If the repair interval were added twice, the remainder would be at least one
+    // complete repair interval. Compare the intervals directly so host load cannot turn
+    // this invariant into an accidental wall-clock performance assertion.
+    expect(failed.durationMs - failed.repairDurationMs).toBeLessThan(failed.repairDurationMs);
   });
 
   test("an abort stops a conservative round before another Handler call starts", async () => {

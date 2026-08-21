@@ -102,7 +102,7 @@ gate's surface small. One collision is settled the cheap way: `layout.css`'s own
 leaving both would have given a generated stack a page column's spacing with no
 error anywhere.
 
-**`docs/design-system.md` moves into `design/` and stops stating values** (§7a).
+**`design/design-system.md` moves into `design/` and stops stating values** (§7a).
 It owns names and rules — which classes exist, which properties are
 pick-from-a-list, which are never declared, what is banned — and every number in
 it points at `design/styles/`. Values live once, in CSS, so the tie-breaker it
@@ -163,7 +163,7 @@ The field has converged on a three-legged answer (v0/shadcn, the
 design-system-for-LLM writeups, and the *impeccable* design skill's detector
 rules): a closed token and primitive vocabulary, spec and example context fed to
 the model, and automated auditing that rejects violations. Aluna already owns two
-of those legs — a closed-ish token layer (`public/css/tokens.css`,
+of those legs — a closed-ish token layer (`design/styles/tokens.css`,
 `design/design-system.md`) and a layered, fail-closed gate. This ADR puts all three
 to work.
 

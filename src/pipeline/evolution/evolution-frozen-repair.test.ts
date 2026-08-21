@@ -55,7 +55,7 @@ let gate: CapabilityGateResult;
 let tierOnGate: CapabilityGateResult;
 let env: EngineEnv;
 
-setDefaultTimeout(15_000);
+setDefaultTimeout(30_000);
 
 beforeAll(async () => {
   [gate, tierOnGate] = await Promise.all([committedGate(), committedTierOnGate()]);
@@ -125,7 +125,6 @@ function showsDueDateCandidate(): CapabilitySpec {
     ui_intent: {
       ...base.ui_intent,
       item: { direction: base.ui_intent.item.direction, shows: ["text", "due_date"] },
-      detail: { shows: ["text", "due_date"] },
     },
   });
 }

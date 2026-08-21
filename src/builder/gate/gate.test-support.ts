@@ -68,7 +68,6 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
       form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
-      detail: { shows: ["text"] },
     },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
@@ -336,7 +335,6 @@ export function articlesSpec(): CapabilitySpec {
         shows: ["title", "body"],
       },
       collection: { layout: "feed" },
-      detail: { shows: ["title", "body"] },
     },
     behavior: "Title and body are required. Newest articles appear first.",
     behavioral_errors: [

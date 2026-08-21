@@ -8,6 +8,10 @@
   display: flex;
   /* 100dvh so mobile browser chrome never clips the bottom-pinned prompt bar. */
   height: 100dvh;
+  background-color: var(--ground);
+  background-image: url("/design/assets/wallpaper/high-meadow.webp");
+  background-position: center 58%;
+  background-size: cover;
 }
 
 /* ── Content column — fills the remaining width; stacks over the prompt. ───── */
@@ -18,29 +22,15 @@
   flex-direction: column;
 }
 
-/* ── Content top bar — the always-present header row. Three explicit grid columns
-   keep the wordmark centred regardless of which toggles show: the capability-
-   toolbar toggle (left, revealed once capabilities exist), the Aluna wordmark
-   (centre), and the developer-panel toggle (right). ──────────────────────────── */
-.content-topbar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+/* Temporary controls for the two legacy drawers. They float over the meadow rather
+   than recreating the retired branded header row. */
+.shell-controls {
+  display: flex;
+  justify-content: space-between;
   flex: 0 0 auto;
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-2);
-}
-.content-topbar__toolbar-toggle {
-  grid-column: 1;
-  justify-self: start;
-}
-.content-topbar__brand {
-  grid-column: 2;
-  justify-self: center;
-}
-.content-topbar__dev-toggle {
-  grid-column: 3;
-  justify-self: end;
 }
 
 /* ── Content area — fills the rest; sits directly on the page background. ──── */
@@ -48,7 +38,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  background: var(--color-bg);
+  background: transparent;
 }
 
 /* =============================================================================
@@ -58,15 +48,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-0_5);
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
+  padding: var(--space-1);
+  color: var(--ink);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
   cursor: pointer;
   transition:
-    transform var(--duration-fast) var(--ease-pop),
-    box-shadow var(--duration-fast) var(--ease-pop);
+    transform var(--dur-fast) var(--ease-rise),
+    box-shadow var(--dur-fast) var(--ease-rise);
 }
 .sidebar-toggle svg {
   display: block;
@@ -77,11 +66,9 @@
    1px down-right; active presses to 2px and flattens the shadow. */
 .sidebar-toggle:hover {
   transform: translate(1px, 1px);
-  box-shadow: var(--shadow-sm);
 }
 .sidebar-toggle:active {
   transform: translate(2px, 2px);
-  box-shadow: var(--shadow-none);
 }
 
 /* ── Mobile drawer backdrop — only meaningful on mobile (see the toolbar/devbar
@@ -91,5 +78,5 @@
   position: fixed;
   inset: 0;
   z-index: 10;
-  background: color-mix(in oklch, var(--color-text), transparent 55%);
+  background: color-mix(in oklch, var(--ink), transparent 55%);
 }

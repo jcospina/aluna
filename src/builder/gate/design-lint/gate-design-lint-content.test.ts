@@ -53,7 +53,6 @@ describe("design-lint record-content integrity", () => {
         form: { list_inputs: [] },
         item: { direction: "Show note text and pinned state.", shows: ["text", "pinned"] },
         collection: { layout: "feed" },
-        detail: { shows: ["text", "pinned"] },
       },
     });
     const partialComposition = [
@@ -98,7 +97,6 @@ function singleFieldSpec(name: string, type: "boolean" | "date" | "string[]"): C
       },
       item: { direction: `Present ${name} clearly.`, shows: [name] },
       collection: { layout: "feed" },
-      detail: { shows: [name] },
     },
   });
 }

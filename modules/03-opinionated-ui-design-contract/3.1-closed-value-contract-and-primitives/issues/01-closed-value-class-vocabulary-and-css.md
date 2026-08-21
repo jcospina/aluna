@@ -11,7 +11,7 @@ Status: done
 
 Module 3 — Opinionated Capability UI · Epic 3.1 — Closed-value design contract +
 primitive vocabulary (`docs/modules.md` §3.1, ADR-0005 §4, PLAN decision 4:
-`modules/03-opinionated-ui-design-contract/PLAN.md`; seeds `docs/design-system.md`)
+`modules/03-opinionated-ui-design-contract/PLAN.md`; seeds `design/design-system.md`)
 
 ## What to build
 
@@ -46,7 +46,7 @@ long tail.
   only via `var(--space-*)`, border weight only via the thin/regular/thick
   border tokens. Properties outside those axes are free;
   radius/shadow/motion tokens are preferred where they fit.
-- Seed the vocabulary and the contract into `docs/design-system.md` as the single
+- Seed the vocabulary and the contract into `design/design-system.md` as the single
   source the runtime enforcer (3.1/02), the injection gallery (3.5), and the
   design-lint rung (3.6) all reference. The contract states what is allowed (the
   classes; token-disciplined `style`) and what is forbidden absolutely:
@@ -65,7 +65,7 @@ long tail.
       appear in the primitive CSS
 - [x] The thin/regular/thick border-weight tokens exist in the token layer and
       the primitives/contract reference them
-- [x] `docs/design-system.md` gains the vocabulary + the closed-value contract
+- [x] `design/design-system.md` gains the vocabulary + the closed-value contract
       (allowed classes; the token-discipline rules for the inline-`style` escape
       hatch; forbidden constructs enumerated)
 - [x] The escape-hatch rules name the five token-owned axes (color, font family,
@@ -86,7 +86,7 @@ Done 2026-07-01. Decisions confirmed with the user: border scale **1 / 2 / 3 px*
 vocabulary naming **Tailwind-style utilities + semantic primitives**; button
 variants activate the **full palette**.
 
-- **Border-weight tokens** (`public/css/tokens.css`): `--border-thin:1px ·
+- **Border-weight tokens** (`design/styles/tokens.css`): `--border-thin:1px ·
   --border-regular:2px · --border-thick:3px`, turned down from the heavier 2/4px
   typical of neobrutalism;
   `--border-width` aliased to `--border-thin` so authored chrome is unchanged.
@@ -97,7 +97,7 @@ variants activate the **full palette**.
   (`.text-{xs,sm,lg,xl,bold,muted,subtle}`); truncation
   (`.truncate`/`.line-clamp-{2,3}`); media frame (`.media-frame{,--square,--wide}`).
   Every class consumes tokens; the only literals are arrangement/structure.
-- **Closed-value contract** seeded into `docs/design-system.md`: the allow-list
+- **Closed-value contract** seeded into `design/design-system.md`: the allow-list
   table, the inline-`style` escape-hatch axis table (the five owned axes + their
   tokens), and the absolute bans. This is the single source the runtime enforcer
   (3.1/02) and the design-lint rung (3.6) key on.
@@ -117,7 +117,7 @@ variants activate the **full palette**.
 
 ## Verification
 
-- `bunx biome check public/css/*.css public/*.html docs/design-system.md` — clean.
+- `bunx biome check public/css/*.css public/*.html design/design-system.md` — clean.
 - `bun run dev`, then `curl -sf` on `/static/app.css`, `/static/css/primitives.css`,
   `/static/css/components.css`, `/static/primitives-preview.html` — all `200`;
   `app.css` imports both new layers.

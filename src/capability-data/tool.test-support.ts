@@ -45,7 +45,6 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
       form: { list_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
-      detail: { shows: ["text"] },
     },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
@@ -93,7 +92,6 @@ export function recipesSpec(): CapabilitySpec {
         shows: ["title"],
       },
       collection: { layout: "feed" },
-      detail: { shows: ["title"] },
     },
     behavioral_errors: [
       { action: "create", ...requiredError },
@@ -138,7 +136,6 @@ export function requirednessSpec(): CapabilitySpec {
       form: { list_inputs: [] },
       item: { direction: "Show the entry and its count.", shows: ["title", "count"] },
       collection: { layout: "feed" },
-      detail: { shows: ["title", "count", "enabled", "due_on", "happens_at", "note"] },
     },
     behavioral_errors: [
       { action: "create", ...requiredError },
@@ -176,7 +173,6 @@ export function stringListSpec(): CapabilitySpec {
       },
       item: { direction: "Show tags in their submitted order.", shows: ["tags"] },
       collection: { layout: "feed" },
-      detail: { shows: ["tags", "aliases"] },
     },
     behavioral_errors: [
       { action: "create", ...requiredError },

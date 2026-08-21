@@ -10,6 +10,10 @@ const PLATFORM_DATA_TABLES = [
   "capability_registry",
   "generation_metrics",
   "generation_lifecycle_metrics",
+  "intent_resolution_metrics",
+  // Pre-4.9 databases may still carry the retired standalone tombstone store.
+  // Clearing it keeps reset genuinely corpus-free across supported local histories.
+  "capability_deletion_tombstones",
   "event_log",
   // Both halves of the Event Log store, or a reset leaves ownership rows pointing at
   // event ids that no longer exist. Neither table exists until M7 installs them (the

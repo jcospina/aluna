@@ -46,7 +46,6 @@ function mutationSpec(): CapabilitySpec {
       form: { list_inputs: [{ field: "tags", mode: "comma_separated" }] },
       item: { direction: "A text-forward note.", shows: ["title", "tags"] },
       collection: { layout: "feed" },
-      detail: { shows: ["title", "note", "pinned", "tags"] },
     },
     behavior: "A title is required.",
     behavioral_errors: [

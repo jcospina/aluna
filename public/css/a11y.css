@@ -6,14 +6,9 @@
 
 /* Visible focus ring (accent) on every interactive element, keyboard only. */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
-/* The field manages its own accent ring on :focus; avoid doubling it up. */
-.prompt__field:focus-visible {
-  outline: none;
-}
-
 /* Reduced motion: no press translate, no slide — collapse/drawer switch
    instantly, with a calm static fallback. */
 @media (prefers-reduced-motion: reduce) {

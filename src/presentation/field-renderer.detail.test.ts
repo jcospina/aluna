@@ -1,6 +1,6 @@
 // Detail-display half of the field-renderer suite: read-only formatting
-// per pantry type, the data-safety escaping invariants, and ui_intent.detail.shows
-// selection/order. Create-form coverage lives in field-renderer.test.ts; shared
+// per pantry type, the data-safety escaping invariants, and active schema-field
+// order. Create-form coverage lives in field-renderer.test.ts; shared
 // fixtures live in field-renderer.test-support.ts.
 
 import { describe, expect, test } from "bun:test";
@@ -108,7 +108,7 @@ describe("detail display — one formatting per pantry type — scalar and datet
   });
 });
 
-describe("detail display — one formatting per pantry type — lists, empties, and created_at", () => {
+describe("detail display — one formatting per pantry type — lists and empties", () => {
   test("string[] values render as an escaped ordered list; null and [] render empty", () => {
     const field: SpecField = {
       name: "tags",
@@ -161,18 +161,13 @@ describe("detail display — one formatting per pantry type — lists, empties, 
     expect(detail).toContain("—");
   });
 
-  test("renders the immutable created_at descriptor only when detail intent names it", () => {
-    const capability: RenderableCapability = {
-      ...SAMPLE,
-      detail: { shows: ["created_at", "title"] },
-    };
-    const detail = renderDetailFields(capability, {
+  test("does not add the platform created_at column to the form-derived detail surface", () => {
+    const detail = renderDetailFields(SAMPLE, {
       created_at: "2026-07-14T10:30:00.000Z",
       title: "Visible",
     });
-    expect(detail).toContain(">Created</dt>");
-    expect(detail).toContain('<time datetime="2026-07-14T10:30:00.000Z">2026-07-14 10:30</time>');
-    expect(renderCreateForm(capability)).not.toContain("created_at");
+    expect(detail).not.toContain(">Created</dt>");
+    expect(renderCreateForm(SAMPLE)).not.toContain("created_at");
   });
 });
 
@@ -208,7 +203,7 @@ describe("detail display — hostile record data cannot become markup", () => {
   });
 });
 
-describe("detail display — honors ui_intent.detail.shows (fields + order)", () => {
+describe("detail display — follows active form-field order", () => {
   const RECORD = {
     title: "Buy oat milk",
     priority: 2,
@@ -217,7 +212,7 @@ describe("detail display — honors ui_intent.detail.shows (fields + order)", ()
     note: "later",
   };
 
-  test("without detail.shows, renders every field in spec order (the fallback)", () => {
+  test("renders every active field in schema order", () => {
     const detail = renderDetailFields(SAMPLE, RECORD);
     const order = ["Title", "Priority", "Done", "Due date", "Note"];
     const positions = order.map((label) => detail.indexOf(`>${label}</dt>`));
@@ -225,24 +220,7 @@ describe("detail display — honors ui_intent.detail.shows (fields + order)", ()
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
 
-  test("shows exactly the named fields, in the named order — dropping the rest", () => {
-    const scoped: RenderableCapability = {
-      ...SAMPLE,
-      detail: { shows: ["note", "title", "done"] },
-    };
-    const detail = renderDetailFields(scoped, RECORD);
-
-    const shown = ["Note", "Title", "Done"].map((label) => detail.indexOf(`>${label}</dt>`));
-    expect(shown.every((p) => p >= 0)).toBe(true);
-    expect(shown).toEqual([...shown].sort((a, b) => a - b));
-
-    for (const dropped of ["Priority", "Due date"]) {
-      expect(detail).not.toContain(`>${dropped}</dt>`);
-    }
-    expect([...detail.matchAll(/<dt class="detail-field__label">/g)]).toHaveLength(3);
-  });
-
-  test("inactive stored values never render, even in a defensive hand-built detail list", () => {
+  test("inactive stored values never render", () => {
     const capability: RenderableCapability = {
       id: "probe",
       label: "Probe",
@@ -260,7 +238,6 @@ describe("detail display — honors ui_intent.detail.shows (fields + order)", ()
       },
       form: { list_inputs: [] },
       actions: ["create", "read"],
-      detail: { shows: ["title", "retired_note"] },
     };
     const detail = renderDetailFields(capability, {
       title: "Visible",
@@ -269,23 +246,5 @@ describe("detail display — honors ui_intent.detail.shows (fields + order)", ()
     expect(detail).toContain("Visible");
     expect(detail).not.toContain("Retired note");
     expect(detail).not.toContain("still stored");
-  });
-
-  test("an empty detail.shows falls back to spec order rather than an empty <dl>", () => {
-    // Spec validation forbids an empty shows, so this only guards a hand-built capability;
-    // it renders the whole record rather than nothing.
-    const empty: RenderableCapability = { ...SAMPLE, detail: { shows: [] } };
-    expect(renderDetailFields(empty, RECORD)).toBe(renderDetailFields(SAMPLE, RECORD));
-  });
-
-  test("a detail.shows naming an unknown field skips it (defensive), keeps the known ones", () => {
-    const scoped: RenderableCapability = {
-      ...SAMPLE,
-      detail: { shows: ["title", "ghost", "done"] },
-    };
-    const detail = renderDetailFields(scoped, RECORD);
-    expect(detail).toContain(">Title</dt>");
-    expect(detail).toContain(">Done</dt>");
-    expect([...detail.matchAll(/<dt class="detail-field__label">/g)]).toHaveLength(2);
   });
 });

@@ -11,7 +11,6 @@ const UI_CHANGE_FACTS = new Set([
   "capability_label",
   "field_label",
   "list_input_mode",
-  "detail_shows",
   "item_presentation",
   "collection_layout",
 ]);

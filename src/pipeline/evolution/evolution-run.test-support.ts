@@ -442,8 +442,8 @@ export const DUE_DATE_FIELD = {
 
 /**
  * The tracer's candidate: "add a due date to my notes and make it stand out in the list".
- * A nullable new field, the item's presentation dependency and design direction, the
- * detail order, and the behavior sentence that describes it — a genuinely multi-fact
+ * A nullable new field, the item's presentation dependency and design direction, and
+ * the behavior sentence that describes it — a genuinely multi-fact
  * evolution whose free-text `behavior` change pulls in decision 22's all-Handler fallback.
  */
 export function dueDateCandidate(): CapabilitySpec {
@@ -456,7 +456,6 @@ export function dueDateCandidate(): CapabilitySpec {
         direction: "A text-forward card whose due date stands out as a prominent badge.",
         shows: ["text", "due_date"],
       },
-      detail: { shows: ["text", "due_date"] },
     },
     behavior:
       "Text is required. A due date is optional. Newest notes appear first, and a note " +

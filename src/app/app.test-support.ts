@@ -229,7 +229,6 @@ export const NOTES_SPEC = {
     form: { list_inputs: [] },
     item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
     collection: { layout: "feed" },
-    detail: { shows: ["text"] },
   },
   behavior: "Text is required. Newest notes appear first.",
   behavioral_errors: [

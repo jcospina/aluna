@@ -89,7 +89,6 @@ export function buildGatePresent(spec: CapabilitySpec, itemRenderer: string): Pr
     form: spec.ui_intent.form,
     actions: spec.tools,
     item: spec.ui_intent.item,
-    detail: spec.ui_intent.detail,
   };
   const renderItem = loadItemRenderer(itemRenderer);
   const marked: ItemRenderer = (record) => {

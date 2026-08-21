@@ -76,7 +76,7 @@ added (ADR-0005 §3).
   HITL preview: the real shared modal + real controller, opened by **dev triggers**
   (full / sparse / hostile / long records) that fire the same `aluna:open-detail`
   event 3.3/02 will fire from item clicks.
-- `docs/design-system.md` — new "Shared read-only detail modal (Module 3 · epic
+- `design/design-system.md` — new "Shared read-only detail modal (Module 3 · epic
   3.2/04)" section (native-dialog mechanics, the three close paths, prefill without a
   read-single route).
 

@@ -1,48 +1,46 @@
 /* =============================================================================
    Components — platform button variants (the palette's accent roles, activated)
    Platform CHROME, not the item vocabulary: the closed-value contract forbids
-   interactive descendants inside generated item markup (docs/design-system.md),
+   interactive descendants inside generated item markup (design/design-system.md),
    so the item renderer never emits a button — these power platform affordances
    (the "New X", Save, and Delete controls of epics 3.2 / M4). Treatment follows
    the established Aluna button (.prompt__submit, .sidebar-toggle): surface-weight
    press, a thin ink-tinted edge, gentle down-right travel. Text color per fill
-   is WCAG-AA verified — ink on the light fills, the near-white
-   --color-text-on-secondary on the dark deep-blue.
+   is WCAG-AA verified: a light label on the dark primary, ink on light fills.
    ========================================================================== */
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-0_5);
+  gap: var(--space-1);
   padding: var(--space-1) var(--space-2);
-  font: var(--body-emph);
-  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--type-base);
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--ink);
   text-decoration: none;
-  background: var(--color-surface);
-  border: var(--border-thin) solid var(--color-border);
-  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
   cursor: pointer;
   transition:
-    transform var(--duration-fast) var(--ease-pop),
-    box-shadow var(--duration-fast) var(--ease-pop);
+    transform var(--dur-fast) var(--ease-rise),
+    box-shadow var(--dur-fast) var(--ease-rise);
 }
 /* Gentle press — tactile but quiet, identical to the shell buttons. */
 .btn:hover {
   transform: translate(1px, 1px);
-  box-shadow: var(--shadow-sm);
 }
 .btn:active {
   transform: translate(2px, 2px);
-  box-shadow: var(--shadow-none);
 }
 .btn:disabled {
   cursor: default;
-  color: var(--color-text-subtle);
-  background: var(--color-surface);
-  border-color: var(--color-border);
+  color: var(--ink-3);
+  background: var(--surface);
+  border-color: var(--ink);
   transform: none;
-  box-shadow: var(--shadow-none);
 }
 
 /* ── Color variants ──────────────────────────────────────────────────────────
@@ -50,40 +48,40 @@
    ink) so the button stays defined against the paper page without a loud border.
    The text color on each fill is the AA-legible one measured for that fill. */
 .btn--primary {
-  color: var(--color-text);
-  background: var(--color-accent);
-  border-color: color-mix(in oklch, var(--color-accent), var(--color-text) 25%);
+  color: var(--surface);
+  background: var(--shade);
+  border-color: color-mix(in oklch, var(--shade), var(--ink) 25%);
 }
 .btn--secondary {
-  color: var(--color-text-on-secondary);
-  background: var(--color-accent-secondary);
-  border-color: color-mix(in oklch, var(--color-accent-secondary), var(--color-text) 25%);
+  color: var(--ink);
+  background: var(--leaf);
+  border-color: color-mix(in oklch, var(--leaf), var(--ink) 25%);
 }
 .btn--info {
-  color: var(--color-text);
-  background: var(--color-info);
-  border-color: color-mix(in oklch, var(--color-info), var(--color-text) 25%);
+  color: var(--ink);
+  background: var(--sky);
+  border-color: color-mix(in oklch, var(--sky), var(--ink) 25%);
 }
 .btn--feature {
-  color: var(--color-text);
-  background: var(--color-feature);
-  border-color: color-mix(in oklch, var(--color-feature), var(--color-text) 25%);
+  color: var(--ink);
+  background: var(--clay);
+  border-color: color-mix(in oklch, var(--clay), var(--ink) 25%);
 }
 .btn--warm {
-  color: var(--color-text);
-  background: var(--color-warm);
-  border-color: color-mix(in oklch, var(--color-warm), var(--color-text) 25%);
+  color: var(--ink);
+  background: var(--sun);
+  border-color: color-mix(in oklch, var(--sun), var(--ink) 25%);
 }
 .btn--danger {
-  color: var(--color-text-on-danger);
-  background: var(--color-danger);
-  border-color: color-mix(in oklch, var(--color-danger), var(--color-text) 25%);
+  color: var(--surface);
+  background: var(--signal);
+  border-color: color-mix(in oklch, var(--signal), var(--ink) 25%);
 }
 /* Neutral — the surface-weight default (same treatment as today's buttons). */
 .btn--neutral {
-  color: var(--color-text);
-  background: var(--color-surface);
-  border-color: var(--color-border);
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--ink);
 }
 /* Ghost — no fill until hovered; for tertiary actions that shouldn't compete. */
 .btn--ghost {
@@ -91,6 +89,6 @@
   border-color: transparent;
 }
 .btn--ghost:hover {
-  background: var(--color-surface);
-  border-color: var(--color-border);
+  background: var(--surface);
+  border-color: var(--ink);
 }

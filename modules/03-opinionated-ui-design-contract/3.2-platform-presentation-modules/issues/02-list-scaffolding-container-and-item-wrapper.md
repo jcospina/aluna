@@ -79,7 +79,7 @@ Before 3.3/01 lands, default the layout to `feed` (PLAN decision 5).
   HITL preview: a **hand-written** item renderer → runtime enforcer → wrapper →
   container in **feed and grid**, plus the empty state and a click-to-open payload
   stand-in for the 3.2/04 modal.
-- `docs/design-system.md` — new "Collection layout + item wrapper (Module 3 · epic
+- `design/design-system.md` — new "Collection layout + item wrapper (Module 3 · epic
   3.2/02)" section (the closed-layout table, the data-free container, the wrapper's
   payload/enforcement boundary).
 

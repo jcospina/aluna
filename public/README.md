@@ -7,11 +7,10 @@ prefix (see `src/app/app.ts`). A request to `/static/<file>` is served from
 Contents:
 
 - `index.html` — the fixed shell (served at `/`, not under `/static`).
-- `app.css` — the shell's authored styles: semantic tokens + Paper & Ink style
-  (see `docs/design-system.md`).
+- `app.css` — temporary integration styles that keep the pre-Desk shell
+  functional on the shipped High Meadow layer (see `design/design-system.md`).
 - `app.js` — authored shell glue (the Alpine `shell` component). Plain JS with
   `// @ts-check` + JSDoc, served verbatim — no build step.
-- `fonts/` — vendored Outfit variable woff2 + its OFL license.
 - `vendor/` — pinned third-party libs, committed verbatim: HTMX (`htmx.min.js`,
   2.0.10), the HTMX SSE extension (`htmx-ext-sse.min.js`, 2.2.4 — drives the
   per-build SSE swaps, ADR-0002), and Alpine (`alpine.min.js`).
@@ -19,3 +18,6 @@ Contents:
 Unlike `capabilities/`, `storage/`, and `data/` — which hold runtime-generated
 artifacts and are git-ignored — `public/` holds **authored** assets and is
 tracked in version control.
+
+High Meadow itself is served directly from `design/` under `/design/*`, including
+the sole token layer, Fraunces/Outfit font files, and meadow wallpaper.

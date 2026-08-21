@@ -56,7 +56,6 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         shows: ["text", "pinned"],
       },
       collection: { layout: "feed" },
-      detail: { shows: ["text", "pinned"] },
     },
     behavior: "Text is required. Newest notes appear first.",
     behavioral_errors: [
@@ -151,7 +150,6 @@ function projectedContextFixture(): {
       form: { list_inputs: [{ field: "tags", mode: "comma_separated" }] },
       item: { direction: "Show the note.", shows: ["text", "tags"] },
       collection: { layout: "feed" },
-      detail: { shows: ["text", "tags", "score"] },
     },
   });
   const spec = {
@@ -189,7 +187,6 @@ function projectedContextFixture(): {
       form: { list_inputs: [] },
       item: { direction: "Show public text.", shows: ["public_text"] },
       collection: { layout: "feed" },
-      detail: { shows: ["public_text"] },
     },
     behavioral_errors: [],
   });
@@ -868,7 +865,7 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
     expect(feedPrompt).toContain("Media-forward grid tile");
     expect(feedPrompt).toContain("Compact metadata row");
     expect(feedPrompt).toContain('style="grid-template-columns');
-    expect(feedPrompt).toContain("border: var(--border-thin) solid var(--color-border)");
+    expect(feedPrompt).toContain("border: var(--line) solid var(--ink)");
 
     const gridPrompt = buildUnitPrompt(
       notesSpec({ ui_intent: { ...notesSpec().ui_intent, collection: { layout: "grid" } } }),
@@ -906,7 +903,6 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
           shows: ["text", "created_at"],
         },
         collection: { layout: "feed" },
-        detail: { shows: ["text", "note", "created_at"] },
       },
       behavioral_errors: [
         {
@@ -984,9 +980,7 @@ describe("unit generation with bounded fix loop — read, few-shot, and present-
       FEW_SHOT_DESIGN_EXAMPLES.some((example) => example.rendererSource.includes("style=")),
     ).toBe(true);
     expect(
-      FEW_SHOT_DESIGN_EXAMPLES.some((example) =>
-        example.rendererSource.includes("var(--border-thin)"),
-      ),
+      FEW_SHOT_DESIGN_EXAMPLES.some((example) => example.rendererSource.includes("var(--line)")),
     ).toBe(true);
     expect(
       FEW_SHOT_DESIGN_EXAMPLES.every((example) =>
@@ -1037,7 +1031,6 @@ describe("unit generation with bounded fix loop — dependency projection", () =
       ui_intent: {
         ...base.ui_intent,
         item: { ...base.ui_intent.item, shows: ["title"] },
-        detail: { shows: ["title"] },
       },
       behavioral_errors: [
         {
