@@ -859,7 +859,14 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
     // The closed primitive vocabulary is injected (single source of truth).
     expect(feedPrompt).toContain("Injected design contract and few-shot gallery");
     expect(feedPrompt).toContain("line-clamp-2");
-    expect(feedPrompt).toContain("var(--space-*)");
+    // The three closed axes are enumerated by name, not by a `--space-*` wildcard: High
+    // Meadow's colour family has no shared prefix to wildcard, so the model is handed the
+    // sets themselves.
+    expect(feedPrompt).toContain("Three axes are closed");
+    expect(feedPrompt).toContain("var(--space-1), var(--space-2)");
+    expect(feedPrompt).toContain("var(--ink), var(--ink-2)");
+    expect(feedPrompt).toContain("var(--type-xs), var(--type-sm)");
+    expect(feedPrompt).toContain("Three properties are never declared at all");
     expect(feedPrompt).toContain("Few-shot gallery. Vary, don't copy");
     expect(feedPrompt).toContain("Text-forward note card");
     expect(feedPrompt).toContain("Media-forward grid tile");

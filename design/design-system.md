@@ -92,7 +92,17 @@ three-pass `text-shadow` treatment for type read directly from the wallpaper, ne
 an inline-style or generated-markup option.
 
 Outside those three axes and these four properties, inline `style` is free:
-arrangement, alignment, aspect ratio, width and the rest.
+arrangement, alignment, aspect ratio, width and the rest. Two rules follow the
+shadow's reasoning rather than its property name: `text-shadow` and
+`filter: drop-shadow(...)` cast the same shadow and go the same way, and `all` is
+out because resetting the surface's inheritance is how the face, the colour and
+the metrics above would be undone.
+
+Three of the four bans are enforced today. `border` is not yet: the ink system
+takes over generated boundaries in epic 5.2, and until it does, a generated card
+with neither a border nor a drawn line would be invisible — so the gate still
+accepts `border` at the one weight, and the generation prompt still teaches it.
+Write new UI to the rule above; the gate catching up is the only thing outstanding.
 
 ### Banned outright
 
@@ -103,7 +113,11 @@ arrangement, alignment, aspect ratio, width and the rest.
 - `<script>`, and `on*=` handlers.
 - A user field value interpolated into markup unescaped, or into a `style`
   attribute at all. Styles are literal in the renderer source.
-- `url(...)` inside `style`, and any `position` that escapes the item's bounds.
+- A resource loaded from inside `style` — `url(...)` and every function beside it that
+  fetches or synthesizes one.
+- Anything that takes a record out of its own bounds: a `position` that escapes them,
+  and equally `transform`, `translate`, `scale` and `zoom`. Offsets are lengths and
+  name a spacing token like any other.
 
 Two enforcers catch these. The design-lint gate rung fails the build closed, and
 the allow-list enforcer the presentation adapter applies to every record catches

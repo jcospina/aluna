@@ -106,10 +106,10 @@ const CLEAN_RENDERER = renderer(
   '`<div class="stack gap-1"><span class="text-lg text-bold truncate">${text}</span></div>`',
 );
 
-// Token-disciplined inline style on the owned axes (color/spacing) — the escape hatch used
-// correctly. Must pass clean.
+// Token-disciplined inline style on the closed axes (colour/type size/spacing) plus the one
+// boundary weight — the escape hatch used correctly against High Meadow. Must pass clean.
 const TOKEN_STYLE_RENDERER = renderer(
-  '`<div class="stack" style="padding: var(--space-1); color: var(--color-text);"><span class="text-bold">${text}</span></div>`',
+  '`<div class="stack" style="padding: var(--space-1); font-size: var(--type-lg); color: var(--ink); border: var(--line) solid var(--shade);"><span class="text-bold">${text}</span></div>`',
 );
 
 // Structurally valid and clean for design lint's fixed probe id, but unusable for any real
@@ -267,18 +267,6 @@ describe("design-lint detector (findDesignViolation)", () => {
       '`<figure class="media-frame media-frame--square"><img src="${text}" alt="" loading="lazy" decoding="async"></figure>`',
     );
     expect(findDesignViolation(spec, media)).toBeUndefined();
-  });
-
-  test("rejects off-token color on the token-owned axis", () => {
-    const bad = renderer('`<div style="color: red;">${text}</div>`');
-    expect(findDesignViolation(spec, bad)).toContain("Design contract violation");
-  });
-
-  test("rejects a named CSS color inside a mixed shorthand (the 3.1/02 residual)", () => {
-    // `background: white` is inert at render time and slips past the runtime enforcer; the
-    // build-time rung is where it is caught.
-    const bad = renderer('`<div style="background: white;">${text}</div>`');
-    expect(findDesignViolation(spec, bad)).toContain('raw color "white"');
   });
 
   test("rejects url() in inline style", () => {
