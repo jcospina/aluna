@@ -1,19 +1,25 @@
 // The design-lint rung: the Gate's last, always-on verdict. It renders the generated item
 // renderer with **synthetic and hostile** field values, within the capability's declared
 // collection layout, and rejects anything outside the closed-value design contract —
-// off-token styling on the token-owned axes (color/font/type/spacing/border), forbidden
-// style constructs (`url(...)`, item-escaping position), field values interpolated into
-// `style`, fabricated classes, executable markup, and unsafe field interpolation.
+// off-token styling on the three closed axes (colour/type size/spacing, plus the interim
+// border weight), the three never-declared properties (font family, `border-radius`,
+// `box-shadow`), forbidden style constructs (`url(...)`, item-escaping position), field
+// values interpolated into `style`, fabricated classes, executable markup, and unsafe field
+// interpolation. The axes and the bans are High Meadow's, re-derived in epic 5.1 against
+// `design/styles/` — the token *names* come from `presentation/design-tokens.ts`, so this
+// rung restates neither a name nor a value.
 //
 // Detection reuses the *render-time* enforcer as the *build-time* rejecter: the
 // presentation adapter neutralizes off-contract markup on every rendered record, so a
 // renderer whose output the enforcer has to change emitted something off-contract. This
 // rung renders each probe record's inner markup and asks whether `enforceItemMarkup` left
-// it byte-identical; when it didn't, the difference *is* the violation. On top of that it
-// closes the one enforcer residual — a *named* CSS color inside a mixed shorthand
-// (`background: white`), inert at render time but still off-token — with a build-time
-// raw-color scan. Controlled benign contrasts also prove every declared item field affects
-// perceivable composition, which AST access alone cannot.
+// it byte-identical; when it didn't, the difference *is* the violation. Two build-time scans
+// run ahead of that diff so the refusal reads in the contract's own words rather than as a
+// before/after diff: the inline-style scan names the first off-contract declaration and the
+// set it should have picked from, and closes the one enforcer residual — a *named* CSS colour
+// inside a mixed shorthand (`background: white`), inert at render time but still off-token.
+// Controlled benign contrasts also prove every declared item field affects perceivable
+// composition, which AST access alone cannot.
 //
 // On a violation the item renderer re-enters the *same* bounded fix loop as the type-check
 // rung: regenerate with the precise failure fed back, re-validate the fresh unit's
@@ -25,9 +31,14 @@ import {
   collectionLayoutClass,
   createPlatformPresentationAdapter,
   enforceItemMarkup,
+  LINE_WEIGHT_TOKENS,
+  PALETTE_COLOR_TOKENS,
   type PresentableRecord,
   type RenderableCapability,
   renderCollection,
+  SPACING_TOKENS,
+  TYPE_SIZE_TOKENS,
+  tokenList,
 } from "../../../presentation/index.ts";
 import { isProviderAbortError, type Provider, type TokenUsage } from "../../../provider/index.ts";
 import type { CapabilitySpec, SpecField } from "../../../registry/index.ts";
@@ -45,6 +56,7 @@ import { normalizeGateAttempts } from "../gate-attempts.ts";
 import { errorMessage, loadItemRenderer } from "../gate-internal.ts";
 import { sumTokenUsages, TokenUsageAccumulator } from "../gate-token-usage.ts";
 import { observableItemRecordContent } from "./gate-item-content.ts";
+import { findInlineStyleViolation } from "./inline-style-scan.ts";
 
 /** The affected unit the rung regenerates on a violation — the one creative surface. */
 const ITEM_RENDERER_UNIT: UnitDescriptor = {
@@ -234,33 +246,9 @@ export function findDesignViolation(
   const rendered: { readonly probe: DesignProbe; readonly inner: string }[] = [];
 
   for (const probe of records) {
-    let inner: string;
-    try {
-      inner = renderItem(probe.record);
-    } catch (error) {
-      return offContractMessage(
-        `the renderer threw when composing a ${probe.label} record: ${errorMessage(error)}`,
-        probe,
-      );
-    }
-
-    const enforced = enforceItemMarkup(inner);
-    if (enforced !== inner) {
-      return offContractMessage(
-        `for a ${probe.label} record the platform enforcer had to neutralize the output, so the composition is off-contract.\nYour output:       ${clip(inner)}\nAfter enforcement: ${clip(enforced)}`,
-        probe,
-      );
-    }
-
-    const rawColor = findRawColorInStyle(inner);
-    if (rawColor) {
-      return offContractMessage(
-        `for a ${probe.label} record the inline style uses the raw color "${rawColor}". Colors on the token-owned axis must be \`var(--color-*)\` (or transparent/currentcolor) — never a named color, hex, or color function.`,
-        probe,
-      );
-    }
-
-    rendered.push({ probe, inner });
+    const outcome = reviewProbe(probe, renderItem);
+    if (outcome.violation) return outcome.violation;
+    rendered.push({ probe, inner: outcome.inner });
   }
 
   const contentViolation = findRecordContentViolation(spec, rendered);
@@ -282,6 +270,56 @@ export function findDesignViolation(
   }
 
   return undefined;
+}
+
+/**
+ * Review one probe's rendered markup. The declaration-level scans run first: they can name
+ * the axis or the ban a declaration broke, where the enforcer diff can only show a before
+ * and an after. Both read the *raw* attribute text, so an entity-encoded value slips past
+ * them — the enforcer diff is the backstop, because the parser decodes before
+ * `sanitizeStyle` sees the value.
+ */
+function reviewProbe(
+  probe: DesignProbe,
+  renderItem: (record: PresentableRecord) => string,
+): { readonly inner: string; readonly violation?: string } {
+  let inner: string;
+  try {
+    inner = renderItem(probe.record);
+  } catch (error) {
+    return {
+      inner: "",
+      violation: offContractMessage(
+        `the renderer threw when composing a ${probe.label} record: ${errorMessage(error)}`,
+        probe,
+      ),
+    };
+  }
+
+  const style = findInlineStyleViolation(inner);
+  if (style) {
+    const detail =
+      style.kind === "declaration"
+        ? `the inline style is off-contract: ${style.detail}`
+        : `the inline style uses the raw colour "${style.colour}". Colour is picked from the High Meadow palette and never written as a value — name one of ${tokenList(PALETTE_COLOR_TOKENS)} (or transparent/currentcolor), never a named colour, hex, or colour function.`;
+    return {
+      inner,
+      violation: offContractMessage(`for a ${probe.label} record ${detail}`, probe),
+    };
+  }
+
+  const enforced = enforceItemMarkup(inner);
+  if (enforced !== inner) {
+    return {
+      inner,
+      violation: offContractMessage(
+        `for a ${probe.label} record the platform enforcer had to neutralize the output, so the composition is off-contract.\nYour output:       ${clip(inner)}\nAfter enforcement: ${clip(enforced)}`,
+        probe,
+      ),
+    };
+  }
+
+  return { inner };
 }
 
 /** One probe fed through the renderer: a synthetic or hostile record and a human label. */
@@ -438,182 +476,6 @@ const HOSTILE_FIELD_VALUES: readonly string[] = [
   '\'"><iframe title="x"></iframe><b style="color: #ff0000">bad</b>',
 ];
 
-// ── Raw-color residual scan ────────────────────────────────────────────────────────────
-// The render-time enforcer drops raw hex and color-function values everywhere and rejects
-// named colors on the strict color-only properties, but a *named* color inside a mixed
-// shorthand (`background: white`, a named-color gradient/shadow) is inert yet still passes
-// it — the one documented residual the render-time enforcer hands to this rung. This scan closes
-// it: any CSS named color appearing as a standalone token in a `style` value is off-token.
-
-const STYLE_ATTR_PATTERN = /style\s*=\s*("([^"]*)"|'([^']*)')/gi;
-
-/** The standard CSS named colors. `transparent`/`currentcolor` are token-safe keywords and
- *  are deliberately absent, so they are never flagged. */
-const NAMED_CSS_COLORS: readonly string[] = [
-  "aliceblue",
-  "antiquewhite",
-  "aqua",
-  "aquamarine",
-  "azure",
-  "beige",
-  "bisque",
-  "black",
-  "blanchedalmond",
-  "blue",
-  "blueviolet",
-  "brown",
-  "burlywood",
-  "cadetblue",
-  "chartreuse",
-  "chocolate",
-  "coral",
-  "cornflowerblue",
-  "cornsilk",
-  "crimson",
-  "cyan",
-  "darkblue",
-  "darkcyan",
-  "darkgoldenrod",
-  "darkgray",
-  "darkgreen",
-  "darkgrey",
-  "darkkhaki",
-  "darkmagenta",
-  "darkolivegreen",
-  "darkorange",
-  "darkorchid",
-  "darkred",
-  "darksalmon",
-  "darkseagreen",
-  "darkslateblue",
-  "darkslategray",
-  "darkslategrey",
-  "darkturquoise",
-  "darkviolet",
-  "deeppink",
-  "deepskyblue",
-  "dimgray",
-  "dimgrey",
-  "dodgerblue",
-  "firebrick",
-  "floralwhite",
-  "forestgreen",
-  "fuchsia",
-  "gainsboro",
-  "ghostwhite",
-  "gold",
-  "goldenrod",
-  "gray",
-  "green",
-  "greenyellow",
-  "grey",
-  "honeydew",
-  "hotpink",
-  "indianred",
-  "indigo",
-  "ivory",
-  "khaki",
-  "lavender",
-  "lavenderblush",
-  "lawngreen",
-  "lemonchiffon",
-  "lightblue",
-  "lightcoral",
-  "lightcyan",
-  "lightgoldenrodyellow",
-  "lightgray",
-  "lightgreen",
-  "lightgrey",
-  "lightpink",
-  "lightsalmon",
-  "lightseagreen",
-  "lightskyblue",
-  "lightslategray",
-  "lightslategrey",
-  "lightsteelblue",
-  "lightyellow",
-  "lime",
-  "limegreen",
-  "linen",
-  "magenta",
-  "maroon",
-  "mediumaquamarine",
-  "mediumblue",
-  "mediumorchid",
-  "mediumpurple",
-  "mediumseagreen",
-  "mediumslateblue",
-  "mediumspringgreen",
-  "mediumturquoise",
-  "mediumvioletred",
-  "midnightblue",
-  "mintcream",
-  "mistyrose",
-  "moccasin",
-  "navajowhite",
-  "navy",
-  "oldlace",
-  "olive",
-  "olivedrab",
-  "orange",
-  "orangered",
-  "orchid",
-  "palegoldenrod",
-  "palegreen",
-  "paleturquoise",
-  "palevioletred",
-  "papayawhip",
-  "peachpuff",
-  "peru",
-  "pink",
-  "plum",
-  "powderblue",
-  "purple",
-  "rebeccapurple",
-  "red",
-  "rosybrown",
-  "royalblue",
-  "saddlebrown",
-  "salmon",
-  "sandybrown",
-  "seagreen",
-  "seashell",
-  "sienna",
-  "silver",
-  "skyblue",
-  "slateblue",
-  "slategray",
-  "slategrey",
-  "snow",
-  "springgreen",
-  "steelblue",
-  "tan",
-  "teal",
-  "thistle",
-  "tomato",
-  "turquoise",
-  "violet",
-  "wheat",
-  "white",
-  "whitesmoke",
-  "yellow",
-  "yellowgreen",
-];
-
-// A named color as a whole CSS token: not preceded or followed by a word char or hyphen, so
-// `var(--color-tan)` (preceded by `-`) and `whitesmoke` (not matched as `white`) are safe.
-const NAMED_COLOR_TOKEN = new RegExp(`(?<![\\w-])(?:${NAMED_CSS_COLORS.join("|")})(?![\\w-])`);
-
-/** Return the first raw CSS named color used in any `style` attribute, or `undefined`. */
-function findRawColorInStyle(markup: string): string | undefined {
-  for (const match of markup.matchAll(STYLE_ATTR_PATTERN)) {
-    const value = (match[2] ?? match[3] ?? "").toLowerCase();
-    const hit = NAMED_COLOR_TOKEN.exec(value);
-    if (hit) return hit[0];
-  }
-  return undefined;
-}
-
 // ── Small helpers ──────────────────────────────────────────────────────────────────────
 
 const MAX_MARKUP_IN_MESSAGE = 400;
@@ -636,7 +498,8 @@ function offContractMessage(detail: string, probe: DesignProbe): string {
     "- Make every field declared by `ui_intent.item.shows` affect perceivable text, media, or accessible content; empty containers and styling-only differences are not record composition.",
     "- Escape every record value before placing it in markup; never interpolate a field into a `style` attribute (styles must be literal).",
     "- Use only the allow-listed primitive classes — no fabricated class names.",
-    "- Inline `style` may set only token values on the owned axes: color `var(--color-*)`, spacing `var(--space-*)`, type scale `var(--type-*)`, border weight `var(--border-thin|--border-regular|--border-thick)`. No raw colors (named, hex, or color functions), no `url(...)`, no `position: fixed|absolute|sticky`.",
+    `- Inline \`style\` may set the three closed axes only by naming a High Meadow token: colour ${tokenList(PALETTE_COLOR_TOKENS)}; type size ${tokenList(TYPE_SIZE_TOKENS)}; spacing ${tokenList(SPACING_TOKENS)}. Every boundary weight is ${tokenList(LINE_WEIGHT_TOKENS)}. No raw colours (named, hex, or colour functions), no raw sizes, no \`url(...)\`, no \`position: fixed|absolute|sticky\`.`,
+    "- Never declare `font-family`, `border-radius`, or a shadow of any kind (`box-shadow`, `text-shadow`, `drop-shadow(...)`). An item inherits the face of the surface it sits on; every corner is mitred, so a square corner is the absence of a declaration; and nothing inside a window casts, so a shadow would be an invalid value that fails silently. `all` is out too — it resets that inheritance.",
     "- Emit no `<script>`, event handlers (`on*=`), links, buttons, inputs, or other interactive/unknown elements — the platform owns the wrapper, payload, and click-to-open.",
   ].join("\n");
 }

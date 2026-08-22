@@ -487,7 +487,11 @@ describe("GET / (shell) — stream close glue", () => {
   });
 });
 
-describe("the unregistered /demo/* inspection routes", () => {
+// The dev-only guard over the surviving `/demo/*` inspection routes. A
+// production bundle must not answer them, and that must be provable here rather than
+// resting on someone remembering to run `bun run build` — hence the guard reads the
+// environment per `createApp` call instead of freezing at import.
+describe("the dev-only guard on the remaining /demo/* inspection routes", () => {
   const previous = process.env.NODE_ENV;
   afterEach(() => {
     if (previous === undefined) delete process.env.NODE_ENV;
@@ -513,7 +517,6 @@ describe("the unregistered /demo/* inspection routes", () => {
       process.env.NODE_ENV = nodeEnv;
       const app = createApp();
       for (const path of [
-        "/demo/few-shot-gallery",
         "/demo/read-gates",
         "/demo/read-gates/state",
         "/demo/deletion-cleanup",

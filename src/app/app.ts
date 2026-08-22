@@ -5,13 +5,15 @@
 //
 // It serves the fixed shell page at `/`, static assets under /static/*, and the
 // production `/prompt` → `/build/:id/stream` build-job flow — the one admission path
-// for every build. No `/demo/*` surface is registered during the High Meadow gate
-// cutover; 5.1/02 will restore the design preview after re-deriving its contract.
+// for every build. The one surviving `/demo/*` surface — the few-shot design gallery,
+// restored in 5.1/02 now that the rung it previews is re-derived against High Meadow —
+// sits behind a single dev-only guard, so a production bundle does not answer it.
 
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { streamSSE } from "hono/streaming";
 import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
+import { renderFewShotGalleryPreviewPage } from "../builder/units/few-shot-gallery-preview.ts";
 import {
   type CapabilityDestructionFaults,
   createDeletionCleanupSupervisor,
@@ -59,6 +61,10 @@ import {
  * and free to be deleted under a green suite. `bun run build` defines NODE_ENV as
  * "production", so this still folds to `false` in the bundle.
  */
+function demoSurfacesEnabled(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
 /**
  * Dependencies the app is built with. Everything is injected (defaulting to the real
  * spine, db singletons, and tracked artifacts root) so the route wiring is testable
@@ -203,6 +209,25 @@ function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
 }
 
 /**
+ * The one surviving deterministic preview surface — no provider and no db. A demo is
+ * scaffolding: once the behavior it showed is built and covered by tests, it comes down.
+ * The gallery stays because it is the only place the *injected* item-renderer prompt
+ * section can be read; production shows the generated output, never the input.
+ */
+function registerPreviewDemoRoutes(app: Hono): void {
+  // Dev preview for the few-shot design gallery + item-renderer prompt injection
+  // — the HITL surface for inspecting the repo-only exemplars and the exact
+  // "vary, don't copy" prompt section. Deterministic, no provider, no db.
+  app.get(
+    "/demo/few-shot-gallery",
+    () =>
+      new Response(renderFewShotGalleryPreviewPage(), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }),
+  );
+}
+
+/**
  * The production build-job lifecycle: prompt submission and the per-build ephemeral
  * stream it hands back.
  */
@@ -338,6 +363,10 @@ export function createApp(deps: AppDeps = {}): Hono {
   registerShellRoute(app, ctx);
   registerBuildJobRoutes(app, ctx);
   registerCapabilityDeletionRoutes(app, ctx);
+
+  if (demoSurfacesEnabled()) {
+    registerPreviewDemoRoutes(app);
+  }
 
   // The deterministic capability router: the fixed
   // `/capability/:id/:action` convention the generated UI targets. It validates the

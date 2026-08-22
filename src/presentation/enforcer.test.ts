@@ -31,7 +31,7 @@ describe("enforcer — accept path", () => {
   });
 
   test("token-disciplined inline style passes through unchanged", () => {
-    const markup = '<div style="color: var(--color-accent); padding: var(--space-2)">x</div>';
+    const markup = '<div style="color: var(--leaf); padding: var(--space-2)">x</div>';
     expect(enforceItemMarkup(markup)).toBe(markup);
   });
 
@@ -78,8 +78,8 @@ describe("enforcer — off-token style on the owned axes", () => {
   });
 
   test("drops a hex color but keeps the conforming sibling declaration", () => {
-    expect(enforceItemMarkup('<div style="background:#fff;color:var(--color-text)">x</div>')).toBe(
-      '<div style="color:var(--color-text)">x</div>',
+    expect(enforceItemMarkup('<div style="background:#fff;color:var(--ink)">x</div>')).toBe(
+      '<div style="color:var(--ink)">x</div>',
     );
   });
 
@@ -102,13 +102,51 @@ describe("enforcer — off-token style on the owned axes", () => {
 
   test("drops a raw border and keeps a token one", () => {
     expect(enforceItemMarkup('<div style="border:2px solid red">x</div>')).toBe("<div>x</div>");
-    const ok = '<div style="border:var(--border-regular) solid var(--color-border)">x</div>';
+    const ok = '<div style="border:var(--line) solid var(--ink)">x</div>';
     expect(enforceItemMarkup(ok)).toBe(ok);
   });
 
   test("drops any font-family declaration (family is never declared)", () => {
     expect(enforceItemMarkup('<div style="font-family:Comic Sans">x</div>')).toBe("<div>x</div>");
     expect(enforceItemMarkup('<div style="font:italic 12px serif">x</div>')).toBe("<div>x</div>");
+  });
+
+  test("drops every border-radius form (High Meadow has no radius tokens)", () => {
+    expect(enforceItemMarkup('<div style="border-radius:8px">x</div>')).toBe("<div>x</div>");
+    expect(enforceItemMarkup('<div style="border-radius:0">x</div>')).toBe("<div>x</div>");
+    expect(enforceItemMarkup('<div style="border-top-left-radius:8px">x</div>')).toBe(
+      "<div>x</div>",
+    );
+    expect(enforceItemMarkup('<div style="border-start-end-radius:8px">x</div>')).toBe(
+      "<div>x</div>",
+    );
+    expect(enforceItemMarkup('<div style="-webkit-border-radius:8px">x</div>')).toBe(
+      "<div>x</div>",
+    );
+  });
+
+  test("drops box-shadow, including the silently-invalid token form", () => {
+    // `var(--shadow-window)` is `5 6 0.24` — a bare `<x> <y> <alpha>` triple, not a CSS
+    // shadow. It paints nothing and reports nothing, so the ban is what catches it.
+    expect(enforceItemMarkup('<div style="box-shadow:var(--shadow-window)">x</div>')).toBe(
+      "<div>x</div>",
+    );
+    expect(enforceItemMarkup('<div style="box-shadow:0 2px 4px var(--ink)">x</div>')).toBe(
+      "<div>x</div>",
+    );
+    expect(enforceItemMarkup('<div style="-webkit-box-shadow:0 0 2px var(--ink)">x</div>')).toBe(
+      "<div>x</div>",
+    );
+  });
+
+  test("drops a colour token that is not in the High Meadow palette", () => {
+    // The chrome-only colours are not the palette a record picks from, and the retired
+    // Paper & Ink `--color-*` vocabulary resolves to nothing at all.
+    expect(enforceItemMarkup('<div style="color:var(--color-text)">x</div>')).toBe("<div>x</div>");
+    expect(enforceItemMarkup('<div style="background-color:var(--pane-1)">x</div>')).toBe(
+      "<div>x</div>",
+    );
+    expect(enforceItemMarkup('<div style="color:var(--focus-ring)">x</div>')).toBe("<div>x</div>");
   });
 
   test("drops an inline custom-property definition (no laundering off-token values)", () => {
@@ -260,5 +298,39 @@ describe("enforcer — deterministic and dependency-free", () => {
   test("passes element-free text through untouched", () => {
     expect(enforceItemMarkup("just a plain field value")).toBe("just a plain field value");
     expect(enforceItemMarkup("")).toBe("");
+  });
+});
+
+describe("enforcer — a repeated attribute collapses to the copy a browser honours", () => {
+  test("a hostile duplicate cannot outlive the conforming first copy", () => {
+    // Before this, `removeAttribute` on the second copy deleted the *first*, leaving the
+    // hostile one standing — the enforcer turned an attribute the browser was ignoring into
+    // the live one, remote `url(...)` and `javascript:` src included.
+    expect(
+      enforceItemMarkup(
+        '<div style="color: var(--ink)" style="background-image: url(https://evil.example/x.png)">x</div>',
+      ),
+    ).toBe('<div style="color: var(--ink)">x</div>');
+    expect(
+      enforceItemMarkup('<div style="color: var(--ink)" style="position: fixed; top: 0">x</div>'),
+    ).toBe('<div style="color: var(--ink)">x</div>');
+    expect(enforceItemMarkup('<div class="stack" class="fabricated-danger">x</div>')).toBe(
+      '<div class="stack">x</div>',
+    );
+    expect(enforceItemMarkup('<img src="ok.png" src="javascript:alert(1)">')).toBe(
+      '<img src="ok.png">',
+    );
+  });
+
+  test("a duplicated first copy that is itself off-contract is still cleaned", () => {
+    expect(enforceItemMarkup('<div style="color: red" style="color: var(--ink)">x</div>')).toBe(
+      "<div>x</div>",
+    );
+    expect(enforceItemMarkup('<img src="javascript:alert(1)" src="ok.png">')).toBe("<img>");
+  });
+
+  test("markup with no repeated attribute is untouched", () => {
+    const markup = '<div class="stack" style="color: var(--ink)"><span>x</span></div>';
+    expect(enforceItemMarkup(markup)).toBe(markup);
   });
 });

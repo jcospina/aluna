@@ -6,8 +6,9 @@
 // into the record → safe wrapped item HTML the router injects into every Handler.
 //
 // The enforcer is the render-time safety half of the closed-value design contract; the
-// vocabulary it keys on is exported too, so the design-lint gate rung (3.6) can share the
-// one source of truth rather than re-list it.
+// vocabulary and the High Meadow token names it keys on are exported too, so the
+// design-lint gate rung (3.6, re-derived in 5.1) can share the one source of truth rather
+// than re-list it.
 
 export {
   createPlatformPresentationAdapter,
@@ -19,6 +20,14 @@ export {
   type PresentationAdapter,
   type PresentationAdapterOptions,
 } from "./adapter.ts";
+export {
+  isTokenFrom,
+  LINE_WEIGHT_TOKENS,
+  PALETTE_COLOR_TOKENS,
+  SPACING_TOKENS,
+  TYPE_SIZE_TOKENS,
+  tokenList,
+} from "./design-tokens.ts";
 export {
   DETAIL_MODAL_BODY_ID,
   DETAIL_MODAL_ID,
@@ -56,7 +65,7 @@ export {
   renderItemWrapper,
   serializeItemPayload,
 } from "./list-container.ts";
-export { sanitizeStyle } from "./style-discipline.ts";
+export { describeStyleViolation, sanitizeStyle } from "./style-discipline.ts";
 export {
   ALLOWED_CLASSES,
   ALLOWED_ELEMENTS,

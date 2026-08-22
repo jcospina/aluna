@@ -6,6 +6,13 @@
 // the capability's chosen collection layout. The preview route renders sample output
 // from this same data as a developer sign-off surface.
 
+import {
+  LINE_WEIGHT_TOKENS,
+  PALETTE_COLOR_TOKENS,
+  SPACING_TOKENS,
+  TYPE_SIZE_TOKENS,
+  tokenList,
+} from "../../presentation/design-tokens.ts";
 import { ALLOWED_CLASSES } from "../../presentation/vocabulary.ts";
 import type {
   FieldType,
@@ -145,7 +152,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
     composition:
       "Large square media frame, bold caption, and vivid metadata chips. The image owns the tile while the text still scans in a responsive grid.",
     notes: [
-      "Uses the media-frame primitive with tokenized border and shadow for stronger presence.",
+      "Uses the media-frame primitive with one tokenized boundary for presence — nothing inside a window casts a shadow.",
       "Escapes the image URL and text values before interpolation.",
     ],
     capability: {
@@ -324,7 +331,15 @@ export function buildItemRendererDesignInjection(layout: UiCollectionLayout): st
     "",
     "Inline style escape hatch:",
     "- Use inline `style` only when the primitive classes cannot express the composition.",
-    "- Color must use the named High Meadow palette tokens; font family is never declared; type scale must use `var(--type-*)`; spacing must use `var(--space-*)`; every component boundary uses `var(--line)`.",
+    "- Three axes are closed: name a High Meadow token, never write a value.",
+    `  - colour: ${tokenList(PALETTE_COLOR_TOKENS)}`,
+    `  - type size: ${tokenList(TYPE_SIZE_TOKENS)}`,
+    `  - spacing: ${tokenList(SPACING_TOKENS)}`,
+    "- Two palette colours carry a meaning as well as a value. `--ink` draws lines and sets type and is never a background or a fill; type at lower strengths is `--ink-2` and `--ink-3`. `--signal` is reserved for alerts and destructive confirmation, so an ordinary record never decorates itself with it.",
+    `- Every component boundary is one weight: ${tokenList(LINE_WEIGHT_TOKENS)}.`,
+    "- Three properties are never declared at all: `font-family` (an item inherits the face of the surface it sits on), `border-radius` (there are no radius tokens — every corner is mitred, and a square corner is the absence of a declaration) and `box-shadow` (nothing inside a window casts, and the shadow tokens are bare `<x> <y> <alpha>` numbers, so `box-shadow: var(--shadow-window)` is an invalid value that fails silently).",
+    "- The shadow rule is about the effect, not the property: `text-shadow`, `filter: drop-shadow(...)` and `-webkit-box-reflect` are out for the same reason. So is `all`, which would reset the inherited face and colour the surface supplies.",
+    "- The platform owns where a record sits: no `position: absolute|fixed|sticky`, no `transform`, `translate`, `scale` or `zoom`, and offsets like `top`/`left` name a spacing token like any other length.",
     "- Never put record values in a `style` attribute. Never use `url(...)`, `position: absolute`, `position: fixed`, event handlers, scripts, links, buttons, inputs, or custom classes.",
     "",
     `Chosen collection layout for this capability: "${layout}".`,

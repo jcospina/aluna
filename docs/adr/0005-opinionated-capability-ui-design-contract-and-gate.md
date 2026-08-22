@@ -223,7 +223,15 @@ presentational platform code is allowed.
    payload shrinks to an id without changing committed item composition.
 
 4. **A closed-value design contract, enforced by a new gate rung.** (Amended
-   2026-07-01.) Generated item markup reaches first for an allow-list of
+   2026-07-01. **The axis list in this paragraph is superseded**: the desktop-design
+   amendment above replaced the five axes with three plus four bans on 2026-08-20,
+   and that is what the Gate enforces. Read the rest of the paragraph — the
+   allow-listed classes, the escape hatch, the absolute security bans, the rung and
+   its bounded fix loop, *closed values, open composition* — as current; read the
+   parenthesised token names, the border-weight axis and the sentence about radius
+   and shadow tokens as the shape this decision had before High Meadow, kept because
+   the amendment is stated as a change to them.) Generated item markup reaches first
+   for an allow-list of
    semantic/primitive classes whose implementations consume the design tokens —
    the sensible defaults, including Tailwind-style layout utilities (flex, grid,
    alignment, gap) so common arrangement never needs `style` at all. That
