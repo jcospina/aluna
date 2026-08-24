@@ -101,7 +101,7 @@ carried it, the desk puts none anywhere else, and only the name is left.
    number and JavaScript reads it back. `design/` already works that way:
    `--prompt-clearance: 4.875rem` lives in `tokens.css` after decision 46's
    conversion, the logo grid's bottom edge
-   is `calc(20px + var(--prompt-clearance))`, and `desk-geometry.js` reads the
+   is `calc(1.25rem + var(--prompt-clearance))`, and `desk-geometry.js` reads the
    token at load rather than restating `78`, keeping the literal only as a
    fallback for a stylesheet that has not applied. The grid and every window stop
    on the same floor by construction. The shipped shell reserves no strip at all,

@@ -57,7 +57,7 @@
 }
 
 .records--grid {
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(11.25rem, 1fr));
 }
 
 .records__empty {
@@ -78,7 +78,7 @@
   width: 100%;
   border: var(--line) solid var(--ink);
   background: var(--surface-2);
-  padding: 8px 12px;
+  padding: 0.5rem 0.75rem;
   font: inherit;
   color: inherit;
   text-align: left;
@@ -102,12 +102,12 @@
 .record__title {
   display: block;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .record__detail {
-  margin: 1px 0 0;
-  font-size: 11px;
+  margin: 0.0625rem 0 0;
+  font-size: 0.6875rem;
   color: var(--ink-2);
 }
 
@@ -143,7 +143,7 @@
 .detail__back {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
   flex: none;
   padding: 0;
   border: 0;
@@ -160,12 +160,12 @@
 
 .detail__arrow {
   display: inline-flex;
-  translate: 0 1px;
+  translate: 0 0.0625rem;
 }
 
 .detail__title {
   min-width: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;

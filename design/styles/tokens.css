@@ -11,6 +11,37 @@
  *   - There is no dark theme. This palette is daylight and does not invert.
  */
 
+/*
+ * The four lengths `desk-geometry.js` reads. Registering them gives the browser
+ * a type to compute against, so `getComputedStyle` reports a resolved pixel
+ * value rather than handing back the rem literal written below — the script
+ * gets the number the layout is actually using, at whatever text size the
+ * reader has set. The initial values are never reached: `:root` sets all four.
+ */
+@property --prompt-clearance {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --window-min-w {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --window-min-h {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --window-edge {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 :root {
   color-scheme: light;
 
@@ -124,33 +155,56 @@
   --type-md: 1.06rem;
   --type-lg: 1.2rem;
   --type-xl: 1.5rem;
-  --type-title: 20px; /* window title — locked */
+  --type-title: 1.25rem; /* window title — locked */
   --type-display: clamp(2rem, 0.9rem + 3.9vw, 3.4rem);
 
   /* Small caps is a role, not a size: labels, counts, kickers. */
-  --caps-size: 10.5px;
+  --caps-size: 0.65625rem;
   --caps-tracking: 0.14em;
 
   /* ── Spacing ────────────────────────────────────────────────────────── */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 22px;
-  --space-6: 30px;
-  --space-7: 44px;
-  --space-8: 64px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.375rem;
+  --space-6: 1.875rem;
+  --space-7: 2.75rem;
+  --space-8: 4rem;
 
   /* ── The desk ───────────────────────────────────────────────────────── */
-  /* The strip the prompt bar reserves along the bottom. Nothing may be dragged,
-   * resized or laid out into it. The stylesheet owns this number; `desk.js`
-   * reads it back rather than restating it. */
-  --prompt-clearance: 78px;
+  /*
+   * The desk's geometry. The stylesheet owns every number here and
+   * `desk-geometry.js` reads it back rather than restating it — the four the
+   * script needs are registered as `<length>` at the top of this file, so the
+   * browser hands them over already resolved to pixels.
+   */
 
-  /* One logo's box on the ground: 4px padding, the 64px tile, a 7px gap, and a
-   * label that wraps to two 15px lines and no further. */
-  --logo-cell-w: 96px;
-  --logo-cell-h: 109px;
+  /* The strip the prompt bar reserves along the bottom. Nothing may be dragged,
+   * resized or laid out into it. */
+  --prompt-clearance: 4.875rem;
+
+  /* No window goes below this, at any size of screen. */
+  --window-min-w: 17.25rem;
+  --window-min-h: 11rem;
+
+  /* The inset a maximised window keeps on the other three sides. */
+  --window-edge: 1.125rem;
+
+  /*
+   * One logo's box on the ground, and the one place a length is part pixels and
+   * part rem — because what it contains is. The tile does not grow with the
+   * reader's text size and everything stacked with it does: the button's
+   * padding either side, the gap under the tile, and a label that wraps to two
+   * lines and no further.
+   *
+   * Stating the sum rather than its total is what keeps the track honest at
+   * every text size. `auto-fill` lays these out as fixed tracks, so a cell that
+   * was merely correct at 16px would clip a row at the small settings and waste
+   * a third of one at the large.
+   */
+  --logo-cell-w: max(6rem, calc(64px + var(--space-1) * 2));
+  --logo-cell-h: calc(64px + 2.8125rem);
 
   /* ── The focus ring ─────────────────────────────────────────────────── */
   /* Painted on the enclosing shell, with the inner control's own ring

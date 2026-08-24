@@ -99,6 +99,74 @@ describe("the closed axes name only tokens High Meadow declares", () => {
   });
 });
 
+/** The value `:root` declares for one token, or undefined if it declares none. */
+function declaredValue(name: string): string | undefined {
+  const match = TOKENS_CSS.match(new RegExp(`^\\s*--${name}\\s*:([^;]+);`, "im"));
+  return match?.[1]?.trim();
+}
+
+// The units rung. `design/design-system.md` §Spacing and units states the rule and no
+// values: layout and type are relative so browser text scaling grows the box along with
+// the text, and the drawing constants stay in pixels because scaling a hand-drawn line
+// changes the artwork rather than the fit. This pins that split to the stylesheet, so the
+// next token added to either side cannot quietly land in the wrong unit.
+describe("layout and type are relative; the drawing constants are not", () => {
+  test.each([...SPACING_TOKENS, ...TYPE_SIZE_TOKENS, "caps-size"])("--%s is relative", (name) => {
+    const value = declaredValue(name);
+    expect(value, `design/styles/tokens.css declares no --${name}`).toBeDefined();
+    expect(value).toContain("rem");
+    expect(value).not.toContain("px");
+  });
+
+  // The four `desk-geometry.js` reads. These must stay a single bare length: the
+  // script parses what `getComputedStyle` hands back, and a registered `<length>`
+  // resolves one term, not a sum.
+  test.each([
+    "prompt-clearance",
+    "window-min-w",
+    "window-min-h",
+    "window-edge",
+  ])("the desk's %s is one relative length", (name) => {
+    const value = declaredValue(name);
+    expect(value, `design/styles/tokens.css declares no --${name}`).toBeDefined();
+    expect(value).toMatch(/^[\d.]+rem$/);
+  });
+
+  // The logo cell is the exception and states a sum on purpose — the tile inside it
+  // is one of the drawing constants and stays in pixels, so a cell written as a
+  // pure rem literal is only the right size at a 16px root. It has to carry both.
+  test.each(["logo-cell-w", "logo-cell-h"])("the logo cell's %s carries both", (name) => {
+    const value = declaredValue(name);
+    expect(value, `design/styles/tokens.css declares no --${name}`).toBeDefined();
+    expect(value).toContain("rem");
+    expect(value).toContain("64px");
+  });
+
+  test("the line stays in pixels, every weight of it", () => {
+    const weights = [...DECLARED].filter((name) => name.startsWith("line"));
+    expect(weights.length).toBeGreaterThan(0);
+    for (const name of weights) {
+      expect(declaredValue(name), `--${name}`).toMatch(/^[\d.]+px$/);
+    }
+  });
+
+  // Not an exhaustive sweep for stray lengths — the sheet keeps a few in pixels on
+  // purpose (the gutter a drawn line overhangs into, the focus ring, the press offset).
+  // Type carries no such exception, so it can be checked outright.
+  test("no stylesheet sets a type size in pixels", () => {
+    for (const root of ["../../design/styles", "../../public/css"]) {
+      const sheets = new Bun.Glob("**/*.css").scanSync({
+        cwd: resolve(import.meta.dir, root),
+        absolute: true,
+      });
+      for (const sheet of sheets) {
+        const source = readFileSync(sheet, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        expect(source, sheet).not.toMatch(/font-size:\s*[\d.]+px/i);
+      }
+    }
+  });
+});
+
 describe("token helpers", () => {
   test("isTokenFrom accepts a bare var() and nothing else", () => {
     expect(isTokenFrom("var(--ink)", PALETTE_COLOR_TOKENS)).toBe(true);

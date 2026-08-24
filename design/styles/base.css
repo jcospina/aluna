@@ -28,7 +28,7 @@ body {
   background-color: var(--ground);
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 16.5px;
+  font-size: 1.03125rem;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
@@ -83,7 +83,7 @@ p:last-of-type {
 
 a {
   color: var(--signal);
-  text-underline-offset: 2px;
+  text-underline-offset: 0.125rem;
 }
 
 strong {
@@ -118,7 +118,7 @@ strong {
 
 .kicker {
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.2em;
@@ -127,7 +127,7 @@ strong {
 }
 
 .eyebrow {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.21em;
