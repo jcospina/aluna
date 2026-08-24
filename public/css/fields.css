@@ -3,7 +3,7 @@
    display, rendered deterministically from a spec by the centralized field
    renderer (src/presentation/field-renderer.ts, Module 3 · epic 3.2/01).
 
-   Platform CHROME, not the generated item vocabulary (public/css/primitives.css):
+   Platform CHROME, not the generated item vocabulary (design/styles/layout-kit.css):
    these style the platform-owned create/detail surfaces the "New X" button and the
    shared modal open, never markup the item renderer emits. Treatment follows the
    established Aluna field (.prompt__field, prompt.css) — surface fill, a 1px

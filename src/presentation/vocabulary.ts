@@ -1,9 +1,9 @@
 // The closed allow-list the runtime enforcer keys on — the *data* half of the
 // closed-value design contract. It mirrors the
 // vocabulary whose single source of truth is
-// design/design-system.md (classes) and public/css/primitives.css (their CSS). The
+// design/design-system.md (classes) and design/styles/layout-kit.css (their CSS). The
 // enforcer (enforcer.ts) and the design-lint gate rung (3.6) both key on these sets;
-// vocabulary.test.ts cross-checks ALLOWED_CLASSES against primitives.css so the two
+// vocabulary.test.ts cross-checks ALLOWED_CLASSES against the layout kit so the two
 // can never silently drift.
 //
 // *Closed values, open composition.* The closed thing is the design-value space (the
@@ -14,7 +14,7 @@
  * The closed set of semantic/primitive classes generated item markup may use. Any
  * `class` token outside this set is fabricated and gets dropped. Kept in the exact
  * lowercase form the CSS authored — class names are case-sensitive, so a mismatched
- * casing would not resolve against the primitives anyway.
+ * casing would not resolve against the layout kit anyway.
  */
 export const ALLOWED_CLASSES: ReadonlySet<string> = new Set([
   // Intra-item composition

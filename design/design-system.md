@@ -128,14 +128,16 @@ markup even after a build has passed.
 
 Generated screens already speak these names, and they keep them. The gate keys on
 this list; platform chrome is named by the stylesheets under `design/styles/`
-instead.
+instead. The kit itself ships as `design/styles/layout-kit.css`, imported by the
+manifest below the components so its utilities win where they apply.
 
 `.stack` flows a record's own fields top to bottom and `.cluster` puts them in a
 row that wraps, both with an on-token default gap. Under those sit the low-level
 knobs for the long tail of arrangement: `.flex`, `.grid`, `.flex-col`,
 `.flex-wrap`, the `.items-*` and `.justify-*` alignment classes, `.grid-cols-*`,
-`.grow` and `.w-full`. `.gap-*` maps one to one onto the spacing tokens and
-`.text-*` onto the type sizes, with `.text-bold`, `.text-muted` and `.text-subtle`
+`.grow` and `.w-full`. `.gap-*` maps onto the spacing tokens and
+`.text-*` onto the type sizes — `.gap-0_5` names a half step this scale does not
+have and resolves to the same first step as `.gap-1` — with `.text-bold`, `.text-muted` and `.text-subtle`
 for weight and secondary colour; body size is the inherited default and needs no
 class. `.truncate` holds a long value to one ellipsised line and `.line-clamp-*`
 to N lines. `.media-frame` is a ratio-locked, clipped box for an image or video

@@ -56,15 +56,16 @@ what visible behavior confirms the work.
 This repo holds a lot of documents, and reading them in the main session eats
 context fast. Send a subagent to read them instead, and have it report back the
 big picture plus the specific details you need. Keep the main session clear for
-the actual work.
-
-Send subagents to run quality and adversarial tests before the live test. Fix
+the actual work. Send subagents to run quality and adversarial tests before the live test. Fix
 every adversarial finding. An issue with an unfixed adversarial finding is not
 done.
 
 Choose the model and the number of subagents deliberately. Reading code and docs
 for a summary is cheap-model work (Sonnet for Claude, Terra for Codex). Harder
-tasks need a SOTA model, and adversarial testing always does.
-
-The main session always runs the most powerful model at the highest effort. No
+tasks need a SOTA model, and adversarial testing always does. The main session always runs the most powerful model at the highest effort. No
 subagent may run at settings higher than the main session.
+
+### Coding guidelines
+
+- There are hooks configured to run linter and formatter after every file edit. Never try to bypass them by adding exceptions to the rules stated there. 
+- Do not pollute the codebase with comments. Comments are useful to explain not obvious things or as JSDOC. Commenting every line, style or function just for the sake of commenting makes the code larger than it needs to be.

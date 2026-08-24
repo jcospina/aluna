@@ -10,13 +10,13 @@ import {
   REMOVED_ELEMENTS,
 } from "./vocabulary.ts";
 
-// design/design-system.md names the primitive vocabulary as the single source of truth, and
-// public/css/primitives.css is where those classes actually live. The enforcer hard-codes
+// design/design-system.md names the layout kit as the single source of truth, and
+// design/styles/layout-kit.css is where those classes actually live. The enforcer hard-codes
 // the allow-list (so render time stays dependency-free), so this test pins the two
 // together: if the CSS gains or loses a class, the allow-list must move with it.
 
-function classesDefinedInPrimitivesCss(): Set<string> {
-  const css = readFileSync(join(import.meta.dir, "../../public/css/primitives.css"), "utf8");
+function classesDefinedInLayoutKit(): Set<string> {
+  const css = readFileSync(join(import.meta.dir, "../../design/styles/layout-kit.css"), "utf8");
   const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const selectorsOnly = withoutComments.replace(/\{[^{}]*\}/g, " "); // drop declaration bodies
   const names = [...selectorsOnly.matchAll(/\.([a-z][\w-]*)/gi)]
@@ -26,8 +26,8 @@ function classesDefinedInPrimitivesCss(): Set<string> {
 }
 
 describe("class allow-list", () => {
-  test("matches exactly the classes defined in primitives.css", () => {
-    const fromCss = [...classesDefinedInPrimitivesCss()].sort();
+  test("matches exactly the classes defined in the layout kit", () => {
+    const fromCss = [...classesDefinedInLayoutKit()].sort();
     const fromAllowList = [...ALLOWED_CLASSES].sort();
     expect(fromAllowList).toEqual(fromCss);
   });

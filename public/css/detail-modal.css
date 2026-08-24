@@ -2,7 +2,7 @@
    Shared detail/edit modal — platform CHROME (Module 4 · epic 4.3/01).
    The one shared <dialog> every capability opens to show a single record in full
    (src/presentation/detail-modal.ts, renderDetailModal). Platform-owned, presentational
-   only — distinct from the generated item vocabulary (public/css/primitives.css).
+   only — distinct from the generated item vocabulary (design/styles/layout-kit.css).
 
    A native modal <dialog>: the browser supplies the focus trap, focus restore, Escape,
    and the ::backdrop, so there is nothing to script for those. Treatment is the

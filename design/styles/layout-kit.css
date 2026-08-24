@@ -1,29 +1,38 @@
-/* =============================================================================
-   Capability primitive vocabulary — the closed-value design contract (Module 3,
-   epic 3.1). This is the allow-list of semantic/primitive classes generated
-   *item renderer* markup reaches for first: sensible defaults for arranging one
-   record's own fields, on-brand by construction because every class consumes the
-   design tokens (design/styles/tokens.css) — no raw color/spacing/size literals.
-
-   *Closed values, open composition.* The closed thing is the design-VALUE space
-   (the tokens), never how an item arranges a record. This is deliberately NOT an
-   all-purpose CSS framework — rebuilding Tailwind is a non-goal. When the
-   vocabulary doesn't suffice, item markup may carry inline `style` under the
-   token-discipline rules in design/design-system.md (the escape hatch).
-
-   The single source of truth for the allow-list is design/design-system.md; the
-   runtime enforcer (3.1/02) and the design-lint gate rung (3.6) both key on the
-   vocabulary authored here. Loaded late in app.css (after the shell chrome,
-   before a11y) so these utilities win where they apply and reduced-motion still
-   overrides last.
-   ========================================================================== */
+/*
+ * The layout kit — the class vocabulary a capability's generated markup speaks.
+ *
+ * These are the names generated *item renderer* markup reaches for first: sensible
+ * defaults for arranging one record's own fields, on-brand by construction because
+ * every class consumes a token (`tokens.css`) rather than a raw colour, size or
+ * spacing value. Shipping them is what keeps ADR-0005's goal that common
+ * arrangement never needs inline `style`, and the gate's surface small with it.
+ *
+ * *Closed values, open composition.* The closed thing is the design-value space (the
+ * tokens), never how an item arranges a record. This is deliberately not an
+ * all-purpose CSS framework — rebuilding Tailwind is a non-goal. When the kit does
+ * not suffice, item markup may carry inline `style` under the token-discipline rules
+ * in `design/design-system.md` (the escape hatch).
+ *
+ * The single source of truth for the allow-list is `design/design-system.md`; the
+ * allow-list itself is `src/presentation/vocabulary.ts`, which the runtime enforcer and
+ * the design-lint gate rung both key on, and `vocabulary.test.ts` pins the two
+ * together. Imported after the components in `index.css` so a utility wins its tie with
+ * one, and above `ink.css`, which stays last. That ordering settles the manifest only —
+ * the temporary shell under `public/css/` is linked after the whole of it, so no rule
+ * there may take a name from this file. `layout-kit.test.ts` holds that line.
+ *
+ * Everything below is product vocabulary, not page chrome: platform chrome is named
+ * by the other stylesheets under `design/styles/`.
+ */
 
 /* ── Intra-item composition primitives ───────────────────────────────────────
    The two everyday arrangements, each with an on-token default gap so common
    markup needs no gap utility at all. `.stack` flows a record's fields top to
    bottom; `.cluster` lays inline bits (chips, meta, avatar + label) in a row that
    wraps. Both are distinct from the platform's *collection* layout (feed | grid),
-   which the list container owns — these arrange one record's OWN fields. */
+   which the list container owns — these arrange one record's own fields.
+   `.stack` is this name and no other: `layout.css`'s page column is `.page-column`
+   precisely so a generated stack cannot pick up a page column's spacing. */
 .stack {
   display: flex;
   flex-direction: column;
@@ -81,10 +90,10 @@
   justify-content: flex-end;
 }
 
-/* Gaps map 1:1 onto the spacing tokens — `.gap-2` is `--space-2`, and so on. */
-.gap-0_5 {
-  gap: var(--space-1);
-}
+/* Gaps map 1:1 onto the spacing tokens — `.gap-2` is `--space-2`, and so on.
+   `.gap-0_5` names a half step the High Meadow scale does not have; it resolves to
+   the same first step as `.gap-1` rather than to a value off the scale. */
+.gap-0_5,
 .gap-1 {
   gap: var(--space-1);
 }
@@ -114,8 +123,8 @@
 
 /* ── Type scale + emphasis ───────────────────────────────────────────────────
    Setting type on-token via a class instead of reaching for the escape hatch.
-   The body size (`--type-md`) is the inherited default, so it needs no utility;
-   these cover the steps a record label or caption typically wants. */
+   The body size is inherited from `base.css`, so it needs no utility; these cover
+   the steps a record label or caption typically wants. */
 .text-xs {
   font-size: var(--type-xs);
 }
