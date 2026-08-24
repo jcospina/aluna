@@ -20,6 +20,22 @@ import { fineHand, HAND, SPEC } from "./spec.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+/** The two layers this system writes, so it can tell its own marks from the page's. */
+const LAYER_SELECTOR = ".ink__ground,.ink__layer";
+
+/*
+ * What cannot be drawn, whatever it is classed as. The two layers are children of
+ * the element they draw, and none of these can hold a child that renders: `<input>`
+ * is void, `<select>` admits only `<option>`, and the rest are replaced elements
+ * whose box is painted by something other than the DOM. This is why a drawn control
+ * is a shell plus a bare native element (`design/design-system.md`, Forms).
+ *
+ * Skipping is the safe answer rather than the silent one: the element keeps the CSS
+ * border it declared, so a control that reaches here by mistake is ruled rather than
+ * invisible.
+ */
+const UNDRAWABLE = "input,textarea,select,img,video,canvas,iframe,embed,object,hr,br";
+
 /**
  * Which boundaries are drawn: the outer boundary of every component.
  *
@@ -57,12 +73,37 @@ export const INK_SELECTOR = [
   "[data-ink]",
 ].join(",");
 
+/*
+ * What the host adds to that list. The product's temporary shell has chrome of its
+ * own — a prompt rail, an output surface, its toggles — that the design system has
+ * no business naming, and that goes away with the shell. It asks here instead, so
+ * the names live in the file that owns the markup and die with it.
+ */
+/** @type {string[]} */
+const hostSelectors = [];
+
+/** Every selector currently drawn: this system's, plus whatever the host added. */
+let drawnSelector = INK_SELECTOR;
+
+/**
+ * Draw one more thing. Additive and idempotent per selector; takes effect for
+ * everything mounted from here on, so a host calls it before `startInk`.
+ *
+ * @param {string} selector
+ */
+export function drawAlso(selector) {
+  if (hostSelectors.includes(selector)) return;
+  hostSelectors.push(selector);
+  drawnSelector = [INK_SELECTOR, ...hostSelectors].join(",");
+}
+
 /** @typedef {import("./spec.js").Hand} Hand */
 
 /**
  * What was last drawn for one mounted element. `key` is the measured box and
  * hand rolled into a string, so a redraw that would change nothing is skipped.
- * @typedef {{ ground: SVGSVGElement, ink: SVGSVGElement, seed: number, key: string }} InkRecord
+ * @typedef {{ ground: SVGSVGElement, ink: SVGSVGElement, seed: number, key: string,
+ *             container: Element }} InkRecord
  */
 
 /** @type {WeakMap<HTMLElement, InkRecord>} */
@@ -77,7 +118,7 @@ const MOUNTED = new WeakMap();
  * @returns {HTMLElement[]}
  */
 function inkTargets(root) {
-  return [...root.querySelectorAll(INK_SELECTOR)].filter((el) => el instanceof HTMLElement);
+  return [...root.querySelectorAll(drawnSelector)].filter((el) => el instanceof HTMLElement);
 }
 
 /**
@@ -221,8 +262,15 @@ function refresh(el, force = false) {
   ];
   for (const [svg, markup] of layers) {
     svg.setAttribute("viewBox", frame.viewBox);
-    svg.setAttribute("width", String(frame.width));
-    svg.setAttribute("height", String(frame.height));
+    /*
+     * Written as style rather than as width/height attributes, which are presentation
+     * attributes and lose to any CSS. A host that sizes its icons with a rule as
+     * ordinary as `.btn svg { width: 1.25rem }` reaches these two as well, and the
+     * frame comes out smaller than the thing it is drawn around. An inline style is
+     * the one declaration such a rule cannot beat.
+     */
+    svg.style.width = `${frame.width}px`;
+    svg.style.height = `${frame.height}px`;
     svg.style.left = `${-border.left}px`;
     svg.style.top = `${-border.top}px`;
     svg.innerHTML = markup;
@@ -236,7 +284,7 @@ function refresh(el, force = false) {
  * @param {HTMLElement} el
  */
 export function mountInk(el) {
-  if (MOUNTED.has(el)) return;
+  if (MOUNTED.has(el) || el.matches(UNDRAWABLE)) return;
 
   const ground = layer("ink__ground");
   const ink = layer("ink__layer");
@@ -256,8 +304,13 @@ export function mountInk(el) {
   const seed = Number(el.dataset.inkSeed ?? nextSeed());
   el.dataset.inkSeed = String(seed);
 
-  MOUNTED.set(el, { ground, ink, seed, key: "" });
-  observer.observe(el);
+  /*
+   * The container is the parent: resize is watched once there rather than once
+   * here, so a list of two hundred cards costs one observation and not two hundred.
+   */
+  const container = el.parentElement ?? el;
+  MOUNTED.set(el, { ground, ink, seed, key: "", container });
+  watchIn(el, container);
   refresh(el, true);
 }
 
@@ -265,7 +318,7 @@ export function mountInk(el) {
 export function unmountInk(el) {
   const record = MOUNTED.get(el);
   if (!record) return;
-  observer.unobserve(el);
+  unwatch(el, record.container);
   record.ground.remove();
   record.ink.remove();
   el.classList.remove("is-ink");
@@ -279,23 +332,95 @@ export function unmountInk(el) {
  * it asks for. A page resize touches every drawn element at once; without the batch
  * that is several hundred synchronous path rebuilds inside a single layout pass.
  */
-/** @type {Set<HTMLElement>} */
+/*
+ * Containers are queued, not their children, and expanded once when the frame runs.
+ * The page reports one change per element it touches, so queuing children eagerly
+ * would walk a two-hundred-card list once per report; queuing the list walks it once.
+ */
+/** @type {Set<Element>} */
 const pending = new Set();
 let scheduled = 0;
 
 function flush() {
   scheduled = 0;
-  const work = [...pending];
+  const containers = [...pending];
   pending.clear();
+  /** @type {Set<HTMLElement>} */
+  const work = new Set();
+  for (const container of containers) {
+    for (const el of CONTAINERS.get(container) ?? []) work.add(el);
+  }
   for (const el of work) refresh(el);
 }
 
-const observer = new ResizeObserver((entries) => {
-  for (const entry of entries) {
-    if (entry.target instanceof HTMLElement) pending.add(entry.target);
-  }
+/**
+ * Redraw everything one container holds, on the next frame.
+ *
+ * @param {Element | null | undefined} container
+ */
+function enqueue(container) {
+  if (!container) return;
+  pending.add(container);
   if (!scheduled) scheduled = requestAnimationFrame(flush);
+}
+
+/*
+ * Resize is watched once per container rather than once per drawn element, and a
+ * drawn element's container is its parent. The children of a container resize
+ * together, so per-element observation buys nothing and costs on long lists: two
+ * hundred cards in a list are one observation here rather than two hundred. A
+ * container is unobserved the moment it loses its last drawn child, so a list that
+ * is swapped away takes its observation with it.
+ */
+/** @type {Map<Element, Set<HTMLElement>>} */
+const CONTAINERS = new Map();
+
+const observer = new ResizeObserver((entries) => {
+  for (const entry of entries) enqueue(entry.target);
 });
+
+/**
+ * @param {HTMLElement} el
+ * @param {Element} container
+ */
+function watchIn(el, container) {
+  const members = CONTAINERS.get(container);
+  if (members) {
+    members.add(el);
+    return;
+  }
+  CONTAINERS.set(container, new Set([el]));
+  observer.observe(container);
+}
+
+/**
+ * @param {HTMLElement} el
+ * @param {Element} container
+ */
+function unwatch(el, container) {
+  const members = CONTAINERS.get(container);
+  if (!members) return;
+  members.delete(el);
+  if (members.size > 0) return;
+  CONTAINERS.delete(container);
+  observer.unobserve(container);
+}
+
+/**
+ * The nearest watched container at or above `node`, or null if nothing above it
+ * holds a drawn child.
+ *
+ * @param {Node} node
+ * @returns {Element | null}
+ */
+function containerOf(node) {
+  let el = node instanceof Element ? node : node.parentElement;
+  while (el) {
+    if (CONTAINERS.has(el)) return el;
+    el = el.parentElement;
+  }
+  return null;
+}
 
 /**
  * @param {NodeList} nodes
@@ -325,11 +450,48 @@ function reattach(el) {
   refresh(el, true);
 }
 
+/** @param {Node} node */
+const isLayer = (node) => node instanceof Element && node.matches(LAYER_SELECTOR);
+
+/**
+ * Inside the ink's own two layers. Every redraw rewrites them, so without this the
+ * system would answer its own paint with another frame of paint.
+ *
+ * @param {Node} node
+ */
+function insideLayer(node) {
+  const el = node instanceof Element ? node : node.parentElement;
+  return Boolean(el?.closest(LAYER_SELECTOR));
+}
+
+/**
+ * Redraw the container the page just changed under.
+ *
+ * The element that has to be redrawn is not always the one that was touched: a
+ * button's label growing squeezes the field beside it, and a control unhidden by an
+ * `x-show` gets its first real box without anything above it changing size. Neither
+ * is a container resize, and neither would be caught by watching the containers
+ * alone. The work is bounded by the container and costs nothing where the measured
+ * box has not moved, because `refresh` compares before it draws.
+ *
+ * @param {MutationRecord} record
+ */
+function settle(record) {
+  if (insideLayer(record.target)) return;
+  /* Mounting puts the two layers in. That is the ink's own doing, not the page's. */
+  if (record.type === "childList") {
+    const nodes = [...record.addedNodes, ...record.removedNodes];
+    if (nodes.every(isLayer)) return;
+  }
+  enqueue(containerOf(record.target));
+}
+
 const nursery = new MutationObserver((records) => {
   for (const record of records) {
     eachElement(record.addedNodes, mountAllInk);
     eachElement(record.removedNodes, unmountAllInk);
     reattach(record.target);
+    settle(record);
   }
 });
 
@@ -339,13 +501,13 @@ const nursery = new MutationObserver((records) => {
  * @param {Document | Element} [root]
  */
 export function mountAllInk(root = document) {
-  if (root instanceof HTMLElement && root.matches(INK_SELECTOR)) mountInk(root);
+  if (root instanceof HTMLElement && root.matches(drawnSelector)) mountInk(root);
   for (const el of inkTargets(root)) mountInk(el);
 }
 
 /** @param {Document | Element} root */
 function unmountAllInk(root) {
-  if (root instanceof HTMLElement && root.matches(INK_SELECTOR)) unmountInk(root);
+  if (root instanceof HTMLElement && root.matches(drawnSelector)) unmountInk(root);
   for (const el of inkTargets(root)) unmountInk(el);
 }
 
@@ -356,7 +518,18 @@ function unmountAllInk(root) {
  */
 export function startInk(root = document.body) {
   mountAllInk(root);
-  nursery.observe(root, { childList: true, subtree: true });
+  /*
+   * Four attributes are watched beside the child lists, because that is how a thing
+   * is shown: an `x-show` writes `style`, a state class is `class`, and `hidden` and
+   * a dialog's `open` speak for themselves. A hidden element has no box to measure
+   * and so has no line, and nothing else would report the moment it gets one.
+   */
+  nursery.observe(root, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style", "hidden", "open"],
+  });
 }
 
 /**

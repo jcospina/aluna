@@ -1,8 +1,11 @@
 /* =============================================================================
-   Prompt bar — pinned to the bottom; borderless, no surface fill.
-   Visually continuous with the meadow; only the
-   field itself carries treatment, reading as a composer placed inside the page
-   (the ChatGPT/Claude composer — but on the theme background, not a panel).
+   Prompt bar — pinned to the bottom.
+
+   The composer is the rail: raised and framed on --surface, standing on the
+   wallpaper rather than lying on it, taking the full hand and casting
+   (design/design-system.md, "The line"). Its boundary and its shadow are drawn by
+   the ink system; the field inside it is bare, because an <input> cannot hold the
+   two SVG layers a drawn boundary needs and does not need its own line inside one.
    ========================================================================== */
 .prompt {
   flex: 0 0 auto;
@@ -16,7 +19,17 @@
   width: 100%;
   max-width: 46rem;
   min-height: calc(var(--control-h-lg) + var(--space-1));
+  padding: var(--space-1);
   margin-inline: auto;
+  background: var(--surface);
+  --ink-hand: frame;
+  --ink-shadow: var(--shadow-window-wall);
+}
+/* The ring belongs to the field's focus, not the rail's: the button inside carries
+   its own. Typing lands in the field, and that is what the ring reports. */
+.prompt__composer:has(.prompt__field:focus) {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 .prompt--busy .prompt__composer {
   opacity: 0.82;
@@ -29,62 +42,39 @@
   font-size: var(--type-base);
   line-height: 1.5;
   color: var(--ink);
-  background: var(--surface);
-  border: var(--line) solid var(--ink);
-  transition:
-    transform var(--dur-fast) var(--ease-rise),
-    box-shadow var(--dur-fast) var(--ease-rise),
-    border-color var(--dur-fast) var(--ease-rise);
+  background: transparent;
+  border: 0;
 }
 .prompt__field::placeholder {
   color: var(--ink-3);
 }
-/* Pointer hover: a quiet lift (gentle press, step one). */
-.prompt__field:hover {
-  transform: translate(1px, 1px);
-}
-/* Focus: accent border + accent ring. No translate here — the field must stay
-   put while the user types (a moving text box is disorienting). */
+/* The rail carries the ring for it. A second one further in is exactly what the
+   focus rule forbids. */
 .prompt__field:focus {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-  border-color: var(--focus-ring);
+  outline: none;
 }
 .prompt__field:disabled {
   cursor: default;
   color: var(--ink-3);
-  transform: none;
 }
+/* An ordinary `.btn.btn--warm`, as `design/scripts/prompt-bar.js` draws it — the
+   fill, the height, the press and the boundary all come from the button. What is
+   left here is only what the rail asks of it: it does not stretch, and it holds one
+   width across "Make it" and "Making it" so the field beside it does not jump.
+
+   Warm rather than primary on purpose: `--shade` is already spent on a capability's
+   create button, the two share the screen, and two primaries side by side make "one
+   per surface" mean nothing. This is the one action on the desk that belongs to
+   Aluna rather than to a capability, and its fill says so. */
 .prompt__submit {
   flex: 0 0 auto;
   min-width: 6rem;
-  padding: var(--space-1) var(--space-2);
-  font-family: var(--font-body);
-  font-size: var(--type-base);
-  font-weight: 700;
-  line-height: 1.5;
+}
+/* Building: the same fill, held back rather than swapped for another colour, so the
+   button still reads as itself while it is working. */
+.prompt--busy .prompt__submit:disabled {
   color: var(--ink);
-  background: var(--surface);
-  border: var(--line) solid var(--ink);
-  cursor: pointer;
-  transition:
-    transform var(--dur-fast) var(--ease-rise),
-    box-shadow var(--dur-fast) var(--ease-rise);
-}
-.prompt__submit:hover {
-  transform: translate(1px, 1px);
-}
-.prompt__submit:active {
-  transform: translate(2px, 2px);
-}
-.prompt__submit:disabled {
-  cursor: default;
-  color: var(--ink-3);
-  transform: none;
-}
-.prompt--busy .prompt__submit {
-  color: var(--ink);
-  background: color-mix(in oklch, var(--shade), var(--surface) 84%);
+  background: color-mix(in oklch, var(--sun), var(--surface) 55%);
 }
 .prompt__notice {
   max-width: 46rem;

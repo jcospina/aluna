@@ -166,6 +166,15 @@ mount, recolouring the border to transparent so it still occupies its space and
 nothing moves. The declaration is the room the line will need, not the finished
 line.
 
+Two things a drawn component gives up, because the line is two SVG layers that
+live inside it. It is never `:empty` and nothing in it is ever `:only-child`, so a
+rule that hides a region until it fills has to ask past the layers rather than
+through those two selectors. And a region whose content is text rather than
+elements cannot be drawn at all, since `:empty` is the only selector that can see
+text. Nothing may outrank the seam either: `.is-ink` recolours the border at one
+class of specificity, so a state rule that sets `border-color` from a heavier
+selector paints a true edge back beside the drawn one.
+
 Every line is the same weight; there is no weight ladder. Hierarchy rides on the
 hand instead. The frame hand goes to the things that hold others, the window and
 the prompt rail; the fine hand to everything drawn inside one; the close hand to

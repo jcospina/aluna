@@ -14,6 +14,8 @@
          stand-in are preview-only, and themselves consume the tokens. -->
     <link rel="stylesheet" href="/design/styles/index.css">
     <link rel="stylesheet" href="/static/app.css">
+    <!-- The drawn line, as the shipped shell loads it (public/index.html). -->
+    <script type="module" src="/static/ink.js"></script>
 
     <style>
     body {
@@ -44,8 +46,8 @@
       color: var(--ink-3);
     }
     /* Stand-in for the 3.2 platform item wrapper: a surface with a thin-border
-                                       card and the item type baseline. Item CONTENT inside uses only the
-                                       vocabulary classes; nothing here anticipates 3.2's real wrapper. */
+                                               card and the item type baseline. Item CONTENT inside uses only the
+                                               vocabulary classes; nothing here anticipates 3.2's real wrapper. */
     .preview-item {
       padding: var(--space-2);
       font-family: var(--font-body);
@@ -59,12 +61,15 @@
     .preview-item p {
       margin: 0;
     }
-    /* Line swatches — High Meadow has one boundary weight. */
-    .swatches {
+    /* Line swatches — High Meadow has one boundary weight. Named apart from the
+           design page's own `.swatch`, which the ink system draws: this page's inline
+           styles load after the seam, so sharing the name would paint a true CSS edge
+           beside the drawn one. */
+    .preview-swatches {
       display: flex;
       gap: var(--space-2);
     }
-    .swatch {
+    .preview-swatch {
       flex: 1;
       padding: var(--space-2);
       font-family: var(--font-body);
@@ -105,8 +110,8 @@
       <p class="preview-note">
         High Meadow uses one token-owned weight for every component boundary.
       </p>
-      <div class="swatches">
-        <div class="swatch">line · 2px</div>
+      <div class="preview-swatches">
+        <div class="preview-swatch">line · 2px</div>
       </div>
     </section>
 

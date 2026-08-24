@@ -47,8 +47,8 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: var(--control-h);
+  height: var(--control-h);
   padding: var(--space-1);
   color: var(--ink-3);
   background: transparent;

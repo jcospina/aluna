@@ -21,4 +21,11 @@
 @import "css/fields.css"; /* capability create/edit/detail field chrome       */
 @import "css/collection.css"; /* list layout + item wrapper chrome (M3 §3.2)   */
 @import "css/detail-modal.css"; /* shared read/edit record modal (M4 §4.3/01)  */
-@import "css/a11y.css"; /* focus ring + reduced-motion (loaded last)          */
+@import "css/a11y.css"; /* focus ring + reduced-motion                        */
+
+/* The seam, last — as it is in design/styles/index.css, and for the same reason:
+   this is where the drawn line takes over from the CSS border every stylesheet
+   above declares, so it has to win. The manifest already ends with it for a page
+   that loads nothing else; the shell bridge above declares borders of its own, so
+   the product's cascade ends with it too. Deleted with the bridge. */
+@import url("/design/styles/components/ink.css");

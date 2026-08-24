@@ -25,6 +25,8 @@
     <!-- High Meadow ships from its source directory; app.css only bridges the
          temporary Module 1–4 shell onto that token and component layer. -->
     <link rel="stylesheet" href="/design/styles/index.css">
+    <!-- app.css ends by re-asserting the ink seam, so the drawn line still takes
+         over from the CSS border every sheet above it declares. -->
     <link rel="stylesheet" href="/static/app.css">
 
     <!--
@@ -60,6 +62,15 @@
     <script type="module" src="/static/detail-modal.js"></script>
     <script type="module" src="/static/search-chrome.js"></script>
     <script defer src="/static/item-detail.js"></script>
+
+    <!--
+      The drawn line. The ink system ships from design/scripts/ the way the token
+      layer ships from design/styles/, and /static/ink.js is only the product's half
+      of the seam: it names the temporary shell's own chrome and starts the system.
+      A module script, so it runs after the document — server-injected fragments
+      included — has been parsed; everything that arrives later arrives drawn.
+    -->
+    <script type="module" src="/static/ink.js"></script>
   </head>
 
   <body>
@@ -188,7 +199,7 @@
             >
             <button
               type="submit"
-              class="prompt__submit"
+              class="btn btn--warm prompt__submit"
               id="spec-build-trigger"
               :disabled="promptBusy"
             >

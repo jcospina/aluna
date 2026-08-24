@@ -17,25 +17,26 @@
   padding: var(--space-4);
   text-align: center;
 }
+/* Hidden by default and shown when the output holds something worth looking at: any
+   content that is not a build stream, or a build stream that has started to speak.
+   Stated as one quiet base and three show rules rather than as competing hide rules,
+   because `:has()` carries the specificity of what it holds and an `#id` inside one
+   silently outranks the rule meant to override it.
+
+   The output region is drawn, and the ink system keeps its two layers as children of
+   what it draws (design/styles/components/ink.css), so a drawn region is never
+   `:empty` and nothing inside one is ever `:only-child`. Both questions are asked
+   past the layers instead. */
 .content__active {
-  display: flex;
+  display: none;
   min-height: 100%;
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
 }
-.content__active:has(#spec-build-output:empty) {
-  display: none;
-}
-.content__active:has(#spec-build-output > .build-stream:only-child) {
-  display: none;
-}
-.content__active:has(
-  #spec-build-output > .build-stream:only-child > .build-stream__narration:not(:empty)
-),
-.content__active:has(
-  #spec-build-output > .build-stream:only-child > .build-stream__commit:not(:empty)
-) {
+.content__active:has(#spec-build-output > :not(.ink__ground, .ink__layer, .build-stream)),
+.content__active:has(#spec-build-output > .build-stream > .build-stream__narration:not(:empty)),
+.content__active:has(#spec-build-output > .build-stream > .build-stream__commit:not(:empty)) {
   display: flex;
 }
 .shell.has-capabilities .cold-start {
@@ -66,7 +67,8 @@
   width: min(50rem, 100%);
 }
 /* The live output box: hidden until the first chunk arrives (:empty), then a
-   bordered surface holding the streamed build output, left-aligned. */
+   surface holding the streamed build output, left-aligned. It is the content
+   region — a thing that holds other things — so it takes the full hand. */
 .intro__output {
   align-self: stretch;
   padding: var(--space-2);
@@ -77,12 +79,17 @@
   text-align: left;
   background: var(--surface);
   border: var(--line) solid var(--ink);
+  --ink-hand: frame;
 }
-.intro__output:empty {
+/* Hidden until the first chunk arrives. Drawn, so `:empty` is never true of it — see
+   the note above `.content__active`. */
+.intro__output:not(:has(> :not(.ink__ground, .ink__layer))) {
   display: none;
 }
 /* §2.5 demo: raw stage previews. Quiet, monospaced, scrollable surfaces; hidden
-   until their first payload (:empty). */
+   until their first payload (:empty). Ruled rather than drawn, and deliberately: the
+   payload is text, `:empty` is the only selector that can see text, and a drawn
+   element is never `:empty`. The developer panel gets its own window in 5.6/04. */
 .spec-build__preview {
   align-self: stretch;
   max-height: 16rem;

@@ -4,7 +4,7 @@
    interactive descendants inside generated item markup (design/design-system.md),
    so the item renderer never emits a button — these power platform affordances
    (the "New X", Save, and Delete controls of epics 3.2 / M4). Treatment follows
-   the established Aluna button (.prompt__submit, .sidebar-toggle): surface-weight
+   the established Aluna button (the prompt bar's submit, .sidebar-toggle): surface-weight
    press, a thin ink-tinted edge, gentle down-right travel. Text color per fill
    is WCAG-AA verified: a light label on the dark primary, ink on light fills.
    ========================================================================== */
@@ -14,9 +14,15 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
+  /* One row height, shared with every field, so a control row aligns without a
+     nudge. Stated rather than left to fall out of the padding. */
+  min-height: var(--control-h);
   padding: var(--space-1) var(--space-2);
   font-family: var(--font-body);
-  font-size: var(--type-base);
+  /* No size. A button is set in small caps and `design/styles/components/controls.css`
+     already says so — restating a size here only overrode it, because this sheet loads
+     after the manifest. Nothing under `public/css/` states a type size the design layer
+     owns. */
   font-weight: 700;
   line-height: 1.5;
   color: var(--ink);
@@ -39,56 +45,47 @@
   cursor: default;
   color: var(--ink-3);
   background: var(--surface);
-  border-color: var(--ink);
   transform: none;
 }
 
 /* ── Color variants ──────────────────────────────────────────────────────────
-   Each filled variant carries a darker edge of its OWN hue (fill mixed ~25% into
-   ink) so the button stays defined against the paper page without a loud border.
-   The text color on each fill is the AA-legible one measured for that fill. */
+   The fill names the role and the text color on each fill is the AA-legible one
+   measured for it. None of them states an edge: every boundary here is drawn, and
+   the boundary is always ink (design/design-system.md, Forms). */
 .btn--primary {
   color: var(--surface);
   background: var(--shade);
-  border-color: color-mix(in oklch, var(--shade), var(--ink) 25%);
 }
 .btn--secondary {
   color: var(--ink);
   background: var(--leaf);
-  border-color: color-mix(in oklch, var(--leaf), var(--ink) 25%);
 }
 .btn--info {
   color: var(--ink);
   background: var(--sky);
-  border-color: color-mix(in oklch, var(--sky), var(--ink) 25%);
 }
 .btn--feature {
   color: var(--ink);
   background: var(--clay);
-  border-color: color-mix(in oklch, var(--clay), var(--ink) 25%);
 }
 .btn--warm {
   color: var(--ink);
   background: var(--sun);
-  border-color: color-mix(in oklch, var(--sun), var(--ink) 25%);
 }
 .btn--danger {
   color: var(--surface);
   background: var(--signal);
-  border-color: color-mix(in oklch, var(--signal), var(--ink) 25%);
 }
 /* Neutral — the surface-weight default (same treatment as today's buttons). */
 .btn--neutral {
   color: var(--ink);
   background: var(--surface);
-  border-color: var(--ink);
 }
-/* Ghost — no fill until hovered; for tertiary actions that shouldn't compete. */
+/* Ghost — no fill until hovered; for tertiary actions that shouldn't compete. Its
+   line is drawn like every other button's, so the fill is the whole difference. */
 .btn--ghost {
   background: transparent;
-  border-color: transparent;
 }
 .btn--ghost:hover {
   background: var(--surface);
-  border-color: var(--ink);
 }

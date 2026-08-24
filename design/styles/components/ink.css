@@ -12,6 +12,16 @@
  *   - If it casts a shadow, it hands it over as `--ink-shadow: <x> <y> <alpha>` —
  *     the one part landing outside the ink, where a straight edge would show.
  *   - It may ask for the full hand with `--ink-hand: frame`.
+ *   - It leaves the two layers alone. They are `svg` children like any other, so a
+ *     rule that sizes a component's icons reaches them too; the ink writes their box
+ *     as an inline style so it cannot be shrunk, but a rule that reaches for anything
+ *     else on `svg` should say which one it means.
+ *   - It gives up `:empty` and `:only-child`. The two layers are children of the
+ *     element they draw, so a drawn element is never childless and nothing inside one
+ *     is ever an only child. A stylesheet that hides a region until it fills has to
+ *     ask past the layers — `:not(:has(> :not(.ink__ground, .ink__layer)))` — and a
+ *     region whose content is text rather than elements cannot be drawn at all,
+ *     because `:empty` is the only selector that can see text.
  */
 
 /* Custom properties inherit by default and these three must not — they describe

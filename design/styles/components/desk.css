@@ -64,7 +64,7 @@
 
 /* ── The tile of something being built ────────────────────────────────── */
 /*
- * D6: pressing Grow it puts a tile on the ground straight away and it stays
+ * D6: pressing Make it puts a tile on the ground straight away and it stays
  * until the build is done. It is the ambient half of the signal — the window
  * carries the narration, and this carries the fact, visible from anywhere on
  * the desk.

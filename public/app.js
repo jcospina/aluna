@@ -128,6 +128,10 @@ function outputHasOnlyDormantSubscriber(output, subscriber) {
   for (const node of output.childNodes) {
     if (node === subscriber) continue;
     if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === "") continue;
+    // The drawn boundary. The ink system keeps its two layers as children of the
+    // element it draws (design/styles/components/ink.css), so a drawn region is never
+    // childless — its own line would read here as content the user put there.
+    if (node instanceof Element && node.matches(".ink__ground, .ink__layer")) continue;
     return false;
   }
   return true;

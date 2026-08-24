@@ -114,7 +114,7 @@
 }
 
 .field-list__remove {
-  min-height: 2.75rem;
+  min-height: var(--control-h);
   padding-inline: var(--space-2);
   color: var(--ink-2);
   background: transparent;

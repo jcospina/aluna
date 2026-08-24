@@ -57,6 +57,7 @@
   padding: var(--space-3);
   background: var(--surface);
   border: var(--line) solid var(--ink);
+  --ink-hand: frame;
 }
 
 /* Title row. A single hairline under it separates "what this is" from the record
@@ -85,8 +86,8 @@
 .detail-modal__close {
   position: relative;
   flex: 0 0 auto;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
+  min-width: var(--control-h);
+  min-height: var(--control-h);
   padding: var(--space-1);
 }
 .detail-modal__close svg {
@@ -170,10 +171,6 @@
 }
 .detail-modal__read-actions[hidden] {
   display: none;
-}
-.detail-modal__read-actions .btn,
-.detail-modal__delete-actions .btn {
-  min-height: 2.75rem;
 }
 .detail-modal__delete-confirm {
   display: flex;

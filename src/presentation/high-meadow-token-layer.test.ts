@@ -52,7 +52,13 @@ describe("High Meadow token-layer cutover", () => {
     const appCss = read("public/app.css");
     expect(appCss).not.toContain("tokens.css");
     for (const file of filesUnder("public/css", new Set([".css"]))) {
-      expect(read(file)).not.toMatch(/^\s*--[a-z0-9_-]+\s*:/im);
+      // A declaration the shell bridge makes, minus the three the ink system reads
+      // back off a component (design/styles/components/ink.css registers all three
+      // as non-inheriting). Those are a component handing its boundary over, not a
+      // token: they name no value the token layer could also be stating.
+      expect(read(file).replace(/^\s*--ink-(?:hand|shadow|weight)\s*:.*$/gim, "")).not.toMatch(
+        /^\s*--[a-z0-9_-]+\s*:/im,
+      );
       expect(read(file)).not.toContain("--color-");
     }
     const deliveredSources = [
@@ -92,9 +98,9 @@ describe("High Meadow token-layer cutover", () => {
     const demo = read("public/css/demo.css");
     const prompt = read("public/css/prompt.css");
 
-    expect(demo).toMatch(
-      /\.content__active:has\(#spec-build-output:empty\)\s*\{\s*display:\s*none;/,
-    );
+    // The empty desk is the default now rather than a `:has(...:empty)` override: the
+    // output region is drawn, and a drawn element is never `:empty`.
+    expect(demo).toMatch(/\.content__active\s*\{\s*display:\s*none;/);
     expect(demo).not.toMatch(/:has\([^)]*:has\(/);
     expect(prompt).toMatch(
       /\.prompt\s*\{[\s\S]*?padding:\s*var\(--space-3\) var\(--space-3\) var\(--space-6\)/,
@@ -128,6 +134,22 @@ describe("High Meadow token-layer cutover", () => {
     expect(secondary).toBeCloseTo(4.54, 1);
   });
 
+  // A button is small caps, and `design/styles/components/controls.css` is where that
+  // is said. The shell bridge loads after the manifest, so any size it states for
+  // `.btn` silently wins — which is how the app came to set its buttons at
+  // `--type-base` while the controls page specified `--caps-size`, three steps down.
+  // The rule is not "no type size in the bridge" (it sets plenty, on its own
+  // elements); it is that the bridge does not re-answer a question the design layer
+  // has already answered for the same selector.
+  test("the shell bridge does not restate the button's type size", () => {
+    const design = read("design/styles/components/controls.css");
+    expect(design).toMatch(/\.btn\s*\{[^}]*font-size:\s*var\(--caps-size\)/);
+
+    const base = /(^|\n)\.btn\s*\{[^}]*\}/.exec(read("public/css/components.css"));
+    expect(base, "public/css/components.css declares no bare `.btn` rule").not.toBeNull();
+    expect(base?.[0]).not.toContain("font-size");
+  });
+
   test("has settled focus/control tokens and no literal component colours", () => {
     const productSources = [
       ...filesUnder("design/styles", new Set([".css"])).filter(
@@ -152,6 +174,24 @@ describe("High Meadow token-layer cutover", () => {
       );
     }
   });
+});
+
+test("one row height everywhere, and the prompt rail is the only thing above it", () => {
+  // The design gives a field and a button the same height so a control row aligns
+  // without a nudge. The shell bridge restated it as a literal — and reached for the
+  // large one — so a search field rendered as tall as the prompt rail beside a
+  // button twelve pixels shorter. It states no control height of its own now.
+  for (const file of filesUnder("public/css", new Set([".css"]))) {
+    for (const literal of ["1.75rem", "2.25rem", "2.75rem"]) {
+      expect(read(file), `${file} restates a control height as ${literal}`).not.toContain(literal);
+    }
+  }
+  // The prompt bar is deliberately the one taller input on the surface, and the only
+  // rule that may reach past `--control-h` for it.
+  const larger = filesUnder("public/css", new Set([".css"])).filter((file) =>
+    read(file).includes("--control-h-lg"),
+  );
+  expect(larger).toEqual(["public/css/prompt.css"]);
 });
 
 test("keeps prompt feedback legible with the shared desk-label treatment", () => {
