@@ -34,6 +34,7 @@ import {
   fitToDesk,
   PHONE,
   placeWindow,
+  refreshGeometry,
 } from "./desk-geometry.js";
 import { renderCollection } from "./patterns.js";
 import { mountPromptBar } from "./prompt-bar.js";
@@ -191,6 +192,11 @@ export class Desk {
    * trusted: a maximised window is recomputed against the screen it came back
    * on, and every other box is clamped to it.
    *
+   * The desk is watched as well as the viewport, because the two no longer
+   * change together. The desk's floor and its minimum are set in rem, so the
+   * reader raising their text size grows both without the viewport moving at
+   * all — and that is a resize as far as a window is concerned.
+   *
    * The phone flag is set here too. Below the breakpoint the window is the
    * screen — no drag, no resize, no maximise — and the flag is what the
    * pointer handlers read to stand down.
@@ -199,6 +205,7 @@ export class Desk {
     const phone = window.matchMedia(PHONE);
 
     const onResize = () => {
+      refreshGeometry();
       this.root.classList.toggle("desk--phone", phone.matches);
       for (const entry of [this.win, this.dev]) {
         if (entry) this.#refit(entry.el, entry.box, entry.maximised);
@@ -208,7 +215,10 @@ export class Desk {
 
     phone.addEventListener("change", onResize);
     window.addEventListener("resize", onResize);
-    onResize();
+    /* A window's box is written as custom properties on the window itself, which
+     * is absolutely positioned inside the desk — so re-fitting cannot resize the
+     * desk and this cannot feed itself. */
+    new ResizeObserver(onResize).observe(this.root);
   }
 
   /** Forget both boxes. The capabilities themselves are untouched. */

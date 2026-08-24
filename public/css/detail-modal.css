@@ -38,7 +38,7 @@
   /* Desktop: a fixed, comfortable width (≥600px), guarded so a narrow desktop window
      can never overflow the viewport. */
   .detail-modal {
-    width: 600px;
+    width: 37.5rem;
     max-width: calc(100vw - var(--space-4));
   }
 }
@@ -91,8 +91,8 @@
 }
 .detail-modal__close svg {
   display: block;
-  width: 20px;
-  height: 20px;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 .detail-modal__close::after {
   position: absolute;

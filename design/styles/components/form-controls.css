@@ -16,12 +16,12 @@
 :root {
   /* One height for everything on a row, so a field and a button align without
    * a nudge, with a smaller and a larger either side of it. */
-  --control-h: 36px;
-  --control-h-sm: 28px;
-  --control-h-lg: 44px;
+  --control-h: 2.25rem;
+  --control-h-sm: 1.75rem;
+  --control-h-lg: 2.75rem;
 
   /* The shell's horizontal padding, and the size of the text sitting in it. */
-  --control-pad-x: 11px;
+  --control-pad-x: 0.6875rem;
   --control-text: var(--type-base);
 
   /* The fill an invalid well takes. The boundary stays ink: recolouring a drawn
@@ -67,7 +67,7 @@
 /* A shell holding a textarea is a block, not a row, and pads on all four sides. */
 .field__control--area {
   align-items: stretch;
-  padding: 7px var(--control-pad-x);
+  padding: 0.4375rem var(--control-pad-x);
 }
 
 .field__control--select {
@@ -139,7 +139,7 @@
   display: block;
   font-size: var(--caps-size);
   color: var(--ink-3);
-  margin-top: 4px;
+  margin-top: 0.25rem;
   line-height: 1.4;
 }
 
@@ -230,6 +230,9 @@
   left: 0;
   right: 0;
   min-width: 100%;
+  /* The gutter the drawn line overhangs into, so the scroller below never cuts
+   * it: half the stroke plus the deviation, and a stroke rather than a length
+   * the layout chose. */
   padding: 3px;
   border: var(--line) solid var(--ink);
   background: var(--surface);
@@ -237,17 +240,17 @@
 
 /* The scroller is one level in: a drawn element must not clip its own ink. */
 .listbox__scroll {
-  max-height: 244px;
+  max-height: 15.25rem;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
 .listbox__group {
-  padding: var(--space-2) 9px var(--space-1);
+  padding: var(--space-2) 0.5625rem var(--space-1);
 }
 
 .listbox__option {
-  padding: 7px 9px;
+  padding: 0.4375rem 0.5625rem;
   font-size: var(--control-text);
   line-height: 1.35;
   color: var(--ink);
@@ -336,10 +339,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 1.375rem;
+  height: 1.375rem;
   /* Aligns the mark's optical centre with the first line of its label. */
-  margin-top: 1px;
+  margin-top: 0.0625rem;
   border: var(--line) solid var(--ink);
   background: var(--surface-2);
   color: var(--ink);
@@ -376,8 +379,8 @@
 /* A radio's mark is drawn as a fill on a child rather than a second ring: a ring
  * inside a drawn ring is two lines where the language allows one. */
 .choice--radio .choice__glyph {
-  width: 9px;
-  height: 9px;
+  width: 0.5625rem;
+  height: 0.5625rem;
   border-radius: 50%;
   background: var(--surface);
 }
@@ -441,13 +444,13 @@
 .btn--sm {
   min-height: var(--control-h-sm);
   padding: 0 var(--space-3);
-  font-size: 9.5px;
+  font-size: 0.59375rem;
 }
 
 .btn--lg {
   min-height: var(--control-h-lg);
   padding: 0 var(--space-5);
-  font-size: 11.5px;
+  font-size: 0.71875rem;
 }
 
 .btn--block {

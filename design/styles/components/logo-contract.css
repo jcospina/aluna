@@ -18,6 +18,12 @@
   /*
    * 64px, and one size. The rendered size of a logo somewhere else is a
    * rendering, not a second tile size.
+   *
+   * Pixels, and the one box on the surface that does not grow with the reader's
+   * text size. The artwork inside it is a drawing with its own contour, and a
+   * tile scaled to 96px scales every edge in that drawing with it — the hand
+   * thickens, which is exactly what the pixel side of the rule exists to
+   * prevent. The cell around it is relative and simply gives it more room.
    */
   width: 64px;
   height: 64px;
@@ -51,7 +57,7 @@
 /*
  * Set straight onto the desk: light type carried by a soft shadow, no plate.
  *
- * 12px rather than the 10.5px a plate label can afford — paper does the
+ * A step above the small caps a plate label can afford — paper does the
  * separating for a label that sits on some, and type read off a photograph has
  * to do it alone. It is also where macOS sets a desktop label.
  *
@@ -68,8 +74,8 @@
  * would fake depth the flat-band model does not have. A glyph casts nothing.
  */
 .logo-label {
-  max-width: 96px;
-  font-size: 12px;
+  max-width: 6rem;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.25;
   text-align: center;
@@ -79,7 +85,7 @@
 
 /* ── A logo, assembled ────────────────────────────────────────────────── */
 /*
- * The tile, then the name, seven pixels apart. A logo button on the desk and a
+ * The tile, then the name just under it. A logo button on the desk and a
  * specimen on this page are the same stack, so the gap is set once rather than
  * kept in step in two places. The button around it — its padding, its cursor
  * and what it does when pressed — belongs to `desk.css`.
@@ -90,7 +96,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 7px;
+  gap: 0.4375rem;
 }
 
 /* ── Specimens on this page ───────────────────────────────────────────── */
@@ -109,7 +115,7 @@
 
 .specimens--labels {
   align-items: center;
-  min-height: 96px;
+  min-height: 6rem;
 }
 
 /* ── The prompt, quoted ───────────────────────────────────────────────── */
@@ -127,7 +133,7 @@
 
 .prompt-block p {
   margin: 0;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   line-height: 1.65;
 }
 
@@ -135,6 +141,6 @@
 .prompt-block mark {
   background: var(--sun);
   color: var(--ink);
-  padding: 1px 5px;
+  padding: 0.0625rem 0.3125rem;
   font-weight: 600;
 }

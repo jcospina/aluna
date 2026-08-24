@@ -39,7 +39,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 11px 18px;
+  padding: 0.6875rem 1.125rem;
   background: transparent;
 }
 
@@ -67,14 +67,14 @@
 
 .window__lamps {
   display: flex;
-  gap: 7px;
+  gap: 0.4375rem;
   margin-left: auto;
   flex-shrink: 0;
 }
 
 .lamp {
-  width: 12px;
-  height: 12px;
+  width: 0.75rem;
+  height: 0.75rem;
   padding: 0;
   border: var(--line) solid var(--ink);
   border-radius: 50%;

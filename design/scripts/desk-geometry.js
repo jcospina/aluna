@@ -15,29 +15,75 @@
 /** A window's box. The only geometry anything on this surface has. */
 /** @typedef {{ x: number, y: number, w: number, h: number }} Box */
 
-/** No window goes below this, at any size of screen. */
-export const MIN_SIZE = { w: 276, h: 176 };
+/**
+ * Every length below is the stylesheet's, read back rather than restated: the
+ * logo grid stops on the same floor the windows do, and a second copy here
+ * would let the two drift. `tokens.css` registers each one as a `<length>`, so
+ * what comes back is already resolved to pixels at whatever text size the
+ * reader has set — the layout is in rem and this file never has to know it.
+ *
+ * The literals are the fallback for a stylesheet that has not applied yet, and
+ * they are stated here once rather than beside each length below.
+ */
+const FALLBACK = { minW: 276, minH: 176, clearance: 78, edge: 18 };
 
 /**
- * The strip the prompt bar reserves along the bottom.
- *
- * The stylesheet owns this number — the logo grid stops on the same floor, so
- * restating it here would let the two drift. Read once at module load, with the
- * literal kept only as the fallback for a stylesheet that has not applied yet.
+ * @param {string} name
+ * @param {number} fallback
+ * @returns {number}
  */
-export const PROMPT_CLEARANCE = readClearance();
+function readLength(name, fallback) {
+  if (typeof window === "undefined") return fallback;
+  const root = getComputedStyle(document.documentElement);
+  const declared = root.getPropertyValue(name).trim();
 
-function readClearance() {
-  if (typeof window === "undefined") return 78;
-  const declared = getComputedStyle(document.documentElement)
-    .getPropertyValue("--prompt-clearance")
-    .trim();
+  /*
+   * Registered, so this arrives in pixels. Where the registration did not take —
+   * a browser without `@property`, a build that dropped an at-rule it did not
+   * know — what arrives is the rem literal, and `4.875` is a number every check
+   * below would accept and the desk would then lay itself out on. Resolve it
+   * here instead: falling back to the literal would leave the windows stopping
+   * on one floor and the logo grid on another, which is the drift this file
+   * reads the stylesheet to avoid.
+   */
   const value = Number.parseFloat(declared);
-  return Number.isFinite(value) && value > 0 ? value : 78;
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  if (declared.endsWith("px")) return value;
+  if (declared.endsWith("rem")) return value * (Number.parseFloat(root.fontSize) || 16);
+  return fallback;
 }
 
+/** No window goes below this, at any size of screen. */
+export let MIN_SIZE = { w: FALLBACK.minW, h: FALLBACK.minH };
+
+/** The strip the prompt bar reserves along the bottom. */
+export let PROMPT_CLEARANCE = FALLBACK.clearance;
+
 /** The inset a maximised window keeps on the other three sides. */
-export const EDGE = 18;
+export let EDGE = FALLBACK.edge;
+
+/**
+ * Re-read all four, because none of them is a constant any more: they are rem,
+ * and the reader's text size is a setting that can change with the page open.
+ * Held from module load, a maximised window would keep the floor it was fitted
+ * to and slide under a prompt bar that had grown past it.
+ *
+ * Every function below opens with this rather than trusting what it was handed
+ * at import, so a clamp is right whether or not anything noticed the change.
+ * The desk calls it too, from the path that re-fits what it remembers — that is
+ * what moves a window already on screen, where this only stops the next
+ * question being answered from a stale floor.
+ */
+export function refreshGeometry() {
+  MIN_SIZE = {
+    w: readLength("--window-min-w", FALLBACK.minW),
+    h: readLength("--window-min-h", FALLBACK.minH),
+  };
+  PROMPT_CLEARANCE = readLength("--prompt-clearance", FALLBACK.clearance);
+  EDGE = readLength("--window-edge", FALLBACK.edge);
+}
+
+refreshGeometry();
 
 /**
  * Below this the window stops floating and is the screen. Forms drop to one
@@ -78,6 +124,7 @@ export function placeWindow(el, box) {
  * @returns {Box}
  */
 export function clampPosition(bounds, box) {
+  refreshGeometry();
   const floor = bounds.height - PROMPT_CLEARANCE;
   box.x = Math.round(clamp(box.x, 0, Math.max(0, bounds.width - box.w)));
   box.y = Math.round(clamp(box.y, 0, Math.max(0, floor - box.h)));
@@ -94,6 +141,7 @@ export function clampPosition(bounds, box) {
  * @returns {Box}
  */
 export function clampSize(bounds, box) {
+  refreshGeometry();
   const floor = bounds.height - PROMPT_CLEARANCE;
   box.w = Math.round(clamp(box.w, MIN_SIZE.w, Math.max(MIN_SIZE.w, bounds.width - box.x)));
   box.h = Math.round(clamp(box.h, MIN_SIZE.h, Math.max(MIN_SIZE.h, floor - box.y)));
@@ -123,6 +171,7 @@ export function fitToDesk(bounds, box) {
  * @returns {Box}
  */
 export function fillDesk(bounds, box) {
+  refreshGeometry();
   box.x = EDGE;
   box.y = EDGE;
   box.w = Math.round(bounds.width - EDGE * 2);
