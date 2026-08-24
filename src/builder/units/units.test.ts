@@ -866,13 +866,15 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
     expect(feedPrompt).toContain("var(--space-1), var(--space-2)");
     expect(feedPrompt).toContain("var(--ink), var(--ink-2)");
     expect(feedPrompt).toContain("var(--type-xs), var(--type-sm)");
-    expect(feedPrompt).toContain("Three properties are never declared at all");
+    expect(feedPrompt).toContain("Four properties are never declared at all");
     expect(feedPrompt).toContain("Few-shot gallery. Vary, don't copy");
     expect(feedPrompt).toContain("Text-forward note card");
     expect(feedPrompt).toContain("Media-forward grid tile");
     expect(feedPrompt).toContain("Compact metadata row");
     expect(feedPrompt).toContain('style="grid-template-columns');
-    expect(feedPrompt).toContain("border: var(--line) solid var(--ink)");
+    // The fourth ban, in the words the generator receives, and no exemplar contradicting it.
+    expect(feedPrompt).toContain("`border` (every boundary on this surface is drawn by hand");
+    expect(feedPrompt).not.toContain("border: var(--line)");
 
     const gridPrompt = buildUnitPrompt(
       notesSpec({ ui_intent: { ...notesSpec().ui_intent, collection: { layout: "grid" } } }),
@@ -986,8 +988,10 @@ describe("unit generation with bounded fix loop — read, few-shot, and present-
     expect(
       FEW_SHOT_DESIGN_EXAMPLES.some((example) => example.rendererSource.includes("style=")),
     ).toBe(true);
+    // No exemplar draws a boundary: the ink system owns every one, and an example that
+    // declared a border would teach the model the thing the rung now refuses.
     expect(
-      FEW_SHOT_DESIGN_EXAMPLES.some((example) => example.rendererSource.includes("var(--line)")),
+      FEW_SHOT_DESIGN_EXAMPLES.every((example) => !example.rendererSource.includes("border")),
     ).toBe(true);
     expect(
       FEW_SHOT_DESIGN_EXAMPLES.every((example) =>

@@ -158,12 +158,27 @@ describe("design-lint — the three never-declared properties", () => {
     expect(findDesignViolation(spec, literal)).toContain("Design contract violation");
   });
 
-  test("rejects a declaration of font family, border-radius or box-shadow", () => {
+  test("rejects a declaration of font family, a boundary, border-radius or box-shadow", () => {
     const family = findDesignViolation(
       spec,
       renderer('`<div style="font-family: var(--font-body);">${text}</div>`'),
     );
     expect(family).toContain("font family is never declared");
+
+    // The fourth ban. The weight the retired axis named is refused like any other: the
+    // record's boundary is drawn on the platform's own wrapper, and a CSS edge inside it
+    // would sit beside a drawn one.
+    for (const declaration of [
+      "border: var(--line) solid var(--ink)",
+      "border: 1px solid red",
+      "border-bottom-width: var(--line)",
+      "outline: var(--line) solid var(--ink)",
+    ]) {
+      expect(
+        findDesignViolation(spec, renderer(`\`<div style="${declaration};">\${text}</div>\``)),
+        declaration,
+      ).toContain("the ink system owns every boundary");
+    }
 
     const radius = findDesignViolation(
       spec,
@@ -240,7 +255,7 @@ describe("the few-shot exemplars the generator is shown", () => {
     }
   });
 
-  test("the injected contract names the three sets and the three bans", () => {
+  test("the injected contract names the three sets and the four bans", () => {
     const injection = buildItemRendererDesignInjection("feed");
 
     expect(injection).toContain("Three axes are closed");
@@ -248,15 +263,16 @@ describe("the few-shot exemplars the generator is shown", () => {
     expect(injection).toContain("var(--signal)");
     expect(injection).toContain("var(--type-xs)");
     expect(injection).toContain("var(--space-8)");
-    expect(injection).toContain("Every component boundary is one weight: var(--line)");
+    expect(injection).not.toContain("one weight");
 
     // On-token is not the same as on-key. Two palette colours carry a meaning the gate
     // cannot check, so the prompt is where it is stated.
     expect(injection).toContain("`--ink` draws lines and sets type and is never a background");
     expect(injection).toContain("`--signal` is reserved for alerts and destructive confirmation");
 
-    expect(injection).toContain("Three properties are never declared at all");
+    expect(injection).toContain("Four properties are never declared at all");
     expect(injection).toContain("`font-family`");
+    expect(injection).toContain("`border`");
     expect(injection).toContain("`border-radius`");
     expect(injection).toContain("`box-shadow`");
     expect(injection).toContain("The shadow rule is about the effect, not the property");

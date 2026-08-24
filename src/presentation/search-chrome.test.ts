@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  type CapabilitySearchState,
   createDebouncedCapabilitySearch,
   DEFAULT_SEARCH_DEBOUNCE_MS,
   handOffRecordsRegionToSearch,
-} from "../../public/search-chrome.js";
+  type SearchState,
+} from "#shell/search-chrome.js";
 
 interface ScheduledWork {
   readonly callback: () => void;
@@ -48,7 +48,7 @@ describe("debounced capability search", () => {
     const scheduled = controlledSchedule();
     const requested: Array<{ url: string; init?: RequestInit }> = [];
     const rendered: string[] = [];
-    const states: CapabilitySearchState[] = [];
+    const states: SearchState[] = [];
     const search = createDebouncedCapabilitySearch({
       readUrl: "/capability/journal/read",
       searchUrl: "/capability/journal/search",
@@ -115,7 +115,7 @@ describe("debounced capability search", () => {
   });
 
   test("empty search results become a platform no-matches state", async () => {
-    const states: CapabilitySearchState[] = [];
+    const states: SearchState[] = [];
     let rendered = "stale";
     const search = createDebouncedCapabilitySearch({
       readUrl: "/capability/journal/read",
@@ -202,7 +202,7 @@ describe("capability search request ownership", () => {
   });
 
   test("a failed request preserves rendered records and exposes an error state", async () => {
-    const states: CapabilitySearchState[] = [];
+    const states: SearchState[] = [];
     const rendered: string[] = [];
     const search = createDebouncedCapabilitySearch({
       readUrl: "/capability/journal/read",

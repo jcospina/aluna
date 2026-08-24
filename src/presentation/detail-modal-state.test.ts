@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "../../public/detail-modal-state.js";
+import { DETAIL_MODAL_MODE, transitionDetailModalMode } from "#shell/detail-modal-state.js";
 
 describe("detail modal local presentation state", () => {
   test("arms deletion without leaving read detail or making it implicit", () => {

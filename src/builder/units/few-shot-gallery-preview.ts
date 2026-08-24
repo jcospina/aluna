@@ -53,7 +53,7 @@ function exampleSection(example: FewShotDesignExample): string {
       </div>
       <details class="gallery-example__source">
         <summary>item.ts exemplar</summary>
-        <pre><code>${escapeHtml(example.rendererSource)}</code></pre>
+        <pre class="gallery-code"><code>${escapeHtml(example.rendererSource)}</code></pre>
       </details>
     </section>`;
 }
@@ -143,8 +143,10 @@ export function renderFewShotGalleryPreviewPage(): string {
         font-size: var(--type-sm);
         color: var(--ink-2);
       }
-      .gallery-example__source pre,
-      .prompt-preview pre {
+      /* The raw source and prompt readouts. Named rather than selected as a bare pre,
+         so the seam guard can see whose boundary this is and why it stays ruled: it is
+         developer-surface furniture in a page-local style block that lands after the seam. */
+      .gallery-code {
         max-height: 24rem;
         overflow: auto;
         padding: var(--space-2);
@@ -188,11 +190,11 @@ export function renderFewShotGalleryPreviewPage(): string {
       <div class="prompt-preview">
         <div>
           <h3 class="preview-title">feed</h3>
-          <pre><code>${escapeHtml(feedInjection)}</code></pre>
+          <pre class="gallery-code"><code>${escapeHtml(feedInjection)}</code></pre>
         </div>
         <div>
           <h3 class="preview-title">grid</h3>
-          <pre><code>${escapeHtml(gridInjection)}</code></pre>
+          <pre class="gallery-code"><code>${escapeHtml(gridInjection)}</code></pre>
         </div>
       </div>
     </section>

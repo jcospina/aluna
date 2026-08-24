@@ -1,11 +1,14 @@
 import { afterAll, describe, expect, test } from "bun:test";
 
+import { seedFrom } from "#design/lib/random.js";
 import { installFakeDom } from "./ink.test-support.ts";
+import { recordInkSeed } from "./ink-seed.ts";
+import { ITEM_TRIGGER_CLASS } from "./list-container.ts";
 
 // The globals have to exist before the ink system is evaluated — it builds its two
 // observers at module scope — so the import is deferred rather than hoisted.
 const dom = installFakeDom();
-const { drawAlso, mountAllInk, mountInk, unmountInk } = await import("../../design/scripts/ink.js");
+const { drawAlso, mountAllInk, mountInk, unmountInk } = await import("#design/ink.js");
 
 // The fakes are process-wide while they are installed, and the shell's own browser
 // modules install themselves the moment a `document` exists. Hand them back.
@@ -139,5 +142,76 @@ describe("the ink system draws the surface's own boundaries", () => {
     drawAlso(".prompt__composer");
     mountAllInk(dom.body);
     expect(rail.classes.has("is-ink")).toBe(true);
+  });
+});
+
+/** The seed the ink system settled on for one element, as a string. */
+function seedOf(el: Drawn): string {
+  const seed = el.dataset.inkSeed;
+  if (seed === undefined) throw new Error("No seed on the element.");
+  return seed;
+}
+
+/** One records region holding `ids.length` cards, shaped like the shipped markup. */
+function collection(ids: readonly string[]) {
+  const list = dom.element("div", "capability-records");
+  const cards = ids.map((id) => {
+    const card = dom.element("article", ITEM_TRIGGER_CLASS);
+    list.append(card);
+    card.dataset.inkSeed = String(recordInkSeed(id));
+    card.box = { w: 420, h: 96 };
+    card.borderWidth = 2;
+    return card;
+  });
+  return { list, cards };
+}
+
+describe("the ink system draws the records the platform hands it", () => {
+  test("a records region is one observation, however many cards it holds", () => {
+    drawAlso(`.${ITEM_TRIGGER_CLASS}`);
+    const before = dom.resizeObservations().length;
+    const { list, cards } = collection(Array.from({ length: 200 }, (_, i) => `record-${i}`));
+    mountAllInk(list);
+
+    expect(cards.every((card) => card.classes.has("is-ink"))).toBe(true);
+    // Two hundred cards, one observation — the region, never a card. This is the whole
+    // cost argument: the children of a list resize together, so watching each one buys
+    // nothing and is what would show up on a long list.
+    expect(dom.resizeObservations()).toContain(list);
+    expect(dom.resizeObservations().length).toBe(before + 1);
+    for (const card of cards) expect(dom.resizeObservations()).not.toContain(card);
+
+    for (const card of cards) unmountInk(card);
+    expect(dom.resizeObservations()).not.toContain(list);
+    expect(dom.resizeObservations().length).toBe(before);
+  });
+
+  test("the card is drawn in the hand the platform chose, not in mount order", () => {
+    drawAlso(`.${ITEM_TRIGGER_CLASS}`);
+    const ids = ["dune", "solaris", "piranesi"];
+    const { list, cards } = collection(ids);
+    mountAllInk(list);
+
+    for (const [index, card] of cards.entries()) {
+      expect(seedOf(card)).toBe(String(seedFrom(ids[index] as string)));
+    }
+    expect(new Set(cards.map(inkOf)).size).toBe(3);
+  });
+
+  test("a resize redraws the card at the new size without re-rolling its hand", () => {
+    drawAlso(`.${ITEM_TRIGGER_CLASS}`);
+    const { list, cards } = collection(["dune"]);
+    const card = cards[0] as Drawn;
+    mountAllInk(list);
+
+    const before = inkOf(card);
+    const seed = seedOf(card);
+
+    card.box = { w: 640, h: 96 };
+    dom.resize(list);
+    dom.frame();
+
+    expect(inkOf(card)).not.toBe(before);
+    expect(seedOf(card)).toBe(seed);
   });
 });

@@ -20,12 +20,11 @@ import { drawAlso, redrawInk, startInk } from "../design/scripts/ink.js";
  * the markup. Every one of them declares a `border` its stylesheet still reserves;
  * the drawn line is what you see there instead.
  *
- * Three absences are deliberate. Generated record markup is 5.2/02. The form's
- * `.field__control` is still the bare `<input>` rather than the shell around one, so
- * it cannot hold the two layers — the split that fixes it is 5.10/03. And the
- * developer panel's raw payload readouts are hidden by `:empty`, which a drawn
- * element can never be, because the two layers are children: they stay ruled until
- * 5.6/04 gives that panel a window of its own.
+ * Two absences are deliberate. The form's `.field__control` is still the bare `<input>`
+ * rather than the shell around one, so it cannot hold the two layers — the split that
+ * fixes it is 5.10/03. And the developer panel's raw payload readouts are hidden by
+ * `:empty`, which a drawn element can never be, because the two layers are children:
+ * they stay ruled until 5.6/04 gives that panel a window of its own.
  */
 const SHELL_INK = [
   /* The prompt rail. The button standing in it is a `.btn`, already drawn. */
@@ -34,9 +33,18 @@ const SHELL_INK = [
   ".sidebar-toggle",
   /* The content region */
   ".intro__output",
-  /* Collection chrome — the search rail and the create panel, never the records */
+  /* Collection chrome — the search rail and the create panel */
   ".capability-search__control",
   ".capability-collection__create",
+  /*
+   * The records themselves. A record is what a user looks at longest, so a straight-edged
+   * card on a drawn desk is the one that reads as unfinished. The card's hand comes from
+   * the record's own id, written as `data-ink-seed` by the platform's item wrapper
+   * (src/presentation/ink-seed.ts) — never from where the card sits, which would re-roll
+   * on every reorder and every resize. Generated markup inside the card asks for nothing
+   * and declares no boundary of its own; `border` is never-declared for a record now.
+   */
+  ".capability-item",
   /* What the platform says to the user */
   ".capability-deletion__notice",
   /* The shared record modal, until the window replaces it */

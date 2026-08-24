@@ -22,7 +22,6 @@ export {
 } from "./adapter.ts";
 export {
   isTokenFrom,
-  LINE_WEIGHT_TOKENS,
   PALETTE_COLOR_TOKENS,
   SPACING_TOKENS,
   TYPE_SIZE_TOKENS,

@@ -4,13 +4,13 @@
 //
 // The escape hatch relaxed only *off-token style*, never the executable surface. So
 // `sanitizeStyle` works declaration by declaration: it *drops* a declaration that names
-// a never-declared property (font family, `border-radius`, a shadow, `all`), *drops* one
-// that sets a closed axis with an off-token value (colour, type size, spacing, and — until
-// epic 5.2 hands boundaries to the ink system — border weight), *drops* forbidden
-// constructs (`url(...)`, `expression(...)`, gradients and colour functions, item-escaping
-// `position`, raw colours, inline custom-property definitions), and *passes conforming
-// declarations through*. A fully-conforming value comes back byte-identical so the enforcer
-// can leave it untouched; anything hostile smuggled into `style` comes out inert.
+// a never-declared property (font family, a boundary, `border-radius`, a shadow, `all`),
+// *drops* one that sets a closed axis with an off-token value (colour, type size, spacing),
+// *drops* forbidden constructs (`url(...)`, `expression(...)`, gradients and colour
+// functions, item-escaping `position`, raw colours, inline custom-property definitions),
+// and *passes conforming declarations through*. A fully-conforming value comes back
+// byte-identical so the enforcer can leave it untouched; anything hostile smuggled into
+// `style` comes out inert.
 //
 // Every check reads one canonical property name: vendor-deprefixed, and refused outright if
 // it is not a plain ident. A property is a CSS ident token, so `\66 ont-family` *is*
@@ -28,12 +28,11 @@
 // load a resource or run script) is airtight; its brand guarantee (off-token values on
 // the closed axes are removed) is complete for the well-structured properties and backed
 // everywhere by raw-colour/`url(` detection. A stray *named* colour inside a shorthand this
-// file leaves free (`outline-offset: thistle`, say) is inert and is caught at build time by
-// the design-lint gate rung; it is the one documented residual.
+// file leaves free (`text-decoration: underline thistle`, say) is inert and is caught at
+// build time by the design-lint gate rung; it is the one documented residual.
 
 import {
   isTokenFrom,
-  LINE_WEIGHT_TOKENS,
   PALETTE_COLOR_TOKENS,
   SPACING_TOKENS,
   TYPE_SIZE_TOKENS,
@@ -91,8 +90,8 @@ function declarationsOf(value: string): string[] {
 
 const MALFORMED = "a declaration must read `property: value`";
 
-/** Split `prop: value` and route to the bans and the axis checks. Returns the reason the
- *  declaration is off-contract, or `undefined` when it conforms. */
+/** Split `prop: value`, settle the property's canonical name, and hand both to the checks.
+ *  Returns the reason the declaration is off-contract, or `undefined` when it conforms. */
 function checkDeclaration(declaration: string): string | undefined {
   const colon = declaration.indexOf(":");
   if (colon === -1) return MALFORMED;
@@ -113,6 +112,13 @@ function checkDeclaration(declaration: string): string | undefined {
     return "a property name is a plain CSS ident — an escape sequence or a character reference in it hides the property it really names";
   }
 
+  return checkProperty(prop, value);
+}
+
+/** The checks themselves, in the order the contract states them: what may never be
+ *  declared, what may never be constructed, the one property with its own keyword rule,
+ *  then which token on which property and finally the closed axes. */
+function checkProperty(prop: string, value: string): string | undefined {
   const banned = neverDeclaredReason(prop);
   if (banned) return banned;
 
@@ -127,7 +133,8 @@ function checkDeclaration(declaration: string): string | undefined {
       : "a record may not escape its own bounds; only `static` and `relative` are allowed";
   }
 
-  return offAxisReason(prop, tokenize(withoutImportant(value)));
+  const tokens = tokenize(withoutImportant(value));
+  return inkFillReason(prop, tokens) ?? offAxisReason(prop, tokens);
 }
 
 /** Strip a vendor prefix so a prefixed property is held to the same rule as the bare one. */
@@ -156,6 +163,12 @@ function neverDeclaredReason(prop: string): string | undefined {
   }
   if (prop === "border-radius" || prop.endsWith("-radius")) {
     return "`border-radius` is never declared — High Meadow has no radius tokens, every corner is mitred, and a square corner is the absence of a declaration rather than a value of zero";
+  }
+  if (isBoundaryProp(prop)) {
+    return "`border` is never declared — the ink system owns every boundary, a drawn line is an SVG path rather than a CSS edge, and the platform draws the record's own";
+  }
+  if (isUnweighable(prop)) {
+    return "a line has no weight to name — retiring the border-weight axis left no thickness token on the surface, so a property whose value is a thickness has no value it may take";
   }
   if (prop === "box-shadow" || prop === "text-shadow" || prop === "box-reflect") {
     return "a shadow is never declared — nothing inside a window casts, and the shadow tokens are bare `<x> <y> <alpha>` numbers, so `box-shadow: var(--shadow-window)` is an invalid value that fails silently";
@@ -279,24 +292,11 @@ function isNormal(token: string): boolean {
 function isColorKeyword(token: string): boolean {
   return /^(?:transparent|currentcolor|none|auto)$/i.test(token);
 }
-function isLineStyle(token: string): boolean {
-  return /^(?:none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset)$/i.test(token);
-}
-
 const isTypeOrGlobal = (t: string): boolean => isTokenFrom(t, TYPE_SIZE_TOKENS) || isGlobal(t);
 const isSpacingToken = (t: string): boolean =>
   isTokenFrom(t, SPACING_TOKENS) || isZero(t) || isAuto(t) || isNormal(t) || isGlobal(t);
-const isBorderWidthOrZero = (t: string): boolean =>
-  isTokenFrom(t, LINE_WEIGHT_TOKENS) || isZero(t) || isGlobal(t);
 const isColorTokenOrKeyword = (t: string): boolean =>
   isTokenFrom(t, PALETTE_COLOR_TOKENS) || isColorKeyword(t) || isGlobal(t);
-const isBorderShorthandToken = (t: string): boolean =>
-  isTokenFrom(t, LINE_WEIGHT_TOKENS) ||
-  isZero(t) ||
-  isLineStyle(t) ||
-  isTokenFrom(t, PALETTE_COLOR_TOKENS) ||
-  isColorKeyword(t) ||
-  isGlobal(t);
 
 // ── The closed axes ──────────────────────────────────────────────────────────────────
 // One row per axis: which properties it owns, what it accepts, and what it says when a
@@ -338,41 +338,90 @@ const COLOR_VALUED_PROPS: ReadonlySet<string> = new Set([
   "background-image",
   "fill",
   "stroke",
+  /* A line drawn round every glyph, at a width and in a colour. It says neither in its
+   * name, which is what this set is for; the colour half is held to the palette here and
+   * the width half has nothing left to name, which `isUnweighable` settles. */
+  "text-stroke",
 ]);
 
-/** Border weight — the width sub-axis. High Meadow has one weight: `var(--line)`, or a zero. */
-const BORDER_WIDTH_PROPS: ReadonlySet<string> = new Set([
-  "border-width",
-  "border-top-width",
-  "border-right-width",
-  "border-bottom-width",
-  "border-left-width",
-  "border-block-width",
-  "border-inline-width",
-  "border-block-start-width",
-  "border-block-end-width",
-  "border-inline-start-width",
-  "border-inline-end-width",
-  "outline-width",
-  "column-rule-width",
+/**
+ * `--ink` fills nothing. The handbook states it flatly — "`--ink` draws every line and
+ * sets every piece of type. It is never a background and never a fill" — and until the
+ * boundary ban that rule cost nothing to leave unenforced, because a record that wanted a
+ * frame could simply declare one.
+ *
+ * Now it is the way around the ban. An `--ink` block wrapped round a `--surface` block is
+ * an ink frame at whatever thickness the padding says, drawn beside the hand-drawn line
+ * rather than instead of it. So `--ink` stays a legal colour for type and for what strokes
+ * a path, and is refused wherever the value fills a box.
+ *
+ * `--ink-2` and `--ink-3` go with it. They are the same ink at reading strengths — the
+ * handbook gives them to type alone — and leaving them fillable would reopen the same
+ * door one step lighter.
+ */
+const FILL_PROPS: ReadonlySet<string> = new Set([
+  "background",
+  "background-color",
+  "background-image",
+  "fill",
 ]);
 
-/** Border/outline shorthands — width + line-style + colour, each of which must be on-token. */
-const BORDER_SHORTHAND_PROPS: ReadonlySet<string> = new Set([
-  "border",
-  "border-top",
-  "border-right",
-  "border-bottom",
-  "border-left",
-  "border-block",
-  "border-inline",
-  "border-block-start",
-  "border-block-end",
-  "border-inline-start",
-  "border-inline-end",
-  "outline",
-  "column-rule",
-]);
+const INK_TOKENS: ReadonlySet<string> = new Set(["ink", "ink-2", "ink-3"]);
+
+/**
+ * Which token, on which property — a rule about a value rather than a closed axis, and it
+ * runs between the bans and the axes for that reason. As an axis it would have answered
+ * for every off-token fill, so `background: white` would have been refused in the ink
+ * rule's words when its problem is simply that white is not in the palette.
+ */
+function inkFillReason(prop: string, tokens: readonly string[]): string | undefined {
+  if (!FILL_PROPS.has(prop)) return undefined;
+  if (!tokens.some((token) => isTokenFrom(token, INK_TOKENS))) return undefined;
+  return "`--ink` draws every line and sets every piece of type; it is never a background and never a fill, and neither are `--ink-2` and `--ink-3` — a filled block names one of the five surfaces or one of the eight tints";
+}
+
+/**
+ * A line width with no set to pick from. Retiring the border-weight axis left the surface
+ * with no way to name a thickness at all, so a property whose value *is* a thickness has
+ * no satisfiable value — a raw length is off-token by definition, and there is no token.
+ * Refusing it says that, rather than letting a raw `6px` through on a property no axis
+ * happens to own.
+ */
+function isUnweighable(prop: string): boolean {
+  return (
+    prop === "text-stroke-width" ||
+    prop === "text-decoration-thickness" ||
+    prop === "text-underline-offset"
+  );
+}
+
+/**
+ * A boundary — the fourth never-declared property (PLAN decision 10). Written as a prefix
+ * test rather than a list because a list can only name the longhands someone thought of:
+ * the shorthand, the four physical and six logical sides, and the width, style and colour
+ * sub-properties of each all draw the same CSS edge, and the ink system owns it.
+ *
+ * `outline` and `column-rule` are here on the same reasoning rather than by association.
+ * The focus ring is `--focus-ring`, painted by the platform on the enclosing shell, and a
+ * record holds no interactive descendant to ring; a column rule is a CSS edge inside a
+ * record like any other.
+ *
+ * Two exclusions. `border-radius` is caught above, which keeps its own reason — there are
+ * no radius tokens — rather than being absorbed into this one. `border-spacing` and
+ * `border-collapse` are table metrics that draw nothing: the first is held to the spacing
+ * set below and the second is free, exactly as before.
+ */
+function isBoundaryProp(prop: string): boolean {
+  if (prop === "border-spacing" || prop === "border-collapse") return false;
+  return (
+    prop === "border" ||
+    prop.startsWith("border-") ||
+    prop === "outline" ||
+    prop.startsWith("outline-") ||
+    prop === "column-rule" ||
+    prop.startsWith("column-rule-")
+  );
+}
 
 const CLOSED_AXES: readonly ClosedAxis[] = [
   {
@@ -384,17 +433,6 @@ const CLOSED_AXES: readonly ClosedAxis[] = [
     owns: isSpacingProp,
     accepts: isSpacingToken,
     refusal: () => offToken("spacing", SPACING_TOKENS),
-  },
-  {
-    owns: (prop) => BORDER_WIDTH_PROPS.has(prop),
-    accepts: isBorderWidthOrZero,
-    refusal: () => offToken("border weight", LINE_WEIGHT_TOKENS),
-  },
-  {
-    owns: (prop) => BORDER_SHORTHAND_PROPS.has(prop),
-    accepts: isBorderShorthandToken,
-    refusal: () =>
-      `a boundary is ${tokenList(LINE_WEIGHT_TOKENS)}, a line style, and a High Meadow palette colour — ${tokenList(PALETTE_COLOR_TOKENS)}`,
   },
   {
     owns: isColorProp,

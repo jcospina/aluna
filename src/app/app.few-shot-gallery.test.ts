@@ -46,8 +46,11 @@ describe("GET /demo/few-shot-gallery (few-shot gallery, epic 3.5)", () => {
     expect(html).toContain("Chosen collection layout for this capability: &quot;grid&quot;");
     expect(html).toContain("style=&quot;grid-template-columns");
     // The re-derived contract, in the words the generator actually receives.
-    expect(html).toContain("var(--line) solid var(--ink)");
     expect(html).toContain("Three axes are closed");
-    expect(html).toContain("Three properties are never declared at all");
+    expect(html).toContain("Four properties are never declared at all");
+    // The retired fourth axis. `border` is a ban now, so the prompt names no weight — the
+    // page's own developer chrome still rules its boxes, which is why this asks for the
+    // sentence rather than for the absence of the string.
+    expect(html).not.toContain("Every component boundary is one weight");
   });
 });

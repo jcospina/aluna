@@ -39,13 +39,27 @@ function rules(source: string, css: string): Rule[] {
     });
 }
 
-/** The shell bridge, plus the inline stylesheets its own preview pages carry. */
+/** Every inline `<style>` a source carries, as rules attributed to that source. */
+function inlineRules(path: string): Rule[] {
+  return [...read(path).matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].flatMap((match) =>
+    rules(path, match[1] as string),
+  );
+}
+
+/*
+ * Not a `public/*.html` page, and the one other place that renders real record wrappers.
+ * The few-shot gallery preview is a served developer surface built from a TypeScript
+ * template: it loads `/static/app.css` and `/static/ink.js`, emits six `.capability-item`
+ * cards through the real adapter, and carries an inline `<style>` of its own that lands
+ * after the seam. A guard that reads only `public/` would not see a border declared there.
+ */
+const EMBEDDED_PAGES = ["src/builder/units/few-shot-gallery-preview.ts"];
+
+/** The shell bridge, plus every inline stylesheet a page of ours carries. */
 function shellRules(): Rule[] {
   const sheets = SHELL_SHEETS.map((path) => rules(path, read(path)));
-  const inline = SHELL_PAGES.flatMap((page) =>
-    [...read(`public/${page}`).matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((match) =>
-      rules(`public/${page}`, match[1] as string),
-    ),
+  const inline = [...SHELL_PAGES.map((page) => `public/${page}`), ...EMBEDDED_PAGES].flatMap(
+    inlineRules,
   );
   return [...sheets, ...inline].flat();
 }
@@ -96,8 +110,6 @@ function outranksTheSeam(selector: string): boolean {
  * reach, and each says what reaches it.
  */
 const RULED_ON_PURPOSE = new Set([
-  // the generated record card — 5.2/02 seeds it from the record id
-  "capability-item",
   // still the bare <input>; the shell-and-input split is 5.10/03
   "field__control",
   // a spinning circle: the shape of an object, not a boundary
@@ -107,6 +119,12 @@ const RULED_ON_PURPOSE = new Set([
   // this page's own furniture, deliberately named apart from the drawn `.swatch`
   "preview-item",
   "preview-swatch",
+  // the gallery preview's layout chip and its raw source/prompt readouts. Same shape as
+  // the two above: a developer surface's own furniture, declared in a page-local `<style>`
+  // that lands after the seam, so a drawn line there would sit beside a true edge rather
+  // than replace it. The record wrappers on that page are drawn, which is what it shows.
+  "gallery-example__layout",
+  "gallery-code",
 ]);
 
 describe("the ink seam holds in the shipped product", () => {

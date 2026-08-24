@@ -1,9 +1,9 @@
 // The design-lint rung: the Gate's last, always-on verdict. It renders the generated item
 // renderer with **synthetic and hostile** field values, within the capability's declared
 // collection layout, and rejects anything outside the closed-value design contract —
-// off-token styling on the three closed axes (colour/type size/spacing, plus the interim
-// border weight), the three never-declared properties (font family, `border-radius`,
-// `box-shadow`), forbidden style constructs (`url(...)`, item-escaping position), field
+// off-token styling on the three closed axes (colour/type size/spacing), the four
+// never-declared properties (font family, `border`, `border-radius`, `box-shadow`),
+// forbidden style constructs (`url(...)`, item-escaping position), field
 // values interpolated into `style`, fabricated classes, executable markup, and unsafe field
 // interpolation. The axes and the bans are High Meadow's, re-derived in epic 5.1 against
 // `design/styles/` — the token *names* come from `presentation/design-tokens.ts`, so this
@@ -31,7 +31,6 @@ import {
   collectionLayoutClass,
   createPlatformPresentationAdapter,
   enforceItemMarkup,
-  LINE_WEIGHT_TOKENS,
   PALETTE_COLOR_TOKENS,
   type PresentableRecord,
   type RenderableCapability,
@@ -498,8 +497,8 @@ function offContractMessage(detail: string, probe: DesignProbe): string {
     "- Make every field declared by `ui_intent.item.shows` affect perceivable text, media, or accessible content; empty containers and styling-only differences are not record composition.",
     "- Escape every record value before placing it in markup; never interpolate a field into a `style` attribute (styles must be literal).",
     "- Use only the allow-listed primitive classes — no fabricated class names.",
-    `- Inline \`style\` may set the three closed axes only by naming a High Meadow token: colour ${tokenList(PALETTE_COLOR_TOKENS)}; type size ${tokenList(TYPE_SIZE_TOKENS)}; spacing ${tokenList(SPACING_TOKENS)}. Every boundary weight is ${tokenList(LINE_WEIGHT_TOKENS)}. No raw colours (named, hex, or colour functions), no raw sizes, no \`url(...)\`, no \`position: fixed|absolute|sticky\`.`,
-    "- Never declare `font-family`, `border-radius`, or a shadow of any kind (`box-shadow`, `text-shadow`, `drop-shadow(...)`). An item inherits the face of the surface it sits on; every corner is mitred, so a square corner is the absence of a declaration; and nothing inside a window casts, so a shadow would be an invalid value that fails silently. `all` is out too — it resets that inheritance.",
+    `- Inline \`style\` may set the three closed axes only by naming a High Meadow token: colour ${tokenList(PALETTE_COLOR_TOKENS)}; type size ${tokenList(TYPE_SIZE_TOKENS)}; spacing ${tokenList(SPACING_TOKENS)}. No raw colours (named, hex, or colour functions), no raw sizes, no \`url(...)\`, no \`position: fixed|absolute|sticky\`.`,
+    "- Never declare `font-family`, `border`, `border-radius`, or a shadow of any kind (`box-shadow`, `text-shadow`, `drop-shadow(...)`). An item inherits the face of the surface it sits on; every boundary on this surface is drawn by hand by the platform, so a CSS edge — `border`, `outline` or `column-rule` — would sit beside the drawn one; every corner is mitred, so a square corner is the absence of a declaration; and nothing inside a window casts, so a shadow would be an invalid value that fails silently. `all` is out too — it resets that inheritance.",
     "- Emit no `<script>`, event handlers (`on*=`), links, buttons, inputs, or other interactive/unknown elements — the platform owns the wrapper, payload, and click-to-open.",
   ].join("\n");
 }

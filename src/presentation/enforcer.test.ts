@@ -100,9 +100,22 @@ describe("enforcer — off-token style on the owned axes", () => {
     );
   });
 
-  test("drops a raw border and keeps a token one", () => {
+  // A boundary the browser draws with no declaration at all — the one edge a
+  // property-keyed ban structurally cannot see. It has no content, so unwrapping it
+  // leaves nothing behind.
+  test("an <hr> is a boundary, and the ink system owns every boundary", () => {
+    expect(
+      enforceItemMarkup('<div class="stack gap-1"><span>A</span><hr><span>B</span></div>'),
+    ).toBe('<div class="stack gap-1"><span>A</span><span>B</span></div>');
+    expect(enforceItemMarkup("<hr>")).toBe("");
+  });
+
+  test("drops a boundary at any weight, and keeps the fill that replaces it", () => {
     expect(enforceItemMarkup('<div style="border:2px solid red">x</div>')).toBe("<div>x</div>");
-    const ok = '<div style="border:var(--line) solid var(--ink)">x</div>';
+    expect(enforceItemMarkup('<div style="border:var(--line) solid var(--ink)">x</div>')).toBe(
+      "<div>x</div>",
+    );
+    const ok = '<div style="background-color:var(--sun)">x</div>';
     expect(enforceItemMarkup(ok)).toBe(ok);
   });
 

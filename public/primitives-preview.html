@@ -45,9 +45,11 @@
       font-size: var(--type-sm);
       color: var(--ink-3);
     }
-    /* Stand-in for the 3.2 platform item wrapper: a surface with a thin-border
-                                               card and the item type baseline. Item CONTENT inside uses only the
-                                               vocabulary classes; nothing here anticipates 3.2's real wrapper. */
+    /* Stand-in for the platform item wrapper: a surface, a ruled card and the item type
+               baseline. The shipped wrapper is drawn by the ink system rather than ruled (5.2/02);
+               this page keeps a plain edge on purpose, because its inline styles load after the
+               seam and would paint a true edge beside a drawn one. Item CONTENT inside uses only
+               the vocabulary classes. */
     .preview-item {
       padding: var(--space-2);
       font-family: var(--font-body);
@@ -61,10 +63,10 @@
     .preview-item p {
       margin: 0;
     }
-    /* Line swatches — High Meadow has one boundary weight. Named apart from the
-           design page's own `.swatch`, which the ink system draws: this page's inline
-           styles load after the seam, so sharing the name would paint a true CSS edge
-           beside the drawn one. */
+    /* Line swatches — the one weight the ink system draws at. Named apart from the
+               design page's own `.swatch`, which the ink system draws: this page's inline
+               styles load after the seam, so sharing the name would paint a true CSS edge
+               beside the drawn one. */
     .preview-swatches {
       display: flex;
       gap: var(--space-2);
@@ -108,7 +110,9 @@
     <section class="preview-section">
       <p class="preview-title">Boundary line</p>
       <p class="preview-note">
-        High Meadow uses one token-owned weight for every component boundary.
+        Every boundary on the product surface is drawn by the ink system, at one weight, and a
+        record declares none of its own. <code>--line</code> is the room a platform component
+        reserves for that drawn line — not a value generated markup may name.
       </p>
       <div class="preview-swatches">
         <div class="preview-swatch">line · 2px</div>
@@ -178,16 +182,20 @@
     <section class="preview-section">
       <p class="preview-title">Escape hatch (token-disciplined)</p>
       <p class="preview-note">
-        When the vocabulary doesn't suffice, inline <code>style</code> is allowed — but the five
-        owned axes stay on-token. Here: an accent flag via
-        <code>border-inline-start: var(--line) solid var(--shade)</code>.
+        When the vocabulary doesn't suffice, inline <code>style</code> is allowed — but the three
+        owned axes stay on-token, and a boundary is not one of them. Here: an accent flag via
+        <code>background-color: var(--shade)</code>
+        on a block of its own.
       </p>
-      <article
-        class="preview-item stack gap-1"
-        style="border-inline-start: var(--line) solid var(--shade)"
-      >
-        <p class="text-bold truncate">Renew passport</p>
-        <p class="text-sm text-muted">Flagged — border weight and color both come from tokens.</p>
+      <article class="preview-item cluster gap-2" style="align-items: stretch">
+        <span style="background-color: var(--shade); padding: var(--space-1)"></span>
+        <span class="stack gap-1">
+          <span class="text-bold truncate">Renew passport</span>
+          <span class="text-sm text-muted"
+            >Flagged — a fill, not a line. The ink system draws every boundary on the surface, so a
+            record declares none.</span
+          >
+        </span>
       </article>
     </section>
   </body>

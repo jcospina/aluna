@@ -11,6 +11,13 @@
 //
 // Both enforcement surfaces key on these sets: `style-discipline.ts` at render time and
 // the design-lint gate rung at build time.
+//
+// Three axes, and there is no fourth. ADR-0005's border weight is retired rather than
+// re-derived (epic 5.2): every boundary on the surface is drawn by the ink system, so
+// `border` is never declared and there is nothing to pick from — the same shape
+// `border-radius` and `box-shadow` already have. `--line` survives in
+// `design/styles/tokens.css` as the room a platform component reserves for that drawn
+// line; it is not a value a record names, so it has no set here.
 
 /**
  * The High Meadow palette — the closed colour list. Five fills build every surface,
@@ -73,19 +80,6 @@ export const SPACING_TOKENS: ReadonlySet<string> = new Set([
   "space-7",
   "space-8",
 ]);
-
-/**
- * The line's weight. High Meadow has one: every boundary is 2px and there is no weight
- * ladder, so ADR-0005's thin | regular | thick axis gets no successor list — it collapses
- * to a single name.
- *
- * This axis is **interim**. Epic 5.2 hands every generated boundary to the ink system and
- * `border` joins the never-declared set; until it does, a generated card with neither a
- * border nor a drawn boundary would be invisible, so the declaration stays legal and the
- * one weight is what it may name. The logo tile's contour and the label plate's hairline
- * are drawing constants for one platform object each, not weights a record picks from.
- */
-export const LINE_WEIGHT_TOKENS: ReadonlySet<string> = new Set(["line"]);
 
 /** Render a token set as the `var(--name)` list a refusal or a prompt names it by. */
 export function tokenList(tokens: ReadonlySet<string>): string {

@@ -106,10 +106,11 @@ const CLEAN_RENDERER = renderer(
   '`<div class="stack gap-1"><span class="text-lg text-bold truncate">${text}</span></div>`',
 );
 
-// Token-disciplined inline style on the closed axes (colour/type size/spacing) plus the one
-// boundary weight — the escape hatch used correctly against High Meadow. Must pass clean.
+// Token-disciplined inline style on the three closed axes (colour/type size/spacing) — the
+// escape hatch used correctly against High Meadow. No boundary: the ink system draws the
+// record's own on the platform's wrapper, and the fill is what separates a block here.
 const TOKEN_STYLE_RENDERER = renderer(
-  '`<div class="stack" style="padding: var(--space-1); font-size: var(--type-lg); color: var(--ink); border: var(--line) solid var(--shade);"><span class="text-bold">${text}</span></div>`',
+  '`<div class="stack" style="padding: var(--space-1); font-size: var(--type-lg); color: var(--ink); background-color: var(--surface-2);"><span class="text-bold">${text}</span></div>`',
 );
 
 // Structurally valid and clean for design lint's fixed probe id, but unusable for any real

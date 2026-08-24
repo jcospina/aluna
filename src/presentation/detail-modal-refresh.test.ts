@@ -3,9 +3,9 @@ import { describe, expect, test } from "bun:test";
 import {
   committedRecordsRefreshTarget,
   refreshCommittedRecords,
-} from "../../public/detail-modal-refresh.js";
-import { createRecordsRegionRequestCoordinator } from "../../public/records-region-requests.js";
-import { createDebouncedCapabilitySearch } from "../../public/search-chrome.js";
+} from "#shell/detail-modal-refresh.js";
+import { createRecordsRegionRequestCoordinator } from "#shell/records-region-requests.js";
+import { createDebouncedCapabilitySearch } from "#shell/search-chrome.js";
 
 describe("refreshCommittedRecords", () => {
   test("replaces the region only after a successful committed read and reprocesses it", async () => {
