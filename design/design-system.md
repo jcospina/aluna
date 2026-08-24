@@ -98,11 +98,13 @@ shadow's reasoning rather than its property name: `text-shadow` and
 out because resetting the surface's inheritance is how the face, the colour and
 the metrics above would be undone.
 
-Three of the four bans are enforced today. `border` is not yet: the ink system
-takes over generated boundaries in epic 5.2, and until it does, a generated card
-with neither a border nor a drawn line would be invisible — so the gate still
-accepts `border` at the one weight, and the generation prompt still teaches it.
-Write new UI to the rule above; the gate catching up is the only thing outstanding.
+All four bans are enforced. `border` was the last to land, because it could not
+until the ink system reached the records themselves: a generated card with neither
+a border nor a drawn line is invisible. Now that the platform draws the card, the
+gate refuses every boundary a record could declare — the shorthand, every side and
+every sub-property, and `outline` and `column-rule`, which are the same CSS edge
+under other names. Without a border, separation comes from the palette and the
+spacing: a filled block, a change of size or weight, a gap.
 
 ### Banned outright
 

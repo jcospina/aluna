@@ -19,6 +19,7 @@ import {
   type RenderableCapability,
   renderCreateForm,
 } from "./field-renderer.ts";
+import { inkSeedAttr } from "./ink-seed.ts";
 
 /**
  * The closed set of collection layouts. `table`/`masonry` are deliberately out of
@@ -225,6 +226,12 @@ export function renderCollection(options: CollectionOptions): string {
  *
  * `innerHtml` is trusted — the presentation adapter has already run it through the
  * runtime enforcer. This function frames it; it does not sanitize.
+ *
+ * The wrapper also carries the record's drawn hand as `data-ink-seed`, derived from the
+ * record's own id. That is the whole of the platform's ink work on a record: the
+ * boundary itself is drawn on this wrapper, which the platform owns, so the spec, the
+ * generator prompt and the registry are asked for nothing and generated markup never
+ * learns the ink system exists.
  */
 export function renderItemWrapper(
   innerHtml: string,
@@ -239,7 +246,8 @@ export function renderItemWrapper(
     : "";
   return (
     `<article${itemId} class="${ITEM_TRIGGER_CLASS}" role="button" tabindex="0"` +
-    ` aria-haspopup="dialog" ${ITEM_PAYLOAD_ATTR}="${payload}"${detailHooks}>${innerHtml}</article>`
+    ` aria-haspopup="dialog" ${ITEM_PAYLOAD_ATTR}="${payload}"${detailHooks}` +
+    `${inkSeedAttr(record.id)}>${innerHtml}</article>`
   );
 }
 

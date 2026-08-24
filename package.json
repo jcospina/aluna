@@ -16,7 +16,7 @@
     "build": "bun build src/index.ts --target=bun --outdir=dist --define process.env.NODE_ENV='\"production\"'",
     "reset": "bun scripts/reset-runtime.ts",
     "start": "bun ./dist/index.js",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.browser.json",
+    "typecheck": "tsc -p tsconfig.browser.json && tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
     "prepare": "husky"
@@ -40,5 +40,15 @@
     "ai": "^6.0.199",
     "hono": "^4.12.23",
     "zod": "^4.4.3"
+  },
+  "imports": {
+    "#design/*.js": {
+      "types": "./.types/design/scripts/*.d.ts",
+      "default": "./design/scripts/*.js"
+    },
+    "#shell/*.js": {
+      "types": "./.types/public/*.d.ts",
+      "default": "./public/*.js"
+    }
   }
 }

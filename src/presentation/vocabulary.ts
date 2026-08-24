@@ -68,6 +68,13 @@ export const ALLOWED_CLASSES: ReadonlySet<string> = new Set([
  * either removed with its content (REMOVED_ELEMENTS) or unwrapped (everything else —
  * interactive controls, `<html>`/`<body>` framing, and unknown/custom elements — so
  * their inner record text survives while the tag and its handlers do not).
+ *
+ * `<hr>` is absent, and it is the one absence the style rules cannot explain. Every
+ * other boundary a record could draw is a CSS declaration, and `border` is never
+ * declared — but a bare `<hr>` needs no declaration at all: the user agent draws it as
+ * an inset 1px rule, so a property-keyed ban cannot see it. It is a boundary, the ink
+ * system owns every boundary, and unwrapping it leaves nothing behind, since it has no
+ * content. A record separates with a fill, a size or a gap instead.
  */
 export const ALLOWED_ELEMENTS: ReadonlySet<string> = new Set([
   // Flow containers + blocks
@@ -85,7 +92,6 @@ export const ALLOWED_ELEMENTS: ReadonlySet<string> = new Set([
   "address",
   "blockquote",
   "pre",
-  "hr",
   "br",
   // Headings
   "h1",

@@ -5,12 +5,27 @@
   // separate from the server tsconfig so each environment stays honest.
   // `// @ts-check` + JSDoc in the files; checkJs runs tsc over them. Vendored
   // third-party blobs are excluded (not ours to type-check).
+  //
+  // This pass also *publishes* those JSDoc types, as `.d.ts` under `.types/`, which
+  // is how `src` imports a browser module (`#design/…`, `#shell/…` in package.json)
+  // without turning on `allowJs` for the server. Declarations are emitted rather
+  // than hand-written, and they land in a mirror directory rather than beside the
+  // `.js`, for one reason: TypeScript prefers a `.d.ts` over the `.js` next to it in
+  // every project, so a hand-written one beside the source silently becomes what the
+  // module's own browser callers are checked against. Emitting here keeps the check
+  // and the published types the same compile — they cannot skew.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "allowJs": true,
     "checkJs": true,
-    "types": []
+    "types": [],
+
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "rootDir": ".",
+    "outDir": ".types"
   },
   "include": ["public/**/*.js", "design/**/*.js"],
   "exclude": ["public/vendor"]

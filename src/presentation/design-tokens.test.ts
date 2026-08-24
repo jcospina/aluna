@@ -4,12 +4,12 @@ import { resolve } from "node:path";
 
 import {
   isTokenFrom,
-  LINE_WEIGHT_TOKENS,
   PALETTE_COLOR_TOKENS,
   SPACING_TOKENS,
   TYPE_SIZE_TOKENS,
   tokenList,
 } from "./design-tokens.ts";
+import { describeStyleViolation } from "./style-discipline.ts";
 
 // The cross-check that keeps the *names* the contract closes on bound to the stylesheet
 // that holds their *values*. Values live once in `design/styles/tokens.css`; a token
@@ -35,7 +35,6 @@ describe("the closed axes name only tokens High Meadow declares", () => {
     ["palette colour", PALETTE_COLOR_TOKENS],
     ["type size", TYPE_SIZE_TOKENS],
     ["spacing", SPACING_TOKENS],
-    ["border weight", LINE_WEIGHT_TOKENS],
   ])("%s", (_axis, tokens) => {
     expect(tokens.size).toBeGreaterThan(0);
     for (const name of tokens) {
@@ -85,16 +84,22 @@ describe("the closed axes name only tokens High Meadow declares", () => {
     expect(new Set(declaredSpace)).toEqual(new Set(SPACING_TOKENS));
   });
 
-  test("border weight has no ladder — High Meadow states one line and no radius token", () => {
-    expect([...LINE_WEIGHT_TOKENS]).toEqual(["line"]);
+  // The three axes are the whole pick-from-a-list surface. The two absences that used to
+  // read as short ladders are absences now: there is no radius token to pick from, and no
+  // weight either — `--line` is the room a platform component reserves for the drawn line,
+  // never a value a record names.
+  test("neither a radius nor a weight is an axis a record picks from", () => {
     expect([...DECLARED].filter((name) => name.endsWith("radius"))).toEqual([]);
+    expect(DECLARED.has("line")).toBe(true);
+    expect(describeStyleViolation("border-width: var(--line)")).toContain(
+      "`border` is never declared",
+    );
   });
 
   test("the retired Paper & Ink vocabulary is gone from the stylesheet and the sets", () => {
     for (const retired of ["color-text", "color-accent", "border-regular", "radius-md"]) {
       expect(DECLARED.has(retired)).toBe(false);
       expect(PALETTE_COLOR_TOKENS.has(retired)).toBe(false);
-      expect(LINE_WEIGHT_TOKENS.has(retired)).toBe(false);
     }
   });
 });
@@ -177,7 +182,7 @@ describe("token helpers", () => {
   });
 
   test("tokenList renders the set the way a refusal names it", () => {
-    expect(tokenList(LINE_WEIGHT_TOKENS)).toBe("var(--line)");
+    expect(tokenList(TYPE_SIZE_TOKENS)).toContain("var(--type-xs), var(--type-sm)");
     expect(tokenList(SPACING_TOKENS)).toContain("var(--space-1), var(--space-2)");
   });
 });

@@ -14,8 +14,8 @@ describe("sanitizeStyle — conforming values pass through unchanged", () => {
     expect(sanitizeStyle(value)).toBe(value);
   });
 
-  test("type scale and the one border weight", () => {
-    const value = "font-size: var(--type-lg); border: var(--line) solid var(--ink)";
+  test("type scale and a palette fill — the separation a record has instead of a border", () => {
+    const value = "font-size: var(--type-lg); background-color: var(--sun)";
     expect(sanitizeStyle(value)).toBe(value);
   });
 
@@ -78,8 +78,7 @@ describe("sanitizeStyle — off-token declarations on the closed axes are droppe
 
   test("the retired Paper & Ink vocabulary resolves to nothing and is off-token", () => {
     expect(sanitizeStyle("color: var(--color-text)")).toBe("");
-    expect(sanitizeStyle("border-width: var(--border-regular)")).toBe("");
-    expect(sanitizeStyle("border: var(--border-thin) solid var(--color-border)")).toBe("");
+    expect(sanitizeStyle("background-color: var(--color-border)")).toBe("");
   });
 
   test("a colour outside the palette — chrome-only tokens are not the record's to name", () => {
@@ -97,12 +96,93 @@ describe("sanitizeStyle — off-token declarations on the closed axes are droppe
     expect(sanitizeStyle("font-size: 1.2rem")).toBe("");
   });
 
-  test("raw spacing and a border weight that is not the line", () => {
+  test("raw spacing", () => {
     expect(sanitizeStyle("padding: 16px")).toBe("");
     expect(sanitizeStyle("margin-left: 2rem")).toBe("");
-    expect(sanitizeStyle("border-width: 5px")).toBe("");
-    expect(sanitizeStyle("border-width: var(--line-plate)")).toBe("");
-    expect(sanitizeStyle("border: 1px solid red")).toBe("");
+  });
+
+  // The ways around the boundary ban that do not spell "border". A ban keyed on a property
+  // name is only as good as the list of ways to draw a line, so each of these is a line
+  // the ban would otherwise have pushed a generated record toward.
+  test("an ink fill is a frame, so `--ink` never fills a box", () => {
+    // An `--ink` block wrapped round a `--surface` block is a border at whatever thickness
+    // the padding says — drawn beside the hand-drawn line rather than instead of it. The
+    // handbook already said `--ink` fills nothing; before the ban it cost nothing to leave
+    // that unenforced, because a record wanting a frame could just declare one.
+    for (const declaration of [
+      "background-color: var(--ink)",
+      "background: var(--ink)",
+      "background-color: var(--ink-2)",
+      "background-color: var(--ink-3)",
+      "background-image: var(--ink)",
+      "fill: var(--ink)",
+    ]) {
+      expect(sanitizeStyle(declaration), declaration).toBe("");
+      expect(describeStyleViolation(declaration), declaration).toContain("never a fill");
+    }
+
+    // Ink still sets type and still strokes a path, and every other fill is untouched.
+    for (const kept of [
+      "color: var(--ink)",
+      "color: var(--ink-2)",
+      "stroke: var(--ink)",
+      "background-color: var(--surface)",
+      "background-color: var(--sun)",
+      "background-color: transparent",
+    ]) {
+      expect(sanitizeStyle(kept), kept).toBe(kept);
+    }
+
+    // And an off-palette fill keeps the palette's own refusal: it is not an ink problem.
+    expect(describeStyleViolation("background: white")).toContain("colour is picked from");
+  });
+
+  test("a line has no weight left to name, whatever property asks for one", () => {
+    // Retiring the border-weight axis left no thickness token anywhere on the surface, so
+    // a property whose value *is* a thickness has no value it may take. Refusing it says
+    // that, rather than letting a raw length through on a property no axis happens to own.
+    for (const declaration of [
+      "-webkit-text-stroke: 2px currentcolor",
+      "-webkit-text-stroke: 2px black",
+      "-webkit-text-stroke-width: 3px",
+      "text-decoration-thickness: 6px",
+      "text-underline-offset: 4px",
+    ]) {
+      expect(sanitizeStyle(declaration), declaration).toBe("");
+      expect(describeStyleViolation(declaration), declaration).toBeDefined();
+    }
+
+    expect(sanitizeStyle("text-decoration: underline")).toBe("text-decoration: underline");
+  });
+
+  // The fourth ban. Nothing about the value saves it: the one weight the retired axis
+  // named is refused beside a raw one, and so are the two edges that are a border under
+  // another name. `border-spacing` is a table metric that draws nothing and stays on the
+  // spacing axis, which is what keeps this a boundary ban rather than a prefix sweep.
+  test("a boundary of any kind, at any weight", () => {
+    for (const declaration of [
+      "border: var(--line) solid var(--ink)",
+      "border: 1px solid red",
+      "border-width: 5px",
+      "border-width: var(--line)",
+      "border-top: var(--line) solid var(--ink)",
+      "border-inline-start-width: var(--line)",
+      "border-color: var(--ink)",
+      "border-style: solid",
+      "outline: var(--line) solid var(--ink)",
+      "outline-width: var(--line)",
+      "outline-offset: var(--space-1)",
+      "column-rule: var(--line) solid var(--ink)",
+    ]) {
+      expect(sanitizeStyle(declaration), declaration).toBe("");
+      expect(describeStyleViolation(declaration), declaration).toContain(
+        "`border` is never declared",
+      );
+    }
+
+    expect(sanitizeStyle("border-spacing: var(--space-2)")).toBe("border-spacing: var(--space-2)");
+    expect(sanitizeStyle("border-spacing: 4px")).toBe("");
+    expect(sanitizeStyle("border-collapse: collapse")).toBe("border-collapse: collapse");
   });
 
   test("wrong token namespace on a closed axis", () => {
@@ -215,14 +295,13 @@ describe("describeStyleViolation — the same verdict, in the contract's words",
     const spacing = describeStyleViolation("padding: 16px") ?? "";
     expect(spacing).toContain("spacing is picked from the High Meadow set");
     expect(spacing).toContain("var(--space-8)");
-
-    const weight = describeStyleViolation("border-width: 3px") ?? "";
-    expect(weight).toContain("border weight is picked from the High Meadow set");
-    expect(weight).toContain("var(--line)");
   });
 
   test("names each ban and why it exists", () => {
     expect(describeStyleViolation("font-family: serif")).toContain("font family is never declared");
+    expect(describeStyleViolation("border: var(--line) solid var(--ink)")).toContain(
+      "the ink system owns every boundary",
+    );
     expect(describeStyleViolation("border-radius: 8px")).toContain(
       "High Meadow has no radius tokens",
     );
@@ -327,12 +406,6 @@ describe("describeStyleViolation — agreement with what sanitizeStyle drops", (
       expect(sanitizeStyle(empty)).toBe("");
       expect(describeStyleViolation(empty)).toContain("holds no declaration");
     }
-  });
-
-  test("names the boundary rule for a border shorthand", () => {
-    const boundary = describeStyleViolation("border: 3px dotted rebeccapurple") ?? "";
-    expect(boundary).toContain("a boundary is var(--line), a line style");
-    expect(boundary).toContain("var(--shade)");
   });
 
   test("the two surfaces agree across an exhaustive property × value grid", () => {

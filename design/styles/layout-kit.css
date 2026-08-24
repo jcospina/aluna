@@ -50,7 +50,8 @@
    alignment/justification, then gap (consumes the spacing tokens), then a couple
    of intra-item grid tracks and sizing helpers. Arrangement values (flex, grid,
    1fr tracks, 100%, min-width:0) are structure, not design values — the token-
-   owned axes are color/type/spacing/border, governed above and in the tokens. */
+   owned axes are colour, type size and spacing, governed above and in the tokens.
+   A boundary is not among them: the ink system draws every line on the surface. */
 .flex {
   display: flex;
 }
