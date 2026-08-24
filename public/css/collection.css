@@ -37,6 +37,7 @@
   padding: var(--space-3);
   background: var(--surface);
   border: var(--line) solid var(--ink);
+  --ink-hand: frame;
 }
 
 /* ── Search chrome ─────────────────────────────────────────────────────────────
@@ -49,10 +50,22 @@
   gap: var(--space-1);
   min-width: 0;
 }
+/* The shell: it carries the boundary and the fill, and the input inside it is bare.
+   An <input> is a void element and cannot hold the two SVG layers a drawn boundary
+   needs (design/design-system.md, Forms), so the line is drawn on the box that can. */
 .capability-search__control {
   position: relative;
   display: flex;
   align-items: center;
+  min-height: var(--control-h);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+}
+/* The ring reports where typing will land, so it belongs to the input's focus and is
+   painted on the shell — never a second ring further in. */
+.capability-search__control:has(.capability-search__input:focus-visible) {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .capability-search__icon {
   position: absolute;
@@ -64,23 +77,22 @@
 }
 .capability-search__input {
   width: 100%;
-  min-height: 2.75rem;
-  padding: var(--space-1) calc(var(--space-6) + var(--space-3)) var(--space-1)
+  /* The shell owns the row height; the input is bare inside it and centred by it.
+     Its padding is only the room the icon and the Clear button need. */
+  padding: 0 calc(var(--space-6) + var(--space-3)) 0
     calc(var(--space-2) + 1.125rem + var(--space-1));
   font-family: var(--font-body);
   font-size: var(--type-base);
   line-height: 1.5;
   color: var(--ink);
-  background: var(--surface);
-  border: var(--line) solid var(--ink);
+  background: transparent;
+  border: 0;
 }
 .capability-search__input::placeholder {
   color: var(--ink-3);
 }
 .capability-search__input:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-  border-color: var(--focus-ring);
+  outline: none;
 }
 /* Suppress the inconsistent browser-owned clear glyph; the labelled platform Clear
    button has a stable target and owns the canonical-read action. */
@@ -91,7 +103,9 @@
   position: absolute;
   right: var(--space-1);
   min-width: 3.5rem;
-  min-height: 2.25rem;
+  /* The smaller height, so an inset control sits inside the row rather than filling
+     it edge to edge. */
+  min-height: var(--control-h-sm);
   padding: 0 var(--space-1);
   font-family: var(--font-body);
   font-size: var(--type-base);

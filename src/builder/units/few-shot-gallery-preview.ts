@@ -75,6 +75,8 @@ export function renderFewShotGalleryPreviewPage(): string {
     <script defer src="/static/vendor/alpine.min.js"></script>
     <script type="module" src="/static/detail-modal.js"></script>
     <script defer src="/static/item-detail.js"></script>
+    <!-- The drawn line, as the shipped shell loads it (public/index.html). -->
+    <script type="module" src="/static/ink.js"></script>
     <style>
       body {
         height: auto;

@@ -25,13 +25,10 @@
   }
   .sidebar-toggle:hover,
   .sidebar-toggle:active,
-  .prompt__submit:hover,
-  .prompt__submit:active,
   .btn:hover,
   .btn:active,
   .capability-item:hover,
-  .capability-item:active,
-  .prompt__field:hover {
+  .capability-item:active {
     transform: none;
   }
 }

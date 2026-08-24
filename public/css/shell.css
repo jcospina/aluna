@@ -48,6 +48,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* The one row height, like every other control. */
+  min-width: var(--control-h);
+  min-height: var(--control-h);
   padding: var(--space-1);
   color: var(--ink);
   background: var(--surface);

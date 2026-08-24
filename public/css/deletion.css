@@ -95,7 +95,6 @@ form.htmx-request .capability-deletion__label[data-deletion-busy-label] {
 .capability-deletion__actions form.htmx-request .btn--danger:disabled {
   color: var(--surface);
   background: color-mix(in oklch, var(--signal), var(--surface) 30%);
-  border-color: color-mix(in oklch, var(--signal), var(--ink) 25%);
 }
 
 @media (max-width: 639.98px) {

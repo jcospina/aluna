@@ -208,8 +208,10 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain("focusCapabilityDeletion(event)");
     expect(js).toContain("[data-capability-deletion-focus]");
     expect(html).toContain(':inert="!open"');
-    expect(toolbarCss).toMatch(/\.toolbar__delete\s*\{[^}]*width:\s*2\.75rem/s);
-    expect(toolbarCss).toMatch(/\.toolbar__delete\s*\{[^}]*height:\s*2\.75rem/s);
+    // The hit target is the surface's one row height rather than a literal of its
+    // own — see "one row height everywhere" in high-meadow-token-layer.test.ts.
+    expect(toolbarCss).toMatch(/\.toolbar__delete\s*\{[^}]*width:\s*var\(--control-h\)/s);
+    expect(toolbarCss).toMatch(/\.toolbar__delete\s*\{[^}]*height:\s*var\(--control-h\)/s);
     expect(js).not.toContain("new EventSource");
     expect(js).not.toContain('fetch("/prompt"');
     expect(js).not.toContain('addEventListener("submit"');
@@ -277,12 +279,23 @@ test("keeps a pending stream dormant until foreground narration begins", async (
   expect(css).toMatch(/\.build-stream\s*\{[^}]*display:\s*none/s);
   expect(css).toContain(".build-stream__narration:not(:empty)");
   expect(css).toContain("#spec-build-output:has(> .build-stream");
-  expect(css).toMatch(/build-stream:only-child\)\s*\{\s*display:\s*none/s);
+
+  // The content region is quiet by default and shown by what the output holds. It was
+  // hidden by competing `:has()` rules until the ink system drew the output box: a
+  // drawn element is never `:empty` and nothing in it is ever `:only-child`, and the
+  // rewrite of those two questions raised one rule's specificity above the rule meant
+  // to override it. One base and three show rules cannot have that argument.
+  expect(css).toMatch(/\.content__active\s*\{\s*display:\s*none;/);
+  // A stream that has said nothing stays dormant: the show rule for ordinary content
+  // excludes it by name, as it excludes the two ink layers.
   expect(css).toContain(
-    "#spec-build-output > .build-stream:only-child > .build-stream__narration:not(:empty)",
+    ".content__active:has(#spec-build-output > :not(.ink__ground, .ink__layer, .build-stream))",
   );
   expect(css).toContain(
-    "#spec-build-output > .build-stream:only-child > .build-stream__commit:not(:empty)",
+    ".content__active:has(#spec-build-output > .build-stream > .build-stream__narration:not(:empty))",
+  );
+  expect(css).toContain(
+    ".content__active:has(#spec-build-output > .build-stream > .build-stream__commit:not(:empty))",
   );
   expect(css).toMatch(
     /build-stream__narration:not\(:empty\)[\s\S]*?build-stream__commit:not\(:empty\)[\s\S]*?\)\s*\{\s*display:\s*flex/,
@@ -297,7 +310,9 @@ test("permanent deletion captures neutral or exact-capability restoration in bro
 
   expect(js).toContain('detail.parameters.restore_surface = "neutral"');
   expect(js).toContain('detail.parameters.restore_surface = "capability"');
-  expect(css).toContain(".intro__output:empty");
+  // `:empty` no longer reaches it — the ink system keeps its two layers as children
+  // of the box it draws, so the question is asked past them.
+  expect(css).toContain(".intro__output:not(:has(> :not(.ink__ground, .ink__layer)))");
   expect(css).not.toContain("data-capability-deletion-neutral");
 });
 

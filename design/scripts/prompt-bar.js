@@ -31,10 +31,18 @@ export function mountPromptBar(desk, { onSubmit }) {
   input.placeholder = "Ask Aluna to build something…";
   input.setAttribute("aria-label", "Ask Aluna to build something");
 
+  /*
+   * Warm rather than primary, and the choice was questioned and kept. `--shade` is
+   * the primary fill and the collection's create button already spends it; the two
+   * are on screen together the moment a capability is open, and two primaries side
+   * by side make "one per surface" mean nothing. A fill of its own also says what
+   * this button is: the one action on the desk that belongs to Aluna rather than to
+   * a capability.
+   */
   const submit = document.createElement("button");
   submit.type = "submit";
   submit.className = "btn btn--warm";
-  submit.textContent = "Grow it";
+  submit.textContent = "Make it";
 
   form.append(input, submit);
   desk.append(form);
