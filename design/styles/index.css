@@ -1,7 +1,9 @@
 /*
  * Aluna Desktop — the capability surface.
  * Stylesheet manifest. Order matters: tokens, then base, then layout, then
- * components. Nothing below tokens may hard-code a colour or a line weight.
+ * components, then the layout kit — whose utilities sit at one class of specificity
+ * like the components do, so they have to load after one to win the tie. Nothing
+ * below tokens may hard-code a colour or a line weight.
  *
  * `ink.css` is last on purpose. It is the seam where the drawn line takes over
  * from the CSS border every component above it declares, so it has to win.
@@ -21,5 +23,10 @@
 /* The logo tile and label. Below desk.css, which owns the button they sit in. */
 @import url("./components/logo-contract.css");
 @import url("./components/doc.css");
+
+/* The layout kit — the vocabulary generated capability markup speaks. Below the
+   components so its utilities win where they apply, above ink.css like everything
+   else. */
+@import url("./layout-kit.css");
 
 @import url("./components/ink.css");

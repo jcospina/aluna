@@ -180,10 +180,6 @@
   background: var(--surface-2);
 }
 
-.btn:disabled:active {
-  transform: none;
-}
-
 /* ── The listbox ──────────────────────────────────────────────────────────── */
 
 /* See `scripts/listbox.js` for why the native `<select>` cannot be here. */
@@ -490,9 +486,9 @@
   color: var(--ink);
 }
 
-/* Nothing but the line. The action you take when you are not taking the action. */
-/* The action you take when you are not taking the action. The only unfilled
- * button, and the name for what the base already is. */
+/* Nothing but the line. The action you take when you are not taking the action, and
+ * the name for what the base already is — without it there would be an eighth,
+ * quieter button hiding behind the absence of a modifier. */
 .btn--outline {
   color: var(--ink);
 }
@@ -518,7 +514,9 @@
 
 /*
  * Pressing displaces the button 2px into the paper — a hard offset with no blur and
- * no lift, the same physics the rest of the surface uses.
+ * no lift, the same physics the rest of the surface uses. This is the only rule in the
+ * manifest that transforms a button, so a disabled one needs no counter-rule to sit
+ * still: it is excluded here rather than moved back afterwards.
  */
 .btn:active:not(:disabled) {
   transform: translate(2px, 2px);

@@ -5,9 +5,9 @@
    closed `feed | grid` collection layouts, the empty state, and the standardized
    accessible item wrapper each record is framed in.
 
-   Platform chrome, NOT the generated item vocabulary (public/css/primitives.css):
+   Platform chrome, NOT the generated item vocabulary (design/styles/layout-kit.css):
    these style platform-owned surfaces (the wrapper, the container), while the
-   *inner* markup an item renderer emits composes with the primitives inside the
+   *inner* markup an item renderer emits composes with the layout kit inside the
    wrapper. Treatment follows the established Aluna card/press language — surface
    fill, a 1px ink-tinted border, 10px radius, the gentle down-right press, and the
    accent focus ring shared with the prompt field and buttons. Tokens only.

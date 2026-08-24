@@ -77,13 +77,15 @@ design/
     layout.css            menubar, page column, grids
     components/
       window.css          window frame and title bar
-      controls.css        buttons, search, fields, chips
+      controls.css        the button base, search, chips, segmented, range
       form-controls.css   the full control set
       collection.css      the collection, and the record view it swaps to
       desk.css            desk, logos, prompt bar, mobile layout
       doc.css             styles for these pages only, not the product
       logo-contract.css   the logo tile and label, as the contract defines them
       ink.css             must load last; wires up the drawn borders
+    layout-kit.css        the classes generated capability markup speaks;
+                          loads after the components, before ink.css
   scripts/
     main.js               sets up index.html
     controls-main.js      sets up controls.html
