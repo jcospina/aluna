@@ -6,6 +6,7 @@ import {
   handOffRecordsRegionFromHtmx,
   recordsRegionRequestCoordinator,
 } from "./records-region-requests.js";
+import { registerRegionRelease } from "./region-scope.js";
 
 /** @typedef {(input: string, init?: RequestInit) => Promise<Response>} SearchRequest */
 /** @typedef {"idle" | "loading" | "results" | "no-matches" | "error"} SearchState */
@@ -227,6 +228,14 @@ function controllerFor(form) {
     },
   });
   controllers.set(form, controller);
+  // The controller is the region's, not the form's: its debounce timer and its in-flight
+  // request outlive the swap that takes the form away unless the region releases them.
+  // Dropping the WeakMap entry with it means a re-rendered form gets a fresh controller
+  // rather than a disposed one.
+  registerRegionRelease(form, "search controller", () => {
+    controllers.delete(form);
+    controller.dispose();
+  });
   return controller;
 }
 

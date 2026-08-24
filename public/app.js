@@ -93,6 +93,18 @@ function shell() {
   };
 }
 
+// Kept in sync with public/region-scope.js (RELEASE_REGION_EVENT); a platform test pins
+// that these strings match. A plain string because this classic script cannot import the
+// module. Dispatching it on a content region asks that region's scope to release
+// everything its current content started — before the content is replaced, so an htmx
+// request still in flight can be aborted while it is connected.
+const RELEASE_REGION_EVENT = "aluna:release-region";
+
+/** @param {Element} region */
+function releaseRegionContent(region) {
+  region.dispatchEvent(new CustomEvent(RELEASE_REGION_EVENT, { bubbles: true }));
+}
+
 /**
  * Pretty-print a structured developer-preview payload, falling back to the raw
  * string if a future event sends non-JSON text.
@@ -520,6 +532,7 @@ async function recheckCapabilityDeletion(preflightUrl, attempt) {
   // that explains a capability turning out to be already gone — is what the user is
   // left reading.
   writeCapabilityDeletionRecheckNotice("");
+  releaseRegionContent(output);
   if (htmx) htmx.swap(output, html, { swapStyle: "innerHTML", swapDelay: 0, settleDelay: 0 });
   else output.innerHTML = html;
 
@@ -605,6 +618,7 @@ function reloadRestoredRecords(output, restorationKind) {
 function promoteTerminalPresentation(subscriber, output) {
   const terminal = terminalPresentationContent(subscriber);
   if (terminal !== null) {
+    releaseRegionContent(output);
     if (terminal.promoteElement) output.replaceChildren(terminal.element);
     else output.replaceChildren(...terminal.element.childNodes);
     reloadRestoredRecords(output, terminal.restorationKind);

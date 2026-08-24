@@ -51,6 +51,7 @@ import {
   renderPromptNotice,
   renderRehydratedShellPage,
 } from "../web/index.ts";
+import { registerRegionLifecyclePreviewRoutes } from "./region-lifecycle-preview.ts";
 
 /**
  * Whether the developer-only `/demo/*` surfaces are registered. See {@link createApp}
@@ -209,10 +210,12 @@ function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
 }
 
 /**
- * The one surviving deterministic preview surface — no provider and no db. A demo is
- * scaffolding: once the behavior it showed is built and covered by tests, it comes down.
- * The gallery stays because it is the only place the *injected* item-renderer prompt
- * section can be read; production shows the generated output, never the input.
+ * The deterministic preview surfaces — no provider and no db. A demo is scaffolding: once
+ * the behavior it showed is built and covered by tests, it comes down. The gallery stays
+ * because it is the only place the *injected* item-renderer prompt section can be read;
+ * production shows the generated output, never the input. The region-lifecycle preview
+ * stays until the window ships the same release rule on a real capability, because a real
+ * read answers too fast for the release it demonstrates to be visible.
  */
 function registerPreviewDemoRoutes(app: Hono): void {
   // Dev preview for the few-shot design gallery + item-renderer prompt injection
@@ -225,6 +228,10 @@ function registerPreviewDemoRoutes(app: Hono): void {
         headers: { "content-type": "text/html; charset=utf-8" },
       }),
   );
+
+  // The content region's release rule, slowed down enough to watch: the region's live
+  // scope beside the server's tracked reader count, both emptying on the same act.
+  registerRegionLifecyclePreviewRoutes(app);
 }
 
 /**
