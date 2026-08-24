@@ -371,6 +371,26 @@ snapshot or receives none, and releases the complete set in `finally`. Generated
 never receives the token — it only observes cancellation as a thrown error.
 _Avoid_: read lock, handle, reservation
 
+**Content region**:
+The element a view is rendered into, and the owner of everything that view starts.
+The shell's content area and each capability's records region are content regions
+today; the window's content is the one that matters once the window ships. Marked
+`data-content-region` so the release scope can find it, and never confused with the
+**window**, which is the frame around it — one window holds many successive region
+contents (M5 plan 13).
+_Avoid_: content area (the shell's one instance, not the concept), container,
+mount point, slot
+
+**Release scope**:
+What a content region holds on behalf of its current content: every in-flight
+fetch, search controller, observer and timer that content started, each anchored to
+the node that started it. It runs when the content is replaced or the region is
+removed — the same fact, an anchor leaving the document, so there is no third path.
+Aborting an in-flight request is what frees its **read token**, which makes the
+client-side release and the server-side release one act rather than two mechanisms
+that have to agree (M5 plan 13).
+_Avoid_: teardown hook, unmount, cleanup callback, destructor
+
 **Deletion tombstone**:
 The non-routable state an active registry row becomes at deletion's point of no
 return, carrying the owned-resource manifest it still owes. Resolvers, routes, and

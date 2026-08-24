@@ -49,6 +49,14 @@
     <script defer src="/static/vendor/alpine.min.js"></script>
 
     <!--
+      The content region's release scope. Whatever a region's content starts is released
+      when that content is replaced or removed — one rule for a view swap inside the
+      region and for the region going away. Loaded here as the shell's statement that the
+      system is on; the modules below import it for their own registrations.
+    -->
+    <script type="module" src="/static/region-scope.js"></script>
+
+    <!--
       The shared read/edit record modal (Module 4). Two dumb presentation-glue files
       (ARCH §6.1: the shell may open/prefill/focus the shared modal, never infer intent):
         - detail-modal.js — the modal mechanics (prefill + open), delegated to the
@@ -159,7 +167,12 @@
         <main class="content">
           <div class="content__active">
             <div class="intro">
-              <div class="intro__output" id="spec-build-output" aria-live="polite"></div>
+              <div
+                class="intro__output"
+                id="spec-build-output"
+                data-content-region="content area"
+                aria-live="polite"
+              ></div>
             </div>
           </div>
           <div class="cold-start">

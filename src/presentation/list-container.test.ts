@@ -197,7 +197,8 @@ describe("container scaffolding", () => {
   test("is data-free: an unseeded region is truly empty so the empty-state CSS fires", () => {
     // No whitespace/children inside the region → `:empty` matches → empty state shows.
     expect(feed).toContain(
-      `id="${capabilityRecordsRegionId("tasks")}" class="capability-records capability-records--feed"></div>`,
+      `id="${capabilityRecordsRegionId("tasks")}" class="capability-records capability-records--feed"` +
+        ' data-content-region="records"></div>',
     );
     expect(feed).not.toContain(ITEM_PAYLOAD_ATTR);
   });
@@ -208,7 +209,9 @@ describe("container scaffolding", () => {
       items: "<article>ITEM_MARKER</article>",
     });
     expect(seeded).toContain("ITEM_MARKER");
-    expect(seeded).toContain(`class="capability-records capability-records--feed">`);
+    expect(seeded).toContain(
+      'class="capability-records capability-records--feed" data-content-region="records">',
+    );
   });
 
   test("escapes the capability label in chrome (New X + region aria)", () => {
@@ -228,6 +231,7 @@ describe("container scaffolding — serving mode (loadThroughRead)", () => {
   test("wires the records region to load through the read action on load", () => {
     expect(serving).toContain(
       `<div id="${capabilityRecordsRegionId("tasks")}" class="capability-records capability-records--feed"` +
+        ' data-content-region="records"' +
         ' hx-get="/capability/tasks/read" hx-trigger="load" hx-swap="innerHTML"></div>',
     );
   });

@@ -19,6 +19,10 @@ export type {
   CapabilityUpdateHandler,
 } from "./contract.ts";
 export {
+  CapabilityReadAbandonedError,
+  withHandlerDeadline,
+} from "./generated-code.ts";
+export {
   type CapabilityRouterDeps,
   type HandlerLoader,
   ITEM_RENDERER_FILE,

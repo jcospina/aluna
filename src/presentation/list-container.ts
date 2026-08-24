@@ -167,7 +167,9 @@ function renderSearchFeedback(capability: RenderableCapability): string {
  * generated.
  *
  * The records region carries `id="<id>-records"` ({@link capabilityRecordsRegionId}), so
- * the create form's `hx-target` and the empty-state CSS agree with it by construction.
+ * the create form's `hx-target` and the empty-state CSS agree with it by construction. It
+ * is also a content region: the read, search and refresh requests that write it are
+ * released the moment its content is replaced or the region goes away.
  * The disclosure closes itself when a create succeeds for *this* capability, or when its
  * form dispatches {@link CREATE_CANCELLED_EVENT}.
  */
@@ -207,7 +209,8 @@ export function renderCollection(options: CollectionOptions): string {
     `<div class="capability-collection__create" x-show="createOpen" x-cloak>${renderCreateForm(capability)}</div>` +
     // No whitespace inside the region: it must stay truly `:empty` so the empty-state
     // CSS fires, and so the first prepended record clears it.
-    `<div id="${regionId}" class="capability-records ${layoutClass}"${recordsLoad}>${recordsContent}</div>` +
+    `<div id="${regionId}" class="capability-records ${layoutClass}"` +
+    ` data-content-region="records"${recordsLoad}>${recordsContent}</div>` +
     `<p class="capability-empty">Nothing here yet — add your first ${label} above.</p>` +
     `</section>`
   );

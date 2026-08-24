@@ -177,6 +177,13 @@ export function renderCapabilitySurface(
 }
 
 /**
+ * The shell's empty content target, matched by its id rather than by its exact opening
+ * tag: the tag carries presentation attributes — the content region marker among them —
+ * that the shell is free to change without this assembly silently failing to find it.
+ */
+const EMPTY_CONTENT_TARGET = /(<div\b[^>]*\bid="spec-build-output"[^>]*>)<\/div>/;
+
+/**
  * Direct browser navigation to `/capability/:id` needs the fixed shell around the
  * capability surface so authored CSS, HTMX, Alpine, the prompt bar, and both sidebars
  * are present. HTMX toolbar clicks still receive only the fragment.
@@ -194,13 +201,11 @@ export function renderCapabilityShell(
   shellHtml: string,
 ): string {
   const surface = renderCapabilitySurface(activeRow, collectionHtml);
-  const contentPlaceholder =
-    '<div class="intro__output" id="spec-build-output" aria-live="polite"></div>';
 
   const withModal = injectDetailModal(shellHtml);
   const withContent = withModal.replace(
-    contentPlaceholder,
-    `<div class="intro__output" id="spec-build-output" aria-live="polite">${surface}</div>`,
+    EMPTY_CONTENT_TARGET,
+    (_match, openingTag: string) => `${openingTag}${surface}</div>`,
   );
   if (withContent === withModal) {
     throw new Error("The shell content target placeholder is missing.");

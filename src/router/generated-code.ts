@@ -56,32 +56,71 @@ export class CapabilityHandlerTimeoutError extends Error {
 }
 
 /**
- * Resolve with the Handler, or reject at the deadline. The Handler's own promise is not
- * cancellable — the point is that *this route* stops waiting on it.
+ * The reader went away before its answer did.
+ *
+ * This is not a failure. It is the server half of the content region's release rule: the
+ * browser aborts the request when the region's content is replaced or the region is put
+ * away, and abandoning the route here is what lets its `finally` hand the read tokens
+ * back — immediately, rather than at whatever the handler deadline happens to be. A
+ * deletion drain waiting on those readers therefore waits for the person who navigated
+ * away, not for a deadline they cannot see.
+ */
+export class CapabilityReadAbandonedError extends Error {
+  override readonly name = "CapabilityReadAbandonedError";
+}
+
+/**
+ * Resolve with the Handler, or reject when this route stops waiting on it. The Handler's
+ * own promise is not cancellable — the point is that *this route* stops waiting, so its
+ * read ownership can be released.
+ *
+ * Two things end the wait: the deadline, and `abandonOn` aborting. Reads pass the
+ * request's own signal there, which Bun aborts when the client disconnects. Mutations
+ * pass nothing: a write that a person walked away from still has to finish or roll back
+ * on its own terms, and releasing read ownership under it would fail it closed midway.
  */
 export async function withHandlerDeadline<T>(
   work: Promise<T>,
   timeoutMs: number,
   id: string,
   action: string,
+  abandonOn?: AbortSignal,
 ): Promise<T> {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return await work;
+  const bounded = Number.isFinite(timeoutMs) && timeoutMs > 0;
+  if (!bounded && !abandonOn) return await work;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbandon: (() => void) | undefined;
   try {
     return await Promise.race([
       work,
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
+        if (bounded) {
+          timer = setTimeout(() => {
+            reject(
+              new CapabilityHandlerTimeoutError(
+                `Handler ${id}/${action} did not settle within ${timeoutMs}ms and was abandoned.`,
+              ),
+            );
+          }, timeoutMs);
+        }
+        if (!abandonOn) return;
+        const abandon = () =>
           reject(
-            new CapabilityHandlerTimeoutError(
-              `Handler ${id}/${action} did not settle within ${timeoutMs}ms and was abandoned.`,
+            new CapabilityReadAbandonedError(
+              `Handler ${id}/${action} was abandoned: the client closed the request.`,
             ),
           );
-        }, timeoutMs);
+        if (abandonOn.aborted) {
+          abandon();
+          return;
+        }
+        onAbandon = abandon;
+        abandonOn.addEventListener("abort", abandon, { once: true });
       }),
     ]);
   } finally {
     clearTimeout(timer);
+    if (onAbandon) abandonOn?.removeEventListener("abort", onAbandon);
     // An abandoned Handler may still reject later with nobody listening. Observe it so it
     // cannot surface as an unhandled rejection and take the process down.
     void work.catch(() => undefined);

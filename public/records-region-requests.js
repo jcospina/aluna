@@ -7,6 +7,8 @@
  * check remains the integrity rule when a request adapter ignores AbortSignal.
  */
 
+import { registerRegionRelease } from "./region-scope.js";
+
 /** @typedef {{ abort: () => void, isCurrent: () => boolean, release: () => void, signal: AbortSignal }} RecordsRegionRequestClaim */
 
 export function createRecordsRegionRequestCoordinator() {
@@ -34,14 +36,40 @@ export function createRecordsRegionRequestCoordinator() {
   return { claim };
 }
 
-/** @type {WeakMap<Element, ReturnType<typeof createRecordsRegionRequestCoordinator>>} */
+/** @type {WeakMap<Element, { claim: () => RecordsRegionRequestClaim }>} */
 const coordinators = new WeakMap();
 
-/** @param {Element} region */
+/**
+ * The region-bound coordinator. Every claim it hands out is also a release in the
+ * region's scope for exactly as long as that request is in flight, so replacing the
+ * region's content — or putting the region away — aborts the request rather than letting
+ * it resolve against a detached node. The abort is what frees the server's read token,
+ * so there is one act and not two.
+ *
+ * @param {Element} region
+ */
 export function recordsRegionRequestCoordinator(region) {
   const existing = coordinators.get(region);
   if (existing) return existing;
-  const coordinator = createRecordsRegionRequestCoordinator();
+  const core = createRecordsRegionRequestCoordinator();
+  const coordinator = {
+    /** @returns {RecordsRegionRequestClaim} */
+    claim: () => {
+      const claim = core.claim();
+      const deregister = registerRegionRelease(region, "records read", claim.abort);
+      return {
+        ...claim,
+        abort: () => {
+          deregister();
+          claim.abort();
+        },
+        release: () => {
+          deregister();
+          claim.release();
+        },
+      };
+    },
+  };
   coordinators.set(region, coordinator);
   return coordinator;
 }

@@ -62,6 +62,7 @@ import type {
   CapabilityUpdateHandler,
 } from "./contract.ts";
 import {
+  CapabilityReadAbandonedError,
   DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS,
   defaultLoadHandler,
   defaultLoadItemRenderer,
@@ -278,6 +279,9 @@ async function handleCapabilityRequest(
         handlerTimeoutMs,
       );
     }
+    // A read is abandoned the moment its reader goes away. That is the server half of
+    // the content region's release rule: the client's abort *is* the read-token release,
+    // rather than a second mechanism that has to agree with one.
     return await executeCapabilityHandler(
       c,
       databases,
@@ -288,6 +292,7 @@ async function handleCapabilityRequest(
       action,
       tokens.signal,
       handlerTimeoutMs,
+      c.req.raw.signal,
     );
   } finally {
     readGates.release(tokens);
@@ -323,6 +328,7 @@ async function handleRecordMutation(
       action,
       signal,
       handlerTimeoutMs,
+      undefined,
     );
     databases.readwrite.exec(response.ok ? "COMMIT" : "ROLLBACK");
     transactionOpen = false;
@@ -345,6 +351,7 @@ async function executeCapabilityHandler(
   action: WireProtocolAction,
   signal: AbortSignal,
   handlerTimeoutMs: number,
+  abandonOn: AbortSignal | undefined,
 ): Promise<Response> {
   const { id } = row;
   // Everything past validation is the build-and-run path: a throw anywhere in it —
@@ -372,6 +379,7 @@ async function executeCapabilityHandler(
       handlerTimeoutMs,
       id,
       action,
+      abandonOn,
     );
     if (typeof fragment !== "string") {
       throw new TypeError(
@@ -380,20 +388,41 @@ async function executeCapabilityHandler(
     }
     return c.html(fragment);
   } catch (error) {
-    if (error instanceof WireProtocolError) {
-      return c.html(WIRE_PROTOCOL_ERROR_FRAGMENT, 400);
-    }
-    if (error instanceof MissingRequiredFieldsError) {
-      return missingRequiredFieldsFailure(c, id, error);
-    }
-    if (error instanceof RecordNotFoundError) {
-      return recordNotFoundFailure(c, id, action, error);
-    }
-    if (error instanceof ReadGateClosingError) {
-      return readUnavailable(c, id, action);
-    }
-    return internalFailure(c, id, action, error);
+    return capabilityHandlerFailure(c, id, action, error);
   }
+}
+
+/**
+ * One warm, internals-free answer for everything the build-and-run path can throw.
+ *
+ * @param error anything raised past validation — input parsing, handler loading, handler
+ * execution, or a contract violation
+ */
+function capabilityHandlerFailure(
+  c: Context,
+  id: string,
+  action: WireProtocolAction,
+  error: unknown,
+): Response {
+  if (error instanceof WireProtocolError) {
+    return c.html(WIRE_PROTOCOL_ERROR_FRAGMENT, 400);
+  }
+  if (error instanceof MissingRequiredFieldsError) {
+    return missingRequiredFieldsFailure(c, id, error);
+  }
+  if (error instanceof RecordNotFoundError) {
+    return recordNotFoundFailure(c, id, action, error);
+  }
+  if (error instanceof ReadGateClosingError) {
+    return readUnavailable(c, id, action);
+  }
+  // Nobody is listening for this one. Answering at all is a formality; what matters is
+  // that the route stopped waiting, so its `finally` has already handed the read tokens
+  // back. 499 is the conventional "client closed request".
+  if (error instanceof CapabilityReadAbandonedError) {
+    return new Response(null, { status: 499 });
+  }
+  return internalFailure(c, id, action, error);
 }
 
 async function invokeCapabilityHandler(
