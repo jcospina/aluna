@@ -27,6 +27,9 @@ function mutationSpec(): CapabilitySpec {
   return {
     id: "notes",
     label: "Notes",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     schema: {
       fields: [
         { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },

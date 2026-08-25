@@ -58,8 +58,13 @@ describe("intent resolver active catalog", () => {
       notesCapabilityRow({
         id: "recipes",
         label: "Recipes",
+        subject: "an open notebook",
+        ground: "leaf",
+        noun: "note",
         incarnation_id: "22222222-2222-4222-8222-222222222222",
         artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v1/",
+        seed: 184206,
+        logo: { status: "absent", attempts: 0 },
         prompt_context: "Stores recipes the user wants to cook again.",
       }),
       conns.readwrite,
@@ -78,11 +83,34 @@ describe("intent resolver active catalog", () => {
     expect(readActiveRegistryCatalog(conns.readonly).fingerprint).not.toBe(catalog.fingerprint);
   });
 
+  test("fingerprints ignore the logo lifecycle, which moves out of band", () => {
+    // A desk load claiming an attempt, or artwork landing, must never make an
+    // unrelated in-flight build look classified-against-stale-state. What the
+    // resolver reads is semantic registry content; whether a picture arrived is not.
+    const row = notesCapabilityRow();
+    const claimed = { ...row, logo: { status: "generating" as const, attempts: 1 } };
+    const arrived = { ...row, logo: { status: "present" as const, attempts: 1 } };
+
+    expect(fingerprintActiveRegistryCatalog([claimed])).toBe(
+      fingerprintActiveRegistryCatalog([row]),
+    );
+    expect(fingerprintActiveRegistryCatalog([arrived])).toBe(
+      fingerprintActiveRegistryCatalog([row]),
+    );
+    // The seed still counts: it is per-incarnation and never moves, so a different
+    // one is a different capability lifetime, not out-of-band churn.
+    expect(fingerprintActiveRegistryCatalog([{ ...row, seed: row.seed + 1 }])).not.toBe(
+      fingerprintActiveRegistryCatalog([row]),
+    );
+  });
+
   test("fingerprints ignore object key insertion order", () => {
     const row = notesCapabilityRow();
     const reordered = {
       prompt_context: row.prompt_context,
       artifacts_path: row.artifacts_path,
+      seed: row.seed,
+      logo: row.logo,
       read_dependencies: row.read_dependencies,
       tools: row.tools,
       behavioral_errors: row.behavioral_errors,
@@ -91,6 +119,9 @@ describe("intent resolver active catalog", () => {
       schema: row.schema,
       version: row.version,
       incarnation_id: row.incarnation_id,
+      noun: row.noun,
+      ground: row.ground,
+      subject: row.subject,
       label: row.label,
       id: row.id,
     };

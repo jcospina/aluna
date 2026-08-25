@@ -264,6 +264,8 @@ describe("deterministic capability router — create presence for scalars and bo
         incarnation_id: NOTES_INCARNATION_ID,
         version: 1,
         artifacts_path: NOTES_ARTIFACTS,
+        seed: 184206,
+        logo: { status: "absent", attempts: 0 },
       }),
     );
     let receivedInput: Parameters<Awaited<ReturnType<HandlerLoader>>>[0]["input"] | undefined;

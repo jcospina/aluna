@@ -323,6 +323,8 @@ describe("two-phase capability destruction", () => {
     const recreatedWhilePending = notesRow({
       incarnation_id: "99999999-9999-4999-8999-999999999999",
       artifacts_path: "capabilities/notes/99999999-9999-4999-8999-999999999999/v1/",
+      seed: 184206,
+      logo: { status: "absent", attempts: 0 },
     });
     expect(() => insertCapability(recreatedWhilePending, conns.readwrite)).toThrow(
       "deletion cleanup reserves notes",

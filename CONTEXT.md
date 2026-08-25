@@ -138,6 +138,15 @@ no pastels and no greys. Two capabilities may share one. Distinct from the desk'
 ground, which is where logos sit (M5 plan 39).
 _Avoid_: background colour, brand colour, accent, theme colour
 
+**Record noun**:
+The singular common word for one thing a capability holds — a note, a recipe, a
+contact — named by the model alongside the capability's own name. It is what the
+desk's empty state is written around, so a capability reads "add your first
+recipe above" rather than naming itself back at the user. Unlike the logo's
+subject and ground it may change as a capability's purpose does, and changing it
+never causes a logo to be drawn (M5 plan 42).
+_Avoid_: singular label, item name, entity name, record type
+
 **Prompt bar**:
 The always-visible, free-form text input floating above the desk, clear of all
 four edges and never full width. Context-aware: it scopes to the capability in
@@ -209,6 +218,20 @@ preserves it; permanent deletion followed by rebuilding the same semantic
 capability id creates a new incarnation. It keys artifact/cache paths, declared
 read dependencies, cleanup work, and generation metrics. It is never user-facing.
 _Avoid_: capability version, capability id, generation id
+
+**Logo lifecycle**:
+The registry's durable record of where one incarnation's artwork has got to:
+a status of `absent`, `generating`, `present` or `abandoned`, and the count of
+attempts spent on it. `generating` is a claim, won atomically by exactly one
+sweep and paid for the moment it is won rather than when a provider answers, so
+two desk loads can never order the same drawing twice. It is platform-owned and
+absent from every authored spec, and no ordinary registry write can move it —
+evolution neither reads nor writes it. Stored beside it is the incarnation's
+**logo seed**, the record of what drew the artwork: minted with the row and
+carried unchanged through every version, never derived from a name or a position
+that could move without the drawing changing
+([ADR-0007](docs/adr/0007-capability-logo-contract.md); M5 plan 42).
+_Avoid_: logo job, render status, retry flag, hash seed
 
 **Owned-resource manifest**:
 The deduplicated, incarnation-bound set of capability-owned resources a deletion

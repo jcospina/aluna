@@ -8,6 +8,7 @@ import type { RenderableCapability } from "./field-renderer.ts";
 export const SAMPLE: RenderableCapability = {
   id: "tasks",
   label: "Tasks",
+  noun: "task",
   schema: {
     fields: [
       { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
@@ -34,6 +35,7 @@ export function oneField(
   return {
     id: "probe",
     label: "Probe",
+    noun: "probe",
     schema: { fields: [field] },
     form: {
       list_inputs:

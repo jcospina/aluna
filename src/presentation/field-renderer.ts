@@ -46,6 +46,8 @@ import { escapeHtml } from "../web/html.ts";
 export interface RenderableCapability {
   readonly id: string;
   readonly label: string;
+  /** The singular record noun the platform's empty-state sentence is written around. */
+  readonly noun: string;
   readonly schema: { readonly fields: readonly SpecField[] };
   readonly form: UiFormIntent;
   /** The committed closed Action inventory; platform chrome fails closed against it. */

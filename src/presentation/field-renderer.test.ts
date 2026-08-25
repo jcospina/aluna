@@ -223,6 +223,7 @@ describe("create form — one control per pantry type — labels, lifecycle, and
     const capability: RenderableCapability = {
       id: "probe",
       label: "Probe",
+      noun: "note",
       schema: {
         fields: [
           { name: "title", label: "Entry", type: "string", required: true, lifecycle: "active" },

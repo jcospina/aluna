@@ -216,6 +216,7 @@ describe("reconcileCapabilityArtifacts", () => {
         incarnation_id: INCARNATION_ID,
         version: 1,
         artifacts_path: `${versionPath(aliasRoot, INCARNATION_ID, 1)}/`,
+        seed: 184206,
       },
       conns.readwrite,
     );
@@ -270,6 +271,8 @@ function activeRow(root: string, version: number) {
     incarnation_id: INCARNATION_ID,
     version,
     artifacts_path: `${versionPath(root, INCARNATION_ID, version)}/`,
+    seed: 184206,
+    logo: { status: "absent", attempts: 0 },
   };
 }
 

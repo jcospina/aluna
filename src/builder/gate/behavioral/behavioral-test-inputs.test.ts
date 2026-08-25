@@ -144,6 +144,7 @@ describe("per-Action behavioral test inputs — digest equality", () => {
     const relabelled: CapabilitySpec = {
       ...RICH_SPEC,
       label: "Jottings",
+      noun: "note",
       schema: {
         fields: RICH_SPEC.schema.fields.map((field) => ({
           ...field,

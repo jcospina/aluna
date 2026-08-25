@@ -38,6 +38,8 @@ function deletionTarget(dir: string): CapabilityRow {
   return {
     ...target,
     artifacts_path: join(dir, "artifacts", target.id, target.incarnation_id, "v1"),
+    seed: 184206,
+    logo: { status: "absent", attempts: 0 },
   };
 }
 
@@ -350,6 +352,8 @@ describe("platform-owned capability deletion routes", () => {
     const base = notesRow();
     const target = notesRow({
       artifacts_path: join(artifactsRoot, base.id, base.incarnation_id, "v1"),
+      seed: 184206,
+      logo: { status: "absent", attempts: 0 },
     });
     install(conns, target);
     mkdirSync(target.artifacts_path, { recursive: true });

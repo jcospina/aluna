@@ -211,7 +211,7 @@ export function renderCollection(options: CollectionOptions): string {
     // CSS fires, and so the first prepended record clears it.
     `<div id="${regionId}" class="capability-records ${layoutClass}"` +
     ` data-content-region="records"${recordsLoad}>${recordsContent}</div>` +
-    `<p class="capability-empty">Nothing here yet — add your first ${label} above.</p>` +
+    `<p class="capability-empty">Nothing here yet — add your first ${escapeHtml(capability.noun)} above.</p>` +
     `</section>`
   );
 }

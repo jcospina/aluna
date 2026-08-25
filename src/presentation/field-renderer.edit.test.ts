@@ -7,6 +7,7 @@ import { capabilityEditErrorId, renderEditForm } from "./field-renderer.ts";
 const CAPABILITY: RenderableCapability = {
   id: "journal",
   label: "Journal entry",
+  noun: "note",
   schema: {
     fields: [
       {

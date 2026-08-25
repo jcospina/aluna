@@ -139,6 +139,12 @@ describe("valid candidates", () => {
     expect(validate(draft).ui_intent.form.list_inputs).toHaveLength(2);
   });
 
+  test("a changed noun validates — it is a View fact, not a birth fact", () => {
+    const draft = candidateFrom(journalCapabilityRow());
+    draft.noun = "diary entry";
+    expect(validate(draft).noun).toBe("diary entry");
+  });
+
   test("a valid list-input mode change round-trips as a presentation fact", () => {
     const draft = candidateFrom(journalCapabilityRow());
     draft.ui_intent.form.list_inputs = [{ field: "tags", mode: "repeatable" }];
@@ -251,6 +257,26 @@ describe("the invalid-candidate matrix row", () => {
     const reordered = candidateFrom(journalCapabilityRow());
     reordered.tools = ["read", "create", "update", "delete", "search"];
     expectRejected(reordered, "must be exactly [create, read, update, delete, search]");
+  });
+
+  test("a changed logo birth fact is rejected by name, subject and ground alike", () => {
+    // The artwork was drawn from these two and is never redrawn (ADR-0007 L7), so a
+    // candidate that moved one would leave the spec describing a picture that does
+    // not exist. The rejection says which fact moved rather than surfacing as a
+    // generic unexplained difference downstream.
+    const changedSubject = candidateFrom(journalCapabilityRow());
+    changedSubject.subject = "a brass telescope";
+    expectRejected(changedSubject, "subject is a logo birth fact and is immutable");
+
+    const changedGround = candidateFrom(journalCapabilityRow());
+    changedGround.ground = "violet";
+    expectRejected(changedGround, "ground is a logo birth fact and is immutable");
+  });
+
+  test("an off-list ground is rejected before immutability even applies", () => {
+    const draft = candidateFrom(journalCapabilityRow());
+    draft.ground = "signal";
+    expectRejected(draft, "Invalid option");
   });
 
   test("a changed capability id is rejected", () => {

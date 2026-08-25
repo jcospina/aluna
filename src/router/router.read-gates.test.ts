@@ -31,6 +31,9 @@ function shelvesRow() {
   return notesRow({
     id: "shelves",
     label: "Shelves",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     incarnation_id: SHELVES_INCARNATION,
     prompt_context: "Stores shelf names.",
   });
@@ -40,6 +43,9 @@ function tasksRow() {
   return notesRow({
     id: "tasks",
     label: "Tasks",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     incarnation_id: TASKS_INCARNATION,
     prompt_context: "Stores tasks.",
   });

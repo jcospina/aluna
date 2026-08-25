@@ -29,6 +29,9 @@ import {
   type CapabilitySpec,
   FULL_CAPABILITY_TOOLS,
   fieldTypeSchema,
+  LOGO_GROUND_ANCHORS,
+  MAX_CAPABILITY_NOUN_LENGTH,
+  MAX_LOGO_SUBJECT_LENGTH,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
   promptCapabilitySpecSchema,
@@ -71,6 +74,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
   const tools = FULL_CAPABILITY_TOOLS.join(", ");
   const platformColumns = PLATFORM_COLUMNS.join(", ");
+  const grounds = LOGO_GROUND_ANCHORS.join(" | ");
 
   return [
     "You are Aluna's Capability Builder. Author the capability spec for what the user wants to keep track of.",
@@ -99,6 +103,13 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "- id is the engineering identity (it becomes a table and folder name). Short, lowercase, never shown to the user.",
     '- label is the short user-facing capability name written under its logo on the desk, like "Notes" or "Reading list". It must be a name, not a sentence, narration, promise, or confirmation.',
     "- Every distinct capability must use a meaningful semantic label and id derived from the user's wording. Never create a mechanical numbered or versioned duplicate.",
+    `- noun is the singular common noun for one stored record, lowercase, at most ${MAX_CAPABILITY_NOUN_LENGTH} characters — "note", "recipe", "contact". It completes desk copy such as "add your first <noun> above", so it is a bare noun, never a phrase or a plural.`,
+    "",
+    "The capability's logo — you choose the drawing's subject and its colour, and nothing else:",
+    `- subject is a short noun phrase naming one concrete object that stands for this capability, at most ${MAX_LOGO_SUBJECT_LENGTH} characters — "an open notebook", "a brass telescope", "a stack of recipe cards". One object, plainly named. Never letters, words, initials, logos, or a described scene; never a style, medium, palette, layout, or composition instruction.`,
+    "- Derive the subject from what the capability is for, never from art direction in the user's words. This is one instruction about where the subject comes from, not a second refusal: a request that only asks for a particular drawing never reaches you, because the intent classifier refuses presentation-steering prompts the way it refuses any other.",
+    `- ground is exactly one of: ${grounds}. Pick the one that suits the subject — a telescope on sky, recipes on ochre. Two capabilities sharing a ground is fine.`,
+    "- These two are chosen once, at birth, and can never be changed afterwards. Choose them for the capability as a whole, not for today's wording.",
     ...(input.intent.proposed_identity
       ? [
           "Resolver-owned distinct identity — return these values exactly:",

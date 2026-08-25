@@ -222,6 +222,9 @@ export function makeScratchApp(
 export const NOTES_SPEC = {
   id: "notes",
   label: "Notes",
+  subject: "an open notebook",
+  ground: "leaf",
+  noun: "note",
   schema: {
     fields: [{ name: "text", label: "Text", type: "string", required: true, lifecycle: "active" }],
   },
@@ -254,12 +257,17 @@ export const NOTES_SPEC = {
 
 export const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
 
+/** A fixed seed: fixtures compare rows, so a random one would make them flaky. */
+export const NOTES_LOGO_SEED = 184206;
+
 export function notesCapabilityRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
   return {
     ...NOTES_SPEC,
     incarnation_id: NOTES_INCARNATION_ID,
     version: 1,
     artifacts_path: `capabilities/notes/${NOTES_INCARNATION_ID}/v1/`,
+    seed: NOTES_LOGO_SEED,
+    logo: { status: "absent", attempts: 0 },
     ...overrides,
   } as CapabilityRow;
 }

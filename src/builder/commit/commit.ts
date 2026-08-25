@@ -21,10 +21,12 @@ import type { Database } from "bun:sqlite";
 
 import {
   type CapabilityRegistryExpectation,
+  type CapabilityRegistryWrite,
   type CapabilityRow,
   type CapabilitySpec,
   capabilitySpecSchema,
   compareAndSwapCapability,
+  createCapabilityLogoSeed,
   getCapability,
   incarnationIdSchema,
 } from "../../registry/index.ts";
@@ -85,10 +87,9 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   const artifactsPath = input.publication.artifactsPath;
   const manifest = verified.manifest;
   const expected = input.expected ?? { state: "absent" };
-  const previousLabel =
-    expected.state === "active"
-      ? getCapability(expected.capabilityId, input.database)?.label
-      : undefined;
+  const previous =
+    expected.state === "active" ? getCapability(expected.capabilityId, input.database) : null;
+  const previousLabel = previous?.label;
   if (
     JSON.stringify(verified.spec) !== JSON.stringify(spec) ||
     manifest.capability_id !== spec.id ||
@@ -101,8 +102,20 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
 
   // The CAS runs inside activation's open transaction. A stale target changes
   // nothing; any later failure rolls this back with DDL and lifecycle success.
+  // The seed is minted with the incarnation's first row and carried forward
+  // untouched by every later version: it is the record of what drew the logo, and
+  // the logo is made once (ADR-0007 L7). An evolution that cannot find its
+  // predecessor is not an evolution — a fresh seed here would silently claim the
+  // artwork was drawn from something it was not.
+  if (expected.state === "active" && !previous) {
+    throw new Error(
+      `Capability registry commit found no active row to evolve for ${expected.capabilityId}.`,
+    );
+  }
+  const seed = previous ? previous.seed : createCapabilityLogoSeed();
+
   const row = compareAndSwapCapability(
-    rowFromSpec(spec, incarnationId, version, artifactsPath),
+    registryWriteFromSpec(spec, incarnationId, version, artifactsPath, seed),
     expected,
     input.database,
   );
@@ -135,14 +148,22 @@ function isExpectedNextVersion(
   );
 }
 
-// The registry row the platform assigns at commit: the AI-authored spec plus the
-// platform-owned incarnation, version, and `artifacts_path` pointer. The AI never
-// authors these (registry/spec.ts).
-function rowFromSpec(
+// The registry write the platform assembles at commit: the AI-authored spec plus the
+// platform-owned incarnation, version, `artifacts_path` pointer, and logo seed. The AI
+// never authors these (registry/spec.ts). The logo's lifecycle is not here at all — it
+// is born `absent` with the row and moves only through the registry's claim.
+function registryWriteFromSpec(
   spec: CapabilitySpec,
   incarnationId: string,
   version: number,
   artifactsPath: string,
-): CapabilityRow {
-  return { ...spec, incarnation_id: incarnationId, version, artifacts_path: artifactsPath };
+  seed: number,
+): CapabilityRegistryWrite {
+  return {
+    ...spec,
+    incarnation_id: incarnationId,
+    version,
+    artifacts_path: artifactsPath,
+    seed,
+  };
 }

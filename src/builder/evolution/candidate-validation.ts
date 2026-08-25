@@ -45,6 +45,9 @@ export function committedSpecView(row: CapabilityRow): CapabilitySpec {
   return {
     id: row.id,
     label: row.label,
+    subject: row.subject,
+    ground: row.ground,
+    noun: row.noun,
     schema: row.schema,
     ui_intent: row.ui_intent,
     behavior: row.behavior,
@@ -54,6 +57,12 @@ export function committedSpecView(row: CapabilityRow): CapabilitySpec {
     prompt_context: row.prompt_context,
   };
 }
+
+/**
+ * The two authored facts the logo was drawn from. Evolution preserves them
+ * byte-for-byte; neither is ever a change fact.
+ */
+export const LOGO_BIRTH_FACTS = ["subject", "ground"] as const;
 
 /** One contract violation, dev-preview friendly: where, and what went wrong. */
 export interface CandidateValidationIssue {
@@ -112,6 +121,18 @@ export function validateCandidateSpec(input: ValidateCandidateSpecInput): Capabi
       path: "id",
       message: `capability id is immutable; expected "${committed.id}", got "${candidate.id}"`,
     });
+  }
+  // The logo's birth facts. A logo is made once and never remade (ADR-0007 L7), so a
+  // candidate that moved either one would leave the spec describing artwork nothing is
+  // allowed to redraw. They are refused here by name rather than left to the Diff
+  // Engine's residual check, so the rejection says which fact moved and why.
+  for (const fact of LOGO_BIRTH_FACTS) {
+    if (candidate[fact] !== committed[fact]) {
+      issues.push({
+        path: fact,
+        message: `${fact} is a logo birth fact and is immutable; expected "${committed[fact]}", got "${candidate[fact]}"`,
+      });
+    }
   }
 
   validateFieldLifecycleContract(committed, candidate, issues);

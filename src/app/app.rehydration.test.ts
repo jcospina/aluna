@@ -71,6 +71,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
       notesCapabilityRow({
         id: "recipes",
         label: "Recipes",
+        noun: "recipe",
         incarnation_id: "22222222-2222-4222-8222-222222222222",
         artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v1/",
         prompt_context: "Stores the user's recipes.",

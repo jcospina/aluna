@@ -24,7 +24,7 @@
 // letting a repair buy a pass with an unrun suite.
 
 import { isProviderAbortError, type TokenUsage } from "../../../provider/index.ts";
-import type { CapabilityRow } from "../../../registry/index.ts";
+import { type CapabilityRow, LOGO_BIRTH_STATUS } from "../../../registry/index.ts";
 import { DEFAULT_UNIT_FIX_ATTEMPTS, type HandlerUnitName } from "../../units/units.ts";
 import type {
   BehavioralGateResult,
@@ -405,12 +405,18 @@ function orderedHandlers(
   return declared.filter((action) => repaired.has(action));
 }
 
+// Scratch dependency rows never reach the registry, so their logo values are the
+// birth state a real row would be inserted with rather than anything meaningful.
+const SCRATCH_DEPENDENCY_SEED = 1;
+
 function scratchDependencyRows(input: CapabilityGateInput): CapabilityRow[] {
   return (input.scratchCatalog ?? []).map((fixture) => ({
     ...fixture.spec,
     incarnation_id: fixture.incarnationId,
     version: 1,
     artifacts_path: `scratch/${fixture.spec.id}`,
+    seed: SCRATCH_DEPENDENCY_SEED,
+    logo: { status: LOGO_BIRTH_STATUS, attempts: 0 },
   }));
 }
 
