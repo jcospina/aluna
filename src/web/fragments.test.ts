@@ -3,7 +3,9 @@ import { describe, expect, test } from "bun:test";
 import { renderDetailModal } from "../presentation/detail-modal.ts";
 import {
   BLANK_PROMPT_NOTICE,
+  PAGE_ASSEMBLY_ANCHORS,
   renderCapabilityCommitSwap,
+  renderCapabilityShell,
   renderPromptNotice,
   renderRehydratedShell,
 } from "./fragments.ts";
@@ -12,13 +14,17 @@ import {
 // shell mounts the one shared read-only detail modal. Kept in sync with fragments.ts.
 const MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here. -->";
 
+// The shell's capability-entry placeholder comment, with the 8-space indent the injection
+// matches on. Kept in sync with fragments.ts.
+const TOOLBAR_PLACEHOLDER = "        <!-- Capability entries render here later. -->";
+
 // A minimal stand-in for the shell file: the anchors the shell composition keys off —
 // the toolbar placeholder comment (with its 8-space indent), the detail-modal placeholder,
 // and the `class="shell"` root — wrapped in just enough markup to be inspectable.
 const SHELL_FIXTURE = [
   '<div class="shell" x-data="shell">',
   '  <nav class="toolbar" id="capability-toolbar">',
-  "        <!-- Capability entries render here later. -->",
+  TOOLBAR_PLACEHOLDER,
   "  </nav>",
   '  <div class="intro__output" id="spec-build-output"></div>',
   "</div>",
@@ -221,25 +227,48 @@ describe("on-load toolbar rehydration", () => {
     expect(html).toContain(renderDetailModal());
   });
 
-  test("throws when the shell is missing its toolbar placeholder", () => {
-    // The fixture carries the modal placeholder (so modal injection passes) but not the
-    // toolbar one, isolating the toolbar-placeholder guard.
-    expect(() =>
-      renderRehydratedShell(
-        [{ id: "notes", label: "Notes" }],
-        `<div class="shell"></div>\n${MODAL_PLACEHOLDER}`,
-      ),
-    ).toThrow(/toolbar placeholder/i);
+  // Every page-assembly anchor, removed one at a time from a shell that is otherwise
+  // whole, so each case isolates the anchor it names. The removals come from the same
+  // `PAGE_ASSEMBLY_ANCHORS` the developer preview forces, so a test and a preview cannot
+  // disagree about what "missing" means for an anchor.
+  const anchorRaises: Record<string, RegExp> = {
+    "the capability-toolbar placeholder": /toolbar placeholder/i,
+    "the detail-modal placeholder": /detail-modal placeholder/i,
+    "the content target": /content target/i,
+    "the shell root": /root anchor/i,
+  };
+
+  test("PAGE_ASSEMBLY_ANCHORS names every anchor the assembly replaces", () => {
+    expect(PAGE_ASSEMBLY_ANCHORS.map((anchor) => String(anchor.name))).toEqual(
+      Object.keys(anchorRaises),
+    );
   });
 
-  test("throws when the shell is missing its detail-modal placeholder", () => {
-    // Symmetric fail-fast: a shell that silently dropped the modal (and with it every
-    // item's click-to-open) is caught here, not in the UI.
-    expect(() =>
-      renderRehydratedShell(
-        [{ id: "notes", label: "Notes" }],
-        '<div class="shell"><!-- Capability entries render here later. --></div>',
-      ),
-    ).toThrow(/detail-modal placeholder/i);
+  for (const anchor of PAGE_ASSEMBLY_ANCHORS) {
+    test(`throws when the shell is missing ${anchor.name}`, () => {
+      // A shell that silently absorbed a missed anchor serves a page that looks assembled
+      // and is not: no entries, no modal, no opened capability, or a sidebar the shell
+      // never flips open.
+      expect(() =>
+        renderCapabilityShell(
+          { id: "notes", label: "Notes", incarnation_id: "inc-1", version: 1 },
+          [{ id: "notes", label: "Notes" }],
+          "<section>Notes</section>",
+          anchor.remove(SHELL_FIXTURE),
+        ),
+      ).toThrow(anchorRaises[anchor.name] as RegExp);
+    });
+  }
+
+  test("cold start holds the shell to the same anchors it will need on the first commit", () => {
+    // An empty registry inserts nothing and never flips the shell, so nothing here would
+    // have noticed a lost anchor. That made the loudest failure the one a fresh user was
+    // least likely to reach: the page would render, and start failing at the first commit.
+    for (const anchor of PAGE_ASSEMBLY_ANCHORS) {
+      expect(() => renderRehydratedShell([], anchor.remove(SHELL_FIXTURE))).toThrow(
+        anchorRaises[anchor.name] as RegExp,
+      );
+    }
+    expect(() => renderRehydratedShell([], SHELL_FIXTURE)).not.toThrow();
   });
 });

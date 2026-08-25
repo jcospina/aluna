@@ -520,6 +520,7 @@ describe("the dev-only guard on the remaining /demo/* inspection routes", () => 
     expect((await app.request("/demo/few-shot-gallery")).status).toBe(404);
     expect((await app.request("/demo/region-lifecycle")).status).toBe(404);
     expect((await app.request("/demo/region-lifecycle/readers")).status).toBe(404);
+    expect((await app.request("/demo/swap-targets")).status).toBe(404);
     expect((await app.request("/demo/read-gates")).status).toBe(404);
     // The product surface is untouched by the guard.
     expect((await app.request("/")).status).toBe(200);

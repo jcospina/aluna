@@ -13,7 +13,9 @@ export {
 } from "./cached-view.ts";
 export {
   BLANK_PROMPT_NOTICE,
+  PAGE_ASSEMBLY_ANCHORS,
   renderBuildSubscriber,
+  renderCapabilityShell,
   renderCapabilityToolbarEntry,
   renderPromptNotice,
   renderRehydratedShell,
