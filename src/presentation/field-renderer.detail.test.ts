@@ -224,6 +224,7 @@ describe("detail display — follows active form-field order", () => {
     const capability: RenderableCapability = {
       id: "probe",
       label: "Probe",
+      noun: "note",
       schema: {
         fields: [
           { name: "title", label: "Entry", type: "string", required: true, lifecycle: "active" },

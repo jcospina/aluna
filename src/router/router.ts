@@ -567,6 +567,7 @@ function renderableFromRow(row: CapabilityRow): RenderableCapability {
   return {
     id: row.id,
     label: row.label,
+    noun: row.noun,
     schema: row.schema,
     form: row.ui_intent.form,
     actions: row.tools,

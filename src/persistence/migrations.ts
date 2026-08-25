@@ -25,6 +25,7 @@ import {
   reconcileRunningGenerationLifecycles,
 } from "../metrics/lifecycle-store.ts";
 import { GENERATION_METRICS_TABLE } from "../metrics/store.ts";
+import { LOGO_BIRTH_STATUS, LOGO_STATUSES } from "../registry/logo.ts";
 import { REGISTRY_TABLE } from "../registry/store.ts";
 import { db } from "./db.ts";
 
@@ -287,6 +288,34 @@ export const MIGRATIONS: readonly Migration[] = [
       database.exec(
         `ALTER TABLE ${REGISTRY_TABLE}
          ADD COLUMN deletion_cleanup_error TEXT;`,
+      );
+    },
+  },
+  // The logo's inputs and its durable state (ADR-0007; PLAN decision 42). Additive,
+  // like every migration here, but deliberately *not* compatible: `subject`, `ground`,
+  // `noun` and `seed` arrive without a default, so a row that predates the cut reads
+  // back as NULL and fails the row schema loudly at the read site. Nothing backfills
+  // them — a birth fact invented after birth would describe artwork that does not
+  // exist — so the pre-logo corpus is removed by `bun run reset` instead.
+  //
+  // The lifecycle pair is the exception, and honestly so: `absent`/0 is what every
+  // capability is born with, not a stand-in for a value someone forgot to write. Both
+  // are NOT NULL so the claim in `store.ts` can compare a status without a null case.
+  {
+    id: "0012_capability_logo_inputs",
+    up: (database) => {
+      for (const column of ["subject", "ground", "noun"]) {
+        database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN ${column} TEXT;`);
+      }
+      database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN seed INTEGER;`);
+      database.exec(
+        `ALTER TABLE ${REGISTRY_TABLE}
+         ADD COLUMN logo_status TEXT NOT NULL DEFAULT '${LOGO_BIRTH_STATUS}'
+           CHECK (logo_status IN (${LOGO_STATUSES.map((status) => `'${status}'`).join(", ")}));`,
+      );
+      database.exec(
+        `ALTER TABLE ${REGISTRY_TABLE}
+         ADD COLUMN logo_attempts INTEGER NOT NULL DEFAULT 0 CHECK (logo_attempts >= 0);`,
       );
     },
   },

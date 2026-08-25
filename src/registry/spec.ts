@@ -21,9 +21,16 @@
 //   - The platform trio — `id`, `created_at`, `extra` — is platform-owned, never a spec
 //     field, and a spec naming one of them is rejected. Making the trio platform-owned is
 //     what removes the `auto` concept from the spec entirely.
+//   - `subject` and `ground` are the logo's birth facts and `noun` is the desk's
+//     empty-state word. Ground is validated by naming one of eight anchors — the whole
+//     of ground validation — and the request's second colour is derived from it rather
+//     than authored (`logo.ts`). Users never steer any of the three: the subject comes
+//     from what the capability is for, and a prompt reaching for art direction is
+//     refused by the intent resolver where every other presentation-steering prompt is.
 
 import { z } from "zod";
 import { isCapabilityNameLabel } from "./labels.ts";
+import { capabilityLogoStateSchema, logoGroundSchema, logoSeedSchema } from "./logo.ts";
 
 /**
  * Columns every capability data table gets from the platform, never from the
@@ -51,6 +58,18 @@ const capabilityNameText = nonBlankText.refine(
   isCapabilityNameLabel,
   "must be a short capability name, not a sentence",
 );
+
+// The two short authored phrases the logo contract adds. Both are single-line by
+// construction: one fills the request's subject slot and the other lands inside a
+// sentence of desk copy, and a newline in either would break the surface it feeds.
+const singleLinePhrase = (max: number) =>
+  nonBlankText.max(max).refine((text) => !/[\r\n]/.test(text), "must be one line");
+
+export const MAX_LOGO_SUBJECT_LENGTH = 80;
+export const MAX_CAPABILITY_NOUN_LENGTH = 32;
+
+/** The subject phrase alone — the registry re-validates it when a claim hands it out. */
+export const logoSubjectSchema = singleLinePhrase(MAX_LOGO_SUBJECT_LENGTH);
 
 export const SCALAR_FIELD_TYPES = ["string", "number", "boolean", "datetime", "date"] as const;
 export const LIST_FIELD_TYPES = ["string[]"] as const;
@@ -232,6 +251,17 @@ const commonSpecShape = {
   // Engineering identity — becomes the `cap_<id>` table name and the artifacts
   // directory; never user-facing (CONTEXT.md "Engineering language").
   id: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
+  // The two logo birth facts. They are authored once, at birth, and evolution
+  // preserves them byte-for-byte: artwork is made once and never remade (ADR-0007
+  // L7), so a spec that drifted from its drawing would be describing a picture
+  // nothing is allowed to redraw. `ground` validates against the eight anchors by
+  // name — the whole of ground validation (decision 39).
+  subject: logoSubjectSchema,
+  ground: logoGroundSchema,
+  // The singular common noun for one record, used in the desk's empty-state copy
+  // ("add your first note above"). A platform-View fact: it may evolve, and it never
+  // selects logo generation.
+  noun: singleLinePhrase(MAX_CAPABILITY_NOUN_LENGTH),
   schema: z.strictObject({
     fields: z
       .array(specFieldSchema)
@@ -272,24 +302,46 @@ export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
  */
 export const promptCapabilitySpecSchema = capabilitySpecSchema;
 
+// The spec plus the platform-assigned incarnation, version, artifact pointer, and
+// logo seed. The opaque incarnation identifies one complete capability lifetime and
+// is deliberately absent from the AI-authored spec, as are `version` (bumped per
+// regeneration; keys the derived-artifact caches), `artifacts_path` (the version
+// directory holding the item renderer and handlers), and `seed`. The row stays lean
+// because the intent resolver scans every row on every classification; nothing bulky
+// lives here, and the artwork itself is a file rather than a column.
+const capabilityRegistryShape = {
+  ...commonSpecShape,
+  // Existing rows may contain older narration-like labels; display paths
+  // canonicalize them while generated specs are stricter going forward.
+  label: nonBlankText,
+  incarnation_id: incarnationIdSchema,
+  version: z.number().int().min(1),
+  artifacts_path: nonBlankText,
+  // The incarnation's stored seed — the record of what drew its logo. Born with the
+  // registry row and carried unchanged through every version, because the artwork is.
+  seed: logoSeedSchema,
+};
+
 /**
- * One registry row: the spec plus the platform-assigned incarnation,
- * version, and artifact pointer. The opaque incarnation identifies one complete
- * capability lifetime and is deliberately absent from the AI-authored spec.
- * `version` (bumped per regeneration; keys the derived-artifact caches) and
- * `artifacts_path` (the version directory holding the item renderer and handlers). The row
- * stays lean — spec + incarnation + version + pointer — because the intent resolver scans
- * every row on every classification; nothing bulky lives here.
+ * What a write puts into the registry: the row without its logo lifecycle. The
+ * lifecycle is absent here on purpose — evolution never reads or writes the logo
+ * (ADR-0007), and a write shape that could carry a status is a write that could
+ * overwrite a claim some other desk load has already won and spent an attempt on.
+ * Only the claim and transition functions in `store.ts` move that value.
+ */
+export const capabilityRegistryWriteSchema = z
+  .strictObject(capabilityRegistryShape)
+  .superRefine(validateSpecSemantics);
+export type CapabilityRegistryWrite = z.infer<typeof capabilityRegistryWriteSchema>;
+
+/**
+ * One registry row as it is read back: everything a write supplies plus the durable
+ * logo lifecycle the platform owns alone.
  */
 export const capabilityRowSchema = z
   .strictObject({
-    ...commonSpecShape,
-    // Existing rows may contain older narration-like labels; display paths
-    // canonicalize them while generated specs are stricter going forward.
-    label: nonBlankText,
-    incarnation_id: incarnationIdSchema,
-    version: z.number().int().min(1),
-    artifacts_path: nonBlankText,
+    ...capabilityRegistryShape,
+    logo: capabilityLogoStateSchema,
   })
   .superRefine(validateSpecSemantics);
 export type CapabilityRow = z.infer<typeof capabilityRowSchema>;
@@ -298,6 +350,9 @@ export function capabilitySpecFromRow(row: CapabilityRow): CapabilitySpec {
   return capabilitySpecSchema.parse({
     id: row.id,
     label: row.label,
+    subject: row.subject,
+    ground: row.ground,
+    noun: row.noun,
     schema: row.schema,
     ui_intent: row.ui_intent,
     behavior: row.behavior,

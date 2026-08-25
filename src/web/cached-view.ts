@@ -53,6 +53,7 @@ function renderCapabilityCollection(row: CapabilityRow): string {
   const capability: RenderableCapability = {
     id: row.id,
     label: canonicalCapabilityLabel(row),
+    noun: row.noun,
     schema: row.schema,
     form: row.ui_intent.form,
     actions: row.tools,

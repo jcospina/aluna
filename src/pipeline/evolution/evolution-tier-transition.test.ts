@@ -273,6 +273,7 @@ describe("decision 24's transition table — the tier-on rows", () => {
     const relabelled: CapabilitySpec = {
       ...base,
       label: "Reminders",
+      noun: "note",
       schema: {
         fields: base.schema.fields.map((field) => ({ ...field, label: `${field.label} ` })),
       },

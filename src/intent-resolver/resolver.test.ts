@@ -52,6 +52,9 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
   return {
     id: "notes",
     label: "Notes",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     incarnation_id: incarnationId,
     version: 1,
     schema: {
@@ -84,6 +87,8 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     tools: ["create", "read", "update", "delete", "search"],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     artifacts_path: `capabilities/notes/${incarnationId}/v1/`,
+    seed: 184206,
+    logo: { status: "absent", attempts: 0 },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -93,6 +98,9 @@ function recipesRow(): CapabilityRow {
   return {
     id: "recipes",
     label: "Recipes",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     incarnation_id: "22222222-2222-4222-8222-222222222222",
     version: 2,
     schema: {
@@ -125,6 +133,8 @@ function recipesRow(): CapabilityRow {
     tools: ["create", "read", "update", "delete", "search"],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v2/",
+    seed: 184206,
+    logo: { status: "absent", attempts: 0 },
     prompt_context: "Stores recipes the user wants to cook again.",
   };
 }

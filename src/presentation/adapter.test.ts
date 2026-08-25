@@ -31,6 +31,7 @@ import { ITEM_PAYLOAD_ATTR, ITEM_TRIGGER_CLASS } from "./list-container.ts";
 const CAPABILITY: RenderableCapability = {
   id: "reading",
   label: "Reading list",
+  noun: "note",
   schema: {
     fields: [
       { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
@@ -113,6 +114,7 @@ describe("createPresentationAdapter — composition", () => {
     const collisionCapability: RenderableCapability = {
       id: "collision",
       label: "Collision",
+      noun: "note",
       schema: {
         fields: [
           { name: "fields", label: "Fields", type: "string", required: true, lifecycle: "active" },

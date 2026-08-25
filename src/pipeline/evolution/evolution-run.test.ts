@@ -128,6 +128,7 @@ describe("the due-date tracer", () => {
         {
           id: candidate.id,
           label: candidate.label,
+          noun: candidate.noun,
           schema: candidate.schema,
           form: candidate.ui_intent.form,
           actions: candidate.tools,
@@ -355,6 +356,9 @@ describe("the canonical no-op", () => {
         form: base.ui_intent.form,
       },
       schema: base.schema,
+      noun: base.noun,
+      ground: base.ground,
+      subject: base.subject,
       label: base.label,
       id: base.id,
     } as unknown as CapabilitySpec;

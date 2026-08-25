@@ -26,6 +26,7 @@ import { renderDetailFields } from "./field-renderer.ts";
 const SAMPLE: RenderableCapability = {
   id: "tasks",
   label: "Tasks",
+  noun: "note",
   schema: {
     fields: [
       { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },

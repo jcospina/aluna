@@ -50,6 +50,9 @@ function candidateSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec 
   return {
     id: "notes",
     label: "Notes",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     schema,
     ui_intent: {
       form: { list_inputs: [] },
@@ -97,9 +100,14 @@ function journalsCatalog(): readonly CapabilityRow[] {
       ...candidateSpec(),
       id: "journals",
       label: "Journals",
+      subject: "an open notebook",
+      ground: "leaf",
+      noun: "note",
       incarnation_id: JOURNALS_INCARNATION,
       version: 1,
       artifacts_path: `capabilities/journals/${JOURNALS_INCARNATION}/v1/`,
+      seed: 184206,
+      logo: { status: "absent", attempts: 0 },
       schema: {
         fields: [
           {

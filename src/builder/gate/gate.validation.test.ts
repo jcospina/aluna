@@ -105,6 +105,9 @@ describe("capability gate — datetime instant matching", () => {
     const eventsSpec = notesSpec({
       id: "events",
       label: "Events",
+      subject: "an open notebook",
+      ground: "leaf",
+      noun: "note",
       schema: {
         fields: [
           { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },

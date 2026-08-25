@@ -93,6 +93,15 @@ const MATRIX: readonly MatrixCase[] = [
     ddl: [],
   },
   {
+    row: "empty-state noun → platform copy, no units",
+    intent: "call each one an entry",
+    candidate: () => notesSpec({ noun: "entry" }),
+    facts: ["empty_state_noun"],
+    platformWork: ["platform_empty_state_copy"],
+    regenerated: [],
+    ddl: [],
+  },
+  {
     row: "prompt_context → resolver catalog, no units",
     intent: "describe these better",
     candidate: () => notesSpec({ prompt_context: "Stores the user's short written notes." }),
@@ -234,9 +243,17 @@ const MATRIX: readonly MatrixCase[] = [
   },
 ];
 
+/** The live registry row, or a loud failure — every case here has one by construction. */
+function committedRow() {
+  const row = getCapability("notes", env.conns.readonly);
+  if (!row) throw new Error("the committed notes row is missing");
+  return row;
+}
+
 describe("every change-fact matrix row, end to end", () => {
   for (const matrixCase of MATRIX) {
     test(matrixCase.row, async () => {
+      const born = committedRow();
       // The tier is pinned off here: this battery is about the fact→work mapping, and
       // the tier itself is proven on *and* off end to end by the due-date tracer.
       const result = await evolve(env, matrixCase.candidate(), matrixCase.intent, {
@@ -267,6 +284,10 @@ describe("every change-fact matrix row, end to end", () => {
       // Every row activates exactly one version, and the record written under v1 survives
       // — evolution is additive, so no row here may cost the user data.
       expect(getCapability("notes", env.conns.readonly)?.version).toBe(2);
+      // No matrix row moves a birth fact, the seed that drew the artwork, or the
+      // logo's own state: evolution never reads or writes the logo.
+      const { subject, ground, seed, logo } = born;
+      expect(committedRow()).toMatchObject({ subject, ground, seed, logo });
       expect(tableColumns(env, "cap_notes")).toContain("pinned");
       expect(
         env.conns.readonly.query('SELECT "text" FROM "cap_notes" WHERE "id" = ?').get("note-1"),
@@ -316,6 +337,9 @@ describe("every change-fact matrix row, end to end", () => {
     const base = committedSpec();
     const candidate = notesSpec({
       label: "Jottings",
+      subject: "an open notebook",
+      ground: "leaf",
+      noun: "note",
       schema: {
         fields: [
           ...base.schema.fields,

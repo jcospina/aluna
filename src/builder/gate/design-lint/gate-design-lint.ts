@@ -237,6 +237,7 @@ export function findDesignViolation(
   const capability: RenderableCapability = {
     id: spec.id,
     label: spec.label,
+    noun: spec.noun,
     schema: spec.schema,
     form: spec.ui_intent.form,
     actions: spec.tools,

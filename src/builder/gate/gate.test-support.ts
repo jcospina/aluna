@@ -58,6 +58,9 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
   return {
     id: "notes",
     label: "Notes",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     schema: {
       fields: [
         { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },

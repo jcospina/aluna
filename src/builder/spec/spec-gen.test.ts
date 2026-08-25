@@ -18,6 +18,7 @@ import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   FULL_CAPABILITY_TOOLS,
+  LOGO_GROUND_ANCHORS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   promptCapabilitySpecSchema,
 } from "../../registry/index.ts";
@@ -85,6 +86,9 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return {
     id: "notes",
     label: "Notes",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     schema: {
       fields: [
         { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
@@ -263,6 +267,40 @@ describe("spec generation stage — authored prompt", () => {
     expect(prompt).toContain(intent.proposed_action);
     expect(prompt).toContain(intent.user_facing_label);
     expect(prompt).toContain("track my notes");
+  });
+
+  test("asks for the logo's subject and one of the eight anchors, and for the record noun", () => {
+    const provider = makeSpecProvider(notesSpec());
+    const { send } = recordingSend();
+    const prompt = buildSpecPrompt({
+      provider,
+      prompt: "track my notes",
+      intent: notesIntent(),
+      send,
+    });
+
+    // Ground is a word list read off the registry's own enum, so the prompt cannot
+    // drift from the schema that gates the answer.
+    expect(prompt).toContain(`ground is exactly one of: ${LOGO_GROUND_ANCHORS.join(" | ")}`);
+    expect(prompt).not.toContain("signal");
+    // Subject: one concrete object, no art direction, no lettering.
+    expect(prompt).toContain("subject is a short noun phrase naming one concrete object");
+    expect(prompt).toContain(
+      "Never letters, words, initials, logos, or a described scene; never a style, medium, palette, layout, or composition instruction.",
+    );
+    // The user does not steer it — the subject comes from what the capability is for.
+    expect(prompt).toContain(
+      "Derive the subject from what the capability is for, never from art direction in the user's words.",
+    );
+    // One rule, not two: the builder is told where the subject comes from, and the
+    // refusing is left to the intent classifier (ADR-0007).
+    expect(prompt).toContain("not a second refusal");
+    expect(prompt).toContain("chosen once, at birth, and can never be changed afterwards");
+    // The second colour is never asked for: the shell derives it from the ground.
+    expect(prompt).not.toContain("companion");
+    expect(prompt).not.toContain("second colour");
+    expect(prompt).not.toContain("second color");
+    expect(prompt).toContain("noun is the singular common noun for one stored record");
   });
 });
 

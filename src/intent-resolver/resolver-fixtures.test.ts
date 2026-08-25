@@ -3,21 +3,31 @@ import type { ZodType } from "zod";
 import { notesCapabilityRow } from "../app/app.test-support.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
 import { type CapabilityRow, fingerprintActiveRegistryCatalog } from "../registry/index.ts";
-import { classifyIntent } from "./resolver.ts";
+import { buildIntentPrompt, classifyIntent } from "./resolver.ts";
 import type { IntentClassification } from "./schema.ts";
 
 const contacts = notesCapabilityRow({
   id: "contacts",
   label: "Contacts",
+  subject: "an open notebook",
+  ground: "leaf",
+  noun: "note",
   incarnation_id: "22222222-2222-4222-8222-222222222222",
   artifacts_path: "capabilities/contacts/22222222-2222-4222-8222-222222222222/v1/",
+  seed: 184206,
+  logo: { status: "absent", attempts: 0 },
   prompt_context: "Stores personal contacts and how to reach them.",
 });
 const recipes = notesCapabilityRow({
   id: "recipes",
   label: "Recipes",
+  subject: "an open notebook",
+  ground: "leaf",
+  noun: "note",
   incarnation_id: "33333333-3333-4333-8333-333333333333",
   artifacts_path: "capabilities/recipes/33333333-3333-4333-8333-333333333333/v1/",
+  seed: 184206,
+  logo: { status: "absent", attempts: 0 },
   prompt_context: "Stores recipes, ingredients, genres, quotes, and source addresses.",
   schema: {
     fields: [
@@ -152,6 +162,40 @@ const fixtures: readonly Fixture[] = [
     },
   },
   {
+    // Presentation is not the user's to set. This prompt and the one below travel the
+    // same road out: nothing in the resolver knows what a logo is, and nothing needs
+    // to — "the icon" lands outside the closed ui_change scope exactly the way a pixel
+    // offset does, so both fall to reject with no target and no resolution.
+    name: "art direction aimed at a logo is refused as ordinary presentation steering",
+    prompt: "make the notes icon blue and bigger",
+    activeCapabilityId: "notes",
+    expected: {
+      type: "reject",
+      confidence: 0.96,
+      target_capability: null,
+      resolution: "none",
+      proposed_identity: null,
+      proposed_action: "Decline to take art direction for presentation.",
+      user_facing_label: "I look after how things look, so I'll leave that to me.",
+      requires_confirmation: false,
+    },
+  },
+  {
+    name: "a pixel offset is refused by the same rule, not a different one",
+    prompt: "move this 2px right and add more padding",
+    activeCapabilityId: "notes",
+    expected: {
+      type: "reject",
+      confidence: 0.96,
+      target_capability: null,
+      resolution: "none",
+      proposed_identity: null,
+      proposed_action: "Decline to take art direction for presentation.",
+      user_facing_label: "I look after how things look, so I'll leave that to me.",
+      requires_confirmation: false,
+    },
+  },
+  {
     name: "distinct lifecycle becomes a separate capability",
     prompt: "track my work contacts separately",
     activeCapabilityId: "contacts",
@@ -211,4 +255,36 @@ describe("intent resolver fixture catalog", () => {
       expect(prompts[0]).toContain("legacy_tags: string[], lifecycle inactive");
     });
   }
+
+  test("no logo-specific rule was added — the closed ui_change scope is the whole defence", () => {
+    // The two refusal fixtures above are refused by the general rule, not by a rule
+    // about logos. If a logo-specific branch ever appears in this prompt, that is the
+    // second rule the contract says is not owed, and this fails.
+    const prompt = buildIntentPrompt({
+      prompt: "make the notes icon blue and bigger",
+      activeCapabilityId: "notes",
+      capabilities: catalogRows,
+    });
+    // Only the rules the resolver states — the user's own words and the registry
+    // context sit after this marker and are not the classifier's instructions.
+    const rules = prompt.slice(0, prompt.indexOf("Registry context:")).toLowerCase();
+
+    // The rule that refuses is about presentation in general, so it names ordinary
+    // presentation words. What must never appear is the logo's own vocabulary — that
+    // would be the second, logo-specific rule the contract says is not owed.
+    for (const word of ["logo", "icon", "artwork", "drawing", "tile", "palette", "ground"]) {
+      expect(rules).not.toContain(word);
+    }
+    // What actually does the refusing: presentation choices the user may state are a
+    // closed list, and art direction is not on it.
+    expect(prompt).toContain(
+      "ui_change is limited to capability labels, the word a capability calls one of its records, field labels, detail visibility/order, item direction/dependencies, feed or grid layout, and active string[] list input modes.",
+    );
+    expect(prompt).toContain(
+      "Ignore requests to choose field types, migrations, frameworks, generated code, CSS tokens, or repair steps.",
+    );
+    expect(prompt).toContain(
+      "A presentation request outside that closed list is reject, never ui_change.",
+    );
+  });
 });

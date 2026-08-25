@@ -21,7 +21,14 @@ import type { GenerationMetrics } from "../metrics/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
 import type { Provider } from "../provider/index.ts";
-import { getCapability, MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../registry/index.ts";
+import {
+  getCapability,
+  LOGO_GROUND_ANCHORS,
+  type LogoGround,
+  logoGroundCompanion,
+  logoSeedSchema,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "../registry/index.ts";
 import { assertGatePreview } from "./app.spec-build-assertions.ts";
 import {
   BEHAVIORAL_SUITE,
@@ -291,6 +298,15 @@ function assertCommitPreviewAndArtifacts(
     snapshotVerified: boolean;
     snapshotContentDigest: string;
     behavioralTier: string;
+    logo: {
+      subject: string;
+      ground: LogoGround;
+      colors: [LogoGround, LogoGround];
+      noun: string;
+      seed: number;
+      status: string;
+      attempts: number;
+    };
     files: string[];
   };
   expect(commitPreview.kind).toBe("commit-preview");
@@ -317,6 +333,22 @@ function assertCommitPreviewAndArtifacts(
     "tests/behavioral.json",
     "update.ts",
   ]);
+
+  // The developer preview shows the logo's inputs and its state: the three authored
+  // keys, the stored seed, and the lifecycle. `colors` is the derived ordered pair —
+  // the selected ground first, then its fixed companion — so the second colour is
+  // visibly not a fourth key somebody authored.
+  expect(LOGO_GROUND_ANCHORS as readonly string[]).toContain(commitPreview.logo.ground);
+  expect(commitPreview.logo.colors).toEqual([
+    commitPreview.logo.ground,
+    logoGroundCompanion(commitPreview.logo.ground),
+  ]);
+  expect(commitPreview.logo.subject.length).toBeGreaterThan(0);
+  expect(commitPreview.logo.noun.length).toBeGreaterThan(0);
+  expect(logoSeedSchema.safeParse(commitPreview.logo.seed).success).toBe(true);
+  // The provider is off in this build, so no attempt has been claimed or spent.
+  expect(commitPreview.logo.status).toBe("absent");
+  expect(commitPreview.logo.attempts).toBe(0);
 
   // The registry row landed at v1 with the artifacts pointer (the pointer flip)…
   const committed = getCapability("notes", databases.readonly);

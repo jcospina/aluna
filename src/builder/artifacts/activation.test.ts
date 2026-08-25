@@ -104,6 +104,8 @@ describe("activatePublishedSnapshot — point of no return", () => {
     const buildId = "build-v2-post-commit";
     const publication = publish(artifactsRoot, buildId, INCARNATION_ID, 2);
     startLifecycle(conns, buildId, INCARNATION_ID);
+    // The incarnation's logo seed is minted once, at v1. v2 must arrive carrying it.
+    const bornSeed = getCapability("notes", conns.readonly)?.seed;
 
     await expect(
       activatePublishedSnapshot({
@@ -125,6 +127,8 @@ describe("activatePublishedSnapshot — point of no return", () => {
       incarnation_id: INCARNATION_ID,
       version: 2,
       artifacts_path: `${artifactsRoot}/notes/${INCARNATION_ID}/v2/`,
+      seed: bornSeed,
+      logo: { status: "absent", attempts: 0 },
     });
     expect(hasColumn(conns.readwrite, "cap_notes", "evolution_marker")).toBe(true);
     expect(getGenerationLifecycle(buildId, INCARNATION_ID, conns.readonly)).toMatchObject({

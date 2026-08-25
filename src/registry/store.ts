@@ -16,9 +16,20 @@ import type { Database } from "bun:sqlite";
 import { db, dbReadonly } from "../persistence/db.ts";
 import { isCapabilityIdReservedByDeletion } from "./deletion-tombstones.ts";
 import {
+  type CapabilityLogoState,
+  capabilityLogoStateSchema,
+  type LogoGround,
+  type LogoStatus,
+  logoGroundSchema,
+  logoSeedSchema,
+} from "./logo.ts";
+import {
+  type CapabilityRegistryWrite,
   type CapabilityRow,
   type CapabilityTool,
+  capabilityRegistryWriteSchema,
   capabilityRowSchema,
+  logoSubjectSchema,
   type ReadDependency,
 } from "./spec.ts";
 
@@ -47,8 +58,12 @@ export class StaleCapabilityRegistryError extends Error {
 interface StoredRow {
   id: string;
   label: string;
+  subject: string;
+  ground: string;
+  noun: string;
   incarnation_id: string;
   version: number;
+  seed: number;
   schema: string;
   ui_intent: string;
   behavior: string;
@@ -57,10 +72,24 @@ interface StoredRow {
   read_dependencies: string;
   artifacts_path: string;
   prompt_context: string;
+  logo_status: string;
+  logo_attempts: number;
 }
 
-const ROW_COLUMNS =
-  "id, label, incarnation_id, version, schema, ui_intent, behavior, behavioral_errors, tools, read_dependencies, artifacts_path, prompt_context";
+/**
+ * The columns a write supplies. The logo lifecycle pair is deliberately absent:
+ * it is born at the column default and moves only through {@link claimLogoGeneration}
+ * and {@link settleLogoGeneration}, so no ordinary registry write — least of all an
+ * evolution CAS built from a row read seconds earlier — can roll a won claim back.
+ */
+const WRITE_COLUMNS =
+  "id, label, subject, ground, noun, incarnation_id, version, seed, schema, ui_intent, behavior, behavioral_errors, tools, read_dependencies, artifacts_path, prompt_context";
+
+const WRITE_PLACEHOLDERS = WRITE_COLUMNS.split(", ")
+  .map(() => "?")
+  .join(", ");
+
+const ROW_COLUMNS = `${WRITE_COLUMNS}, logo_status, logo_attempts`;
 
 // Rehydrate a stored row and re-validate it. Validating on the way out too is
 // deliberate: the registry drives DDL, routing, and generation, so a row that
@@ -71,8 +100,13 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
   return capabilityRowSchema.parse({
     id: stored.id,
     label: stored.label,
+    subject: stored.subject,
+    ground: stored.ground,
+    noun: stored.noun,
     incarnation_id: stored.incarnation_id,
     version: stored.version,
+    seed: stored.seed,
+    logo: { status: stored.logo_status, attempts: stored.logo_attempts },
     schema,
     ui_intent: JSON.parse(stored.ui_intent),
     behavior: stored.behavior,
@@ -91,8 +125,11 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
  * the primary-key violation: duplicates are the resolver's job to deflect
  * (PLAN decision 6 — no collision logic here), so reaching this is a bug.
  */
-export function insertCapability(row: CapabilityRow, database: Database = db): CapabilityRow {
-  const valid = capabilityRowSchema.parse(row);
+export function insertCapability(
+  row: CapabilityRegistryWriteInput,
+  database: Database = db,
+): CapabilityRow {
+  const valid = validateWrite(row);
   assertActiveReadDependencies(valid, database);
   if (isCapabilityIdReservedByDeletion(valid.id, database)) {
     throw new StaleCapabilityRegistryError(
@@ -100,25 +137,17 @@ export function insertCapability(row: CapabilityRow, database: Database = db): C
     );
   }
 
-  database.run(
-    `INSERT INTO ${REGISTRY_TABLE} (${ROW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      valid.id,
-      valid.label,
-      valid.incarnation_id,
-      valid.version,
-      JSON.stringify(valid.schema),
-      JSON.stringify(valid.ui_intent),
-      valid.behavior,
-      JSON.stringify(valid.behavioral_errors),
-      JSON.stringify(valid.tools),
-      JSON.stringify(valid.read_dependencies),
-      valid.artifacts_path,
-      valid.prompt_context,
-    ],
-  );
+  const stored = database
+    .query(
+      `INSERT INTO ${REGISTRY_TABLE} (${WRITE_COLUMNS}) VALUES (${WRITE_PLACEHOLDERS})
+       RETURNING ${ROW_COLUMNS}`,
+    )
+    .get(...storedValues(valid)) as StoredRow | null;
 
-  return valid;
+  if (!stored) {
+    throw new Error(`Capability registry insert wrote no row for ${valid.id}.`);
+  }
+  return parseStoredRow(stored);
 }
 
 /**
@@ -126,30 +155,42 @@ export function insertCapability(row: CapabilityRow, database: Database = db): C
  * A caller that classified against stale registry state changes nothing.
  */
 export function compareAndSwapCapability(
-  row: CapabilityRow,
+  row: CapabilityRegistryWriteInput,
   expected: CapabilityRegistryExpectation,
   database: Database = db,
 ): CapabilityRow {
-  const valid = capabilityRowSchema.parse(row);
+  const valid = validateWrite(row);
   assertActiveReadDependencies(valid, database);
 
-  const result =
+  // Both branches RETURN the row they actually left behind, so the caller receives
+  // the stored logo lifecycle rather than an echo of what it passed in. The update
+  // sets neither the seed nor the lifecycle: both belong to the incarnation, and the
+  // incarnation survives evolution unchanged.
+  const stored = (
     expected.state === "absent"
-      ? database.run(
-          `INSERT INTO ${REGISTRY_TABLE} (${ROW_COLUMNS})
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO NOTHING`,
-          storedValues(valid),
-        )
-      : database.run(
-          `UPDATE ${REGISTRY_TABLE}
-           SET label = ?, incarnation_id = ?, version = ?, schema = ?, ui_intent = ?,
-               behavior = ?, behavioral_errors = ?, tools = ?, read_dependencies = ?,
-               artifacts_path = ?, prompt_context = ?
-           WHERE id = ? AND incarnation_id = ? AND version = ?
-             AND lifecycle_state = 'active'`,
-          [
+      ? database
+          .query(
+            `INSERT INTO ${REGISTRY_TABLE} (${WRITE_COLUMNS})
+             VALUES (${WRITE_PLACEHOLDERS})
+             ON CONFLICT(id) DO NOTHING
+             RETURNING ${ROW_COLUMNS}`,
+          )
+          .get(...storedValues(valid))
+      : database
+          .query(
+            `UPDATE ${REGISTRY_TABLE}
+             SET label = ?, subject = ?, ground = ?, noun = ?, incarnation_id = ?, version = ?,
+                 schema = ?, ui_intent = ?, behavior = ?, behavioral_errors = ?, tools = ?,
+                 read_dependencies = ?, artifacts_path = ?, prompt_context = ?
+             WHERE id = ? AND incarnation_id = ? AND version = ?
+               AND lifecycle_state = 'active'
+             RETURNING ${ROW_COLUMNS}`,
+          )
+          .get(
             valid.label,
+            valid.subject,
+            valid.ground,
+            valid.noun,
             valid.incarnation_id,
             valid.version,
             JSON.stringify(valid.schema),
@@ -163,25 +204,42 @@ export function compareAndSwapCapability(
             expected.capabilityId,
             expected.incarnationId,
             expected.version,
-          ],
-        );
+          )
+  ) as StoredRow | null;
 
-  if (result.changes !== 1) {
+  if (!stored) {
     const target =
       expected.state === "absent"
         ? `${valid.id} expected absent`
         : `${expected.capabilityId}/${expected.incarnationId}@v${expected.version}`;
     throw new StaleCapabilityRegistryError(`Capability registry CAS failed: ${target}.`);
   }
-  return valid;
+  return parseStoredRow(stored);
 }
 
-function storedValues(row: CapabilityRow): (string | number)[] {
+/**
+ * What a caller may hand a write: the write shape, or a whole row it already holds.
+ * A row's logo lifecycle is dropped here rather than written — writes do not own it —
+ * so passing one is a convenience, never a way to set a status.
+ */
+export type CapabilityRegistryWriteInput = CapabilityRegistryWrite | CapabilityRow;
+
+function validateWrite(row: CapabilityRegistryWriteInput): CapabilityRegistryWrite {
+  const write: Record<string, unknown> = { ...row };
+  delete write.logo;
+  return capabilityRegistryWriteSchema.parse(write);
+}
+
+function storedValues(row: CapabilityRegistryWrite): (string | number)[] {
   return [
     row.id,
     row.label,
+    row.subject,
+    row.ground,
+    row.noun,
     row.incarnation_id,
     row.version,
+    row.seed,
     JSON.stringify(row.schema),
     JSON.stringify(row.ui_intent),
     row.behavior,
@@ -219,7 +277,10 @@ export function listCapabilityDependents(
   );
 }
 
-function assertActiveReadDependencies(row: CapabilityRow, database: Database): void {
+function assertActiveReadDependencies(
+  row: Pick<CapabilityRow, "read_dependencies">,
+  database: Database,
+): void {
   for (const dependency of Object.values(row.read_dependencies).flat()) {
     resolveActiveDependency(dependency, database);
   }
@@ -267,6 +328,166 @@ export function listCapabilities(database: Database = dbReadonly): CapabilityRow
     .all() as StoredRow[];
 
   return stored.map(parseStoredRow);
+}
+
+/**
+ * Everything one generation request needs, handed back by the claim that authorized
+ * it: the incarnation's stored seed, its two authored logo inputs, and the attempt
+ * this claim has just spent.
+ */
+export interface LogoGenerationClaim {
+  readonly capabilityId: string;
+  readonly incarnationId: string;
+  readonly subject: string;
+  readonly ground: LogoGround;
+  readonly seed: number;
+  readonly attempts: number;
+}
+
+interface StoredLogoState {
+  logo_status: string;
+  logo_attempts: number;
+}
+
+/**
+ * Win the right to spend one logo generation attempt, atomically.
+ *
+ * The claim is a single conditional UPDATE: only a row that is still `absent` moves
+ * to `generating`, and the attempt counter rises in the same statement. Two desk
+ * loads sweeping the same faceless capability therefore cannot both proceed — the
+ * loser's `changes` is zero and it gets `null` — and the count rises when the claim
+ * is *won*, before any provider is called, so a process that dies mid-request has
+ * still paid for what it ordered (ADR-0007 L11).
+ *
+ * Binding the incarnation as well as the id is what keeps a claim from surviving a
+ * delete-and-recreate: the new incarnation is a different capability's lifetime and
+ * owes its own artwork.
+ *
+ * Returns `null` whenever the claim is not won — already claimed, already settled,
+ * a tombstoned or missing row, or a different incarnation.
+ */
+export function claimLogoGeneration(
+  capabilityId: string,
+  incarnationId: string,
+  database: Database = db,
+): LogoGenerationClaim | null {
+  // The claim and the validation of what it claimed commit together. Validating after
+  // an autocommitted UPDATE would leave a row that cannot produce a valid request in
+  // `generating` with its attempt already spent and no way back to `absent`.
+  return database.transaction((): LogoGenerationClaim | null => {
+    const claimed = database
+      .query(
+        `UPDATE ${REGISTRY_TABLE}
+         SET logo_status = 'generating', logo_attempts = logo_attempts + 1
+         WHERE id = ? AND incarnation_id = ? AND lifecycle_state = 'active'
+           AND logo_status = 'absent'
+         RETURNING subject, ground, seed, logo_attempts`,
+      )
+      .get(capabilityId, incarnationId) as {
+      subject: unknown;
+      ground: unknown;
+      seed: unknown;
+      logo_attempts: number;
+    } | null;
+
+    if (!claimed) return null;
+
+    return {
+      capabilityId,
+      incarnationId,
+      subject: logoSubjectSchema.parse(claimed.subject),
+      ground: logoGroundSchema.parse(claimed.ground),
+      seed: logoSeedSchema.parse(claimed.seed),
+      attempts: claimed.logo_attempts,
+    };
+  })();
+}
+
+/**
+ * Hand a won claim back without settling it: `generating` returns to `absent` and the
+ * attempt it spent stays spent. This is what a failed-but-not-final attempt does, and
+ * what recovery does for a claim whose process died — without it a claim strands, since
+ * only `absent` is ever claimable (ADR-0007 L11).
+ *
+ * How many times a capability may be re-claimed is the retry sweep's policy (PLAN
+ * decision 38, epic 5.5/04). This is the transition that policy needs; the `WHERE` of
+ * {@link claimLogoGeneration} is where the cap itself belongs when it arrives, because
+ * that is the only place it can be enforced without a race.
+ */
+export function releaseLogoClaim(
+  capabilityId: string,
+  incarnationId: string,
+  database: Database = db,
+): CapabilityLogoState | null {
+  const released = database
+    .query(
+      `UPDATE ${REGISTRY_TABLE}
+       SET logo_status = 'absent'
+       WHERE id = ? AND incarnation_id = ? AND lifecycle_state = 'active'
+         AND logo_status = 'generating'
+       RETURNING logo_status, logo_attempts`,
+    )
+    .get(capabilityId, incarnationId) as StoredLogoState | null;
+
+  return released ? toLogoState(released) : null;
+}
+
+/**
+ * Move a logo to a terminal status: `generating → present` when accepted artwork is
+ * installed, and `generating → abandoned` when the attempt just spent was the last one
+ * allowed. A `present` row may also be reconciled to `abandoned` — accepted artwork
+ * later found missing is settled, never redrawn (ADR-0007 L7).
+ *
+ * Every other starting state changes nothing and returns `null`, so a late reply from
+ * an attempt some other state has already superseded cannot resurrect it.
+ */
+export function settleLogoGeneration(
+  capabilityId: string,
+  incarnationId: string,
+  status: Extract<LogoStatus, "present" | "abandoned">,
+  database: Database = db,
+): CapabilityLogoState | null {
+  const settleable: LogoStatus[] =
+    status === "abandoned" ? ["generating", "present"] : ["generating"];
+  const settled = database
+    .query(
+      `UPDATE ${REGISTRY_TABLE}
+       SET logo_status = ?
+       WHERE id = ? AND incarnation_id = ? AND lifecycle_state = 'active'
+         AND logo_status IN (${settleable.map(() => "?").join(", ")})
+       RETURNING logo_status, logo_attempts`,
+    )
+    .get(status, capabilityId, incarnationId, ...settleable) as StoredLogoState | null;
+
+  return settled ? toLogoState(settled) : null;
+}
+
+/**
+ * One incarnation's durable logo lifecycle, or null when no active row owns it. Bound
+ * to the incarnation exactly like the claim: a capability deleted and rebuilt under the
+ * same id is a different lifetime owing its own artwork, so answering for the previous
+ * one would let a dead lifetime's `present` be read as this one's.
+ */
+export function getCapabilityLogoState(
+  capabilityId: string,
+  incarnationId: string,
+  database: Database = dbReadonly,
+): CapabilityLogoState | null {
+  const stored = database
+    .query(
+      `SELECT logo_status, logo_attempts FROM ${REGISTRY_TABLE}
+       WHERE id = ? AND incarnation_id = ? AND lifecycle_state = 'active'`,
+    )
+    .get(capabilityId, incarnationId) as StoredLogoState | null;
+
+  return stored ? toLogoState(stored) : null;
+}
+
+function toLogoState(stored: StoredLogoState): CapabilityLogoState {
+  return capabilityLogoStateSchema.parse({
+    status: stored.logo_status,
+    attempts: stored.logo_attempts,
+  });
 }
 
 /**

@@ -55,6 +55,21 @@ describe("resolved evolution intent scope", () => {
     ]);
   });
 
+  test("ui_change admits a changed record noun — it is platform copy, like the name", () => {
+    // A rename that changes what the thing *is* moves both together ("call these
+    // Recipes" → label Recipes, noun recipe). Admitting the label but not the noun
+    // would hard-fail the most ordinary rename there is.
+    const committed = committedSpecView(journalCapabilityRow());
+    const diff = diffCapabilitySpec(committed, {
+      ...committed,
+      label: "Diary",
+      noun: "diary entry",
+    });
+
+    expect(diff.facts.map((fact) => fact.kind)).toEqual(["capability_label", "empty_state_noun"]);
+    expect(() => validateEvolutionIntentScope(intent("ui_change"), diff)).not.toThrow();
+  });
+
   test("ui_change rejects data and behavior facts before assembly or activation", () => {
     const committed = committedSpecView(journalCapabilityRow());
     const candidate = {

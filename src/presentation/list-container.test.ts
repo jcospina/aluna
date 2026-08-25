@@ -28,6 +28,7 @@ import {
 const SAMPLE: RenderableCapability = {
   id: "tasks",
   label: "Tasks",
+  noun: "task",
   schema: {
     fields: [
       { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
@@ -151,8 +152,19 @@ describe("container scaffolding", () => {
     );
   });
 
-  test("renders the empty state", () => {
+  test("renders the empty state, written around the capability's record noun", () => {
+    // "add your first task above", not "add your first Tasks above": the empty-state
+    // sentence needs the singular thing, which is what `noun` is for.
     expect(feed).toContain('class="capability-empty"');
+    expect(feed).toContain("Nothing here yet — add your first task above.");
+  });
+
+  test("a noun with markup in it is escaped into the sentence, never interpolated raw", () => {
+    const rendered = renderCollection({
+      capability: { ...SAMPLE, noun: "<script>x</script>" },
+    });
+    expect(rendered).not.toContain("<script>");
+    expect(rendered).toContain("add your first &lt;script&gt;x&lt;/script&gt; above.");
   });
 
   test("renders accessible debounced search chrome above the records region", () => {

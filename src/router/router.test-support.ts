@@ -61,6 +61,9 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
   return {
     id: "notes",
     label: "Notes",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     schema: {
       fields: [
         { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
@@ -102,6 +105,8 @@ export function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow 
     incarnation_id: NOTES_INCARNATION_ID,
     version: 1,
     artifacts_path: NOTES_ARTIFACTS,
+    seed: 184206,
+    logo: { status: "absent", attempts: 0 },
     ...overrides,
   };
 }
@@ -113,8 +118,13 @@ export function boomRow(): CapabilityRow {
   return {
     id: "boom",
     label: "Boom",
+    subject: "a firecracker",
+    ground: "clay",
+    noun: "boom",
     incarnation_id: "22222222-2222-4222-8222-222222222222",
     version: 1,
+    seed: 730051,
+    logo: { status: "absent", attempts: 0 },
     schema: {
       fields: [
         { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
@@ -147,6 +157,9 @@ export function rowSpec(row: CapabilityRow): CapabilitySpec {
   return {
     id: row.id,
     label: row.label,
+    subject: row.subject,
+    ground: row.ground,
+    noun: row.noun,
     schema: row.schema,
     ui_intent: row.ui_intent,
     behavior: row.behavior,

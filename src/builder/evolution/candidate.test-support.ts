@@ -52,6 +52,9 @@ export function journalCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
   return {
     id: "journal",
     label: "Journal",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "journal entry",
     schema: {
       fields: [
         { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
@@ -122,6 +125,8 @@ export function journalCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
     incarnation_id: JOURNAL_INCARNATION_ID,
     version: 1,
     artifacts_path: `capabilities/journal/${JOURNAL_INCARNATION_ID}/v1/`,
+    seed: 184206,
+    logo: { status: "absent", attempts: 0 },
     ...overrides,
   } as CapabilityRow;
 }
@@ -135,6 +140,9 @@ export function shelvesCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
   return {
     id: "shelves",
     label: "Shelves",
+    subject: "a wooden bookshelf",
+    ground: "ochre",
+    noun: "shelf",
     schema: {
       fields: [
         {
@@ -193,6 +201,8 @@ export function shelvesCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
     incarnation_id: SHELVES_INCARNATION_ID,
     version: 1,
     artifacts_path: `capabilities/shelves/${SHELVES_INCARNATION_ID}/v1/`,
+    seed: 730051,
+    logo: { status: "absent", attempts: 0 },
     ...overrides,
   } as CapabilityRow;
 }

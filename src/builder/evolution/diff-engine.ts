@@ -41,6 +41,7 @@ import { canonicalCapabilityLabel } from "../../registry/labels.ts";
 
 export type ChangeFact =
   | { readonly kind: "capability_label" }
+  | { readonly kind: "empty_state_noun" }
   | { readonly kind: "prompt_context" }
   | { readonly kind: "field_order" }
   | { readonly kind: "new_active_field"; readonly field: string; readonly fieldType: FieldType }
@@ -66,6 +67,7 @@ export type ChangeFactKind = ChangeFact["kind"];
 // comparable in M8).
 const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
   "capability_label",
+  "empty_state_noun",
   "prompt_context",
   "field_order",
   "new_active_field",
@@ -96,6 +98,7 @@ export type GeneratedUnitName = (typeof GENERATED_UNITS)[number];
  */
 export const PLATFORM_WORK_KINDS = [
   "registry_and_view_copy", // capability label → registry row + logo/View copy
+  "platform_empty_state_copy", // empty-state noun → the platform collection's empty state
   "resolver_catalog", // prompt_context → intent-resolver catalog
   "platform_field_order", // field order → platform form order + list-input entry order
   "add_column", // new active field → nullable ADD COLUMN
@@ -188,6 +191,14 @@ function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): read
 
   if (canonicalCapabilityLabel(committed) !== canonicalCapabilityLabel(candidate)) {
     facts.push({ kind: "capability_label" });
+  }
+  // `noun` is a platform-View fact: it moves one sentence of platform copy and
+  // nothing else. `subject` and `ground` are deliberately absent from this function —
+  // they are birth facts, so they never become change facts, and a candidate that
+  // moved one is rejected upstream by validation and caught here by the residual
+  // totality check if it somehow were not.
+  if (committed.noun !== candidate.noun) {
+    facts.push({ kind: "empty_state_noun" });
   }
   if (committed.prompt_context !== candidate.prompt_context) {
     facts.push({ kind: "prompt_context" });
@@ -436,6 +447,12 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
     case "capability_label":
       sink.platform.add("registry_and_view_copy");
       return;
+    case "empty_state_noun":
+      // The empty state is platform copy rendered from the row. No generated unit
+      // reads the noun — a handler never emits its own empty state — so nothing
+      // regenerates and every unit is copied.
+      sink.platform.add("platform_empty_state_copy");
+      return;
     case "prompt_context":
       sink.platform.add("resolver_catalog");
       return;
@@ -510,13 +527,15 @@ function assertTotalCoverage(committed: CapabilitySpec, candidate: CapabilitySpe
 }
 
 // Reduce a spec to only what no change fact explains: canonicalize the whole
-// value, then blank every fact-bearing region. What survives — id, tools, and the
-// committed fields' name/type — is the equality the diff cannot manufacture and
-// must never silently ignore. A new admitted top-level key survives here too, so
-// an unextended matrix fails closed rather than dropping it.
+// value, then blank every fact-bearing region. What survives — id, the logo birth
+// facts `subject`/`ground`, tools, and the committed fields' name/type — is the
+// equality the diff cannot manufacture and must never silently ignore. A new
+// admitted top-level key survives here too, so an unextended matrix fails closed
+// rather than dropping it.
 function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<string>): unknown {
   const canonical = canonicalize(spec) as Record<string, unknown>;
   canonical.label = RESIDUAL_SENTINEL;
+  canonical.noun = RESIDUAL_SENTINEL;
   canonical.prompt_context = RESIDUAL_SENTINEL;
   canonical.behavior = RESIDUAL_SENTINEL;
   canonical.behavioral_errors = RESIDUAL_SENTINEL;

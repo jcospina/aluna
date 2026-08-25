@@ -67,6 +67,51 @@ describe("capability label → registry/View copy, no units, no tests", () => {
   });
 });
 
+describe("empty-state noun → platform copy only; the birth facts never diff", () => {
+  test("a changed noun is one View fact that selects no generated unit", () => {
+    // The empty state is platform copy rendered from the row — no handler emits one —
+    // so nothing regenerates and every unit is copied byte-for-byte.
+    const diff = diffOf((draft) => {
+      draft.noun = "diary entry";
+    });
+    expect(factKinds(diff)).toEqual(["empty_state_noun"]);
+    expect(diff.workPlan.platformWork).toEqual(["platform_empty_state_copy"]);
+    expect(diff.workPlan.regeneratedUnits).toEqual([]);
+    expect(diff.workPlan.gate.behavioral).toEqual({ actions: [], fullSuite: false });
+  });
+
+  test("no evolution fact can select logo generation", () => {
+    // Every fact the matrix can produce, unioned. None of them names logo work,
+    // because the artwork is made once and evolving a capability never touches it.
+    const everything = diffOf((draft) => {
+      draft.label = "Diary";
+      draft.noun = "diary entry";
+      draft.prompt_context = "Now also stores mood entries.";
+      draft.behavior = "Titles are trimmed and required.";
+      draft.ui_intent.collection.layout = "grid";
+      draft.schema.fields.push(activeField("mood", "string"));
+      draft.ui_intent.item.shows.push("mood");
+    });
+    expect(everything.facts.length).toBeGreaterThan(3);
+    expect(JSON.stringify(everything.workPlan)).not.toContain("logo");
+  });
+
+  test("a moved subject or ground fails closed rather than becoming a fact", () => {
+    // Validation rejects these first (candidate-validation.test.ts). Reaching the
+    // engine anyway must stop it: a birth fact is never explained by a change fact.
+    expect(() =>
+      diffOf((draft) => {
+        draft.subject = "a brass telescope";
+      }),
+    ).toThrow(UnmappedChangeFactError);
+    expect(() =>
+      diffOf((draft) => {
+        draft.ground = "violet";
+      }),
+    ).toThrow(UnmappedChangeFactError);
+  });
+});
+
 describe("prompt_context → resolver catalog, no units", () => {
   test("changed prompt_context selects the resolver catalog only", () => {
     const diff = diffOf((draft) => {

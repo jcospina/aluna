@@ -23,6 +23,7 @@ import type {
 export interface FewShotPreviewCapability {
   readonly id: string;
   readonly label: string;
+  readonly noun: string;
   readonly schema: { readonly fields: readonly SpecField[] };
   readonly form: UiFormIntent;
 }
@@ -70,6 +71,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
     ],
     capability: {
       id: "research_notes",
+      noun: "research note",
       label: "Research notes",
       schema: {
         fields: fields([
@@ -156,6 +158,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
     ],
     capability: {
       id: "photo_roll",
+      noun: "photo",
       label: "Photo roll",
       schema: {
         fields: fields([
@@ -248,6 +251,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
     ],
     capability: {
       id: "saved_links",
+      noun: "saved link",
       label: "Saved links",
       schema: {
         fields: fields([

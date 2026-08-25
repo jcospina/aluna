@@ -156,6 +156,9 @@ describe("web fragments", () => {
     const evolved = {
       id: "notes",
       label: "Journal",
+      subject: "an open notebook",
+      ground: "leaf",
+      noun: "note",
       incarnation_id: "11111111-1111-4111-8111-111111111111",
       version: 2,
     };

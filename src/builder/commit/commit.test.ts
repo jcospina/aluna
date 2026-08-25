@@ -16,6 +16,7 @@ import {
   type CapabilitySpec,
   getCapability,
   insertCapability,
+  logoSeedSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
 import { publishCapabilitySnapshot } from "../artifacts/artifact-lifecycle.ts";
@@ -30,6 +31,9 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return {
     id: "notes",
     label: "Notes",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     schema: {
       fields: [
         { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
@@ -229,6 +233,7 @@ describe("commitCapability — verified publication boundary", () => {
         incarnation_id: INCARNATION_ID,
         version: 1,
         artifacts_path: `capabilities/notes/${INCARNATION_ID}/v1/`,
+        seed: 184206,
       },
       conns.readwrite,
     );
@@ -243,5 +248,62 @@ describe("commitCapability — verified publication boundary", () => {
       `capabilities/notes/${INCARNATION_ID}/v1/`,
     );
     expect(existsSync(join(publication.directory, "snapshot.json"))).toBe(true);
+  });
+});
+
+describe("commitCapability — the logo's inputs at birth", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "omni-crud-commit-logo-"));
+    conns = openDatabase(join(dir, "test.db"));
+    runMigrations(conns.readwrite);
+    applyCapabilityTableDdl(notesSpec(), conns.readwrite);
+  });
+
+  afterEach(() => {
+    conns.readwrite.close();
+    conns.readonly.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("v1 is born with a minted seed and a logo nobody has ordered yet", () => {
+    const root = join(dir, "artifacts");
+    const result = commitCapability({
+      spec: notesSpec(),
+      publication: publish(root),
+      database: conns.readwrite,
+    });
+
+    // The seed is the record of what drew the artwork. It is stored rather than
+    // derived from the capability's name or its place on the desk, either of which
+    // can move without the drawing changing.
+    expect(logoSeedSchema.safeParse(result.row.seed).success).toBe(true);
+    expect(result.row.subject).toBe("an open notebook");
+    expect(result.row.ground).toBe("leaf");
+    expect(result.row.noun).toBe("note");
+    // Nothing has been ordered at commit: the request is the last step, after the
+    // gate, and a build that never reaches it costs nothing (ADR-0007 L10).
+    expect(result.row.logo).toEqual({ status: "absent", attempts: 0 });
+    expect(getCapability("notes", conns.readonly)?.seed).toBe(result.row.seed);
+  });
+
+  test("two incarnations of the same id draw independent seeds", () => {
+    // Delete-and-recreate is the only route to a different logo, so the recreated
+    // capability must not inherit the seed that drew the old one.
+    const first = commitCapability({
+      spec: notesSpec(),
+      publication: publish(join(dir, "artifacts-a")),
+      database: conns.readwrite,
+    });
+    conns.readwrite.run("DELETE FROM capability_registry WHERE id = 'notes'");
+    const second = commitCapability({
+      spec: notesSpec(),
+      publication: publish(join(dir, "artifacts-b")),
+      database: conns.readwrite,
+    });
+
+    expect(second.row.seed).not.toBe(first.row.seed);
   });
 });

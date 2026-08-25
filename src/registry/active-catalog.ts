@@ -3,6 +3,13 @@
 // Prompt resolution must classify against one catalog and bind any resulting build
 // request to that exact view. The fingerprint is therefore over the complete validated
 // active rows, in the registry's canonical id order, using recursively sorted object keys.
+//
+// One exclusion, and it is load-bearing: the logo lifecycle is not part of the view.
+// It moves out of band — a desk load claims an attempt for any faceless capability —
+// so hashing it would let one capability's artwork arriving refuse an unrelated
+// in-flight build as classified-against-stale-state. What the resolver reads, and
+// what a build must be revalidated against, is semantic registry content; whether a
+// picture has landed yet is neither.
 
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
@@ -26,8 +33,13 @@ function canonicalize(value: unknown): unknown {
 }
 
 export function fingerprintActiveRegistryCatalog(capabilities: readonly CapabilityRow[]): string {
-  const canonical = JSON.stringify(canonicalize(capabilities));
+  const canonical = JSON.stringify(canonicalize(capabilities.map(fingerprintedView)));
   return `sha256:${createHash("sha256").update(canonical).digest("hex")}`;
+}
+
+function fingerprintedView(row: CapabilityRow): Omit<CapabilityRow, "logo"> {
+  const { logo: _logo, ...view } = row;
+  return view;
 }
 
 export function readActiveRegistryCatalog(database: Database = dbReadonly): ActiveRegistryCatalog {

@@ -43,6 +43,9 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return {
     id: "notes",
     label: "Notes",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     schema: {
       fields: [
         { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
@@ -165,6 +168,8 @@ function projectedContextFixture(): {
     incarnation_id,
     version: 1,
     artifacts_path: `capabilities/${id}/${incarnation_id}/v1/`,
+    seed: 184206,
+    logo: { status: "absent", attempts: 0 },
     schema: {
       fields: [
         {
@@ -1027,6 +1032,8 @@ describe("unit generation with bounded fix loop — dependency projection", () =
       incarnation_id,
       version: 2,
       artifacts_path: `capabilities/recipes/${incarnation_id}/v2/`,
+      seed: 184206,
+      logo: { status: "absent", attempts: 0 },
       schema: {
         fields: [
           { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },

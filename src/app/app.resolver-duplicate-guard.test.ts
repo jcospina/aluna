@@ -60,6 +60,8 @@ describe("resolver duplicate guard", () => {
         label: '<img src=x onerror="alert(1)">',
         incarnation_id: "22222222-2222-4222-8222-222222222222",
         artifacts_path: "capabilities/personal_notes/22222222-2222-4222-8222-222222222222/v1/",
+        seed: 184206,
+        logo: { status: "absent", attempts: 0 },
       }),
       conns.readwrite,
     );

@@ -34,6 +34,9 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
   return {
     id: "notes",
     label: "Notes",
+    subject: "an open notebook",
+    ground: "leaf",
+    noun: "note",
     incarnation_id: NOTES_INCARNATION_ID,
     version: 1,
     schema: {
@@ -67,6 +70,8 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     tools: ["create", "read", "update", "delete", "search"],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     artifacts_path: `capabilities/notes/${NOTES_INCARNATION_ID}/v1/`,
+    seed: 184206,
+    logo: { status: "absent", attempts: 0 },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -111,8 +116,13 @@ describe("capability registry store", () => {
     const recipes = notesRow({
       id: "recipes",
       label: "Recipes",
+      subject: "an open notebook",
+      ground: "leaf",
+      noun: "note",
       incarnation_id: "22222222-2222-4222-8222-222222222222",
       artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v1/",
+      seed: 184206,
+      logo: { status: "absent", attempts: 0 },
       prompt_context: "Stores the user's recipes.",
     });
 
@@ -167,8 +177,13 @@ describe("capability registry store", () => {
     const dependent = notesRow({
       id: "reading_list",
       label: "Reading list",
+      subject: "an open notebook",
+      ground: "leaf",
+      noun: "note",
       incarnation_id: "22222222-2222-4222-8222-222222222222",
       artifacts_path: "capabilities/reading_list/22222222-2222-4222-8222-222222222222/v1/",
+      seed: 184206,
+      logo: { status: "absent", attempts: 0 },
       tools: ["create", "read", "update", "delete", "search"],
       behavioral_errors: [requiredError, { ...requiredError, action: "update" }],
       read_dependencies: {
@@ -189,6 +204,8 @@ describe("capability registry store", () => {
           id: "broken_reader",
           incarnation_id: "33333333-3333-4333-8333-333333333333",
           artifacts_path: "capabilities/broken_reader/33333333-3333-4333-8333-333333333333/v1/",
+          seed: 184206,
+          logo: { status: "absent", attempts: 0 },
           tools: ["create", "read", "update", "delete", "search"],
           behavioral_errors: [requiredError, { ...requiredError, action: "update" }],
           read_dependencies: {
@@ -234,6 +251,12 @@ describe("capability registry store", () => {
       // operator across restarts, not just in the log of the process that hit it.
       "deletion_cleanup_attempts",
       "deletion_cleanup_error",
+      "subject",
+      "ground",
+      "noun",
+      "seed",
+      "logo_status",
+      "logo_attempts",
     ]);
   });
 });

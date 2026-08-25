@@ -26,7 +26,13 @@ import type {
   StructuralGateResult,
   UnitDescriptor,
 } from "../../builder/index.ts";
-import type { CapabilityRow, CapabilitySpec } from "../../registry/index.ts";
+import {
+  type CapabilityRow,
+  type CapabilitySpec,
+  type LogoGround,
+  type LogoStatus,
+  logoRequestColors,
+} from "../../registry/index.ts";
 import type { BehavioralTierTransition } from "../evolution/behavioral-tier-transition.ts";
 
 export interface DemoMigrationColumnPreview {
@@ -159,7 +165,25 @@ export interface DemoCommitPreview {
    * reader open two manifests.
    */
   readonly behavioralTierTransition?: BehavioralTierTransition;
+  /**
+   * The committed logo inputs and the row's durable logo state. `colors` is the exact
+   * ordered pair a request would carry, derived here from the one authored ground, so a
+   * reader can see the second colour is neither authored, stored, nor a choice the
+   * provider client gets to make.
+   */
+  readonly logo: DemoCommitLogoPreview;
   readonly files: readonly string[];
+}
+
+export interface DemoCommitLogoPreview {
+  readonly subject: string;
+  readonly ground: LogoGround;
+  /** Ground first, then its fixed companion — the request's colours, in order. */
+  readonly colors: readonly [LogoGround, LogoGround];
+  readonly noun: string;
+  readonly seed: number;
+  readonly status: LogoStatus;
+  readonly attempts: number;
 }
 
 interface SqliteColumnInfo {
@@ -233,6 +257,15 @@ export function buildCommitPreview(
     snapshotContentDigest: commit.snapshotContentDigest,
     behavioralTier: commit.manifest.behavioral_tier,
     ...(behavioralTierTransition ? { behavioralTierTransition } : {}),
+    logo: {
+      subject: commit.row.subject,
+      ground: commit.row.ground,
+      colors: logoRequestColors(commit.row.ground),
+      noun: commit.row.noun,
+      seed: commit.row.seed,
+      status: commit.row.logo.status,
+      attempts: commit.row.logo.attempts,
+    },
     files: commit.files,
   };
 }

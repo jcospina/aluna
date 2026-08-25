@@ -98,6 +98,21 @@ describe("the generation context (decision 1, pinned)", () => {
     );
   });
 
+  test("the logo's birth facts are quoted back as the exact values to return", () => {
+    // The contract the platform then enforces: the model is told the two values and
+    // told they cannot move, so a rejection is never a surprise about a rule it was
+    // never given.
+    const prompt = buildCandidateSpecPrompt(promptInput());
+    expect(prompt).toContain(
+      'subject and ground are the logo\'s birth facts and are immutable. Return exactly "an open notebook" and "leaf".',
+    );
+    expect(prompt).toContain("The artwork was drawn once from them and is never redrawn");
+    // The noun is the one logo-adjacent value that may move — as View copy, never as
+    // a reason to draw anything.
+    expect(prompt).toContain("noun is the singular common noun for one stored record");
+    expect(prompt).not.toContain("regenerate the logo");
+  });
+
   test("an empty catalog states there is nothing to depend on", () => {
     const prompt = buildCandidateSpecPrompt(promptInput({ dependencyCatalog: [] }));
     expect(prompt).toContain("- none: declare no external dependencies.");
