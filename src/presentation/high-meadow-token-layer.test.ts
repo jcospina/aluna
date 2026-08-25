@@ -102,8 +102,11 @@ describe("High Meadow token-layer cutover", () => {
     // output region is drawn, and a drawn element is never `:empty`.
     expect(demo).toMatch(/\.content__active\s*\{\s*display:\s*none;/);
     expect(demo).not.toMatch(/:has\([^)]*:has\(/);
+    // The bar floats in the strip rather than padding its way clear of the bottom
+    // edge: it is anchored by the clearance less its own height, which is the
+    // composer's min-height stated from the same two tokens just below.
     expect(prompt).toMatch(
-      /\.prompt\s*\{[\s\S]*?padding:\s*var\(--space-3\) var\(--space-3\) var\(--space-6\)/,
+      /\.prompt\s*\{[\s\S]*?bottom:\s*calc\(var\(--prompt-clearance\) - var\(--control-h-lg\) - var\(--space-1\)\)/,
     );
     expect(prompt).toMatch(
       /\.prompt__composer\s*\{[\s\S]*?min-height:\s*calc\(var\(--control-h-lg\) \+ var\(--space-1\)\)/,
