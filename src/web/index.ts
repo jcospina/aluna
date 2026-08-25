@@ -13,11 +13,13 @@ export {
 } from "./cached-view.ts";
 export {
   BLANK_PROMPT_NOTICE,
+  capabilityLogoElementId,
   PAGE_ASSEMBLY_ANCHORS,
   renderBuildSubscriber,
+  renderCapabilityLogo,
   renderCapabilityShell,
-  renderCapabilityToolbarEntry,
   renderPromptNotice,
+  renderProvisionalLogo,
   renderRehydratedShell,
 } from "./fragments.ts";
 export {

@@ -287,7 +287,7 @@ describe("homepage separate semantic overlap", () => {
     expect(prompts[1]).not.toContain("namespace");
     expect(prompts[1]).toContain("meaningful semantic label and id");
     expect(eventData(events, "commit")).toContain('data-capability-id="work_contacts"');
-    expect(eventData(events, "commit")).toContain("Work contacts\n  </button>");
+    expect(eventData(events, "commit")).toContain('<span class="logo-label">Work contacts</span>');
     expect(eventData(events, "commit")).not.toContain("contacts_2");
     expect(getCapability("work_contacts", env.conns.readonly)?.label).toBe("Work contacts");
     expect(metrics.lifecycles.at(-1)?.resolver?.overlapResolution).toBe("namespace");
@@ -327,7 +327,12 @@ describe("homepage separate semantic overlap", () => {
     expect(eventNames).not.toContain("migration-preview");
     expect(eventNames).not.toContain("units-preview");
     expect(eventNames).not.toContain("commit");
-    expect(eventNames.indexOf("spec-preview")).toBeLessThan(eventNames.indexOf("fragment"));
+    // The restoration fragment, not the desk sidecar an admitted build sends first — both
+    // ride `fragment` (ADR-0002), and only one of them carries a restoration.
+    const restoration = events.findIndex(
+      ({ event, data }) => event === "fragment" && data.includes("data-build-restoration"),
+    );
+    expect(eventNames.indexOf("spec-preview")).toBeLessThan(restoration);
     expect(eventNames.at(-1)).toBe("done");
     expect(getCapability("contacts2", env.conns.readonly)).toBeNull();
     expect(metrics.lifecycles.at(-1)).toMatchObject({

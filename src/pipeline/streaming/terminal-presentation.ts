@@ -202,7 +202,7 @@ export const STALE_BUILD_NOTICE =
 /**
  * Deliver a refused admission: the direct `failed/stale` row's metrics preview, one warm
  * narration line kept visible as the persistent prompt notice, the then-current canonical
- * View restored through `fragment` with no toolbar sidecar, and `done=error`. No provider
+ * View restored through `fragment` with no desk sidecar, and `done=error`. No provider
  * work ran and no product state moved, so there is nothing else to say.
  */
 export async function deliverStalePresentation(

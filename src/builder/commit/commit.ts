@@ -58,7 +58,7 @@ export interface CommitCapabilityInput {
 
 export interface CommitCapabilityResult {
   readonly row: CapabilityRow;
-  /** Previous active label for evolution toolbar diffing; absent for a new capability. */
+  /** Previous active label for evolution logo diffing; absent for a new capability. */
   readonly previousLabel?: string;
   // The pointer the registry row stores and the router resolves handlers against.
   readonly artifactsPath: string;

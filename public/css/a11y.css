@@ -9,7 +9,7 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
-/* Reduced motion: no press translate, no slide — collapse/drawer switch
+/* Reduced motion: no press translate, no slide — the panel switches
    instantly, with a calm static fallback. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -23,8 +23,8 @@
     animation-iteration-count: 1 !important;
     /* biome-ignore-end lint/complexity/noImportantStyles: end reset */
   }
-  .sidebar-toggle:hover,
-  .sidebar-toggle:active,
+  .panel-toggle:hover,
+  .panel-toggle:active,
   .btn:hover,
   .btn:active,
   .capability-item:hover,

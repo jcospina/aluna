@@ -108,8 +108,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(commitSwap).toContain('class="capability-surface"');
     expect(commitSwap).toContain('hx-get="/capability/notes/read"');
     expect(commitSwap).toContain('hx-post="/capability/notes/create"');
-    expect(commitSwap).toContain('hx-swap-oob="beforeend:#capability-toolbar"');
-    expect(commitSwap).toContain("data-capability-entry");
+    expect(commitSwap).toContain('hx-swap-oob="beforeend:#capability-logos"');
+    expect(commitSwap).toContain("data-capability-logo");
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -342,6 +342,8 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       .map((event) => event.data)
       .join("");
 
+    // Nothing was admitted, so nothing stands on the desk: a deflection explains itself
+    // in the prompt bar and leaves the ground exactly as it found it.
     expect(events.map((event) => event.event)).toEqual([
       "narration",
       "metrics-preview",

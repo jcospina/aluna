@@ -393,7 +393,7 @@ _Avoid_: teardown hook, unmount, cleanup callback, destructor
 
 **Swap target**:
 The named place a server-addressed swap lands — the stable id `commit` and `fragment`
-carry, and the four literal anchors page assembly composes a full page by replacing.
+carry, and the literal anchors page assembly composes a full page by replacing.
 The server addresses one unconditionally and never asks whether it is there; the
 client guarantees it is, for as long as a swap can be in flight. A target that cannot
 be found is never absorbed: page assembly throws, and a `commit` or `fragment`

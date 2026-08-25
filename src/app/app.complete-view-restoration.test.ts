@@ -217,7 +217,12 @@ test("a connected cancellation restores the captured View before done", async ()
 
   expect((await app.request(`/build/${jobId}/cancel`, { method: "POST" })).status).toBe(202);
   const events = collectSseEvents(await payload);
-  const fragmentIndex = events.findIndex(({ event }) => event === "fragment");
+  // The *restoration* fragment. `fragment` is the name a non-terminal fragment placed
+  // into a targeted region rides (ADR-0002), and the desk sidecar an admitted build sends
+  // at the start is one of those too — so the restoration is found by what it carries.
+  const fragmentIndex = events.findIndex(
+    ({ event, data }) => event === "fragment" && data.includes("data-build-restoration"),
+  );
   const doneIndex = events.findIndex(({ event }) => event === "done");
 
   expect(events.map(({ event }) => event)).not.toContain("commit");
@@ -301,7 +306,11 @@ test("post-activation payload failure keeps success authoritative and uses recov
     lifecycleStatus: "success",
     outcome: "activated",
   });
-  expect(events.map(({ event }) => event)).not.toContain("fragment");
+  expect(
+    events.filter(
+      ({ event, data }) => event === "fragment" && data.includes("data-build-restoration"),
+    ),
+  ).toHaveLength(0);
   expect(events.map(({ event }) => event)).not.toContain("build-error-preview");
   expect(events.at(-2)).toMatchObject({ event: "narration" });
   expect(events.at(-1)).toMatchObject({ event: "done", data: "error" });

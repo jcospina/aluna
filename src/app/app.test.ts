@@ -166,14 +166,11 @@ describe("GET / (shell) — browser glue", () => {
     const app = createApp();
     const js = await responseText(await app.request("/static/app.js"));
     const html = await responseText(await app.request("/"));
-    const toolbarCss = await responseText(await app.request("/static/css/toolbar.css"));
 
     expect(js).toContain('document.addEventListener("htmx:sseBeforeMessage"');
     expect(js).toContain('document.addEventListener("htmx:sseOpen"');
     expect(js).toContain('document.addEventListener("htmx:sseClose"');
     expect(js).toContain('document.addEventListener("htmx:sseError"');
-    expect(js).toContain('document.addEventListener("htmx:oobAfterSwap"');
-    expect(js).toContain("syncCapabilityPresentationState");
     expect(js).toContain("syncActiveCapabilityUrl");
     expect(js).toContain('document.addEventListener("htmx:configRequest"');
     expect(js).toContain("__aluna_restore_capability_id");
@@ -203,15 +200,13 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain('addEventListener("aluna:create-cancelled"');
     expect(js).toContain("collapseListFieldRows(form)");
     expect(js).toContain("Element.prototype.querySelectorAll.call(form");
-    expect(js).toContain("[data-capability-open], [data-capability-delete]");
-    expect(js).toContain("state.open = false");
     expect(js).toContain("focusCapabilityDeletion(event)");
     expect(js).toContain("[data-capability-deletion-focus]");
-    expect(html).toContain(':inert="!open"');
-    // The hit target is the surface's one row height rather than a literal of its
-    // own — see "one row height everywhere" in high-meadow-token-layer.test.ts.
-    expect(toolbarCss).toMatch(/\.toolbar__delete\s*\{[^}]*width:\s*var\(--control-h\)/s);
-    expect(toolbarCss).toMatch(/\.toolbar__delete\s*\{[^}]*height:\s*var\(--control-h\)/s);
+    // The rail and the gate it hid behind are gone from the page and from the glue.
+    expect(js).not.toContain("hasCapabilities");
+    expect(html).not.toContain("has-capabilities");
+    expect(html).not.toContain('id="capability-toolbar"');
+    expect(html).toContain('id="capability-logos"');
     expect(js).not.toContain("new EventSource");
     expect(js).not.toContain('fetch("/prompt"');
     expect(js).not.toContain('addEventListener("submit"');

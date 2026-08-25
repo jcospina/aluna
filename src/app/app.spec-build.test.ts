@@ -7,7 +7,7 @@
 // answers the resolver first, so the Builder is reached the only way it can be: through
 // a real `new_capability` classification.
 //
-// The headline "narrates, previews stages, commit-swaps content and toolbar, and
+// The headline "narrates, previews stages, commit-swaps content and the desk, and
 // closes" case runs one build and then makes a long, ordered sequence of assertions
 // over every streamed stage. Those assertions are grouped VERBATIM into the
 // module-scope assert* helpers below (each stage's checks, in original order) so the
@@ -52,10 +52,17 @@ function committingApp(provider: Provider, recordMetrics: RecordMetrics) {
 
 function assertBuildEventOrder(events: SseEvent[]): void {
   const eventNames = events.map((event) => event.event);
-  // Resolution narrates first — it runs before admission — and the admitted row's
-  // preview is the build's own opening event.
+  // Resolution narrates first — it runs before admission — then the tile lands on the
+  // desk the moment resolution admits a new capability, and the admitted row's preview
+  // is the build's own opening event. The tile is deliberately ahead of that: it is the
+  // ambient half of the signal and it belongs to admission, not to the run.
   expect(eventNames[0]).toBe("narration");
-  expect(eventNames[1]).toBe("metrics-preview");
+  // It rides `fragment` rather than adding a fifth app-level event name (ADR-0002).
+  expect(eventNames[1]).toBe("fragment");
+  expect(eventNames[2]).toBe("metrics-preview");
+  expect(events[1]?.data ?? "").toContain('hx-swap-oob="beforeend:#capability-logos"');
+  expect(events[1]?.data ?? "").toContain("data-provisional-logo=");
+  expect(events.filter((event) => event.data.includes("data-provisional-logo"))).toHaveLength(1);
   const metricEvents = events.filter((event) => event.event === "metrics-preview");
   expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
     lifecycleStatus: "running",
@@ -193,8 +200,8 @@ function assertNarrationCommitAndPrompts(
   expect(commitSwap).toContain("data-post-mutation-refresh");
   expect(commitSwap).toContain('data-records-target-id="notes-records"');
   expect(commitSwap).toContain('data-read-url="/capability/notes/read"');
-  expect(commitSwap).toContain('hx-swap-oob="beforeend:#capability-toolbar"');
-  expect(commitSwap).toContain("data-capability-entry");
+  expect(commitSwap).toContain('hx-swap-oob="beforeend:#capability-logos"');
+  expect(commitSwap).toContain("data-capability-logo");
   expect(commitSwap).toContain('hx-get="/capability/notes"');
   expect(commitSwap).toContain("Notes");
   expect(dataFor("done")).toBe("ok");
@@ -341,7 +348,7 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
     teardownScratchDbEnv({ dir, conns, artifactsRoot });
   });
 
-  test("narrates, previews stages, commit-swaps content and toolbar, and closes", async () => {
+  test("narrates, previews stages, commit-swaps content and the desk, and closes", async () => {
     const { provider, prompts } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);

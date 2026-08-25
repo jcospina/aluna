@@ -97,7 +97,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "",
     "Identity:",
     "- id is the engineering identity (it becomes a table and folder name). Short, lowercase, never shown to the user.",
-    '- label is the short user-facing capability name shown in the toolbar, like "Notes" or "Reading list". It must be a name, not a sentence, narration, promise, or confirmation.',
+    '- label is the short user-facing capability name written under its logo on the desk, like "Notes" or "Reading list". It must be a name, not a sentence, narration, promise, or confirmation.',
     "- Every distinct capability must use a meaningful semantic label and id derived from the user's wording. Never create a mechanical numbered or versioned duplicate.",
     ...(input.intent.proposed_identity
       ? [

@@ -39,9 +39,6 @@
 .content__active:has(#spec-build-output > .build-stream > .build-stream__commit:not(:empty)) {
   display: flex;
 }
-.shell.has-capabilities .cold-start {
-  display: none;
-}
 .content:has(#spec-build-output > [data-active-capability-id]) .cold-start,
 .content:has(#spec-build-output > .build-stream > .build-stream__narration:not(:empty)) .cold-start,
 .content:has(#spec-build-output > .build-stream > .build-stream__commit:not(:empty)) .cold-start {

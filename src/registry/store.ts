@@ -252,7 +252,7 @@ export function getCapability(id: string, database: Database = dbReadonly): Capa
 }
 
 /**
- * List every capability — toolbar rehydration on load and the intent resolver's
+ * List every capability — logo-layer rehydration on load and the intent resolver's
  * classification context both consume this (ARCH §6.3: the resolver scans every
  * row, which is why the row stays lean). Ordered by id so both consumers see
  * one stable, deterministic order.

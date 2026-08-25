@@ -7,8 +7,8 @@ body {
   height: 100%;
 }
 
-/* Alpine cloak — keep x-show elements hidden until Alpine evaluates them, so the
-   capability-toolbar toggle doesn't flash before hasCapabilities resolves. */
+/* Alpine cloak — keep x-show elements hidden until Alpine evaluates them, so a
+   collection's create panel doesn't flash open before Alpine resolves it. */
 [x-cloak] {
   /* biome-ignore lint/complexity/noImportantStyles: canonical Alpine x-cloak guard. */
   display: none !important;

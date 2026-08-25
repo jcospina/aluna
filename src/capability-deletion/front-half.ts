@@ -34,7 +34,7 @@ export type CapabilityDeletionAdmission =
 /**
  * Atomically admit the dependency-safe front half of permanent capability deletion.
  *
- * The preflight shown by the toolbar is deliberately absent from this function: only
+ * The preflight the deletion doorway shows is deliberately absent from this function: only
  * this lease-held read is authoritative. The continuation is invoked before
  * ownership releases so destructive work cannot race a newly queued build or write.
  */
