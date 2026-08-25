@@ -19,6 +19,11 @@ const SHELL_TOOLBAR_PLACEHOLDER = "        <!-- Capability entries render here l
 // so a clicked capability item always has the modal to open.
 const SHELL_DETAIL_MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here. -->";
 
+// The shell root's class attribute (public/index.html) — the anchor the has-capabilities
+// presentation state is written onto.
+const SHELL_ROOT_ANCHOR = 'class="shell"';
+const SHELL_ROOT_WITH_CAPABILITIES = 'class="shell has-capabilities"';
+
 const PREVIEW_TARGETS = [
   ["metrics-preview", "spec-metrics-preview"],
   ["spec-preview", "spec-build-preview"],
@@ -184,6 +189,33 @@ export function renderCapabilitySurface(
 const EMPTY_CONTENT_TARGET = /(<div\b[^>]*\bid="spec-build-output"[^>]*>)<\/div>/;
 
 /**
+ * The four literal anchors page assembly composes a full page by replacing, each paired
+ * with what a shell missing it looks like. Every one of them throws, and this is what
+ * lets the developer preview force each case against the *real* shipped shell instead of
+ * keeping its own copies of four strings, which would then be free to drift from the ones
+ * the assembly actually matches. `renderCapabilityShell` exercises all four.
+ */
+export const PAGE_ASSEMBLY_ANCHORS = [
+  {
+    name: "the capability-toolbar placeholder",
+    remove: (shellHtml: string) => shellHtml.replace(SHELL_TOOLBAR_PLACEHOLDER, ""),
+  },
+  {
+    name: "the detail-modal placeholder",
+    remove: (shellHtml: string) => shellHtml.replace(SHELL_DETAIL_MODAL_PLACEHOLDER, ""),
+  },
+  {
+    name: "the content target",
+    remove: (shellHtml: string) =>
+      shellHtml.replace(EMPTY_CONTENT_TARGET, '<div id="the-content-target-is-gone"></div>'),
+  },
+  {
+    name: "the shell root",
+    remove: (shellHtml: string) => shellHtml.replace(SHELL_ROOT_ANCHOR, 'class="desk"'),
+  },
+] as const;
+
+/**
  * Direct browser navigation to `/capability/:id` needs the fixed shell around the
  * capability surface so authored CSS, HTMX, Alpine, the prompt bar, and both sidebars
  * are present. HTMX toolbar clicks still receive only the fragment.
@@ -203,13 +235,11 @@ export function renderCapabilityShell(
   const surface = renderCapabilitySurface(activeRow, collectionHtml);
 
   const withModal = injectDetailModal(shellHtml);
+  requireContentTarget(withModal);
   const withContent = withModal.replace(
     EMPTY_CONTENT_TARGET,
     (_match, openingTag: string) => `${openingTag}${surface}</div>`,
   );
-  if (withContent === withModal) {
-    throw new Error("The shell content target placeholder is missing.");
-  }
 
   return injectToolbarEntries(withContent, renderToolbarEntries(allRows));
 }
@@ -232,7 +262,13 @@ export function renderRehydratedShell(
   // commit swap adds content + a toolbar entry, not the modal). "Cold-start" means no
   // capabilities, never no modal: the modal is data-free platform chrome.
   const withModal = injectDetailModal(shellHtml);
+  requireContentTarget(withModal);
   if (rows.length === 0) {
+    // Cold start inserts no entries and never flips the shell — but the anchors the first
+    // commit will need are checked here, on the page a fresh user actually loads, rather
+    // than left to fail on that commit. An anchor whose check is data-dependent is an
+    // anchor that fails loudly only for users who already have capabilities.
+    requireToolbarAnchors(withModal);
     return withModal;
   }
 
@@ -250,16 +286,33 @@ function renderToolbarEntries(rows: ReadonlyArray<Pick<CapabilityRow, "id" | "la
 // Insert already-rendered toolbar entries at the shell's placeholder and flip the
 // shell into its has-capabilities presentation state. Shared by the on-load
 // rehydration path and direct `/capability/:id` navigation so the two cannot drift.
-function injectToolbarEntries(shellHtml: string, entriesHtml: string): string {
-  const withToolbar = shellHtml.replace(
-    SHELL_TOOLBAR_PLACEHOLDER,
-    `${SHELL_TOOLBAR_PLACEHOLDER}\n${entriesHtml}`,
-  );
-  if (withToolbar === shellHtml) {
+// The two anchors the toolbar injection replaces, checked without applying anything, so
+// the cold-start page can hold itself to the same contract as one with entries. The shell
+// root is the anchor that used to be the exception: its replacement no-opped in silence,
+// leaving a page that looked assembled and was not — entries in a sidebar the shell never
+// flips open.
+function requireToolbarAnchors(shellHtml: string): void {
+  if (!shellHtml.includes(SHELL_TOOLBAR_PLACEHOLDER)) {
     throw new Error("The shell toolbar placeholder is missing.");
   }
+  if (!shellHtml.includes(SHELL_ROOT_ANCHOR)) {
+    throw new Error("The shell root anchor is missing.");
+  }
+}
 
-  return withToolbar.replace('class="shell"', 'class="shell has-capabilities"');
+function injectToolbarEntries(shellHtml: string, entriesHtml: string): string {
+  requireToolbarAnchors(shellHtml);
+  return shellHtml
+    .replace(SHELL_TOOLBAR_PLACEHOLDER, `${SHELL_TOOLBAR_PLACEHOLDER}\n${entriesHtml}`)
+    .replace(SHELL_ROOT_ANCHOR, SHELL_ROOT_WITH_CAPABILITIES);
+}
+
+// Every full-page assembly needs the content target, whether or not it is about to put
+// something in it: the shell's own glue and every toolbar entry address it by that id.
+function requireContentTarget(shellHtml: string): void {
+  if (!EMPTY_CONTENT_TARGET.test(shellHtml)) {
+    throw new Error("The shell content target placeholder is missing.");
+  }
 }
 
 // Mount the one shared read-only detail modal instance at the shell's placeholder

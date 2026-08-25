@@ -391,6 +391,16 @@ client-side release and the server-side release one act rather than two mechanis
 that have to agree (M5 plan 13).
 _Avoid_: teardown hook, unmount, cleanup callback, destructor
 
+**Swap target**:
+The named place a server-addressed swap lands — the stable id `commit` and `fragment`
+carry, and the four literal anchors page assembly composes a full page by replacing.
+The server addresses one unconditionally and never asks whether it is there; the
+client guarantees it is, for as long as a swap can be in flight. A target that cannot
+be found is never absorbed: page assembly throws, and a `commit` or `fragment`
+arriving at a region that has gone raises, because a swap that lands nowhere is
+indistinguishable from a build that produced nothing (ADR-0002; M5 plan 16).
+_Avoid_: swap destination, mount point, sink, drop zone
+
 **Deletion tombstone**:
 The non-routable state an active registry row becomes at deletion's point of no
 return, carrying the owned-resource manifest it still owes. Resolvers, routes, and

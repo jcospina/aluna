@@ -52,6 +52,7 @@ import {
   renderRehydratedShellPage,
 } from "../web/index.ts";
 import { registerRegionLifecyclePreviewRoutes } from "./region-lifecycle-preview.ts";
+import { registerSwapTargetPreviewRoutes } from "./swap-target-preview.ts";
 
 /**
  * Whether the developer-only `/demo/*` surfaces are registered. See {@link createApp}
@@ -232,6 +233,11 @@ function registerPreviewDemoRoutes(app: Hono): void {
   // The content region's release rule, slowed down enough to watch: the region's live
   // scope beside the server's tracked reader count, both emptying on the same act.
   registerRegionLifecyclePreviewRoutes(app);
+
+  // Every swap target failing loudly: the four page-assembly anchors forced one at a
+  // time against the real shell, and a `commit`/`fragment` delivered to a region that
+  // has been put away. Neither is reachable on purpose anywhere else.
+  registerSwapTargetPreviewRoutes(app);
 }
 
 /**
