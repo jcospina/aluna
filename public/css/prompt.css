@@ -1,5 +1,9 @@
 /* =============================================================================
-   Prompt bar — pinned to the bottom.
+   Prompt bar — floating over the desk ground.
+
+   D5: it floats clear of all four edges with ground visible beneath and beside
+   it, and it is never full width. A bar welded to the bottom edge is a taskbar,
+   and D4 removed the taskbar.
 
    The composer is the rail: raised and framed on --surface, standing on the
    wallpaper rather than lying on it, taking the full hand and casting
@@ -7,9 +11,35 @@
    the ink system; the field inside it is bare, because an <input> cannot hold the
    two SVG layers a drawn boundary needs and does not need its own line inside one.
    ========================================================================== */
+
+/*
+ * The strip along the bottom is --prompt-clearance, declared once in the token
+ * layer, and this is the half of it the bar occupies. The bar's own height is the
+ * composer's min-height below — one row plus the rail's padding — so what is left
+ * of the clearance is the ground it floats above. Stated as that subtraction
+ * rather than as a number, the bar's top edge lands on the strip by construction,
+ * which is exactly where the content area stops (shell.css). Nothing here restates
+ * a length the stylesheet already owns.
+ *
+ * Below the backdrop (z 10) on purpose, which is the one place this departs from
+ * the design's `.prompt-bar` (z 20). Z 20 here is the legacy drawers' own level, and
+ * a bar above the backdrop would stay bright over a dimmed desk. The drawers are
+ * deleted by 5.4/02 and 5.6/04; 5.6/01 sets the order against the window instead,
+ * which is what the design's 20 is actually above.
+ */
 .prompt {
-  flex: 0 0 auto;
-  padding: var(--space-3) var(--space-3) var(--space-6);
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: calc(var(--prompt-clearance) - var(--control-h-lg) - var(--space-1));
+  transform: translateX(-50%);
+  /* The design's settled bar, not the width the temporary shell happened to have:
+     `design/styles/components/desk.css` ships `.prompt-bar` at this width and this
+     gutter, and `design/styles/` is the source of truth (PLAN decision 7). Never
+     full width, at any viewport — the ground shows either side of it. */
+  width: min(33.75rem, calc(100% - 6rem));
+  display: flex;
+  flex-direction: column;
   background: transparent;
 }
 .prompt__composer {
@@ -17,10 +47,8 @@
   align-items: stretch;
   gap: var(--space-1);
   width: 100%;
-  max-width: 46rem;
   min-height: calc(var(--control-h-lg) + var(--space-1));
   padding: var(--space-1);
-  margin-inline: auto;
   background: var(--surface);
   --ink-hand: frame;
   --ink-shadow: var(--shadow-window-wall);
@@ -76,10 +104,29 @@
   color: var(--ink);
   background: color-mix(in oklch, var(--sun), var(--surface) 55%);
 }
+/*
+ * What the platform says about the prompt. It stands above the rail rather than
+ * under it: under it is the ground the bar floats over, and a notice there would
+ * sit off the bottom of the screen. It is set as a desk label — surface-coloured
+ * with the shared shadow — because that is what it sits on.
+ *
+ * Out of the bar's flow, though, and this is load-bearing rather than tidy. In
+ * flow it added its own height to a box anchored by its bottom edge, so the bar
+ * grew *upward* past the strip and over the scrolled content the strip exists to
+ * keep clear — a transparent form covering the tail of a records list, which is
+ * the exact failure the reservation is for. Taken out of flow, the bar's box is
+ * the rail and nothing else, so what the anchor below assumes about its height is
+ * simply true. `pointer-events: none` finishes it: a message with nothing to click
+ * must never be what a click lands on.
+ */
 .prompt__notice {
-  max-width: 46rem;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  pointer-events: none;
   min-height: 1.4em;
-  margin: var(--space-1) auto 0;
+  margin: 0 0 var(--space-1);
   font-family: var(--font-body);
   font-size: var(--type-sm);
   font-weight: 600;
@@ -89,4 +136,13 @@
 }
 .prompt__notice:empty {
   display: none;
+}
+
+/* ── Phone ────────────────────────────────────────────────────────────────── */
+/* The design's 720px desk breakpoint. The bar keeps the ground either side of it
+   at a width where 6rem of gutter would leave a bar too narrow to type in. */
+@media (max-width: 720px) {
+  .prompt {
+    width: calc(100% - 2.5rem);
+  }
 }

@@ -11,11 +11,11 @@
     <!--
       The fixed shell — Aluna's one static UI surface (ARCH §4, §6.1). It ships
       once and never changes; everything inside the regions below is generated at
-      runtime and streamed in by later epics. Layout is the Claude/ChatGPT shape:
-      a collapsible left sidebar (the capability toolbar) beside a content column
-      whose content area fills the space and whose prompt bar is pinned to the
-      bottom. High Meadow is the shipped product surface; see
-      design/design-system.md.
+      runtime and streamed in by later epics. The page is the desk ground: a
+      wallpaper filling the viewport with the prompt bar floating over it, clear
+      of every edge (PLAN decision 1, design D5). The collapsible left sidebar and
+      the developer drawer are Module 1–4 chrome the Desk has not replaced yet.
+      High Meadow is the shipped product surface; see design/design-system.md.
     -->
 
     <!-- Aluna is the user-facing brand (ARCH §9.7); the repository's engineering
@@ -113,8 +113,8 @@
            only on mobile while a drawer is open (CSS); inert otherwise. -->
       <div class="backdrop" @click="open = false; devbarOpen = false" aria-hidden="true"></div>
 
-      <!-- Content column — the content area fills the space above the
-           bottom-pinned prompt bar. -->
+      <!-- Content column — the ground the prompt bar floats over. The content
+           area fills it and stops at the strip the bar reserves. -->
       <div class="content-column">
         <!-- Temporary controls for the two legacy drawers. The branded header row
              is gone; these controls remain only to keep those surfaces functional. -->
@@ -193,9 +193,15 @@
           </div>
         </main>
 
-        <!-- Prompt bar — HTMX posts to /prompt; the returned subscriber fragment
-             opens the per-build stream. Alpine only mirrors stream lifecycle as a
-             courtesy busy presentation state (PLAN decision 7). -->
+        <!-- Prompt bar — the one thing on the page that belongs to Aluna rather
+             than to a capability (design D5). It floats over the ground clear of
+             all four edges and is never full width; the strip it floats in is
+             --prompt-clearance, which the content area above reserves so a
+             records list stops at the bar rather than under it.
+
+             HTMX posts to /prompt; the returned subscriber fragment opens the
+             per-build stream. Alpine only mirrors stream lifecycle as a courtesy
+             busy presentation state (PLAN decision 7). -->
         <form
           class="prompt"
           id="spec-build-form"
@@ -205,6 +211,10 @@
           :class="{ 'prompt--busy': promptBusy }"
           :aria-busy="promptBusy ? 'true' : 'false'"
         >
+          <!-- Above the rail, not below it: below the rail is the ground the bar
+               floats over, and a notice there would sit off the bottom of the
+               screen or push the bar out of its own strip. -->
+          <div id="prompt-notice" class="prompt__notice" aria-live="polite"></div>
           <div class="prompt__composer">
             <input
               class="prompt__field"
@@ -226,7 +236,6 @@
               <span x-text="promptBusy ? 'Making it' : 'Make it'">Make it</span>
             </button>
           </div>
-          <div id="prompt-notice" class="prompt__notice" aria-live="polite"></div>
         </form>
       </div>
 

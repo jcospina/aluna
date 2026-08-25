@@ -1,12 +1,13 @@
 /* =============================================================================
-   Layout — the shell (Claude/ChatGPT shape)
-   Clean, not boxed: regions separate by background tone + spacing, not frames.
-   The sole structural divider is the sidebar's border-right. The collapsible
-   side panels themselves live in toolbar.css and devbar.css.
+   Layout — the desk ground (PLAN decision 1, design D5)
+   What the page ships is a wallpaper and a floating prompt bar. The ground fills
+   the viewport and everything else stands on it. The collapsible side panels the
+   Desk has not replaced yet live in toolbar.css and devbar.css.
    ========================================================================== */
 .shell {
   display: flex;
-  /* 100dvh so mobile browser chrome never clips the bottom-pinned prompt bar. */
+  /* 100dvh so mobile browser chrome never eats the strip the prompt bar floats
+     in — a ground short of the viewport would put the bar over the fold. */
   height: 100dvh;
   background-color: var(--ground);
   background-image: url("/design/assets/wallpaper/high-meadow.webp");
@@ -14,8 +15,12 @@
   background-size: cover;
 }
 
-/* ── Content column — fills the remaining width; stacks over the prompt. ───── */
+/* ── Content column — fills the remaining width, and is what the prompt bar
+   floats over: it is the positioned ancestor the bar is placed against, so the
+   bar stays centred on the ground the user can actually see rather than on a
+   viewport half of which may be a sidebar. ──────────────────────────────── */
 .content-column {
+  position: relative;
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
@@ -33,12 +38,31 @@
   padding: var(--space-1) var(--space-2);
 }
 
-/* ── Content area — fills the rest; sits directly on the page background. ──── */
+/* ── Content area — fills the rest; sits directly on the desk ground. ────── */
+/*
+ * The reserved strip. `--prompt-clearance` is declared once, in the token layer,
+ * and read from there rather than restated: the bar floats in that strip
+ * (prompt.css) and nothing bounded by it may enter. The tail of a records list
+ * scrolls up to the bar and stops — which is the point, because the tail is
+ * exactly where a user scrolls and it must never be hidden under the bar or
+ * unclickable.
+ *
+ * Reserved as a block at the end of the content rather than as `padding-bottom` on
+ * the scroller. They lay out identically, but only one of them is a promise every
+ * engine keeps: a scroll container's bottom padding has a long history of being
+ * left out of the scrollable overflow area, and where it is, the last strip's worth
+ * of a list is unreachable. An in-flow box is content, and no engine drops content.
+ */
 .content {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   background: transparent;
+}
+.content::after {
+  content: "";
+  display: block;
+  height: var(--prompt-clearance);
 }
 
 /* =============================================================================
