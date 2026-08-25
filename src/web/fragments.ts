@@ -8,21 +8,29 @@ import { renderDetailModal } from "../presentation/detail-modal.ts";
 import { type CapabilityRow, canonicalCapabilityLabel } from "../registry/index.ts";
 import { escapeHtml } from "./html.ts";
 
-const CAPABILITY_TOOLBAR_TARGET = "#capability-toolbar";
+const CAPABILITY_LOGO_LAYER_TARGET = "#capability-logos";
 
-// The shell's toolbar placeholder comment (public/index.html) — where the on-load
-// rehydration and direct `/capability/:id` navigation inject capability entries.
-const SHELL_TOOLBAR_PLACEHOLDER = "        <!-- Capability entries render here later. -->";
+/**
+ * The element id one capability's logo carries. Deletion addresses it to take the logo
+ * off the desk (`src/capability-deletion/presentation.ts`), so it is written once rather
+ * than assembled the same way in two places. Capability ids are `[a-z][a-z0-9_]*`
+ * (`src/registry/spec.ts`), so this is always a valid CSS identifier.
+ */
+export function capabilityLogoElementId(capabilityId: string): string {
+  return `capability-logo-${capabilityId}`;
+}
+
+/** The attribute the shell's `desk-logos.js` keys a provisional tile by. */
+const PROVISIONAL_LOGO_ATTRIBUTE = "data-provisional-logo";
+
+// The shell's logo-layer placeholder comment (public/index.html) — where the on-load
+// rehydration and direct `/capability/:id` navigation inject one logo per capability.
+const SHELL_LOGO_PLACEHOLDER = "          <!-- Capability logos render here. -->";
 
 // The shell's detail-modal placeholder comment (public/index.html) — where every
 // server-rendered shell mounts the one shared read-only detail modal instance (epic
 // so a clicked capability item always has the modal to open.
 const SHELL_DETAIL_MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here. -->";
-
-// The shell root's class attribute (public/index.html) — the anchor the has-capabilities
-// presentation state is written onto.
-const SHELL_ROOT_ANCHOR = 'class="shell"';
-const SHELL_ROOT_WITH_CAPABILITIES = 'class="shell has-capabilities"';
 
 const PREVIEW_TARGETS = [
   ["metrics-preview", "spec-metrics-preview"],
@@ -79,7 +87,12 @@ export function renderPromptNotice(notice: string): string {
  * which auto-reconnects with backoff whenever the server closes the stream. Without
  * closing on `done` the browser would reconnect after the server-closed stream and
  * re-run the build. The `commit` region receives the terminal success swap:
- * committed content in the content area plus the toolbar entry as an OOB sidecar.
+ * committed content in the content area plus the capability's logo as an OOB sidecar.
+ *
+ * The tile an admitted build stands on the desk rides `fragment`, which is the name
+ * ADR-0002 gives a non-terminal fragment placed into a targeted region — so it needs no
+ * listener of its own and no fifth event name. Its payload is a lone out-of-band sidecar,
+ * so what htmx has left to place after lifting the sidecar out is nothing at all.
  */
 export function renderBuildSubscriber(jobId: string): string {
   const encodedJobId = encodeURIComponent(jobId);
@@ -103,60 +116,82 @@ export function renderBuildSubscriber(jobId: string): string {
 }
 
 /**
- * The canonical capability-toolbar entry. Commit-time OOB insertion and later
- * load-time rehydration both use this renderer so the two paths cannot drift.
+ * The capability's logo: its permanent identity on the desk, and — with no taskbar —
+ * the only standing list of what exists. A real `<button>`, which is what lets 5.9 open
+ * a context menu from the keyboard without hand-written key handling, and what carries
+ * the live label a rename changes.
+ *
+ * The tile is the designed placeholder until artwork lands in 5.5. That is a finished,
+ * usable capability rather than a loading failure (ADR-0007 L11), so it does not animate:
+ * only a build still running wears `logo-tile--working`.
+ *
+ * Commit-time OOB insertion and later load-time rehydration both use this renderer so
+ * the two paths cannot drift.
  */
-export function renderCapabilityToolbarEntry(row: Pick<CapabilityRow, "id" | "label">): string {
+export function renderCapabilityLogo(row: Pick<CapabilityRow, "id" | "label">): string {
   const id = escapeHtml(row.id);
   const label = canonicalCapabilityLabel(row);
   const url = `/capability/${id}`;
-  const deletionUrl = `/capability-deletion/${encodeURIComponent(row.id)}`;
   return [
-    "<div",
-    `  id="capability-toolbar-entry-${id}"`,
-    '  class="toolbar__item"',
-    "  data-capability-entry",
-    `  data-capability-id="${id}"`,
-    ">",
     "<button",
     '  type="button"',
-    '  class="toolbar__entry"',
-    "  data-capability-open",
+    `  id="${capabilityLogoElementId(id)}"`,
+    '  class="logo"',
+    "  data-capability-logo",
+    `  data-capability-id="${id}"`,
     `  hx-get="${url}"`,
     '  hx-target="#spec-build-output"',
     '  hx-swap="innerHTML"',
     `  hx-push-url="${url}"`,
+    `  aria-label="Open ${escapeHtml(label)}"`,
     ">",
-    `  ${escapeHtml(label)}`,
+    '  <span class="logo-tile logo-tile--pending"></span>',
+    `  <span class="logo-label">${escapeHtml(label)}</span>`,
     "</button>",
-    `<button type="button" class="toolbar__delete" data-capability-delete` +
-      ` aria-label="Permanently delete ${escapeHtml(label)}" title="Permanently delete"` +
-      ` hx-get="${escapeHtml(deletionUrl)}"` +
-      ` hx-target="#spec-build-output" hx-swap="innerHTML">`,
-    `  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"` +
-      ` stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`,
-    `    <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" />`,
-    `    <path d="M10 11v5M14 11v5" />`,
-    "  </svg>",
-    "</button>",
-    "</div>",
   ].join("\n");
 }
 
-function renderCapabilityToolbarOobEntry(row: Pick<CapabilityRow, "id" | "label">): string {
-  const entry = renderCapabilityToolbarEntry(row);
+/**
+ * The tile a new capability stands on the ground while it is still being made. It is
+ * presentation only and keyed by the build id, because the capability it announces does
+ * not exist yet — activation is what supplies a real incarnation, and the registry-backed
+ * logo replaces this one there. Every non-activating terminal removes it (`public/app.js`).
+ *
+ * Only an admitted `new_capability` build gets one. An evolution already has its
+ * capability's logo standing on the desk; `reject`, `data_query` and anything refused
+ * before admission announce nothing, because nothing was admitted.
+ */
+export function renderProvisionalLogo(buildId: string, label: string): string {
+  const id = escapeHtml(buildId);
+  const name = escapeHtml(label);
   return [
-    `<div data-capability-toolbar-oob hx-swap-oob="beforeend:${CAPABILITY_TOOLBAR_TARGET}">`,
-    indent(entry, 2),
+    `<div data-provisional-logo-oob hx-swap-oob="beforeend:${CAPABILITY_LOGO_LAYER_TARGET}">`,
+    "  <button",
+    '    type="button"',
+    '    class="logo"',
+    `    ${PROVISIONAL_LOGO_ATTRIBUTE}="${id}"`,
+    `    aria-label="${name} — being made"`,
+    "  >",
+    '    <span class="logo-tile logo-tile--pending logo-tile--working"></span>',
+    `    <span class="logo-label">${name}</span>`,
+    "  </button>",
     "</div>",
   ].join("\n");
 }
 
-function renderCapabilityToolbarReplacement(row: Pick<CapabilityRow, "id" | "label">): string {
-  const targetId = `capability-toolbar-entry-${escapeHtml(row.id)}`;
-  return renderCapabilityToolbarEntry(row).replace(
-    "<div",
-    `<div hx-swap-oob="outerHTML:#${targetId}"`,
+function renderCapabilityLogoOob(row: Pick<CapabilityRow, "id" | "label">): string {
+  return [
+    `<div data-capability-logo-oob hx-swap-oob="beforeend:${CAPABILITY_LOGO_LAYER_TARGET}">`,
+    indent(renderCapabilityLogo(row), 2),
+    "</div>",
+  ].join("\n");
+}
+
+function renderCapabilityLogoReplacement(row: Pick<CapabilityRow, "id" | "label">): string {
+  const targetId = capabilityLogoElementId(escapeHtml(row.id));
+  return renderCapabilityLogo(row).replace(
+    "<button",
+    `<button hx-swap-oob="outerHTML:#${targetId}"`,
   );
 }
 
@@ -189,16 +224,19 @@ export function renderCapabilitySurface(
 const EMPTY_CONTENT_TARGET = /(<div\b[^>]*\bid="spec-build-output"[^>]*>)<\/div>/;
 
 /**
- * The four literal anchors page assembly composes a full page by replacing, each paired
+ * The literal anchors page assembly composes a full page by replacing, each paired
  * with what a shell missing it looks like. Every one of them throws, and this is what
  * lets the developer preview force each case against the *real* shipped shell instead of
- * keeping its own copies of four strings, which would then be free to drift from the ones
- * the assembly actually matches. `renderCapabilityShell` exercises all four.
+ * keeping its own copies of the strings, which would then be free to drift from the ones
+ * the assembly actually matches. `renderCapabilityShell` exercises all of them.
+ *
+ * The shell root left this list with the rail: it was there only to be flipped into a
+ * `has-capabilities` state, and an empty desk needs no gate.
  */
 export const PAGE_ASSEMBLY_ANCHORS = [
   {
-    name: "the capability-toolbar placeholder",
-    remove: (shellHtml: string) => shellHtml.replace(SHELL_TOOLBAR_PLACEHOLDER, ""),
+    name: "the logo-layer placeholder",
+    remove: (shellHtml: string) => shellHtml.replace(SHELL_LOGO_PLACEHOLDER, ""),
   },
   {
     name: "the detail-modal placeholder",
@@ -209,22 +247,18 @@ export const PAGE_ASSEMBLY_ANCHORS = [
     remove: (shellHtml: string) =>
       shellHtml.replace(EMPTY_CONTENT_TARGET, '<div id="the-content-target-is-gone"></div>'),
   },
-  {
-    name: "the shell root",
-    remove: (shellHtml: string) => shellHtml.replace(SHELL_ROOT_ANCHOR, 'class="desk"'),
-  },
 ] as const;
 
 /**
  * Direct browser navigation to `/capability/:id` needs the fixed shell around the
- * capability surface so authored CSS, HTMX, Alpine, the prompt bar, and both sidebars
- * are present. HTMX toolbar clicks still receive only the fragment.
+ * capability surface so authored CSS, HTMX, Alpine, the prompt bar and the desk are
+ * present. HTMX logo clicks still receive only the fragment.
  *
- * The toolbar is rehydrated from the *whole* registry (`allRows`), not just the opened
- * capability — a full-page load of `/capability/:id` must show every sibling entry, the
+ * The logo layer is rehydrated from the *whole* registry (`allRows`), not just the opened
+ * capability — a full-page load of `/capability/:id` must show every sibling logo, the
  * same set `GET /` restores. `activeRow` drives only the content surface. Passing just
- * the one row here was the toolbar-hydration bug: opening or refreshing a capability by
- * URL dropped every other entry, so the toolbar looked like the registry had lost them.
+ * the one row here was the rehydration bug: opening or refreshing a capability by
+ * URL dropped every other logo, so the desk looked like the registry had lost them.
  */
 export function renderCapabilityShell(
   activeRow: Pick<CapabilityRow, "id" | "label" | "incarnation_id" | "version">,
@@ -241,74 +275,62 @@ export function renderCapabilityShell(
     (_match, openingTag: string) => `${openingTag}${surface}</div>`,
   );
 
-  return injectToolbarEntries(withContent, renderToolbarEntries(allRows));
+  return injectCapabilityLogos(withContent, renderCapabilityLogos(allRows));
 }
 
 /**
- * The on-load shell with its capability toolbar rehydrated from the registry: one
- * canonical entry per row (the same renderer the commit-time out-of-band path uses,
- * so the load path and the OOB path can never drift). With at least one row the shell
- * flips to `has-capabilities` and the sidebar shows; an empty registry returns the
- * shell untouched, so a fresh user keeps the cold-start state. The content area is
- * left empty by design — the load path only restores chrome; a toolbar click serves
- * the cached, data-free view.
+ * The on-load shell with its logo layer rehydrated from the registry: one canonical
+ * logo per row (the same renderer the commit-time out-of-band path uses, so the load
+ * path and the OOB path can never drift). An empty registry returns the shell with an
+ * empty layer, which is the whole of what a fresh user sees: a wallpaper and a prompt
+ * bar, with nothing gating them. The content area is left empty by design — the load
+ * path only restores the desk; a logo click serves the cached, data-free view.
  */
 export function renderRehydratedShell(
   rows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>,
   shellHtml: string,
 ): string {
-  // The shared detail modal mounts on every rendered shell — cold-start included — so
+  // The shared detail modal mounts on every rendered shell — an empty desk included — so
   // the first capability a fresh user builds can open it without a page refresh (the
-  // commit swap adds content + a toolbar entry, not the modal). "Cold-start" means no
+  // commit swap adds content + a logo, not the modal). An empty desk means no
   // capabilities, never no modal: the modal is data-free platform chrome.
   const withModal = injectDetailModal(shellHtml);
   requireContentTarget(withModal);
   if (rows.length === 0) {
-    // Cold start inserts no entries and never flips the shell — but the anchors the first
-    // commit will need are checked here, on the page a fresh user actually loads, rather
-    // than left to fail on that commit. An anchor whose check is data-dependent is an
-    // anchor that fails loudly only for users who already have capabilities.
-    requireToolbarAnchors(withModal);
+    // An empty desk inserts no logos — but the anchor the first commit will need is
+    // checked here, on the page a fresh user actually loads, rather than left to fail on
+    // that commit. An anchor whose check is data-dependent is an anchor that fails loudly
+    // only for users who already have capabilities.
+    requireLogoLayerAnchor(withModal);
     return withModal;
   }
 
-  return injectToolbarEntries(withModal, renderToolbarEntries(rows));
+  return injectCapabilityLogos(withModal, renderCapabilityLogos(rows));
 }
 
-// Render one canonical toolbar entry per registry row, shell-indented and joined.
-// The single source of the toolbar's entry set, shared by every full-shell path
-// (on-load rehydration and direct `/capability/:id` navigation) so a full-page load
-// always shows the same complete toolbar the registry holds — never a subset.
-function renderToolbarEntries(rows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>): string {
-  return rows.map((row) => indent(renderCapabilityToolbarEntry(row), 8)).join("\n");
+// Render one canonical logo per registry row, shell-indented and joined. The single
+// source of the desk's logo set, shared by every full-shell path (on-load rehydration
+// and direct `/capability/:id` navigation) so a full-page load always shows the same
+// complete desk the registry holds — never a subset.
+function renderCapabilityLogos(rows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>): string {
+  return rows.map((row) => indent(renderCapabilityLogo(row), 10)).join("\n");
 }
 
-// Insert already-rendered toolbar entries at the shell's placeholder and flip the
-// shell into its has-capabilities presentation state. Shared by the on-load
-// rehydration path and direct `/capability/:id` navigation so the two cannot drift.
-// The two anchors the toolbar injection replaces, checked without applying anything, so
-// the cold-start page can hold itself to the same contract as one with entries. The shell
-// root is the anchor that used to be the exception: its replacement no-opped in silence,
-// leaving a page that looked assembled and was not — entries in a sidebar the shell never
-// flips open.
-function requireToolbarAnchors(shellHtml: string): void {
-  if (!shellHtml.includes(SHELL_TOOLBAR_PLACEHOLDER)) {
-    throw new Error("The shell toolbar placeholder is missing.");
-  }
-  if (!shellHtml.includes(SHELL_ROOT_ANCHOR)) {
-    throw new Error("The shell root anchor is missing.");
+// The anchor the logo injection replaces, checked without applying anything, so the
+// empty-desk page can hold itself to the same contract as one with logos.
+function requireLogoLayerAnchor(shellHtml: string): void {
+  if (!shellHtml.includes(SHELL_LOGO_PLACEHOLDER)) {
+    throw new Error("The shell logo-layer placeholder is missing.");
   }
 }
 
-function injectToolbarEntries(shellHtml: string, entriesHtml: string): string {
-  requireToolbarAnchors(shellHtml);
-  return shellHtml
-    .replace(SHELL_TOOLBAR_PLACEHOLDER, `${SHELL_TOOLBAR_PLACEHOLDER}\n${entriesHtml}`)
-    .replace(SHELL_ROOT_ANCHOR, SHELL_ROOT_WITH_CAPABILITIES);
+function injectCapabilityLogos(shellHtml: string, logosHtml: string): string {
+  requireLogoLayerAnchor(shellHtml);
+  return shellHtml.replace(SHELL_LOGO_PLACEHOLDER, `${SHELL_LOGO_PLACEHOLDER}\n${logosHtml}`);
 }
 
 // Every full-page assembly needs the content target, whether or not it is about to put
-// something in it: the shell's own glue and every toolbar entry address it by that id.
+// something in it: the shell's own glue and every logo addresses it by that id.
 function requireContentTarget(shellHtml: string): void {
   if (!EMPTY_CONTENT_TARGET.test(shellHtml)) {
     throw new Error("The shell content target placeholder is missing.");
@@ -318,7 +340,7 @@ function requireContentTarget(shellHtml: string): void {
 // Mount the one shared read-only detail modal instance at the shell's placeholder
 // (public/index.html), rendered from the single renderDetailModal source so the served
 // markup can never drift from the module + its tests. Loud on a missing placeholder — same
-// fail-fast contract as the toolbar injection — so a shell that silently dropped the modal
+// fail-fast contract as the logo injection — so a shell that silently dropped the modal
 // (and with it every item's click-to-open) is caught in tests, not in the UI.
 function injectDetailModal(shellHtml: string): string {
   const withModal = shellHtml.replace(SHELL_DETAIL_MODAL_PLACEHOLDER, renderDetailModal());
@@ -330,20 +352,20 @@ function injectDetailModal(shellHtml: string): string {
 
 /**
  * The terminal commit event payload: one SSE event swaps the active content view
- * while the `hx-swap-oob` sidecar appends the same canonical toolbar entry.
+ * while the `hx-swap-oob` sidecar stands the same canonical logo on the desk.
  */
 export function renderCapabilityCommitSwap(
   row: Pick<CapabilityRow, "id" | "label" | "incarnation_id" | "version">,
   collectionHtml: string,
   previousLabel?: string,
 ): string {
-  const toolbar =
+  const logo =
     previousLabel === undefined
-      ? renderCapabilityToolbarOobEntry(row)
+      ? renderCapabilityLogoOob(row)
       : previousLabel === row.label
         ? ""
-        : renderCapabilityToolbarReplacement(row);
-  return [renderCapabilitySurface(row, collectionHtml), toolbar].filter(Boolean).join("\n");
+        : renderCapabilityLogoReplacement(row);
+  return [renderCapabilitySurface(row, collectionHtml), logo].filter(Boolean).join("\n");
 }
 
 function indent(value: string, spaces: number): string {

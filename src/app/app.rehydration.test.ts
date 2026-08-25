@@ -1,7 +1,7 @@
 // Registry read-side payoff. The rehydration cases run against a scratch
-// db shared with the router, so an injected (or freshly committed) capability shows
-// up in the rehydrated toolbar and a click serves its cached view. Shared setup and
-// fixtures live in app.test-support.ts.
+// db shared with the router, so an injected (or freshly committed) capability stands
+// on the rehydrated desk and a click on its logo serves its cached view. Shared setup
+// and fixtures live in app.test-support.ts.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
@@ -24,11 +24,11 @@ import {
 } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
 
-// The registry's read-side payoff: on load the capability toolbar
-// rehydrates from the registry — Aluna remembers you across a refresh. These run
-// against a scratch db shared with the router, so an injected (or freshly committed)
-// capability shows up in the rehydrated toolbar and a click serves its cached view.
-describe("GET / (toolbar rehydration, Epic 2.1)", () => {
+// The registry's read-side payoff: on load the logo layer rehydrates from the
+// registry — Aluna remembers you across a refresh. These run against a scratch db
+// shared with the router, so an injected (or freshly committed) capability stands on
+// the rehydrated desk and a click on its logo serves its cached view.
+describe("GET / (logo rehydration, Epic 2.1)", () => {
   let dir: string;
   let conns: PlatformDatabase;
   let artifactsRoot: string;
@@ -45,27 +45,27 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     return haystack.split(needle).length - 1;
   }
 
-  test("a fresh user (empty registry) stays cold-start — no entries, but the modal still mounts", async () => {
+  test("a fresh user (empty registry) gets a wallpaper and a prompt bar, and the modal still mounts", async () => {
     const app = createApp({ capabilityRouter: { databases: conns } });
     const html = await responseText(await app.request("/"));
 
-    // No entries, and the shell root never flips into has-capabilities — the sidebar
-    // stays hidden. (The static page carries the `'has-capabilities'` Alpine binding
-    // string regardless, so the check is on the root element's class.) The cold-start
-    // prompt surface is intact.
-    expect(html).not.toContain("data-capability-entry");
+    // No logos, and nothing gating the page: an empty desk needs no gate, so the
+    // `has-capabilities` state the rail was hidden behind is gone from the whole page —
+    // the Alpine binding included. The prompt bar is intact.
+    expect(html).not.toContain("data-capability-logo");
+    expect(html).not.toContain("has-capabilities");
     expect(html).toContain('class="shell"');
-    expect(html).not.toContain('class="shell has-capabilities"');
+    expect(html).toContain('id="capability-logos"');
     expect(html).toContain('id="spec-build-output"');
     expect(html).toContain('hx-post="/prompt"');
 
-    // Cold-start means no capabilities, never no modal: the shared detail modal mounts
+    // An empty desk means no capabilities, never no modal: the shared detail modal mounts
     // even here, so the FIRST capability this user builds can open it without a refresh.
     expect(html).toContain('<dialog id="aluna-detail-modal"');
     expect(html).not.toContain("Shared detail modal mounts here"); // placeholder consumed
   });
 
-  test("registry rows rehydrate the toolbar on load and flip has-capabilities", async () => {
+  test("registry rows stand one logo each on the desk, with nothing gated", async () => {
     insertCapability(notesCapabilityRow(), conns.readwrite);
     insertCapability(
       notesCapabilityRow({
@@ -81,18 +81,18 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
 
     const html = await responseText(await app.request("/"));
 
-    // The shell flips so the sidebar shows, and every registry row renders one
-    // canonical toolbar entry pointing at the cached-view route a click serves.
-    expect(html).toContain('class="shell has-capabilities"');
-    expect(countMatches(html, "data-capability-entry")).toBe(2);
+    // Nothing flips: every registry row simply renders one canonical logo pointing at
+    // the cached-view route a click serves.
+    expect(html).not.toContain("has-capabilities");
+    expect(countMatches(html, "data-capability-logo")).toBe(2);
     expect(html).toContain('hx-get="/capability/notes"');
     expect(html).toContain('hx-push-url="/capability/notes"');
     expect(html).toContain('hx-get="/capability/recipes"');
     expect(html).toContain('hx-push-url="/capability/recipes"');
     // Ordered by id (the registry's stable order): notes before recipes.
     expect(html.indexOf("/capability/notes")).toBeLessThan(html.indexOf("/capability/recipes"));
-    // The load path restores chrome only — no capability view is pre-served into the
-    // content area (a toolbar click serves it).
+    // The load path restores the desk only — no capability view is pre-served into the
+    // content area (a logo click serves it).
     expect(html).not.toContain("capability-surface");
   });
 
@@ -135,7 +135,7 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     expect(body).not.toContain('class="capability-records capability-records--feed"');
   });
 
-  test("the M2 closing beat: build, refresh rehydrates the toolbar, and the note is still there", async () => {
+  test("the M2 closing beat: build, refresh rehydrates the desk, and the note is still there", async () => {
     const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
     const { recordMetrics } = makeMetricsRecorder();
     const app = createApp({
@@ -161,11 +161,11 @@ describe("GET / (toolbar rehydration, Epic 2.1)", () => {
     });
     expect(created.status).toBe(200);
 
-    // Refresh the page (GET /): the toolbar rehydrates with the Notes entry and the
-    // shell shows the sidebar — no AI call, no regeneration.
+    // Refresh the page (GET /): the desk rehydrates with the Notes logo and the
+    // desk stands its logo again — no AI call, no regeneration.
     const refreshed = await responseText(await app.request("/"));
-    expect(refreshed).toContain('class="shell has-capabilities"');
-    expect(refreshed).toContain("data-capability-entry");
+    expect(refreshed).toContain('id="capability-logo-notes"');
+    expect(refreshed).toContain("data-capability-logo");
     expect(refreshed).toContain('hx-get="/capability/notes"');
     expect(refreshed).toContain('hx-push-url="/capability/notes"');
 

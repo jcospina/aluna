@@ -5,26 +5,21 @@
 // Type safety without a build: `// @ts-check` + JSDoc means the repo's existing
 // `tsc --noEmit` typechecks this file with zero runtime change.
 //
-// Today it does two things, both presentation-only (no product logic — the shell
+// Today it does three things, all presentation-only (no product logic — the shell
 // is dumb on purpose, ARCH §6.1):
-//   1. Registers the `shell` Alpine component (sidebar collapse / mobile drawer).
+//   1. Registers the `shell` Alpine component (developer panel / prompt courtesy state).
 //   2. Renders developer-preview SSE payloads as plain text after HTMX receives them.
+//   3. Promotes a build's terminal presentation once its stream closes.
+//
+// The tile an admitted build stands on the desk is `desk-logos.js`, a module of its own
+// beside `region-scope.js` and `swap-target.js`.
 
 /**
  * The shell's presentation state.
  * @typedef {Object} ShellState
- * @property {boolean} open - Capability toolbar shown: expanded (desktop) / drawer in (mobile).
- * @property {boolean} devbarOpen - Developer panel shown: expanded (desktop) / drawer in (mobile).
- * @property {boolean} hasCapabilities - Whether any capability exists yet.
+ * @property {boolean} devbarOpen - Developer panel shown.
  * @property {boolean} promptBusy - Courtesy presentation state while a build stream is open.
- * @property {() => void} init - Alpine lifecycle hook; sets the responsive defaults.
- */
-
-/**
- * The tiny slice of Alpine's runtime API this authored file uses outside the
- * component registration path.
- * @typedef {Object} AlpineGlobal
- * @property {(el: Element) => unknown} $data
+ * @property {() => void} init - Alpine lifecycle hook; wires the stream courtesy state.
  */
 
 // Register on `alpine:init` (dispatched at the start of Alpine.start()). This
@@ -41,39 +36,17 @@ document.addEventListener("alpine:init", () => {
  */
 function shell() {
   return {
-    // Capability toolbar shown. The default is responsive (set in init); the
-    // user's toggle then stands until the next breakpoint crossing. Persistence
-    // is deferred.
-    open: true,
-
     // Developer panel shown. Starts closed on every viewport — the panel is a
     // developer surface, not the default view. Stages stream into it whether it
     // is open or not (the handlers write unconditionally), so opening it mid-build
     // reveals the full latest state; nothing is missed by starting closed.
     devbarOpen: false,
 
-    // No capabilities at cold-start, so the toolbar stays hidden. A later epic
-    // flips this when the registry rehydrates the toolbar with entries.
-    hasCapabilities: false,
-
     // Courtesy prompt-bar state only. The server is still the single-flight
     // authority; Alpine just mirrors HTMX SSE open/close events in the UI.
     promptBusy: false,
 
     init() {
-      this.hasCapabilities = document.querySelector("[data-capability-entry]") !== null;
-
-      // Desktop opens the capability toolbar expanded; mobile starts with its
-      // drawer closed. Re-sync on breakpoint crossings so a resized window lands
-      // on the sensible default for its size (collapse chrome only — no product
-      // state). The developer panel is left out: it starts closed everywhere and
-      // only opens when the user toggles it.
-      const desktop = window.matchMedia("(min-width: 768px)");
-      this.open = desktop.matches;
-      desktop.addEventListener("change", (event) => {
-        this.open = event.matches;
-      });
-
       /** @param {boolean} clear */
       const wakePrompt = (clear) => {
         this.promptBusy = false;
@@ -305,16 +278,6 @@ document.addEventListener("htmx:configRequest", (event) => {
 // and retire any explanation from the preceding request.
 document.addEventListener("htmx:beforeRequest", (event) => {
   const detail = /** @type {CustomEvent<{ elt?: Element }>} */ (event).detail;
-  const trigger = detail?.elt;
-  if (
-    typeof Element !== "undefined" &&
-    trigger instanceof Element &&
-    trigger.matches("[data-capability-open], [data-capability-delete]") &&
-    window.matchMedia("(max-width: 767.98px)").matches
-  ) {
-    const state = getShellPresentationState();
-    if (state !== null) state.open = false;
-  }
   if (!(detail?.elt instanceof HTMLFormElement) || detail.elt.id !== "spec-build-form") return;
   const output = document.querySelector("#spec-build-output");
   if (output?.querySelector("[data-build-job-id]")) {
@@ -428,29 +391,6 @@ function syncListFieldRows(field) {
       remove.setAttribute("aria-label", `Remove ${label} value ${index + 1}`);
     }
   });
-}
-
-/**
- * Find the shell component's Alpine state. This is presentation-only glue: HTMX
- * swaps the toolbar entry, and Alpine mirrors whether the sidebar chrome should be
- * visible.
- * @returns {ShellState | null}
- */
-function getShellPresentationState() {
-  const root = document.querySelector(".shell");
-  const alpine = /** @type {Window & { Alpine?: AlpineGlobal }} */ (window).Alpine;
-  if (!(root instanceof Element) || typeof alpine?.$data !== "function") return null;
-
-  const state = alpine.$data(root);
-  if (typeof state !== "object" || state === null) return null;
-  return /** @type {ShellState} */ (state);
-}
-
-function syncCapabilityPresentationState() {
-  const state = getShellPresentationState();
-  if (state === null) return;
-
-  state.hasCapabilities = document.querySelector("[data-capability-entry]") !== null;
 }
 
 function syncActiveCapabilityUrl() {
@@ -655,9 +595,7 @@ function finishTerminalPresentation(eventTarget) {
 
 document.addEventListener("htmx:sendError", recoverSeveredCapabilityDeletion);
 document.addEventListener("htmx:timeout", recoverSeveredCapabilityDeletion);
-document.addEventListener("htmx:oobAfterSwap", syncCapabilityPresentationState);
 document.addEventListener("htmx:afterSwap", (event) => {
-  syncCapabilityPresentationState();
   syncActiveCapabilityUrl();
   focusCapabilityDeletion(event);
 });
@@ -668,6 +606,5 @@ document.addEventListener("htmx:sseClose", (event) => {
       : undefined;
   if (closeType !== "message") return;
   finishTerminalPresentation(event.target);
-  syncCapabilityPresentationState();
   syncActiveCapabilityUrl();
 });

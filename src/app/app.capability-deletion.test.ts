@@ -76,7 +76,7 @@ describe("platform-owned capability deletion routes", () => {
     teardownRouterTest(dir, conns);
   });
 
-  test("the homepage toolbar, advisory preflight, and Confirm make zero AI or Handler calls", async () => {
+  test("the homepage desk, advisory preflight, and Confirm make zero AI or Handler calls", async () => {
     const target = deletionTarget(dir);
     const dependent = dependentOnNotes();
     install(conns, target);
@@ -105,9 +105,12 @@ describe("platform-owned capability deletion routes", () => {
       capabilityRouter: { databases: conns, loadHandler: loader.loadHandler },
     });
 
+    // The desk stands the capability's logo and nothing else on it. Deletion's doorway is
+    // the logo's context menu, which arrives in 5.9/02; until then the preflight is
+    // reached by its address, and no control on the desk starts a destructive act.
     const shell = await (await app.request("/")).text();
-    expect(shell).toContain('aria-label="Permanently delete Notes"');
-    expect(shell).toContain('hx-get="/capability-deletion/notes"');
+    expect(shell).toContain('id="capability-logo-notes"');
+    expect(shell).not.toContain("/capability-deletion/notes");
 
     const preflight = await (await app.request("/capability-deletion/notes")).text();
     expect(preflight).toContain("Delete Notes permanently?");
@@ -229,7 +232,7 @@ describe("platform-owned capability deletion routes", () => {
     );
     const clearHtml = await clear.text();
     expect(clearHtml).toContain("I deleted Notes permanently");
-    expect(clearHtml).toContain("data-capability-deletion-toolbar-removal");
+    expect(clearHtml).toContain("data-capability-deletion-logo-removal");
     expect(admitted).toEqual([target.id]);
     expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
   });
@@ -303,7 +306,7 @@ describe("platform-owned capability deletion routes", () => {
     expect(missingPreflight.status).toBe(200);
     expect(missingPreflight.headers.get("HX-Replace-Url")).toBe("/");
     expect(await missingPreflight.text()).toContain(
-      'hx-swap-oob="delete:#capability-toolbar-entry-missing"',
+      'hx-swap-oob="delete:#capability-logo-missing"',
     );
   });
 
@@ -326,12 +329,12 @@ describe("platform-owned capability deletion routes", () => {
     );
     const html = await response.text();
     expect(html).not.toContain("data-capability-deletion-neutral");
-    expect(html).toContain('hx-swap-oob="delete:#capability-toolbar-entry-notes"');
+    expect(html).toContain('hx-swap-oob="delete:#capability-logo-notes"');
     expect(html).toContain("I still have a little tidying up to do");
     expect(response.headers.get("HX-Replace-Url")).toBe("/");
 
     const shell = await (await app.request("/")).text();
-    expect(shell).not.toContain("capability-toolbar-entry-notes");
+    expect(shell).not.toContain("capability-logo-notes");
     expect((await app.request("/capability/notes")).status).toBe(404);
     expect(
       conns.readonly

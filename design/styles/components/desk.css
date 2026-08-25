@@ -30,6 +30,13 @@
   position: absolute;
   inset: 1.25rem auto calc(1.25rem + var(--prompt-clearance)) 1.25rem;
   z-index: 1;
+  /*
+   * The layer is as tall as the desk whether it holds twenty logos or one, so it
+   * must not be what a press lands on. The logos take the presses; the ground and
+   * whatever stands on it keep every press in the empty space around them, the
+   * same way `.desk__windows` below hands its presses to the windows it holds.
+   */
+  pointer-events: none;
   display: grid;
   grid-auto-flow: column;
   grid-template-rows: repeat(auto-fill, var(--logo-cell-h));
@@ -46,6 +53,7 @@
   border: 0;
   background: transparent;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 @media (prefers-reduced-motion: no-preference) {

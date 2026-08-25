@@ -138,7 +138,7 @@ export interface DemoBuildErrorPreview {
  * pointer the registry row now carries, and the files written to the version
  * directory. Sent only after the migration transaction commits, so it always
  * describes a committed capability. The user-facing confirmation (the `fragment`
- * event) rides alongside it; the client-side content/toolbar swap is Epic 2.6.
+ * event) rides alongside it; the client-side content/desk swap is Epic 2.6.
  */
 export interface DemoCommitPreview {
   readonly kind: "commit-preview";

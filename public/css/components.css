@@ -4,7 +4,7 @@
    interactive descendants inside generated item markup (design/design-system.md),
    so the item renderer never emits a button — these power platform affordances
    (the "New X", Save, and Delete controls of epics 3.2 / M4). Treatment follows
-   the established Aluna button (the prompt bar's submit, .sidebar-toggle): surface-weight
+   the established Aluna button (the prompt bar's submit, .panel-toggle): surface-weight
    press, a thin ink-tinted edge, gentle down-right travel. Text color per fill
    is WCAG-AA verified: a light label on the dark primary, ink on light fills.
    ========================================================================== */

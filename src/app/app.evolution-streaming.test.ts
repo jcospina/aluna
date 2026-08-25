@@ -113,6 +113,11 @@ describe("the streamed assembly", () => {
     expect(running.assembly.gate).toEqual([]);
     expect(names.indexOf("candidate-preview")).toBeLessThan(names.indexOf("units-preview"));
 
+    // An evolution uses the capability's existing logo. Standing a second, build-id-keyed
+    // tile beside it would say a second capability was being made, which is exactly what
+    // an evolution is not — so no desk sidecar goes out before the terminal.
+    expect(events.filter((event) => event.data.includes("data-provisional-logo"))).toHaveLength(0);
+
     // The units block fills as the regenerated units assemble, and the copied units join
     // the same inventory already complete — the developer sees all six, not a list at the end.
     const units = JSON.parse(lastEventData(events, "units-preview"));

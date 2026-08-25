@@ -16,7 +16,7 @@
 // no client-side field formatting, no read-single route.
 //
 // Delegated + document-level so it works for items present at load AND items htmx swaps in
-// later (a freshly created record, a toolbar-loaded list) without re-binding.
+// later (a freshly created record, a list a logo click loaded) without re-binding.
 
 (() => {
   // Kept in sync with src/presentation/list-container.ts (ITEM_TRIGGER_CLASS,

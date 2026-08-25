@@ -1,10 +1,11 @@
 /* =============================================================================
-   Developer panel — a floating debug drawer
-   Unlike the capability toolbar (a structural rail that shares the row's width),
-   this floats OVER the content as a right-anchored modal drawer at every
-   viewport, so opening it costs the content no width. It is a debugging surface
-   for the curious — not part of the product chrome — dismissed by its own close
-   button or by clicking the dimmed content behind it (the shared backdrop).
+   Developer panel — the last Module 1–4 chrome, floating at the right edge
+   Unlike a structural rail that would share the row's width, this floats OVER the
+   content at every viewport, so opening it costs the content no width. It is a
+   curiosity surface for people who want to see how Aluna works — not part of the
+   product chrome — dismissed by its own close button or by clicking the dimmed
+   content behind it (the shared backdrop). It becomes the second window, opened
+   from its own tile on the desk, in 5.6/04.
    Holds the build's raw stage internals; product narration stays in the content.
    ========================================================================== */
 .devbar {
@@ -19,17 +20,17 @@
   overflow: auto;
   background: var(--surface);
   border-left: var(--line) solid var(--ink);
-  /* Parked off-canvas; .devbar-open slides it in (below). */
+  /* Parked off screen; .devbar-open slides it in (below). */
   transform: translateX(100%);
   transition: transform var(--dur-rise) var(--ease-rise);
 }
 .shell.devbar-open .devbar {
   transform: translateX(0);
-  /* Horizontal-only hard shadow — a right-anchored drawer casts to the left. */
+  /* Horizontal-only hard shadow — a right-anchored panel casts to the left. */
 }
 /* The shared backdrop rises with the panel at every size: the panel always
-   floats, so clicking the dimmed content behind it always dismisses it. (On
-   desktop the capability toolbar stays an inline rail and never raises it.) */
+   floats, so clicking the dimmed content behind it always dismisses it. The
+   logos never raise it — they stand on the ground rather than over it. */
 .shell.devbar-open .backdrop {
   display: block;
 }
@@ -51,7 +52,7 @@
   letter-spacing: 0.06em;
   color: var(--ink-2);
 }
-/* Square icon button (chrome from .sidebar-toggle); never let it squish. */
+/* Square icon button (chrome from .panel-toggle); never let it squish. */
 .devbar__close {
   flex: 0 0 auto;
 }

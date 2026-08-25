@@ -30,7 +30,7 @@ const SHELL_INK = [
   /* The prompt rail. The button standing in it is a `.btn`, already drawn. */
   ".prompt__composer",
   /* The shell's own toggles */
-  ".sidebar-toggle",
+  ".panel-toggle",
   /* The content region */
   ".intro__output",
   /* Collection chrome — the search rail and the create panel */

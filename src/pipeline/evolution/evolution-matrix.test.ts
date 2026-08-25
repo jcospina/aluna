@@ -84,7 +84,7 @@ interface MatrixCase {
 
 const MATRIX: readonly MatrixCase[] = [
   {
-    row: "capability label → registry + toolbar/View copy, no units",
+    row: "capability label → registry + logo/View copy, no units",
     intent: "call these my jottings",
     candidate: () => notesSpec({ label: "Jottings" }),
     facts: ["capability_label"],

@@ -74,7 +74,7 @@ describe("capability-deletion presentation", () => {
     const html = renderCapabilityDeletionCommitted(notesRow(), "", false);
 
     expect(html).toBe(
-      '<div data-capability-deletion-toolbar-removal hx-swap-oob="delete:#capability-toolbar-entry-notes"></div><div id="prompt-notice" hx-swap-oob="innerHTML">I deleted Notes permanently.</div>',
+      '<div data-capability-deletion-logo-removal hx-swap-oob="delete:#capability-logo-notes"></div><div id="prompt-notice" hx-swap-oob="innerHTML">I deleted Notes permanently.</div>',
     );
   });
 
@@ -113,7 +113,7 @@ describe("capability-deletion presentation", () => {
     const html = renderCapabilityDeletionAlreadyGone("notes");
 
     expect(html).toBe(
-      '<div data-capability-deletion-toolbar-removal hx-swap-oob="delete:#capability-toolbar-entry-notes"></div><div id="prompt-notice" hx-swap-oob="innerHTML">That’s already gone, so I didn’t delete anything.</div>',
+      '<div data-capability-deletion-logo-removal hx-swap-oob="delete:#capability-logo-notes"></div><div id="prompt-notice" hx-swap-oob="innerHTML">That’s already gone, so I didn’t delete anything.</div>',
     );
     expect(html).not.toContain("capability-deletion__actions");
   });

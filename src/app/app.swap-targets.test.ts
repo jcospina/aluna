@@ -32,15 +32,15 @@ describe(`GET ${SWAP_TARGET_PREVIEW_ROUTE} (loud swap targets, epic 5.3)`, () =>
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type") ?? "").toContain("text/html");
 
-    // Four anchors, four raised errors — and the intact shell still assembles, so the
-    // preview is showing a real failure rather than a page that never worked.
-    expect(html.split("<span data-anchor-raised>").length - 1).toBe(4);
+    // Three anchors, three raised errors — and the intact shell still assembles, so the
+    // preview is showing a real failure rather than a page that never worked. The shell
+    // root left the list with the rail it flipped: an empty desk needs no gate.
+    expect(html.split("<span data-anchor-raised>").length - 1).toBe(3);
     expect(html).toContain("<span data-anchor-assembled>");
     for (const raised of [
-      "The shell toolbar placeholder is missing.",
+      "The shell logo-layer placeholder is missing.",
       "The shell detail-modal placeholder is missing.",
       "The shell content target placeholder is missing.",
-      "The shell root anchor is missing.",
     ]) {
       expect(html).toContain(raised);
     }

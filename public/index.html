@@ -12,9 +12,10 @@
       The fixed shell — Aluna's one static UI surface (ARCH §4, §6.1). It ships
       once and never changes; everything inside the regions below is generated at
       runtime and streamed in by later epics. The page is the desk ground: a
-      wallpaper filling the viewport with the prompt bar floating over it, clear
-      of every edge (PLAN decision 1, design D5). The collapsible left sidebar and
-      the developer drawer are Module 1–4 chrome the Desk has not replaced yet.
+      wallpaper filling the viewport, every capability standing on it as a logo,
+      and the prompt bar floating over both clear of every edge (PLAN decisions 1,
+      3 and 4; design D4, D5). The developer panel is the last Module 1–4 chrome
+      the Desk has not replaced yet; it becomes its own window in 5.6.
       High Meadow is the shipped product surface; see design/design-system.md.
     -->
 
@@ -79,6 +80,14 @@
     <script defer src="/static/item-detail.js"></script>
 
     <!--
+      The tile an admitted build stands on the desk. The server sends it as an
+      out-of-band sidecar the moment resolution admits a new capability; this places
+      the press and takes the tile down at the build's terminal, whatever that
+      terminal was (PLAN decision 3). A module, like the two rules above it.
+    -->
+    <script type="module" src="/static/desk-logos.js"></script>
+
+    <!--
       The drawn line. The ink system ships from design/scripts/ the way the token
       layer ships from design/styles/, and /static/ink.js is only the product's half
       of the seam: it names the temporary shell's own chrome and starts the system.
@@ -91,63 +100,44 @@
   <body>
     <!--
       The shell. Alpine `shell` component (public/app.js) holds two bits of
-      presentation state for shell chrome and prompt-bar courtesy state:
-      `hasCapabilities` (false at cold-start -> sidebar hidden), `open` /
-      `devbarOpen` (the sidebars shown/expanded), and `promptBusy` (an active
-      build stream is open). These are reflected as classes and attributes the
-      stylesheet keys off; with neither class the markup renders the correct
-      cold-start state, so there's no flash before Alpine.
-    -->
-    <div
-      class="shell"
-      x-data="shell"
-      :class="{ 'has-capabilities': hasCapabilities, 'sidebar-open': open, 'devbar-open': devbarOpen }"
-    >
-      <!-- Capability toolbar — the left sidebar. Hidden at cold-start; the
-           registry rehydrates its entries (and flips hasCapabilities) later. -->
-      <nav class="toolbar" id="capability-toolbar" aria-label="Capabilities" :inert="!open">
-        <!-- Capability entries render here later. -->
-      </nav>
+      presentation state: `devbarOpen` (the developer panel shown/expanded) and
+      `promptBusy` (an active build stream is open). These are reflected as classes
+      and attributes the stylesheet keys off; with neither class the markup renders
+      the correct state, so there's no flash before Alpine.
 
-      <!-- Mobile drawer backdrop — tap to dismiss whichever sidebar is open. Shown
-           only on mobile while a drawer is open (CSS); inert otherwise. -->
-      <div class="backdrop" @click="open = false; devbarOpen = false" aria-hidden="true"></div>
+      Nothing gates an empty desk. A fresh user gets a wallpaper and a prompt bar,
+      and it reads correctly with nothing withheld until a first capability arrives
+      (PLAN decision 3).
+    -->
+    <div class="shell" x-data="shell" :class="{ 'devbar-open': devbarOpen }">
+      <!-- Mobile backdrop — tap to dismiss the developer panel. Shown only on
+           mobile while it is open (CSS); inert otherwise. -->
+      <div class="backdrop" @click="devbarOpen = false" aria-hidden="true"></div>
 
       <!-- Content column — the ground the prompt bar floats over. The content
            area fills it and stops at the strip the bar reserves. -->
       <div class="content-column">
-        <!-- Temporary controls for the two legacy drawers. The branded header row
-             is gone; these controls remain only to keep those surfaces functional. -->
-        <div class="shell-controls">
-          <button
-            type="button"
-            class="sidebar-toggle shell-controls__toolbar-toggle"
-            x-cloak
-            x-show="hasCapabilities"
-            @click="open = !open"
-            :aria-expanded="open ? 'true' : 'false'"
-            aria-controls="capability-toolbar"
-            aria-label="Toggle capabilities"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="3" y="4" width="18" height="16" rx="2" />
-              <line x1="9" y1="4" x2="9" y2="20" />
-            </svg>
-          </button>
+        <!-- The logo layer. Every capability the user has, standing on the ground:
+             with no taskbar these are the only standing list of what exists, and the
+             only way back to a window that was put away (design D4, PLAN decision 3).
+             They fill down a column and wrap to the next, taking as many columns as
+             the desk's own height and width allow, so there is no ceiling on how many
+             a user may make (PLAN decision 4). The server rehydrates them from the
+             registry at the placeholder below (src/web/fragments.ts); a commit stands
+             one more on the ground out of band. -->
+        <div class="desk__logos" id="capability-logos">
+          <!-- Capability logos render here. -->
+        </div>
 
-          <!-- Developer-panel toggle — the classic </> code icon. Opens the right
-               sidebar holding the build's raw generation internals. -->
+        <!-- Temporary control for the developer panel. The branded header row is
+             gone; this remains only to keep that surface reachable until 5.6 gives
+             the panel its own window and its own tile on the desk. -->
+        <div class="shell-controls">
+          <!-- Developer-panel toggle — the classic </> code icon. Opens the panel
+               holding the build's raw generation internals. -->
           <button
             type="button"
-            class="sidebar-toggle shell-controls__dev-toggle"
+            class="panel-toggle shell-controls__dev-toggle"
             @click="devbarOpen = !devbarOpen"
             :aria-expanded="devbarOpen ? 'true' : 'false'"
             aria-controls="developer-panel"
@@ -239,21 +229,21 @@
         </form>
       </div>
 
-      <!-- Developer panel — the right sidebar. Mirrors the left capability toolbar
-           (same surface, border, collapse behaviour) but anchored right, and holds
-           the build's raw internals: each generation stage's JSON, populated as it
+      <!-- Developer panel — the last Module 1–4 chrome, anchored right, holding the
+           build's raw internals: each generation stage's JSON, populated as it
            streams. A developer-facing verification surface, toggled by the </> icon
-           in the header; product narration stays in the content area. The stage
-           previews keep their original ids so app.js writes to them unchanged. -->
+           above; product narration stays in the content area. It becomes the second
+           window, opened from its own tile on the desk, in 5.6/04. The stage previews
+           keep their original ids so app.js writes to them unchanged. -->
       <aside class="devbar" id="developer-panel" aria-label="Developer panel">
         <!-- Header — panel title plus its own close affordance. The panel also
              dismisses on a click outside (the shared backdrop), so this is the
-             explicit, discoverable way out for a floating modal-style drawer. -->
+             explicit, discoverable way out for a panel that floats over the desk. -->
         <header class="devbar__header">
           <p class="devbar__title">Generation process</p>
           <button
             type="button"
-            class="sidebar-toggle devbar__close"
+            class="panel-toggle devbar__close"
             @click="devbarOpen = false"
             aria-label="Close developer panel"
           >

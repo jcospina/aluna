@@ -39,6 +39,7 @@ import {
 import { streamDeflection } from "./deflection-pipeline.ts";
 import { createExplicitEvolutionPresenter, createExplicitPresenter } from "./explicit-presenter.ts";
 import { validateProposedOverlapIdentity } from "./overlap-identity.ts";
+import { renderProvisionalLogoSwap } from "./provisional-logo.ts";
 import {
   type PromptResolutionMemory,
   resolvedExistingCapabilityRequest,
@@ -151,7 +152,7 @@ function runNonBuildIntent(
   });
 }
 
-function runNewCapabilityIntent(
+async function runNewCapabilityIntent(
   context: BuildPipelineContext,
   deps: ResolvedPromptPipelineDeps,
   provider: Provider,
@@ -173,6 +174,12 @@ function runNewCapabilityIntent(
     resolver,
     buildRequest: request,
   };
+  // The one place a new capability is announced on the ground, and it is here on purpose:
+  // this is the moment resolution admitted a *new* capability, which an evolution and a
+  // deflection never reach.
+  if (context.canPresent()) {
+    await context.send("fragment", renderProvisionalLogoSwap(context.job.id, intent));
+  }
   return runCoreBuild({
     buildId: context.job.id,
     request,

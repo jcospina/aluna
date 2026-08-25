@@ -156,9 +156,9 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
       }),
     });
   // The capability router and the on-load shell rehydration read the same registry:
-  // a `GET /` toolbar entry click hits `/capability/:id` on this very connection, so
+  // a `GET /` logo click hits `/capability/:id` on this very connection, so
   // resolving it once keeps the two views of the registry consistent. Tests inject a
-  // scratch pair here and a committed build shows up in the rehydrated toolbar.
+  // scratch pair here and a committed build stands on the rehydrated desk.
   const capabilityRouter = deps.capabilityRouter ?? {};
   const capabilityDeletionAdapters = createProductionCapabilityDeletionAdapters(artifactsRoot);
   const registryDatabases = resolveRegistryDatabases(capabilityRouter, {

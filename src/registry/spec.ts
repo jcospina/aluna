@@ -258,7 +258,7 @@ const commonSpecShape = {
 export const capabilitySpecSchema = z
   .strictObject({
     ...commonSpecShape,
-    // User-facing capability name, shown in the capability toolbar. This is a name,
+    // User-facing capability name, written under its logo on the desk. This is a name,
     // not the intent resolver's product-voice narration sentence.
     label: capabilityNameText,
   })

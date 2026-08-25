@@ -113,7 +113,7 @@ describe("the capability surface", () => {
     expect(panel).not.toContain('name="intent"');
   });
 
-  test("an HTMX toolbar click renders the same scaffolding with no evolution form", async () => {
+  test("an HTMX logo click renders the same scaffolding with no evolution form", async () => {
     const { app } = scratchApp(env, candidateFrom(journalCapabilityRow()), "Add a mood field");
     const res = await app.request("/capability/journal", { headers: { "HX-Request": "true" } });
     expect(res.status).toBe(200);

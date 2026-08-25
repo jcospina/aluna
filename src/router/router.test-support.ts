@@ -223,10 +223,10 @@ export async function inspectCapabilitySurfacePlacement(html: string): Promise<{
   };
 }
 
-export async function collectToolbarEntryText(html: string): Promise<string[]> {
+export async function collectCapabilityLogoText(html: string): Promise<string[]> {
   const entries: string[] = [];
   let currentEntry: string | undefined;
-  const rewriter = new HTMLRewriter().on("[data-capability-entry]", {
+  const rewriter = new HTMLRewriter().on("[data-capability-logo]", {
     element(element) {
       currentEntry = "";
       element.onEndTag(() => {

@@ -118,12 +118,14 @@ describe("admitted generation lifecycle ordering", () => {
       () => false,
     );
 
-    // The whole conversation, in order: the resolver's one narration, then the admitted
-    // row's opening preview — nothing may slip in between, which is what makes "closed as
-    // cancelled before any Builder work" a statement about admission rather than luck —
-    // and then the cancellation terminal's own preview attempt, which the bounded
-    // presenter swallows when it fails too.
-    expect(seen).toEqual(["narration", "metrics-preview", "metrics-preview"]);
+    // The whole conversation, in order: the resolver's one narration, the `fragment`
+    // carrying the tile admission stands on the desk, then the admitted row's opening preview — nothing else may slip
+    // in between, which is what makes "closed as cancelled before any Builder work" a
+    // statement about admission rather than luck — and then the cancellation terminal's
+    // own preview attempt, which the bounded presenter swallows when it fails too. The
+    // tile itself needs no undoing here: the same dead subscriber that closed the row is
+    // the one that never received it.
+    expect(seen).toEqual(["narration", "fragment", "metrics-preview", "metrics-preview"]);
     // Only the resolver call was made — no Builder stage ran behind a dead subscriber.
     expect(prompts).toHaveLength(1);
     expect(metrics.lifecycles.at(-1)).toMatchObject({

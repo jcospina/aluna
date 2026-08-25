@@ -1,6 +1,6 @@
 // View-surface slices of the deterministic capability router: the default
 // loader's incarnation keying, the presentation adapter injected into the toolbox, the
-// spec-rendered data-free list scaffolding, and the toolbar rehydration/label behavior.
+// spec-rendered data-free list scaffolding, and the logo rehydration/label behavior.
 // Shared setup and fixtures live in router.test-support.ts.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -12,7 +12,7 @@ import { insertCapability } from "../registry/index.ts";
 import type { CapabilityContext } from "./contract.ts";
 import {
   boomRow,
-  collectToolbarEntryText,
+  collectCapabilityLogoText,
   createCapabilityDataTool,
   formBody,
   inspectCapabilitySurfacePlacement,
@@ -190,7 +190,7 @@ describe("deterministic capability router — view scaffolding", () => {
     install(conns, notesRow());
     const app = createApp({ capabilityRouter: { databases: conns } });
 
-    // A toolbar click serves the platform list scaffolding rendered live from the spec
+    // A logo click serves the platform list scaffolding rendered live from the spec
     // — no served list.html/create.html — as a bare content fragment.
     const res = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
     const body = await res.text();
@@ -280,7 +280,8 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain("<!doctype html>");
     expect(body).toContain('href="/static/app.css"');
     expect(body).toContain('src="/static/vendor/htmx.min.js"');
-    expect(body).toContain('class="shell has-capabilities"');
+    expect(body).toContain('class="shell"');
+    expect(body).not.toContain("has-capabilities");
     expect(body).toContain('id="spec-build-output"');
     expect(body).toContain('class="capability-surface"');
     expect(body).toContain('data-active-capability-id="notes"');
@@ -290,17 +291,17 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain("data-post-mutation-refresh");
     expect(body).toContain('data-records-target-id="notes-records"');
     expect(body).toContain('data-read-url="/capability/notes/read"');
-    expect(body).toContain("data-capability-entry");
+    expect(body).toContain("data-capability-logo");
     expect(body).toContain('hx-get="/capability/notes"');
     expect(await inspectCapabilitySurfacePlacement(body)).toEqual({
       insideColdStart: false,
       insideActiveContent: true,
     });
-    expect(await collectToolbarEntryText(body)).toEqual(["Notes"]);
+    expect(await collectCapabilityLogoText(body)).toEqual(["Notes"]);
   });
 });
 
-describe("deterministic capability router — toolbar rehydration and labels", () => {
+describe("deterministic capability router — logo rehydration and labels", () => {
   let dir: string;
   let conns: PlatformDatabase;
 
@@ -312,28 +313,28 @@ describe("deterministic capability router — toolbar rehydration and labels", (
     teardownRouterTest(dir, conns);
   });
 
-  test("direct capability navigation rehydrates the whole toolbar, not just the opened capability", async () => {
+  test("direct capability navigation rehydrates the whole desk, not just the opened capability", async () => {
     // The reported bug: opening or refreshing one capability by URL showed only that
-    // capability in the toolbar, so every sibling looked lost — even though the registry
+    // capability on the desk, so every sibling looked lost — even though the registry
     // still held them (`GET /` proved it by showing them all again). A full-page load of
-    // `/capability/:id` must restore the same complete toolbar `GET /` does.
+    // `/capability/:id` must restore the same complete desk `GET /` does.
     install(conns, notesRow());
     install(conns, boomRow());
     const app = createApp({ capabilityRouter: { databases: conns } });
 
     const body = await (await app.request("/capability/notes")).text();
 
-    // Both entries present (ordered by id, the registry's stable order), and the opened
+    // Both logos present (ordered by id, the registry's stable order), and the opened
     // capability is still the active content surface.
-    expect(await collectToolbarEntryText(body)).toEqual(["Boom", "Notes"]);
+    expect(await collectCapabilityLogoText(body)).toEqual(["Boom", "Notes"]);
     expect(body).toContain('data-active-capability-id="notes"');
+    expect(body).toContain('id="capability-logo-notes"');
+    expect(body).toContain('id="capability-logo-boom"');
     expect(body).toContain('hx-get="/capability/notes"');
     expect(body).toContain('hx-get="/capability/boom"');
-    expect(body).toContain('hx-get="/capability-deletion/notes"');
-    expect(body).toContain('hx-get="/capability-deletion/boom"');
   });
 
-  test("direct capability navigation uses a canonical short toolbar label for legacy sentence labels", async () => {
+  test("direct capability navigation writes a canonical short name under a legacy sentence label", async () => {
     const sentenceLabel = "We'll set up a space to capture and organize all your notes.";
     insertCapability(notesRow({ label: sentenceLabel }), conns.readwrite);
     const app = createApp({ capabilityRouter: { databases: conns } });
@@ -342,7 +343,7 @@ describe("deterministic capability router — toolbar rehydration and labels", (
     const body = await res.text();
 
     expect(res.status).toBe(200);
-    expect(await collectToolbarEntryText(body)).toEqual(["Notes"]);
+    expect(await collectCapabilityLogoText(body)).toEqual(["Notes"]);
     expect(body).not.toContain(sentenceLabel);
   });
 });

@@ -48,8 +48,15 @@
    * ink at 24%, never blurred. Ruled rather than drawn because there is no
    * drawn edge beside it to disagree with — the rule that makes a shadow a path
    * exists so a true shadow edge never sits next to a deviating one.
+   *
+   * Mixed here rather than read from `--ink-shadow`, which carries the same 24%
+   * and cannot be used: `ink.css` registers that name as a non-inheriting
+   * `@property`, because a drawn boundary's shadow describes *that* boundary and
+   * must not reach what it encloses. Below `:root` the name therefore resolves to
+   * nothing, and a `box-shadow` built on it is invalid — which is to say absent.
+   * The tile is not a drawn boundary and takes its own.
    */
-  box-shadow: 3px 4px 0 var(--ink-shadow);
+  box-shadow: 3px 4px 0 color-mix(in srgb, var(--ink) 24%, transparent);
 }
 
 /* ── The name ─────────────────────────────────────────────────────────── */
@@ -89,10 +96,16 @@
  * specimen on this page are the same stack, so the gap is set once rather than
  * kept in step in two places. The button around it — its padding, its cursor
  * and what it does when pressed — belongs to `desk.css`.
+ *
+ * Unscoped, like the button rules in `desk.css` that it completes. `.logo` names
+ * one thing in Aluna and only ever appears on the desk's own layer, so asking for
+ * a `.desk` ancestor bought nothing and cost the product its stack: the shipped
+ * shell is still `.shell` until 5.6 renames it, and the logos standing on it are
+ * the same button under the same rules as the specimens here.
  */
 
 .specimen-logo,
-.desk .logo {
+.logo {
   display: flex;
   flex-direction: column;
   align-items: center;

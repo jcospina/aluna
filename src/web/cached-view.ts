@@ -70,10 +70,10 @@ export function renderCachedCapabilitySurface(row: CapabilityRow): string {
 }
 
 /**
- * Render the fixed shell with the committed capability already active, its toolbar
+ * Render the fixed shell with the committed capability already active, its logo layer
  * rehydrated from the *whole* registry (read through the given read-only connection) —
- * the same entry set `GET /` restores — so opening or refreshing a capability by URL
- * never drops its siblings from the toolbar.
+ * the same set `GET /` restores — so opening or refreshing a capability by URL never
+ * drops its siblings from the desk.
  */
 export function renderCachedCapabilityShell(
   row: CapabilityRow,
@@ -124,12 +124,11 @@ function withLifecycleMetricsPreview(
 }
 
 /**
- * The `GET /` on-load page: the fixed shell with its capability toolbar rehydrated
- * from the registry (one entry per row), read through the given read-only connection.
+ * The `GET /` on-load page: the fixed shell with its logo layer rehydrated from the
+ * registry (one logo per row), read through the given read-only connection.
  * An uninitialized registry — a brand-new platform db, before the first migration —
- * yields the cold-start shell rather than a missing-table error, so the page always
- * renders. No AI and no regeneration: the entries point at the spec-rendered view a
- * click serves.
+ * yields an empty desk rather than a missing-table error, so the page always renders.
+ * No AI and no regeneration: the logos point at the spec-rendered view a click serves.
  */
 export function renderRehydratedShellPage(database: Database): string {
   const rows = isRegistryInitialized(database) ? listCapabilities(database) : [];
@@ -139,7 +138,7 @@ export function renderRehydratedShellPage(database: Database): string {
 
 /**
  * Render the commit-time SSE payload: the committed capability's platform list
- * scaffolding plus its canonical toolbar entry as an out-of-band sidecar.
+ * scaffolding plus its canonical logo as an out-of-band sidecar.
  */
 export function renderCachedCapabilityCommitSwap(
   row: CapabilityRow,

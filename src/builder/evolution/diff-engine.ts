@@ -95,7 +95,7 @@ export type GeneratedUnitName = (typeof GENERATED_UNITS)[number];
  * model context. Extending the matrix extends this list.
  */
 export const PLATFORM_WORK_KINDS = [
-  "registry_and_view_copy", // capability label → registry row + toolbar/View copy
+  "registry_and_view_copy", // capability label → registry row + logo/View copy
   "resolver_catalog", // prompt_context → intent-resolver catalog
   "platform_field_order", // field order → platform form order + list-input entry order
   "add_column", // new active field → nullable ADD COLUMN

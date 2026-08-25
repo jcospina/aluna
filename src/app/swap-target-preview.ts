@@ -2,11 +2,12 @@
 //
 // Two halves of one rule, neither of them visible in ordinary use.
 //
-// Page assembly composes every full page by replacing four literal anchors in the shipped
-// shell. All four now throw when their anchor is missing — the fourth used to no-op in
-// silence, leaving a page that looked assembled and was not. A throw on the server is a
-// 500 nobody reads, so this page forces each case against the real `public/index.html`
-// and shows the raised error beside the intact assembly.
+// Page assembly composes every full page by replacing literal anchors in the shipped
+// shell, and every one of them throws when its anchor is missing — the shell root used to
+// no-op in silence, leaving a page that looked assembled and was not, and it left the list
+// altogether with the rail it flipped. A throw on the server is a 500 nobody reads, so
+// this page forces each case against the real `public/index.html` and shows the raised
+// error beside the intact assembly.
 //
 // The other half is the client's: a `commit` or `fragment` arriving after its region has
 // gone. htmx's SSE extension drops that message and says nothing, which makes a build
@@ -42,7 +43,7 @@ interface AnchorOutcome {
 
 /**
  * Run the real assembly once per anchor with that anchor taken out of the real shell.
- * `renderCapabilityShell` is the path that touches all four.
+ * `renderCapabilityShell` is the path that touches every one of them.
  */
 function forceEveryAnchor(shellHtml: string): {
   readonly intact: AnchorOutcome;

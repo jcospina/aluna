@@ -1,6 +1,7 @@
 import type { CapabilityRow } from "../registry/index.ts";
 import { canonicalCapabilityLabel } from "../registry/index.ts";
 import { escapeHtml } from "../web/html.ts";
+import { capabilityLogoElementId } from "../web/index.ts";
 
 function deletionUrl(capabilityId: string): string {
   return `/capability-deletion/${encodeURIComponent(capabilityId)}`;
@@ -115,9 +116,11 @@ export function renderCapabilityDeletionConfirmation(
   return renderDeletionPanel(target, body, actions);
 }
 
-function renderToolbarRemoval(capabilityId: string): string {
-  const target = `#capability-toolbar-entry-${escapeHtml(capabilityId)}`;
-  return `<div data-capability-deletion-toolbar-removal hx-swap-oob="delete:${target}"></div>`;
+// The logo goes with the capability. It is the whole of what a deleted capability leaves
+// on the desk, so removing it is what makes the deletion visible there.
+function renderLogoRemoval(capabilityId: string): string {
+  const target = `#${capabilityLogoElementId(escapeHtml(capabilityId))}`;
+  return `<div data-capability-deletion-logo-removal hx-swap-oob="delete:${target}"></div>`;
 }
 
 /**
@@ -141,7 +144,7 @@ export function renderCapabilityDeletionCommitted(
     ? `I deleted ${label} permanently. It won’t come back, even though I still have a little tidying up to do.`
     : `I deleted ${label} permanently.`;
   const outOfBandUpdates = [
-    renderToolbarRemoval(target.id),
+    renderLogoRemoval(target.id),
     `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(notice)}</div>`,
   ];
   return joinRestorationWithNotice(restoredSurface, outOfBandUpdates.join(""));
@@ -190,7 +193,7 @@ export function renderCapabilityDeletionRefusalRestoration(
  */
 export function renderCapabilityDeletionAlreadyGone(capabilityId: string): string {
   return [
-    renderToolbarRemoval(capabilityId),
+    renderLogoRemoval(capabilityId),
     `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml("That’s already gone, so I didn’t delete anything.")}</div>`,
   ].join("");
 }

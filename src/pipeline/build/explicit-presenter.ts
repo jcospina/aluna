@@ -14,7 +14,7 @@
 //
 // Every non-activating terminal — stale, no_change, cancelled, or failed — resolves the
 // job's data-free restoration descriptor against the *then-current* registry and restores
-// that canonical View through `fragment` with no toolbar sidecar. The
+// that canonical View through `fragment` with no desk sidecar. The
 // restoration is deliberately re-resolved rather than remembered: after a stale refusal
 // the registry is precisely the thing that moved.
 

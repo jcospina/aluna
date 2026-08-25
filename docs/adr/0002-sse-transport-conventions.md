@@ -238,6 +238,15 @@ replaces it exactly once with the registry-backed tile, while every
 non-activating terminal removes it. Evolution and resolver outcomes that never
 admit a new capability create none. This adds no app-level SSE event name.
 
+Shipped in 5.4/02 exactly so. The layer's id is `#capability-logos` and the tile
+rides `fragment` — a non-terminal fragment placed into a targeted region, which is
+what that name is for — carrying nothing but its out-of-band sidecar, so the
+region it nominally lands in receives nothing. Taking it down is the client's, and
+it is not conditional on *how* the stream ended: `done` is one ending, and htmx
+closing a stream whose subscriber left the document (`nodeReplaced`,
+`nodeMissing`) is another. Both mean the sink is gone, which the server already
+reads as cancellation, so both take the tile down.
+
 ## Historical update (Epic 1.5 — predates Module 2 finalization)
 
 This paragraph records the state at the end of Module 1. Its open-question

@@ -22,10 +22,10 @@
  * a length the stylesheet already owns.
  *
  * Below the backdrop (z 10) on purpose, which is the one place this departs from
- * the design's `.prompt-bar` (z 20). Z 20 here is the legacy drawers' own level, and
- * a bar above the backdrop would stay bright over a dimmed desk. The drawers are
- * deleted by 5.4/02 and 5.6/04; 5.6/01 sets the order against the window instead,
- * which is what the design's 20 is actually above.
+ * the design's `.prompt-bar` (z 20). Z 20 here is the developer panel's own level,
+ * and a bar above the backdrop would stay bright over a dimmed desk. 5.4/02 took
+ * the capability rail; 5.6/04 takes the panel, and 5.6/01 sets the order against
+ * the window instead, which is what the design's 20 is actually above.
  */
 .prompt {
   position: absolute;

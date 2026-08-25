@@ -1,8 +1,11 @@
 /* =============================================================================
-   Layout — the desk ground (PLAN decision 1, design D5)
-   What the page ships is a wallpaper and a floating prompt bar. The ground fills
-   the viewport and everything else stands on it. The collapsible side panels the
-   Desk has not replaced yet live in toolbar.css and devbar.css.
+   Layout — the desk ground (PLAN decisions 1, 3 and 4; design D4, D5)
+   What the page ships is a wallpaper, the logo of every capability the user has,
+   and a floating prompt bar. The ground fills the viewport and everything else
+   stands on it. The logo layer itself is not styled here: `.desk__logos` and the
+   logo it holds ship from design/styles/components/desk.css and logo-contract.css,
+   which is the one copy of those numbers. The last side panel the Desk has not
+   replaced yet lives in devbar.css.
    ========================================================================== */
 .shell {
   display: flex;
@@ -15,10 +18,10 @@
   background-size: cover;
 }
 
-/* ── Content column — fills the remaining width, and is what the prompt bar
-   floats over: it is the positioned ancestor the bar is placed against, so the
-   bar stays centred on the ground the user can actually see rather than on a
-   viewport half of which may be a sidebar. ──────────────────────────────── */
+/* ── Content column — fills the width, and is what both the logo layer and the
+   prompt bar are placed against: it is their positioned ancestor, so the logos
+   start at the ground's own top-left corner and the bar stays centred on it.
+   ────────────────────────────────────────────────────────────────────────── */
 .content-column {
   position: relative;
   flex: 1 1 auto;
@@ -27,11 +30,12 @@
   flex-direction: column;
 }
 
-/* Temporary controls for the two legacy drawers. They float over the meadow rather
-   than recreating the retired branded header row. */
+/* The temporary control for the developer panel. It floats over the meadow rather
+   than recreating the retired branded header row, and it keeps to the right: the top
+   left of the ground is where the first column of logos stands. */
 .shell-controls {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex: 0 0 auto;
   align-items: center;
   gap: var(--space-1);
@@ -66,9 +70,9 @@
 }
 
 /* =============================================================================
-   Sidebar toggle (shell chrome) + the gentle press
+   The developer panel's toggle (shell chrome) + the gentle press
    ========================================================================== */
-.sidebar-toggle {
+.panel-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -84,22 +88,22 @@
     transform var(--dur-fast) var(--ease-rise),
     box-shadow var(--dur-fast) var(--ease-rise);
 }
-.sidebar-toggle svg {
+.panel-toggle svg {
   display: block;
   width: 1.25rem;
   height: 1.25rem;
 }
 /* Gentle press — tactile but quiet. Hover lifts a small hard shadow and nudges
    1px down-right; active presses to 2px and flattens the shadow. */
-.sidebar-toggle:hover {
+.panel-toggle:hover {
   transform: translate(1px, 1px);
 }
-.sidebar-toggle:active {
+.panel-toggle:active {
   transform: translate(2px, 2px);
 }
 
-/* ── Mobile drawer backdrop — only meaningful on mobile (see the toolbar/devbar
-   media queries, which flip it to display:block while a drawer is open). ──── */
+/* ── Mobile backdrop — only meaningful on mobile (see the devbar media query,
+   which flips it to display:block while the panel is open). ──────────────── */
 .backdrop {
   display: none;
   position: fixed;
