@@ -6,8 +6,8 @@
    Platform CHROME, not the generated item vocabulary (design/styles/layout-kit.css):
    these style the platform-owned create/detail surfaces the "New X" button and the
    shared modal open, never markup the item renderer emits. Treatment follows the
-   established Aluna field (.prompt__field, prompt.css) — surface fill, a 1px
-   ink-tinted border, 10px radius, an accent focus ring and no press travel so a
+   established Aluna field (.prompt__field, prompt.css) — surface fill, a drawn
+   boundary, mitred corners, an accent focus ring and no press travel so a
    control stays put while it's being filled. Tokens only; no raw values.
    ========================================================================== */
 

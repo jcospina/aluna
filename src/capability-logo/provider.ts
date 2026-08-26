@@ -107,15 +107,19 @@ export function resolveRecraftBaseUrl(env: NodeJS.ProcessEnv = process.env): str
 }
 
 /**
- * Decode the envelope's base64 payload strictly. `Buffer.from(…, "base64")` silently
- * skips anything it does not recognize and would turn a truncated or HTML-ish body into
- * plausible-looking bytes; `Uint8Array.fromBase64` throws instead, which is what a
- * validation step is for.
+ * Decode the envelope's base64 payload strictly. `Buffer.from(…, "base64")` silently skips
+ * what it does not recognize and would turn a truncated or HTML-ish body into
+ * plausible-looking bytes.
+ *
+ * `lastChunkHandling: "strict"` is load-bearing: the default is `"loose"`, which accepts a
+ * truncated final chunk. `"PHN2Zz"` decodes to exactly `<svg` under it, so a body cut short
+ * in transit passes `assertSvgDocumentRoot` and a half-drawing installs as accepted
+ * artwork — which L7 then forbids ever replacing.
  */
 export function decodeLogoPayload(payload: string): Uint8Array {
   let bytes: Uint8Array;
   try {
-    bytes = Uint8Array.fromBase64(payload);
+    bytes = Uint8Array.fromBase64(payload, { lastChunkHandling: "strict" });
   } catch (error) {
     throw new LogoGenerationError(
       "decode",
@@ -228,6 +232,9 @@ function callFailure(error: unknown, budget: CallBudget, timeoutMs: number): Log
 /** Pull the accepted base64 payload out of a successful response, or say why not. */
 async function readGeneratedPayload(response: Response, budget: CallBudget): Promise<string> {
   if (!response.ok) {
+    // Cancel the unread body before throwing; `budget.dispose()` clears the timer but never
+    // aborts, so an abandoned body holds its connection open until GC.
+    await response.body?.cancel().catch(() => {});
     throw new LogoGenerationError(
       "http",
       `The logo generation service answered ${response.status}.`,

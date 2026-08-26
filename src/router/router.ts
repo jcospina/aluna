@@ -210,11 +210,14 @@ function handleCapabilityViewRequest(
   if (!tokens) return readUnavailable(c);
 
   try {
-    const html =
-      c.req.header("HX-Request") === "true"
-        ? renderCachedCapabilitySurface(row)
-        : renderCachedCapabilityShell(row, databases.readonly, catalog);
-    return c.html(html);
+    if (c.req.header("HX-Request") === "true") return c.html(renderCachedCapabilitySurface(row));
+    // The full page names every logo's incarnation-keyed address, and those addresses are
+    // served `immutable` for a year. A cached copy of this page is the one way that
+    // guarantee is defeated without the logo route being wrong, so it is never stored —
+    // the same reason `/` sets it.
+    return c.html(renderCachedCapabilityShell(row, databases.readonly, catalog), 200, {
+      "cache-control": "no-store",
+    });
   } catch (error) {
     return internalFailure(c, id, "view", error);
   } finally {

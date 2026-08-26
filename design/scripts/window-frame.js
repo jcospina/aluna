@@ -135,7 +135,6 @@ export function buildFrame({
   /* A drawing coordinate, not a box dimension — see the return below. */
   const bleed = SPEC.bleed;
   const clipId = uid("win-clip");
-  const bodyClipId = uid("win-body");
   const desatId = uid("win-desat");
 
   /* The silhouette: one closed ring over the same four edges the ink walks. */
@@ -172,7 +171,6 @@ export function buildFrame({
 
   const defs =
     `<clipPath id="${clipId}"><path d="${silhouette}"/></clipPath>` +
-    `<clipPath id="${bodyClipId}"><path d="${bodyFill}"/></clipPath>` +
     (unfocused
       ? `<filter id="${desatId}"><feColorMatrix type="saturate" values="0.5"/></filter>`
       : "");

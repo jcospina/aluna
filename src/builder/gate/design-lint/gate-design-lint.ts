@@ -28,7 +28,6 @@
 // the build rolls back with no version bump and no pointer flip.
 
 import {
-  collectionLayoutClass,
   createPlatformPresentationAdapter,
   enforceItemMarkup,
   PALETTE_COLOR_TOKENS,
@@ -164,36 +163,41 @@ async function designStep(
   input: DesignStepInput,
 ): Promise<{ content: string; usage?: TokenUsage; failure?: string }> {
   if (input.attempt === 1) return { content: input.candidate };
+  // `maxAttempts` is 1 without a provider, so a later attempt implies one. A platform bug
+  // that broke that invariant used to fabricate a failure string and feed it to the fix
+  // loop as if the provider had answered.
+  if (!input.provider) throw new Error("A design-lint fix attempt was scheduled with no provider.");
   try {
     return await regenerateItemRenderer(input.provider, input.spec, input.previousFailure);
   } catch (error) {
-    if (isProviderAbortError(error)) throw error;
-    if (!(error instanceof UnitGenerationPassError)) throw error;
-    if (error.usage) input.usages.add(error.usage);
-    input.attempts.push({
-      attempt: input.attempt,
-      durationMs: error.durationMs,
-      ...(error.usage ? { usage: error.usage } : {}),
-      error: error.message,
-    });
-    throw new DesignLintRungError({
-      attempts: input.attempts,
-      violation: error.message,
-    });
+    throw asDesignStepFailure(error, input);
   }
+}
+
+/** Turn a regeneration pass failure into the rung's own error, recording the attempt. A
+ *  provider abort and anything that is not a pass failure travel on untouched. */
+function asDesignStepFailure(error: unknown, input: DesignStepInput): unknown {
+  if (isProviderAbortError(error)) return error;
+  if (!(error instanceof UnitGenerationPassError)) return error;
+  if (error.usage) input.usages.add(error.usage);
+  input.attempts.push({
+    attempt: input.attempt,
+    durationMs: error.durationMs,
+    ...(error.usage ? { usage: error.usage } : {}),
+    error: error.message,
+  });
+  return new DesignLintRungError({ attempts: input.attempts, violation: error.message });
 }
 
 /** One regeneration step of the bounded fix loop: regenerate the item renderer through the
  *  shared write step with the prior failure fed back, then re-validate the fresh unit's
  *  shape/type. A structural failure comes back as `failure` so it feeds the next attempt
- *  exactly as a design violation does. Reached only when a provider is present. */
+ *  exactly as a design violation does. */
 async function regenerateItemRenderer(
-  provider: Provider | undefined,
+  provider: Provider,
   spec: CapabilitySpec,
   previousFailure: UnitGenerationFailure | undefined,
 ): Promise<{ content: string; usage?: TokenUsage; failure?: string }> {
-  if (!provider)
-    return { content: "", failure: "No provider is available to fix the item renderer." };
   const pass = await generateUnitContent(provider, spec, ITEM_RENDERER_UNIT, previousFailure);
   const structural = checkGeneratedUnit(spec, ITEM_RENDERER_UNIT, pass.content);
   return {
@@ -254,21 +258,22 @@ export function findDesignViolation(
   const contentViolation = findRecordContentViolation(spec, rendered);
   if (contentViolation) return contentViolation;
 
-  // Prove the clean composition renders within the *declared* collection layout — the real
-  // adapter path (record → enforced inner → accessible wrapper → detail template) arranged
-  // in the container class the layout maps to. A platform bug here surfaces loudly rather
-  // than shipping a renderer that only ever ran outside its container.
+  // Run the clean composition through the real adapter path — record → enforced inner →
+  // accessible wrapper → detail template — arranged in the declared container. Asserting
+  // the container's own class back would be a tautology: `renderCollection` writes it
+  // unconditionally and the item renderer cannot affect it. What a renderer *can* do here
+  // is throw, which used to escape the rung as a crash instead of a refusal.
   const present = createPlatformPresentationAdapter({ capability, renderItem });
   const layout = spec.ui_intent.collection.layout;
-  const collection = renderCollection({
-    capability,
-    layout,
-    items: records.map((probe) => present(probe.record)).join(""),
-  });
-  if (!collection.includes(collectionLayoutClass(layout))) {
-    return `The item renderer did not compose within the declared "${layout}" collection layout.`;
+  try {
+    renderCollection({
+      capability,
+      layout,
+      items: records.map((probe) => present(probe.record)).join(""),
+    });
+  } catch (error) {
+    return `The item renderer threw while composing into the "${layout}" collection: ${error instanceof Error ? error.message : String(error)}`;
   }
-
   return undefined;
 }
 
@@ -326,6 +331,9 @@ function reviewProbe(
 interface DesignProbe {
   readonly label: string;
   readonly record: PresentableRecord;
+  readonly kind: "baseline" | "contrast" | "hostile";
+  /** Set on a contrast probe: the one `item.shows` field this record varies. */
+  readonly contrastFor?: string;
 }
 
 /**
@@ -342,15 +350,22 @@ interface DesignProbe {
  */
 function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
   const probes: DesignProbe[] = [
-    { label: "synthetic", record: recordWith(spec, (field) => syntheticValue(field)) },
+    {
+      label: "synthetic",
+      kind: "baseline",
+      record: recordWith(spec, (field) => syntheticValue(field)),
+    },
     ...spec.ui_intent.item.shows.map((fieldName) => ({
       label: `synthetic contrast for ${fieldName}`,
+      kind: "contrast" as const,
       record: contrastingRecord(spec, fieldName),
+      contrastFor: fieldName,
     })),
   ];
   for (const [index, payload] of HOSTILE_FIELD_VALUES.entries()) {
     probes.push({
       label: `hostile #${index + 1}`,
+      kind: "hostile",
       record: recordWith(spec, (field) => (field.type === "string[]" ? [payload] : payload)),
     });
   }
@@ -424,8 +439,11 @@ function findRecordContentViolation(
   spec: CapabilitySpec,
   rendered: readonly { readonly probe: DesignProbe; readonly inner: string }[],
 ): string | undefined {
-  const baseline = rendered[0];
-  const contrasts = rendered.slice(1, 1 + spec.ui_intent.item.shows.length);
+  // Selected by what each probe *is*, not by where it sits. Slicing by index made the
+  // probe ordering in `buildProbeRecords` an unwritten contract: reordering it would have
+  // silently compared the wrong records and blamed the wrong field.
+  const baseline = rendered.find(({ probe }) => probe.kind === "baseline");
+  const contrasts = rendered.filter(({ probe }) => probe.kind === "contrast");
   if (!baseline || contrasts.length !== spec.ui_intent.item.shows.length) {
     return "The design-lint record-dependency probes could not be assembled.";
   }
@@ -436,9 +454,9 @@ function findRecordContentViolation(
       baseline.probe,
     );
   }
-  for (const [index, contrast] of contrasts.entries()) {
+  for (const contrast of contrasts) {
     const contrastContent = observableItemRecordContent(contrast.inner);
-    const fieldName = spec.ui_intent.item.shows[index] ?? "unknown";
+    const fieldName = contrast.probe.contrastFor ?? "unknown";
     if (contrastContent.length === 0 || baselineContent === contrastContent) {
       return offContractMessage(
         `the item renderer did not produce meaningful, record-dependent content for declared item field "${fieldName}": changing only that field did not change the perceivable text or media content.`,
@@ -500,6 +518,10 @@ function offContractMessage(detail: string, probe: DesignProbe): string {
     "- Use only the allow-listed primitive classes — no fabricated class names.",
     `- Inline \`style\` may set the three closed axes only by naming a High Meadow token: colour ${tokenList(PALETTE_COLOR_TOKENS)}; type size ${tokenList(TYPE_SIZE_TOKENS)}; spacing ${tokenList(SPACING_TOKENS)}. No raw colours (named, hex, or colour functions), no raw sizes, no \`url(...)\`, no \`position: fixed|absolute|sticky\`.`,
     "- Never declare `font-family`, `border`, `border-radius`, or a shadow of any kind (`box-shadow`, `text-shadow`, `drop-shadow(...)`). An item inherits the face of the surface it sits on; every boundary on this surface is drawn by hand by the platform, so a CSS edge — `border`, `outline` or `column-rule` — would sit beside the drawn one; every corner is mitred, so a square corner is the absence of a declaration; and nothing inside a window casts, so a shadow would be an invalid value that fails silently. `all` is out too — it resets that inheritance.",
+    "- `--ink`, `--ink-2` and `--ink-3` draw lines and set type; they are never a background or a fill. A filled block names one of the five surfaces or one of the eight tints.",
+    "- Nothing may take the record out of its own bounds: no `transform` (or its longhands), `translate`, `rotate`, `scale`, `zoom`, `perspective` or `offset`, and no rounded basic shape (`clip-path: inset(... round ...)`).",
+    "- There is no thickness token, so a property whose value is a line weight has no value it may take: no `text-decoration-thickness`, `text-underline-offset` or `text-stroke-width`, and the `text-decoration`/`text-emphasis` shorthands may name only a line and a style.",
+    "- Do not define a custom property inline (`--name: …`).",
     "- Emit no `<script>`, event handlers (`on*=`), links, buttons, inputs, or other interactive/unknown elements — the platform owns the wrapper, payload, and click-to-open.",
   ].join("\n");
 }

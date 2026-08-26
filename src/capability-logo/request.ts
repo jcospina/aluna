@@ -8,7 +8,7 @@
 // There is no options parameter, so "no caller may vary the constants" is a fact about
 // the signature rather than a rule someone has to remember.
 //
-// What varies is short: the two authored colours in the order `logoRequestColors` fixes,
+// What varies is short: the two authored colours, ground first,
 // the background pinned to the first of them, the stored `random_seed`, and the prompt
 // block with its subject slot filled.
 //
@@ -16,7 +16,7 @@
 // inside the prompt — because L2 records that naming it in only one of the two places
 // does not work: the control alone is ignored.
 
-import { type LogoShade, logoRequestColors } from "../registry/logo.ts";
+import type { LogoShade } from "../registry/logo.ts";
 
 /** Recraft's vector model. The v4 vector models accept no style, substyle or controls
  * at all, so none of the rest of this contract would apply to them (ADR-0007 L1). */
@@ -209,8 +209,10 @@ export function buildLogoPrompt(subject: string, ground: LogoShade, companion: L
     "confident dark contour, three or four flat colours in total, no gradient, no",
     "texture, no shadow. One object seen from one angle. Every surface is blank and",
     "unmarked: no text, no letters, no numerals, no labels, no engraving, no writing of",
-    "any kind. Legible at 64 pixels. Daylight colours at high chroma — no near-blacks,",
-    "no dark backgrounds, no pastels, no greys.",
+    "any kind. Legible at 64 pixels. The two colours above are given — use them exactly as",
+    "named. Any further colour stays in the same daylight register at high chroma: no",
+    "near-blacks, no greys, nothing washed out. Keep the object clearly readable against",
+    "its background.",
   ].join(" ");
 }
 
@@ -229,7 +231,7 @@ export function logoShadeInWords(shade: LogoShade): string {
  * but the claim's four facts, so a presentation choice cannot enter at a call site.
  */
 export function buildLogoGenerationRequest(inputs: LogoGenerationInputs): LogoGenerationRequest {
-  const [ground, companion] = logoRequestColors(inputs.ground, inputs.companion);
+  const { ground, companion } = inputs;
   return {
     prompt: buildLogoPrompt(inputs.subject, inputs.ground, inputs.companion),
     model: LOGO_GENERATION_MODEL,

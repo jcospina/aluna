@@ -30,8 +30,10 @@ import {
 } from "./fragments.ts";
 import { escapeHtml } from "./html.ts";
 
-const METRICS_PREVIEW_TARGET =
-  '<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true"></pre>';
+// Matched by id rather than as an exact tag copy: an attribute added to that `<pre>` in
+// index.html used to make this silently return the shell unchanged, killing the developer
+// panel's version history with no error anywhere.
+const METRICS_PREVIEW_TARGET = /<pre\b[^>]*\bid="spec-metrics-preview"[^>]*><\/pre>/;
 
 /**
  * The collection layout the container arranges a capability's records in. The
@@ -118,10 +120,14 @@ function withLifecycleMetricsPreview(
   if (latest.length === 0 && committedVersions.length === 0 && pendingDeletions.length === 0) {
     return shellHtml;
   }
-  return shellHtml.replace(
-    METRICS_PREVIEW_TARGET,
-    `<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true">${escapeHtml(JSON.stringify({ lifecycles: latest, committedVersions, pendingDeletions }, null, 2))}</pre>`,
-  );
+  if (!METRICS_PREVIEW_TARGET.test(shellHtml)) {
+    throw new Error("The shell metrics-preview target is missing.");
+  }
+  // A replacer function, not a replacement string: the payload carries free-text cleanup
+  // errors and model-authored ids, and `$&`, `$\`` and `$'` in a replacement *string* are
+  // substitution patterns that would splice the surrounding document into the panel.
+  const panel = `<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true">${escapeHtml(JSON.stringify({ lifecycles: latest, committedVersions, pendingDeletions }, null, 2))}</pre>`;
+  return shellHtml.replace(METRICS_PREVIEW_TARGET, () => panel);
 }
 
 /**

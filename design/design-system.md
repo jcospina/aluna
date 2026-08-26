@@ -118,8 +118,13 @@ spacing: a filled block, a change of size or weight, a gap.
 - A resource loaded from inside `style` — `url(...)` and every function beside it that
   fetches or synthesizes one.
 - Anything that takes a record out of its own bounds: a `position` that escapes them,
-  and equally `transform`, `translate`, `scale` and `zoom`. Offsets are lengths and
-  name a spacing token like any other.
+  and equally the whole transform and motion family — `transform` and its longhands,
+  the three individual `translate` / `rotate` / `scale` properties, `zoom`,
+  `perspective` and `offset`. Offsets are lengths and name a spacing token like any
+  other.
+- A decoration shorthand carrying a colour or a thickness. `text-decoration` and
+  `text-emphasis` name a line and a style; the colour belongs on `-color`, where the
+  palette answers for it, and there is no thickness token to name.
 
 Two enforcers catch these. The design-lint gate rung fails the build closed, and
 the allow-list enforcer the presentation adapter applies to every record catches

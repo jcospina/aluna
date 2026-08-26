@@ -45,6 +45,9 @@ import { AlunaWindow } from "./window.js";
 const STORAGE_KEY = "aluna.desk.layout.v2";
 
 /* Where each window lands the first time, before anything is remembered. */
+/** Every way a pointer gesture ends: the ordinary release, and the two interruptions. */
+const DRAG_ENDINGS = ["pointerup", "pointercancel", "lostpointercapture"];
+
 const DEFAULT_WINDOW = { x: 236, y: 40, w: 470, h: 330 };
 const DEFAULT_DEV = { x: 300, y: 150, w: 430, h: 260 };
 
@@ -524,14 +527,18 @@ export class Desk {
         clampPosition(bounds, box);
         placeWindow(entry.el, box);
       };
+      // `pointercancel` and `lostpointercapture` end a gesture too — a system gesture or a
+      // browser interruption raises them instead of `pointerup`. Without them `move` stays
+      // attached, the window follows a pointer with no button held, and every later drag
+      // stacks another live listener.
       const up = () => {
+        for (const ending of DRAG_ENDINGS) bar.removeEventListener(ending, up);
         bar.removeEventListener("pointermove", move);
-        bar.removeEventListener("pointerup", up);
         entry.el.classList.remove("is-dragging");
         this.#save();
       };
       bar.addEventListener("pointermove", move);
-      bar.addEventListener("pointerup", up);
+      for (const ending of DRAG_ENDINGS) bar.addEventListener(ending, up);
     });
   }
 
@@ -569,12 +576,12 @@ export class Desk {
         placeWindow(entry.el, box);
       };
       const up = () => {
+        for (const ending of DRAG_ENDINGS) grip.removeEventListener(ending, up);
         grip.removeEventListener("pointermove", move);
-        grip.removeEventListener("pointerup", up);
         this.#save();
       };
       grip.addEventListener("pointermove", move);
-      grip.addEventListener("pointerup", up);
+      for (const ending of DRAG_ENDINGS) grip.addEventListener(ending, up);
     });
   }
 

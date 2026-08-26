@@ -16,13 +16,13 @@
 // on a real capability.
 
 import type { Hono } from "hono";
-
 import {
   type CapabilityIncarnation,
   createReadGateCoordinator,
   type ReadGateSnapshotEntry,
 } from "../read-gates/index.ts";
 import { CapabilityReadAbandonedError, withHandlerDeadline } from "../router/index.ts";
+import { escapeHtml } from "../web/html.ts";
 
 export const REGION_LIFECYCLE_PREVIEW_ROUTE = "/demo/region-lifecycle";
 
@@ -47,14 +47,6 @@ function holdMsFrom(raw: string | undefined): number {
 
 function viewFrom(raw: string | undefined): "list" | "record" {
   return raw === "record" ? "record" : "list";
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 function readAnswer(view: "list" | "record", holdMs: number): string {

@@ -568,11 +568,10 @@ function validatePresentationShows(
   ctx: z.RefinementCtx,
 ): void {
   const fieldsByName = new Map(spec.schema.fields.map((field) => [field.name, field]));
-  validateShowsList("item", spec.ui_intent.item.shows, fieldsByName, ctx);
+  validateItemShows(spec.ui_intent.item.shows, fieldsByName, ctx);
 }
 
-function validateShowsList(
-  surface: "item",
+function validateItemShows(
   shows: readonly string[],
   fieldsByName: ReadonlyMap<string, SpecField>,
   ctx: z.RefinementCtx,
@@ -583,8 +582,8 @@ function validateShowsList(
     if (field?.lifecycle === "active") continue;
     ctx.addIssue({
       code: "custom",
-      message: `${surface} field "${fieldName}" must be an active schema field or created_at`,
-      path: ["ui_intent", surface, "shows", index],
+      message: `item field "${fieldName}" must be an active schema field or created_at`,
+      path: ["ui_intent", "item", "shows", index],
     });
   }
 }

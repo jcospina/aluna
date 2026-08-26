@@ -182,7 +182,10 @@
   display: block;
   overflow: hidden;
   aspect-ratio: 4 / 3;
-  background: color-mix(in oklch, var(--ink), transparent 92%);
+  /* `--ink` is for lines and type only, never a fill — the same rule the platform refuses
+   * a generated record for breaking (`style-discipline.ts`). The placeholder tint is a
+   * surface. */
+  background: var(--surface-2);
 }
 .media-frame > img,
 .media-frame > video {

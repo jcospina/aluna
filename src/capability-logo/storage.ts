@@ -178,7 +178,13 @@ export function discardTruncatedCapabilityLogo(
     unlinkSync(path);
     console.log(`omni-crud removed a logo file holding no drawing at ${path}`);
     return true;
-  } catch {
+  } catch (error) {
+    // Not silent, for the same reason `removeLogoAttemptTemps` is not: a truncated file
+    // that survives refuses every remaining paid attempt the installer's EEXIST, and the
+    // capability reaches its permanent placeholder with no line explaining why.
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      console.error(`omni-crud could not remove a logo file holding no drawing at ${path}:`, error);
+    }
     return false;
   }
 }

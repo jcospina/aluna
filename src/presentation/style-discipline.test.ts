@@ -483,13 +483,21 @@ describe("sanitizeStyle — the remaining ways out of the box or onto the screen
     );
   });
 
-  test("a record cannot move or scale out of its bounds without naming `position`", () => {
+  test("a record cannot move, turn or scale out of its bounds without naming `position`", () => {
     for (const moved of [
       "transform: translate(900px, -400px)",
       "transform: scale(8)",
+      "transform: rotate(45deg)",
+      "transform-origin: bottom right",
       "translate: 900px -400px",
       "scale: 8",
+      // The third individual transform property. Enumerating the shorthand and two of the
+      // three siblings let `rotate` tilt a card clean out of its box past the same rule.
+      "rotate: 45deg",
       "zoom: 4",
+      "perspective: 100px",
+      "offset-path: circle(50px)",
+      "offset-distance: 40px",
     ]) {
       expect(sanitizeStyle(moved), moved).toBe("");
       expect(describeStyleViolation(moved), moved).toContain("out of its own bounds");

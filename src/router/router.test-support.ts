@@ -203,7 +203,6 @@ export function formBody(
 }
 
 export async function inspectCapabilitySurfacePlacement(html: string): Promise<{
-  insideColdStart: boolean;
   insideActiveContent: boolean;
 }> {
   let surfaceAncestors: string[][] | undefined;
@@ -234,7 +233,6 @@ export async function inspectCapabilitySurfacePlacement(html: string): Promise<{
   }
 
   return {
-    insideColdStart: surfaceAncestors.some((classes) => classes.includes("cold-start")),
     insideActiveContent: surfaceAncestors.some((classes) => classes.includes("content__active")),
   };
 }

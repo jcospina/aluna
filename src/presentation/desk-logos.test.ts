@@ -171,13 +171,20 @@ describe("the terminal cleanup path", () => {
     expect(tile.parent).toBeNull();
   });
 
-  test("a stream that dies rather than closing takes it down too", () => {
-    // A dead sink is read as a cancellation by the server, so the ground must agree.
+  test("a transient error leaves the tile alone, because the transport is still retrying", () => {
+    // `htmx:sseError` is not a terminal. The vendored extension fires it and then — when
+    // the connection node is still in the document — schedules a reconnect with backoff;
+    // a native EventSource fires `error` on every drop while it retries itself. The
+    // genuinely dead case never reaches here: `bodyContains` failing makes the extension
+    // fire `htmx:sseClose` with `nodeMissing` and close, which the row above covers.
+    //
+    // So taking the tile down here let an ordinary proxy blip orphan the tile of a build
+    // that is still running, and nothing puts it back — only activation appends a logo.
     const { root, tile, narration } = deskWithBuild("build-1");
     startDeskLogos(root);
 
     root.dispatch("htmx:sseError", { target: narration });
-    expect(tile.parent).toBeNull();
+    expect(tile.parent).not.toBeNull();
   });
 
   // The three `detail.type` values htmx's SSE extension actually closes with. `message` is

@@ -9,8 +9,9 @@
    these style platform-owned surfaces (the wrapper, the container), while the
    *inner* markup an item renderer emits composes with the layout kit inside the
    wrapper. Treatment follows the established Aluna card/press language — surface
-   fill, a 1px ink-tinted border, 10px radius, the gentle down-right press, and the
-   accent focus ring shared with the prompt field and buttons. Tokens only.
+   fill, a drawn boundary the ink system owns, mitred corners, the gentle down-right
+   press, and the accent focus ring shared with the prompt field and buttons.
+   Tokens only.
    ========================================================================== */
 
 /* ── List scaffolding ─────────────────────────────────────────────────────────
