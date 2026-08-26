@@ -18,7 +18,7 @@
  * composer's min-height below — one row plus the rail's padding — so what is left
  * of the clearance is the ground it floats above. Stated as that subtraction
  * rather than as a number, the bar's top edge lands on the strip by construction,
- * which is exactly where the content area stops (shell.css). Nothing here restates
+ * which is exactly where every window stops (desk-geometry.js). Nothing here restates
  * a length the stylesheet already owns.
  *
  * Below the backdrop (z 10) on purpose, which is the one place this departs from

@@ -6,7 +6,6 @@ import {
   PAGE_ASSEMBLY_ANCHORS,
   renderCapabilityCommitSwap,
   renderCapabilityLogo,
-  renderCapabilityShell,
   renderPromptNotice,
   renderProvisionalLogo,
   renderProvisionalLogoName,
@@ -27,14 +26,15 @@ const MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here. -->";
 const LOGO_PLACEHOLDER = "          <!-- Capability logos render here. -->";
 
 // A minimal stand-in for the shell file: the anchors the shell composition keys off —
-// the logo-layer placeholder comment (with its 10-space indent), the detail-modal
-// placeholder, and the content target — wrapped in just enough markup to be inspectable.
+// the logo-layer placeholder comment (with its 10-space indent) and the detail-modal
+// placeholder — wrapped in just enough markup to be inspectable. The window layer holds
+// no anchor: the window is created by the client, so nothing is composed into it.
 const SHELL_FIXTURE = [
   '<div class="shell" x-data="shell">',
   '  <div class="desk__logos" id="capability-logos">',
   LOGO_PLACEHOLDER,
   "  </div>",
-  '  <div class="intro__output" id="spec-build-output"></div>',
+  '  <div class="desk__windows"></div>',
   "</div>",
   MODAL_PLACEHOLDER,
 ].join("\n");
@@ -319,8 +319,8 @@ describe("on-load logo rehydration", () => {
     // The placeholder anchor stays put — logos are inserted after it, not replacing it.
     expect(html).toContain(LOGO_PLACEHOLDER.trim());
 
-    // The load path restores the desk only: the content area is never pre-populated with
-    // a capability view (a click serves it, ADR-0004).
+    // The load path restores the desk only: no capability view is ever composed into the
+    // page (a click serves it into the window the client opens, ADR-0004).
     expect(html).not.toContain("capability-surface");
 
     // The one shared detail modal mounts here too, so a rehydrated desk is
@@ -335,7 +335,6 @@ describe("on-load logo rehydration", () => {
   const anchorRaises: Record<string, RegExp> = {
     "the logo-layer placeholder": /logo-layer placeholder/i,
     "the detail-modal placeholder": /detail-modal placeholder/i,
-    "the content target": /content target/i,
   };
 
   test("PAGE_ASSEMBLY_ANCHORS names every anchor the assembly replaces", () => {
@@ -347,12 +346,10 @@ describe("on-load logo rehydration", () => {
   for (const anchor of PAGE_ASSEMBLY_ANCHORS) {
     test(`throws when the shell is missing ${anchor.name}`, () => {
       // A shell that silently absorbed a missed anchor serves a page that looks assembled
-      // and is not: no logos, no modal, or no opened capability.
+      // and is not: no logos, or no modal.
       expect(() =>
-        renderCapabilityShell(
-          { id: "notes", label: "Notes", incarnation_id: "inc-1", version: 1, logo: LOGO_ABSENT },
+        renderRehydratedShell(
           [{ id: "notes", label: "Notes", incarnation_id: "inc-1", logo: LOGO_ABSENT }],
-          "<section>Notes</section>",
           anchor.remove(SHELL_FIXTURE),
         ),
       ).toThrow(anchorRaises[anchor.name] as RegExp);

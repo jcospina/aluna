@@ -14,7 +14,10 @@
 // that produced nothing and a swap that landed nowhere the same event. The page drives
 // the shipped `swap-target.js` against a region it removes on demand.
 //
-// Scaffolding: it comes down when the window ships and the same rule is exercised there.
+// Scaffolding. The window now exercises the second half for real — putting it away is a
+// region that goes — but neither half can be *watched* in production: a missing anchor is
+// a 500 nobody reads, and a real read answers before the release is visible. It comes down
+// with the surfaces that replace it.
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -24,7 +27,7 @@ import { escapeHtml } from "../web/html.ts";
 import {
   PAGE_ASSEMBLY_ANCHORS,
   type RenderableCapabilityLogo,
-  renderCapabilityShell,
+  renderRehydratedShell,
 } from "../web/index.ts";
 
 export const SWAP_TARGET_PREVIEW_ROUTE = "/demo/swap-targets";
@@ -34,15 +37,12 @@ const PREVIEW_ROW = Object.freeze({
   id: "swap_target_preview",
   label: "Swap target preview",
   incarnation_id: "00000000-0000-4000-8000-0000000000ee",
-  version: 1,
   // Deliberately not `absent`: an absent tile arms a load-triggered POST at the paid
   // attempt route, and this preview exists to rehearse page-assembly anchors, not to
   // order artwork for a capability that does not exist. `abandoned` is the one status
   // that means "no artwork, and none coming".
   logo: { status: "abandoned", attempts: 3 },
-} satisfies RenderableCapabilityLogo & { version: number });
-
-const PREVIEW_COLLECTION = '<section class="preview-view">A capability surface.</section>';
+} satisfies RenderableCapabilityLogo);
 
 interface AnchorOutcome {
   readonly name: string;
@@ -52,7 +52,8 @@ interface AnchorOutcome {
 
 /**
  * Run the real assembly once per anchor with that anchor taken out of the real shell.
- * `renderCapabilityShell` is the path that touches every one of them.
+ * `renderRehydratedShell` is the path that touches every one of them — and, since the
+ * window is created client-side, the only full-page assembly there is.
  */
 function forceEveryAnchor(shellHtml: string): {
   readonly intact: AnchorOutcome;
@@ -60,7 +61,7 @@ function forceEveryAnchor(shellHtml: string): {
 } {
   const assemble = (name: string, html: string): AnchorOutcome => {
     try {
-      const page = renderCapabilityShell(PREVIEW_ROW, [PREVIEW_ROW], PREVIEW_COLLECTION, html);
+      const page = renderRehydratedShell([PREVIEW_ROW], html);
       return { name, raised: null, assembledLength: page.length };
     } catch (error) {
       return {

@@ -62,7 +62,9 @@ export class AlunaWindow {
     this.bar = chrome.bar;
     this.body = chrome.body;
     this.titleEl = chrome.title;
+    this.lampsEl = chrome.lamps;
 
+    this.#nameLamps();
     this.observer = this.#observe();
     this.refresh();
   }
@@ -77,7 +79,7 @@ export class AlunaWindow {
    * lets each one be a element rather than a maybe-element.
    *
    * @returns {{ ground: SVGSVGElement, ink: SVGSVGElement, bar: HTMLElement,
-   *            body: HTMLElement, title: HTMLElement }}
+   *            body: HTMLElement, title: HTMLElement, lamps: HTMLElement }}
    */
   #buildChrome() {
     const { el } = this;
@@ -103,6 +105,7 @@ export class AlunaWindow {
     const title = document.createElement("h2");
     title.className = "window__title";
     title.textContent = this.title;
+    title.title = this.title;
 
     const lamps = document.createElement("div");
     lamps.className = "window__lamps";
@@ -111,8 +114,8 @@ export class AlunaWindow {
       button.type = "button";
       button.className = `lamp ${lamp.className}`;
       button.dataset.action = lamp.action;
+      button.dataset.lampLabel = lamp.label;
       button.title = lamp.label;
-      button.setAttribute("aria-label", `${lamp.label} — ${this.title}`);
       lamps.appendChild(button);
     }
     lamps.addEventListener("click", (event) => {
@@ -131,7 +134,7 @@ export class AlunaWindow {
 
     bar.append(title, lamps);
     el.append(ground, bar, body, ink);
-    return { ground, ink, bar, body, title };
+    return { ground, ink, bar, body, title, lamps };
   }
 
   /* ── the resize rule ──────────────────────────────────────────────────── */
@@ -245,6 +248,21 @@ export class AlunaWindow {
   setTitle(title) {
     this.title = title;
     this.titleEl.textContent = title;
+    /* A truncated title still reads in full here, which is the only place it can. */
+    this.titleEl.title = title;
+    this.#nameLamps();
+  }
+
+  /**
+   * Say which window each lamp belongs to. Re-run whenever the title changes: a
+   * lamp still announcing the capability before last is worse than one announcing
+   * nothing, because it is confidently wrong.
+   */
+  #nameLamps() {
+    for (const lamp of this.lampsEl.querySelectorAll("button[data-lamp-label]")) {
+      const label = /** @type {HTMLElement} */ (lamp).dataset.lampLabel ?? "";
+      lamp.setAttribute("aria-label", this.title ? `${label} — ${this.title}` : label);
+    }
   }
 
   destroy() {

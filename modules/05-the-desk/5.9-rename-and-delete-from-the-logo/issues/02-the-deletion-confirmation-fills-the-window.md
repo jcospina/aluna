@@ -42,6 +42,16 @@ the run stays mounted; the confirmation must not become a second way to cancel a
 run. Once admitted, deletion joins the coordinator in ordinary FIFO order and the
 existing lease-held revalidation remains authoritative.
 
+## Already standing after 5.6/01
+
+The window puts itself away when a deletion leaves it holding nothing. That is not a
+deletion rule but the window's own invariant — a window that holds nothing does not
+exist — and it arrived with the window because the CSS that used to hide the shell's
+empty content area went with that content area. It fires for every deletion whose
+restoration is neutral: committed, already gone, refused, failed before commit, and
+**Keep it** with nothing behind it. What this issue still owes is the confirmation's
+*shape* in the window and what the window says while it happens.
+
 ## Acceptance criteria
 
 - [ ] Choosing Delete fills the window with the confirmation, in authored product

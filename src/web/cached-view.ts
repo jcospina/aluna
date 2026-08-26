@@ -24,7 +24,6 @@ import {
 } from "../registry/index.ts";
 import {
   renderCapabilityCommitSwap,
-  renderCapabilityShell,
   renderCapabilitySurface,
   renderRehydratedShell,
 } from "./fragments.ts";
@@ -67,29 +66,9 @@ function renderCapabilityCollection(row: CapabilityRow): string {
   });
 }
 
-/** Render the committed capability's platform list scaffolding as a content-area fragment. */
+/** Render the committed capability's platform list scaffolding as an in-window fragment. */
 export function renderCachedCapabilitySurface(row: CapabilityRow): string {
   return renderCapabilitySurface(row, renderCapabilityCollection(row));
-}
-
-/**
- * Render the fixed shell with the committed capability already active, its logo layer
- * rehydrated from the *whole* registry (read through the given read-only connection) —
- * the same set `GET /` restores — so opening or refreshing a capability by URL never
- * drops its siblings from the desk.
- */
-export function renderCachedCapabilityShell(
-  row: CapabilityRow,
-  database: Database,
-  catalog: readonly CapabilityRow[] = listCapabilities(database),
-): string {
-  const shellHtml = readFileSync(resolve(process.cwd(), "public/index.html"), "utf8");
-  return renderCapabilityShell(
-    row,
-    catalog,
-    renderCapabilityCollection(row),
-    withLifecycleMetricsPreview(shellHtml, database, catalog),
-  );
 }
 
 /**
@@ -131,16 +110,28 @@ function withLifecycleMetricsPreview(
 }
 
 /**
- * The `GET /` on-load page: the fixed shell with its logo layer rehydrated from the
- * registry (one logo per row), read through the given read-only connection.
- * An uninitialized registry — a brand-new platform db, before the first migration —
- * yields an empty desk rather than a missing-table error, so the page always renders.
- * No AI and no regeneration: the logos point at the spec-rendered view a click serves.
+ * The on-load page, for both addresses that serve one: the fixed shell with its logo
+ * layer rehydrated from the registry (one logo per row), read through the given
+ * read-only connection. An uninitialized registry — a brand-new platform db, before
+ * the first migration — yields an empty desk rather than a missing-table error, so the
+ * page always renders. No AI and no regeneration: the logos point at the spec-rendered
+ * view a click serves.
+ *
+ * `/capability/:id` renders exactly this page rather than one with that capability
+ * composed into it. The window is created by the client, so there is nowhere on the
+ * served page to compose a collection into; the client opens the window over the logo
+ * the address names and asks for the same fragment a click on that logo asks for. What
+ * a direct navigation still owes is the *whole* desk — every sibling logo, not just the
+ * addressed one — which is why the caller may hand in the catalog it already read
+ * rather than this reading the registry a second time under different tokens.
  */
-export function renderRehydratedShellPage(database: Database): string {
-  const rows = isRegistryInitialized(database) ? listCapabilities(database) : [];
+export function renderRehydratedShellPage(
+  database: Database,
+  catalog?: readonly CapabilityRow[],
+): string {
+  const rows = catalog ?? (isRegistryInitialized(database) ? listCapabilities(database) : []);
   const shellHtml = readFileSync(resolve(process.cwd(), "public/index.html"), "utf8");
-  return renderRehydratedShell(rows, withLifecycleMetricsPreview(shellHtml, database));
+  return renderRehydratedShell(rows, withLifecycleMetricsPreview(shellHtml, database, catalog));
 }
 
 /**

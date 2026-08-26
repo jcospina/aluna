@@ -38,6 +38,9 @@ swap can be in flight. What changes is that a missing target stops being silent.
       was there only to be flipped into a `has-capabilities` state, and an empty desk
       needs no gate, so it left the list with the rail. Three anchors remain — the
       logo-layer placeholder, the detail-modal placeholder and the content target —
+      (superseded by 5.6/01: the window is created client-side, so the content
+      target left page assembly with the shell's content area. Two anchors throw
+      here now, and the client's own missing-layer failure is the third.)
       and each still throws.)*
 - [x] A `commit` or `fragment` arriving mid-teardown finds its named target or
       raises; neither path can complete silently
@@ -194,9 +197,9 @@ Live-checked against the dev server on :3030:
 2. Open `http://localhost:3030/demo/swap-targets`.
    - The first table row reads **Assembled** with a character count: the real
      shell still composes.
-   - The rows under it each show a raised error — one per anchor (three since
-     5.4/02 retired the shell root). No row is
-     blank, and no row reports a page that assembled anyway.
+   - The rows under it each show a raised error — one per anchor (two since
+     5.6/01 retired the content target, which itself followed 5.4/02 retiring the
+     shell root). No row is blank, and no row reports a page that assembled anyway.
 3. On the same page, scroll to *A commit or a fragment arriving mid-teardown*.
    - Click **Deliver a commit**. The readout says it *found its named target*.
    - Click **Put the region away**, then **Deliver a commit** and **Deliver a

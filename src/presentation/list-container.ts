@@ -162,16 +162,26 @@ function renderSearchFeedback(capability: RenderableCapability): string {
 }
 
 /**
- * Render a capability's list scaffolding: the "New X" disclosure, the records region in
- * the chosen layout, and the empty state. Deterministic from the capability — never
- * generated.
+ * Render a capability's list scaffolding: the collection — search, the "New X" control,
+ * the records region in the chosen layout and the empty state — and the create form.
+ * Deterministic from the capability — never generated.
+ *
+ * **Two views of one surface, not a panel over a list (design D2).** Pressing "New X"
+ * does not open a card above the records: it swaps the collection out and gives the
+ * whole window to the form, which is the same thing opening a record will do in 5.7/01.
+ * A list you can no longer see is a list the form is not competing with, and the form
+ * gets the height it needs for its fields to be readable rather than a strip at the top.
  *
  * The records region carries `id="<id>-records"` ({@link capabilityRecordsRegionId}), so
  * the create form's `hx-target` and the empty-state CSS agree with it by construction. It
  * is also a content region: the read, search and refresh requests that write it are
  * released the moment its content is replaced or the region goes away.
- * The disclosure closes itself when a create succeeds for *this* capability, or when its
- * form dispatches {@link CREATE_CANCELLED_EVENT}.
+ *
+ * The form view closes itself when a create succeeds for *this* capability, or when
+ * Cancel dispatches {@link CREATE_CANCELLED_EVENT}. Cancel is the only way out and
+ * needs no back control beside it — they would be one control twice. Every close
+ * gives focus back to the control that opened the form, because a view swap that
+ * drops focus leaves a keyboard user at the top of the desk.
  */
 export function renderCollection(options: CollectionOptions): string {
   const { capability } = options;
@@ -190,28 +200,44 @@ export function renderCollection(options: CollectionOptions): string {
   // so it cannot break out of the single-quoted Alpine expression. The event name is
   // all-lowercase because HTML folds attribute names, so the `@….window` listener still
   // matches the dispatched event.
-  const closeOnCreated = `if ($event.detail?.capabilityId === '${capability.id}') createOpen = false`;
-  const closeOnCancelled = `createOpen = false; $nextTick(() => $refs.createTrigger.focus())`;
+  // Every way the form view closes lands focus back on the control that opened it. A
+  // view swap that does not is a keyboard user dropped at the top of the desk, and the
+  // successful create is the path that used to do exactly that.
+  const backToTrigger = `createOpen = false; $nextTick(() => $refs.createTrigger.focus())`;
+  const closeOnCreated = `if ($event.detail?.capabilityId === '${capability.id}') { ${backToTrigger} }`;
+  const closeOnCancelled = backToTrigger;
+  // The form takes the window, so the first field is where the user now is. Without
+  // this the swap leaves focus on a control that is no longer on screen.
+  //
+  // `:not([type=hidden])` is the whole of why this works: every field is preceded by
+  // its own hidden `__aluna_present` marker, so the first `input` in the form is one
+  // that cannot be focused at all, and focusing it silently does nothing.
+  const firstField = "input:not([type=hidden]), textarea, select";
+  const openCreate = `createOpen = true; $nextTick(() => $refs.createPanel.querySelector('${firstField}')?.focus())`;
 
   return (
     `<section class="capability-collection" aria-label="${label}"` +
     (capability.actions.includes("search") ? ` data-search-state="idle"` : "") +
     ` x-data="{ createOpen: false }" @${RECORD_CREATED_EVENT}.window="${closeOnCreated}"` +
     ` @${CREATE_CANCELLED_EVENT}="${closeOnCancelled}">` +
+    `<div class="capability-collection__list" x-show="!createOpen">` +
     `<header class="capability-collection__header">` +
     renderSearchChrome(capability, regionId) +
     `<button type="button" class="btn btn--primary capability-collection__new"` +
     ` x-ref="createTrigger"` +
-    ` @click="createOpen = !createOpen" :aria-expanded="createOpen ? 'true' : 'false'">` +
+    ` @click="${openCreate}" :aria-expanded="createOpen ? 'true' : 'false'">` +
     `New ${label}</button>` +
     `</header>` +
     renderSearchFeedback(capability) +
-    `<div class="capability-collection__create" x-show="createOpen" x-cloak>${renderCreateForm(capability)}</div>` +
     // No whitespace inside the region: it must stay truly `:empty` so the empty-state
     // CSS fires, and so the first prepended record clears it.
     `<div id="${regionId}" class="capability-records ${layoutClass}"` +
     ` data-content-region="records"${recordsLoad}>${recordsContent}</div>` +
     `<p class="capability-empty">Nothing here yet — add your first ${escapeHtml(capability.noun)} above.</p>` +
+    `</div>` +
+    `<div class="capability-collection__create" x-ref="createPanel" x-show="createOpen" x-cloak>` +
+    renderCreateForm(capability) +
+    `</div>` +
     `</section>`
   );
 }

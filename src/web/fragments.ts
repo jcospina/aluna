@@ -91,7 +91,7 @@ export function renderPromptNotice(notice: string): string {
  * which auto-reconnects with backoff whenever the server closes the stream. Without
  * closing on `done` the browser would reconnect after the server-closed stream and
  * re-run the build. The `commit` region receives the terminal success swap:
- * committed content in the content area plus the capability's logo as an OOB sidecar.
+ * committed content in the window plus the capability's logo as an OOB sidecar.
  *
  * The tile an admitted build stands on the desk rides `fragment`, which is the name
  * ADR-0002 gives a non-terminal fragment placed into a targeted region — so it needs no
@@ -319,7 +319,7 @@ function renderCapabilityLogoReplacement(row: RenderableCapabilityLogo): string 
 }
 
 /**
- * The content-area surface for an active capability: the platform list scaffolding
+ * The in-window surface for an active capability: the platform list scaffolding
  * (rendered live from the spec by the list container) wrapped in the marker
  * the shell keys the active capability on. The scaffolding is data-free — records
  * arrive through the `read` action into its live region (ADR-0004, as amended by
@@ -340,21 +340,20 @@ export function renderCapabilitySurface(
 }
 
 /**
- * The shell's empty content target, matched by its id rather than by its exact opening
- * tag: the tag carries presentation attributes — the content region marker among them —
- * that the shell is free to change without this assembly silently failing to find it.
- */
-const EMPTY_CONTENT_TARGET = /(<div\b[^>]*\bid="spec-build-output"[^>]*>)<\/div>/;
-
-/**
  * The literal anchors page assembly composes a full page by replacing, each paired
  * with what a shell missing it looks like. Every one of them throws, and this is what
  * lets the developer preview force each case against the *real* shipped shell instead of
  * keeping its own copies of the strings, which would then be free to drift from the ones
- * the assembly actually matches. `renderCapabilityShell` exercises all of them.
+ * the assembly actually matches. `renderRehydratedShell` exercises all of them.
  *
  * The shell root left this list with the rail: it was there only to be flipped into a
- * `has-capabilities` state, and an empty desk needs no gate.
+ * `has-capabilities` state, and an empty desk needs no gate. The content target left it
+ * with the shell's content area: the window is created by the client, so there is no
+ * hole in the served page for a capability's collection to be composed into any more.
+ *
+ * The modal placeholder is the one temporary entry. Opening a record still goes through
+ * the shared modal until 5.7/01 replaces it with a view swap inside the window, and the
+ * list collapses to the logo layer alone there.
  */
 export const PAGE_ASSEMBLY_ANCHORS = [
   {
@@ -365,49 +364,22 @@ export const PAGE_ASSEMBLY_ANCHORS = [
     name: "the detail-modal placeholder",
     remove: (shellHtml: string) => shellHtml.replace(SHELL_DETAIL_MODAL_PLACEHOLDER, ""),
   },
-  {
-    name: "the content target",
-    remove: (shellHtml: string) =>
-      shellHtml.replace(EMPTY_CONTENT_TARGET, '<div id="the-content-target-is-gone"></div>'),
-  },
 ] as const;
-
-/**
- * Direct browser navigation to `/capability/:id` needs the fixed shell around the
- * capability surface so authored CSS, HTMX, Alpine, the prompt bar and the desk are
- * present. HTMX logo clicks still receive only the fragment.
- *
- * The logo layer is rehydrated from the *whole* registry (`allRows`), not just the opened
- * capability — a full-page load of `/capability/:id` must show every sibling logo, the
- * same set `GET /` restores. `activeRow` drives only the content surface. Passing just
- * the one row here was the rehydration bug: opening or refreshing a capability by
- * URL dropped every other logo, so the desk looked like the registry had lost them.
- */
-export function renderCapabilityShell(
-  activeRow: RenderableCapabilityLogo & Pick<CapabilityRow, "version">,
-  allRows: readonly RenderableCapabilityLogo[],
-  collectionHtml: string,
-  shellHtml: string,
-): string {
-  const surface = renderCapabilitySurface(activeRow, collectionHtml);
-
-  const withModal = injectDetailModal(shellHtml);
-  requireContentTarget(withModal);
-  const withContent = withModal.replace(
-    EMPTY_CONTENT_TARGET,
-    (_match, openingTag: string) => `${openingTag}${surface}</div>`,
-  );
-
-  return injectCapabilityLogos(withContent, renderCapabilityLogos(allRows));
-}
 
 /**
  * The on-load shell with its logo layer rehydrated from the registry: one canonical
  * logo per row (the same renderer the commit-time out-of-band path uses, so the load
  * path and the OOB path can never drift). An empty registry returns the shell with an
  * empty layer, which is the whole of what a fresh user sees: a wallpaper and a prompt
- * bar, with nothing gating them. The content area is left empty by design — the load
- * path only restores the desk; a logo click serves the cached, data-free view.
+ * bar, with nothing gating them. No window is composed in — the load path restores
+ * the desk and only the desk. The client opens the window, over the logo a click
+ * lands on or over the one the address names, and the collection arrives in it as
+ * the same fragment a logo click has always served.
+ *
+ * This is now the only full-page assembly there is: direct navigation to
+ * `/capability/:id` renders this same desk, because a page with a capability already
+ * composed into it would need a hole to compose it into, and the shell no longer has
+ * one.
  */
 export function renderRehydratedShell(
   rows: readonly RenderableCapabilityLogo[],
@@ -418,7 +390,6 @@ export function renderRehydratedShell(
   // commit swap adds content + a logo, not the modal). An empty desk means no
   // capabilities, never no modal: the modal is data-free platform chrome.
   const withModal = injectDetailModal(shellHtml);
-  requireContentTarget(withModal);
   if (rows.length === 0) {
     // An empty desk inserts no logos — but the anchor the first commit will need is
     // checked here, on the page a fresh user actually loads, rather than left to fail on
@@ -455,14 +426,6 @@ function injectCapabilityLogos(shellHtml: string, logosHtml: string): string {
   // `\'` into `&#39;`, so a label reading `$\'` becomes the `$&` pattern — and `$\`` splices
   // the whole preceding document into the `aria-label` it lands in.
   return shellHtml.replace(SHELL_LOGO_PLACEHOLDER, () => `${SHELL_LOGO_PLACEHOLDER}\n${logosHtml}`);
-}
-
-// Every full-page assembly needs the content target, whether or not it is about to put
-// something in it: the shell's own glue and every logo addresses it by that id.
-function requireContentTarget(shellHtml: string): void {
-  if (!EMPTY_CONTENT_TARGET.test(shellHtml)) {
-    throw new Error("The shell content target placeholder is missing.");
-  }
 }
 
 // Mount the one shared read-only detail modal instance at the shell's placeholder

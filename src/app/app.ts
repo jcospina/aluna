@@ -328,9 +328,12 @@ function createPlatformLogoRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
  * The deterministic preview surfaces — no provider and no db. A demo is scaffolding: once
  * the behavior it showed is built and covered by tests, it comes down. The gallery stays
  * because it is the only place the *injected* item-renderer prompt section can be read;
- * production shows the generated output, never the input. The region-lifecycle preview
- * stays until the window ships the same release rule on a real capability, because a real
- * read answers too fast for the release it demonstrates to be visible.
+ * production shows the generated output, never the input. The window now exercises the
+ * same release rule on a real capability — putting it away releases what its content
+ * started — but a real read answers too fast for that release to be watched, so both
+ * remaining previews keep showing what production cannot: the loud swap target forces
+ * each page-assembly anchor, and the region-lifecycle preview slows the read down. They
+ * come down with the surfaces that replace them (5.7 and 5.8).
  */
 function registerPreviewDemoRoutes(app: Hono): void {
   // Dev preview for the few-shot design gallery + item-renderer prompt injection

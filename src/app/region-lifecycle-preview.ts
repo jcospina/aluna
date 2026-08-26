@@ -1,7 +1,7 @@
 // The developer preview for the content region's release rule.
 //
 // The rule itself ships in the product: `public/region-scope.js` runs on the shell, the
-// content area and every records region are marked `data-content-region`, and a read
+// window's content and every records region are marked `data-content-region`, and a read
 // whose client goes away is abandoned by the capability router. None of that is
 // *visible*, because a real handler answers in milliseconds — the read token is back
 // before anyone could watch it come back.

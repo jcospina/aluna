@@ -76,7 +76,7 @@ The explicit loop is complete at the end of Module 7. Module 8 turns on the seco
 ### Epics
 
 - **1.1 — Project & toolchain.** Bun project, TypeScript config, directory layout (`capabilities/`, `storage/`, db location), dev/build scripts, lint/format. (ARCH §4)
-- **1.2 — Hono server + the fixed shell.** Serve the single static HTML page with HTMX + Alpine. Base product-voice layout and styling. Renders the three shell regions as inert placeholders: prompt bar, empty capability toolbar, empty content area. (ARCH §6.1)
+- **1.2 — Hono server + the fixed shell.** Serve the shell page with HTMX + Alpine. Base product-voice layout and styling. Renders the three shell regions as inert placeholders: prompt bar, empty capability toolbar, empty content area. (ARCH §6.1) *Module 5 retires all three: the toolbar becomes the logo layer (5.4), the content area becomes the window the client creates and destroys (5.6), and the page stops being one that never changes after first load.*
 - **1.3 — SSE streaming primitive.** Server→client Server-Sent Events channel. A demo stream that pushes tokens; client wiring that swaps/appends streamed HTML into the content area. (ARCH §4, §6.2)
 - **1.4 — SQLite foundation.** Open a read-write connection and a separate read-only connection (`SQLITE_OPEN_READONLY`). A migrations runner for platform-owned schema. No domain tables yet: the modules that need them create them. (ARCH §4, §6.3, §7)
 - **1.5 — Pluggable AI provider.** A thin `generate(prompt, schema)` streaming contract realized by the Vercel AI SDK (in-process, Bun, BYO-key) behind a `baseURL`-keyed provider registry, with a single configured global model. The SDK targets the Anthropic- and OpenAI-compatible wire shapes, so one config change swaps the global model across Claude, GPT, Gemini, and the open Chinese coding models (Qwen, GLM, Kimi, MiniMax, DeepSeek). One round-trip proves a structured response streams back, shown live in the shell where the real provider answers a user-initiated trigger, not in a paid unit test. (ARCH §4 "Model strategy"; see [ADR-0003](adr/0003-ai-provider-spine-and-coding-harness.md))
@@ -357,7 +357,7 @@ are taken.
   shell's current content area first. `commit` and `fragment` keep addressing a
   stable id and the client guarantees that id is present whenever a swap can be
   in flight; the `class="shell"` swap that fails silently today throws like the
-  other three. (M5 plan 13, 16; ADR-0002)
+  rest. (M5 plan 13, 16; ADR-0002)
 - **5.4 — The desk: wallpaper, logo layer, prompt bar.** Capabilities live on
   the ground as logos and there is no taskbar, so the logos are the only
   standing list of what exists. They fill down a column and wrap to the next,

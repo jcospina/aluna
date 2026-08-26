@@ -284,16 +284,26 @@ describe("the shell's classic-script glue speaks the release vocabulary", () => 
   });
 
   test("releases the content area before each of its wholesale replacements", () => {
-    // The two places app.js replaces the content area's children itself, rather than
+    // The two places app.js replaces the window's content itself, rather than
     // leaving it to htmx: promoting a terminal build presentation, and re-answering a
     // severed deletion confirmation.
     expect(glue.match(/releaseRegionContent\(output\);/g)).toHaveLength(2);
   });
 
-  test("the shell marks its content area as a content region and starts the system", () => {
-    expect(shell).toContain('data-content-region="content area"');
+  test("the window marks the one region, and the shell starts the system", () => {
+    // The shell marks nothing: the region lives inside the window, which the client
+    // creates and destroys. That is what makes putting the window away the only way a
+    // region disappears, and why no window-scoped teardown exists beside this rule.
+    expect(shell).not.toContain("data-content-region");
     expect(shell).toContain('<script type="module" src="/static/region-scope.js"></script>');
-    // The marker the module looks for and the marker the shell writes are the same one.
+    expect(shell).toContain('<script type="module" src="/static/desk-window.js"></script>');
+
+    const windowModule = readFileSync(join(import.meta.dir, "../../public/desk-window.js"), "utf8");
+    expect(windowModule).toContain("region.dataset.contentRegion = WINDOW_CONTENT_REGION");
+    // Put-away is the release plus the removal, and never a hook of its own.
+    expect(windowModule).toContain(`new CustomEvent(RELEASE_REGION_EVENT`);
+
+    // The marker the module looks for and the marker the window writes are the same one.
     expect(CONTENT_REGION_SELECTOR).toBe("[data-content-region]");
   });
 });

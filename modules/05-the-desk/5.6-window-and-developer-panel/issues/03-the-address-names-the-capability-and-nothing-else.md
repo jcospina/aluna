@@ -35,6 +35,18 @@ The address says which capability is in the window, and that is the whole scheme
 
 A link to a capability that no longer exists is 5.9/03's concern.
 
+## Already standing after 5.6/01
+
+Two of the criteria below are met before this issue starts, and not by accident:
+deleting the content-target anchor left page assembly with no hole to compose a
+capability into, so `/capability/:id` had to start rendering the whole desk and the
+client had to start opening the window over the logo the address names.
+`capabilityIdFromAddress` and the load-time opener in `public/desk-window.js` are
+that work. What remains here is the whole of the *history* contract — pushing on
+open, switch and put-away, `popstate` replaying without pushing again, the build
+keeping the displaced address, and activation pushing exactly once — plus the rule
+that nothing below capability identity ever enters the address.
+
 ## Acceptance criteria
 
 - [ ] `/capability/:id` opens the desk with that capability in the window;

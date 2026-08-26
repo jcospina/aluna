@@ -13,7 +13,12 @@
 /** The attribute a provisional tile is keyed by. */
 export const PROVISIONAL_LOGO_ATTRIBUTE = "data-provisional-logo";
 
-/** The region the in-flight narration streams into today; it moves into the window in 5.7. */
+/**
+ * The region the in-flight narration streams into. It lives inside the window now, so
+ * it exists only while a window does — which is exactly right: a build opens the
+ * window at submit, because a window that does not exist cannot hold the story of its
+ * own construction. Pinned against `desk-window.js`'s own name for it.
+ */
 export const BUILD_NARRATION_REGION_ID = "spec-build-output";
 
 /** One build's subscriber, the node every lifecycle event for that build comes from. */
@@ -62,9 +67,10 @@ export function removeProvisionalLogo(root, buildId) {
 }
 
 /**
- * Bring the in-flight story back into view. The narration streams into the shell's content
- * region today and moves into the window in 5.7; either way the tile is the way back to it
- * from anywhere on the desk.
+ * Bring the in-flight story back into view. The narration streams into the window's
+ * content region, so the tile is the way back to it from anywhere on the desk while
+ * that window is up — and a window put away mid-build cancels the build, which takes
+ * this tile down with it, so there is never a tile pointing at a story that is gone.
  * @param {LogoRoot} root
  * @param {string} buildId
  */

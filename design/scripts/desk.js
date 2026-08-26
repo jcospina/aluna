@@ -27,27 +27,17 @@
  * framework, and the frame path is rebuilt on resize only.
  */
 
-import {
-  clampPosition,
-  clampSize,
-  fillDesk,
-  fitToDesk,
-  PHONE,
-  placeWindow,
-  refreshGeometry,
-} from "./desk-geometry.js";
+import { fillDesk, fitToDesk, PHONE, placeWindow, refreshGeometry } from "./desk-geometry.js";
 import { devTile, logoButton, nameLogo } from "./desk-logo.js";
 import { renderCollection } from "./patterns.js";
 import { mountPromptBar } from "./prompt-bar.js";
 import { wallpaperUrl } from "./wallpaper.js";
 import { AlunaWindow } from "./window.js";
+import { addWindowDrag, addWindowGrip, setMaximised } from "./window-gestures.js";
 
 const STORAGE_KEY = "aluna.desk.layout.v2";
 
 /* Where each window lands the first time, before anything is remembered. */
-/** Every way a pointer gesture ends: the ordinary release, and the two interruptions. */
-const DRAG_ENDINGS = ["pointerup", "pointercancel", "lostpointercapture"];
-
 const DEFAULT_WINDOW = { x: 236, y: 40, w: 470, h: 330 };
 const DEFAULT_DEV = { x: 300, y: 150, w: 430, h: 260 };
 
@@ -58,10 +48,9 @@ const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: r
 /** @typedef {import("./desk-geometry.js").Box} Box */
 
 /**
- * A box as it is remembered. Maximised is a flag rather than a size, so it is
- * recomputed against whatever screen the desk comes back on, and the box the
- * window had before is kept beside it to un-maximise to.
- * @typedef {Box & { max?: boolean, restore?: Box }} StoredBox
+ * A box as it is remembered — the shape `window-gestures.js` writes while a window is
+ * dragged, resized and maximised.
+ * @typedef {import("./window-gestures.js").StoredBox} StoredBox
  */
 
 /**
@@ -460,8 +449,9 @@ export class Desk {
 
     /** @type {DeskWindow} */
     const entry = { kind, win, el, box, maximised };
-    this.#addGrip(entry);
-    this.#addDrag(entry);
+    const host = this.#gestureHost(entry);
+    addWindowGrip(host);
+    addWindowDrag(win.bar, host);
     this.#addLamps(entry);
 
     el.addEventListener("pointerdown", () => this.#focus(entry));
@@ -494,95 +484,27 @@ export class Desk {
     }
   }
 
-  /* ── dragging ─────────────────────────────────────────────────────────── */
+  /* ── the three gestures ───────────────────────────────────────────────── */
 
-  /** @param {DeskWindow} entry */
-  #addDrag(entry) {
-    const bar = entry.el.querySelector(".window__bar");
-    if (!(bar instanceof HTMLElement)) return;
-    bar.classList.add("window__bar--draggable");
-
-    bar.addEventListener("pointerdown", (event) => {
-      const { target } = event;
-      if (target instanceof Element && target.closest(".lamp")) return;
-      if (entry.maximised) return;
-      if (this.#phone()) return;
-
-      const { box } = entry;
-      const bounds = this.root.getBoundingClientRect();
-      const startX = event.clientX - box.x;
-      const startY = event.clientY - box.y;
-      bar.setPointerCapture(event.pointerId);
-      entry.el.classList.add("is-dragging");
-      this.#focus(entry);
-
-      /*
-       * Dragging is a transform and nothing else. The path is untouched, so
-       * the hand never re-rolls mid-drag.
-       */
-      /** @param {PointerEvent} e */
-      const move = (e) => {
-        box.x = e.clientX - startX;
-        box.y = e.clientY - startY;
-        clampPosition(bounds, box);
-        placeWindow(entry.el, box);
-      };
-      // `pointercancel` and `lostpointercapture` end a gesture too — a system gesture or a
-      // browser interruption raises them instead of `pointerup`. Without them `move` stays
-      // attached, the window follows a pointer with no button held, and every later drag
-      // stacks another live listener.
-      const up = () => {
-        for (const ending of DRAG_ENDINGS) bar.removeEventListener(ending, up);
-        bar.removeEventListener("pointermove", move);
-        entry.el.classList.remove("is-dragging");
-        this.#save();
-      };
-      bar.addEventListener("pointermove", move);
-      for (const ending of DRAG_ENDINGS) bar.addEventListener(ending, up);
-    });
-  }
-
-  /* ── resizing ─────────────────────────────────────────────────────────── */
-
-  /** @param {DeskWindow} entry */
-  #addGrip(entry) {
-    const grip = document.createElement("button");
-    grip.type = "button";
-    grip.className = "window__grip";
-    grip.setAttribute("aria-label", "Resize this window");
-    entry.el.append(grip);
-
-    grip.addEventListener("pointerdown", (event) => {
-      event.stopPropagation();
-      if (entry.maximised) return;
-      /* On a phone the window is the screen (D1). The grip is painted out
-       * there, and this is the handler standing down with it. */
-      if (this.#phone()) return;
-      const { box } = entry;
-      const bounds = this.root.getBoundingClientRect();
-      const startX = event.clientX;
-      const startY = event.clientY;
-      const startW = box.w;
-      const startH = box.h;
-      grip.setPointerCapture(event.pointerId);
-      this.#focus(entry);
-
-      /* A size change is the one thing that does invalidate the path. */
-      /** @param {PointerEvent} e */
-      const move = (e) => {
-        box.w = startW + (e.clientX - startX);
-        box.h = startH + (e.clientY - startY);
-        clampSize(bounds, box);
-        placeWindow(entry.el, box);
-      };
-      const up = () => {
-        for (const ending of DRAG_ENDINGS) grip.removeEventListener(ending, up);
-        grip.removeEventListener("pointermove", move);
-        this.#save();
-      };
-      grip.addEventListener("pointermove", move);
-      for (const ending of DRAG_ENDINGS) grip.addEventListener(ending, up);
-    });
+  /**
+   * The desk this window is held inside, and what a gesture on it may do. Dragging,
+   * resizing and maximising ship from `window-gestures.js` — one implementation, so
+   * no surface can drift from another — and this is everything only the desk knows:
+   * where its edges are, that a maximised window and a phone both stand a gesture
+   * down, what to bring to the front, and that a finished gesture is remembered.
+   *
+   * @param {DeskWindow} entry
+   * @returns {import("./window-gestures.js").GestureHost}
+   */
+  #gestureHost(entry) {
+    return {
+      el: entry.el,
+      box: entry.box,
+      bounds: () => this.root.getBoundingClientRect(),
+      standDown: () => entry.maximised || this.#phone(),
+      onStart: () => this.#focus(entry),
+      onEnd: () => this.#save(),
+    };
   }
 
   /* ── lamps ────────────────────────────────────────────────────────────── */
@@ -609,19 +531,9 @@ export class Desk {
    * @param {DeskWindow} entry
    */
   #toggleMaximise(entry) {
-    const { box } = entry;
-
-    if (entry.maximised) {
-      entry.maximised = false;
-      entry.el.classList.remove("is-maximised");
-      if (box.restore) Object.assign(box, box.restore);
-    } else {
-      entry.maximised = true;
-      box.restore = { x: box.x, y: box.y, w: box.w, h: box.h };
-      entry.el.classList.add("is-maximised");
-    }
-    box.max = entry.maximised;
-    this.#refit(entry.el, box, entry.maximised);
+    entry.maximised = !entry.maximised;
+    setMaximised(entry.el, entry.box, entry.maximised);
+    this.#refit(entry.el, entry.box, entry.maximised);
     this.#focus(entry);
     this.#save();
   }

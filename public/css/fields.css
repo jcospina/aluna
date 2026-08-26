@@ -14,44 +14,66 @@
 /* ── Create and edit forms ────────────────────────────────────────────────────
    A calm vertical stack of fields with a trailing actions row. The submit button
    is the platform `.btn--primary` (components.css), so only layout lives here. */
+/* Both forms have the same shape, and now for the same reason: each one fills the
+   surface it arrives on, its fields are what scrolls, and its actions sit on the
+   bottom edge where the eye ends up rather than somewhere down the page. The create
+   form joined the edit form here when "New X" stopped being a panel above the list
+   and started taking the window. */
 .capability-create-form,
 .capability-edit-form {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   gap: var(--space-3);
 }
+/* The edit form still arrives in the shared modal, whose panel is not a column for it
+   to be an item of, so there it takes the height directly. It joins the rule above
+   when 5.7/01 gives a record its own view in the window and the modal is deleted. */
 .capability-edit-form {
   height: 100%;
-  min-height: 0;
 }
+/*
+ * The rhythm is the design system's: `--space-4` between fields, where the product
+ * had been stacking them at `--space-2` and reading as a wall.
+ *
+ * The inline padding is what a focus ring needs. The ring is 3px at a 2px offset, so
+ * it reaches 5px past the control, and the control is the full width of this
+ * scroller — without room here the ring is clipped flat against both edges and the
+ * wells sit hard against the window's own frame.
+ */
 .capability-create-form__fields,
 .capability-edit-form__fields {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-}
-.capability-edit-form__fields {
+  gap: var(--space-4);
   flex: 1 1 auto;
   min-height: 0;
+  padding: var(--space-1) var(--space-2);
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
 }
+/* Stuck to the bottom, and stated as `sticky` rather than left to flex order: the
+   fields above scroll, and a row that merely came last would scroll away with the
+   last field on a form longer than the window. */
 .capability-create-form__actions,
-.capability-edit-form__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-1);
-}
 .capability-edit-form__actions {
   position: sticky;
   flex: 0 0 auto;
   z-index: 1;
   bottom: 0;
-  padding: var(--space-2) var(--space-1) var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2) var(--space-2);
   background: var(--surface);
-  border-top: var(--line) solid var(--ink);
+  /* A line that divides is ruled, not drawn — and it is the hairline the design
+     system keeps for the one rule that lives inside a form, not full ink, which
+     would read as a second boundary under the last field. */
+  border-top: var(--line) solid var(--ink-hair);
 }
 
 /* One field: label stacked above its control (the everyday case). */
@@ -60,24 +82,39 @@
   flex-direction: column;
   gap: var(--space-1);
 }
+/* The label is set in caps, the way `design/styles/components/form-controls.css`
+   sets it: quiet, small and above the well rather than competing with the value
+   inside it. */
 .field__label {
   font-family: var(--font-body);
-  font-size: var(--type-sm);
+  font-size: var(--caps-size);
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--caps-tracking);
   line-height: 1.4;
-  color: var(--ink);
+  color: var(--ink-2);
 }
 
-/* The text / number / datetime control — same visual language as the prompt field. */
+/*
+ * The control, on the design system's own numbers: one row height, the well fill
+ * that separates a thing you type into from the surface it sits on, and the
+ * horizontal padding every other control on the surface uses.
+ *
+ * Still a bare `<input>` carrying its own ruled border rather than the shell plus
+ * bare element the design specifies — a void element cannot hold the two SVG layers
+ * a drawn boundary needs, and that split is 5.10/03. What it can do until then is
+ * stop being a different size and colour from everything around it.
+ */
 .field__control {
   display: block;
   width: 100%;
-  padding: var(--space-1) var(--space-2);
+  min-height: var(--control-h);
+  padding: 0 var(--control-pad-x);
   font-family: var(--font-body);
-  font-size: var(--type-base);
+  font-size: var(--control-text);
   line-height: 1.5;
   color: var(--ink);
-  background: var(--surface);
+  background: var(--surface-2);
   border: var(--line) solid var(--ink);
   transition:
     box-shadow var(--dur-fast) var(--ease-rise),

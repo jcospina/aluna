@@ -10,6 +10,7 @@ import {
   revealBuildNarration,
   startDeskLogos,
 } from "#shell/desk-logos.js";
+import { WINDOW_CONTENT_ID } from "#shell/desk-window.js";
 import { renderBuildSubscriber, renderProvisionalLogo } from "../web/fragments.ts";
 
 /**
@@ -292,6 +293,8 @@ describe("the module ships with the shell", () => {
     // answer `region-scope.js` and `app.js` give for `RELEASE_REGION_EVENT`.
     expect(renderProvisionalLogo("build-1")).toContain(`${PROVISIONAL_LOGO_ATTRIBUTE}="build-1"`);
     expect(renderBuildSubscriber("build-1")).toContain('data-build-job-id="build-1"');
-    expect(read("public/index.html")).toContain(`id="${BUILD_NARRATION_REGION_ID}"`);
+    // The narration region is no longer in the shell: the window holds it, and the
+    // window is created by the client. Both halves can import that one, so they do.
+    expect(BUILD_NARRATION_REGION_ID).toBe(WINDOW_CONTENT_ID);
   });
 });

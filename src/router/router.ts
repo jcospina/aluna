@@ -54,7 +54,7 @@ import {
   capabilitySpecFromRow,
   readActiveRegistryCatalog,
 } from "../registry/index.ts";
-import { renderCachedCapabilityShell, renderCachedCapabilitySurface } from "../web/index.ts";
+import { renderCachedCapabilitySurface, renderRehydratedShellPage } from "../web/index.ts";
 import type {
   CapabilityCreateHandler,
   CapabilityDeleteHandler,
@@ -211,11 +211,16 @@ function handleCapabilityViewRequest(
 
   try {
     if (c.req.header("HX-Request") === "true") return c.html(renderCachedCapabilitySurface(row));
+    // A direct navigation renders the whole desk and nothing composed into it: the window
+    // is the client's to create, so it opens over the logo this address names and asks for
+    // the fragment above. The row is still read first, because a 404 has to be a 404
+    // before a desk is drawn for it.
+    //
     // The full page names every logo's incarnation-keyed address, and those addresses are
     // served `immutable` for a year. A cached copy of this page is the one way that
     // guarantee is defeated without the logo route being wrong, so it is never stored —
     // the same reason `/` sets it.
-    return c.html(renderCachedCapabilityShell(row, databases.readonly, catalog), 200, {
+    return c.html(renderRehydratedShellPage(databases.readonly, catalog), 200, {
       "cache-control": "no-store",
     });
   } catch (error) {

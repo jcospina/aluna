@@ -15,7 +15,6 @@ import {
   collectCapabilityLogoText,
   createCapabilityDataTool,
   formBody,
-  inspectCapabilitySurfacePlacement,
   install,
   notesRow,
   notesSpec,
@@ -252,23 +251,26 @@ describe("deterministic capability router — view scaffolding", () => {
     const fragment = await (
       await app.request("/capability/notes", { headers: { "HX-Request": "true" } })
     ).text();
-    const shell = await (await app.request("/capability/notes")).text();
+    const desk = await (await app.request("/capability/notes")).text();
 
-    // Both serving paths render the read-wired region but bake in NO record — the data
+    // The fragment renders the read-wired region but bakes in NO record — the data
     // never enters the platform chrome (ADR-0004's never-stale cache is preserved
     // because the chrome is deterministic from the spec, not from the data).
-    for (const body of [fragment, shell]) {
-      expect(body).toContain('id="notes-records"');
-      expect(body).toContain('hx-get="/capability/notes/read"');
-      expect(body).toContain('hx-trigger="load"');
-      expect(body).not.toContain("Secret memo");
-    }
+    expect(fragment).toContain('id="notes-records"');
+    expect(fragment).toContain('hx-get="/capability/notes/read"');
+    expect(fragment).toContain('hx-trigger="load"');
+    expect(fragment).not.toContain("Secret memo");
+
+    // The page around it carries no view at all — the window the client opens asks for
+    // the fragment above — so there is nowhere for a record to be baked into either.
+    expect(desk).not.toContain("capability-surface");
+    expect(desk).not.toContain("Secret memo");
 
     // The record really is there — it just arrives only through the read action.
     expect(await (await app.request("/capability/notes/read")).text()).toContain("Secret memo");
   });
 
-  test("direct capability navigation returns the styled shell with the spec-rendered list scaffolding active", async () => {
+  test("direct capability navigation returns the styled desk, and the window asks for the view", async () => {
     install(conns, notesRow());
     const app = createApp({ capabilityRouter: { databases: conns } });
 
@@ -282,19 +284,31 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain('src="/static/vendor/htmx.min.js"');
     expect(body).toContain('class="shell"');
     expect(body).not.toContain("has-capabilities");
-    expect(body).toContain('id="spec-build-output"');
-    expect(body).toContain('class="capability-surface"');
-    expect(body).toContain('data-active-capability-id="notes"');
-    expect(body).toContain('hx-get="/capability/notes/read"');
-    expect(body).toContain('hx-post="/capability/notes/create"');
-    expect(body).toContain('hx-swap="none"');
-    expect(body).toContain("data-post-mutation-refresh");
-    expect(body).toContain('data-records-target-id="notes-records"');
-    expect(body).toContain('data-read-url="/capability/notes/read"');
+
+    // The desk, whole: the addressed capability's logo standing on it, the layer its
+    // window opens on, and the module that opens it. Nothing is composed into the page,
+    // because there is no longer a hole to compose into.
     expect(body).toContain("data-capability-logo");
     expect(body).toContain('hx-get="/capability/notes"');
-    expect(await inspectCapabilitySurfacePlacement(body)).toEqual({ insideActiveContent: true });
+    expect(body).toContain('class="desk__windows"');
+    expect(body).toContain('src="/static/desk-window.js"');
+    expect(body).not.toContain('id="spec-build-output"');
+    expect(body).not.toContain("capability-surface");
+    expect(body).not.toContain("data-active-capability-id");
     expect(await collectCapabilityLogoText(body)).toEqual(["Notes"]);
+
+    // The view the window then asks for, at the same address the browser is already on.
+    const view = await (
+      await app.request("/capability/notes", { headers: { "HX-Request": "true" } })
+    ).text();
+    expect(view).toContain('class="capability-surface"');
+    expect(view).toContain('data-active-capability-id="notes"');
+    expect(view).toContain('hx-get="/capability/notes/read"');
+    expect(view).toContain('hx-post="/capability/notes/create"');
+    expect(view).toContain('hx-swap="none"');
+    expect(view).toContain("data-post-mutation-refresh");
+    expect(view).toContain('data-records-target-id="notes-records"');
+    expect(view).toContain('data-read-url="/capability/notes/read"');
   });
 });
 
@@ -321,10 +335,9 @@ describe("deterministic capability router — logo rehydration and labels", () =
 
     const body = await (await app.request("/capability/notes")).text();
 
-    // Both logos present (ordered by id, the registry's stable order), and the opened
-    // capability is still the active content surface.
+    // Both logos present (ordered by id, the registry's stable order). Which one the
+    // window opens over is the address's business, and the client reads it there.
     expect(await collectCapabilityLogoText(body)).toEqual(["Boom", "Notes"]);
-    expect(body).toContain('data-active-capability-id="notes"');
     expect(body).toContain('id="capability-logo-notes"');
     expect(body).toContain('id="capability-logo-boom"');
     expect(body).toContain('hx-get="/capability/notes"');

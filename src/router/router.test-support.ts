@@ -202,41 +202,6 @@ export function formBody(
   };
 }
 
-export async function inspectCapabilitySurfacePlacement(html: string): Promise<{
-  insideActiveContent: boolean;
-}> {
-  let surfaceAncestors: string[][] | undefined;
-  const stack: string[][] = [];
-  const rewriter = new HTMLRewriter().on("*", {
-    element(element) {
-      const classList = classNames(element.getAttribute("class"));
-      stack.push(classList);
-
-      if (classList.includes("capability-surface")) {
-        surfaceAncestors = stack.map((classes) => [...classes]);
-      }
-
-      if (element.canHaveContent) {
-        element.onEndTag(() => {
-          stack.pop();
-        });
-      } else {
-        stack.pop();
-      }
-    },
-  });
-
-  await new Response(rewriter.transform(new Response(html)).body).text();
-
-  if (!surfaceAncestors) {
-    throw new Error("missing .capability-surface in direct capability shell");
-  }
-
-  return {
-    insideActiveContent: surfaceAncestors.some((classes) => classes.includes("content__active")),
-  };
-}
-
 export async function collectCapabilityLogoText(html: string): Promise<string[]> {
   const entries: string[] = [];
   let currentEntry: string | undefined;
@@ -257,10 +222,6 @@ export async function collectCapabilityLogoText(html: string): Promise<string[]>
 
   await new Response(rewriter.transform(new Response(html)).body).text();
   return entries;
-}
-
-export function classNames(value: string | null): string[] {
-  return value?.split(/\s+/).filter(Boolean) ?? [];
 }
 
 export function normalizeSpace(value: string): string {

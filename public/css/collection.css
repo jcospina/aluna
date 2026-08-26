@@ -17,8 +17,21 @@
 /* ── List scaffolding ─────────────────────────────────────────────────────────
    A calm vertical stack: the New X header, the disclosed create form, the records
    region, and the empty state — separated by the standard section rhythm. */
+/* Two views of one surface (design D2): the collection, and the form that replaces
+   it. Both fill the window rather than stacking inside it, which is what lets the
+   form's action row sit on the window's own bottom edge. */
 .capability-collection {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: var(--space-3);
+}
+.capability-collection__list,
+.capability-collection__create {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -31,14 +44,6 @@
 }
 .capability-collection__new {
   flex: 0 0 auto;
-}
-/* The create form the "New X" button discloses (x-show). A surface panel so the
-   platform form sits on its own quiet card above the list. */
-.capability-collection__create {
-  padding: var(--space-3);
-  background: var(--surface);
-  border: var(--line) solid var(--ink);
-  --ink-hand: frame;
 }
 
 /* ── Search chrome ─────────────────────────────────────────────────────────────
@@ -186,6 +191,14 @@
    dominant items. Arrangement values (flex/grid, `auto-fill`, the `16rem` track
    floor, `1fr`) are structure, not design values — the token-owned axes are the
    gap (spacing tokens) and everything the item wrapper draws. */
+/* The records are what scrolls in the list view, so the search rail and the "New X"
+   control stay where they were put. `flex-grow: 0`: an empty region takes no height,
+   and the empty state reads directly under the rail rather than at the far bottom. */
+.capability-records {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
 .capability-records--feed {
   display: flex;
   flex-direction: column;

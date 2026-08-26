@@ -1,64 +1,15 @@
 /* =============================================================================
-   Living demo — the content-area surfaces driven by the build flow
+   Living demo — the surfaces driven by the build flow
    The product-voice build stream and the raw
    developer stage previews (the latter rendered inside the developer panel's
    blocks). Replaced piece by piece as real capabilities land.
+
+   The shell's own content area is gone: everything below now renders inside the
+   one window, which the client creates and destroys (/static/desk-window.js).
+   There is nothing left to hide until content arrives, because a window that has
+   nothing in it does not exist.
    ========================================================================== */
 
-/* Hidden by default and shown when the output holds something worth looking at: any
-   content that is not a build stream, or a build stream that has started to speak.
-   Stated as one quiet base and three show rules rather than as competing hide rules,
-   because `:has()` carries the specificity of what it holds and an `#id` inside one
-   silently outranks the rule meant to override it.
-
-   The output region is drawn, and the ink system keeps its two layers as children of
-   what it draws (design/styles/components/ink.css), so a drawn region is never
-   `:empty` and nothing inside one is ever `:only-child`. Both questions are asked
-   past the layers instead. */
-.content__active {
-  display: none;
-  min-height: 100%;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
-}
-.content__active:has(#spec-build-output > :not(.ink__ground, .ink__layer, .build-stream)),
-.content__active:has(#spec-build-output > .build-stream > .build-stream__narration:not(:empty)),
-.content__active:has(#spec-build-output > .build-stream > .build-stream__commit:not(:empty)) {
-  display: flex;
-}
-
-/* ── Builder-stage verification stream (Module 2 §2.5+) ──────────────────────
-   The prompt bar posts to /prompt and the per-build stream it hands back drives
-   the current real builder stages, which write product-voice narration plus raw
-   developer previews into the content area. */
-.intro {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  width: min(50rem, 100%);
-}
-/* The live output box: hidden until the first chunk arrives (:empty), then a
-   surface holding the streamed build output, left-aligned. It is the content
-   region — a thing that holds other things — so it takes the full hand. */
-.intro__output {
-  align-self: stretch;
-  padding: var(--space-2);
-  font-family: var(--font-body);
-  font-size: var(--type-base);
-  line-height: 1.5;
-  color: var(--ink);
-  text-align: left;
-  background: var(--surface);
-  border: var(--line) solid var(--ink);
-  --ink-hand: frame;
-}
-/* Hidden until the first chunk arrives. Drawn, so `:empty` is never true of it — see
-   the note above `.content__active`. */
-.intro__output:not(:has(> :not(.ink__ground, .ink__layer))) {
-  display: none;
-}
 /* §2.5 demo: raw stage previews. Quiet, monospaced, scrollable surfaces; hidden
    until their first payload (:empty). Ruled rather than drawn, and deliberately: the
    payload is text, `:empty` is the only selector that can see text, and a drawn
@@ -102,23 +53,42 @@
 }
 
 /* Commit swap: once the capability surface lands, the build narration is no
-   longer the visible state; the content area should read as the active capability. */
+   longer the visible state; the window should read as the active capability. */
 .build-stream:has(.build-stream__commit:not(:empty)) .build-stream__narration,
 .build-stream:has(.build-stream__commit:not(:empty)) .build-stream__fragment {
   display: none;
 }
 
-/* The centered content column a committed capability's View lands in. Since epic
+/* The centered column a committed capability's View lands in. Since epic
    3.2/03 it holds the platform list scaffolding (list-container.ts), which is fully
    self-styled via collection.css / fields.css / components.css. The old generic child
    rules (raw input/textarea/button/heading styling) were a Module-2 stopgap for the
    unstyled generated `list.html`/`create.html` views — retired with them, so they can
-   no longer bleed onto (and override) the platform's own field/button chrome. */
+   no longer bleed onto (and override) the platform's own field/button chrome.
+
+   The padding is the room a record needs to be pressed and focused in. The window's
+   body pads the frame, but that padding is *outside* the scroller: a card nudged
+   1–2px by :hover/:active, or ringed 5px by :focus-visible, lands outside the
+   scroller's box and asks for a horizontal scrollbar the list never wanted — and the
+   ring itself gets clipped. Held here, on a child of the scroller, rather than on the
+   scroller itself, because a scroll container's own bottom padding has a long history
+   of being left out of the scrollable overflow area. */
 .capability-surface {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
   width: min(52rem, 100%);
+  /*
+   * Exactly the window's height — grows into it when the content is short, and
+   * shrinks to it when the content is long rather than pushing the region into a
+   * scroll. That is what makes every height below this one definite, and a definite
+   * height is the whole reason the create form's action row can sit on the window's
+   * bottom edge instead of drifting up it. Only this surface claims the height: the
+   * build narration is a sibling that still grows and scrolls the region.
+   */
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 0 auto;
-  padding: var(--space-4) var(--space-2);
+  padding: var(--space-2);
   text-align: left;
 }

@@ -43,8 +43,19 @@
   background: transparent;
 }
 
-/* The title sits bare on the chrome — no lozenge, plate or badge. */
+/*
+ * The title sits bare on the chrome — no lozenge, plate or badge.
+ *
+ * The bar's height is locked, so a long title has exactly one behaviour open to
+ * it: truncate. `min-width: 0` is what makes that possible at all — a flex item
+ * refuses to shrink below its content without it, and the title would push the
+ * lamps off the end of the bar instead of ending in an ellipsis.
+ */
 .window__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-display);
   font-size: var(--type-title);
   font-weight: 700;

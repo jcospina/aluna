@@ -9,13 +9,14 @@
     <link rel="icon" href="data:,">
 
     <!--
-      The fixed shell — Aluna's one static UI surface (ARCH §4, §6.1). It ships
-      once and never changes; everything inside the regions below is generated at
-      runtime and streamed in by later epics. The page is the desk ground: a
-      wallpaper filling the viewport, every capability standing on it as a logo,
-      and the prompt bar floating over both clear of every edge (PLAN decisions 1,
-      3 and 4; design D4, D5). The developer panel is the last Module 1–4 chrome
-      the Desk has not replaced yet; it becomes its own window in 5.6.
+      The fixed shell — Aluna's one fixed UI surface (ARCH §4, §6.1). The page is
+      the desk ground: a wallpaper filling the viewport, every capability standing
+      on it as a logo, and the prompt bar floating over both clear of every edge
+      (PLAN decisions 1, 3 and 4; design D4, D5). It is not inert after first load:
+      the window over that ground is created and destroyed by the client, and
+      everything a capability shows happens inside it. The developer panel is the
+      last Module 1–4 chrome the Desk has not replaced yet; it becomes the second
+      window in 5.6/04.
       High Meadow is the shipped product surface; see design/design-system.md.
     -->
 
@@ -96,6 +97,15 @@
     <script type="module" src="/static/logo-attempt.js"></script>
 
     <!--
+      The one window. `design/scripts/window.js` is the window itself, the way
+      `design/scripts/ink.js` is the drawn line; this is the product's half of that
+      seam — it owns when the one window exists, what is in it, and what the two lamps
+      do. It creates the content region every existing swap addresses, which is why
+      the shell no longer carries one.
+    -->
+    <script type="module" src="/static/desk-window.js"></script>
+
+    <!--
       The drawn line. The ink system ships from design/scripts/ the way the token
       layer ships from design/styles/, and /static/ink.js is only the product's half
       of the seam: it names the temporary shell's own chrome and starts the system.
@@ -122,8 +132,9 @@
            mobile while it is open (CSS); inert otherwise. -->
       <div class="backdrop" @click="devbarOpen = false" aria-hidden="true"></div>
 
-      <!-- Content column — the ground the prompt bar floats over. The content
-           area fills it and stops at the strip the bar reserves. -->
+      <!-- Content column — the ground the logos stand on, the window opens over,
+           and the prompt bar floats above. It is what all three are positioned
+           against, so they share one set of edges and one floor. -->
       <div class="content-column">
         <!-- The logo layer. Every capability the user has, standing on the ground:
              with no taskbar these are the only standing list of what exists, and the
@@ -167,26 +178,20 @@
           </button>
         </div>
 
-        <!-- Content area — empty surface; capabilities and SSE streams render
-             here later. At cold-start it shows only current builder narration. -->
-        <main class="content">
-          <div class="content__active">
-            <div class="intro">
-              <div
-                class="intro__output"
-                id="spec-build-output"
-                data-content-region="content area"
-                aria-live="polite"
-              ></div>
-            </div>
-          </div>
-        </main>
+        <!-- The window layer. The desk's ground for the one window, and empty in the
+             page: the window itself is created and destroyed by the client
+             (/static/desk-window.js), which is why page assembly has no anchor here
+             and the shell no longer ships a content area at all. Whatever a
+             capability shows — its collection, and the narration of a build — happens
+             inside that window (PLAN decision 1; design D1, D2). -->
+        <div class="desk__windows"></div>
 
         <!-- Prompt bar — the one thing on the page that belongs to Aluna rather
              than to a capability (design D5). It floats over the ground clear of
              all four edges and is never full width; the strip it floats in is
-             --prompt-clearance, which the content area above reserves so a
-             records list stops at the bar rather than under it.
+             --prompt-clearance, and no window may be dragged, resized or
+             maximised into it (design/scripts/desk-geometry.js), so a records list
+             stops at the bar rather than under it.
 
              HTMX posts to /prompt; the returned subscriber fragment opens the
              per-build stream. Alpine only mirrors stream lifecycle as a courtesy
@@ -231,7 +236,7 @@
       <!-- Developer panel — the last Module 1–4 chrome, anchored right, holding the
            build's raw internals: each generation stage's JSON, populated as it
            streams. A developer-facing verification surface, toggled by the </> icon
-           above; product narration stays in the content area. It becomes the second
+           above; product narration stays in the window. It becomes the second
            window, opened from its own tile on the desk, in 5.6/04. The stage previews
            keep their original ids so app.js writes to them unchanged. -->
       <aside class="devbar" id="developer-panel" aria-label="Developer panel">
