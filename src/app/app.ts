@@ -213,11 +213,16 @@ function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
   // an edit. Content-type is set explicitly because Hono's router drops Bun's lazily
   // inferred header. Kept as an explicit route rather than a serveStatic fall-through so
   // `/` stays greppable and `app.request("/")`-testable.
+  // Never stored. The desk is a live view of the registry, and it is also the page that
+  // *names* every logo's incarnation-keyed address. A stale copy would go on asking for a
+  // deleted lifetime's picture, which the browser would then serve out of the year-long
+  // immutable entry that address was granted — the one way decision 34's guarantee can be
+  // defeated without the route being wrong (ADR-0007).
   app.get(
     "/",
     () =>
       new Response(renderRehydratedShellPage(registryReadonly), {
-        headers: { "content-type": "text/html; charset=utf-8" },
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
       }),
   );
 }
@@ -384,6 +389,16 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
 export function createApp(deps: AppDeps = {}): Hono {
   const ctx = resolveAppDeps(deps);
   const app = new Hono();
+
+  // Every route here states its own cache policy; these two are what answers when no route
+  // does. Hono's built-ins carry no directive at all, and a bare 404 is heuristically
+  // cacheable (RFC 9111 §4.2.2) — so a mistyped or half-built address could be remembered
+  // as missing. Nothing this platform serves is ever worth storing without being asked.
+  app.notFound((c) => c.text("404 Not Found", 404, { "cache-control": "no-store" }));
+  app.onError((error, c) => {
+    console.error("omni-crud request failed:", error);
+    return c.text("Internal Server Error", 500, { "cache-control": "no-store" });
+  });
 
   registerShellRoute(app, ctx);
   registerBuildJobRoutes(app, ctx);

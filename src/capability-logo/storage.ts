@@ -17,7 +17,7 @@
 //     and the attempt that made it and is removed in `finally`, so recovery never has to
 //     guess what a crashed claim left behind.
 
-import { existsSync, linkSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { linkSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { createSafeStagingParent } from "../builder/artifacts/artifact-publication.ts";
@@ -48,12 +48,25 @@ export function capabilityLogoPath(
   );
 }
 
-export function capabilityLogoExists(
+/**
+ * The accepted bytes, or `null` when this incarnation has no artwork to serve.
+ *
+ * One syscall rather than an `exists` followed by a read, and every failure is `null`
+ * rather than a throw. The route that calls this has to answer "no picture" with an
+ * explicit `no-store` 404: an unreadable file surfacing as an exception would leave the
+ * cache policy to whatever the framework does with a raised error, which is the one
+ * outcome the fail-closed rule exists to prevent.
+ */
+export function readCapabilityLogo(
   artifactsRoot: string,
   capabilityId: string,
   incarnationId: string,
-): boolean {
-  return existsSync(capabilityLogoPath(artifactsRoot, capabilityId, incarnationId));
+): Uint8Array<ArrayBuffer> | null {
+  try {
+    return readFileSync(capabilityLogoPath(artifactsRoot, capabilityId, incarnationId));
+  } catch {
+    return null;
+  }
 }
 
 export interface InstallCapabilityLogoInput {

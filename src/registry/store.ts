@@ -324,6 +324,28 @@ export function getCapability(id: string, database: Database = dbReadonly): Capa
  * row, which is why the row stays lean). Ordered by id so both consumers see
  * one stable, deterministic order.
  */
+/**
+ * The identities of every active capability incarnation, and nothing else.
+ *
+ * This is what a read gate is acquired against: it validates that a requested incarnation
+ * is in the active catalog and that no capability id names two of them, neither of which
+ * needs a spec. {@link listCapabilities} re-parses every row and
+ * `readActiveRegistryCatalog` then hashes all of them, which is the resolver's contract
+ * and real work — but a caller that only has to name incarnations was paying for it on
+ * every request, and a cold desk paint issues one per tile.
+ */
+export function listActiveIncarnations(
+  database: Database = dbReadonly,
+): { readonly id: string; readonly incarnation_id: string }[] {
+  return database
+    .query(
+      `SELECT id, incarnation_id FROM ${REGISTRY_TABLE}
+       WHERE lifecycle_state = 'active'
+       ORDER BY id`,
+    )
+    .all() as { id: string; incarnation_id: string }[];
+}
+
 export function listCapabilities(database: Database = dbReadonly): CapabilityRow[] {
   const stored = database
     .query(

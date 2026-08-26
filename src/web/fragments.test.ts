@@ -364,6 +364,10 @@ describe("the tile inside a logo", () => {
     // And it works while it waits: the attempt it just armed answers with this very
     // element, so a picture really is on its way here.
     expect(html).toContain("logo-tile--working");
+    // But it does not probe the artwork route. The immutable response exists only in
+    // `present`, and a placeholder asking for it would collect a 404 for a picture that
+    // has not been drawn yet (ADR-0007, decision 34).
+    expect(html).not.toContain(artworkUrl);
   });
 
   // htmx honours one verb per element, and `hx-get` wins. Putting the POST on the button
@@ -382,6 +386,7 @@ describe("the tile inside a logo", () => {
 
     expect(html).toContain("logo-tile--pending");
     expect(html).not.toContain("logo-attempt");
+    expect(html).not.toContain(artworkUrl);
     expect(html).not.toContain("hx-trigger");
     // And it rests. Nothing is on its way to an unarmed tile, and a tile still working
     // would promise an arrival that is not coming.

@@ -12,23 +12,41 @@
 // to `absent` comes back without a load trigger, so a swap cannot recursively spend the
 // remaining attempts inside one page load.
 //
-// `GET …/logo.svg` serves the accepted bytes exactly as they arrived, gated on the exact
-// active incarnation being `present`. **5.5/03 owns the rest of that route**: the
-// immutable cache directive, the compressed response and the ADR's full statement of the
-// picture-only rule. What is here is the minimum that makes this issue's artwork visible
-// on the desk — correct type, sniffing off, inert as a document, and never cached while
-// absent.
+// `GET …/logo.svg` serves the accepted bytes exactly as they arrived. Four properties,
+// and each one is somebody's law:
+//
+//   - **Immutable.** The address binds the semantic id *and* the incarnation, and L7 says
+//     those exact bytes are never remade — so the strongest cache directive HTTP has
+//     carries none of the risk it usually does. The incarnation is what makes it honest:
+//     a deleted semantic id may be rebuilt with different artwork, and an id-only address
+//     marked immutable would let a browser go on drawing the dead lifetime's picture.
+//   - **Only for a matching active `present` incarnation.** Every other state, a
+//     mismatched incarnation and a missing file fail closed with `no-store` and never the
+//     immutable policy, so one early 404 cannot outlive the artwork that arrives later.
+//     Platform tile rendering emits this URL only in `present`, so a placeholder tile
+//     does not probe the route at all — the fail-closed path is the defence for a direct
+//     request, not the ordinary case.
+//   - **Picture-only.** Nothing is done to the stored bytes (L8), so the *response* is
+//     what makes the address inert when it is opened as a document instead of drawn as a
+//     picture.
+//   - **Compressed.** The C2PA manifest is a flat 4,354 bytes across the four specimens
+//     and is not the bulk; gzip recovers 60–70% of a 111 kB drawing where stripping
+//     provenance would recover 4.4 kB and destroy the record of what drew it. So the
+//     manifest is kept and only the response over the wire is compressed — what is
+//     stored never changes, and the client decompresses back to it byte for byte.
 
-import { readFileSync } from "node:fs";
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import type { ReadGateCoordinator } from "../read-gates/index.ts";
-import { readActiveRegistryCatalog } from "../registry/index.ts";
 import { renderCapabilityLogo } from "../web/index.ts";
-import { readAttemptTarget, runCapabilityLogoAttempt } from "./attempt.ts";
+import {
+  readActiveIncarnationCatalog,
+  readAttemptTarget,
+  runCapabilityLogoAttempt,
+} from "./attempt.ts";
 import { createRecraftLogoProvider, type LogoGenerationProvider } from "./provider.ts";
-import { capabilityLogoExists, capabilityLogoPath } from "./storage.ts";
+import { readCapabilityLogo } from "./storage.ts";
 
 export interface CapabilityLogoRouteDeps {
   readonly registryDatabases: PlatformDatabase;
@@ -42,6 +60,15 @@ export interface CapabilityLogoRouteDeps {
 const NO_STORE = { "cache-control": "no-store" } as const;
 
 /**
+ * A year is the longest age HTTP defines as meaningful, and `immutable` additionally
+ * tells a browser not to revalidate even on an explicit reload. Both are only safe
+ * because of L7 and the incarnation in the path: these bytes are never remade, and the
+ * one event that changes a capability's picture — delete, then rebuild — mints a new
+ * incarnation and therefore a different address that shares no cache entry with this one.
+ */
+const IMMUTABLE = { "cache-control": "public, max-age=31536000, immutable" } as const;
+
+/**
  * The stored bytes are handed out untouched (L8), so the response — not the file — is
  * what makes the address inert when it is opened as a document rather than drawn as a
  * picture. `sandbox` with no allow-list removes scripting entirely, and `nosniff` stops
@@ -53,6 +80,63 @@ const PICTURE_ONLY_HEADERS = {
   "content-disposition": "inline",
   "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
 } as const;
+
+/**
+ * The response body depends on this request header, and it is cached for a year: a shared
+ * cache that stored the compressed variant without being told would hand it to the next
+ * client along, decodable or not.
+ */
+const VARY_ON_ENCODING = { vary: "accept-encoding" } as const;
+
+/**
+ * Whether this client said it can decode gzip.
+ *
+ * Parsed rather than substring-matched, because `gzip;q=0` is the explicit way to say
+ * *not* gzip and reads as an acceptance to anything looking for the four letters. `*`
+ * counts, and a missing header means identity: compression is an optimization, and the
+ * response has to be correct for a client that never asked for it.
+ */
+function acceptsGzip(header: string | undefined): boolean {
+  if (!header) return false;
+  let wildcard: number | undefined;
+  for (const entry of header.split(",")) {
+    const [rawName, ...parameters] = entry.split(";");
+    const name = rawName?.trim().toLowerCase();
+    if (name !== "gzip" && name !== "*") continue;
+    const declared = parameters
+      .map((parameter) => parameter.trim().toLowerCase())
+      .find((parameter) => parameter.startsWith("q="));
+    // An unparseable weight is NaN and every comparison below is therefore false, which
+    // sends the stored bytes — the safe answer to a header nobody can read.
+    const quality = declared ? Number.parseFloat(declared.slice(2)) : 1;
+    // Naming gzip settles it however the entries are ordered (RFC 9110 §12.5.3): a
+    // client that names it only to refuse it is not talked round by a later wildcard.
+    if (name === "gzip") return quality > 0;
+    wildcard = quality;
+  }
+  return wildcard !== undefined && wildcard > 0;
+}
+
+/**
+ * One drawing's bytes, as the immutable picture-only response the ADR describes.
+ *
+ * Compressed per request rather than kept: `immutable` means a client asks once per
+ * incarnation and then draws from its own cache for a year, so a resident copy of every
+ * logo ever served would grow without bound to save work nobody repeats.
+ */
+function servePicture(c: Context, stored: Uint8Array<ArrayBuffer>): Response {
+  const compress = acceptsGzip(c.req.header("accept-encoding"));
+  const body = compress ? Bun.gzipSync(stored) : stored;
+  return c.body(body, 200, {
+    ...PICTURE_ONLY_HEADERS,
+    ...IMMUTABLE,
+    ...VARY_ON_ENCODING,
+    // Stated rather than inferred: a HEAD has no body for the framework to measure, and
+    // RFC 9110 §9.3.2 requires it to answer with the same fields a GET would.
+    "content-length": String(body.byteLength),
+    ...(compress ? { "content-encoding": "gzip" } : {}),
+  });
+}
 
 export function registerCapabilityLogoRoutes(app: Hono, deps: CapabilityLogoRouteDeps): void {
   // Constructed lazily: a missing key must not stop the server from booting, exactly as
@@ -106,32 +190,35 @@ export function registerCapabilityLogoRoutes(app: Hono, deps: CapabilityLogoRout
   app.get("/capability/:id/:incarnation_id/logo.svg", (c) => {
     const capabilityId = c.req.param("id");
     const incarnationId = c.req.param("incarnation_id");
+    // Both halves of the address have to name the same active row. A semantic id that
+    // matches is not enough: an address minted for a lifetime that has since been deleted
+    // and rebuilt must answer nothing rather than fall through to the new drawing, or the
+    // year-long cache entry it was granted would be holding the wrong capability's face.
     const row = readAttemptTarget({ capabilityId, incarnationId }, deps.registryDatabases);
     if (row?.logo.status !== "present") {
       // Never cached: a request made before the artwork arrives must not cache its
-      // absence forever.
+      // absence forever, and `absent` is a state a later attempt is expected to leave.
       return c.body(null, 404, NO_STORE);
     }
 
     // The read token is held for the serve, so deletion cannot race the file out from
     // under an in-flight response.
     const tokens = deps.readGates.tryAcquire({
-      catalog: readActiveRegistryCatalog(deps.registryDatabases.readonly).capabilities.map(
-        (candidate) => ({
-          capabilityId: candidate.id,
-          incarnationId: candidate.incarnation_id,
-        }),
-      ),
+      catalog: readActiveIncarnationCatalog(deps.registryDatabases.readonly),
       incarnations: [{ capabilityId, incarnationId }],
     });
     if (!tokens) return c.body(null, 404, NO_STORE);
 
     try {
-      const path = capabilityLogoPath(deps.artifactsRoot, capabilityId, incarnationId);
-      if (!capabilityLogoExists(deps.artifactsRoot, capabilityId, incarnationId)) {
-        return c.body(null, 404, NO_STORE);
-      }
-      return c.body(readFileSync(path), 200, { ...PICTURE_ONLY_HEADERS, ...NO_STORE });
+      const stored = readCapabilityLogo(deps.artifactsRoot, capabilityId, incarnationId);
+      // `present` with no readable file is a row the recovery sweep (5.5/04) owns. The
+      // route's job is to not pretend, and above all to not let a browser cache the gap
+      // under a directive that outlives every attempt that could still fill it. An empty
+      // file is that same gap: no drawing ever validated as zero bytes, so it is a
+      // truncation, and a truthy empty `Uint8Array` would otherwise sail straight past
+      // this guard and be cached as a blank tile for a year.
+      if (!stored || stored.byteLength === 0) return c.body(null, 404, NO_STORE);
+      return servePicture(c, stored);
     } finally {
       deps.readGates.release(tokens);
     }

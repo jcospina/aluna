@@ -5,10 +5,10 @@ import { join } from "node:path";
 
 import { CAPABILITY_LOGO_FILENAME } from "./artifact-names.ts";
 import {
-  capabilityLogoExists,
   capabilityLogoPath,
   installCapabilityLogo,
   LogoInstallError,
+  readCapabilityLogo,
 } from "./storage.ts";
 
 const CAPABILITY = "notes";
@@ -68,7 +68,6 @@ describe("installation", () => {
   test("lands the exact bytes and leaves no staging artifact behind", () => {
     install(ARTWORK);
 
-    expect(capabilityLogoExists(root, CAPABILITY, INCARNATION)).toBe(true);
     expect(readFileSync(capabilityLogoPath(root, CAPABILITY, INCARNATION)).equals(ARTWORK)).toBe(
       true,
     );
@@ -120,6 +119,28 @@ describe("installation", () => {
     rmSync(join(root, CAPABILITY, INCARNATION), { recursive: true, force: true });
 
     // ADR-0006's existing cleanup owns the whole tree, so no second cleanup path exists.
-    expect(capabilityLogoExists(root, CAPABILITY, INCARNATION)).toBe(false);
+    expect(existsSync(capabilityLogoPath(root, CAPABILITY, INCARNATION))).toBe(false);
+  });
+});
+
+describe("reading", () => {
+  test("hands back exactly what was installed", () => {
+    install(ARTWORK);
+
+    const bytes = readCapabilityLogo(root, CAPABILITY, INCARNATION);
+
+    expect(bytes && Buffer.from(bytes).equals(ARTWORK)).toBe(true);
+  });
+
+  test("no artwork is `null`, not a throw", () => {
+    // The route answering with this has to mark its 404 `no-store`; a raised exception
+    // would hand the cache policy to whatever the framework does with an error instead.
+    expect(readCapabilityLogo(root, CAPABILITY, INCARNATION)).toBeNull();
+  });
+
+  test("a path that is a directory rather than a drawing is also `null`", () => {
+    mkdirSync(capabilityLogoPath(root, CAPABILITY, INCARNATION), { recursive: true });
+
+    expect(readCapabilityLogo(root, CAPABILITY, INCARNATION)).toBeNull();
   });
 });
