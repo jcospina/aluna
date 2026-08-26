@@ -8,8 +8,15 @@
 // migrations runner against the read-write connection — synchronously,
 // before serving, so the db is ready the moment the first request arrives.
 
-import { app, platformDeletionCleanup, platformReadGates } from "./app/app.ts";
+import {
+  app,
+  platformDeletionCleanup,
+  platformLogoClaims,
+  platformMutationCoordinator,
+  platformReadGates,
+} from "./app/app.ts";
 import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
+import { recoverCapabilityLogos } from "./capability-logo/index.ts";
 import { db, dbReadonly } from "./persistence/db.ts";
 import { runMigrations } from "./persistence/migrations.ts";
 import { listCapabilityDeletionTombstones, readActiveRegistryCatalog } from "./registry/index.ts";
@@ -53,6 +60,35 @@ const reconciliation = reconcileCapabilityArtifacts({
 if (reconciliation.removed.length > 0) {
   console.log(
     `omni-crud reconciled ${reconciliation.removed.length} never-activated artifact candidate(s)`,
+  );
+}
+// A logo claim interrupted by whatever ended the last process. The first desk load would
+// reconcile it anyway, but between boot and that load the platform would be serving a
+// lifecycle it already knows to be untrue — a row stranded in `generating`, or a `present`
+// one whose drawing has gone. No provider is called and no attempt is spent here.
+//
+// Guarded exactly as the desk load's own pass is, and for a sharper reason: an unhandled
+// rejection at module top level means `Bun.serve` below is never reached. A logo is never
+// worth a platform that will not boot — this module has shipped that failure once already
+// (`capability-logo/artifact-names.ts`).
+try {
+  const logoRecovery = await recoverCapabilityLogos({
+    databases: { readwrite: db, readonly: dbReadonly },
+    mutationCoordinator: platformMutationCoordinator,
+    readGates: platformReadGates,
+    artifactsRoot: DEFAULT_ARTIFACTS_ROOT,
+    claims: platformLogoClaims,
+  });
+  for (const entry of logoRecovery) {
+    console.log(
+      `omni-crud recovered the logo for ${entry.capabilityId}/${entry.incarnationId}: ${entry.action}` +
+        (entry.removedTemps > 0 ? ` (removed ${entry.removedTemps} stale attempt temp(s))` : ""),
+    );
+  }
+} catch (error) {
+  console.error(
+    "omni-crud could not reconcile capability logos at boot:",
+    error instanceof Error ? error.message : error,
   );
 }
 

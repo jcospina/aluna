@@ -106,7 +106,7 @@ what it does
 A capability's picture, and its permanent identity on the desk. A hosted vector
 service draws it in a follow-up after v1 has activated, its presenter has
 terminated and the long build lease has released, from a subject phrase and the two
-two hue families the model names — a ground and a companion — resolved to concrete
+hue families the model names — a ground and a companion — resolved to concrete
 shades by the incarnation seed, and nothing else. The returned SVG is stored as received once at
 the capability incarnation root, beside its immutable version snapshots, and
 served immutable from an incarnation-keyed route. It is made once and never
@@ -255,7 +255,8 @@ The registry's durable record of where one incarnation's artwork has got to:
 a status of `absent`, `generating`, `present` or `abandoned`, and the count of
 attempts spent on it. `generating` is a claim, won atomically by exactly one
 sweep and paid for the moment it is won rather than when a provider answers, so
-two desk loads can never order the same drawing twice. It is platform-owned and
+two desk loads can never order the same drawing twice, and the third claim is the
+last one any concurrency can win. It is platform-owned and
 absent from every authored spec, and no ordinary registry write can move it —
 evolution neither reads nor writes it. Stored beside it is the incarnation's
 **logo seed**, the record of what drew the artwork: minted with the row and
@@ -263,6 +264,38 @@ carried unchanged through every version, never derived from a name or a position
 that could move without the drawing changing
 ([ADR-0007](docs/adr/0007-capability-logo-contract.md); M5 plan 42).
 _Avoid_: logo job, render status, retry flag, hash seed
+
+**Desk-load sweep**:
+What a desk load does for the capabilities that have no face: a fresh render arms
+one load-triggered attempt on every `absent` tile, and that is the whole
+self-healing mechanism — no scheduler, because the page load is the one moment the
+platform reliably gets. It is not a background job and holds no queue of its own.
+_Avoid_: retry job, logo worker, background sweep, cron
+
+**Logo recovery**:
+The reconciliation a full-page desk render and boot both run *before* the desk is
+drawn, so the lifecycle the tiles are rendered from is true. It resolves a claim
+whose process died — from the no-overwrite final file and the already consumed
+count — clears what that claim left in staging, and moves a `present` row whose
+artwork has gone to `abandoned`. It spends nothing, decrements nothing, never
+removes an accepted drawing, and gives up its bounded wait for mutation ownership
+rather than holding a desk open ([ADR-0007](docs/adr/0007-capability-logo-contract.md)).
+_Avoid_: logo repair, garbage collection, healing pass
+
+**Running logo claims**:
+The attempts in flight *in this process*, tracked from before each claim is asked
+for until after it is finalized. Two questions read it: whether a `generating` row
+is a live claim or one a crash interrupted — identical in the registry, and only
+this can tell them apart — and what a claim loser observes. It is in-memory and
+per-app, and it is never a substitute for the durable lifecycle.
+_Avoid_: claim registry, claim cache, lock table, lease
+
+**Bounded observation**:
+What a desk load that lost the claim does instead of spending: it waits on the
+winning attempt's own completion, for a bounded moment, and answers with the tile
+the winner produced. Not a poll, not a queue, and not a second call — and it ends
+early if the reader who asked has gone.
+_Avoid_: polling, long poll, retry wait, backoff
 
 **Owned-resource manifest**:
 The deduplicated, incarnation-bound set of capability-owned resources a deletion

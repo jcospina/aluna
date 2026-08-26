@@ -2,8 +2,8 @@
 
 Status: accepted
 
-The art contract itself is [`design/logo.html`](../../design/logo.html): eleven
-locked decisions (L1–L11), the prompt block, the request fields, and the
+The art contract itself is [`design/logo.html`](../../design/logo.html): twelve
+locked decisions (L1–L12), the prompt block, the request fields, and the
 measurements each number was settled on. This ADR carries that contract into the
 decision record and closes what the page leaves to the platform — how a logo
 reaches the browser, what keeps it behaving as a picture and nothing else, where
@@ -17,9 +17,10 @@ since built the rest in order: the spec and registry fields (5.5/01), then the
 request, the provider client, the incarnation-root storage, the claimed attempt
 and the tile's load-triggered POST (5.5/02), then the logo route's immutable
 cache directive, its negotiated gzip and its fail-closed non-present answers
-(5.5/03). What remains is the desk-load sweep's recovery — an interrupted claim,
-a stale attempt temp, a `present` row whose file has gone, and the bounded wait a
-concurrent claim loser owes (5.5/04).
+(5.5/03), and finally the desk-load sweep: the attempt cap moved into the claim's
+own `WHERE`, recovery for an interrupted claim, its stale attempt temp, a
+`present` row whose file has gone, and the bounded observation a concurrent claim
+loser owes (5.5/04). The delivery half is complete.
 
 ## Decision
 
@@ -193,7 +194,28 @@ and the permanent placeholder. It is not regenerated: L7's once-accepted rule
 still applies after loss.
 Concurrent claim losers wait only for a bounded observation of the winner and
 return the current tile; they do not call the provider, block initial desk render
-or create a general polling/scheduler mechanism.
+or create a general polling/scheduler mechanism. What a loser waits on is the
+winner's own completion, held in process, so the observation costs one promise
+and no interval; it ends early when the reader who asked has gone.
+
+**A running claim and a crashed one leave the same durable row**, and recovery
+has to tell them apart before it touches either. The platform keeps the attempts
+running in *this process* — from before each claim is asked for until after it is
+finalized — and reconciles only rows nothing here is holding. That is exact where
+a timestamp would be a guess about how slow a service is allowed to be, and it is
+the same set the bounded observation is read from. A transition is additionally
+revalidated inside its own write against the status and count it was decided
+from, so a claim taken while recovery queued cannot be released out from under a
+paid call.
+
+Recovery runs **before a desk is drawn** — on every full-page desk render, `/`
+and a capability opened by URL alike, and once at boot — because only an `absent`
+tile arms an attempt, so a row a crash stranded in `generating` would otherwise
+never be offered another. It is therefore a registry write on a GET, deliberately:
+it is reconciliation of state the platform already knows to be untrue, it is
+idempotent, and it is never a paid call. It waits only a bounded moment for
+mutation ownership and leaves the rest to the next load, so a build holding the
+platform's lease cannot make the sweep the thing that blocks the desk.
 
 Claim and finalization are short coordinator writes bound to the exact active
 incarnation. Between them, provider I/O and atomic no-overwrite installation hold
