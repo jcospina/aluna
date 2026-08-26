@@ -233,8 +233,13 @@
   margin: 0;
   padding-inline-start: var(--space-3);
 }
-/* Narrow (matches the modal's own <480px width): stack the label over its value. */
-@media (max-width: 479px) {
+/* Stack the label over its value where the pair no longer fits beside itself.
+   Asked of the card the fields are in rather than of the viewport: the label column is a
+   fixed 8rem and the value gets what is left, so what decides is how wide the *card* is,
+   and 28rem is the width the card had when the retired viewport rule used to stack. On
+   the viewport that number had drifted — the card is at its widest just above the form
+   breakpoint, so stacking there stacked fields with room to spare. */
+@container record (max-width: 28rem) {
   .detail-field {
     grid-template-columns: 1fr;
     row-gap: var(--space-1);

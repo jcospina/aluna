@@ -15,7 +15,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  width: min(22rem, 88vw);
+  width: min(52rem, 92vw);
   padding: var(--space-2);
   overflow: auto;
   background: var(--surface);
@@ -76,10 +76,11 @@
   color: var(--ink-3);
 }
 
-/* ── Desktop (≥ 768px): a far wider panel — well over twice the mobile width —
-   so the streamed JSON has real room to read. ──────────────────────────────── */
-@media (min-width: 768px) {
+/* ── The phone: a panel well under half the desk's, because there is no width to
+   spend. The desk's own is the base above — stated that way round so this surface
+   breaks on the desk's 720px and on nothing else. ─────────────────────────── */
+@media (max-width: 720px) {
   .devbar {
-    width: min(52rem, 92vw);
+    width: min(22rem, 88vw);
   }
 }

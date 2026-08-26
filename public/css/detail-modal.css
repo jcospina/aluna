@@ -17,29 +17,37 @@
    kept.
 
    Width is set explicitly and responsively — a native <dialog> otherwise shrinks to fit
-   its content, so a short record renders cramped. Mobile-first: almost the full viewport
-   on phones, ~80% on small tablets, and a comfortable fixed floor on desktop (the panel
-   caps height separately). The breakpoints mirror the shell's 768px desktop line. */
+   its content, so a short record renders cramped. A comfortable fixed floor on the desk,
+   four-fifths of the viewport between the two breakpoints, and almost the full viewport
+   below the form's (the panel caps height separately).
+
+   The two numbers are the design's, and they are the only two on this surface: 720px is
+   where the desk becomes a phone, and 620px is where a form drops to one column. Stated
+   from the desk down rather than from the phone up, because a `min-width` counterpart to
+   `max-width: 720px` would have to be 720.02px to avoid overlapping it — an off-by-one
+   nobody should have to keep in step with the desk. */
 .detail-modal {
-  /* <480px: almost full width, a thin gutter each side. */
-  width: calc(100vw - var(--space-3));
+  width: 37.5rem;
+  /* Guarded so a narrow desktop window can never overflow the viewport. */
+  max-width: calc(100vw - var(--space-4));
   padding: 0;
   color: var(--ink);
   background: transparent;
   border: 0;
 }
-@media (min-width: 480px) {
-  /* 480–767px: roughly four-fifths of the viewport. */
+@media (max-width: 720px) {
   .detail-modal {
     width: 80vw;
+    /* The guard belongs to the fixed width above and to nothing else: below the
+       breakpoint the width is already a fraction of the viewport, so leaving the
+       guard in force would quietly take another 4px off each gutter. */
+    max-width: none;
   }
 }
-@media (min-width: 768px) {
-  /* Desktop: a fixed, comfortable width (≥600px), guarded so a narrow desktop window
-     can never overflow the viewport. */
+@media (max-width: 620px) {
+  /* Almost full width, a thin gutter each side. */
   .detail-modal {
-    width: 37.5rem;
-    max-width: calc(100vw - var(--space-4));
+    width: calc(100vw - var(--space-3));
   }
 }
 /* Dim the page behind the modal with High Meadow ink at low opacity. */
@@ -51,6 +59,11 @@
    body scrolls, and the panel's own padding is the bottom gutter so content never butts
    the edge (design-system.md "bottom gutter"). */
 .detail-modal__panel {
+  /* The card is the box a record's fields are laid out in, and its width is the
+     viewport's only through two `width` rules and a padding. Asking the card directly
+     is one question instead of that arithmetic — and it stays right if the card's own
+     width ever changes. */
+  container: record / inline-size;
   display: flex;
   flex-direction: column;
   max-height: 85dvh;
@@ -195,7 +208,8 @@
   gap: var(--space-1);
 }
 
-@media (max-width: 479px) {
+/* Stack the confirmation when the card is too narrow to hold its buttons in a row. */
+@container record (max-width: 28rem) {
   .detail-modal__delete-confirm {
     align-items: stretch;
     flex-direction: column;

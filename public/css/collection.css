@@ -239,7 +239,11 @@
   display: none;
 }
 
-@media (max-width: 639.98px) {
+/* The header is a title, a search field and a New button in one row. It wraps when the
+   window holding it is narrower than the form breakpoint — the window, because that is
+   what it is inside; a dragged-narrow window on a wide screen needs the wrap just as
+   much as a phone does, and never used to get it. */
+@container window (max-width: 620px) {
   .capability-collection__header {
     flex-wrap: wrap;
   }

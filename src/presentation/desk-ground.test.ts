@@ -171,8 +171,12 @@ describe("the clearance is one number", () => {
     const geometry = read("design/scripts/desk-geometry.js");
 
     expect(geometry).toMatch(
-      /PROMPT_CLEARANCE\s*=\s*readLength\(\s*"--prompt-clearance",\s*[A-Z_]+\.clearance,?\s*\)/,
+      /PROMPT_CLEARANCE\s*=\s*readLength\(\s*root,\s*"--prompt-clearance",\s*[A-Z_]+\.clearance,?\s*\)/,
     );
+    // One `getComputedStyle` per refresh rather than one per length. Every clamp on the
+    // surface calls `refreshGeometry`, so four separate reads meant sixteen forced style
+    // reads for a single resize tick — and as many again on every frame of a drag.
+    expect(geometry.match(/getComputedStyle\(/g), "a length fetches its own style").toHaveLength(1);
     // The one place the pixel literal is allowed to appear: the fallback for a
     // stylesheet that has not applied. Anywhere else it is a second source.
     const fallbacks = [...geometry.matchAll(/\bclearance:\s*78(?![\d.])/g)].length;

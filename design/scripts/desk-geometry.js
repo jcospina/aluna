@@ -28,13 +28,20 @@
 const FALLBACK = { minW: 276, minH: 176, clearance: 78, edge: 18 };
 
 /**
+ * One length, off a style declaration the caller has already asked for.
+ *
+ * The declaration is passed in rather than fetched here because every clamp on this
+ * surface calls `refreshGeometry` and every one of those used to mean four separate
+ * `getComputedStyle` calls — sixteen forced style reads for a single resize tick, and
+ * as many again on every frame of a drag. One call, four reads off it.
+ *
+ * @param {CSSStyleDeclaration | null} root
  * @param {string} name
  * @param {number} fallback
  * @returns {number}
  */
-function readLength(name, fallback) {
-  if (typeof window === "undefined") return fallback;
-  const root = getComputedStyle(document.documentElement);
+function readLength(root, name, fallback) {
+  if (root === null) return fallback;
   const declared = root.getPropertyValue(name).trim();
 
   /*
@@ -75,12 +82,13 @@ export let EDGE = FALLBACK.edge;
  * question being answered from a stale floor.
  */
 export function refreshGeometry() {
+  const root = typeof window === "undefined" ? null : getComputedStyle(document.documentElement);
   MIN_SIZE = {
-    w: readLength("--window-min-w", FALLBACK.minW),
-    h: readLength("--window-min-h", FALLBACK.minH),
+    w: readLength(root, "--window-min-w", FALLBACK.minW),
+    h: readLength(root, "--window-min-h", FALLBACK.minH),
   };
-  PROMPT_CLEARANCE = readLength("--prompt-clearance", FALLBACK.clearance);
-  EDGE = readLength("--window-edge", FALLBACK.edge);
+  PROMPT_CLEARANCE = readLength(root, "--prompt-clearance", FALLBACK.clearance);
+  EDGE = readLength(root, "--window-edge", FALLBACK.edge);
 }
 
 refreshGeometry();
@@ -90,6 +98,29 @@ refreshGeometry();
  * column at 620px; that one is the stylesheet's alone.
  */
 export const PHONE = "(max-width: 720px)";
+
+/**
+ * A box, or nothing, out of whatever a store handed back.
+ *
+ * Lives here because this file is where a box is defined, and because both surfaces
+ * that remember one have to agree about what they are willing to believe. Geometry is
+ * four finite numbers and it is all or nothing: three numbers and a missing fourth is
+ * not a box, and filling the gap from a default would place a window somewhere nobody
+ * put one. Everything else — a missing key, a wrong type, a `null` where `NaN` was
+ * written, an extra field — is simply not a box.
+ *
+ * Nothing here throws. A remembered box is a convenience, and a convenience that can
+ * stop a surface loading is worse than no convenience at all.
+ *
+ * @param {unknown} value
+ * @returns {Box | null}
+ */
+export function readBox(value) {
+  if (value === null || typeof value !== "object") return null;
+  const { x, y, w, h } = /** @type {Record<string, unknown>} */ (value);
+  const finite = [x, y, w, h].every((n) => typeof n === "number" && Number.isFinite(n));
+  return finite ? /** @type {Box} */ ({ x, y, w, h }) : null;
+}
 
 /**
  * @param {number} value
@@ -150,16 +181,28 @@ export function clampSize(bounds, box) {
 
 /**
  * Fit a whole box to the desk, for a box arriving from storage or surviving a
- * screen that changed size. Position first, so a window remembered off the
- * right of a smaller screen is pulled inside at the size it had rather than
- * being cut down to the sliver that was left where it used to sit.
+ * screen that changed size.
+ *
+ * Position, then size, then position again.
+ *
+ * Position first, so a window remembered off the right of a smaller screen is
+ * pulled inside at the size it had rather than being cut down to the sliver
+ * that was left where it used to sit.
+ *
+ * Position again, because the size step is allowed to refuse: `clampSize`
+ * floors at `MIN_SIZE`, and on a desk too short to hold a minimum window under
+ * the prompt bar it hands back a box taller than the room its position left.
+ * Without the second pass those few pixels are spent *downward*, into the strip
+ * no window may enter. Moving the window up instead spends them where there is
+ * somewhere to spend them, and a window at its minimum lands exactly on the
+ * floor rather than a little through it.
  *
  * @param {DOMRect} bounds the desk
  * @param {Box} box mutated in place
  * @returns {Box}
  */
 export function fitToDesk(bounds, box) {
-  return clampSize(bounds, clampPosition(bounds, box));
+  return clampPosition(bounds, clampSize(bounds, clampPosition(bounds, box)));
 }
 
 /**
@@ -174,7 +217,12 @@ export function fillDesk(bounds, box) {
   refreshGeometry();
   box.x = EDGE;
   box.y = EDGE;
-  box.w = Math.round(bounds.width - EDGE * 2);
-  box.h = Math.round(bounds.height - EDGE * 2 - PROMPT_CLEARANCE);
+  /* Floored the way every other size on this surface is. Maximise is the one path that
+   * computes a size instead of clamping one, so nothing else was stopping it: on a desk
+   * shorter than the inset plus the strip it produced a height of zero or below, which
+   * is not a length — `height: var(--win-h)` falls back to `auto` and the window
+   * silently stops being maximised at all. */
+  box.w = Math.max(MIN_SIZE.w, Math.round(bounds.width - EDGE * 2));
+  box.h = Math.max(MIN_SIZE.h, Math.round(bounds.height - EDGE * 2 - PROMPT_CLEARANCE));
   return box;
 }

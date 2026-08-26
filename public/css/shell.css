@@ -69,6 +69,12 @@
  * clip could otherwise put out of reach.
  */
 .desk-window__region {
+  /* What a capability shows is sized by the window, not by the screen. The window is
+     dragged and resized to any width from `--window-min-w` up, on a viewport of any
+     width at all, so a rule inside it that asks the *viewport* how much room it has is
+     asking the wrong box: a 276px-wide window on a 1920px screen would keep a layout
+     meant for 1920px. Everything from here down asks `window` instead. */
+  container: window / inline-size;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -133,8 +139,9 @@
   transform: translate(2px, 2px);
 }
 
-/* ── Mobile backdrop — only meaningful on mobile (see the devbar media query,
-   which flips it to display:block while the panel is open). ──────────────── */
+/* ── The developer panel's backdrop — raised at every size, because the panel floats
+   over the ground at every size rather than taking width from it. devbar.css flips it
+   to display:block while the panel is open. ──────────────────────────────── */
 .backdrop {
   display: none;
   position: fixed;
