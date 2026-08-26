@@ -27,7 +27,7 @@ export const CONTENT_REGION_SELECTOR = "[data-content-region]";
 
 /**
  * Release a region's content from a script that cannot import this module — the shell's
- * classic-script glue in `app.js` replaces the content area's children directly. Dispatch
+ * classic-script glue in `app.js` replaces the window's content directly. Dispatch
  * it on the region itself, before the replacement.
  */
 export const RELEASE_REGION_EVENT = "aluna:release-region";

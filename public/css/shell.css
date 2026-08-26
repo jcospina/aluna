@@ -42,31 +42,62 @@
   padding: var(--space-1) var(--space-2);
 }
 
-/* ── Content area — fills the rest; sits directly on the desk ground. ────── */
+/* ── The window's content region — the product's half of the window seam. ── */
 /*
- * The reserved strip. `--prompt-clearance` is declared once, in the token layer,
- * and read from there rather than restated: the bar floats in that strip
- * (prompt.css) and nothing bounded by it may enter. The tail of a records list
- * scrolls up to the bar and stops — which is the point, because the tail is
- * exactly where a user scrolls and it must never be hidden under the bar or
- * unclickable.
+ * The layer the window stands on and the frame itself ship from
+ * design/styles/components/desk.css and window.css, which is the one copy of those
+ * numbers. What is left here is the region the window holds: the temporary shell's
+ * `#spec-build-output`, created inside the window by /static/desk-window.js.
+ *
+ * It scrolls, and the window does not. A window is a fixed box on the desk whose
+ * bottom edge stops above the prompt bar; the list inside it is what runs long, so
+ * the scroller belongs to the content and never to the frame. Nothing is drawn
+ * here — the window's own frame is the only line around this.
+ *
+ * It scrolls **down only**. A collection is a vertical list and a sideways scrollbar
+ * on one is always a bug, but the reason it has to be stated rather than left to
+ * `auto` is the drawn line: the ink system sizes each layer in pixels when it draws,
+ * so a drawn element that has just been made narrower keeps a layer that is still as
+ * wide as it used to be until the redraw lands. Resizing the window by its corner is
+ * exactly that, over and over — and under `overflow-x: auto` every one of those
+ * frames flicks a horizontal scrollbar into existence and out again.
+ *
+ * Clipped rather than scrolled, and nothing is lost to it: `.capability-surface`
+ * keeps a gutter wider than the drawn line's overhang, its press and its focus ring
+ * (demo.css), so what a clip can reach is a layer that is already wrong. Long
+ * unbroken text wraps rather than reaching the edge at all — that is the one thing a
+ * clip could otherwise put out of reach.
+ */
+.desk-window__region {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+/*
+ * Below the breakpoint the window stops floating and is the screen
+ * (design/styles/components/desk.css), which means the stylesheet places it and the
+ * geometry that stops a window above the prompt bar is overridden. The strip has to
+ * be reserved again here, or the tail of a records list — exactly where a user
+ * scrolls — sits behind the bar, unreadable and unclickable.
  *
  * Reserved as a block at the end of the content rather than as `padding-bottom` on
  * the scroller. They lay out identically, but only one of them is a promise every
- * engine keeps: a scroll container's bottom padding has a long history of being
- * left out of the scrollable overflow area, and where it is, the last strip's worth
- * of a list is unreachable. An in-flow box is content, and no engine drops content.
+ * engine keeps: a scroll container's bottom padding has a long history of being left
+ * out of the scrollable overflow area, and where it is, the last strip's worth of a
+ * list is unreachable. An in-flow box is content, and no engine drops content.
  */
-.content {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  background: transparent;
-}
-.content::after {
-  content: "";
-  display: block;
-  height: var(--prompt-clearance);
+@media (max-width: 720px) {
+  .desk-window__region::after {
+    content: "";
+    display: block;
+    height: var(--prompt-clearance);
+  }
 }
 
 /* =============================================================================

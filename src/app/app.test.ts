@@ -37,7 +37,6 @@ describe("GET / (shell)", () => {
     expect(html).toContain('id="spec-units-preview"');
     expect(html).toContain('id="spec-gate-preview"');
     expect(html).toContain('id="spec-commit-preview"');
-    expect(html).toContain('id="spec-build-output"');
     expect(html).toContain('id="prompt-notice"');
     expect(html).not.toContain("Meet Aluna");
     expect(html).not.toContain('id="intro-trigger"');
@@ -150,6 +149,21 @@ describe("GET / (shell)", () => {
     expect(body).toContain("createDebouncedCapabilitySearch");
     expect(body).toContain("data-capability-search-input");
     expect(body).toContain('"HX-Request": "true"');
+  });
+});
+
+describe("GET / (shell) — the window layer", () => {
+  test("the page carries the layer the window opens on, and no region of its own", async () => {
+    const app = createApp();
+    const html = await responseText(await app.request("/"));
+
+    // The target the prompt form and every logo name is created by the client, inside
+    // the window. The served page carries the ground that window stands on, the module
+    // that stands it there, and nothing else where the content area used to be.
+    expect(html).toContain('<div class="desk__windows"></div>');
+    expect(html).toContain('<script type="module" src="/static/desk-window.js"></script>');
+    expect(html).not.toContain('id="spec-build-output"');
+    expect(html).not.toContain("<main");
   });
 });
 
@@ -275,26 +289,11 @@ test("keeps a pending stream dormant until foreground narration begins", async (
   expect(css).toContain(".build-stream__narration:not(:empty)");
   expect(css).toContain("#spec-build-output:has(> .build-stream");
 
-  // The content region is quiet by default and shown by what the output holds. It was
-  // hidden by competing `:has()` rules until the ink system drew the output box: a
-  // drawn element is never `:empty` and nothing in it is ever `:only-child`, and the
-  // rewrite of those two questions raised one rule's specificity above the rule meant
-  // to override it. One base and three show rules cannot have that argument.
-  expect(css).toMatch(/\.content__active\s*\{\s*display:\s*none;/);
-  // A stream that has said nothing stays dormant: the show rule for ordinary content
-  // excludes it by name, as it excludes the two ink layers.
-  expect(css).toContain(
-    ".content__active:has(#spec-build-output > :not(.ink__ground, .ink__layer, .build-stream))",
-  );
-  expect(css).toContain(
-    ".content__active:has(#spec-build-output > .build-stream > .build-stream__narration:not(:empty))",
-  );
-  expect(css).toContain(
-    ".content__active:has(#spec-build-output > .build-stream > .build-stream__commit:not(:empty))",
-  );
-  expect(css).toMatch(
-    /build-stream__narration:not\(:empty\)[\s\S]*?build-stream__commit:not\(:empty\)[\s\S]*?\)\s*\{\s*display:\s*flex/,
-  );
+  // The shell's own content area is gone with the window: a window that holds nothing
+  // does not exist, so there is no longer a surface to keep quiet until it does. Every
+  // rule that hid one is retired rather than ported.
+  expect(css).not.toContain(".content__active");
+  expect(css).not.toContain(".intro__output");
   expect(css).not.toMatch(/:has\([^)]*:has\(/);
 });
 
@@ -305,9 +304,6 @@ test("permanent deletion captures neutral or exact-capability restoration in bro
 
   expect(js).toContain('detail.parameters.restore_surface = "neutral"');
   expect(js).toContain('detail.parameters.restore_surface = "capability"');
-  // `:empty` no longer reaches it — the ink system keeps its two layers as children
-  // of the box it draws, so the question is asked past them.
-  expect(css).toContain(".intro__output:not(:has(> :not(.ink__ground, .ink__layer)))");
   expect(css).not.toContain("data-capability-deletion-neutral");
 });
 
@@ -395,10 +391,11 @@ describe("GET / (shell) — prompt admission", () => {
       ) {
         listeners.set(name, listener);
       },
-      querySelector(selector: string) {
-        return selector === "#spec-build-output" ? output : null;
+      querySelector() {
+        return null;
       },
       getElementById(id: string) {
+        if (id === "spec-build-output") return output;
         return id === "prompt-notice" ? { replaceChildren: () => (noticeClears += 1) } : null;
       },
     };

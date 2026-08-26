@@ -460,11 +460,12 @@ _Avoid_: read lock, handle, reservation
 
 **Content region**:
 The element a view is rendered into, and the owner of everything that view starts.
-The shell's content area and each capability's records region are content regions
-today; the window's content is the one that matters once the window ships. Marked
-`data-content-region` so the release scope can find it, and never confused with the
-**window**, which is the frame around it — one window holds many successive region
-contents (M5 plan 13).
+The window's content is the one that matters, and each capability's records region is
+one inside it; the shell's own content area was a content region until the window
+replaced it. The window creates its region and takes it away again, so putting the
+window away is the only way a region disappears. Marked `data-content-region` so the
+release scope can find it, and never confused with the **window**, which is the frame
+around it — one window holds many successive region contents (M5 plan 13).
 _Avoid_: content area (the shell's one instance, not the concept), container,
 mount point, slot
 

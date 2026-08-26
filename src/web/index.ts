@@ -7,7 +7,6 @@
 
 export {
   renderCachedCapabilityCommitSwap,
-  renderCachedCapabilityShell,
   renderCachedCapabilitySurface,
   renderRehydratedShellPage,
 } from "./cached-view.ts";
@@ -18,7 +17,6 @@ export {
   type RenderableCapabilityLogo,
   renderBuildSubscriber,
   renderCapabilityLogo,
-  renderCapabilityShell,
   renderPromptNotice,
   renderProvisionalLogo,
   renderProvisionalLogoName,

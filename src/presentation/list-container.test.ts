@@ -137,19 +137,54 @@ describe("container scaffolding", () => {
     expect(grid).not.toContain("capability-records--feed");
   });
 
-  test('renders a "New X" button that discloses the platform create form', () => {
+  test('renders a "New X" button that gives the whole window to the create form', () => {
     expect(feed).toContain("btn--primary");
     expect(feed).toContain("New Tasks");
-    // The button toggles the disclosure; the disclosed panel holds the real create form.
-    expect(feed).toContain('@click="createOpen = !createOpen"');
     expect(feed).toContain('hx-post="/capability/tasks/create"');
+
+    // Two views of one surface, not a panel over a list (design D2): the collection
+    // and the form are shown by the same flag, and never both at once.
+    expect(feed).toContain('class="capability-collection__list" x-show="!createOpen"');
+    expect(feed).toContain('x-ref="createPanel" x-show="createOpen"');
+    // The records region and the empty state belong to the list view, so the form
+    // replaces them rather than pushing them down.
+    const listView = feed.slice(
+      feed.indexOf('class="capability-collection__list"'),
+      feed.indexOf('class="capability-collection__create"'),
+    );
+    expect(listView).toContain(`id="${capabilityRecordsRegionId("tasks")}"`);
+    expect(listView).toContain("capability-empty");
   });
 
-  test("closes a cancelled create form and returns focus to its New button", () => {
+  test("opening the form moves focus into it, because the list is gone", () => {
+    // A view swap that leaves focus on a control no longer on screen strands a
+    // keyboard user at the top of the desk.
+    expect(feed).toContain("createOpen = true");
+    // Every field is preceded by its own hidden `__aluna_present` marker, so the
+    // first `input` in the form is one that cannot take focus at all.
+    expect(feed).toContain(
+      "$refs.createPanel.querySelector('input:not([type=hidden]), textarea, select')?.focus()",
+    );
+  });
+
+  test("a successful create closes the form and returns focus to its New button", () => {
+    // The success path used to close the view and leave focus on a control that had
+    // gone, which drops a keyboard user at the top of the desk.
+    expect(feed).toContain(
+      "@aluna:record-created.window=\"if ($event.detail?.capabilityId === 'tasks') " +
+        '{ createOpen = false; $nextTick(() => $refs.createTrigger.focus()) }"',
+    );
+  });
+
+  test("Cancel is the only way out, and it returns focus to the New button", () => {
     expect(feed).toContain('x-ref="createTrigger"');
     expect(feed).toContain(
       `@aluna:create-cancelled="createOpen = false; $nextTick(() => $refs.createTrigger.focus())"`,
     );
+    expect(feed).toContain("data-create-cancel");
+    // No back control beside it: the two would be one control twice.
+    expect(feed).not.toContain("capability-collection__back");
+    expect(feed).not.toContain("Back to");
   });
 
   test("renders the empty state, written around the capability's record noun", () => {

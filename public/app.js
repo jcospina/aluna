@@ -42,8 +42,10 @@ function shell() {
     // reveals the full latest state; nothing is missed by starting closed.
     devbarOpen: false,
 
-    // Courtesy prompt-bar state only. The server is still the single-flight
-    // authority; Alpine just mirrors HTMX SSE open/close events in the UI.
+    // Courtesy prompt-bar state only — Alpine mirrors HTMX SSE open/close events in
+    // the UI and decides nothing. It is not a lock: the build queue admits every job
+    // it is handed, and the one-subscriber guard below is what actually holds a
+    // second build off while one is running.
     promptBusy: false,
 
     init() {
@@ -86,6 +88,52 @@ function releaseRegionContent(region) {
 }
 
 /**
+ * The window's content region, and the way this script asks for the window itself to
+ * be put away. Both are kept in sync with public/desk-window.js (WINDOW_CONTENT_ID and
+ * PUT_WINDOW_AWAY_EVENT); a platform test pins that these strings match. Plain strings
+ * because this classic script cannot import the module.
+ */
+const WINDOW_REGION_ID = "spec-build-output";
+const PUT_WINDOW_AWAY_EVENT = "aluna:put-window-away";
+
+/**
+ * Whether the window is left holding nothing. Whitespace between swapped nodes is not
+ * content; nothing else in there is invisible, because the region is the one surface
+ * inside the window the ink system deliberately does not draw.
+ * @param {Element} region
+ * @returns {boolean}
+ */
+function regionHoldsNothing(region) {
+  for (const node of region.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === "") continue;
+    return false;
+  }
+  return true;
+}
+
+/**
+ * A window that holds nothing does not exist.
+ *
+ * Stated as that invariant rather than as a list of the flows that reach it, because
+ * the list is longer than it looks and every entry wants the same answer. Every one
+ * of them is a deletion whose restoration is neutral — nothing to go back to:
+ * a capability deleted, one that turned out to be already gone, a deletion refused,
+ * one that failed before commit, and **Keep it** pressed with nothing behind it. In
+ * all five the window is left empty and the prompt bar carries the explanation, and
+ * an empty drawn frame on the desk says less than no frame at all.
+ *
+ * A rule keyed on emptiness has one hazard: a swap that empties the region and then
+ * refills it. That is why this is asked at settle — htmx's own "I am finished with
+ * this target" — rather than the moment the first content lands.
+ *
+ * @param {Element | null | undefined} region
+ */
+function putAwayEmptyWindow(region) {
+  if (!(region instanceof HTMLElement) || !regionHoldsNothing(region)) return;
+  document.dispatchEvent(new CustomEvent(PUT_WINDOW_AWAY_EVENT));
+}
+
+/**
  * Pretty-print a structured developer-preview payload, falling back to the raw
  * string if a future event sends non-JSON text.
  * @param {string} raw
@@ -115,15 +163,16 @@ function activeViewIsCanonical(surface) {
   return searchIsIdle && searchIsEmpty && createIsClosed && modalIsClosed;
 }
 
-/** @param {HTMLElement} output @param {HTMLElement} subscriber @returns {boolean} */
+/**
+ * The region is not drawn — the window's own frame is the only line around it — so
+ * there are no ink layers in here to look past, the way there were while the shell
+ * had a content area of its own.
+ * @param {HTMLElement} output @param {HTMLElement} subscriber @returns {boolean}
+ */
 function outputHasOnlyDormantSubscriber(output, subscriber) {
   for (const node of output.childNodes) {
     if (node === subscriber) continue;
     if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === "") continue;
-    // The drawn boundary. The ink system keeps its two layers as children of the
-    // element it draws (design/styles/components/ink.css), so a drawn region is never
-    // childless — its own line would read here as content the user put there.
-    if (node instanceof Element && node.matches(".ink__ground, .ink__layer")) continue;
     return false;
   }
   return true;
@@ -177,7 +226,7 @@ function preserveActiveView(listener, raw) {
   if (!(restoration instanceof HTMLElement)) return false;
 
   const subscriber = listener.closest("[data-build-job-id]");
-  const output = subscriber?.closest("#spec-build-output");
+  const output = subscriber?.closest(`#${WINDOW_REGION_ID}`);
   if (!(subscriber instanceof HTMLElement) || !(output instanceof HTMLElement)) return false;
 
   const current = output.querySelector(":scope > [data-active-capability-id]");
@@ -283,10 +332,15 @@ document.addEventListener("htmx:configRequest", (event) => {
 // Appending keeps the active View stable while intent is still unknown. Enforce one
 // subscriber at admission so HTMX's queued-submit window cannot create siblings,
 // and retire any explanation from the preceding request.
+//
+// The subscriber lives inside the window, so a window that has been put away leaves no
+// subscriber to find — which is correct rather than a hole: putting the window away
+// cancels the run it was narrating (desk-window.js), so there is nothing left to be
+// the second of.
 document.addEventListener("htmx:beforeRequest", (event) => {
   const detail = /** @type {CustomEvent<{ elt?: Element }>} */ (event).detail;
   if (!(detail?.elt instanceof HTMLFormElement) || detail.elt.id !== "spec-build-form") return;
-  const output = document.querySelector("#spec-build-output");
+  const output = document.getElementById(WINDOW_REGION_ID);
   if (output?.querySelector("[data-build-job-id]")) {
     event.preventDefault();
     return;
@@ -461,16 +515,27 @@ async function recheckCapabilityDeletion(preflightUrl, attempt) {
   }
   await new Promise((resolve) => setTimeout(resolve, delay));
 
-  const output = document.getElementById("spec-build-output");
   const response = await fetch(preflightUrl, { headers: { "HX-Request": "true" } }).catch(
     () => null,
   );
-  if (!(output instanceof HTMLElement) || response === null || !response.ok) {
+  if (response === null || !response.ok) {
     await recheckCapabilityDeletion(preflightUrl, attempt + 1);
     return;
   }
 
   const html = await response.text();
+
+  // The window may have been put away while this was in flight. That is the *good*
+  // ending — the danger this recovery exists for is a stale confirmation panel left
+  // standing, and there is no panel left to be stale. What is still owed is the
+  // answer, so it is read out of the reply and left at the prompt bar rather than
+  // reported as "I can't tell", which would be untrue: we just found out.
+  const output = document.getElementById(WINDOW_REGION_ID);
+  if (!(output instanceof HTMLElement)) {
+    writeCapabilityDeletionRecheckNotice(noticeIn(html));
+    applyReplaceUrl(response);
+    return;
+  }
   const htmx =
     /** @type {Window & { htmx?: { swap(target: Element, content: string, spec: { swapStyle: string, swapDelay: number, settleDelay: number }): void } }} */ (
       window
@@ -483,12 +548,34 @@ async function recheckCapabilityDeletion(preflightUrl, attempt) {
   if (htmx) htmx.swap(output, html, { swapStyle: "innerHTML", swapDelay: 0, settleDelay: 0 });
   else output.innerHTML = html;
 
-  // The server decides where this leaves the user. A capability that turned out to be
-  // gone answers with the home URL, and honouring it here is what stops a reload from
-  // landing on the deleted capability's dead route. HTMX applies this header for its
-  // own requests; this one is ours, so apply it ourselves.
+  applyReplaceUrl(response);
+}
+
+/**
+ * The server decides where this leaves the user. A capability that turned out to be
+ * gone answers with the home URL, and honouring it is what stops a reload from
+ * landing on the deleted capability's dead route. HTMX applies this header for its
+ * own requests; this one is ours, so apply it ourselves.
+ * @param {Response} response
+ */
+function applyReplaceUrl(response) {
   const replaceUrl = response.headers.get("HX-Replace-Url");
   if (replaceUrl) window.history.replaceState(window.history.state, "", replaceUrl);
+}
+
+/**
+ * What a deletion reply says to the user, read out of the out-of-band notice it
+ * carries. Parsed into an inert template, so nothing in it runs or loads.
+ * @param {string} html
+ * @returns {string}
+ */
+function noticeIn(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  return (
+    template.content.querySelector("#prompt-notice")?.textContent?.trim() ||
+    "That’s sorted — the desk is up to date."
+  );
 }
 
 /** @param {Event} event */
@@ -580,7 +667,7 @@ function promoteTerminalPresentation(subscriber, output) {
 function finishTerminalPresentation(eventTarget) {
   if (!(eventTarget instanceof Element)) return;
   const subscriber = eventTarget.closest("[data-build-job-id]");
-  const output = subscriber?.closest("#spec-build-output");
+  const output = subscriber?.closest(`#${WINDOW_REGION_ID}`);
   if (!(subscriber instanceof HTMLElement) || !(output instanceof HTMLElement)) return;
 
   if (subscriber.dataset.preserveActiveView === "true") {
@@ -593,6 +680,7 @@ function finishTerminalPresentation(eventTarget) {
   }
 
   const restorationKind = promoteTerminalPresentation(subscriber, output);
+  putAwayEmptyWindow(output);
 
   const modal = document.getElementById("aluna-detail-modal");
   if (modal instanceof HTMLDialogElement && modal.open) modal.close();
@@ -610,6 +698,14 @@ document.addEventListener("htmx:timeout", recoverSeveredCapabilityDeletion);
 document.addEventListener("htmx:afterSwap", (event) => {
   syncActiveCapabilityUrl();
   focusCapabilityDeletion(event);
+});
+document.addEventListener("htmx:afterSettle", (event) => {
+  const target = /** @type {CustomEvent<{ target?: unknown }>} */ (event).detail?.target;
+  // Only a swap of the region itself can have emptied it; a swap into something inside
+  // it — the records region reloading — never leaves the window with nothing in it.
+  if (target instanceof HTMLElement && target.id === WINDOW_REGION_ID) {
+    putAwayEmptyWindow(target);
+  }
 });
 document.addEventListener("htmx:sseClose", (event) => {
   const closeType =

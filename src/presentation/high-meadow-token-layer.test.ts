@@ -98,9 +98,9 @@ describe("High Meadow token-layer cutover", () => {
     const demo = read("public/css/demo.css");
     const prompt = read("public/css/prompt.css");
 
-    // The empty desk is the default now rather than a `:has(...:empty)` override: the
-    // output region is drawn, and a drawn element is never `:empty`.
-    expect(demo).toMatch(/\.content__active\s*\{\s*display:\s*none;/);
+    // The empty desk is the default and needs no rule at all now: the shell's content
+    // area went with the window, and a window holding nothing does not exist.
+    expect(demo).not.toContain(".content__active");
     expect(demo).not.toMatch(/:has\([^)]*:has\(/);
     // The bar floats in the strip rather than padding its way clear of the bottom
     // edge: it is anchored by the clearance less its own height, which is the

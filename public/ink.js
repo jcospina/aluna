@@ -31,8 +31,6 @@ const SHELL_INK = [
   ".prompt__composer",
   /* The shell's own toggles */
   ".panel-toggle",
-  /* The content region */
-  ".intro__output",
   /* Collection chrome — the search rail and the create panel */
   ".capability-search__control",
   ".capability-collection__create",

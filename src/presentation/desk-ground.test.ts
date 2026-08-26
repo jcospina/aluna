@@ -142,13 +142,14 @@ describe("the clearance is one number", () => {
       expect(read(path), `${path} restates the clearance`).not.toContain("4.875rem");
     }
 
-    // The reserved strip, the logo grid's floor and the bar's own anchor: three
-    // surfaces, one length, no two files agreeing.
-    expect(rules("public/css/shell.css")).toMatch(
-      /\.content::after\s*\{[^}]*height:\s*var\(--prompt-clearance\)/,
-    );
+    // The logo grid's floor, the bar's own anchor and the window's: three surfaces,
+    // one length, no two files agreeing. The shell's content area used to reserve the
+    // strip as a block at the end of itself; the window took that duty with the
+    // content, and reads the same number through the geometry module.
     expect(rules("design/styles/components/desk.css")).toContain("var(--prompt-clearance)");
     expect(rules("public/css/prompt.css")).toContain("var(--prompt-clearance)");
+    expect(read("public/desk-window.js")).toContain("PROMPT_CLEARANCE");
+    expect(read("public/css/shell.css")).not.toContain(".content::after");
   });
 
   // The bar is anchored by the clearance less its own height, so a clearance smaller

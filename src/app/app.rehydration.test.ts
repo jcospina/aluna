@@ -56,7 +56,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
     expect(html).not.toContain("has-capabilities");
     expect(html).toContain('class="shell"');
     expect(html).toContain('id="capability-logos"');
-    expect(html).toContain('id="spec-build-output"');
+    expect(html).toContain('class="desk__windows"');
     expect(html).toContain('hx-post="/prompt"');
 
     // An empty desk means no capabilities, never no modal: the shared detail modal mounts
