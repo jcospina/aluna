@@ -27,7 +27,14 @@
  * framework, and the frame path is rebuilt on resize only.
  */
 
-import { fillDesk, fitToDesk, PHONE, placeWindow, refreshGeometry } from "./desk-geometry.js";
+import {
+  fillDesk,
+  fitToDesk,
+  PHONE,
+  placeWindow,
+  readBox,
+  refreshGeometry,
+} from "./desk-geometry.js";
 import { devTile, logoButton, nameLogo } from "./desk-logo.js";
 import { renderCollection } from "./patterns.js";
 import { mountPromptBar } from "./prompt-bar.js";
@@ -35,11 +42,35 @@ import { wallpaperUrl } from "./wallpaper.js";
 import { AlunaWindow } from "./window.js";
 import { addWindowDrag, addWindowGrip, setMaximised } from "./window-gestures.js";
 
-const STORAGE_KEY = "aluna.desk.layout.v2";
+/*
+ * This page's own layout, and named so. The handbook is served from the product's
+ * origin (`/design/*`), so an unqualified `aluna.desk.*` here would sit beside the
+ * product's records looking exactly like a third one — and the count is a promise:
+ * the browser holds the capability window's and the developer panel's, and nothing
+ * else (D9).
+ */
+const STORAGE_KEY = "aluna.design.desk.layout.v2";
 
 /* Where each window lands the first time, before anything is remembered. */
 const DEFAULT_WINDOW = { x: 236, y: 40, w: 470, h: 330 };
 const DEFAULT_DEV = { x: 300, y: 150, w: 430, h: 260 };
+
+/**
+ * One window's record: the normal box beside the flag, and never a maximised size
+ * (D9, decision 18).
+ *
+ * While a window is maximised the box it stands in is the desk's, and the box it will
+ * be given back rides along as `restore`. Writing the pair down would put a second
+ * geometry in the one entry — and writing the live box alone would remember *this*
+ * screen's width less the inset, which is the stranding the flag exists to prevent.
+ *
+ * @param {StoredBox} box
+ * @returns {Box & { max: boolean }}
+ */
+function record(box) {
+  const { x, y, w, h } = box.restore ?? box;
+  return { x, y, w, h, max: box.max === true };
+}
 
 const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -64,7 +95,7 @@ const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: r
 /**
  * A mounted window and what the desk keeps about it.
  * @typedef {{ kind: "capability" | "dev", win: AlunaWindow, el: HTMLElement,
- *             box: StoredBox, maximised: boolean }} DeskWindow
+ *             box: StoredBox, maximised: boolean, gestures: boolean }} DeskWindow
  */
 
 /** A build in flight: what it will become, and what it took the window from. */
@@ -124,7 +155,16 @@ export class Desk {
 
   /* ── the two remembered boxes ─────────────────────────────────────────── */
 
-  /** @returns {Layout} */
+  /**
+   * What was remembered, believing as little of it as possible (D9).
+   *
+   * Spreading a stored object over a default is not fail-soft: `{"x": "nope"}` becomes
+   * the box, `placeWindow` writes `NaNpx`, and the window lands nowhere. Geometry is
+   * four finite numbers or it is not geometry, and `readBox` is the one place either
+   * surface asks.
+   *
+   * @returns {Layout}
+   */
   #load() {
     /** @type {Layout} */
     const fresh = { window: { ...DEFAULT_WINDOW }, dev: { ...DEFAULT_DEV, open: false } };
@@ -132,8 +172,12 @@ export class Desk {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
       if (!stored || typeof stored !== "object") return fresh;
       return {
-        window: { ...fresh.window, ...stored.window },
-        dev: { ...fresh.dev, ...stored.dev },
+        window: { ...(readBox(stored.window) ?? fresh.window), max: stored.window?.max === true },
+        dev: {
+          ...(readBox(stored.dev) ?? fresh.dev),
+          max: stored.dev?.max === true,
+          open: stored.dev?.open === true,
+        },
       };
     } catch {
       return fresh;
@@ -142,7 +186,13 @@ export class Desk {
 
   #save() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          window: record(this.layout.window),
+          dev: { ...record(this.layout.dev), open: this.layout.dev.open === true },
+        }),
+      );
     } catch {
       /* A desk that cannot persist is still a working desk. */
     }
@@ -201,13 +251,19 @@ export class Desk {
       refreshGeometry();
       this.root.classList.toggle("desk--phone", phone.matches);
       for (const entry of [this.win, this.dev]) {
-        if (entry) this.#refit(entry.el, entry.box, entry.maximised);
+        if (!entry) continue;
+        this.#syncForm(entry);
+        this.#refit(entry.el, entry.box, entry.maximised);
       }
       this.#save();
     };
 
     phone.addEventListener("change", onResize);
     window.addEventListener("resize", onResize);
+    /* Once, now. The observer below reports the desk's first size too, but leaving the
+     * form to that leaves it undecided until something moves — and the phone class is a
+     * thing the desk is *told*, not a thing it drifts into (decision 47). */
+    onResize();
     /* A window's box is written as custom properties on the window itself, which
      * is absolutely positioned inside the desk — so re-fitting cannot resize the
      * desk and this cannot feed itself. */
@@ -430,9 +486,14 @@ export class Desk {
 
     /* What was remembered is fitted to the desk this window is opening on
      * before anything measures it: a maximised window is recomputed against
-     * that desk, and any other box that no longer fits is pulled inside. */
+     * that desk, and any other box that no longer fits is pulled inside.
+     *
+     * `setMaximised` first, so the remembered box is stashed as the one to give
+     * back before `#refit` overwrites the live one with this desk. The record
+     * carries no box to restore to — it never holds a maximised size — so this
+     * is where the one to restore to comes from. */
     const maximised = box.max === true;
-    el.classList.toggle("is-maximised", maximised);
+    setMaximised(el, box, maximised);
     this.#refit(el, box, maximised);
 
     const body = document.createElement("div");
@@ -448,11 +509,9 @@ export class Desk {
     });
 
     /** @type {DeskWindow} */
-    const entry = { kind, win, el, box, maximised };
-    const host = this.#gestureHost(entry);
-    addWindowGrip(host);
-    addWindowDrag(win.bar, host);
+    const entry = { kind, win, el, box, maximised, gestures: false };
     this.#addLamps(entry);
+    this.#syncForm(entry);
 
     el.addEventListener("pointerdown", () => this.#focus(entry));
 
@@ -508,6 +567,26 @@ export class Desk {
   }
 
   /* ── lamps ────────────────────────────────────────────────────────────── */
+
+  /**
+   * Which form this window is in (decision 47). Below the breakpoint the window is the
+   * screen: the drag and the grip do not bind at all rather than binding to controls
+   * the stylesheet has hidden, the maximise lamp comes out of the focus order because
+   * there is nothing left for it to toggle, and the title bar stops claiming
+   * `touch-action: none` on a strip the user needs to scroll from.
+   *
+   * @param {DeskWindow} entry
+   */
+  #syncForm(entry) {
+    const phone = this.#phone();
+    entry.el.querySelector('.lamp[data-action="maximise"]')?.toggleAttribute("hidden", phone);
+    entry.win.bar.classList.toggle("window__bar--draggable", !phone);
+    if (phone || entry.gestures) return;
+    entry.gestures = true;
+    const host = this.#gestureHost(entry);
+    addWindowGrip(host);
+    addWindowDrag(entry.win.bar, host);
+  }
 
   /** @param {DeskWindow} entry */
   #addLamps(entry) {

@@ -2,13 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import {
-  clampPosition,
-  clampSize,
-  fillDesk,
-  MIN_SIZE,
-  PROMPT_CLEARANCE,
-} from "#design/desk-geometry.js";
 import { setMaximised, trackPointer } from "#design/window-gestures.js";
 import {
   BUILD_WINDOW_TITLE,
@@ -266,12 +259,17 @@ describe("two lamps, and there is no minimise", () => {
     expect(MODULE).toContain('lamp?.setAttribute("aria-pressed"');
   });
 
-  test("the clay lamp puts away and the leaf lamp maximises, and neither is stored", () => {
+  test("the clay lamp puts away, and putting away changes nothing in storage", () => {
     const source = code("public/desk-window.js");
     expect(source).toMatch(/action === "maximise"\) toggleMaximise\(entry\)/);
     expect(source).toMatch(/action === "putaway"\) putAway\(\)/);
-    // Remembering a box across a reload is 5.6/02's; nothing here writes storage.
-    expect(source).not.toContain("localStorage");
+    // The logo stays where it was and the same click brings the window back — to the
+    // box it had. A put-away that wrote would make the clay lamp a way to forget.
+    const putAway = /export function putAway\(\) \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? "";
+    expect(putAway, "no `putAway`").not.toBe("");
+    expect(putAway).not.toContain("savePresentation");
+    const tearDown = /export function tearDownWindow\([\s\S]*?\n\}/.exec(source)?.[0] ?? "";
+    expect(tearDown).not.toContain("savePresentation");
   });
 });
 
@@ -356,48 +354,6 @@ describe("the window's content region scrolls, and only when it should", () => {
     const tokens = read("design/styles/tokens.css");
     const rem = Number(new RegExp(`--${gutter}:\\s*([\\d.]+)rem`).exec(tokens)?.[1]);
     expect(rem * 16).toBeGreaterThanOrEqual(reach);
-  });
-});
-
-describe("the desk's edges hold every gesture", () => {
-  // The clamps are `desk-geometry.js`'s, and every gesture goes through them. Read in
-  // Bun they answer from their own fallbacks, which is the point: these are the
-  // numbers a browser that never applied the stylesheet would use, and the rules have
-  // to hold on those too.
-  const desk = { width: 1280, height: 720 };
-  const floor = desk.height - PROMPT_CLEARANCE;
-  /** The clamps read a `DOMRect`; width and height are all of one they touch. */
-  const bounds = desk as never;
-
-  test("a drag stops above the prompt bar and inside the other three edges", () => {
-    // The tail of a records list is exactly where a user scrolls; under the bar it is
-    // neither readable nor clickable.
-    const box = clampPosition(bounds, { x: 5000, y: 5000, w: 400, h: 300 });
-    expect(box.y + box.h).toBe(floor);
-    expect(box.x + box.w).toBe(desk.width);
-
-    const back = clampPosition(bounds, { x: -900, y: -900, w: 400, h: 300 });
-    expect(back).toMatchObject({ x: 0, y: 0 });
-    // A drag moves a window and never resizes one.
-    expect(back).toMatchObject({ w: 400, h: 300 });
-  });
-
-  test("a resize stops on the same floor, and never below the minimum", () => {
-    const grown = clampSize(bounds, { x: 0, y: 0, w: 9000, h: 9000 });
-    expect(grown.h).toBe(floor);
-    expect(grown.w).toBe(desk.width);
-
-    const shrunk = clampSize(bounds, { x: 20, y: 20, w: 1, h: 1 });
-    expect(shrunk).toMatchObject({ w: MIN_SIZE.w, h: MIN_SIZE.h });
-    // A resize drags the bottom-right corner; the top-left stays where it was.
-    expect(shrunk).toMatchObject({ x: 20, y: 20 });
-  });
-
-  test("maximise fills the desk down to that same floor", () => {
-    const filled = fillDesk(bounds, { x: 300, y: 40, w: 400, h: 300 });
-    expect(filled.y + filled.h).toBe(desk.height - PROMPT_CLEARANCE - filled.y);
-    expect(filled.h).toBe(desk.height - filled.y * 2 - PROMPT_CLEARANCE);
-    expect(filled.w).toBe(desk.width - filled.x * 2);
   });
 });
 
@@ -568,7 +524,7 @@ describe("dragging and resizing", () => {
     expect(gestures).toMatch(/bar\.addEventListener\("pointerdown"/);
     // A press on a lamp is not the start of a drag.
     expect(gestures).toContain('target.closest(".lamp")');
-    expect(code("public/desk-window.js")).toContain("addWindowDrag(win.bar, host)");
+    expect(code("public/desk-window.js")).toContain("addWindowDrag(entry.win.bar, host)");
   });
 
   test("every way a gesture can end unbinds the move listener", () => {

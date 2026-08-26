@@ -87,7 +87,10 @@ form.htmx-request .capability-deletion__label[data-deletion-busy-label] {
   background: color-mix(in oklch, var(--signal), var(--surface) 30%);
 }
 
-@media (max-width: 639.98px) {
+/* Measured against the window it stands in rather than the screen behind it: this is a
+   confirmation inside the capability window, at whatever width that window has been
+   dragged to. */
+@container window (max-width: 620px) {
   .capability-deletion {
     padding-block: var(--space-2);
   }

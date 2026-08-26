@@ -128,8 +128,9 @@
       (PLAN decision 3).
     -->
     <div class="shell" x-data="shell" :class="{ 'devbar-open': devbarOpen }">
-      <!-- Mobile backdrop — tap to dismiss the developer panel. Shown only on
-           mobile while it is open (CSS); inert otherwise. -->
+      <!-- Backdrop — tap to dismiss the developer panel. The panel floats over the
+           ground at every size rather than taking width from it, so the backdrop rises
+           with it at every size too (devbar.css); inert otherwise. -->
       <div class="backdrop" @click="devbarOpen = false" aria-hidden="true"></div>
 
       <!-- Content column — the ground the logos stand on, the window opens over,

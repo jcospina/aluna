@@ -27,14 +27,23 @@
  * Two lamps, and no minimise: with no taskbar there is nowhere for a minimised
  * window to be seen waiting, so it would be indistinguishable from one put away, and
  * both come back by the same click on the same logo (design D12).
+ *
+ * Where the window sits is remembered and what is in it is not. One record holds one
+ * normal box and a maximised *flag*, so a desk that comes back on a different screen
+ * fills that screen rather than the one it left, and a box that no longer fits is
+ * pulled inside — on load and on every resize alike. Below the breakpoint none of that
+ * applies: the window is the screen, the stylesheet places it, and the desktop record
+ * is read past rather than written over (design D9; PLAN decisions 18, 47).
  */
 
 import {
   EDGE,
   fillDesk,
   fitToDesk,
+  PHONE,
   PROMPT_CLEARANCE,
   placeWindow,
+  readBox,
   refreshGeometry,
 } from "../design/scripts/desk-geometry.js";
 import { AlunaWindow } from "../design/scripts/window.js";
@@ -77,6 +86,29 @@ export const BUILD_WINDOW_TITLE = "Making it";
 export const PUT_WINDOW_AWAY_EVENT = "aluna:put-window-away";
 
 /**
+ * The one presentation record this module keeps, and the only key it writes. The
+ * developer panel's is 5.6/04's, and those two are the whole of what the browser
+ * remembers (design D9; ARCH §6.1).
+ */
+export const WINDOW_STORAGE_KEY = "aluna.desk.window.v1";
+
+/**
+ * Set on the desk ground below the breakpoint, so the page states the form the script
+ * believes it is in. Nothing in the stylesheet needs it — the phone layout is painted
+ * by the media query — which is exactly why it is worth writing down: it is the one
+ * place the script's answer and the stylesheet's can be seen agreeing.
+ */
+export const PHONE_CLASS = "desk--phone";
+
+/**
+ * The desk ground: the wallpaper filling the viewport that the logos, the window layer
+ * and the prompt bar all stand on. Missing one is not fatal the way a missing window
+ * layer is — the class is a statement about the ground, and every gesture reads the
+ * script's own answer rather than the class.
+ */
+export const DESK_GROUND_SELECTOR = ".shell";
+
+/**
  * Over a wallpaper the window carries its shadow at 40% rather than 24% — the
  * design's own number for a window standing on the desk rather than in a document.
  */
@@ -87,7 +119,7 @@ const WALL_SHADOW = 0.4;
  *
  * A collection is a list, so height is what it wants; and the desk has to still read
  * as a desk around it, or the wallpaper and the logos have been replaced by a page.
- * Anything remembered from a previous visit is 5.6/02's, and it replaces this.
+ * A box remembered from a previous visit replaces this.
  */
 const DEFAULT_FILL = { w: 0.62, h: 0.72 };
 
@@ -130,6 +162,8 @@ function htmx() {
  * @property {StoredBox} box carries the box to give back while the window is maximised
  * @property {boolean} maximised
  * @property {Element | null} openedBy what to give focus back to when it is put away
+ * @property {boolean} gestures whether the drag and the grip have been bound
+ * @property {boolean} sized whether this box was ever authored against a desk
  */
 
 /** The one window (design D1). The developer panel's second one is 5.6/04. */
@@ -138,6 +172,16 @@ let mounted = null;
 
 /** How many windows this page has stood up, so no two share a title's id. */
 let mountCount = 0;
+
+/**
+ * Whether the desk is below the breakpoint. Held rather than asked each time, because
+ * every gesture and every write consults it and the media query is the one thing that
+ * can answer it — the stylesheet has no class for the script to read back.
+ */
+let phone = false;
+
+/** Whether the viewport is already being watched. The three subscriptions are for life. */
+let watching = false;
 
 /**
  * The layer, or a loud failure. A missing live anchor is never absorbed in silence
@@ -158,6 +202,151 @@ export function windowLayer(root) {
   return /** @type {HTMLElement} */ (layer);
 }
 
+/* ── what the browser remembers ────────────────────────────────────────────── */
+
+/**
+ * The record, as it is written down: one box and one flag, and no third thing. While
+ * the window is maximised the box it is standing in is the desk's, so the box kept
+ * here is the one it will be given back — which is what stops a wide screen writing
+ * *its* width minus the inset into the record and stranding the window on a narrower
+ * one (PLAN decision 18).
+ *
+ * @typedef {Box & { max: boolean }} Presentation
+ */
+
+/**
+ * Read a record back, believing as little of it as possible.
+ *
+ * A presentation preference is the shell's to keep and never the shell's to depend
+ * on: malformed JSON, something that is not an object, geometry that is not four
+ * finite numbers, or a flag that is not a boolean each fall back to this window's
+ * default rather than reaching the desk. A bad preference may not stop an addressed
+ * capability from opening, so nothing in here throws and nothing in here is trusted.
+ *
+ * The box is `readBox`'s question and the flag is this one's; each falls back on its
+ * own, so a good box survives a bad flag.
+ *
+ * @param {string | null | undefined} raw
+ * @returns {{ box: Box | null, max: boolean }}
+ */
+export function parsePresentation(raw) {
+  /** @type {{ box: Box | null, max: boolean }} */
+  const fresh = { box: null, max: false };
+  if (typeof raw !== "string") return fresh;
+
+  let stored;
+  try {
+    stored = JSON.parse(raw);
+  } catch {
+    return fresh;
+  }
+  if (stored === null || typeof stored !== "object") return fresh;
+
+  /* `readBox` is `desk-geometry.js`'s, so the product and the design page believe
+   * exactly the same things about a remembered box. */
+  return { box: readBox(stored), max: stored.max === true };
+}
+
+/**
+ * What a window is worth remembering as. `setMaximised` stashes the pre-maximise box
+ * on the live one and clears it again on the way back, so the normal box is always
+ * exactly that — no second geometry record, and no second key.
+ *
+ * @param {Pick<DeskWindow, "box" | "maximised">} entry
+ * @returns {Presentation}
+ */
+export function presentationOf(entry) {
+  const { x, y, w, h } = entry.box.restore ?? entry.box;
+  return { x, y, w, h, max: entry.maximised };
+}
+
+/**
+ * The store, where the browser has one to give.
+ *
+ * Reached for behind a `try`, not just read behind one: a browser told to block site
+ * data throws on the *access* to `localStorage`, before any method is called. Storage
+ * that cannot be opened is storage that remembers nothing, which is a working desk.
+ *
+ * @typedef {{ getItem(key: string): string | null, setItem(key: string, value: string): void }} Store
+ * @returns {Store | null}
+ */
+export function localStore() {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read the record back. The store is an argument so the two ways it fails — throwing
+ * on read, and holding nonsense — can both be handed to this rather than only reached
+ * in a browser.
+ *
+ * @param {Store | null} store
+ * @returns {{ box: Box | null, max: boolean }}
+ */
+export function loadPresentation(store) {
+  try {
+    return parsePresentation(store?.getItem(WINDOW_STORAGE_KEY));
+  } catch {
+    return { box: null, max: false };
+  }
+}
+
+/**
+ * Write the record, unless the desk is a phone. There the window is the screen and the
+ * box it is standing in is the stylesheet's, so writing would turn a narrow browser
+ * into a new desktop preference — the desktop record is read past, never over.
+ *
+ * Called where the user *authored* something: a finished drag or resize, the maximise
+ * lamp, and the moment a phone becomes a desk. Deliberately not called on every resize
+ * tick, and the difference matters. A clamp is not a preference: `fitToDesk` only ever
+ * pulls a box in, so persisting each tick would let one transient narrowing — a browser
+ * dragged small, a sidebar opened, a tablet turned — erode the remembered box for good,
+ * with no way back to the screen it was authored on. The screen is clamped; the record
+ * keeps what was asked for. (It also kept a synchronous, disk-backed write on the
+ * resize path, which is the last place one belongs.)
+ *
+ * @param {Pick<DeskWindow, "box" | "maximised">} entry
+ * @param {boolean} isPhone
+ * @param {Store | null} store
+ */
+export function savePresentation(entry, isPhone, store) {
+  if (isPhone) return;
+  const record = JSON.stringify(presentationOf(entry));
+  try {
+    /* Compared against what storage actually holds rather than against a copy kept
+     * here: the record is shared with every tab on this origin, and a mirror in this
+     * one is wrong the moment another writes — including the moment a future Forget
+     * removes the key. */
+    if (store?.getItem(WINDOW_STORAGE_KEY) === record) return;
+    store?.setItem(WINDOW_STORAGE_KEY, record);
+  } catch {
+    /* A desk that cannot persist is still a working desk. */
+  }
+}
+
+/** This page's window, remembered in this page's store. @param {DeskWindow} entry */
+const remember = (entry) => savePresentation(entry, phone, localStore());
+
+/* ── where the window sits ─────────────────────────────────────────────────── */
+
+/**
+ * Whether the desk has edges worth measuring.
+ *
+ * On a cold load the shell's stylesheets arrive through `@import`s, so at the moment a
+ * deferred module runs the page is parsed and still unstyled and the desk measures
+ * zero. A `ResizeObserver` reports zero too, for any element an ancestor has taken out
+ * of flow. Fitting a box to a desk of no size is the smallest box there is, in the
+ * corner — and now that a re-fit can be followed by a write, it would be that box
+ * remembered.
+ *
+ * @param {{ width: number, height: number }} bounds
+ * @returns {boolean}
+ */
+const laidOut = (bounds) => bounds.width >= 2 && bounds.height >= 2;
+
 /**
  * The first box a window gets, fitted to the desk it is opening on. `fitToDesk`
  * carries the prompt bar's floor, so a window is never born under the bar.
@@ -173,6 +362,95 @@ function defaultBox(bounds) {
 }
 
 /**
+ * Where a window's box belongs on a desk this size, in this form — the whole of the
+ * geometry decision, and the only part of it that has to be right. The desk itself if
+ * the window is maximised, and inside the edges and above the prompt bar's floor if it
+ * is not; either way the box has been through `desk-geometry.js`, so it stops on the
+ * same floor the logo grid does.
+ *
+ * The same call answers on load and on a live resize, because a screen that changed
+ * between two visits and a screen that changes during one are the same question.
+ *
+ * Told which form it is in rather than reading it, and given a box rather than a
+ * mounted window. Two things follow. The crossing a browser makes now and then — the
+ * one hard case here — is one call made twice with the answer changed, so it can be run
+ * end to end in a test rather than only in a browser. And the first call can happen
+ * while a window is still being built, which it has to: the frame measures the element,
+ * so the element is the right size before there is a frame to ask about it.
+ *
+ * On a phone it decides nothing and touches nothing. The window is the screen there and
+ * the stylesheet places it, so the box is left exactly as it was found — read past,
+ * never written over.
+ *
+ * A window that opened on a phone with nothing remembered is the one case where the box
+ * in hand is not a preference at all: it was fitted to a screen the window filled
+ * entirely, and carrying it onto a desk would let a narrow browser author a desktop box
+ * the user never chose. The desk is asked for a first box instead, the first time there
+ * is a desk to ask.
+ *
+ * @param {{ box: StoredBox, maximised: boolean, sized: boolean }} state mutated in place
+ * @param {DOMRect} bounds the desk
+ * @param {boolean} isPhone
+ * @returns {boolean} whether the window is now worth placing from that box
+ */
+export function fitBox(state, bounds, isPhone) {
+  if (isPhone || !laidOut(bounds)) return false;
+  if (!state.sized) {
+    state.sized = true;
+    const first = defaultBox(bounds);
+    if (state.maximised) state.box.restore = first;
+    else Object.assign(state.box, first);
+  }
+  if (state.maximised) fillDesk(bounds, state.box);
+  else fitToDesk(bounds, state.box);
+  return true;
+}
+
+/**
+ * Turn a record back into a standing window: the box it opens on, whether it is
+ * maximised, and whether that box is a preference or a first guess.
+ *
+ * The order is the whole of it, and it is why this is one function rather than four
+ * lines in `mount`. `setMaximised` runs **first**, so the box the record carried is
+ * stashed as the one to give back before `fitBox` overwrites the live one with this
+ * desk. Get that backwards and there is nothing to restore to: the desk's own size
+ * becomes the remembered box, which is exactly the stranding this issue exists to stop
+ * — and it is a silent swap, so it wants a test rather than a careful reader.
+ *
+ * @param {HTMLElement} el
+ * @param {{ box: Box | null, max: boolean }} stored
+ * @param {DOMRect} bounds
+ * @param {boolean} isPhone
+ * @returns {{ box: StoredBox, maximised: boolean, sized: boolean }}
+ */
+export function openingGeometry(el, stored, bounds, isPhone) {
+  /** @type {StoredBox} */
+  const box = { ...(stored.box ?? defaultBox(bounds)) };
+  if (stored.max) setMaximised(el, box, true);
+
+  /* A box that came out of storage is a preference whatever screen this is; one this
+   * desk just authored is a preference only if there was a desk to author it against. */
+  const state = {
+    box,
+    maximised: stored.max,
+    sized: stored.box !== null || (!isPhone && laidOut(bounds)),
+  };
+  if (fitBox(state, bounds, isPhone)) placeWindow(el, box);
+  return state;
+}
+
+/**
+ * Fit the mounted window to the desk as it is right now, and put it there.
+ *
+ * @param {DeskWindow} entry
+ */
+function refit(entry) {
+  if (fitBox(entry, entry.layer.getBoundingClientRect(), phone)) {
+    placeWindow(entry.el, entry.box);
+  }
+}
+
+/**
  * Build the one window and everything that lives inside it.
  *
  * @param {ParentNode} root
@@ -181,11 +459,11 @@ function defaultBox(bounds) {
  */
 function mount(root, title) {
   const layer = windowLayer(root);
-  const box = defaultBox(layer.getBoundingClientRect());
+  const bounds = layer.getBoundingClientRect();
 
   const el = document.createElement("section");
   el.className = "window window--desk is-focused";
-  placeWindow(el, box);
+  const geometry = openingGeometry(el, loadPresentation(localStore()), bounds, phone);
 
   /* The layout the window's contents sit in; the region below is what they are. */
   const content = document.createElement("div");
@@ -220,16 +498,55 @@ function mount(root, title) {
   el.setAttribute("aria-labelledby", win.titleEl.id);
 
   /** @type {DeskWindow} */
-  const entry = { win, el, layer, region, box, maximised: false, openedBy: null };
+  const entry = { win, el, layer, region, ...geometry, openedBy: null, gestures: false };
 
-  /* The three gestures ship from `window-gestures.js`, the way the frame ships from
-   * `window.js`: one implementation, so a desk cannot drift from the design's. */
-  const host = gestureHost(entry);
-  addWindowGrip(host);
-  addWindowDrag(win.bar, host);
   addLamps(entry);
   syncMaximiseLamp(entry);
+  syncForm(entry, phone);
   return entry;
+}
+
+/**
+ * Tell the window which form it is in.
+ *
+ * Below the breakpoint the window is the screen: the stylesheet places it, the grip is
+ * hidden and the leaf lamp has nothing left to toggle. Neither may stay in the focus
+ * order — a tab stop whose Enter does nothing is worse than no tab stop — so the grip
+ * is never built and the lamp is taken out of the page. Above it, the two gestures
+ * bind the first time there is a desk to make them on.
+ *
+ * @param {DeskWindow} entry
+ * @param {boolean} isPhone
+ */
+export function syncForm(entry, isPhone) {
+  entry.el.querySelector('.lamp[data-action="maximise"]')?.toggleAttribute("hidden", isPhone);
+  if (!isPhone) bindGestures(entry);
+  /* `addWindowDrag` marks the bar draggable and offers no way back off it, and the mark
+   * is not cosmetic: `.window__bar--draggable` carries `touch-action: none`. Left on a
+   * phone — where the window is the screen and its title bar is the top strip of it —
+   * the browser hands every touch that starts there to a drag that stands itself down,
+   * so a scroll begun on the title bar does nothing at all. `cursor: grab` and
+   * `user-select: none` come off with it. */
+  entry.win.bar.classList.toggle("window__bar--draggable", !isPhone);
+}
+
+/**
+ * The three gestures ship from `window-gestures.js`, the way the frame ships from
+ * `window.js`: one implementation, so a desk cannot drift from the design's.
+ *
+ * Bound once, and never on a phone. A window that opens below the breakpoint gets no
+ * drag and no grip at all rather than a grip the stylesheet has hidden; one already
+ * standing when the browser narrows keeps the listeners it has and stands them down
+ * through the host instead, which is the only half of this a listener can do.
+ *
+ * @param {DeskWindow} entry
+ */
+function bindGestures(entry) {
+  if (entry.gestures) return;
+  entry.gestures = true;
+  const host = gestureHost(entry);
+  addWindowGrip(host);
+  addWindowDrag(entry.win.bar, host);
 }
 
 /* ── opening and putting away ──────────────────────────────────────────────── */
@@ -360,9 +677,10 @@ function addLamps(entry) {
 }
 
 /**
- * The desk this window is held inside, and what a gesture on it may do. Nothing here
- * stands a gesture down but a maximised window: the phone form, where the window is
- * the screen and no box may be written for it, is 5.6/02's.
+ * The desk this window is held inside, and what a gesture on it may do. Two things
+ * stand a gesture down: a maximised window, and a phone, where the window is the
+ * screen and no box may be written for it. A gesture that finishes is worth
+ * remembering, which is the only moment a drag or a resize reaches storage.
  *
  * @param {DeskWindow} entry
  * @returns {import("../design/scripts/window-gestures.js").GestureHost}
@@ -372,24 +690,28 @@ function gestureHost(entry) {
     el: entry.el,
     box: entry.box,
     bounds: () => entry.layer.getBoundingClientRect(),
-    standDown: () => entry.maximised,
+    standDown: () => entry.maximised || phone,
+    onEnd: () => remember(entry),
   };
 }
 
 /**
- * Maximise, or give the window back the box it had. Remembering either across a
- * reload is 5.6/02's; what is kept here lives only as long as the window does.
+ * Maximise, or give the window back the box it had. What is remembered is the flag and
+ * that box, never the maximised size — so the same window on a different screen fills
+ * *that* screen (design D9).
+ *
+ * On a phone there is nothing to toggle: the window already is the screen. The lamp is
+ * out of the page there, so this is the door nobody can reach rather than the lock.
  *
  * @param {DeskWindow} entry
  */
 function toggleMaximise(entry) {
-  const bounds = entry.layer.getBoundingClientRect();
+  if (phone) return;
   entry.maximised = !entry.maximised;
   setMaximised(entry.el, entry.box, entry.maximised);
-  if (entry.maximised) fillDesk(bounds, entry.box);
-  else fitToDesk(bounds, entry.box);
-  placeWindow(entry.el, entry.box);
+  refit(entry);
   syncMaximiseLamp(entry);
+  remember(entry);
 }
 
 /**
@@ -401,6 +723,71 @@ function toggleMaximise(entry) {
 function syncMaximiseLamp(entry) {
   const lamp = entry.el.querySelector('.lamp[data-action="maximise"]');
   lamp?.setAttribute("aria-pressed", entry.maximised ? "true" : "false");
+}
+
+/* ── the desk changing size ────────────────────────────────────────────────── */
+
+/**
+ * The desk ground, if the page has one. Structural rather than instanceof, the way
+ * every other rule in here is, so a test double satisfies it.
+ *
+ * @param {ParentNode} root
+ * @returns {{ classList: DOMTokenList } | null}
+ */
+export function deskGround(root) {
+  const ground = root.querySelector?.(DESK_GROUND_SELECTOR);
+  return ground !== null && ground !== undefined && "classList" in ground
+    ? /** @type {{ classList: DOMTokenList }} */ (/** @type {unknown} */ (ground))
+    : null;
+}
+
+/**
+ * The desk's one viewport listener, and the thing the shipped scripts have been
+ * missing: a screen can change size between two visits and during one, so what is
+ * remembered is re-fitted rather than trusted.
+ *
+ * Three sources, because they no longer move together.
+ *
+ *   - The media query is what says which form this is, and it changes at exactly one
+ *     width rather than on every pixel between.
+ *   - `resize` is the ordinary case: the browser window, or a phone turned sideways.
+ *   - The layer is watched too. The floor and the minimum are in rem, so a reader
+ *     raising their text size grows both without the viewport moving at all — and
+ *     that is a resize as far as a window is concerned.
+ *
+ * Re-fitting cannot feed this: the box is written as custom properties on a window
+ * absolutely positioned inside the layer, so nothing it does can resize the layer.
+ *
+ * @param {ParentNode} root
+ * @param {HTMLElement} layer
+ */
+function watchViewport(root, layer) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+  /* Three subscriptions with no way off them, so they are taken once. The product
+   * starts the desk exactly once; a second call would otherwise stack a second set. */
+  if (watching) return;
+  watching = true;
+  const ground = deskGround(root);
+  const query = window.matchMedia(PHONE);
+
+  const onResize = () => {
+    refreshGeometry();
+    const was = phone;
+    phone = query.matches;
+    ground?.classList.toggle(PHONE_CLASS, phone);
+    if (!mounted) return;
+    syncForm(mounted, phone);
+    refit(mounted);
+    /* Only the crossing is written, and only upward — a phone writes nothing. What it
+     * records is the one thing a resize can author rather than merely clamp: the first
+     * desktop box of a window that was born below the breakpoint. */
+    if (was !== phone) remember(mounted);
+  };
+
+  query.addEventListener("change", onResize);
+  window.addEventListener("resize", onResize);
+  if (typeof ResizeObserver === "function") new ResizeObserver(onResize).observe(layer);
+  onResize();
 }
 
 /* ── who opens it ──────────────────────────────────────────────────────────── */
@@ -576,7 +963,11 @@ function asElement(logo) {
  * @param {string} [pathname] the address to open, defaulting to the one in the bar
  */
 export function startDeskWindow(root, pathname = window.location.pathname) {
-  windowLayer(root);
+  const layer = windowLayer(root);
+
+  /* Before either opener, so the first window mounted knows which form it is in and
+   * the phone's is never built with a grip and a lamp it may not use. */
+  watchViewport(root, layer);
 
   root.addEventListener(
     "click",
