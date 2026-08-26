@@ -36,6 +36,7 @@ import {
   placeWindow,
   refreshGeometry,
 } from "./desk-geometry.js";
+import { devTile, logoButton, nameLogo } from "./desk-logo.js";
 import { renderCollection } from "./patterns.js";
 import { mountPromptBar } from "./prompt-bar.js";
 import { wallpaperUrl } from "./wallpaper.js";
@@ -275,84 +276,14 @@ export class Desk {
 
   renderLogos() {
     this.logoLayer.replaceChildren(
-      ...this.capabilities.map((capability) => this.#logoButton(capability)),
-      this.#devTile(),
+      ...this.capabilities.map((capability) =>
+        logoButton(capability, {
+          building: this.build?.id === capability.id,
+          onOpen: () => this.open(capability.id),
+        }),
+      ),
+      devTile(() => this.toggleDev()),
     );
-  }
-
-  /**
-   * A logo, assembled to the contract: the stored artwork full-bleed on the
-   * tile, and the capability's name written straight onto the desk beneath it.
-   * The corner, the shadow, the size, the gap and the way the name is set are
-   * all in `logo-contract.css` — nothing about a logo is decided here.
-   *
-   * A capability has no artwork until its build has cleared the gate, because
-   * that is when the request is made and nothing pays for a build that can
-   * still fail (L10). Until then the tile is a placeholder — working while the
-   * build runs, which is the ambient signal that something is being made (D6),
-   * and at rest afterwards if the logo request has not landed yet (L11).
-   *
-   * @param {Capability} capability
-   * @returns {HTMLButtonElement}
-   */
-  #logoButton(capability) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "logo";
-    button.dataset.capability = capability.id;
-    button.setAttribute("aria-label", `Open ${capability.label}`);
-
-    const building = this.build?.id === capability.id;
-    const tile = document.createElement("span");
-    tile.className = "logo-tile";
-    if (capability.pending) {
-      /* No artwork yet. It works while the build runs, and rests while it
-       * waits on a logo request that has not landed. */
-      tile.classList.add("logo-tile--pending");
-      if (building) tile.classList.add("logo-tile--working");
-    } else if (capability.logo) {
-      tile.style.backgroundImage = `url("${capability.logo}")`;
-    }
-    if (building) button.setAttribute("aria-label", `${capability.label} — being made`);
-
-    const label = document.createElement("span");
-    label.className = "logo-label";
-    label.textContent = capability.label;
-
-    button.append(tile, label);
-    /*
-     * D4 makes the logo load-bearing: with no taskbar it is the capability's
-     * permanent identity and the only way back to a window you closed.
-     */
-    button.addEventListener("click", () => this.open(capability.id));
-    return button;
-  }
-
-  /**
-   * The developer panel's tile (D13). It stands with the apps because it is
-   * one, and it is drawn rather than generated so nothing mistakes it for a
-   * capability.
-   *
-   * @returns {HTMLButtonElement}
-   */
-  #devTile() {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "logo logo--dev";
-    button.dataset.dev = "true";
-    button.setAttribute("aria-label", "Open the developer panel");
-
-    const tile = document.createElement("span");
-    tile.className = "logo-tile logo-tile--dev";
-    tile.textContent = "</>";
-
-    const label = document.createElement("span");
-    label.className = "logo-label";
-    label.textContent = "Developer";
-
-    button.append(tile, label);
-    button.addEventListener("click", () => this.toggleDev());
-    return button;
   }
 
   /* ── the one window ───────────────────────────────────────────────────── */
@@ -719,6 +650,7 @@ export class Desk {
       noun: label.toLowerCase().replace(/s$/, ""),
       logo: "",
       pending: true,
+      unnamed: true,
       seed: Math.floor(Math.random() * 9000) + 10,
       records: [],
       fields: [{ label: "Name", value: "", guidance: "What to call this one" }],
@@ -789,6 +721,7 @@ export class Desk {
         () => {
           this.#say(line);
           this.#devWrite(key, `{ "stage": "${key}", "capability": "${capability.id}" }`);
+          if (key === "spec") nameLogo(this.root, capability);
           if (index === STAGES.length - 1) this.#commit(capability);
         },
         420 + index * 380,

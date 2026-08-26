@@ -9,6 +9,7 @@ import {
   renderCapabilityShell,
   renderPromptNotice,
   renderProvisionalLogo,
+  renderProvisionalLogoName,
   renderRehydratedShell,
 } from "./fragments.ts";
 
@@ -139,10 +140,10 @@ describe("web fragments", () => {
     expect(fragment).toContain('id="capability-logo-notes"');
     expect(fragment).toContain('hx-push-url="/capability/notes"');
     expect(fragment).toContain('aria-label="Open Notes"');
-    // Until 5.5 draws it, every logo wears the designed placeholder tile — and it rests:
-    // an activated capability is finished and usable, not still being made.
-    expect(fragment).toContain('class="logo-tile logo-tile--pending"');
-    expect(fragment).not.toContain("logo-tile--working");
+    // The placeholder tile, and it keeps working: this one is armed, so its own logo
+    // request is in flight and the artwork is on its way to this very element. The
+    // provisional tile comes down in the same beat, and the ground never goes still.
+    expect(fragment).toContain('class="logo-tile logo-tile--pending logo-tile--working"');
     // Deletion's doorway is the logo's context menu (5.9/02), not a second control
     // riding on the tile.
     expect(fragment).not.toContain("data-capability-delete");
@@ -190,8 +191,8 @@ describe("web fragments", () => {
     expect(unchanged).not.toContain("capability-evolution");
   });
 
-  test("the provisional tile is keyed by the build id and says it is being made", async () => {
-    const fragment = renderProvisionalLogo("build-7", "Recipes");
+  test("the provisional tile is keyed by the build id and stands nameless", async () => {
+    const fragment = renderProvisionalLogo("build-7");
 
     // It stands on the same desk as everything else, out of band, and carries no
     // capability identity at all — there is none yet.
@@ -206,15 +207,37 @@ describe("web fragments", () => {
     // Working while the build runs: the ambient half of the signal, visible from
     // anywhere on the desk while the window carries the narration.
     expect(fragment).toContain('class="logo-tile logo-tile--pending logo-tile--working"');
-    expect(fragment).toContain("Recipes");
-    expect(fragment).toContain("— being made");
+    // Nameless. Admission has no name to write, and a stand-in on the desk is a word
+    // nobody chose — so the label is empty and waits for the spec to author one.
+    expect(fragment).toContain('<span class="logo-label" id="provisional-logo-label-build-7">');
+    expect(fragment).not.toContain("Something new");
+    // But it still answers to something. The accessible name is the two referenced spans,
+    // one of them hidden, so it reads "being made" now and "<name> being made" later.
+    expect(fragment).toContain(
+      'aria-labelledby="provisional-logo-label-build-7 provisional-logo-status-build-7"',
+    );
+    expect(fragment).toContain(
+      '<span id="provisional-logo-status-build-7" hidden>being made</span>',
+    );
+    expect(fragment).not.toContain("aria-label=");
   });
 
-  test("the provisional tile escapes the label and the build id it is given", () => {
-    const fragment = renderProvisionalLogo('b"1', "<img src=x onerror=alert(1)> \"R\" & 'r'");
-    expect(fragment).toContain('data-provisional-logo="b&quot;1"');
-    expect(fragment).toContain("&lt;img src=x onerror=alert(1)&gt;");
-    expect(fragment).not.toContain("<img");
+  test("the spec's name is written into the label alone, never over the tile", () => {
+    const swap = renderProvisionalLogoName("build-7", "Recipes");
+    expect(swap).toBe(
+      '<span class="logo-label" id="provisional-logo-label-build-7" hx-swap-oob="outerHTML">Recipes</span>',
+    );
+    // Replacing the button would restart the crawl mid-cycle, which is the one thing the
+    // animation must never do.
+    expect(swap).not.toContain("<button");
+    expect(swap).not.toContain("logo-tile");
+  });
+
+  test("the provisional tile escapes the build id, and the name escapes the label", () => {
+    expect(renderProvisionalLogo('b"1')).toContain('data-provisional-logo="b&quot;1"');
+    const named = renderProvisionalLogoName("build-7", "<img src=x onerror=alert(1)> \"R\" & 'r'");
+    expect(named).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(named).not.toContain("<img");
   });
 });
 
@@ -338,6 +361,9 @@ describe("the tile inside a logo", () => {
     expect(html).toContain('hx-trigger="load"');
     expect(html).toContain('hx-target="#capability-logo-notes"');
     expect(html).toContain('hx-swap="outerHTML"');
+    // And it works while it waits: the attempt it just armed answers with this very
+    // element, so a picture really is on its way here.
+    expect(html).toContain("logo-tile--working");
   });
 
   // htmx honours one verb per element, and `hx-get` wins. Putting the POST on the button
@@ -357,6 +383,9 @@ describe("the tile inside a logo", () => {
     expect(html).toContain("logo-tile--pending");
     expect(html).not.toContain("logo-attempt");
     expect(html).not.toContain("hx-trigger");
+    // And it rests. Nothing is on its way to an unarmed tile, and a tile still working
+    // would promise an arrival that is not coming.
+    expect(html).not.toContain("logo-tile--working");
   });
 
   // `generating` is a picture being drawn, not a picture arriving late, and `abandoned`

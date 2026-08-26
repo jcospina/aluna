@@ -40,6 +40,7 @@ import {
   listCapabilities,
 } from "../../registry/index.ts";
 import type { Send } from "../../sse/index.ts";
+import { renderProvisionalLogoName } from "../../web/index.ts";
 import {
   type DemoBuildAccumulator,
   recordBehavioralFreezeMetrics,
@@ -208,6 +209,12 @@ export async function runSpecBuildStages(
   // validated authored spec supplies the semantic id, enrich the same durable row.
   onCapabilityIdentified(spec.id);
   if (isAborted()) return;
+  // And the same moment supplies the name. The tile admission stood on the desk has been
+  // blank until now — there was no name to write on it — so this is the first point at
+  // which the ground can say which capability is being made. Sent as `fragment` so it
+  // rides the same guarded listener the tile itself arrived on, and it addresses the
+  // label span alone: the tile beside it is mid-crawl and must not be replaced.
+  await send("fragment", renderProvisionalLogoName(buildId, spec.label));
 
   // Preview the deterministic migration plan against scratch SQLite. The real data
   // store must remain untouched until Gate success and filesystem publication.

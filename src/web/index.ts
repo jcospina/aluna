@@ -21,6 +21,7 @@ export {
   renderCapabilityShell,
   renderPromptNotice,
   renderProvisionalLogo,
+  renderProvisionalLogoName,
   renderRehydratedShell,
 } from "./fragments.ts";
 export {

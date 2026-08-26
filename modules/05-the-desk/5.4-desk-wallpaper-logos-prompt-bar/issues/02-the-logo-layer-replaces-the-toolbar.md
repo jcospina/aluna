@@ -282,6 +282,23 @@ Accepted rather than fixed, and recorded here:
   on the resolver, or relabelling the tile when the spec's authored label lands —
   and it is a product decision rather than an implementation one.
 
+  **Closed 2026-08-25**, together with two defects in the tile's animation: the
+  crawl had a visible joint sweeping across it on every repeat (the background
+  tiled out of phase and the keyframe started from an inherited `50% 50%`), and it
+  stopped at commit rather than carrying on until the artwork arrived. Both are
+  fixed, and the crawl now runs at a settled 7.5px/s across the bands — the seam
+  pins the travel, so the duration in `desk.css` is the whole of the speed and
+  `desk-logo-layer.test.ts` pins it as a decision.
+
+  The naming was closed by the second of the two options above, plus the
+  stand-in's removal. The
+  provisional tile now stands *nameless*: `renderProvisionalLogo` writes an empty
+  `.logo-label` and takes its accessible name from that plus a hidden "being made",
+  so the ground carries no word nobody chose. `runSpecBuildStages` sends
+  `renderProvisionalLogoName` the moment the authored spec supplies a label, which
+  addresses the label span alone — replacing the button would restart the tile's
+  animation mid-crawl.
+
 ## HITL — how to check this
 
 The dev server on `:3030` (start it with `bun run dev` if it is down).
@@ -291,12 +308,15 @@ The dev server on `:3030` (start it with `bun run dev` if it is down).
    bar and nothing else — no rail, no sliver of one on the left, no empty panel.
 2. **A build announces itself on the ground.** Type *"I want to keep track of my
    houseplants"* and press **Make it**. A striped tile appears at the top left
-   within a second or two, animating, labelled and reading "— being made" to a
-   screen reader. Press that tile: the narration comes back into view.
+   within a second or two, animating and **nameless** — nothing is written under it
+   — and reading "being made" to a screen reader. Press that tile: the narration
+   comes back into view. A few seconds later the spec authors a name and it appears
+   under the tile, which keeps crawling without a hitch.
 3. **Activation replaces it.** Wait for the build to finish. The striped working
-   tile is replaced by the capability's own logo, at rest, with its name under it —
-   one tile, not two, and no gap in between. Press it: the capability opens and the
-   address becomes `/capability/<id>`.
+   tile is replaced by the capability's own logo, with its name under it — one tile,
+   not two, and no gap in between. The replacement tile **keeps animating** until the
+   artwork arrives, so the desk never goes still while a picture is being drawn.
+   Press it: the capability opens and the address becomes `/capability/<id>`.
 4. **Cancelling leaves nothing behind.** Start another build and press **Cancel**
    while it runs. The tile disappears and only real capabilities are left standing.
 5. **So does walking away from one.** Start a build and, while it runs, press an

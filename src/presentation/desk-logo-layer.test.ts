@@ -136,8 +136,8 @@ describe("the logo layer", () => {
   });
 
   test("a capability with no artwork gets the designed placeholder, not a hole", () => {
-    // The placeholder is a first-class state, not a loading failure: it works while a
-    // build runs and rests afterwards, and until 5.5 lands it is every tile there is.
+    // The placeholder is a first-class state, not a loading failure: it works for as long
+    // as a picture is on its way to it, and rests when none is.
     expect(DESK).toMatch(/\.logo-tile--pending\s*\{/);
     expect(bodies(DESK, ".logo-tile--pending")[0]).toMatch(/repeating-linear-gradient/);
     expect(DESK).toMatch(/\.logo-tile--working\s*\{/);
@@ -145,6 +145,66 @@ describe("the logo layer", () => {
     const working = DESK.indexOf(".logo-tile--working");
     const guard = DESK.lastIndexOf("prefers-reduced-motion", working);
     expect(guard).toBeGreaterThan(-1);
+  });
+
+  test("the working tile crawls without a joint in it", () => {
+    // The animation translates the stripes, and a translation shows every joint in the
+    // pattern it moves. Three facts together make it one unbroken loop, and each of them
+    // is a separate way to reintroduce the visible gap.
+    const pending = bodies(DESK, ".logo-tile--pending")[0] as string;
+
+    // 1. The background tiles as a square whose side is the stripes' horizontal period,
+    //    so its edges meet its neighbours' in phase. At 45 degrees a band of width B
+    //    repeats every 2·B·√2 across, so the band that fits a whole number of times into
+    //    a square of side S is S / (2·√2).
+    const side = Number(/--stripe-tile:\s*([\d.]+)px/.exec(pending)?.[1]);
+    const band = Number(
+      /--stripe-band:\s*calc\(var\(--stripe-tile\) \* ([\d.]+)\)/.exec(pending)?.[1],
+    );
+    expect(side).toBeGreaterThan(0);
+    expect(band).toBeCloseTo(1 / (2 * Math.SQRT2), 6);
+    expect(pending).toContain("background-size: var(--stripe-tile) var(--stripe-tile)");
+
+    // 2. The start is stated, not inherited. `.logo-tile` centres its background for
+    //    artwork, and an animation left to start from that `50% 50%` snaps back across
+    //    half a tile on every repeat.
+    const contract = rules("design/styles/components/logo-contract.css");
+    expect(body(contract, ".logo-tile")).toContain("background-position: center");
+    expect(pending).toMatch(/background-position:\s*0 0/);
+
+    // 3. The travel is exactly one tile, so the keyframe ends pixel-for-pixel where it
+    //    began. Anything else — the old `17px` against a `200% 200%` tile, say — leaves a
+    //    step at the loop point.
+    const frames = /@keyframes tile-working\s*\{([\s\S]*?)\n\}/.exec(DESK)?.[1] ?? "";
+    expect(frames).toMatch(/from\s*\{\s*background-position:\s*0 0;\s*\}/);
+    expect(frames).toMatch(/to\s*\{\s*background-position:\s*var\(--stripe-tile[^)]*\) 0;\s*\}/);
+  });
+
+  test("the crawl runs at the speed that was chosen, not at whatever falls out", () => {
+    // The seam pins the travel to exactly one band-period per cycle, so pace can
+    // never be bought by moving further — the duration is the whole of the speed.
+    // That coupling is easy to break silently, and it was: the travel shrank 5x
+    // while the duration stayed, and the crawl dropped to 12.6px/s without a
+    // single rule looking wrong. So the *speed* is what is pinned here, rather
+    // than either number on its own. Changing `--stripe-tile` without restating
+    // the duration fails, which is the point.
+    const pending = bodies(DESK, ".logo-tile--pending")[0] as string;
+    const side = Number(/--stripe-tile:\s*([\d.]+)px/.exec(pending)?.[1]);
+    // Read straight out of the sheet: the rule sits inside the reduced-motion
+    // guard, so it has an opening brace before it rather than a closing one.
+    const ms = Number(/\.logo-tile--working\s*\{[^}]*tile-working\s+([\d.]+)ms/.exec(DESK)?.[1]);
+    expect(side).toBeGreaterThan(0);
+    expect(ms).toBeGreaterThan(0);
+
+    // One stripe-tile of travel across is one band-period perpendicular, and that
+    // is the distance the eye actually reads. 7.5px/s was chosen by eye against
+    // the alternatives — deliberately at the slow end, because the tile stands
+    // there for the length of a build and should read as patience.
+    const perpendicularPxPerSecond = (side * Math.SQRT1_2) / (ms / 1000);
+    expect(
+      perpendicularPxPerSecond,
+      `the stripes cross their own bands at ${perpendicularPxPerSecond.toFixed(2)}px/s`,
+    ).toBeCloseTo(7.54, 1);
   });
 });
 

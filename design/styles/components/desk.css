@@ -73,40 +73,78 @@
 /* ── The tile of something being built ────────────────────────────────── */
 /*
  * D6: pressing Make it puts a tile on the ground straight away and it stays
- * until the build is done. It is the ambient half of the signal — the window
- * carries the narration, and this carries the fact, visible from anywhere on
- * the desk.
+ * until the capability has a face. It is the ambient half of the signal — the
+ * window carries the narration, and this carries the fact, visible from
+ * anywhere on the desk.
  *
  * There is no artwork yet and there deliberately is not: the logo is requested
  * last, once the build has cleared its gate, so nothing is paid for a
  * capability that can still be refused (L10).
  */
 
+/*
+ * The stripes are animated by translating them, and a translation shows every
+ * joint in the pattern it moves. Two numbers make the crawl unbroken:
+ *
+ *   - The background tile is a square whose side is the stripes' *horizontal*
+ *     period. At 45 degrees a band of width B repeats every 2·B·√2 across, so a
+ *     16px square holds exactly two bands and meets its neighbours in phase.
+ *     A `200% 200%` tile does not: the pattern restarts partway through a band
+ *     and the joint sweeps across the face.
+ *   - The travel is exactly one tile, so the keyframe ends pixel-for-pixel
+ *     where it began and the repeat has no seam to see.
+ *
+ * The start is stated rather than inherited. `.logo-tile` centres its
+ * background for artwork, and an animation left to start from that `50% 50%`
+ * jumps half a tile back on every repeat — which is the gap, not the stripes.
+ */
+
 .logo-tile--pending {
+  --stripe-tile: 16px;
+  --stripe-band: calc(var(--stripe-tile) * 0.35355339);
   background-color: var(--surface-2);
   background-image: repeating-linear-gradient(
     -45deg,
-    var(--ground-deep) 0 6px,
-    var(--surface-2) 6px 12px
+    var(--ground-deep) 0 var(--stripe-band),
+    var(--surface-2) var(--stripe-band) calc(var(--stripe-band) * 2)
   );
-  background-size: 200% 200%;
+  background-position: 0 0;
+  background-size: var(--stripe-tile) var(--stripe-tile);
 }
 
 /*
- * It works while the build runs and rests afterwards. A capability whose build
- * has finished but whose logo request has not landed is finished and usable —
- * it just has no face yet (L11), and a tile still animating would say
- * otherwise.
+ * It works for as long as a picture is on its way — the build that will order
+ * one, and then the logo request itself — and stops when nothing more is
+ * coming. The two run back to back, so the tile handed over at commit takes the
+ * animation on rather than resting for the seconds the artwork takes to arrive.
+ *
+ * A capability that has spent its attempts is finished and usable with no face
+ * (L11), and a tile still working would promise an arrival that is not on its
+ * way. That tile rests.
+ *
+ * The duration is the *speed*, and has to be read as one, because the seam fixes
+ * everything else: the travel is exactly one band-period per cycle and cannot be
+ * traded for pace. So if `--stripe-tile` ever changes, this number changes with
+ * it, or the crawl silently speeds up or slows down.
+ *
+ * 1500ms — 7.5px/s across the bands. Chosen by eye against the alternatives, and
+ * deliberately at the slow end: this tile sits on the desk for the length of a
+ * build, so it is meant to read as patience rather than as urgency. The number is
+ * a decision, not a default, and `desk-logo-layer.test.ts` pins it as one.
  */
 @media (prefers-reduced-motion: no-preference) {
   .logo-tile--working {
-    animation: tile-working 900ms linear infinite;
+    animation: tile-working 1500ms linear infinite;
   }
 }
 
 @keyframes tile-working {
+  from {
+    background-position: 0 0;
+  }
+
   to {
-    background-position: 17px 0;
+    background-position: var(--stripe-tile, 16px) 0;
   }
 }
 
