@@ -15,10 +15,11 @@ recorded in `modules/05-the-desk/PLAN.md` (decisions 34–42).
 and label rules in `design/styles/components/logo-contract.css`. Epic 5.5 has
 since built the rest in order: the spec and registry fields (5.5/01), then the
 request, the provider client, the incarnation-root storage, the claimed attempt
-and the tile's load-triggered POST (5.5/02). What remains is the logo route's
-immutable cache directive and compressed response (5.5/03) and the desk-load
-sweep's recovery — an interrupted claim, a stale attempt temp, a `present` row
-whose file has gone, and the bounded wait a concurrent claim loser owes (5.5/04).
+and the tile's load-triggered POST (5.5/02), then the logo route's immutable
+cache directive, its negotiated gzip and its fail-closed non-present answers
+(5.5/03). What remains is the desk-load sweep's recovery — an interrupted claim,
+a stale attempt temp, a `present` row whose file has gone, and the bounded wait a
+concurrent claim loser owes (5.5/04).
 
 ## Decision
 
@@ -162,7 +163,8 @@ Measured on the four specimens under `design/assets/logos/`:
 The C2PA manifest is a flat 4,354 bytes in every file, so it is not the bulk:
 `recipes.svg` is 220 vector paths at 111 kB. Stripping provenance would recover
 4.4 kB and destroy the record of where the drawing came from. Gzip recovers
-60–70% and changes nothing on disk. The manifest is kept and the response is
+54–71% — the saving grows with the drawing, so the 111 kB specimen gains most —
+and changes nothing on disk. The manifest is kept and the response is
 compressed.
 
 ### Storage: a stable file beside immutable version snapshots

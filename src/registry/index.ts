@@ -106,6 +106,7 @@ export {
   insertCapability,
   isRegistryInitialized,
   type LogoGenerationClaim,
+  listActiveIncarnations,
   listCapabilities,
   listCapabilityDependents,
   REGISTRY_TABLE,

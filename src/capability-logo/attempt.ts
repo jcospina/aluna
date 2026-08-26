@@ -34,7 +34,7 @@ import {
   claimLogoGeneration,
   getCapability,
   type LogoGenerationClaim,
-  readActiveRegistryCatalog,
+  listActiveIncarnations,
   releaseLogoClaim,
   settleLogoGeneration,
 } from "../registry/index.ts";
@@ -105,12 +105,21 @@ export async function runCapabilityLogoAttempt(
   return finalizeAttempt(claim, installed, deps);
 }
 
-/** The active-registry view both the preflight and the paid half acquire against. */
-function readCatalog(deps: CapabilityLogoAttemptDeps): readonly CapabilityIncarnation[] {
-  return readActiveRegistryCatalog(deps.databases.readonly).capabilities.map((row) => ({
+/** The active-registry view every read token in this module is acquired against. */
+export function readActiveIncarnationCatalog(
+  readonly: PlatformDatabase["readonly"],
+): readonly CapabilityIncarnation[] {
+  // Identities only. A gate validates membership and one-incarnation-per-id, so the
+  // resolver's parsed-and-fingerprinted view is work nothing here reads.
+  return listActiveIncarnations(readonly).map((row) => ({
     capabilityId: row.id,
     incarnationId: row.incarnation_id,
   }));
+}
+
+/** The active-registry view both the preflight and the paid half acquire against. */
+function readCatalog(deps: CapabilityLogoAttemptDeps): readonly CapabilityIncarnation[] {
+  return readActiveIncarnationCatalog(deps.databases.readonly);
 }
 
 /**
