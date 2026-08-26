@@ -283,9 +283,7 @@ describe("the module ships with the shell", () => {
     // The two halves are a classic script and a server renderer, so neither can import
     // the other's constant. They are pinned against each other here instead — the same
     // answer `region-scope.js` and `app.js` give for `RELEASE_REGION_EVENT`.
-    expect(renderProvisionalLogo("build-1", "Recipes")).toContain(
-      `${PROVISIONAL_LOGO_ATTRIBUTE}="build-1"`,
-    );
+    expect(renderProvisionalLogo("build-1")).toContain(`${PROVISIONAL_LOGO_ATTRIBUTE}="build-1"`);
     expect(renderBuildSubscriber("build-1")).toContain('data-build-job-id="build-1"');
     expect(read("public/index.html")).toContain(`id="${BUILD_NARRATION_REGION_ID}"`);
   });

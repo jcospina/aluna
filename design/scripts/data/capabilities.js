@@ -30,11 +30,15 @@
  * A capability, as the desk sees one. `logo` is the stored artwork, and it is
  * empty for exactly as long as `pending` is true: the artwork is requested last,
  * once the build has cleared its gate, so a capability exists on the desk for a
- * moment before it has a face. `seed` is a fixture here — the hand a window is
- * drawn in is rolled when the window opens and is never stored.
+ * moment before it has a face. `unnamed` is the shorter window before that: a
+ * capability admitted but not yet specified has no name to write under its tile,
+ * so the ground stays blank rather than carrying a stand-in. `seed` is a fixture
+ * here — the hand a window is drawn in is rolled when the window opens and is
+ * never stored.
  * @typedef {{ id: string, label: string, noun: string, logo: string,
  *             seed: number, records: CapabilityRecord[],
- *             fields: CapabilityField[], pending?: boolean }} Capability
+ *             fields: CapabilityField[], pending?: boolean,
+ *             unnamed?: boolean }} Capability
  */
 
 /** @type {Capability[]} */

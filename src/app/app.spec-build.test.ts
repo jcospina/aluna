@@ -72,6 +72,23 @@ function assertBuildEventOrder(events: SseEvent[]): void {
   expect(events[1]?.data ?? "").toContain('hx-swap-oob="beforeend:#capability-logos"');
   expect(events[1]?.data ?? "").toContain("data-provisional-logo=");
   expect(events.filter((event) => event.data.includes("data-provisional-logo"))).toHaveLength(1);
+  // And it lands nameless. Admission has no name to write — the resolver's line is a
+  // sentence about the request, not a name — so the ground stays blank until the spec
+  // authors one, which is what this second `fragment` carries. It is addressed at the
+  // label alone: the tile beside it is mid-crawl and must not be replaced.
+  expect(events[1]?.data ?? "").toContain('<span class="logo-label" id="provisional-logo-label-');
+  expect(events[1]?.data ?? "").not.toContain("Something new");
+  const naming = events.findIndex(
+    (event) =>
+      event.data.includes("provisional-logo-label-build") &&
+      event.data.includes('hx-swap-oob="outerHTML"'),
+  );
+  expect(naming).toBeGreaterThan(eventNames.indexOf("spec-preview"));
+  expect(eventNames[naming]).toBe("fragment");
+  expect(events[naming]?.data ?? "").toContain('hx-swap-oob="outerHTML"');
+  expect(events[naming]?.data ?? "").toContain(">Notes</span>");
+  expect(events[naming]?.data ?? "").not.toContain("logo-tile");
+  expect(naming).toBeLessThan(eventNames.indexOf("commit"));
   const metricEvents = events.filter((event) => event.event === "metrics-preview");
   expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
     lifecycleStatus: "running",

@@ -17,6 +17,7 @@ import type { MutationCoordinator } from "../../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
 import { abortableProvider, type Provider } from "../../provider/index.ts";
 import { type ActiveRegistryCatalog, readActiveRegistryCatalog } from "../../registry/index.ts";
+import { renderProvisionalLogo } from "../../web/index.ts";
 import type {
   BuildPipeline,
   BuildPipelineCompletion,
@@ -39,7 +40,6 @@ import {
 import { streamDeflection } from "./deflection-pipeline.ts";
 import { createExplicitEvolutionPresenter, createExplicitPresenter } from "./explicit-presenter.ts";
 import { validateProposedOverlapIdentity } from "./overlap-identity.ts";
-import { renderProvisionalLogoSwap } from "./provisional-logo.ts";
 import {
   type PromptResolutionMemory,
   resolvedExistingCapabilityRequest,
@@ -178,7 +178,7 @@ async function runNewCapabilityIntent(
   // this is the moment resolution admitted a *new* capability, which an evolution and a
   // deflection never reach.
   if (context.canPresent()) {
-    await context.send("fragment", renderProvisionalLogoSwap(context.job.id, intent));
+    await context.send("fragment", renderProvisionalLogo(context.job.id));
   }
   return runCoreBuild({
     buildId: context.job.id,

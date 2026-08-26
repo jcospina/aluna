@@ -126,10 +126,12 @@ export function renderBuildSubscriber(jobId: string): string {
  *
  *   - **`present`** — the accepted artwork, addressed by its incarnation-keyed URL. The
  *     shell adds the 10% corner, the shadow and the label; the file itself is untouched.
- *   - **anything else** — the designed placeholder. That is a finished, usable capability
- *     rather than a loading failure (L11), so it does not animate: only a build still
- *     running wears `logo-tile--working`. `generating` looks exactly like `absent`,
- *     because a picture being drawn is not a picture arriving late.
+ *   - **anything else** — the designed placeholder. A tile wears `logo-tile--working`
+ *     for exactly as long as a picture is on its way to it, which is the armed `absent`
+ *     tile and no other: it has an attempt in flight and that attempt answers with this
+ *     same element. Every other placeholder rests. A capability that has spent its
+ *     attempts is finished and usable with no face (L11) and must not claim otherwise,
+ *     and a `generating` claimed elsewhere will never reach this element to settle it.
  *
  * An `absent` tile additionally **arms one attempt**: a load-triggered, same-origin POST
  * that claims the attempt and answers with this same tile, re-rendered. Two properties
@@ -199,14 +201,27 @@ function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): 
   if (row.logo.status !== "absent" || !arm) {
     return '<span class="logo-tile logo-tile--pending"></span>';
   }
+  // Armed, so a picture is on its way to *this* element: the tile keeps working until its
+  // own attempt answers. That is what closes the gap at commit, where the provisional
+  // tile comes down and this one goes up while the logo request is still in flight.
   return [
-    '<span class="logo-tile logo-tile--pending"',
+    '<span class="logo-tile logo-tile--pending logo-tile--working"',
     `  hx-post="${escapeHtml(capabilityLogoAttemptUrl(row))}"`,
     '  hx-trigger="load"',
     `  hx-target="#${capabilityLogoElementId(escapeHtml(row.id))}"`,
     '  hx-swap="outerHTML"',
     "></span>",
   ].join("\n");
+}
+
+/** Where a provisional tile's name is written, once there is one to write. */
+function provisionalLogoLabelElementId(buildId: string): string {
+  return `provisional-logo-label-${buildId}`;
+}
+
+/** The tile's constant half of its accessible name — what it is, as opposed to which one. */
+function provisionalLogoStatusElementId(buildId: string): string {
+  return `provisional-logo-status-${buildId}`;
 }
 
 /**
@@ -218,23 +233,50 @@ function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): 
  * Only an admitted `new_capability` build gets one. An evolution already has its
  * capability's logo standing on the desk; `reject`, `data_query` and anything refused
  * before admission announce nothing, because nothing was admitted.
+ *
+ * **It stands nameless.** At admission there is no name — the resolver's
+ * `user_facing_label` is one warm sentence about the request, not a name, and the
+ * capability's authored label does not exist until the spec stage. Writing a stand-in
+ * under it ("Something new") put a word on the desk that was never anybody's name, so the
+ * ground simply stays blank until {@link renderProvisionalLogoName} fills it in.
+ *
+ * A nameless button still has to answer to something, so the accessible name is assembled
+ * from two referenced spans rather than an `aria-label`: the empty visible one, and a
+ * hidden one saying what this is. `aria-labelledby` reads directly referenced nodes even
+ * when they are hidden, so the tile announces "being made" now and "<name> being made"
+ * the moment the spec names it — and naming it needs to replace only the label span,
+ * never the button, which would restart the tile's animation mid-crawl.
  */
-export function renderProvisionalLogo(buildId: string, label: string): string {
+export function renderProvisionalLogo(buildId: string): string {
   const id = escapeHtml(buildId);
-  const name = escapeHtml(label);
+  const labelId = provisionalLogoLabelElementId(id);
+  const statusId = provisionalLogoStatusElementId(id);
   return [
     `<div data-provisional-logo-oob hx-swap-oob="beforeend:${CAPABILITY_LOGO_LAYER_TARGET}">`,
     "  <button",
     '    type="button"',
     '    class="logo"',
     `    ${PROVISIONAL_LOGO_ATTRIBUTE}="${id}"`,
-    `    aria-label="${name} — being made"`,
+    `    aria-labelledby="${labelId} ${statusId}"`,
     "  >",
     '    <span class="logo-tile logo-tile--pending logo-tile--working"></span>',
-    `    <span class="logo-label">${name}</span>`,
+    `    <span class="logo-label" id="${labelId}"></span>`,
+    `    <span id="${statusId}" hidden>being made</span>`,
     "  </button>",
     "</div>",
   ].join("\n");
+}
+
+/**
+ * The name, once the spec has authored one, written under the tile already standing on the
+ * desk. Addressed at the label span alone: the tile beside it is mid-animation and a swap
+ * that replaced the button would restart it, which is the one thing the crawl must never
+ * do. Inert on a desk whose tile has already come down, which is the ordinary shape of a
+ * build the subscriber left.
+ */
+export function renderProvisionalLogoName(buildId: string, label: string): string {
+  const labelId = provisionalLogoLabelElementId(escapeHtml(buildId));
+  return `<span class="logo-label" id="${labelId}" hx-swap-oob="outerHTML">${escapeHtml(label)}</span>`;
 }
 
 // A newly activated capability standing on the ground for the first time. This is one of
