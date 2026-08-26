@@ -11,7 +11,12 @@
 // which needs only the two artifact names. Re-exporting the whole surface would make
 // every internal seam look like public API.
 
+export { createRunningLogoClaims, type RunningLogoClaims } from "./claims.ts";
 export { LogoGenerationError, type LogoGenerationProvider } from "./provider.ts";
+export {
+  type CapabilityLogoRecoveryEntry,
+  recoverCapabilityLogos,
+} from "./recovery.ts";
 export {
   type CapabilityLogoRouteDeps,
   registerCapabilityLogoRoutes,

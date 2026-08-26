@@ -5,7 +5,11 @@
 // the client places them. These renderers are the server side of that contract.
 
 import { renderDetailModal } from "../presentation/detail-modal.ts";
-import { type CapabilityRow, canonicalCapabilityLabel } from "../registry/index.ts";
+import {
+  type CapabilityRow,
+  canonicalCapabilityLabel,
+  LOGO_MAX_CLAIMED_ATTEMPTS,
+} from "../registry/index.ts";
 import { escapeHtml } from "./html.ts";
 
 const CAPABILITY_LOGO_LAYER_TARGET = "#capability-logos";
@@ -198,7 +202,7 @@ function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): 
   if (row.logo.status === "present") {
     return `<span class="logo-tile" style="background-image: url('${escapeHtml(capabilityLogoUrl(row))}')"></span>`;
   }
-  if (row.logo.status !== "absent" || !arm) {
+  if (!arm || !hasAnAttemptLeft(row)) {
     return '<span class="logo-tile logo-tile--pending"></span>';
   }
   // Armed, so a picture is on its way to *this* element: the tile keeps working until its
@@ -212,6 +216,18 @@ function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): 
     '  hx-swap="outerHTML"',
     "></span>",
   ].join("\n");
+}
+
+/**
+ * Whether a tile still has an attempt the sweep could offer it.
+ *
+ * `absent` alone is not enough. The cap lives in the claim's own `WHERE`, so a row that
+ * is `absent` with every attempt spent would arm a POST that can never win one — a tile
+ * animating for a picture that is not coming, on every load, for ever. Saying it here as
+ * well gives decision 38's cap a second expression on the surface the user looks at.
+ */
+function hasAnAttemptLeft(row: RenderableCapabilityLogo): boolean {
+  return row.logo.status === "absent" && row.logo.attempts < LOGO_MAX_CLAIMED_ATTEMPTS;
 }
 
 /** Where a provisional tile's name is written, once there is one to write. */

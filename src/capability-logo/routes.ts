@@ -38,14 +38,20 @@
 import type { Context, Hono } from "hono";
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
-import type { ReadGateCoordinator } from "../read-gates/index.ts";
+import type { CapabilityIncarnation, ReadGateCoordinator } from "../read-gates/index.ts";
 import { renderCapabilityLogo } from "../web/index.ts";
 import {
+  type CapabilityLogoAttemptOutcome,
   readActiveIncarnationCatalog,
   readAttemptTarget,
   runCapabilityLogoAttempt,
 } from "./attempt.ts";
-import { createRecraftLogoProvider, type LogoGenerationProvider } from "./provider.ts";
+import type { RunningLogoClaims } from "./claims.ts";
+import {
+  createRecraftLogoProvider,
+  DEFAULT_LOGO_GENERATION_TIMEOUT_MS,
+  type LogoGenerationProvider,
+} from "./provider.ts";
 import { readCapabilityLogo } from "./storage.ts";
 
 export interface CapabilityLogoRouteDeps {
@@ -55,9 +61,30 @@ export interface CapabilityLogoRouteDeps {
   readonly artifactsRoot: string;
   /** Injected in every test. Defaults to the real, paid service. */
   readonly logoProvider?: LogoGenerationProvider;
+  /** The attempts running in this process, shared with desk-load recovery. */
+  readonly logoClaims: RunningLogoClaims;
+  /** Test seam for {@link LOGO_CLAIM_OBSERVATION_MS}, the default bound. */
+  readonly logoClaimObservationMs?: number;
 }
 
 const NO_STORE = { "cache-control": "no-store" } as const;
+
+/**
+ * How long a claim loser watches the winner before answering with whatever the registry
+ * then holds.
+ *
+ * Two desk loads racing the same faceless tile mean one of them made the call and the
+ * other has nothing to do. ADR-0007 gives that one a bounded observation of the winner
+ * rather than an instant resting placeholder — the second tab should light up with the
+ * first, not one desk load later — and forbids turning it into a poll: what is awaited
+ * here is the winner's own completion, which costs one promise and no interval.
+ *
+ * The bound is the winner's own wall-clock bound plus the moment it needs to install and
+ * finalize, because observing longer than the winner can possibly run is not a bound on
+ * anything real. It is therefore never the longer request of the two: the winner is
+ * already holding its own POST open for exactly this drawing.
+ */
+const LOGO_CLAIM_OBSERVATION_MS = DEFAULT_LOGO_GENERATION_TIMEOUT_MS + 5_000;
 
 /**
  * A year is the longest age HTTP defines as meaningful, and `immutable` additionally
@@ -138,6 +165,48 @@ function servePicture(c: Context, stored: Uint8Array<ArrayBuffer>): Response {
   });
 }
 
+/**
+ * This request's whole share of the work: claim and spend an attempt, or — when another
+ * load is already drawing this very tile — watch that one for a bounded moment.
+ *
+ * Every other `unclaimed` reason (`present`, `abandoned`, a deleted row, a missing key)
+ * has no winner to watch and returns at once. Nothing here spends twice, and the desk
+ * that rendered this tile finished rendering before the request was sent.
+ */
+async function spendOrObserve(
+  target: CapabilityIncarnation,
+  deps: CapabilityLogoRouteDeps,
+  provider: LogoGenerationProvider,
+  abandoned: AbortSignal,
+): Promise<void> {
+  let outcome: CapabilityLogoAttemptOutcome | null = null;
+  try {
+    outcome = await runCapabilityLogoAttempt(target, {
+      databases: deps.registryDatabases,
+      mutationCoordinator: deps.mutationCoordinator,
+      readGates: deps.readGates,
+      artifactsRoot: deps.artifactsRoot,
+      provider,
+      claims: deps.logoClaims,
+    });
+  } catch (error) {
+    // The attempt swallows every ordinary failure itself, so reaching here means
+    // something structural — a coordinator write that threw, a row that cannot make a
+    // request. The desk still gets a tile: a logo is never worth a broken desk.
+    console.error(
+      `omni-crud logo attempt for ${target.capabilityId}/${target.incarnationId} raised:`,
+      error instanceof Error ? error.message : error,
+    );
+    return;
+  }
+  if (outcome !== "unclaimed") return;
+  await deps.logoClaims.awaitWinner(
+    target,
+    deps.logoClaimObservationMs ?? LOGO_CLAIM_OBSERVATION_MS,
+    abandoned,
+  );
+}
+
 export function registerCapabilityLogoRoutes(app: Hono, deps: CapabilityLogoRouteDeps): void {
   // Constructed lazily: a missing key must not stop the server from booting, exactly as
   // the text spine's key does not. It surfaces as a failed attempt instead.
@@ -161,23 +230,7 @@ export function registerCapabilityLogoRoutes(app: Hono, deps: CapabilityLogoRout
       return c.body(null, 404, NO_STORE);
     }
 
-    try {
-      await runCapabilityLogoAttempt(target, {
-        databases: deps.registryDatabases,
-        mutationCoordinator: deps.mutationCoordinator,
-        readGates: deps.readGates,
-        artifactsRoot: deps.artifactsRoot,
-        provider: resolveProvider(),
-      });
-    } catch (error) {
-      // The attempt swallows every ordinary failure itself, so reaching here means
-      // something structural — a coordinator write that threw, a row that cannot make a
-      // request. The desk still gets a tile: a logo is never worth a broken desk.
-      console.error(
-        `omni-crud logo attempt for ${target.capabilityId}/${target.incarnationId} raised:`,
-        error instanceof Error ? error.message : error,
-      );
-    }
+    await spendOrObserve(target, deps, resolveProvider(), c.req.raw.signal);
 
     // Re-read rather than infer from the outcome: the tile states what the registry now
     // holds, which is also the right answer when this request lost the claim to another.
@@ -211,12 +264,13 @@ export function registerCapabilityLogoRoutes(app: Hono, deps: CapabilityLogoRout
 
     try {
       const stored = readCapabilityLogo(deps.artifactsRoot, capabilityId, incarnationId);
-      // `present` with no readable file is a row the recovery sweep (5.5/04) owns. The
-      // route's job is to not pretend, and above all to not let a browser cache the gap
-      // under a directive that outlives every attempt that could still fill it. An empty
-      // file is that same gap: no drawing ever validated as zero bytes, so it is a
-      // truncation, and a truthy empty `Uint8Array` would otherwise sail straight past
-      // this guard and be cached as a blank tile for a year.
+      // `present` with no readable file is a row desk-load recovery reconciles to
+      // `abandoned` (`recovery.ts`). The route's job is to not pretend, and above all to
+      // not let a browser cache the gap under a directive that outlives every attempt
+      // that could still fill it. An empty file is that same gap: no drawing ever
+      // validated as zero bytes, so it is a truncation, and a truthy empty `Uint8Array`
+      // would otherwise sail straight past this guard and be cached as a blank tile for
+      // a year.
       if (!stored || stored.byteLength === 0) return c.body(null, 404, NO_STORE);
       return servePicture(c, stored);
     } finally {

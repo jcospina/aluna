@@ -2,8 +2,8 @@
 //
 // This is the operation [ADR-0007](../../docs/adr/0007-capability-logo-contract.md)
 // describes as a post-build follow-up to a successful v1, and the same operation the
-// desk-load sweep (5.5/04) will run. It is deliberately one path: a build's follow-up
-// and a recovery sweep differ only in what triggers them.
+// desk-load sweep runs. It is deliberately one path: a build's follow-up and a desk
+// load's retry differ only in what triggers them.
 //
 // The ordering here is the contract, not a preference:
 //
@@ -22,9 +22,10 @@
 //      which takes its lease and *then* closes the gate; the coordinator's own doc
 //      comment names this exact hazard.
 //
-// A failure never fails the build. The capability is already activated, usable and
-// placeholdered; the attempt returns the row to `absent` for a later try, or to
-// `abandoned` once the third claimed attempt has failed.
+// A failure never reaches whatever asked for the attempt. The capability is already
+// activated, usable and placeholdered — the build that made it is long since `success`,
+// and a desk load is only a page render — so the attempt returns the row to `absent` for
+// a later try, or to `abandoned` once the third claimed attempt has failed.
 
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
@@ -33,11 +34,14 @@ import {
   type CapabilityRow,
   claimLogoGeneration,
   getCapability,
+  getCapabilityLogoState,
+  LOGO_MAX_CLAIMED_ATTEMPTS,
   type LogoGenerationClaim,
   listActiveIncarnations,
   releaseLogoClaim,
   settleLogoGeneration,
 } from "../registry/index.ts";
+import type { RunningLogoClaims } from "./claims.ts";
 import {
   generateCapabilityLogo,
   LogoGenerationError,
@@ -45,20 +49,14 @@ import {
 } from "./provider.ts";
 import { discardUnacknowledgedLogo, type InstalledLogo, installCapabilityLogo } from "./storage.ts";
 
-/**
- * Three claimed attempts and then never (ADR-0007, PLAN decision 38). The guard that
- * matters is the attempt cap rather than a spend ceiling: at ~$0.08 a call the expensive
- * failure is a retry loop, and a cap kills the loop where a budget only bounds it.
- */
-export const LOGO_MAX_CLAIMED_ATTEMPTS = 3;
-
 export interface CapabilityLogoAttemptDeps {
   readonly databases: PlatformDatabase;
   readonly mutationCoordinator: MutationCoordinator;
   readonly readGates: ReadGateCoordinator;
   readonly artifactsRoot: string;
   readonly provider: LogoGenerationProvider;
-  readonly maxAttempts?: number;
+  /** What recovery reads to tell a running claim from an interrupted one. */
+  readonly claims: RunningLogoClaims;
 }
 
 /** What one attempt did. Every value leaves a finished, usable capability behind. */
@@ -95,14 +93,32 @@ export async function runCapabilityLogoAttempt(
   // without a single request leaving the process, and three of those reach the permanent
   // placeholder for a capability nobody deleted on a machine nobody configured.
   if (!canReachTheProvider(target, deps)) return "unclaimed";
+  // And a row the claim would refuse anyway is turned away before it costs anything. This
+  // cannot decide the claim — the conditional UPDATE still does that, and a row that
+  // becomes claimable in between is simply claimed on the next load — but it keeps a stale
+  // tile from an old page, or a script hammering the address, from queueing a platform
+  // ticket per request and from holding this incarnation "attempting" for as long as it
+  // keeps asking, which would suppress its recovery indefinitely.
+  if (!looksClaimable(target, deps)) return "unclaimed";
 
-  const claim = await deps.mutationCoordinator.withPlatformWrite(() =>
-    claimLogoGeneration(target.capabilityId, target.incarnationId, deps.databases.readwrite),
-  );
-  if (!claim) return "unclaimed";
+  // Tracked from *before* the claim to after the finalizing write. Recovery reads this to
+  // tell a running claim from an interrupted one, and the gap between the claim's commit
+  // and a registration made after it would be exactly the window in which a concurrent
+  // desk load's recovery sees a `generating` row nobody appears to hold and releases it
+  // out from under a paid call.
+  const ticket = deps.claims.begin(target);
+  try {
+    const claim = await deps.mutationCoordinator.withPlatformWrite(() =>
+      claimLogoGeneration(target.capabilityId, target.incarnationId, deps.databases.readwrite),
+    );
+    if (!claim) return "unclaimed";
+    ticket.claimed();
 
-  const installed = await attemptUnderReadToken(claim, deps);
-  return finalizeAttempt(claim, installed, deps);
+    const installed = await attemptUnderReadToken(claim, deps);
+    return await finalizeAttempt(claim, installed, deps);
+  } finally {
+    ticket.end();
+  }
 }
 
 /** The active-registry view every read token in this module is acquired against. */
@@ -120,6 +136,19 @@ export function readActiveIncarnationCatalog(
 /** The active-registry view both the preflight and the paid half acquire against. */
 function readCatalog(deps: CapabilityLogoAttemptDeps): readonly CapabilityIncarnation[] {
   return readActiveIncarnationCatalog(deps.databases.readonly);
+}
+
+/**
+ * Whether the durable row is in a shape a claim could win: `absent`, and under the cap.
+ * A read with no lock and no lease, so it decides nothing and only avoids work.
+ */
+function looksClaimable(target: CapabilityIncarnation, deps: CapabilityLogoAttemptDeps): boolean {
+  const state = getCapabilityLogoState(
+    target.capabilityId,
+    target.incarnationId,
+    deps.databases.readonly,
+  );
+  return state?.status === "absent" && state.attempts < LOGO_MAX_CLAIMED_ATTEMPTS;
 }
 
 /**
@@ -207,8 +236,10 @@ async function finalizeAttempt(
   installed: InstalledLogo | null,
   deps: CapabilityLogoAttemptDeps,
 ): Promise<CapabilityLogoAttemptOutcome> {
-  const maxAttempts = deps.maxAttempts ?? LOGO_MAX_CLAIMED_ATTEMPTS;
-  const settlement = resolveSettlement(installed !== null, claim.attempts >= maxAttempts);
+  const settlement = resolveSettlement(
+    installed !== null,
+    claim.attempts >= LOGO_MAX_CLAIMED_ATTEMPTS,
+  );
 
   return deps.mutationCoordinator.withPlatformWrite(() => {
     const moved =

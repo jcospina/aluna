@@ -292,7 +292,7 @@ describe("reconcileCapabilityArtifacts", () => {
 
     // Not swept here on purpose: this pass also runs at the head of every build, where a
     // logo attempt may be mid-write. Removing a live attempt's staging file would break
-    // the claim it has already paid for. 5.5/04's recovery owns the sweep.
+    // the claim it has already paid for. Desk-load recovery owns the sweep.
     expect(result.removed).toEqual([]);
     expect(existsSync(temp)).toBe(true);
   });

@@ -317,6 +317,9 @@ attempt-temp sweep, `present`-with-missing-file reconciling to `abandoned`, the
 bounded wait a claim loser owes, and moving the three-attempt cap into the claim's
 `WHERE` where 5.5/01 recorded it belongs.
 
+**All five were delivered in 5.5/04** (2026-08-26), along with the in-process
+running-claims set that is what tells a live claim from a crashed one.
+
 `docs/adr/0007`'s "None of the delivery half is built" paragraph was true when it
 was written and is not now; it has been replaced with what is built and what is
 left. `CONTEXT.md` needed nothing — it already describes this behavior.

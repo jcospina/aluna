@@ -170,6 +170,19 @@ export type LogoStatus = z.infer<typeof logoStatusSchema>;
 export const LOGO_BIRTH_STATUS: LogoStatus = "absent";
 
 /**
+ * Three claimed attempts and then never (ADR-0007, PLAN decision 38). It lives beside the
+ * lifecycle rather than beside the sweep that spends them, because the only race-free
+ * place to enforce it is the claim's own `WHERE` — the same conditional `UPDATE` that
+ * wins the right to spend. A cap the caller checked first would be a read followed by a
+ * write, and two desk loads arriving together would both read two and both write three.
+ *
+ * The guard that matters is the attempt cap rather than a spend ceiling: at ~$0.08 a call
+ * the expensive failure is a retry loop, and a cap kills the loop where a budget only
+ * bounds how long it runs.
+ */
+export const LOGO_MAX_CLAIMED_ATTEMPTS = 3;
+
+/**
  * Status and attempts travel together: a status without its spend is not a
  * lifecycle, and reading them apart would let a caller decide one from a stale
  * view of the other.

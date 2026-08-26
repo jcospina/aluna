@@ -8,9 +8,10 @@ import { join } from "node:path";
 
 import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
 import { runMigrations } from "../persistence/migrations.ts";
-import { resolveLogoShades } from "./logo.ts";
+import { LOGO_MAX_CLAIMED_ATTEMPTS, resolveLogoShades } from "./logo.ts";
 import { validSpec } from "./spec.test-support.ts";
 import {
+  abandonMissingCapabilityLogo,
   claimLogoGeneration,
   compareAndSwapCapability,
   getCapability,
@@ -190,6 +191,66 @@ describe("the registry's logo inputs and state", () => {
   });
 });
 
+describe("the hard cap on claimed attempts", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "omni-crud-registry-logo-cap-"));
+    conns = openDatabase(join(dir, "test.db"));
+    runMigrations(conns.readwrite);
+  });
+
+  afterEach(() => {
+    conns.readwrite.close();
+    conns.readonly.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // Decision 38's cap, enforced where the increment is. A caller that read the count and
+  // then decided would be a read followed by a write: two desk loads arriving together
+  // would both read two and both write three, and a fourth ~$0.08 call would go out.
+  test("the third claim is the last one, whatever a row is released back to", () => {
+    insertCapability(write(), conns.readwrite);
+
+    for (let attempt = 1; attempt <= LOGO_MAX_CLAIMED_ATTEMPTS; attempt += 1) {
+      expect(claimLogoGeneration("notes", INCARNATION_ID, conns.readwrite)?.attempts).toBe(attempt);
+      releaseLogoClaim("notes", INCARNATION_ID, conns.readwrite);
+    }
+
+    // `absent` again, with every attempt spent: claimable by shape and refused by count.
+    expect(getCapabilityLogoState("notes", INCARNATION_ID, conns.readonly)).toEqual({
+      status: "absent",
+      attempts: LOGO_MAX_CLAIMED_ATTEMPTS,
+    });
+    expect(claimLogoGeneration("notes", INCARNATION_ID, conns.readwrite)).toBeNull();
+    expect(getCapabilityLogoState("notes", INCARNATION_ID, conns.readonly)?.attempts).toBe(
+      LOGO_MAX_CLAIMED_ATTEMPTS,
+    );
+  });
+
+  // The count is the only thing standing between a capability that cannot be drawn and an
+  // unbounded spend, so it has to be durable rather than remembered. A restart is the case
+  // an in-memory count would silently pass and then start paying for all over again.
+  test("the spend survives the process that made it", () => {
+    insertCapability(write(), conns.readwrite);
+    for (let attempt = 1; attempt <= LOGO_MAX_CLAIMED_ATTEMPTS; attempt += 1) {
+      claimLogoGeneration("notes", INCARNATION_ID, conns.readwrite);
+      releaseLogoClaim("notes", INCARNATION_ID, conns.readwrite);
+    }
+
+    conns.readwrite.close();
+    conns.readonly.close();
+    conns = openDatabase(join(dir, "test.db"));
+
+    expect(getCapabilityLogoState("notes", INCARNATION_ID, conns.readonly)).toEqual({
+      status: "absent",
+      attempts: LOGO_MAX_CLAIMED_ATTEMPTS,
+    });
+    expect(claimLogoGeneration("notes", INCARNATION_ID, conns.readwrite)).toBeNull();
+  });
+});
+
 describe("closing out a claim", () => {
   let dir: string;
   let conns: PlatformDatabase;
@@ -237,12 +298,27 @@ describe("closing out a claim", () => {
     claimLogoGeneration("notes", INCARNATION_ID, conns.readwrite);
     settleLogoGeneration("notes", INCARNATION_ID, "present", conns.readwrite);
 
-    expect(settleLogoGeneration("notes", INCARNATION_ID, "abandoned", conns.readwrite)).toEqual({
+    expect(abandonMissingCapabilityLogo("notes", INCARNATION_ID, conns.readwrite)).toEqual({
       status: "abandoned",
       attempts: 1,
     });
     // `present` is not a route back to a second drawing.
     expect(settleLogoGeneration("notes", INCARNATION_ID, "present", conns.readwrite)).toBeNull();
+  });
+
+  // Two callers with opposite intents must not share one permissive transition: the loss
+  // reconciliation is the only way a row holding artwork reaches `abandoned`, so an
+  // exhausted attempt arriving late cannot take a drawing off the desk.
+  test("an exhausted attempt cannot abandon a row that already has artwork", () => {
+    insertCapability(write(), conns.readwrite);
+    claimLogoGeneration("notes", INCARNATION_ID, conns.readwrite);
+    settleLogoGeneration("notes", INCARNATION_ID, "present", conns.readwrite);
+
+    expect(settleLogoGeneration("notes", INCARNATION_ID, "abandoned", conns.readwrite)).toBeNull();
+    expect(getCapabilityLogoState("notes", INCARNATION_ID, conns.readonly)?.status).toBe("present");
+    // And the loss reconciliation only ever moves a row that says `present`.
+    abandonMissingCapabilityLogo("notes", INCARNATION_ID, conns.readwrite);
+    expect(abandonMissingCapabilityLogo("notes", INCARNATION_ID, conns.readwrite)).toBeNull();
   });
 
   test("a claim whose inputs cannot make a request rolls back instead of stranding", () => {

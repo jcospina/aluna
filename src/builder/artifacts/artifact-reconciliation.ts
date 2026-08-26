@@ -251,9 +251,10 @@ function planStagingRemovals(
     if (CAPABILITY_LOGO_STAGING_PATTERN.test(entry.name)) {
       // A logo attempt's temporary bytes. The ordinary paths remove theirs in `finally`,
       // so one surviving here is a crashed claim — and sweeping it is the *retry*
-      // recovery's job (5.5/04), not this pass's. Deliberately left alone: reconciliation
-      // also runs at the head of every build, where a logo attempt may be mid-write, and
-      // removing a live attempt's staging file would break the very claim it paid for.
+      // recovery's job (`capability-logo/recovery.ts`), not this pass's. Deliberately
+      // left alone: reconciliation also runs at the head of every build, where a logo
+      // attempt may be mid-write, and removing a live attempt's staging file would break
+      // the very claim it paid for.
       assertFileEntry(entry, stagingDirectory, "logo attempt staging");
       continue;
     }

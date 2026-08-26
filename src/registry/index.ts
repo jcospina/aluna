@@ -29,6 +29,7 @@ export {
   LOGO_BIRTH_STATUS,
   LOGO_FAMILY_SHADES,
   LOGO_HUE_FAMILIES,
+  LOGO_MAX_CLAIMED_ATTEMPTS,
   LOGO_SHADES,
   LOGO_STATUSES,
   type LogoHueFamily,
@@ -97,6 +98,7 @@ export {
   uiIntentSchema,
 } from "./spec.ts";
 export {
+  abandonMissingCapabilityLogo,
   type CapabilityRegistryExpectation,
   type CapabilityRegistryWriteInput,
   claimLogoGeneration,

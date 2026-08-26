@@ -9,7 +9,11 @@ import {
 } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import { createReadGateCoordinator } from "../read-gates/index.ts";
-import { getCapabilityLogoState, settleLogoGeneration } from "../registry/index.ts";
+import {
+  getCapabilityLogoState,
+  LOGO_MAX_CLAIMED_ATTEMPTS,
+  settleLogoGeneration,
+} from "../registry/index.ts";
 import {
   install,
   NOTES_INCARNATION_ID,
@@ -17,11 +21,8 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../router/router.test-support.ts";
-import {
-  type CapabilityLogoAttemptDeps,
-  LOGO_MAX_CLAIMED_ATTEMPTS,
-  runCapabilityLogoAttempt,
-} from "./attempt.ts";
+import { type CapabilityLogoAttemptDeps, runCapabilityLogoAttempt } from "./attempt.ts";
+import { createRunningLogoClaims } from "./claims.ts";
 import {
   createRecraftLogoProvider,
   LogoGenerationError,
@@ -87,8 +88,16 @@ function deps(
     readGates: createReadGateCoordinator(),
     artifactsRoot,
     provider,
+    claims: createRunningLogoClaims(),
     ...overrides,
   };
+}
+
+/** Put the row back at the birth state, as a delete-and-rebuild would. */
+function rebornWithNoLogo(): void {
+  conns.readwrite
+    .query("UPDATE capability_registry SET logo_status = 'absent', logo_attempts = 0 WHERE id = ?")
+    .run("notes");
 }
 
 function logoState() {
@@ -164,10 +173,12 @@ describe("a failed attempt", () => {
     ];
 
     for (const provider of throwers) {
-      const before = logoState()?.attempts ?? 0;
-      const outcome = await runCapabilityLogoAttempt(TARGET, deps(provider, { maxAttempts: 99 }));
+      // A fresh lifetime per failure kind: the cap is enforced by the claim itself now, so
+      // four failures in one row would stop being four attempts after the third.
+      rebornWithNoLogo();
+      const outcome = await runCapabilityLogoAttempt(TARGET, deps(provider));
       expect(outcome).toBe("failed");
-      expect(logoState()).toEqual({ status: "absent", attempts: before + 1 });
+      expect(logoState()).toEqual({ status: "absent", attempts: 1 });
     }
   });
 

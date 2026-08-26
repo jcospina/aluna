@@ -18,6 +18,7 @@ import { isCapabilityIdReservedByDeletion } from "./deletion-tombstones.ts";
 import {
   type CapabilityLogoState,
   capabilityLogoStateSchema,
+  LOGO_MAX_CLAIMED_ATTEMPTS,
   type LogoHueFamily,
   type LogoShade,
   type LogoStatus,
@@ -390,19 +391,25 @@ interface StoredLogoState {
 /**
  * Win the right to spend one logo generation attempt, atomically.
  *
- * The claim is a single conditional UPDATE: only a row that is still `absent` moves
- * to `generating`, and the attempt counter rises in the same statement. Two desk
- * loads sweeping the same faceless capability therefore cannot both proceed — the
- * loser's `changes` is zero and it gets `null` — and the count rises when the claim
- * is *won*, before any provider is called, so a process that dies mid-request has
- * still paid for what it ordered (ADR-0007 L11).
+ * The claim is a single conditional UPDATE: only a row that is still `absent` and still
+ * under {@link LOGO_MAX_CLAIMED_ATTEMPTS} moves to `generating`, and the attempt counter
+ * rises in the same statement. Two desk loads sweeping the same faceless capability
+ * therefore cannot both proceed — the loser's `changes` is zero and it gets `null` — and
+ * the count rises when the claim is *won*, before any provider is called, so a process
+ * that dies mid-request has still paid for what it ordered (ADR-0007 L11).
+ *
+ * **The cap is part of the same statement for the same reason the increment is.** Read
+ * the count, decide, then write, and two loads arriving together both read two and both
+ * write three. Here the third claim is the last one any concurrency can win, whatever
+ * settles the row afterwards — which is what makes the fourth provider call unreachable
+ * rather than merely unlikely (PLAN decision 38).
  *
  * Binding the incarnation as well as the id is what keeps a claim from surviving a
  * delete-and-recreate: the new incarnation is a different capability's lifetime and
  * owes its own artwork.
  *
  * Returns `null` whenever the claim is not won — already claimed, already settled,
- * a tombstoned or missing row, or a different incarnation.
+ * a tombstoned or missing row, a different incarnation, or a count already at the cap.
  */
 export function claimLogoGeneration(
   capabilityId: string,
@@ -418,7 +425,7 @@ export function claimLogoGeneration(
         `UPDATE ${REGISTRY_TABLE}
          SET logo_status = 'generating', logo_attempts = logo_attempts + 1
          WHERE id = ? AND incarnation_id = ? AND lifecycle_state = 'active'
-           AND logo_status = 'absent'
+           AND logo_status = 'absent' AND logo_attempts < ${LOGO_MAX_CLAIMED_ATTEMPTS}
          RETURNING subject, ground, companion, seed, logo_attempts`,
       )
       .get(capabilityId, incarnationId) as {
@@ -456,10 +463,10 @@ export function claimLogoGeneration(
  * what recovery does for a claim whose process died — without it a claim strands, since
  * only `absent` is ever claimable (ADR-0007 L11).
  *
- * How many times a capability may be re-claimed is the retry sweep's policy (PLAN
- * decision 38, epic 5.5/04). This is the transition that policy needs; the `WHERE` of
- * {@link claimLogoGeneration} is where the cap itself belongs when it arrives, because
- * that is the only place it can be enforced without a race.
+ * How many times a capability may be re-claimed is not decided here: this is only the
+ * transition back, and a row released with every attempt spent is `absent` by shape and
+ * refused by {@link claimLogoGeneration}'s own `WHERE`, which is the only place a cap can
+ * be enforced without a race.
  */
 export function releaseLogoClaim(
   capabilityId: string,
@@ -480,13 +487,16 @@ export function releaseLogoClaim(
 }
 
 /**
- * Move a logo to a terminal status: `generating → present` when accepted artwork is
- * installed, and `generating → abandoned` when the attempt just spent was the last one
- * allowed. A `present` row may also be reconciled to `abandoned` — accepted artwork
- * later found missing is settled, never redrawn (ADR-0007 L7).
+ * Close a won claim: `generating → present` when accepted artwork is installed, and
+ * `generating → abandoned` when the attempt just spent was the last one allowed.
  *
- * Every other starting state changes nothing and returns `null`, so a late reply from
- * an attempt some other state has already superseded cannot resurrect it.
+ * **Only from `generating`.** Every other starting state changes nothing and returns
+ * `null`, so a late reply from an attempt some other state has already superseded cannot
+ * resurrect it — and, in particular, an exhausted attempt cannot demote a row that has
+ * since become `present` to the permanent placeholder. Reconciling accepted artwork that
+ * has gone is a different transition with a different guard
+ * ({@link abandonMissingCapabilityLogo}); one permissive `WHERE` shared by two callers
+ * with opposite intents is how the drawing gets thrown away.
  */
 export function settleLogoGeneration(
   capabilityId: string,
@@ -494,19 +504,44 @@ export function settleLogoGeneration(
   status: Extract<LogoStatus, "present" | "abandoned">,
   database: Database = db,
 ): CapabilityLogoState | null {
-  const settleable: LogoStatus[] =
-    status === "abandoned" ? ["generating", "present"] : ["generating"];
   const settled = database
     .query(
       `UPDATE ${REGISTRY_TABLE}
        SET logo_status = ?
        WHERE id = ? AND incarnation_id = ? AND lifecycle_state = 'active'
-         AND logo_status IN (${settleable.map(() => "?").join(", ")})
+         AND logo_status = 'generating'
        RETURNING logo_status, logo_attempts`,
     )
-    .get(status, capabilityId, incarnationId, ...settleable) as StoredLogoState | null;
+    .get(status, capabilityId, incarnationId) as StoredLogoState | null;
 
   return settled ? toLogoState(settled) : null;
+}
+
+/**
+ * Reconcile a `present` row whose accepted artwork has gone: it wears the permanent
+ * placeholder from here on and is never redrawn (ADR-0007 L7 — the once-accepted rule
+ * still applies after loss).
+ *
+ * Bound to `present` alone, so this is the only way a row that already has artwork can
+ * reach `abandoned`, and it is reachable only from desk-load recovery, which has just
+ * proven the file is not there.
+ */
+export function abandonMissingCapabilityLogo(
+  capabilityId: string,
+  incarnationId: string,
+  database: Database = db,
+): CapabilityLogoState | null {
+  const abandoned = database
+    .query(
+      `UPDATE ${REGISTRY_TABLE}
+       SET logo_status = 'abandoned'
+       WHERE id = ? AND incarnation_id = ? AND lifecycle_state = 'active'
+         AND logo_status = 'present'
+       RETURNING logo_status, logo_attempts`,
+    )
+    .get(capabilityId, incarnationId) as StoredLogoState | null;
+
+  return abandoned ? toLogoState(abandoned) : null;
 }
 
 /**

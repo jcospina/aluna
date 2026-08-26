@@ -6,9 +6,9 @@ import { createApp } from "../app/app.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import { createReadGateCoordinator, type ReadGateCoordinator } from "../read-gates/index.ts";
 import {
+  abandonMissingCapabilityLogo,
   claimLogoGeneration,
   getCapabilityLogoState,
-  settleLogoGeneration,
 } from "../registry/index.ts";
 import {
   install,
@@ -55,13 +55,18 @@ afterEach(() => {
   teardownRouterTest(dir, conns);
 });
 
-function appWith(logoProvider: LogoGenerationProvider, readGates?: ReadGateCoordinator) {
+function appWith(
+  logoProvider: LogoGenerationProvider,
+  readGates?: ReadGateCoordinator,
+  overrides: Partial<Parameters<typeof createApp>[0]> = {},
+) {
   return createApp({
     artifactsRoot,
     logoProvider,
     readGates,
     capabilityRouter: { databases: conns },
     buildDatabases: conns,
+    ...overrides,
   });
 }
 
@@ -321,8 +326,8 @@ describe("the logo route, when there is nothing to serve", () => {
   test("a generating incarnation is refused even though its bytes are on disk", async () => {
     install(conns, notesRow());
     // Exactly what a claim whose process died between install and finalize leaves behind:
-    // the file installed, the row still `generating`. Recovering it is 5.5/04's; refusing
-    // to serve it in the meantime is this route's.
+    // the file installed, the row still `generating`. Recovering it is desk-load
+    // recovery's; refusing to serve it in the meantime is this route's.
     claimLogoGeneration("notes", NOTES_INCARNATION_ID, conns.readwrite);
     installCapabilityLogo({
       artifactsRoot,
@@ -348,7 +353,7 @@ describe("the logo route, when there is nothing to serve", () => {
     expect(logoState()).toEqual({ status: "present", attempts: 1 });
     // The `present → abandoned` reconciliation ADR-0007 allows. The row is the record; a
     // file that outlives it is not a licence to keep drawing the desk from it.
-    settleLogoGeneration("notes", NOTES_INCARNATION_ID, "abandoned", conns.readwrite);
+    abandonMissingCapabilityLogo("notes", NOTES_INCARNATION_ID, conns.readwrite);
     expect(logoState()?.status).toBe("abandoned");
     expect(readFileSync(storedLogo()).equals(ARTWORK)).toBe(true);
 
@@ -376,7 +381,7 @@ describe("the logo route, when there is nothing to serve", () => {
     install(conns, notesRow());
     await appWith(drawing).request(ATTEMPT_PATH, ATTEMPT);
     // The row still says `present`; the bytes are gone. Reconciling that row to
-    // `abandoned` is the recovery sweep's job (5.5/04) — the route's job is to not
+    // `abandoned` is desk-load recovery's job — the route's job is to not
     // pretend, and to not let a browser cache the gap.
     rmSync(storedLogo());
 

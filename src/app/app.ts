@@ -26,7 +26,10 @@ import {
   resolveCapabilityDeletionRestoration,
 } from "../capability-deletion/index.ts";
 import {
+  createRunningLogoClaims,
   type LogoGenerationProvider,
+  type RunningLogoClaims,
+  recoverCapabilityLogos,
   registerCapabilityLogoRoutes,
 } from "../capability-logo/index.ts";
 import {
@@ -113,6 +116,14 @@ export interface AppDeps {
    * credits (ADR-0007).
    */
   readonly logoProvider?: LogoGenerationProvider;
+  /**
+   * The logo attempts running in this process. Shared by the attempt route and the
+   * desk load's recovery, which is the only way to tell a claim that is running from
+   * one whose process died (ADR-0007).
+   */
+  readonly logoClaims?: RunningLogoClaims;
+  /** Test seam for the bounded moment a claim loser watches the winner. */
+  readonly logoClaimObservationMs?: number;
 }
 
 /** The fully-resolved dependency set every route group below is wired from. */
@@ -132,6 +143,8 @@ interface ResolvedAppDeps {
   readonly capabilityDestructionFaults?: CapabilityDestructionFaults;
   readonly deletionCleanup: DeletionCleanupSupervisor;
   readonly logoProvider?: LogoGenerationProvider;
+  readonly logoClaims: RunningLogoClaims;
+  readonly logoClaimObservationMs?: number;
 }
 
 function resolveRegistryDatabases(
@@ -153,8 +166,7 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     deps.recordMetrics ?? createMetricsRecorder(buildDatabases.readwrite);
   const artifactsRoot = deps.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
   const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
-  const readGates =
-    deps.readGates ?? deps.capabilityRouter?.readGates ?? createReadGateCoordinator();
+  const readGates = resolveReadGates(deps);
   const buildJobs =
     deps.buildJobs ??
     createBuildJobQueue({
@@ -191,6 +203,8 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     capabilityDeletionAdapters,
     capabilityDestructionFaults: deps.capabilityDestructionFaults,
     logoProvider: deps.logoProvider,
+    logoClaims: deps.logoClaims ?? createRunningLogoClaims(),
+    logoClaimObservationMs: deps.logoClaimObservationMs,
     deletionCleanup:
       deps.deletionCleanup ??
       createDeletionCleanupSupervisor({
@@ -202,10 +216,24 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
 }
 
 /**
- * The fixed shell at `/` — rendered from the registry alone, so the provider is
- * never called on page load.
+ * A caller may hand the read gates in directly or through the capability router, and the
+ * two have to be the same coordinator — deletion and a capability read that cannot see
+ * each other's gates is the bug this resolution exists to prevent.
  */
-function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
+function resolveReadGates(deps: AppDeps): ReadGateCoordinator {
+  return deps.readGates ?? deps.capabilityRouter?.readGates ?? createReadGateCoordinator();
+}
+
+/**
+ * The fixed shell at `/` — rendered from the registry alone, so the provider is
+ * never called on page load. The logo lifecycle is reconciled against the artifact tree
+ * one step before the markup, which is also provider-free: it moves rows, never draws.
+ */
+function registerShellRoute(
+  app: Hono,
+  ctx: ResolvedAppDeps,
+  recoverLogos: () => Promise<void>,
+): void {
   const { registryReadonly } = ctx;
 
   // The shell file is read per request: Bun file I/O is microsecond-fast and
@@ -218,13 +246,81 @@ function registerShellRoute(app: Hono, ctx: ResolvedAppDeps): void {
   // deleted lifetime's picture, which the browser would then serve out of the year-long
   // immutable entry that address was granted — the one way decision 34's guarantee can be
   // defeated without the route being wrong (ADR-0007).
-  app.get(
-    "/",
-    () =>
-      new Response(renderRehydratedShellPage(registryReadonly), {
-        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
-      }),
-  );
+  //
+  // The desk-load sweep starts here, one step before the markup. A fresh render is what
+  // arms an attempt on every `absent` tile, and only `absent` arms — so a lifecycle left
+  // dishonest by a crash has to be reconciled *before* the tiles are drawn or the row it
+  // stranded would never be offered another one. Recovery makes no provider call and
+  // moves no row that agrees with its artwork, so an ordinary load pays one `stat` for
+  // each capability that has artwork or is mid-attempt, and renders exactly what it would
+  // have rendered anyway.
+  app.get("/", async () => {
+    await recoverLogos();
+    return new Response(renderRehydratedShellPage(registryReadonly), {
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+    });
+  });
+}
+
+/**
+ * The other full-page desk render. Direct navigation to `/capability/:id` rehydrates the
+ * whole logo layer from the registry and arms every `absent` tile exactly as `/` does, so
+ * it owes the same reconciliation first: a user who deep-links to one capability after a
+ * crash is having a desk load, and the sweep is a property of the desk, not of one URL.
+ *
+ * A middleware rather than a hook inside the capability router, for two reasons. The
+ * router is the generated-capability path and knows nothing of the logo layer, and its
+ * view handler runs holding read tokens — where awaiting the queued coordinator write
+ * recovery needs is the deadlock the coordinator's own doc names. Here it runs, and
+ * finishes, before a single token is taken.
+ *
+ * An htmx logo click sends a fragment request and reconciles nothing: it is one tile
+ * arriving in a desk that is already standing, not a desk being drawn.
+ */
+function registerCapabilityPageRecovery(app: Hono, recoverLogos: () => Promise<void>): void {
+  app.use("/capability/:id", async (c, next) => {
+    if (c.req.method === "GET" && c.req.header("HX-Request") !== "true") {
+      await recoverLogos();
+    }
+    await next();
+  });
+}
+
+/**
+ * Reconcile the logo lifecycle against what is on disk, and never let that stop a desk
+ * from rendering. A capability whose tile is a placeholder one load longer is a small
+ * thing; a desk that will not draw because a logo could not be reconciled is not.
+ *
+ * **One pass at a time.** Two tabs opening together would otherwise each walk the whole
+ * registry and each take the coordinator, to reach the state the first one is already
+ * reaching. A pass already running is the pass this load wants, so it waits for that one
+ * — every transition is conditional, so joining is as correct as repeating and costs a
+ * fraction of it.
+ */
+function createPlatformLogoRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
+  let running: Promise<void> | null = null;
+  const pass = async (): Promise<void> => {
+    try {
+      await recoverCapabilityLogos({
+        databases: { readwrite: ctx.registryReadwrite, readonly: ctx.registryReadonly },
+        mutationCoordinator: ctx.mutationCoordinator,
+        readGates: ctx.readGates,
+        artifactsRoot: ctx.artifactsRoot,
+        claims: ctx.logoClaims,
+      });
+    } catch (error) {
+      console.error(
+        "omni-crud could not reconcile capability logos on desk load:",
+        error instanceof Error ? error.message : error,
+      );
+    } finally {
+      running = null;
+    }
+  };
+  return () => {
+    running ??= pass();
+    return running;
+  };
 }
 
 /**
@@ -400,7 +496,9 @@ export function createApp(deps: AppDeps = {}): Hono {
     return c.text("Internal Server Error", 500, { "cache-control": "no-store" });
   });
 
-  registerShellRoute(app, ctx);
+  const recoverLogos = createPlatformLogoRecovery(ctx);
+  registerShellRoute(app, ctx, recoverLogos);
+  registerCapabilityPageRecovery(app, recoverLogos);
   registerBuildJobRoutes(app, ctx);
   registerCapabilityDeletionRoutes(app, ctx);
 
@@ -414,6 +512,8 @@ export function createApp(deps: AppDeps = {}): Hono {
     readGates: ctx.readGates,
     artifactsRoot: ctx.artifactsRoot,
     logoProvider: ctx.logoProvider,
+    logoClaims: ctx.logoClaims,
+    logoClaimObservationMs: ctx.logoClaimObservationMs,
   });
 
   if (demoSurfacesEnabled()) {
@@ -469,8 +569,15 @@ export const platformDeletionCleanup = createDeletionCleanupSupervisor({
   adapters: createProductionCapabilityDeletionAdapters(DEFAULT_ARTIFACTS_ROOT),
   mutationCoordinator: platformMutationCoordinator,
 });
+/**
+ * The attempts running in this process. Exported so boot can reconcile the logo lifecycle
+ * against the *same* registry the desk load consults — a boot pass holding its own would
+ * be asking a set that is always empty, which is true at boot and a lie ever after.
+ */
+export const platformLogoClaims = createRunningLogoClaims();
 export const app = createApp({
   readGates: platformReadGates,
   mutationCoordinator: platformMutationCoordinator,
   deletionCleanup: platformDeletionCleanup,
+  logoClaims: platformLogoClaims,
 });
