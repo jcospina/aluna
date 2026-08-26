@@ -10,6 +10,10 @@ import { dirname, join, resolve } from "node:path";
 
 import { getGenerationLifecycle } from "../../metrics/index.ts";
 import { type CapabilityRow, capabilitySpecFromRow, listCapabilities } from "../../registry/index.ts";
+import {
+  CAPABILITY_LOGO_FILENAME,
+  CAPABILITY_LOGO_STAGING_PATTERN,
+} from "../../capability-logo/artifact-names.ts";
 import { verifyCapabilitySnapshot } from "./artifact-lifecycle.ts";
 
 export interface TombstonedCapabilityIncarnation {
@@ -196,6 +200,15 @@ function planIncarnationRemovals(
       // prevent the next publisher from performing the safe recovery handshake.
       continue;
     }
+    if (entry.name === CAPABILITY_LOGO_FILENAME) {
+      // The capability's artwork, installed after activation and deliberately outside
+      // every immutable `vN/` inventory (ADR-0007). It is not a build artifact and this
+      // pass owns nothing about it: it arrives once, is never remade, and leaves with the
+      // incarnation tree that deletion removes. Reconciliation's only duty is to know it
+      // is a legitimate sibling rather than unknown state.
+      assertFileEntry(entry, directory, "capability logo");
+      continue;
+    }
     if (entry.name === ".staging") {
       assertDirectoryEntry(entry, directory, "staging");
       planStagingRemovals(
@@ -235,6 +248,15 @@ function planStagingRemovals(
   removals: RemovalCandidate[],
 ): void {
   for (const entry of readdirSync(stagingDirectory, { withFileTypes: true })) {
+    if (CAPABILITY_LOGO_STAGING_PATTERN.test(entry.name)) {
+      // A logo attempt's temporary bytes. The ordinary paths remove theirs in `finally`,
+      // so one surviving here is a crashed claim — and sweeping it is the *retry*
+      // recovery's job (5.5/04), not this pass's. Deliberately left alone: reconciliation
+      // also runs at the head of every build, where a logo attempt may be mid-write, and
+      // removing a live attempt's staging file would break the very claim it paid for.
+      assertFileEntry(entry, stagingDirectory, "logo attempt staging");
+      continue;
+    }
     assertDirectoryEntry(entry, stagingDirectory, "staging build");
     const candidate: RemovalCandidate = {
       path: join(stagingDirectory, entry.name),
@@ -285,6 +307,18 @@ function assertNeverActivated(candidate: RemovalCandidate, database: Database): 
   if (!provenTerminal) {
     throw new ArtifactReconciliationError(
       `Artifact reconciliation lacks never-activated proof for ${candidate.kind} candidate ${candidate.path}.`,
+    );
+  }
+}
+
+function assertFileEntry(
+  entry: { readonly name: string; isFile(): boolean; isSymbolicLink(): boolean },
+  parent: string,
+  kind: string,
+): void {
+  if (!entry.isFile() || entry.isSymbolicLink()) {
+    throw new ArtifactReconciliationError(
+      `Artifact reconciliation ${kind} path is not a real file: ${join(parent, entry.name)}.`,
     );
   }
 }

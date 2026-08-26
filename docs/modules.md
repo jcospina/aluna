@@ -388,12 +388,18 @@ are taken.
   independent window/content path through 5.9, so landing it early de-risks the
   module's one outside dependency. It rejoins before 5.10 because that reset must precede the final
   record-bearing form corpus. The model names a `subject`
-  phrase and a `ground` — one of eight tint anchors, signal red reserved — plus a
-  `noun` for the desk's empty-state copy; because the eight anchors are saturated
-  and light by construction, validation is a word-list check and the
-  chroma-and-lightness validator is deleted outright. The request pairs that
-  ground with its second colour through the shell's closed symmetric companion
-  lookup, so no fourth authored fact or caller choice is hidden in the provider.
+  phrase, a `ground` and a `companion` — each one of eight hue families, signal red
+  reserved, and the two must differ — plus a `noun` for the desk's
+  empty-state copy; because every shade in the ladder those families open onto is
+  saturated and light by construction, validation is a word-list check and the
+  chroma-and-lightness validator is deleted outright. Which of a family's four
+  shades a capability wears is resolved from its incarnation seed, not authored:
+  the model collapses to one modal colour per neighbourhood of prompts, and the
+  seed is the only entropy in the path. The request carries the ground first and the
+  companion second, so the ordering is fixed in one place and no caller choice is
+  hidden in the provider. The companion was derived from the ground by a closed
+  four-pair lookup until 2026-08-25, when that cap — four pairs for the whole
+  product, and a certain collision on a desk of five — retired it.
   The registry gains the
   per-incarnation seed and durable `{ status, attempts }` lifecycle, including an
   atomic `generating` claim. Artwork lives once at the incarnation root beside,

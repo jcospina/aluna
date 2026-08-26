@@ -319,6 +319,22 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
+  // The logo's second colour becomes a fourth authored key (ADR-0007, amended). It was
+  // derived from the ground by a closed four-pair lookup, which kept it from being an
+  // authored fact but also capped the product at four distinct colour pairs — a desk of
+  // five capabilities could not avoid two tiles wearing the same two colours.
+  //
+  // Additive and deliberately not compatible, for the same reason as 0012: no default,
+  // so a row born before the cut reads back NULL and fails the row schema loudly rather
+  // than claiming a colour nobody chose. Nothing backfills it — a birth fact invented
+  // after birth would describe artwork that already exists — so the pre-companion corpus
+  // is removed by `bun run reset`.
+  {
+    id: "0013_capability_logo_companion",
+    up: (database) => {
+      database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN companion TEXT;`);
+    },
+  },
 ];
 
 // The set of migration ids already recorded in the ledger. Returns empty when the

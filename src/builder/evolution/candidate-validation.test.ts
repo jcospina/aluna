@@ -19,6 +19,7 @@ import {
 import {
   CandidateValidationError,
   type CandidateValidationIssue,
+  LOGO_BIRTH_FACTS,
   validateCandidateSpec,
 } from "./candidate-validation.ts";
 
@@ -259,8 +260,8 @@ describe("the invalid-candidate matrix row", () => {
     expectRejected(reordered, "must be exactly [create, read, update, delete, search]");
   });
 
-  test("a changed logo birth fact is rejected by name, subject and ground alike", () => {
-    // The artwork was drawn from these two and is never redrawn (ADR-0007 L7), so a
+  test("a changed logo birth fact is rejected by name — subject, ground and companion", () => {
+    // The artwork was drawn from these three and is never redrawn (ADR-0007 L7), so a
     // candidate that moved one would leave the spec describing a picture that does
     // not exist. The rejection says which fact moved rather than surfacing as a
     // generic unexplained difference downstream.
@@ -269,8 +270,20 @@ describe("the invalid-candidate matrix row", () => {
     expectRejected(changedSubject, "subject is a logo birth fact and is immutable");
 
     const changedGround = candidateFrom(journalCapabilityRow());
-    changedGround.ground = "violet";
+    changedGround.ground = "amethyst_violet";
     expectRejected(changedGround, "ground is a logo birth fact and is immutable");
+
+    // The companion joined the birth facts when it stopped being derived from the
+    // ground. It is drawn into the artwork exactly as the other two are.
+    const changedCompanion = candidateFrom(journalCapabilityRow());
+    changedCompanion.companion = "amethyst_violet";
+    expectRejected(changedCompanion, "companion is a logo birth fact and is immutable");
+  });
+
+  test("the birth-fact list is the three the artwork was drawn from, and no more", () => {
+    // A regression that dropped one from the list would let an evolution produce a spec
+    // that lies about a drawing nothing is allowed to redraw.
+    expect([...LOGO_BIRTH_FACTS].sort()).toEqual(["companion", "ground", "subject"]);
   });
 
   test("an off-list ground is rejected before immutability even applies", () => {

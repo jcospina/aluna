@@ -99,12 +99,12 @@ describe("the generation context (decision 1, pinned)", () => {
   });
 
   test("the logo's birth facts are quoted back as the exact values to return", () => {
-    // The contract the platform then enforces: the model is told the two values and
+    // The contract the platform then enforces: the model is told the three values and
     // told they cannot move, so a rejection is never a surprise about a rule it was
     // never given.
     const prompt = buildCandidateSpecPrompt(promptInput());
     expect(prompt).toContain(
-      'subject and ground are the logo\'s birth facts and are immutable. Return exactly "an open notebook" and "leaf".',
+      'subject, ground and companion are the logo\'s birth facts and are immutable. Return exactly "an open notebook", "grass_green" and "coral_orange".',
     );
     expect(prompt).toContain("The artwork was drawn once from them and is never redrawn");
     // The noun is the one logo-adjacent value that may move — as View copy, never as

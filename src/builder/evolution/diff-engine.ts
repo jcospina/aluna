@@ -193,7 +193,7 @@ function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): read
     facts.push({ kind: "capability_label" });
   }
   // `noun` is a platform-View fact: it moves one sentence of platform copy and
-  // nothing else. `subject` and `ground` are deliberately absent from this function —
+  // nothing else. `subject`, `ground` and `companion` are deliberately absent from this function —
   // they are birth facts, so they never become change facts, and a candidate that
   // moved one is rejected upstream by validation and caught here by the residual
   // totality check if it somehow were not.

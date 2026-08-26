@@ -34,7 +34,8 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     id: "notes",
     label: "Notes",
     subject: "an open notebook",
-    ground: "leaf",
+    ground: "grass_green",
+    companion: "coral_orange",
     noun: "note",
     schema: {
       fields: [

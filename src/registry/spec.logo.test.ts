@@ -1,9 +1,9 @@
-// The three model-authored logo keys on the spec, and the two runtime values the
+// The four model-authored logo keys on the spec, and the two runtime values the
 // registry row adds. Field/action shape lives in `spec.test.ts` and
 // `spec.behavior.test.ts`; the vocabulary itself is pinned in `logo.test.ts`.
 
 import { describe, expect, test } from "bun:test";
-import { LOGO_GROUND_ANCHORS } from "./logo.ts";
+import { LOGO_HUE_FAMILIES } from "./logo.ts";
 import { validSpec } from "./spec.test-support.ts";
 import {
   capabilityRegistryWriteSchema,
@@ -29,15 +29,16 @@ function validRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("the authored logo keys", () => {
-  test("a spec carrying subject, ground and noun validates", () => {
+  test("a spec carrying subject, ground, companion and noun validates", () => {
     const spec = capabilitySpecSchema.parse(validSpec());
     expect(spec.subject).toBe("an open notebook");
-    expect(spec.ground).toBe("leaf");
+    expect(spec.ground).toBe("grass_green");
+    expect(spec.companion).toBe("coral_orange");
     expect(spec.noun).toBe("note");
   });
 
-  test("all three are required — none is optional and none has a default", () => {
-    for (const key of ["subject", "ground", "noun"] as const) {
+  test("all four are required — none is optional and none has a default", () => {
+    for (const key of ["subject", "ground", "companion", "noun"] as const) {
       const spec: Record<string, unknown> = { ...validSpec() };
       delete spec[key];
       const result = capabilitySpecSchema.safeParse(spec);
@@ -46,17 +47,74 @@ describe("the authored logo keys", () => {
     }
   });
 
-  test("every one of the eight anchors is an admissible ground", () => {
-    for (const ground of LOGO_GROUND_ANCHORS) {
-      expect(capabilitySpecSchema.safeParse(validSpec({ ground })).success).toBe(true);
+  test("every one of the eight hue families is admissible as either colour", () => {
+    for (const ground of LOGO_HUE_FAMILIES) {
+      const companion = ground === "coral_orange" ? "grass_green" : "coral_orange";
+      expect(capabilitySpecSchema.safeParse(validSpec({ ground, companion })).success).toBe(true);
+      expect(
+        capabilitySpecSchema.safeParse(validSpec({ ground: companion, companion: ground })).success,
+      ).toBe(true);
     }
   });
 
+  // The whole point of the change: the second colour is no longer one fixed partner per
+  // ground. Every ordered pair of two different anchors is a spec the model may author —
+  // 56 of them, where the closed lookup admitted four.
+  test("any two different anchors pair, in either order", () => {
+    let admitted = 0;
+    for (const ground of LOGO_HUE_FAMILIES) {
+      for (const companion of LOGO_HUE_FAMILIES) {
+        if (ground === companion) continue;
+        expect(capabilitySpecSchema.safeParse(validSpec({ ground, companion })).success).toBe(true);
+        admitted += 1;
+      }
+    }
+    expect(admitted).toBe(56);
+  });
+
+  // Only the whole object can see this; a per-field enum cannot. A spec naming one
+  // colour twice would ask for an object drawn in the colour of the field it sits on.
+  test("a companion equal to the ground is refused, by name", () => {
+    for (const anchor of LOGO_HUE_FAMILIES) {
+      const result = capabilitySpecSchema.safeParse(
+        validSpec({ ground: anchor, companion: anchor }),
+      );
+      expect(result.success).toBe(false);
+      expect(JSON.stringify(result.error?.issues)).toContain("companion must differ from ground");
+    }
+  });
+
+  test("a companion outside the eight fails validation, and so does signal red", () => {
+    for (const companion of ["signal", "blue", "surface", "Clay", ""]) {
+      const result = capabilitySpecSchema.safeParse({ ...validSpec(), companion });
+      expect(result.success).toBe(false);
+      expect(JSON.stringify(result.error?.issues)).toContain("companion");
+    }
+  });
+
+  // The same refinement guards the row and the write, not only the authored spec — a
+  // hand-edited database cannot smuggle one colour in twice either.
+  test("the row and the write shape refuse it too", () => {
+    expect(
+      capabilityRowSchema.safeParse(
+        validRow({ ground: "golden_yellow", companion: "golden_yellow" }),
+      ).success,
+    ).toBe(false);
+    const { logo: _logo, ...write } = validRow({
+      ground: "golden_yellow",
+      companion: "golden_yellow",
+    });
+    expect(capabilityRegistryWriteSchema.safeParse(write).success).toBe(false);
+  });
+
   test("a ground outside the eight fails validation, and so does signal red", () => {
-    for (const ground of ["signal", "blue", "ground", "surface", "Leaf", ""]) {
+    for (const ground of ["signal", "blue", "surface", "Leaf", ""]) {
       const result = capabilitySpecSchema.safeParse({ ...validSpec(), ground });
       expect(result.success).toBe(false);
-      expect(JSON.stringify(result.error?.issues)).toContain("ground");
+      // The issue is on the ground's own path — "ground" also appears in the
+      // companion refinement's message, so matching the word alone would not
+      // discriminate between the two rules.
+      expect(result.error?.issues.some((issue) => issue.path[0] === "ground")).toBe(true);
     }
   });
 

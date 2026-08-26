@@ -624,6 +624,7 @@ shape label is analytical, not preservation machinery.
   "label": "Notes",
   "subject": "an open notebook",
   "ground": "leaf",
+  "companion": "clay",
   "noun": "note",
   "display_label_override": null,
   "incarnation_id": "4a80b52d-60a1-47e9-971c-765766a6a3b2",
@@ -694,10 +695,11 @@ shape label is analytical, not preservation machinery.
 ```
 
 The AI authors `id` on v1 and thereafter returns it unchanged, along with `label`,
-the logo birth facts `subject`/`ground` and empty-state `noun`, `schema`,
-`ui_intent`, `behavior`, `behavioral_errors`, the fixed M4 `tools`,
-`read_dependencies`, and `prompt_context`. Subject and ground are immutable for
-the incarnation; noun may evolve as a View-only fact. The platform owns
+the logo birth facts `subject`/`ground`/`companion` and empty-state `noun`,
+`schema`, `ui_intent`, `behavior`, `behavioral_errors`, the fixed M4 `tools`,
+`read_dependencies`, and `prompt_context`. The two colours must differ. Subject,
+ground and companion are immutable for the incarnation; noun may evolve as a
+View-only fact. The platform owns
 `display_label_override`, `incarnation_id`, `seed`, logo lifecycle, `version`,
 snapshot metadata, build id, and `artifacts_path`. The effective user-facing name
 is `display_label_override ?? label`; rename mutates only the override through a

@@ -106,7 +106,8 @@ describe("capability gate — datetime instant matching", () => {
       id: "events",
       label: "Events",
       subject: "an open notebook",
-      ground: "leaf",
+      ground: "grass_green",
+      companion: "coral_orange",
       noun: "note",
       schema: {
         fields: [

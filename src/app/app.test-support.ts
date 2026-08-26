@@ -223,7 +223,8 @@ export const NOTES_SPEC = {
   id: "notes",
   label: "Notes",
   subject: "an open notebook",
-  ground: "leaf",
+  ground: "grass_green",
+  companion: "coral_orange",
   noun: "note",
   schema: {
     fields: [{ name: "text", label: "Text", type: "string", required: true, lifecycle: "active" }],

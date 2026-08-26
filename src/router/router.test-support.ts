@@ -62,7 +62,8 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
     id: "notes",
     label: "Notes",
     subject: "an open notebook",
-    ground: "leaf",
+    ground: "grass_green",
+    companion: "coral_orange",
     noun: "note",
     schema: {
       fields: [
@@ -119,7 +120,8 @@ export function boomRow(): CapabilityRow {
     id: "boom",
     label: "Boom",
     subject: "a firecracker",
-    ground: "clay",
+    ground: "coral_orange",
+    companion: "grass_green",
     noun: "boom",
     incarnation_id: "22222222-2222-4222-8222-222222222222",
     version: 1,
@@ -159,6 +161,7 @@ export function rowSpec(row: CapabilityRow): CapabilitySpec {
     label: row.label,
     subject: row.subject,
     ground: row.ground,
+    companion: row.companion,
     noun: row.noun,
     schema: row.schema,
     ui_intent: row.ui_intent,

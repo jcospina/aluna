@@ -18,7 +18,7 @@ import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   FULL_CAPABILITY_TOOLS,
-  LOGO_GROUND_ANCHORS,
+  LOGO_HUE_FAMILIES,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   promptCapabilitySpecSchema,
 } from "../../registry/index.ts";
@@ -87,7 +87,8 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     id: "notes",
     label: "Notes",
     subject: "an open notebook",
-    ground: "leaf",
+    ground: "grass_green",
+    companion: "coral_orange",
     noun: "note",
     schema: {
       fields: [
@@ -269,7 +270,7 @@ describe("spec generation stage — authored prompt", () => {
     expect(prompt).toContain("track my notes");
   });
 
-  test("asks for the logo's subject and one of the eight anchors, and for the record noun", () => {
+  test("asks for the logo's subject and one of the eight hue families, and for the record noun", () => {
     const provider = makeSpecProvider(notesSpec());
     const { send } = recordingSend();
     const prompt = buildSpecPrompt({
@@ -279,9 +280,12 @@ describe("spec generation stage — authored prompt", () => {
       send,
     });
 
-    // Ground is a word list read off the registry's own enum, so the prompt cannot
-    // drift from the schema that gates the answer.
-    expect(prompt).toContain(`ground is exactly one of: ${LOGO_GROUND_ANCHORS.join(" | ")}`);
+    // Both colours are word lists read off the registry's own enum, so the prompt
+    // cannot drift from the schema that gates the answer.
+    expect(prompt).toContain(`ground is exactly one of: ${LOGO_HUE_FAMILIES.join(" | ")}`);
+    expect(prompt).toContain(
+      "companion is exactly one of the same list and must never be the same value as ground",
+    );
     expect(prompt).not.toContain("signal");
     // Subject: one concrete object, no art direction, no lettering.
     expect(prompt).toContain("subject is a short noun phrase naming one concrete object");
@@ -296,11 +300,76 @@ describe("spec generation stage — authored prompt", () => {
     // refusing is left to the intent classifier (ADR-0007).
     expect(prompt).toContain("not a second refusal");
     expect(prompt).toContain("chosen once, at birth, and can never be changed afterwards");
-    // The second colour is never asked for: the shell derives it from the ground.
-    expect(prompt).not.toContain("companion");
-    expect(prompt).not.toContain("second colour");
-    expect(prompt).not.toContain("second color");
+    // Each colour is asked for by what it does, so the model has something to choose
+    // against: the ground is the field, the companion is the object. This is the whole
+    // of the presentation the model touches — no size, no style, no composition.
+    expect(prompt).toContain("It is the hue of the flat colour the whole square is filled with");
+    expect(prompt).toContain("It is the hue the object itself is drawn in");
+    // The model names a hue, not a colour: it is told so, because a model asked for a
+    // colour and handed a hue would reasonably think its choice was the final word.
+    expect(prompt).toContain("Aluna resolves which of that hue's four shades");
+    for (const forbidden of ["substyle", "vector_illustration", "1024x1024", "no_text", "seed"]) {
+      expect(prompt, `the prompt must not leak "${forbidden}"`).not.toContain(forbidden);
+    }
     expect(prompt).toContain("noun is the singular common noun for one stored record");
+  });
+
+  // A worked example is the most concrete thing in an instruction, so an anchor named in
+  // one is a thumb on the scale — the first pass at this balanced the mentions so that no
+  // colour was named more often than another. That was not enough. Five probe builds
+  // against the balanced prompt came back with the same companion three times, on a
+  // vocabulary where every value was named exactly once: the model collapses to a mode
+  // whatever the examples say, and an even scale only moves which value it collapses on.
+  //
+  // So the colour instructions carry no worked examples at all. The scale cannot lean if
+  // there is nothing on it, and variety is bought where it can actually be bought — the
+  // seed, in `resolveLogoShades`. This is the stronger invariant and it cannot rot: a
+  // future example naming one hue fails here whatever the counts are.
+  test("the colour instructions name no hue at all outside the vocabulary list", () => {
+    const provider = makeSpecProvider(notesSpec());
+    const { send } = recordingSend();
+    const prompt = buildSpecPrompt({
+      provider,
+      prompt: "track my notes",
+      intent: notesIntent(),
+      send,
+    });
+
+    const instructions = prompt
+      .split("\n")
+      .filter(
+        (line) =>
+          line.startsWith("- ground is exactly one of") ||
+          line.startsWith("- companion is exactly one of") ||
+          line.startsWith("- There is no default hue"),
+      )
+      .join(" ")
+      .replace(LOGO_HUE_FAMILIES.join(" | "), "");
+
+    expect(instructions).not.toBe("");
+    for (const family of LOGO_HUE_FAMILIES) {
+      expect(
+        instructions.match(new RegExp(`\\b${family}\\b`, "g")),
+        `"${family}" is named in the colour instructions`,
+      ).toBeNull();
+    }
+  });
+
+  // The failure mode the four live capabilities showed, named out loud. A subject with no
+  // colour of its own is where the mode bites, and "what a background usually looks like"
+  // is the answer it kept reaching for.
+  test("tells the model there is no default hue", () => {
+    const provider = makeSpecProvider(notesSpec());
+    const { send } = recordingSend();
+    const prompt = buildSpecPrompt({
+      provider,
+      prompt: "track my notes",
+      intent: notesIntent(),
+      send,
+    });
+
+    expect(prompt).toContain("There is no default hue and no safe choice");
+    expect(prompt).toContain("never from what a backdrop usually looks like");
   });
 });
 

@@ -88,6 +88,14 @@
     <script type="module" src="/static/desk-logos.js"></script>
 
     <!--
+      The one-attempt rule's client half. A faceless tile arms a single load-triggered
+      POST that spends a paid generation; this takes the arming attributes off the moment
+      that request starts, so htmx's history cache can never snapshot — and Back can never
+      replay — a tile that has already fired (ADR-0007).
+    -->
+    <script type="module" src="/static/logo-attempt.js"></script>
+
+    <!--
       The drawn line. The ink system ships from design/scripts/ the way the token
       layer ships from design/styles/, and /static/ink.js is only the product's half
       of the seam: it names the temporary shell's own chrome and starts the system.

@@ -1,5 +1,13 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -255,6 +263,76 @@ describe("reconcileCapabilityArtifacts", () => {
       await proc.exited;
     }
   }, 20_000);
+
+  // The logo lands at the incarnation root and its temp lands in `.staging`, both after
+  // activation and both outside every `vN/` inventory (ADR-0007). This pass enumerates
+  // that exact directory, so it has to know them by name: when it did not, a capability
+  // that grew a face made the platform unbootable and failed every later build.
+  test("a capability's artwork is a known sibling of its version directories", () => {
+    installActiveV2(conns, artifactsRoot);
+    const logo = join(artifactsRoot, "notes", INCARNATION_ID, "logo.svg");
+    writeFileSync(logo, '<svg xmlns="http://www.w3.org/2000/svg"/>');
+
+    const result = reconcileCapabilityArtifacts({ database: conns.readwrite, artifactsRoot });
+
+    // Known, and never a removal candidate: deletion's cleanup of the incarnation tree is
+    // the only thing that takes artwork away.
+    expect(result.removed).toEqual([]);
+    expect(existsSync(logo)).toBe(true);
+  });
+
+  test("a crashed attempt's staging bytes are known, and are left for the retry sweep", () => {
+    installActiveV2(conns, artifactsRoot);
+    const staging = join(artifactsRoot, "notes", INCARNATION_ID, ".staging");
+    mkdirSync(staging, { recursive: true });
+    const temp = join(staging, "logo-attempt-2.svg");
+    writeFileSync(temp, "<svg/>");
+
+    const result = reconcileCapabilityArtifacts({ database: conns.readwrite, artifactsRoot });
+
+    // Not swept here on purpose: this pass also runs at the head of every build, where a
+    // logo attempt may be mid-write. Removing a live attempt's staging file would break
+    // the claim it has already paid for. 5.5/04's recovery owns the sweep.
+    expect(result.removed).toEqual([]);
+    expect(existsSync(temp)).toBe(true);
+  });
+
+  test("a symlink wearing the artwork's name still fails closed", () => {
+    installActiveV2(conns, artifactsRoot);
+    const incarnation = join(artifactsRoot, "notes", INCARNATION_ID);
+    symlinkSync(join(incarnation, "v1"), join(incarnation, "logo.svg"));
+
+    expect(() => reconcileCapabilityArtifacts({ database: conns.readwrite, artifactsRoot })).toThrow(
+      /capability logo path is not a real file/,
+    );
+  });
+
+  test("a symlink wearing an attempt's name still fails closed", () => {
+    installActiveV2(conns, artifactsRoot);
+    const staging = join(artifactsRoot, "notes", INCARNATION_ID, ".staging");
+    mkdirSync(staging, { recursive: true });
+    symlinkSync(join(artifactsRoot, "notes", INCARNATION_ID, "v1"), join(staging, "logo-attempt-1.svg"));
+
+    expect(() => reconcileCapabilityArtifacts({ database: conns.readwrite, artifactsRoot })).toThrow(
+      /logo attempt staging path is not a real file/,
+    );
+  });
+
+  // The names are a grammar, not a prefix match: anything else in `.staging` is a staging
+  // build directory and still has to prove it never activated.
+  test.each(["logo-attempt-0.svg", "logo-attempt-01.svg", "logo-attempt-1.svg.bak", "logo.svg"])(
+    "%s is not an attempt temp and is judged as a staging build",
+    (name) => {
+      installActiveV2(conns, artifactsRoot);
+      const staging = join(artifactsRoot, "notes", INCARNATION_ID, ".staging");
+      mkdirSync(staging, { recursive: true });
+      writeFileSync(join(staging, name), "<svg/>");
+
+      expect(() =>
+        reconcileCapabilityArtifacts({ database: conns.readwrite, artifactsRoot }),
+      ).toThrow(/staging build path is not a real directory/);
+    },
+  );
 });
 
 function installActiveV2(conns: PlatformDatabase, root: string): void {

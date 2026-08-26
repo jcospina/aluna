@@ -357,6 +357,7 @@ describe("the canonical no-op", () => {
       },
       schema: base.schema,
       noun: base.noun,
+      companion: base.companion,
       ground: base.ground,
       subject: base.subject,
       label: base.label,

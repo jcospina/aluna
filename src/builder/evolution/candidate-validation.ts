@@ -47,6 +47,7 @@ export function committedSpecView(row: CapabilityRow): CapabilitySpec {
     label: row.label,
     subject: row.subject,
     ground: row.ground,
+    companion: row.companion,
     noun: row.noun,
     schema: row.schema,
     ui_intent: row.ui_intent,
@@ -59,10 +60,10 @@ export function committedSpecView(row: CapabilityRow): CapabilitySpec {
 }
 
 /**
- * The two authored facts the logo was drawn from. Evolution preserves them
- * byte-for-byte; neither is ever a change fact.
+ * The three authored facts the logo was drawn from. Evolution preserves them
+ * byte-for-byte; none of them is ever a change fact.
  */
-export const LOGO_BIRTH_FACTS = ["subject", "ground"] as const;
+export const LOGO_BIRTH_FACTS = ["subject", "ground", "companion"] as const;
 
 /** One contract violation, dev-preview friendly: where, and what went wrong. */
 export interface CandidateValidationIssue {

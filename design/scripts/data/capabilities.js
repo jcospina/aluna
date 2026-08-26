@@ -7,7 +7,7 @@
  * presentation patterns: a collection with records, and a record with fields.
  *
  * `logo` is the one part of a capability the shell does not draw. Aluna emits a
- * subject and a ground colour, a hosted service returns the square, and it is
+ * subject and two colours, a hosted service returns the square, and it is
  * stored and never regenerated — `logo.html` is the contract, and this file
  * carries the four real generations that page stands on. The desk and the
  * contract therefore cannot disagree about what a logo looks like: they are the

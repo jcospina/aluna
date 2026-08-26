@@ -21,16 +21,18 @@
 //   - The platform trio — `id`, `created_at`, `extra` — is platform-owned, never a spec
 //     field, and a spec naming one of them is rejected. Making the trio platform-owned is
 //     what removes the `auto` concept from the spec entirely.
-//   - `subject` and `ground` are the logo's birth facts and `noun` is the desk's
-//     empty-state word. Ground is validated by naming one of eight anchors — the whole
-//     of ground validation — and the request's second colour is derived from it rather
-//     than authored (`logo.ts`). Users never steer any of the three: the subject comes
-//     from what the capability is for, and a prompt reaching for art direction is
+//   - `subject`, `ground` and `companion` are the logo's birth facts and `noun` is the
+//     desk's empty-state word. Both colours are validated by naming one of eight hue
+//     families — the whole of colour validation — plus the one thing a per-field schema
+//     cannot see: they have to differ. Which shade of a named family the capability
+//     actually wears is not in the spec at all: the platform resolves it from the
+//     incarnation seed. Users never steer any of the four: the subject
+//     comes from what the capability is for, and a prompt reaching for art direction is
 //     refused by the intent resolver where every other presentation-steering prompt is.
 
 import { z } from "zod";
 import { isCapabilityNameLabel } from "./labels.ts";
-import { capabilityLogoStateSchema, logoGroundSchema, logoSeedSchema } from "./logo.ts";
+import { capabilityLogoStateSchema, logoHueFamilySchema, logoSeedSchema } from "./logo.ts";
 
 /**
  * Columns every capability data table gets from the platform, never from the
@@ -251,13 +253,21 @@ const commonSpecShape = {
   // Engineering identity — becomes the `cap_<id>` table name and the artifacts
   // directory; never user-facing (CONTEXT.md "Engineering language").
   id: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
-  // The two logo birth facts. They are authored once, at birth, and evolution
+  // The three logo birth facts. They are authored once, at birth, and evolution
   // preserves them byte-for-byte: artwork is made once and never remade (ADR-0007
   // L7), so a spec that drifted from its drawing would be describing a picture
-  // nothing is allowed to redraw. `ground` validates against the eight anchors by
-  // name — the whole of ground validation (decision 39).
+  // nothing is allowed to redraw. Both colours validate against the eight hue families
+  // by name — the whole of colour validation (decision 39) — and `validateLogoColours`
+  // adds the one thing a per-field schema cannot see: they have to differ, or the
+  // request carries one colour where the contract says exactly two.
+  //
+  // The spec names a *hue*, not a colour: `resolveLogoShades` draws the concrete shade
+  // from the incarnation seed. Two capabilities that both authored `cyan_blue` are two
+  // different blues, which is the only thing in the path that survives a spec model
+  // collapsing to one modal answer for a whole neighbourhood of prompts.
   subject: logoSubjectSchema,
-  ground: logoGroundSchema,
+  ground: logoHueFamilySchema,
+  companion: logoHueFamilySchema,
   // The singular common noun for one record, used in the desk's empty-state copy
   // ("add your first note above"). A platform-View fact: it may evolve, and it never
   // selects logo generation.
@@ -352,6 +362,7 @@ export function capabilitySpecFromRow(row: CapabilityRow): CapabilitySpec {
     label: row.label,
     subject: row.subject,
     ground: row.ground,
+    companion: row.companion,
     noun: row.noun,
     schema: row.schema,
     ui_intent: row.ui_intent,
@@ -433,15 +444,42 @@ function validateBehavioralErrors(
 function validateSpecSemantics(
   spec: Pick<
     CapabilitySpec,
-    "id" | "schema" | "ui_intent" | "behavioral_errors" | "tools" | "read_dependencies"
+    | "id"
+    | "schema"
+    | "ui_intent"
+    | "behavioral_errors"
+    | "tools"
+    | "read_dependencies"
+    | "ground"
+    | "companion"
   >,
   ctx: z.RefinementCtx,
 ): void {
+  validateLogoColours(spec, ctx);
   validateActionShapePair(spec, ctx);
   validateReadDependencies(spec, ctx);
   validateBehavioralErrors(spec, ctx);
   validatePresentationShows(spec, ctx);
   validateListInputs(spec, ctx);
+}
+
+/**
+ * The logo's two hues have to be two. Each field already validates against the eight
+ * families on its own; only the whole object can see that they are the same one, and a
+ * request built from a spec that named one hue twice would ask for a drawing of a thing
+ * in the colour of the thing it sits on. Two different families share no shade, so this
+ * is also what guarantees the resolved pair differs.
+ */
+function validateLogoColours(
+  spec: Pick<CapabilitySpec, "ground" | "companion">,
+  ctx: z.RefinementCtx,
+): void {
+  if (spec.ground !== spec.companion) return;
+  ctx.addIssue({
+    code: "custom",
+    message: `companion must differ from ground; both name "${spec.ground}"`,
+    path: ["companion"],
+  });
 }
 
 function validateReadDependencies(

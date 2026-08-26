@@ -78,7 +78,7 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
     "",
     "Evolution contract — the platform validates all of this before anything is built:",
     `- id is immutable. Return exactly "${committed.id}".`,
-    `- subject and ground are the logo's birth facts and are immutable. Return exactly "${committed.subject}" and "${committed.ground}". The artwork was drawn once from them and is never redrawn, so a changed value is refused.`,
+    `- subject, ground and companion are the logo's birth facts and are immutable. Return exactly "${committed.subject}", "${committed.ground}" and "${committed.companion}". The artwork was drawn once from them and is never redrawn, so a changed value is refused.`,
     "- Return every committed field exactly once, active and inactive alike. Never omit a committed field, rename one, duplicate one, or change an existing field's type. Omission is not a hide.",
     '- A field committed with lifecycle "inactive" and returned "inactive" must be returned identically.',
     '- Hiding a field (lifecycle "active" → "inactive") may change only its lifecycle — keep its label and required exactly as committed.',

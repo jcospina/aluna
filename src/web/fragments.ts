@@ -116,19 +116,50 @@ export function renderBuildSubscriber(jobId: string): string {
 }
 
 /**
- * The capability's logo: its permanent identity on the desk, and — with no taskbar —
+ * One capability's logo on the desk: its permanent identity, and — with no taskbar —
  * the only standing list of what exists. A real `<button>`, which is what lets 5.9 open
  * a context menu from the keyboard without hand-written key handling, and what carries
  * the live label a rename changes.
  *
- * The tile is the designed placeholder until artwork lands in 5.5. That is a finished,
- * usable capability rather than a loading failure (ADR-0007 L11), so it does not animate:
- * only a build still running wears `logo-tile--working`.
+ * The tile inside it is one of two things, read from the registry's durable logo
+ * lifecycle ([ADR-0007](../../docs/adr/0007-capability-logo-contract.md)):
+ *
+ *   - **`present`** — the accepted artwork, addressed by its incarnation-keyed URL. The
+ *     shell adds the 10% corner, the shadow and the label; the file itself is untouched.
+ *   - **anything else** — the designed placeholder. That is a finished, usable capability
+ *     rather than a loading failure (L11), so it does not animate: only a build still
+ *     running wears `logo-tile--working`. `generating` looks exactly like `absent`,
+ *     because a picture being drawn is not a picture arriving late.
+ *
+ * An `absent` tile additionally **arms one attempt**: a load-triggered, same-origin POST
+ * that claims the attempt and answers with this same tile, re-rendered. Two properties
+ * hold it to one call per render:
+ *
+ *   - The POST lives on the tile `<span>`, never on the button. htmx allows one verb per
+ *     element and the button already carries `hx-get` for the click that opens the
+ *     capability; putting both on one element would silently fire the GET.
+ *   - `armLogoAttempt` is false for the markup an attempt *answers* with, so a failure
+ *     that returns the row to `absent` comes back inert. Only a fresh desk render or a
+ *     newly activated tile arms one, which is what stops a tile swap from recursively
+ *     spending all three attempts inside a single page load.
  *
  * Commit-time OOB insertion and later load-time rehydration both use this renderer so
  * the two paths cannot drift.
  */
-export function renderCapabilityLogo(row: Pick<CapabilityRow, "id" | "label">): string {
+export interface CapabilityLogoRenderOptions {
+  /** Whether an `absent` tile may arm its one load-triggered attempt. Default: it may. */
+  readonly armLogoAttempt?: boolean;
+}
+
+export type RenderableCapabilityLogo = Pick<
+  CapabilityRow,
+  "id" | "label" | "incarnation_id" | "logo"
+>;
+
+export function renderCapabilityLogo(
+  row: RenderableCapabilityLogo,
+  options: CapabilityLogoRenderOptions = {},
+): string {
   const id = escapeHtml(row.id);
   const label = canonicalCapabilityLabel(row);
   const url = `/capability/${id}`;
@@ -145,9 +176,36 @@ export function renderCapabilityLogo(row: Pick<CapabilityRow, "id" | "label">): 
     `  hx-push-url="${url}"`,
     `  aria-label="Open ${escapeHtml(label)}"`,
     ">",
-    '  <span class="logo-tile logo-tile--pending"></span>',
+    indent(renderCapabilityLogoTile(row, options.armLogoAttempt !== false), 2),
     `  <span class="logo-label">${escapeHtml(label)}</span>`,
     "</button>",
+  ].join("\n");
+}
+
+/** The incarnation-keyed address of one capability's accepted artwork. */
+function capabilityLogoUrl(row: Pick<CapabilityRow, "id" | "incarnation_id">): string {
+  return `/capability/${encodeURIComponent(row.id)}/${encodeURIComponent(row.incarnation_id)}/logo.svg`;
+}
+
+/** Where an `absent` tile claims its one attempt. A paid mutation, so never a GET. */
+function capabilityLogoAttemptUrl(row: Pick<CapabilityRow, "id" | "incarnation_id">): string {
+  return `/capability/${encodeURIComponent(row.id)}/${encodeURIComponent(row.incarnation_id)}/logo-attempt`;
+}
+
+function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): string {
+  if (row.logo.status === "present") {
+    return `<span class="logo-tile" style="background-image: url('${escapeHtml(capabilityLogoUrl(row))}')"></span>`;
+  }
+  if (row.logo.status !== "absent" || !arm) {
+    return '<span class="logo-tile logo-tile--pending"></span>';
+  }
+  return [
+    '<span class="logo-tile logo-tile--pending"',
+    `  hx-post="${escapeHtml(capabilityLogoAttemptUrl(row))}"`,
+    '  hx-trigger="load"',
+    `  hx-target="#${capabilityLogoElementId(escapeHtml(row.id))}"`,
+    '  hx-swap="outerHTML"',
+    "></span>",
   ].join("\n");
 }
 
@@ -179,7 +237,10 @@ export function renderProvisionalLogo(buildId: string, label: string): string {
   ].join("\n");
 }
 
-function renderCapabilityLogoOob(row: Pick<CapabilityRow, "id" | "label">): string {
+// A newly activated capability standing on the ground for the first time. This is one of
+// the two moments ADR-0007 allows a load-triggered attempt to be armed — the other is a
+// fresh desk render — so the tile is rendered with its default arming.
+function renderCapabilityLogoOob(row: RenderableCapabilityLogo): string {
   return [
     `<div data-capability-logo-oob hx-swap-oob="beforeend:${CAPABILITY_LOGO_LAYER_TARGET}">`,
     indent(renderCapabilityLogo(row), 2),
@@ -187,9 +248,12 @@ function renderCapabilityLogoOob(row: Pick<CapabilityRow, "id" | "label">): stri
   ].join("\n");
 }
 
-function renderCapabilityLogoReplacement(row: Pick<CapabilityRow, "id" | "label">): string {
+// An evolution moving the capability's label. **Inert**: evolution never enters the logo
+// path, so re-rendering a still-faceless tile here must not become a third way to arm an
+// attempt. Only a fresh desk render or a newly activated tile may do that.
+function renderCapabilityLogoReplacement(row: RenderableCapabilityLogo): string {
   const targetId = capabilityLogoElementId(escapeHtml(row.id));
-  return renderCapabilityLogo(row).replace(
+  return renderCapabilityLogo(row, { armLogoAttempt: false }).replace(
     "<button",
     `<button hx-swap-oob="outerHTML:#${targetId}"`,
   );
@@ -261,8 +325,8 @@ export const PAGE_ASSEMBLY_ANCHORS = [
  * URL dropped every other logo, so the desk looked like the registry had lost them.
  */
 export function renderCapabilityShell(
-  activeRow: Pick<CapabilityRow, "id" | "label" | "incarnation_id" | "version">,
-  allRows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>,
+  activeRow: RenderableCapabilityLogo & Pick<CapabilityRow, "version">,
+  allRows: readonly RenderableCapabilityLogo[],
   collectionHtml: string,
   shellHtml: string,
 ): string {
@@ -287,7 +351,7 @@ export function renderCapabilityShell(
  * path only restores the desk; a logo click serves the cached, data-free view.
  */
 export function renderRehydratedShell(
-  rows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>,
+  rows: readonly RenderableCapabilityLogo[],
   shellHtml: string,
 ): string {
   // The shared detail modal mounts on every rendered shell — an empty desk included — so
@@ -312,7 +376,7 @@ export function renderRehydratedShell(
 // source of the desk's logo set, shared by every full-shell path (on-load rehydration
 // and direct `/capability/:id` navigation) so a full-page load always shows the same
 // complete desk the registry holds — never a subset.
-function renderCapabilityLogos(rows: ReadonlyArray<Pick<CapabilityRow, "id" | "label">>): string {
+function renderCapabilityLogos(rows: readonly RenderableCapabilityLogo[]): string {
   return rows.map((row) => indent(renderCapabilityLogo(row), 10)).join("\n");
 }
 
@@ -355,7 +419,7 @@ function injectDetailModal(shellHtml: string): string {
  * while the `hx-swap-oob` sidecar stands the same canonical logo on the desk.
  */
 export function renderCapabilityCommitSwap(
-  row: Pick<CapabilityRow, "id" | "label" | "incarnation_id" | "version">,
+  row: RenderableCapabilityLogo & Pick<CapabilityRow, "version">,
   collectionHtml: string,
   previousLabel?: string,
 ): string {

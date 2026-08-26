@@ -18,10 +18,12 @@ import { isCapabilityIdReservedByDeletion } from "./deletion-tombstones.ts";
 import {
   type CapabilityLogoState,
   capabilityLogoStateSchema,
-  type LogoGround,
+  type LogoHueFamily,
+  type LogoShade,
   type LogoStatus,
-  logoGroundSchema,
+  logoHueFamilySchema,
   logoSeedSchema,
+  resolveLogoShades,
 } from "./logo.ts";
 import {
   type CapabilityRegistryWrite,
@@ -60,6 +62,7 @@ interface StoredRow {
   label: string;
   subject: string;
   ground: string;
+  companion: string;
   noun: string;
   incarnation_id: string;
   version: number;
@@ -83,7 +86,7 @@ interface StoredRow {
  * evolution CAS built from a row read seconds earlier — can roll a won claim back.
  */
 const WRITE_COLUMNS =
-  "id, label, subject, ground, noun, incarnation_id, version, seed, schema, ui_intent, behavior, behavioral_errors, tools, read_dependencies, artifacts_path, prompt_context";
+  "id, label, subject, ground, companion, noun, incarnation_id, version, seed, schema, ui_intent, behavior, behavioral_errors, tools, read_dependencies, artifacts_path, prompt_context";
 
 const WRITE_PLACEHOLDERS = WRITE_COLUMNS.split(", ")
   .map(() => "?")
@@ -102,6 +105,7 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
     label: stored.label,
     subject: stored.subject,
     ground: stored.ground,
+    companion: stored.companion,
     noun: stored.noun,
     incarnation_id: stored.incarnation_id,
     version: stored.version,
@@ -179,7 +183,7 @@ export function compareAndSwapCapability(
       : database
           .query(
             `UPDATE ${REGISTRY_TABLE}
-             SET label = ?, subject = ?, ground = ?, noun = ?, incarnation_id = ?, version = ?,
+             SET label = ?, subject = ?, ground = ?, companion = ?, noun = ?, incarnation_id = ?, version = ?,
                  schema = ?, ui_intent = ?, behavior = ?, behavioral_errors = ?, tools = ?,
                  read_dependencies = ?, artifacts_path = ?, prompt_context = ?
              WHERE id = ? AND incarnation_id = ? AND version = ?
@@ -190,6 +194,7 @@ export function compareAndSwapCapability(
             valid.label,
             valid.subject,
             valid.ground,
+            valid.companion,
             valid.noun,
             valid.incarnation_id,
             valid.version,
@@ -236,6 +241,7 @@ function storedValues(row: CapabilityRegistryWrite): (string | number)[] {
     row.label,
     row.subject,
     row.ground,
+    row.companion,
     row.noun,
     row.incarnation_id,
     row.version,
@@ -332,14 +338,24 @@ export function listCapabilities(database: Database = dbReadonly): CapabilityRow
 
 /**
  * Everything one generation request needs, handed back by the claim that authorized
- * it: the incarnation's stored seed, its two authored logo inputs, and the attempt
- * this claim has just spent.
+ * it: the incarnation's stored seed, its subject, the two **resolved shades** the
+ * request will carry, and the attempt this claim has just spent.
+ *
+ * The two colours are resolved here rather than stored, because the seed already is the
+ * record of what drew the artwork: `resolveLogoShades` is pure and total over
+ * (families, seed), so a retry of a capability that has no picture yet asks for exactly
+ * the drawing the first attempt would have made. The authored families stay beside them
+ * so a caller — the developer panel, a test — can say which hue was named and which
+ * shade of it came up.
  */
 export interface LogoGenerationClaim {
   readonly capabilityId: string;
   readonly incarnationId: string;
   readonly subject: string;
-  readonly ground: LogoGround;
+  readonly groundFamily: LogoHueFamily;
+  readonly companionFamily: LogoHueFamily;
+  readonly ground: LogoShade;
+  readonly companion: LogoShade;
   readonly seed: number;
   readonly attempts: number;
 }
@@ -381,23 +397,32 @@ export function claimLogoGeneration(
          SET logo_status = 'generating', logo_attempts = logo_attempts + 1
          WHERE id = ? AND incarnation_id = ? AND lifecycle_state = 'active'
            AND logo_status = 'absent'
-         RETURNING subject, ground, seed, logo_attempts`,
+         RETURNING subject, ground, companion, seed, logo_attempts`,
       )
       .get(capabilityId, incarnationId) as {
       subject: unknown;
       ground: unknown;
+      companion: unknown;
       seed: unknown;
       logo_attempts: number;
     } | null;
 
     if (!claimed) return null;
 
+    const groundFamily = logoHueFamilySchema.parse(claimed.ground);
+    const companionFamily = logoHueFamilySchema.parse(claimed.companion);
+    const seed = logoSeedSchema.parse(claimed.seed);
+    const [ground, companion] = resolveLogoShades(groundFamily, companionFamily, seed);
+
     return {
       capabilityId,
       incarnationId,
       subject: logoSubjectSchema.parse(claimed.subject),
-      ground: logoGroundSchema.parse(claimed.ground),
-      seed: logoSeedSchema.parse(claimed.seed),
+      groundFamily,
+      companionFamily,
+      ground,
+      companion,
+      seed,
       attempts: claimed.logo_attempts,
     };
   })();

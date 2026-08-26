@@ -32,7 +32,8 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     id: "notes",
     label: "Notes",
     subject: "an open notebook",
-    ground: "leaf",
+    ground: "grass_green",
+    companion: "coral_orange",
     noun: "note",
     schema: {
       fields: [
@@ -281,7 +282,7 @@ describe("commitCapability — the logo's inputs at birth", () => {
     // can move without the drawing changing.
     expect(logoSeedSchema.safeParse(result.row.seed).success).toBe(true);
     expect(result.row.subject).toBe("an open notebook");
-    expect(result.row.ground).toBe("leaf");
+    expect(result.row.ground).toBe("grass_green");
     expect(result.row.noun).toBe("note");
     // Nothing has been ordered at commit: the request is the last step, after the
     // gate, and a build that never reaches it costs nothing (ADR-0007 L10).

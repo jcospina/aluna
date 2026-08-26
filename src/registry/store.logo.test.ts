@@ -8,6 +8,7 @@ import { join } from "node:path";
 
 import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
 import { runMigrations } from "../persistence/migrations.ts";
+import { resolveLogoShades } from "./logo.ts";
 import { validSpec } from "./spec.test-support.ts";
 import {
   claimLogoGeneration,
@@ -55,7 +56,7 @@ describe("the registry's logo inputs and state", () => {
   test("a row is born carrying its authored inputs, its seed, and an absent logo", () => {
     const inserted = insertCapability(write(), conns.readwrite);
     expect(inserted.subject).toBe("an open notebook");
-    expect(inserted.ground).toBe("leaf");
+    expect(inserted.ground).toBe("grass_green");
     expect(inserted.noun).toBe("note");
     expect(inserted.seed).toBe(SEED);
     expect(inserted.logo).toEqual({ status: "absent", attempts: 0 });
@@ -67,12 +68,18 @@ describe("the registry's logo inputs and state", () => {
   test("a claim moves absent → generating and spends the attempt in the same statement", () => {
     insertCapability(write(), conns.readwrite);
 
+    // The spec names two hues; the claim hands back the two shades this incarnation's
+    // seed resolved them to, which is the only place that resolution happens.
+    const [ground, companion] = resolveLogoShades("grass_green", "coral_orange", SEED);
     const claim = claimLogoGeneration("notes", INCARNATION_ID, conns.readwrite);
     expect(claim).toEqual({
       capabilityId: "notes",
       incarnationId: INCARNATION_ID,
       subject: "an open notebook",
-      ground: "leaf",
+      groundFamily: "grass_green",
+      companionFamily: "coral_orange",
+      ground,
+      companion,
       seed: SEED,
       attempts: 1,
     });

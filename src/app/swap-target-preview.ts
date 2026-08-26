@@ -21,7 +21,11 @@ import { resolve } from "node:path";
 
 import type { Hono } from "hono";
 import { escapeHtml } from "../web/html.ts";
-import { PAGE_ASSEMBLY_ANCHORS, renderCapabilityShell } from "../web/index.ts";
+import {
+  PAGE_ASSEMBLY_ANCHORS,
+  type RenderableCapabilityLogo,
+  renderCapabilityShell,
+} from "../web/index.ts";
 
 export const SWAP_TARGET_PREVIEW_ROUTE = "/demo/swap-targets";
 
@@ -31,7 +35,12 @@ const PREVIEW_ROW = Object.freeze({
   label: "Swap target preview",
   incarnation_id: "00000000-0000-4000-8000-0000000000ee",
   version: 1,
-});
+  // Deliberately not `absent`: an absent tile arms a load-triggered POST at the paid
+  // attempt route, and this preview exists to rehearse page-assembly anchors, not to
+  // order artwork for a capability that does not exist. `abandoned` is the one status
+  // that means "no artwork, and none coming".
+  logo: { status: "abandoned", attempts: 3 },
+} satisfies RenderableCapabilityLogo & { version: number });
 
 const PREVIEW_COLLECTION = '<section class="preview-view">A capability surface.</section>';
 

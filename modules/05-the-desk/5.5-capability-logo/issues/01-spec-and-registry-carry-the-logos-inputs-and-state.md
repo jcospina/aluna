@@ -2,6 +2,29 @@
 
 Status: done
 
+> **Superseded in part, 2026-08-25 (during 5.5/02's sign-off).** The closed
+> companion lookup described below is gone. It kept the second colour from being
+> a fourth authored fact, which was the property it existed for, and it also
+> capped the whole product at **four distinct colour pairs** — two capabilities
+> collide 25% of the time, four collide 91% of the time, and a desk of five
+> cannot avoid two tiles wearing the same two colours. That was invisible while
+> the contract was judged against four hand-picked specimens and obvious the
+> moment two real capabilities stood side by side. The model now names a
+> `companion` alongside the `ground`; the two must differ, the ground is still
+> first, and the caller still chooses nothing. Everything else in this issue
+> stands. See ADR-0007's 2026-08-25 amendment and PLAN decisions 39 and 42.
+>
+> **Superseded again the same day.** The eight tint anchors below are no longer
+> the spec's vocabulary. `ground` and `companion` name one of eight **hue
+> families** (`grass_green`, `forest_green`, `teal_green`, `cyan_blue`,
+> `golden_yellow`, `mustard_ochre`, `coral_orange`, `amethyst_violet`), and the
+> concrete shade is resolved from the incarnation seed rather than authored.
+> Opening the pairing was not enough on its own: the model kept collapsing to one
+> modal answer per neighbourhood of prompts, so the reachable pairs stayed
+> unreached. Validation is still a word-list check and no column was added — the
+> seed already records what drew the artwork. See ADR-0007's second 2026-08-25
+> amendment.
+
 ## Epic
 
 Module 5 — The Desk · Epic 5.5 — The capability logo
@@ -21,6 +44,7 @@ final logo inputs and no later Module 5 issue resets the corpus.
 
 **Three model-authored keys on the spec.** `subject` (a short phrase), `ground`
 (one of the eight tint anchors) and `noun` (for the desk's empty-state copy).
+*(A fourth, `companion`, was added by the amendment above.)*
 
 **Two runtime values owned by the registry.** The per-incarnation `seed`, stored
 rather than derived from a name or position, and a durable logo lifecycle value

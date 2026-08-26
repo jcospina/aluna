@@ -338,7 +338,8 @@ describe("every change-fact matrix row, end to end", () => {
     const candidate = notesSpec({
       label: "Jottings",
       subject: "an open notebook",
-      ground: "leaf",
+      ground: "grass_green",
+      companion: "coral_orange",
       noun: "note",
       schema: {
         fields: [

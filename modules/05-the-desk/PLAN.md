@@ -550,18 +550,37 @@ carried it, the desk puts none anywhere else, and only the name is left.
     accepted file later disappears becomes `abandoned`; L7 forbids generating a
     replacement for artwork that had already been accepted.
 
-39. **The model names one of the eight tint anchors as the capability's ground.**
-    They are leaf, shade, teal, sky, sun, ochre, clay and violet; signal red is
+39. **The model names two of the eight hue families: the capability's ground and
+    its companion.**
+    They were leaf, shade, teal, sky, sun, ochre, clay and violet; signal red is
     reserved and is not offered. This deletes the chroma-and-lightness validator
     entirely: in the palette, saturated, light enough for daylight, no near-blacks,
     no pastels and no greys are all satisfied by construction, because the eight
     anchors were chosen that way, so validation becomes a word-list check. L9 already permits two
     capabilities to look alike, so no uniqueness rule is owed either. A model
     choosing beats Aluna hashing because the colour stays apt: telescope on sky,
-    recipes on ochre. The request's second colour is derived, not authored: one
-    closed symmetric lookup pairs leaf/shade, teal/sky, sun/ochre and
-    clay/violet. The selected ground remains first, so the provider client has no
-    undocumented presentation choice.
+    recipes on ochre. **Amended 2026-08-25:** the request's second colour was
+    derived rather than authored, from one closed symmetric lookup pairing
+    leaf/shade, teal/sky, sun/ochre and clay/violet. That kept it from being a
+    fourth authored fact, and it capped the whole product at four distinct pairs —
+    two capabilities collide 25% of the time and five collide with certainty,
+    which four hand-picked specimens could never show. The model now names the
+    companion too; it is the colour the object is drawn in, it must differ from
+    the ground, and the ground is still first, so the provider client still has no
+    undocumented presentation choice. **Amended again 2026-08-25:** the eight
+    anchors became eight *hue families* and the concrete shade became the
+    platform's. Four consecutive live capabilities came out `sky`, `leaf`, `sky`,
+    `sky`, and an earlier fix that balanced the prompt's worked examples did not
+    touch it — five probe builds against the balanced prompt still answered with
+    the same companion three times. A spec model collapses to a mode and every
+    build is a stateless call that has never seen another capability, so 56
+    reachable pairs were never the constraint. Two of the eight names also named
+    things rather than hues (`sky`, `shade`) while the ground is defined as what
+    sits behind the object; a house went on sky. The names are hues now, no worked
+    example names a colour, and each family opens onto four shades that Aluna
+    resolves from the incarnation seed — the only entropy in the path. This adds
+    no uniqueness rule and no desk-awareness: L9 stands, two capabilities may name
+    the same hue, and the ladder is what stops them coming out the same colour.
 
 40. **Users do not steer presentation, and the logo is presentation.** The subject
     phrase is derived from intent, never from user-authored art direction, and a
@@ -579,12 +598,16 @@ carried it, the desk puts none anywhere else, and only the name is left.
     requires two capabilities to look like they came from the same era either;
     L9 allows them to differ.
 
-42. **The spec gains three model-authored keys and the registry gains two runtime
-    values.** The spec carries `subject` (a short phrase), `ground` (one of the
-    eight anchor names) and `noun` (for the desk's empty-state copy). Subject and
-    ground are immutable birth facts; noun may evolve as a View-only fact. The
+42. **The spec gains four model-authored keys and the registry gains two runtime
+    values.** The spec carries `subject` (a short phrase), `ground` and `companion`
+    (each one of the eight hue-family names, and they must differ) and `noun` (for
+    the desk's empty-state copy). Subject, ground and companion are immutable birth
+    facts; noun may evolve as a View-only fact. The
     registry carries the per-incarnation `seed` and a durable logo lifecycle value
     `{ status, attempts }`, with status absent, generating, present or abandoned.
+    The seed carries a second job since 2026-08-25: it resolves each authored hue
+    family to one of that family's four shades, which is why no shade column was
+    added — the seed is already the durable record of what drew the artwork.
     The artwork itself is a file, per decision 37.
 
 ### Accessibility
@@ -778,7 +801,7 @@ Focused tests must additionally prove:
   the file;
 - concurrent activation/load claims cannot exceed three total attempts, recovery
   reconciles an interrupted `generating` state, and the third failure records
-  abandonment; a ground outside the eight anchors, or signal red, fails validation;
+  abandonment; a ground outside the eight hue families, or signal red, fails validation;
 - a prompt attempting to direct a logo is refused by the intent classifier, on the
   same path as any other presentation-steering prompt;
 - every declared product foreground/background pairing passes its applicable AA
