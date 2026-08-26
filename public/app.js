@@ -61,7 +61,14 @@ function shell() {
         this.promptBusy = true;
       });
       document.addEventListener("htmx:sseClose", () => wakePrompt(true));
-      document.addEventListener("htmx:sseError", () => wakePrompt(false));
+      // `htmx:sseError` fires on every transient drop while the transport is still
+      // retrying, so waking on it unlocked the prompt mid-build. Wake only once the
+      // connection itself is dead; the field keeps its text either way.
+      document.addEventListener("htmx:sseError", (event) => {
+        const source = /** @type {{detail?: {source?: {readyState?: number}}}} */ (event).detail
+          ?.source;
+        if (source?.readyState === EventSource.CLOSED) wakePrompt(false);
+      });
     },
   };
 }
@@ -563,6 +570,7 @@ function promoteTerminalPresentation(subscriber, output) {
     else output.replaceChildren(...terminal.element.childNodes);
     reloadRestoredRecords(output, terminal.restorationKind);
   } else {
+    releaseRegionContent(subscriber);
     subscriber.remove();
   }
   return terminal?.restorationKind;
@@ -576,6 +584,10 @@ function finishTerminalPresentation(eventTarget) {
   if (!(subscriber instanceof HTMLElement) || !(output instanceof HTMLElement)) return;
 
   if (subscriber.dataset.preserveActiveView === "true") {
+    // Scoped to the subscriber, not the region: the preserved active view stays. Dispatched
+    // before the detach because `abortTransportIn` can only abort a connected node's
+    // request — the observer sweep behind it cannot.
+    releaseRegionContent(subscriber);
     subscriber.remove();
     return;
   }

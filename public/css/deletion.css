@@ -32,8 +32,7 @@
   gap: var(--space-1);
   color: var(--ink-2);
 }
-.capability-deletion__body p,
-.capability-deletion__status {
+.capability-deletion__body p {
   margin: 0;
 }
 .capability-deletion__retention {
@@ -47,15 +46,6 @@
   color: var(--ink);
   background: color-mix(in oklch, var(--sun), var(--surface) 70%);
   border: var(--line) solid color-mix(in oklch, var(--sun), var(--ink) 30%);
-}
-.capability-deletion__status {
-  align-self: flex-start;
-  padding: var(--space-1) var(--space-1);
-  font-family: var(--font-body);
-  font-size: var(--type-sm);
-  line-height: 1.4;
-  color: var(--ink);
-  background: color-mix(in oklch, var(--sky), var(--surface) 70%);
 }
 .capability-deletion__actions {
   display: flex;

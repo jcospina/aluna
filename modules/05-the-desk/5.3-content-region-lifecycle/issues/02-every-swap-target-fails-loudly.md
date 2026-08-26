@@ -2,6 +2,13 @@
 
 Status: done
 
+> **Superseded in part by 5.4/02 (`7e27172`).** This issue shipped four
+> page-assembly anchors. The fourth — the `class="shell"` swap — existed only to be
+> flipped into a `has-capabilities` state, and an empty desk needs no gate, so it
+> left the list with the capability rail. Three anchors remain and each still throws.
+> The narrative below describes what this issue built; the criteria, the Living demo
+> and the HITL steps have been corrected to the current count.
+
 ## Epic
 
 Module 5 — The Desk · Epic 5.3 — Content-region lifecycle and loud swap targets
@@ -27,11 +34,15 @@ swap can be in flight. What changes is that a missing target stops being silent.
 ## Acceptance criteria
 
 - [x] The `class="shell"` swap throws on a missing anchor, like the other three
-      replacements
+      replacements. *(Superseded by 5.4/02, commit `7e27172`: the shell-root anchor
+      was there only to be flipped into a `has-capabilities` state, and an empty desk
+      needs no gate, so it left the list with the rail. Three anchors remain — the
+      logo-layer placeholder, the detail-modal placeholder and the content target —
+      and each still throws.)*
 - [x] A `commit` or `fragment` arriving mid-teardown finds its named target or
       raises; neither path can complete silently
-- [x] Each of the four page-assembly anchors has a test that removes it and
-      asserts the throw
+- [x] Each page-assembly anchor has a test that removes it and asserts the throw
+      (four at the time of writing, three since 5.4/02 retired the shell root)
 - [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
@@ -89,7 +100,7 @@ that list: `commit` is never answered by the developer panel's `commit-preview`.
 
 ### Demo-vs-real boundary
 
-Both halves ship in the product. The four anchors are the real ones the served
+Both halves ship in the product. The anchors are the real ones the served
 shell is assembled from, and `public/index.html` loads the real guard beside the
 release scope it completes. `/demo/swap-targets` adds no behavior — it only makes
 two failures reachable on purpose, because a server-side throw is a 500 nobody
@@ -115,16 +126,17 @@ New coverage:
   listener at all, and both guarded events reported once the region has gone.
   Plus the wiring: the event it listens for, the source it reads off the detail,
   reconnect de-duplication, and that what it installs is the real guard.
-- `src/web/fragments.test.ts` — all four anchors, each removed from an otherwise
+- `src/web/fragments.test.ts` — every anchor, each removed from an otherwise
   whole shell via `PAGE_ASSEMBLY_ANCHORS` and asserted to throw its own error, and
   the cold-start page held to the same four.
 - `src/app/app.swap-targets.test.ts` — the shipped shell loads the guard, the
-  module is served, and the preview forces all four anchors and drives the shipped
+  module is served, and the preview forces every anchor and drives the shipped
   guard rather than a copy of it.
 
 Live-checked against the dev server on :3030:
 
-- `/demo/swap-targets` shows the intact shell assembling and four raised errors.
+- `/demo/swap-targets` shows the intact shell assembling and one raised error per
+  anchor (four when this shipped, three since 5.4/02).
 - On the preview, a `commit` with the region on screen finds its target; putting
   the region away and delivering the same event raises, both as the announcement
   and as an uncaught `MissingSwapTargetError` in the console.
@@ -163,7 +175,7 @@ Live-checked against the dev server on :3030:
   listener's throw escape `dispatchEvent`; a real `EventTarget` *reports* the
   exception instead. The double now reports, and the tests assert what actually
   happens — the raise is loud, and it aborts nothing.
-- **Only one of the four anchors was checked on the page a fresh user loads.**
+- **Only one of the anchors was checked on the page a fresh user loads.**
   `renderRehydratedShell` returned early on an empty registry, so a lost
   `class="shell"` or toolbar placeholder rendered fine on a fresh install and
   started failing at the first commit. Cold start now holds the shell to all four.
@@ -182,7 +194,8 @@ Live-checked against the dev server on :3030:
 2. Open `http://localhost:3030/demo/swap-targets`.
    - The first table row reads **Assembled** with a character count: the real
      shell still composes.
-   - The four rows under it each show a raised error — one per anchor. No row is
+   - The rows under it each show a raised error — one per anchor (three since
+     5.4/02 retired the shell root). No row is
      blank, and no row reports a page that assembled anyway.
 3. On the same page, scroll to *A commit or a fragment arriving mid-teardown*.
    - Click **Deliver a commit**. The readout says it *found its named target*.

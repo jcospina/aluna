@@ -117,23 +117,22 @@ export function startDeskLogos(root) {
     },
   );
 
-  // The one terminal cleanup path, and it does not ask which kind of ending this was.
-  // `done` closes every stream the server finished — activation and refusal alike — but
-  // htmx also closes one whose subscriber left the document, and it says so with
-  // `nodeReplaced` or `nodeMissing` rather than `message`. Those are endings too: the sink
-  // is gone, the server reads that as a cancellation, and a build whose story nobody can
-  // see must not leave a tile claiming it is still being made. The commonest way to reach
-  // one is ordinary — pressing another capability's logo while a build runs swaps the
-  // region the subscriber lives in. Taking the tile down is idempotent and keyed by the
-  // build id, so there is nothing to gain by being selective and an orphan to lose.
-  for (const ending of ["htmx:sseClose", "htmx:sseError"]) {
-    root.addEventListener?.(
-      ending,
-      /** @param {LogoEvent} event */ (event) => {
-        removeProvisionalLogo(root, buildIdFromEvent(event.target));
-      },
-    );
-  }
+  // The terminal cleanup path. `htmx:sseClose` covers every real ending: `message` for a
+  // stream the server finished (activation and refusal alike), and `nodeReplaced` or
+  // `nodeMissing` for one whose subscriber left the document — the commonest being
+  // ordinary, pressing another capability's logo while a build runs.
+  //
+  // `htmx:sseError` is deliberately not here. It is not terminal: the extension fires it
+  // and then schedules a reconnect, and a native EventSource fires `error` on every
+  // transient drop while it retries itself. Taking the tile down on one would let a proxy
+  // blip orphan the tile of a build that is still running, and nothing puts it back —
+  // only activation appends a logo.
+  root.addEventListener?.(
+    "htmx:sseClose",
+    /** @param {LogoEvent} event */ (event) => {
+      removeProvisionalLogo(root, buildIdFromEvent(event.target));
+    },
+  );
 }
 
 if (typeof document !== "undefined") startDeskLogos(document);

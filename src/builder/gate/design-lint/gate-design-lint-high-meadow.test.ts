@@ -226,12 +226,36 @@ describe("design-lint — the three never-declared properties", () => {
     ).toContain("forbidden construct");
   });
 
+  test("holds the decoration shorthands to their own axis rather than to the residual", () => {
+    // `text-decoration` and `text-emphasis` mix a line, a colour and a thickness in one
+    // value. A named colour there is *not* inert — every engine paints it — and the
+    // thickness slips the ban the longhand carries, so the declaration scan owns both
+    // rather than leaving them to the residual.
+    for (const bad of [
+      "text-decoration: underline thistle",
+      "text-decoration: underline 3px",
+      "text-emphasis: filled circle purple",
+    ]) {
+      expect(
+        findDesignViolation(spec, renderer(`\`<div style="${bad};">\${text}</div>\``)),
+        bad,
+      ).toContain("a decoration shorthand carries a line, a colour and a thickness");
+    }
+
+    // The line and the style still read the way an author writes them.
+    expect(
+      findDesignViolation(
+        spec,
+        renderer('`<div style="text-decoration: underline wavy;">${text}</div>`'),
+      ),
+    ).toBeUndefined();
+  });
+
   test("rejects a named CSS colour inside a shorthand no axis owns (the 3.1/02 residual)", () => {
-    // `text-decoration` is arrangement, not a closed axis, so the declaration scan leaves
-    // it alone — and a named colour there is inert at render time, which is what slips it
-    // past the runtime enforcer. The residual scan is what catches it at build time.
-    const bad = renderer('`<div style="text-decoration: underline thistle;">${text}</div>`');
-    expect(findDesignViolation(spec, bad)).toContain('raw colour "thistle"');
+    // The residual scan backstops the shorthands no axis was written for: `caret` takes a
+    // colour without saying so in its name, and the declaration scan leaves it free.
+    const bad = renderer('`<div style="caret: red;">${text}</div>`');
+    expect(findDesignViolation(spec, bad)).toContain('raw colour "red"');
   });
 
   test("catches `background: white` on the colour axis rather than as a residual", () => {

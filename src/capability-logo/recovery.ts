@@ -271,6 +271,22 @@ function applyRecoveryAction(
   );
 }
 
+/** A row with no attempt running. Nothing may be released here — the row is not this
+ *  pass's to move — but a proven loss holding an empty file is going terminal, and the
+ *  file would otherwise sit there forever: the route 404s on it and artifact
+ *  reconciliation accepts it as a legitimate sibling. */
+function settleIdleTree(
+  row: CapabilityRow,
+  stored: StoredCapabilityLogo,
+  deps: CapabilityLogoRecoveryDeps,
+): { stored: StoredCapabilityLogo; removedTemps: number } {
+  if (!provenLoss(row, stored, deps)) return { stored: "unknown", removedTemps: 0 };
+  if (stored === "truncated") {
+    discardTruncatedCapabilityLogo(deps.artifactsRoot, row.id, row.incarnation_id);
+  }
+  return { stored, removedTemps: 0 };
+}
+
 /**
  * The one look at the incarnation's tree, under its read token: what is at the logo path,
  * and what did a dead claim leave behind.
@@ -294,13 +310,16 @@ function inspectIncarnationTree(
   if (!tokens) return null;
   try {
     const stored = inspectCapabilityLogoFile(deps.artifactsRoot, row.id, row.incarnation_id);
-    if (row.logo.status !== "generating") {
-      return { stored: provenLoss(row, stored, deps) ? stored : "unknown", removedTemps: 0 };
-    }
+    if (row.logo.status !== "generating") return settleIdleTree(row, stored, deps);
     if (stored === "unknown") return { stored, removedTemps: 0 };
 
     if (stored === "truncated") {
-      discardTruncatedCapabilityLogo(deps.artifactsRoot, row.id, row.incarnation_id);
+      // A removal that failed leaves the path occupied, so releasing the row would spend
+      // its remaining paid attempts on an installer EEXIST. Answer `unknown` instead: this
+      // pass reconciles nothing and the next desk load asks again.
+      if (!discardTruncatedCapabilityLogo(deps.artifactsRoot, row.id, row.incarnation_id)) {
+        return { stored: "unknown", removedTemps: 0 };
+      }
     }
     const removed = removeLogoAttemptTemps(deps.artifactsRoot, row.id, row.incarnation_id);
     return { stored, removedTemps: removed.length };

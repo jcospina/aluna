@@ -255,7 +255,9 @@ Accepted rather than fixed, and recorded here: the focus ring paints 6px above t
 rail (`outline: 3px` at `outline-offset: 3px`), so while the field is focused the
 ring overhangs the strip onto the last few pixels of content. Outlines do not
 hit-test, so nothing is covered or blocked, and shrinking the ring would break the
-focus rule (PLAN decision 45) for a purely visual overlap.
+focus rule (PLAN decision 45) for a purely visual overlap. **Confirmed 2026-08-26:
+accepted, and closed rather than carried.** This is a settled decision, not an open
+finding.
 
 Checked and clear: stacking (the bar is dimmed and pointer-blocked under any open
 drawer, and the record modal is `showModal()` in the top layer, so z-index cannot

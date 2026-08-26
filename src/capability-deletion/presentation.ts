@@ -119,8 +119,11 @@ export function renderCapabilityDeletionConfirmation(
 // The logo goes with the capability. It is the whole of what a deleted capability leaves
 // on the desk, so removing it is what makes the deletion visible there.
 function renderLogoRemoval(capabilityId: string): string {
-  const target = `#${capabilityLogoElementId(escapeHtml(capabilityId))}`;
-  return `<div data-capability-deletion-logo-removal hx-swap-oob="delete:${target}"></div>`;
+  // Escaped once, at the attribute boundary. Escaping the *input* of the id builder was
+  // the wrong place: the result is an htmx selector, which the HTML parser decodes back
+  // before htmx reads it.
+  const target = `#${capabilityLogoElementId(capabilityId)}`;
+  return `<div data-capability-deletion-logo-removal hx-swap-oob="${escapeHtml(`delete:${target}`)}"></div>`;
 }
 
 /**

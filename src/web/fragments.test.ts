@@ -12,6 +12,7 @@ import {
   renderProvisionalLogoName,
   renderRehydratedShell,
 } from "./fragments.ts";
+import { escapeHtml } from "./html.ts";
 
 // A capability born without artwork — the state every one of these fixtures is in, and
 // the state the desk's load-triggered attempt is armed by.
@@ -256,6 +257,33 @@ describe("on-load logo rehydration", () => {
     expect(html).not.toContain("has-capabilities");
     // The empty layer itself stays: it is where the first commit's sidecar lands.
     expect(html).toContain('id="capability-logos"');
+  });
+
+  test("a label carrying a `$` substitution pattern is spliced in literally", () => {
+    // `$&`, `` $` `` and `$'` are replacement *patterns* when the second argument of
+    // `String.replace` is a string, and labels are model-authored. `` $` `` substitutes
+    // everything before the match — the whole document head — into the `aria-label` it
+    // lands in, whose quotes and `>` then break out of the attribute and re-emit the
+    // shell's own `<script>` tags into the body. Escaping manufactures the hazard rather
+    // than avoiding it: `escapeHtml` turns a label's `'` into `&#39;`, so `$'` becomes `$&`.
+    const plain = renderRehydratedShell(
+      [{ id: "notes", label: "Plain", incarnation_id: "inc-1", logo: LOGO_ABSENT }],
+      SHELL_FIXTURE,
+    );
+
+    for (const label of ["Cost $` log", "Cheap $' finds", "A $& b"]) {
+      const html = renderRehydratedShell(
+        [{ id: "notes", label, incarnation_id: "inc-1", logo: LOGO_ABSENT }],
+        SHELL_FIXTURE,
+      );
+
+      // Nothing from the surrounding document was spliced in: one logo, and the shell's
+      // own structure is emitted exactly as often as it is for an ordinary label.
+      expect(countMatches(html, "data-capability-logo"), label).toBe(1);
+      expect(countMatches(html, "<script"), label).toBe(countMatches(plain, "<script"));
+      expect(countMatches(html, 'id="capability-logos"'), label).toBe(1);
+      expect(html, label).toContain(escapeHtml(label));
+    }
   });
 
   test("registry rows render one canonical logo each, and nothing is gated", () => {

@@ -92,8 +92,15 @@ because `controls.no_text: true` is recorded as not sufficient on its own.
       cut; no old row is backfilled and no later Module 5 issue requires a reset
 - [x] A `ground` outside the eight anchors fails validation; signal red fails
       validation
-- [x] The second request colour comes from the closed companion lookup; it is not
-      authored, stored, caller-variable or inferred ad hoc by the provider client
+- [x] The second request colour is `companion`, authored by the spec as a hue family
+      and stored in its own column, and it must differ from `ground`. Which rung of
+      that family the request carries is resolved from the incarnation seed by
+      `resolveLogoShades` and is not caller-variable or inferred ad hoc by the
+      provider client. *(Amended: this criterion originally named a closed companion
+      lookup deriving the second colour from the first. That lookup was superseded
+      during this epic — it capped the product at four distinct pairs — and the
+      head-note records the change; the criterion is restated here to match what
+      shipped.)*
 - [x] The chroma-and-lightness validator is deleted, not bypassed
 - [x] The registry carries the per-incarnation seed plus durable logo status and
       attempt count; `generating` is an atomically claimed state
@@ -175,17 +182,17 @@ Two reviews ran before the live test. Both reproduced real defects:
   art-direction line was reworded so it reads as derivation guidance rather than
   as the second refusal rule ADR-0007 says is not owed.
 
-Not fixed, and deliberately:
+Not fixed here, and deliberately. *(The three-attempt cap, listed here originally as
+belonging to 5.5/04, was delivered there: the claim's own conditional `UPDATE` carries
+`AND logo_attempts < LOGO_MAX_CLAIMED_ATTEMPTS` — `src/registry/store.ts`.)*
 
-- **The three-attempt cap is not in the claim's `WHERE`.** Both reviewers argued
-  the claim is the only race-free place for it, and they are right — that is
-  recorded in `releaseLogoClaim`'s doc comment. The cap itself is decision 38 and
-  belongs to 5.5/04; adding it here would be choosing that issue's policy.
 - **`noun` is validated as one short non-blank line, not as lowercase.** The
   builder prompt asks for a bare lowercase singular; the schema does not enforce
   it, so a model returning "Notes" would render "add your first Notes above".
   Tightening the shape of authored copy is a design call, not an implementation
-  one.
+  one. **Decided 2026-08-26: left as-is.** The prompt asks for a bare lowercase
+  singular and the model generally complies; the occasional "add your first Notes
+  above" is not worth either a build failure or silently rewriting authored copy.
 
 ### Demo-vs-real boundary
 
@@ -282,9 +289,13 @@ built before it will fail loudly on read rather than being backfilled.
 
 1. **A capability is born with a face it has not been given yet.** Type *"I want to
    keep track of my notes"*. Open the developer panel (the `</>` control) and read
-   the **Commit** pane: it carries `subject`, `ground` (one of leaf, shade, teal,
-   sky, sun, ochre, clay, violet), the derived `colors` pair with your ground
-   first, `noun`, a `seed`, and `logo: absent, attempts 0`. The tile on the desk is
+   the **Commit** pane: it carries `subject`, `ground` and `companion` (each one of
+   the eight hue families — `grass_green`, `forest_green`, `teal_green`,
+   `cyan_blue`, `golden_yellow`, `mustard_ochre`, `coral_orange`,
+   `amethyst_violet` — and the two always differ), the resolved `colors` pair with
+   your ground shade first, `noun`, a `seed`, and `logo: absent, attempts 0`.
+   *(Amended: the palette-token vocabulary this step originally named was
+   superseded within this epic — see the head-note.)* The tile on the desk is
    still the placeholder — nothing has been ordered, because the provider client is
    5.5/02.
 2. **The empty state speaks your noun, not the capability's name.** Open the

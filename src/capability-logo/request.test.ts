@@ -246,7 +246,7 @@ describe("the prompt block", () => {
     // The wrapping is the whole defence against the model lettering the description into
     // the drawing, so the phrase must never be the last thing the model reads.
     expect(prompt.endsWith("an open notebook")).toBe(false);
-    expect(prompt.trimEnd().endsWith("no pastels, no greys.")).toBe(true);
+    expect(prompt.trimEnd().endsWith("clearly readable against its background.")).toBe(true);
   });
 
   test("names the ground in words as well as in the control", () => {

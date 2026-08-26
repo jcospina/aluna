@@ -134,16 +134,20 @@ live model prompts (`spec-gen.ts`, `registry/spec.ts`) that were still describin
 the surface to the model, and the shared `.sidebar-toggle` class is now
 `.panel-toggle`.
 
-### Deliberately not done here
+### Carried by a later epic
 
 - **Deletion has no doorway on the desk** between this issue and 5.9/02, which is
   where the logo's context menu lands. The route and its whole flow are untouched
   and reachable by address; `renderLogoRemoval` already targets
   `#capability-logo-<id>`, so the logo disappears the moment a deletion commits.
-- **An evolution's existing logo does not animate** while its build runs. The
-  acceptance criteria ask only that no *second* tile appear, and driving
-  `logo-tile--working` onto a registry-backed logo needs a second out-of-band
-  channel and a second teardown. Worth doing, and worth doing on purpose.
+- ~~**An evolution's existing logo does not animate** while its build runs.~~
+  **Closed 2026-08-26 — not wanted, and it would be wrong.** `logo-tile--working`
+  means artwork is on its way; `design/styles/components/desk.css` already refuses it
+  for a spent tile because a working tile "would promise an arrival that is not on its
+  way". Evolution never enters the logo path — L7 says the bytes are never remade, and
+  `renderCapabilityLogoReplacement` is inert for that reason — so an animated tile
+  there would promise an arrival that definitionally is not coming. The build narrates
+  in the content area; the desk has nothing to add.
 
 ### Demo-vs-real boundary
 
@@ -185,9 +189,11 @@ New coverage:
   and does nothing when the press lands elsewhere; the module ships with the shell
   and starts itself; and the three strings the classic script and the server
   renderer share are pinned against each other.
-- `src/pipeline/build/provisional-logo.test.ts` — a separate capability wears the
-  name its identity was bound to; the resolver's line is used only when it came
-  back as a name; a warm sentence never ends up written on the desk.
+- The provisional tile's naming is covered by `renderProvisionalLogoName` in
+  `src/web/fragments.test.ts` — the name swap is keyed by build id, carries no
+  capability identity, and escapes the label. *(This bullet originally credited
+  `src/pipeline/build/provisional-logo.test.ts`, added here in `7e27172` and removed
+  in `0fbb260` when its assertions were re-homed; the file no longer exists.)*
 - `src/web/fragments.test.ts` — rewritten for the logo: the commit sidecar wraps
   one canonical logo for `beforeend` insertion and carries no delete control; an
   evolution replaces a changed label and emits nothing when it did not change; the
@@ -271,16 +277,16 @@ Accepted rather than fixed, and recorded here:
   twelve or more capabilities the third column onward paints over the records. This
   is cosmetic — presses pass through — and 5.7 moves capability content into the
   window, which is where the two layers get a real stacking order.
-- **The provisional tile almost always reads "Something new".** The issue says it
-  "uses the resolver's friendly label", and the resolver has no such field: its
-  `user_facing_label` is prompted as *one warm sentence*, which the registry's own
-  label guard rejects on the full stop, and `proposed_identity` is non-null only for
-  a `namespace` split. So the two real name sources are tried in turn and anything
-  sentence-shaped falls back. It is honest and it is not good: the narration
-  streaming beside the tile says "I'll create a dedicated Houseplant tracker" while
-  the tile says "Something new". Closing that needs a decision — a short name field
-  on the resolver, or relabelling the tile when the spec's authored label lands —
-  and it is a product decision rather than an implementation one.
+- ~~**The provisional tile almost always reads "Something new".**~~ **Resolved.** The
+  stand-in was removed: the tile now stands *nameless* — the visible label span is
+  empty until `renderProvisionalLogoName` fills it in from the spec's authored label.
+  A stand-in put a word on the desk that was never anybody's name. The accessible name
+  is assembled from two referenced spans rather than an `aria-label`, so the tile
+  announces "being made" and then "<name> being made" the moment the spec names it,
+  and the naming swap touches only the label span so the tile's animation never
+  restarts mid-crawl. See `renderProvisionalLogo` in `src/web/fragments.ts`; two tests
+  pin the absence of the old string. *(Entry corrected 2026-08-26 — it had outlived
+  its fix.)*
 
   **Closed 2026-08-25**, together with two defects in the tile's animation: the
   crawl had a visible joint sweeping across it on every repeat (the background

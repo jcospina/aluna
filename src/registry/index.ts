@@ -36,10 +36,8 @@ export {
   type LogoShade,
   type LogoStatus,
   logoHueFamilySchema,
-  logoRequestColors,
   logoSeedSchema,
   logoShadeFamily,
-  logoShadeSchema,
   MAX_LOGO_SEED,
   resolveLogoShades,
 } from "./logo.ts";

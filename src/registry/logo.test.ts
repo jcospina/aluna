@@ -12,10 +12,8 @@ import {
   LOGO_SHADES,
   LOGO_STATUSES,
   logoHueFamilySchema,
-  logoRequestColors,
   logoSeedSchema,
   logoShadeFamily,
-  logoShadeSchema,
   MAX_LOGO_SEED,
   resolveLogoShades,
 } from "./logo.ts";
@@ -60,7 +58,6 @@ describe("the eight hue families", () => {
     expect(PALETTE_COLOR_TOKENS.has("signal")).toBe(true);
     expect(LOGO_SHADES).not.toContain("signal");
     expect(logoHueFamilySchema.safeParse("signal").success).toBe(false);
-    expect(logoShadeSchema.safeParse("signal").success).toBe(false);
   });
 });
 
@@ -76,9 +73,9 @@ describe("the shade ladder", () => {
     }
   });
 
-  test("a shade outside the ladder fails, and is not a family name either", () => {
+  test("a family name is not itself a rung, and neither is a retired palette token", () => {
     for (const outside of ["sky", "sun", "leaf", "grass_green", "Grass", ""]) {
-      expect(logoShadeSchema.safeParse(outside).success).toBe(false);
+      expect(LOGO_SHADES).not.toContain(outside);
     }
   });
 });
@@ -134,11 +131,6 @@ describe("resolving one capability's two colours", () => {
     expect(sameRung.length).toBeLessThanOrEqual(6);
   });
 
-  test("a request's colours are the two resolved shades, ground first", () => {
-    expect(logoRequestColors("cyan", "mustard")).toEqual(["cyan", "mustard"]);
-    expect(logoRequestColors("mustard", "cyan")).toEqual(["mustard", "cyan"]);
-  });
-
   // The closed lookup this replaced paired leaf/shade, teal/sky, sun/ochre and
   // clay/violet — four distinct pairs for the whole product. Eight freely-paired anchors
   // lifted that to 56 and the model still collapsed onto one of them. Eight families of
@@ -148,7 +140,7 @@ describe("resolving one capability's two colours", () => {
     for (const ground of LOGO_SHADES) {
       for (const companion of LOGO_SHADES) {
         if (logoShadeFamily(ground) === logoShadeFamily(companion)) continue;
-        pairs.add(JSON.stringify(logoRequestColors(ground, companion)));
+        pairs.add(JSON.stringify([ground, companion]));
       }
     }
 

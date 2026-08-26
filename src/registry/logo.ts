@@ -1,56 +1,30 @@
-// The logo's colour vocabulary: the eight **hue families** a spec's two colours may
-// name, the shade ladder each family opens onto, and the durable lifecycle the registry
-// keeps for the artwork ([ADR-0007](../../docs/adr/0007-capability-logo-contract.md)
-// L2/L3/L9/L11; `modules/05-the-desk/PLAN.md` decisions 39 and 42).
+// The logo's colour vocabulary: the eight hue families a spec's two colours may name, the
+// shade ladder each family opens onto, and the durable lifecycle the registry keeps for
+// the artwork (ADR-0007 L2/L3/L9/L11; `modules/05-the-desk/PLAN.md` decisions 39 and 42).
 //
-// Three properties this module exists to hold:
+// Two properties worth knowing before changing anything here:
 //
-//   - **Validation is still a word-list check.** The families and the shades are closed
-//     lists, chosen saturated, in daylight, and light enough for the tile, so "is it in
-//     the vocabulary", "is it saturated", "is it light enough", "no near-blacks", "no
-//     pastels" and "no greys" all hold by construction. Nothing measures chroma or
-//     lightness *at validation time*, because there is nothing a validator could find
-//     that the lists have not already decided. Signal red is reserved for alerts and
-//     destructive confirmation, so no family opens onto it and it cannot be named.
-//   - **The model names a hue, the platform names the shade.** `ground` is the field the
-//     drawing sits on and `companion` is the colour the object itself is drawn in; the
-//     model authors each as a family, for aptness — the same reason it names a colour at
-//     all — and they must differ. Which of that family's four shades a capability
-//     actually wears is resolved from its incarnation seed by {@link resolveLogoShades},
-//     which no caller may steer.
+//   - **The model names a hue, the platform names the shade.** A spec authors `ground` and
+//     `companion` as families, for aptness, and they must differ. Which of the family's
+//     four rungs a capability wears is resolved from its incarnation seed by
+//     {@link resolveLogoShades}, which no caller may steer.
 //   - **The seed is the only entropy in the path.** A spec-authoring model collapses to a
-//     mode: asked for a colour for a notebook it answers the same colour every time, and
-//     four consecutive live capabilities came out carrying `sky` while five probe builds
-//     on a different neighbourhood of prompts came out carrying `sun` three times. Nothing
-//     upstream can fix that, because each build is a stateless call that has never seen
-//     another capability. Drawing the shade from the seed is what turns a collapsed
-//     family choice back into visibly different tiles, which is why the ladder's rungs
-//     differ in hue nuance and not only in lightness.
+//     mode — each build is a stateless call that has never seen another capability — so
+//     four consecutive live capabilities came out the same colour. Drawing the shade from
+//     the seed is what turns a collapsed family choice back into visibly different tiles,
+//     which is why the rungs differ in hue nuance and not only in lightness.
 //
-// This replaced two narrower vocabularies in turn. First a closed symmetric lookup that
-// derived the companion from the ground (leaf/shade, teal/sky, sun/ochre, clay/violet),
-// which kept the second colour from being a fourth authored fact but capped the whole
-// product at **four distinct colour pairs** — five capabilities could not avoid a repeat.
-// Then eight freely-paired anchors, 56 ordered pairs, which lifted the cap and left the
-// mode: the pairs were reachable, the model just never reached for them. Eight families
-// of four shades is 32 colours and 992 ordered pairs, and the seed is what actually
-// walks around in them.
-//
-// L9 still permits two capabilities to look alike, and nothing here goes looking: no
-// uniqueness rule is added and no capability's colour depends on any other's.
+// Validation stays a word-list check: the lists are chosen saturated, in daylight and
+// light enough for the tile, so nothing measures chroma or lightness at validation time.
+// L9 still permits two capabilities to look alike, and nothing here goes looking.
 
 import { z } from "zod";
 
 /**
- * The eight hue families a spec's `ground` and `companion` may name — the entire
- * authored colour vocabulary.
- *
- * These are **hue words, not scene nouns**, and that is deliberate. The previous
- * vocabulary was the palette's own token names, which put `sky` in a list the model was
- * asked to pick a *backdrop* from and `shade` in a list about colour; three of the first
- * four live capabilities took `sky` as their ground, and one of them was a house — an
- * object that sits under a sky. A family name that names a hue and nothing else cannot
- * be picked for what it depicts.
+ * The eight hue families a spec's `ground` and `companion` may name — the entire authored
+ * colour vocabulary. Hue words, not scene nouns: naming these after palette tokens put
+ * `sky` in a list the model picked a *backdrop* from, and three of the first four live
+ * capabilities took it.
  */
 export const LOGO_HUE_FAMILIES = [
   "grass_green",
@@ -67,17 +41,10 @@ export const logoHueFamilySchema = z.enum(LOGO_HUE_FAMILIES);
 export type LogoHueFamily = z.infer<typeof logoHueFamilySchema>;
 
 /**
- * The ladder: the four shades each family opens onto, in no significant order.
- *
- * The rungs vary in **hue nuance as well as lightness**, which is the property that makes
- * a collapsed family choice survivable. Four capabilities that all authored
- * `cyan_blue` wear cyan, azure, aqua and cerulean rather than four barely-separable
- * tints of one blue, so the desk still reads as varied even when the model does not.
- *
- * Every rung is a daylight colour at high chroma. That is checked by measurement in
- * `logo.test.ts` rather than asserted here — a test over the platform's own literal
- * table, which is not the runtime chroma-and-lightness validator ADR-0007 deleted: no
- * model output is measured, and a spec still validates against a word list.
+ * The ladder: the four shades each family opens onto, in no significant order. Rungs vary
+ * in hue nuance as well as lightness, so four capabilities that all authored `cyan_blue`
+ * read as varied rather than as four tints of one blue. `logo.test.ts` measures every rung
+ * for daylight chroma — a test over this literal table, not a runtime validator.
  */
 export const LOGO_FAMILY_SHADES = {
   grass_green: ["grass", "emerald", "lime", "clover"],
@@ -88,15 +55,13 @@ export const LOGO_FAMILY_SHADES = {
   mustard_ochre: ["mustard", "ochre", "turmeric", "cinnamon"],
   coral_orange: ["coral", "tangerine", "persimmon", "apricot"],
   amethyst_violet: ["amethyst", "iris", "orchid", "plum"],
-} as const satisfies Record<LogoHueFamily, readonly string[]>;
+} as const satisfies Record<LogoHueFamily, readonly [string, string, string, string]>;
 
-/** Every rung of every family, flattened — the closed list a stored shade validates against. */
+/** Every rung of every family, flattened. No shade is *stored* — a capability keeps its
+ *  two families and its seed, and the pair is resolved from them on every read. */
 export const LOGO_SHADES = Object.values(LOGO_FAMILY_SHADES).flat() as readonly LogoShade[];
 
 export type LogoShade = (typeof LOGO_FAMILY_SHADES)[LogoHueFamily][number];
-export const logoShadeSchema = z.enum(
-  Object.values(LOGO_FAMILY_SHADES).flat() as [LogoShade, ...LogoShade[]],
-);
 
 /**
  * The family one shade belongs to. Built once from the ladder rather than written out a
@@ -115,18 +80,13 @@ export function logoShadeFamily(shade: LogoShade): LogoHueFamily {
 }
 
 /**
- * Resolve one capability's two concrete colours from its two authored families and its
- * incarnation seed.
+ * Resolve one capability's two concrete colours from its authored families and its seed.
  *
- * The two draws are decorrelated on purpose: taking the same remainder for both would
- * lock every capability to the same rung of each of its families, which would put the
- * mode straight back — a build that authored `cyan_blue` twice over would always wear
- * the same cyan. The quotient is what the remainder has already thrown away, so the
- * second draw is independent of the first for a uniformly drawn seed.
+ * The two draws are decorrelated on purpose — the same remainder for both would lock every
+ * capability to the same rung of each family, putting the mode straight back. The second
+ * draw takes the quotient the first divided away, so it is independent for a uniform seed.
  *
- * Pure, total and stable: the same seed and families always resolve to the same pair, so
- * a retried attempt draws the same picture the first one would have (L7), and nothing is
- * stored that the seed does not already record.
+ * Pure and stable: a retried attempt draws the same picture the first would have (L7).
  */
 export function resolveLogoShades(
   ground: LogoHueFamily,
@@ -137,25 +97,8 @@ export function resolveLogoShades(
   const companionRungs = LOGO_FAMILY_SHADES[companion];
   return [
     groundRungs[seed % groundRungs.length] as LogoShade,
-    companionRungs[Math.floor(seed / companionRungs.length) % companionRungs.length] as LogoShade,
+    companionRungs[Math.floor(seed / groundRungs.length) % companionRungs.length] as LogoShade,
   ];
-}
-
-/**
- * The exact two colours one generation request carries, ground first. The single source
- * for `controls.colors` and `controls.background_color`, so the ordering the contract
- * pins cannot be re-decided at the call site.
- *
- * Both are resolved shades. Nothing here derives, defaults or repairs: a spec whose two
- * families are equal never validates (`validateLogoColours`, `src/registry/spec.ts`), and
- * two different families share no rung, so a request can always carry two different
- * colours.
- */
-export function logoRequestColors(
-  ground: LogoShade,
-  companion: LogoShade,
-): readonly [LogoShade, LogoShade] {
-  return [ground, companion];
 }
 
 /**

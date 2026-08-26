@@ -13,22 +13,6 @@
  * The shell is where focus, hover, disabled and invalid live.
  */
 
-:root {
-  /* One height for everything on a row, so a field and a button align without
-   * a nudge, with a smaller and a larger either side of it. */
-  --control-h: 2.25rem;
-  --control-h-sm: 1.75rem;
-  --control-h-lg: 2.75rem;
-
-  /* The shell's horizontal padding, and the size of the text sitting in it. */
-  --control-pad-x: 0.6875rem;
-  --control-text: var(--type-base);
-
-  /* The fill an invalid well takes. The boundary stays ink: recolouring a drawn
-   * line would make a second one. */
-  --well-alert: color-mix(in oklab, var(--signal), var(--surface) 89%);
-}
-
 /* ── The field ────────────────────────────────────────────────────────────── */
 
 .field {

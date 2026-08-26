@@ -1,39 +1,19 @@
-// The two addresses a logo tile talks to.
+// The two addresses a logo tile talks to — platform code adjacent to, never inside, the
+// fixed `/capability/:id/:action` convention the generated UI targets. Four segments
+// rather than three, so a capability can never declare an Action that collides with one
+// (ADR-0007, Consequences).
 //
-// Both are platform code adjacent to — never inside — the fixed `/capability/:id/:action`
-// convention the generated UI targets. Four segments rather than three, so a capability
-// can never declare an Action that collides with one
-// ([ADR-0007](../../docs/adr/0007-capability-logo-contract.md), Consequences).
+// `POST …/logo-attempt` is a paid mutation, which is why it is a POST and why its response
+// is `no-store`: an attempt encoded as a GET is one a browser, a prefetcher or a proxy is
+// entitled to make on its own. It answers with the one tile it acted on, re-rendered and
+// deliberately inert, so a swap cannot recursively spend the remaining attempts.
 //
-// `POST …/logo-attempt` is a **paid mutation**, which is why it is a POST and why its
-// response is `no-store`: an attempt encoded as a GET is one a browser, a prefetcher or
-// a proxy is entitled to make on its own. It answers with the one tile it acted on,
-// re-rendered from the registry and deliberately inert — a failure that returns the row
-// to `absent` comes back without a load trigger, so a swap cannot recursively spend the
-// remaining attempts inside one page load.
-//
-// `GET …/logo.svg` serves the accepted bytes exactly as they arrived. Four properties,
-// and each one is somebody's law:
-//
-//   - **Immutable.** The address binds the semantic id *and* the incarnation, and L7 says
-//     those exact bytes are never remade — so the strongest cache directive HTTP has
-//     carries none of the risk it usually does. The incarnation is what makes it honest:
-//     a deleted semantic id may be rebuilt with different artwork, and an id-only address
-//     marked immutable would let a browser go on drawing the dead lifetime's picture.
-//   - **Only for a matching active `present` incarnation.** Every other state, a
-//     mismatched incarnation and a missing file fail closed with `no-store` and never the
-//     immutable policy, so one early 404 cannot outlive the artwork that arrives later.
-//     Platform tile rendering emits this URL only in `present`, so a placeholder tile
-//     does not probe the route at all — the fail-closed path is the defence for a direct
-//     request, not the ordinary case.
-//   - **Picture-only.** Nothing is done to the stored bytes (L8), so the *response* is
-//     what makes the address inert when it is opened as a document instead of drawn as a
-//     picture.
-//   - **Compressed.** The C2PA manifest is a flat 4,354 bytes across the four specimens
-//     and is not the bulk; gzip recovers 60–70% of a 111 kB drawing where stripping
-//     provenance would recover 4.4 kB and destroy the record of what drew it. So the
-//     manifest is kept and only the response over the wire is compressed — what is
-//     stored never changes, and the client decompresses back to it byte for byte.
+// `GET …/logo.svg` serves the accepted bytes exactly as they arrived, immutable. The
+// address binds the semantic id *and* the incarnation: L7 says those bytes are never
+// remade, and the incarnation is what keeps that honest, since a deleted id may be rebuilt
+// with different artwork. Every other state, a mismatched incarnation and a missing file
+// fail closed with `no-store`, so an early 404 cannot outlive artwork that arrives later.
+// Responses are compressed and picture-only; the stored bytes are never touched (L8).
 
 import type { Context, Hono } from "hono";
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";

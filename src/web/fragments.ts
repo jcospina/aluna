@@ -212,7 +212,7 @@ function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): 
     '<span class="logo-tile logo-tile--pending logo-tile--working"',
     `  hx-post="${escapeHtml(capabilityLogoAttemptUrl(row))}"`,
     '  hx-trigger="load"',
-    `  hx-target="#${capabilityLogoElementId(escapeHtml(row.id))}"`,
+    `  hx-target="${escapeHtml(`#${capabilityLogoElementId(row.id)}`)}"`,
     '  hx-swap="outerHTML"',
     "></span>",
   ].join("\n");
@@ -244,7 +244,8 @@ function provisionalLogoStatusElementId(buildId: string): string {
  * The tile a new capability stands on the ground while it is still being made. It is
  * presentation only and keyed by the build id, because the capability it announces does
  * not exist yet — activation is what supplies a real incarnation, and the registry-backed
- * logo replaces this one there. Every non-activating terminal removes it (`public/app.js`).
+ * logo replaces this one there. Every non-activating terminal removes it
+ * (`public/desk-logos.js`).
  *
  * Only an admitted `new_capability` build gets one. An evolution already has its
  * capability's logo standing on the desk; `reject`, `data_query` and anything refused
@@ -310,10 +311,10 @@ function renderCapabilityLogoOob(row: RenderableCapabilityLogo): string {
 // path, so re-rendering a still-faceless tile here must not become a third way to arm an
 // attempt. Only a fresh desk render or a newly activated tile may do that.
 function renderCapabilityLogoReplacement(row: RenderableCapabilityLogo): string {
-  const targetId = capabilityLogoElementId(escapeHtml(row.id));
+  const targetId = capabilityLogoElementId(row.id);
   return renderCapabilityLogo(row, { armLogoAttempt: false }).replace(
     "<button",
-    `<button hx-swap-oob="outerHTML:#${targetId}"`,
+    () => `<button hx-swap-oob="${escapeHtml(`outerHTML:#${targetId}`)}"`,
   );
 }
 
@@ -448,7 +449,12 @@ function requireLogoLayerAnchor(shellHtml: string): void {
 
 function injectCapabilityLogos(shellHtml: string, logosHtml: string): string {
   requireLogoLayerAnchor(shellHtml);
-  return shellHtml.replace(SHELL_LOGO_PLACEHOLDER, `${SHELL_LOGO_PLACEHOLDER}\n${logosHtml}`);
+  // A replacer function, not a replacement string: `logosHtml` carries model-authored
+  // labels, and `$&`, `$\`` and `$'` in a replacement *string* are substitution patterns.
+  // Escaping manufactures the hazard rather than avoiding it — `escapeHtml` turns a label's
+  // `\'` into `&#39;`, so a label reading `$\'` becomes the `$&` pattern — and `$\`` splices
+  // the whole preceding document into the `aria-label` it lands in.
+  return shellHtml.replace(SHELL_LOGO_PLACEHOLDER, () => `${SHELL_LOGO_PLACEHOLDER}\n${logosHtml}`);
 }
 
 // Every full-page assembly needs the content target, whether or not it is about to put

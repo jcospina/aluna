@@ -6,7 +6,7 @@
 
    A native modal <dialog>: the browser supplies the focus trap, focus restore, Escape,
    and the ::backdrop, so there is nothing to script for those. Treatment is the
-   established Aluna card — surface fill, a 1px ink-tinted border, 10px radius, a quiet
+   established Aluna card — surface fill, a drawn boundary, mitred corners, a quiet
    down-right hard shadow — matching the item wrapper and create panel. The record's
    fields inside are the read-only detail list styled in fields.css. Tokens only.
    ========================================================================== */

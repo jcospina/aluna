@@ -5,9 +5,10 @@
 //
 // It serves the fixed shell page at `/`, static assets under /static/*, and the
 // production `/prompt` → `/build/:id/stream` build-job flow — the one admission path
-// for every build. The one surviving `/demo/*` surface — the few-shot design gallery,
-// restored in 5.1/02 now that the rung it previews is re-derived against High Meadow —
-// sits behind a single dev-only guard, so a production bundle does not answer it.
+// for every build. Three `/demo/*` surfaces — the few-shot design gallery, the content
+// region's release rule and the swap-target guard — sit behind a single dev-only guard,
+// so a production bundle does not answer them. All three are scaffolding for work the
+// window has not absorbed yet, and come down with it.
 
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
@@ -347,7 +348,7 @@ function registerPreviewDemoRoutes(app: Hono): void {
   // scope beside the server's tracked reader count, both emptying on the same act.
   registerRegionLifecyclePreviewRoutes(app);
 
-  // Every swap target failing loudly: the four page-assembly anchors forced one at a
+  // Every swap target failing loudly: the three page-assembly anchors forced one at a
   // time against the real shell, and a `commit`/`fragment` delivered to a region that
   // has been put away. Neither is reachable on purpose anywhere else.
   registerSwapTargetPreviewRoutes(app);

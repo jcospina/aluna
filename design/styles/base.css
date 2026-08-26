@@ -143,7 +143,6 @@ code {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.015em;
   background: var(--surface-2);
-  border: 1px solid var(--ink-hair);
   padding: 0 var(--space-1);
 }
 

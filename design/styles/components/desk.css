@@ -11,7 +11,6 @@
   background-color: var(--ground);
   background-size: cover;
   background-position: center 58%;
-  touch-action: none;
 }
 
 /* ── Logos ────────────────────────────────────────────────────────────── */

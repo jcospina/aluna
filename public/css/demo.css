@@ -1,22 +1,10 @@
 /* =============================================================================
    Living demo — the content-area surfaces driven by the build flow
-   The cold-start placeholder, the product-voice build stream, and the raw
+   The product-voice build stream and the raw
    developer stage previews (the latter rendered inside the developer panel's
    blocks). Replaced piece by piece as real capabilities land.
    ========================================================================== */
 
-/* Cold-start composition (zero capabilities): a deliberately blank prompt surface.
-   Switches off when capabilities land and the active capability fills this area. */
-.cold-start {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  min-height: 100%;
-  padding: var(--space-4);
-  text-align: center;
-}
 /* Hidden by default and shown when the output holds something worth looking at: any
    content that is not a build stream, or a build stream that has started to speak.
    Stated as one quiet base and three show rules rather than as competing hide rules,
@@ -38,18 +26,6 @@
 .content__active:has(#spec-build-output > .build-stream > .build-stream__narration:not(:empty)),
 .content__active:has(#spec-build-output > .build-stream > .build-stream__commit:not(:empty)) {
   display: flex;
-}
-.content:has(#spec-build-output > [data-active-capability-id]) .cold-start,
-.content:has(#spec-build-output > .build-stream > .build-stream__narration:not(:empty)) .cold-start,
-.content:has(#spec-build-output > .build-stream > .build-stream__commit:not(:empty)) .cold-start {
-  display: none;
-}
-/* Neutral empty-state block: a muted, low-contrast canvas, no copy, no frame —
-   "empty on purpose", friendly rather than built-out. */
-.cold-start__placeholder {
-  width: min(28rem, 72%);
-  height: clamp(7rem, 18vh, 11rem);
-  background: color-mix(in oklch, var(--ink), transparent 94%);
 }
 
 /* ── Builder-stage verification stream (Module 2 §2.5+) ──────────────────────

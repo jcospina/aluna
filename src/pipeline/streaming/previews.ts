@@ -32,7 +32,6 @@ import {
   type LogoHueFamily,
   type LogoShade,
   type LogoStatus,
-  logoRequestColors,
   resolveLogoShades,
 } from "../../registry/index.ts";
 import type { BehavioralTierTransition } from "../evolution/behavioral-tier-transition.ts";
@@ -266,9 +265,7 @@ export function buildCommitPreview(
       subject: commit.row.subject,
       ground: commit.row.ground,
       companion: commit.row.companion,
-      colors: logoRequestColors(
-        ...resolveLogoShades(commit.row.ground, commit.row.companion, commit.row.seed),
-      ),
+      colors: resolveLogoShades(commit.row.ground, commit.row.companion, commit.row.seed),
       noun: commit.row.noun,
       seed: commit.row.seed,
       status: commit.row.logo.status,

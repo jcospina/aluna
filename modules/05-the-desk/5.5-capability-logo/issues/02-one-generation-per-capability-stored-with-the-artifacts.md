@@ -278,23 +278,13 @@ One thing the reset made visible: while the schema had the new required key and 
 corpus did not, `bun run dev` crash-looped on boot and pegged the machine hard
 enough to time out a third of the suite. The failures were not real; the loop was.
 
-### Not fixed, and deliberately
+### Superseded by the closing notes
 
-- **Two anchors argue with the block's own closing sentence.** `violet` (#9a86c4)
-  is S34/L65 — a pastel by any ordinary reading — and `shade` (#2a7a45) at L32 is
-  the darkest anchor. Both are pinned as `background_color` while the prompt says
-  "no dark backgrounds, no pastels" ten lines later, and L2 records that this model
-  follows the words. Either the closing sentence or those two anchors has to give,
-  and both belong to `design/logo.html` — a design call, not an implementation one.
-  Neither capability in the live test used them.
-- **An install followed by a structural failure leaves an orphan.** If the
-  finalizing coordinator write throws, or the process dies between install and
-  finalize, the file is on disk and the row is stuck `generating`. Reconciliation
-  deliberately does not touch either; recovering an interrupted claim is 5.5/04's
-  by contract.
-- **A concurrent claim loser returns instantly** rather than waiting a bounded
-  moment for the winner. ADR-0007 asks for the bounded wait; 02's acceptance list
-  does not, and 04's does.
+*Folded into "Follow-ups this issue did not take" at the end of this file
+(2026-08-26).* This list restated that one in an anchor vocabulary the epic later
+retired — `violet` and `shade` are not names the platform still knows — and two of
+its three entries were handed to 5.5/04, which delivered both. Keeping one current
+statement rather than two drifting ones.
 
 ### Demo-vs-real boundary, and what this took from 5.5/03 and 5.5/04
 
@@ -559,22 +549,27 @@ distinct values. Making the desk aware of what it already wears would remove the
 mode itself; it was considered and declined, because a prompt listing every colour
 already on a ten-capability desk is a worse instruction than the one it fixes.
 
-## Follow-ups this issue did not take
+## Notes on the art contract
 
-- **Two shades argue with the block's own closing sentence.** `amethyst` (#9a86c4,
-  S34/L65) is a pastel by any ordinary reading and `forest` (#2a7a45, L32) is the
-  darkest rung, and both can be pinned as `background_color` while the prompt says
-  "no dark backgrounds, no pastels" ten lines later. L2 records that this model follows
-  the words. Both are former anchors kept at their exact values so the ladder only
-  widened; the three rungs added beside each of them stay clear of the edge, so the
-  odds of drawing one fell from one-in-eight to one-in-thirty-two. The contradiction is
-  still there, and it belongs to `design/logo.html`.
-- **The block's content bans do not all hold.** The watering can drew grass under
-  itself, against "no floor, no ground line". The six wording rules already record that
-  negative lists barely steer this model; this is one more instance, not a new problem.
-- **A concurrent claim loser returns instantly** rather than waiting a bounded moment
-  for the winner. ADR-0007 asks for the bounded wait; 5.5/04 carries it.
-- **An install followed by a structural failure leaves an orphan.** If the finalizing
-  coordinator write throws, or the process dies between install and finalize, the file
-  is on disk and the row is stuck `generating`. Reconciliation deliberately does not
-  touch either; recovering an interrupted claim is 5.5/04's by contract.
+- ~~**Two shades argue with the block's own closing sentence.**~~ **Resolved
+  2026-08-26 — the sentence gave.** `amethyst` (#9a86c4, S34/L65) and `forest`
+  (#2a7a45, L32) stay reachable as ground; the closing sentence no longer forbids what
+  the platform can hand the model. "Daylight colours at high chroma — no near-blacks,
+  no dark backgrounds, no pastels, no greys" now reads: the two colours are *given* and
+  used as named, any further colour stays in the same daylight register (no
+  near-blacks, no greys, nothing washed out), and the object must stay clearly readable
+  against its background — the constraint the bans were reaching for. Amended in
+  `design/logo.html`, which is the contract, and in `src/capability-logo/request.ts`,
+  which a word-for-word test holds to it.
+- ~~**The block's content bans do not all hold.**~~ **Closed 2026-08-26.** The one
+  instance — a watering can drawing grass under itself, against "no floor, no ground
+  line" — was a probe build and is not in the corpus. The three live capabilities all
+  sit on unbroken fields (checked: `medication_tracker` is a bottle on flat coral, no
+  horizon). The six wording rules already record that negative lists barely steer this
+  model, so the only action this implied was rewording a ban the issue itself says
+  would not steer. Nothing to carry.
+
+*Two further entries — the claim loser's bounded wait, and the orphan left by an
+install followed by a structural failure — were handed to 5.5/04 and delivered there
+(`awaitWinner` in `src/capability-logo/claims.ts`; the `generating`-row reconciliation
+in `src/capability-logo/recovery.ts`). Removed 2026-08-26 rather than left standing.*

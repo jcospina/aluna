@@ -54,7 +54,7 @@
   text-align: left;
   padding: 0.5625rem var(--space-3);
   font-size: var(--type-base);
-  border-bottom: 1.5px solid var(--ink-hair);
+  border-bottom: var(--line-plate) solid var(--ink-hair);
   vertical-align: top;
 }
 

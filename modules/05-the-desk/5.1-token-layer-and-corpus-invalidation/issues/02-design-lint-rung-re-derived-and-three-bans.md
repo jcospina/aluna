@@ -145,16 +145,25 @@ boundary is invisible.
   structured inputs plus 400,000 random strings — reports no disagreement between
   `sanitizeStyle` and `describeStyleViolation`.
 
-## Known and deliberately left
+## Contract notes
 
 - `declarationsOf` splits a `style` value on `;` without regard for quoting, so
-  `content: "a;b"` is refused as malformed. It fails closed — the split can only
-  ever produce more checked declarations, never fewer — and reading it correctly
-  needs a real CSS value parser, which is a larger change than this issue carries.
+  `content: "a;b"` is split mid-string. Reading it correctly needs a real CSS value
+  parser, which is a larger change than this issue carries.
+
+  *Corrected 2026-08-26:* this bullet originally claimed the declaration is "refused
+  as malformed" and that the case "fails closed". Neither is true, and the two
+  enforcement surfaces disagree about the outcome: `describeStyleViolation` refuses
+  the trailing fragment `b"` as malformed, but `sanitizeStyle` **keeps the mangled
+  first half**, returning `content: "a` rather than dropping the declaration. It is
+  not a safety hole — nothing executable survives the split — but it alters
+  conforming CSS instead of refusing it. The real behaviour is now recorded in
+  `src/presentation/style-discipline.ts`'s header.
 - `width`, `height`, `opacity`, `display` and the rest stay free. ADR-0005 puts
   them among the arrangement properties a record composes with, so a record can
   still make itself very large or invisible; that is composition the Gate does not
-  referee, and the record-content probes are what keep a record meaningful.
+  referee, and the record-content probes are what keep a record meaningful. This is
+  the contract working as written, not an open finding.
 
 ## Living demo
 

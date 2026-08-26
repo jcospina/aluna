@@ -293,10 +293,7 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain('data-read-url="/capability/notes/read"');
     expect(body).toContain("data-capability-logo");
     expect(body).toContain('hx-get="/capability/notes"');
-    expect(await inspectCapabilitySurfacePlacement(body)).toEqual({
-      insideColdStart: false,
-      insideActiveContent: true,
-    });
+    expect(await inspectCapabilitySurfacePlacement(body)).toEqual({ insideActiveContent: true });
     expect(await collectCapabilityLogoText(body)).toEqual(["Notes"]);
   });
 });

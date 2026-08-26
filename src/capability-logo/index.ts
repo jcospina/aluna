@@ -13,10 +13,7 @@
 
 export { createRunningLogoClaims, type RunningLogoClaims } from "./claims.ts";
 export { LogoGenerationError, type LogoGenerationProvider } from "./provider.ts";
-export {
-  type CapabilityLogoRecoveryEntry,
-  recoverCapabilityLogos,
-} from "./recovery.ts";
+export { recoverCapabilityLogos } from "./recovery.ts";
 export {
   type CapabilityLogoRouteDeps,
   registerCapabilityLogoRoutes,

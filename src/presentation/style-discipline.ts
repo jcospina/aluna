@@ -24,12 +24,9 @@
 // The token *names* live in design-tokens.ts and the values in `design/styles/tokens.css`;
 // nothing here restates either.
 //
-// This deliberately is not a full CSS parser. Its security guarantee (nothing here can
-// load a resource or run script) is airtight; its brand guarantee (off-token values on
-// the closed axes are removed) is complete for the well-structured properties and backed
-// everywhere by raw-colour/`url(` detection. A stray *named* colour inside a shorthand this
-// file leaves free (`text-decoration: underline thistle`, say) is inert and is caught at
-// build time by the design-lint gate rung; it is the one documented residual.
+// This deliberately is not a full CSS parser, and two cases fail closed by dropping CSS
+// that would have conformed: a comment anywhere in a declaration drops it whole, and a `;`
+// inside a quoted string splits it. Neither is a safety hole.
 
 import {
   isTokenFrom,
@@ -127,14 +124,27 @@ function checkProperty(prop: string, value: string): string | undefined {
   if (hasForbiddenConstruct(value)) {
     return "the value uses a forbidden construct — `url(...)`, a gradient or colour function, a legacy script vector, a raw hex colour, or a character reference hiding one of them";
   }
+  const declared = withoutImportant(value);
   if (prop === "position") {
-    return isSafePosition(value)
+    return isSafePosition(declared)
       ? undefined
       : "a record may not escape its own bounds; only `static` and `relative` are allowed";
   }
 
-  const tokens = tokenize(withoutImportant(value));
+  const rounded = roundedShapeReason(prop, declared);
+  if (rounded) return rounded;
+
+  const tokens = tokenize(declared);
   return inkFillReason(prop, tokens) ?? offAxisReason(prop, tokens);
+}
+
+/** The radius ban keys on the `-radius` property suffix, which `clip-path: inset(0 round
+ *  12px)` walks straight past — a basic shape rounds the corners the ban exists to keep
+ *  mitred, under a property name that never says "radius". */
+function roundedShapeReason(prop: string, value: string): string | undefined {
+  if (prop !== "clip-path" && prop !== "shape-outside") return undefined;
+  if (!/(?<![\w-])round(?![\w-])/i.test(value)) return undefined;
+  return "a basic shape may not round its corners — High Meadow has no radius tokens and every corner is mitred, the same reason `border-radius` is never declared";
 }
 
 /** Strip a vendor prefix so a prefixed property is held to the same rule as the bare one. */
@@ -150,45 +160,66 @@ function withoutImportant(value: string): string {
   return value.replace(/\s*!\s*important$/i, "").trim();
 }
 
-/** The never-declared properties (PLAN decision 10), keyed on the deprefixed ident. Every
- *  `border-radius` longhand — physical and logical — falls out of the one `-radius` suffix,
- *  and the shadow ban is written around the *effect* rather than around one property name,
- *  because its stated reason is that nothing inside a window casts. */
+/** The never-declared properties (PLAN decision 10), keyed on the deprefixed ident — one
+ *  row per ban, the shape `CLOSED_AXES` uses below. Every `border-radius` longhand —
+ *  physical and logical — falls out of the one `-radius` suffix, and the shadow ban is
+ *  written around the *effect* rather than around one property name, because its stated
+ *  reason is that nothing inside a window casts. */
+const NEVER_DECLARED: readonly {
+  readonly owns: (prop: string) => boolean;
+  readonly reason: string;
+}[] = [
+  {
+    owns: (prop) => prop === "font" || prop === "font-family",
+    reason: "font family is never declared — an item inherits the face of the surface it sits on",
+  },
+  {
+    owns: (prop) => prop === "all",
+    reason:
+      "`all` is never declared — it resets the face, colour and metrics the surface supplies, which is the inheritance every other rule here depends on",
+  },
+  {
+    owns: (prop) => prop === "border-radius" || prop.endsWith("-radius"),
+    reason:
+      "`border-radius` is never declared — High Meadow has no radius tokens, every corner is mitred, and a square corner is the absence of a declaration rather than a value of zero",
+  },
+  {
+    owns: isBoundaryProp,
+    reason:
+      "`border` is never declared — the ink system owns every boundary, a drawn line is an SVG path rather than a CSS edge, and the platform draws the record's own",
+  },
+  {
+    owns: isUnweighable,
+    reason:
+      "a line has no weight to name — retiring the border-weight axis left no thickness token on the surface, so a property whose value is a thickness has no value it may take",
+  },
+  {
+    owns: (prop) => prop === "box-shadow" || prop === "text-shadow" || prop === "box-reflect",
+    reason:
+      "a shadow is never declared — nothing inside a window casts, and the shadow tokens are bare `<x> <y> <alpha>` numbers, so `box-shadow: var(--shadow-window)` is an invalid value that fails silently",
+  },
+  {
+    owns: isBoundsEscapingProp,
+    reason:
+      "a record may not move or scale out of its own bounds — the platform owns where a record sits, the same reason `position: fixed` is refused",
+  },
+];
+
 function neverDeclaredReason(prop: string): string | undefined {
-  if (prop === "font" || prop === "font-family") {
-    return "font family is never declared — an item inherits the face of the surface it sits on";
-  }
-  if (prop === "all") {
-    return "`all` is never declared — it resets the face, colour and metrics the surface supplies, which is the inheritance every other rule here depends on";
-  }
-  if (prop === "border-radius" || prop.endsWith("-radius")) {
-    return "`border-radius` is never declared — High Meadow has no radius tokens, every corner is mitred, and a square corner is the absence of a declaration rather than a value of zero";
-  }
-  if (isBoundaryProp(prop)) {
-    return "`border` is never declared — the ink system owns every boundary, a drawn line is an SVG path rather than a CSS edge, and the platform draws the record's own";
-  }
-  if (isUnweighable(prop)) {
-    return "a line has no weight to name — retiring the border-weight axis left no thickness token on the surface, so a property whose value is a thickness has no value it may take";
-  }
-  if (prop === "box-shadow" || prop === "text-shadow" || prop === "box-reflect") {
-    return "a shadow is never declared — nothing inside a window casts, and the shadow tokens are bare `<x> <y> <alpha>` numbers, so `box-shadow: var(--shadow-window)` is an invalid value that fails silently";
-  }
-  if (BOUNDS_ESCAPING_PROPS.has(prop)) {
-    return "a record may not move or scale out of its own bounds — the platform owns where a record sits, the same reason `position: fixed` is refused";
-  }
-  return undefined;
+  return NEVER_DECLARED.find((ban) => ban.owns(prop))?.reason;
 }
 
-/** The other ways out of the item's box. `position` has its own keyword check and the
- *  offsets are held to the spacing set; these move or scale the whole record instead, which
- *  is the same harm the bounds rule already names. Width and height stay free — ADR-0005
- *  puts them among the arrangement properties a record composes with. */
-const BOUNDS_ESCAPING_PROPS: ReadonlySet<string> = new Set([
-  "transform",
-  "translate",
-  "scale",
-  "zoom",
-]);
+/** The other ways out of the item's box; width and height stay free (ADR-0005 counts them
+ *  as arrangement). A family test rather than a list for the reason `isBoundaryProp` is:
+ *  the enumeration this replaced held `transform`, `translate` and `scale`, and let the
+ *  third individual transform property — `rotate` — tilt a card straight out of its box. */
+function isBoundsEscapingProp(prop: string): boolean {
+  if (prop === "zoom") return true;
+  if (prop === "transform" || prop.startsWith("transform-")) return true;
+  if (prop === "translate" || prop === "rotate" || prop === "scale") return true;
+  if (prop === "perspective" || prop === "perspective-origin") return true;
+  return prop === "offset" || prop.startsWith("offset-");
+}
 
 /** On the closed axes, every token must be a High Meadow token (or a structural zero or
  * keyword); a property outside the closed axes is free (it has already cleared the bans
@@ -197,7 +228,7 @@ function offAxisReason(prop: string, tokens: readonly string[]): string | undefi
   if (tokens.length === 0) return MALFORMED;
   const axis = CLOSED_AXES.find((candidate) => candidate.owns(prop));
   if (!axis) return undefined;
-  return tokens.every(axis.accepts) ? undefined : axis.refusal();
+  return tokens.every(axis.accepts) ? undefined : axis.refusal;
 }
 
 /** The refusal for a closed axis: name the axis and the set it picks from. */
@@ -309,7 +340,7 @@ const isColorTokenOrKeyword = (t: string): boolean =>
 interface ClosedAxis {
   readonly owns: (prop: string) => boolean;
   readonly accepts: (token: string) => boolean;
-  readonly refusal: () => string;
+  readonly refusal: string;
 }
 
 /** Spacing — margin/padding, gaps, the in-flow offsets, and the two indents. `position:
@@ -427,16 +458,51 @@ const CLOSED_AXES: readonly ClosedAxis[] = [
   {
     owns: (prop) => prop === "font-size",
     accepts: isTypeOrGlobal,
-    refusal: () => offToken("type size", TYPE_SIZE_TOKENS),
+    refusal: offToken("type size", TYPE_SIZE_TOKENS),
   },
   {
     owns: isSpacingProp,
     accepts: isSpacingToken,
-    refusal: () => offToken("spacing", SPACING_TOKENS),
+    refusal: offToken("spacing", SPACING_TOKENS),
   },
   {
     owns: isColorProp,
     accepts: isColorTokenOrKeyword,
-    refusal: () => offToken("colour", PALETTE_COLOR_TOKENS),
+    refusal: offToken("colour", PALETTE_COLOR_TOKENS),
+  },
+  {
+    owns: (prop) => prop === "text-decoration" || prop === "text-emphasis",
+    accepts: isDecorationToken,
+    refusal:
+      "a decoration shorthand carries a line, a colour and a thickness in one value — name the line and the style here, keep the colour on `-color` where the palette answers for it, and leave the thickness off: there is no thickness token to name",
   },
 ];
+
+/** The two shorthands mixing a line, a colour and a thickness in one value. Left free,
+ *  each carried a live off-palette colour and a thickness past `isUnweighable`; held to
+ *  their own keywords plus the palette rather than banned, so `text-decoration: underline`
+ *  still reads the way an author writes it. */
+function isDecorationToken(token: string): boolean {
+  if (DECORATION_KEYWORDS.has(token.toLowerCase())) return true;
+  if (/^(?:"[^"]*"|'[^']*')$/.test(token)) return true; // text-emphasis' own mark string
+  return isColorTokenOrKeyword(token);
+}
+
+const DECORATION_KEYWORDS: ReadonlySet<string> = new Set([
+  "underline",
+  "overline",
+  "line-through",
+  "blink",
+  "solid",
+  "double",
+  "dotted",
+  "dashed",
+  "wavy",
+  "filled",
+  "open",
+  "dot",
+  "circle",
+  "double-circle",
+  "triangle",
+  "sesame",
+]);
