@@ -105,10 +105,9 @@ what it does
 **Logo**:
 A capability's picture, and its permanent identity on the desk. A hosted vector
 service draws it in a follow-up after v1 has activated, its presenter has
-terminated and the long build lease has released, from a subject phrase and a
-ground colour the model names and nothing else. The shell derives the request's
-second colour from the closed leaf/shade, teal/sky, sun/ochre and clay/violet
-companion lookup. The returned SVG is stored as received once at
+terminated and the long build lease has released, from a subject phrase and the two
+two hue families the model names — a ground and a companion — resolved to concrete
+shades by the incarnation seed, and nothing else. The returned SVG is stored as received once at
 the capability incarnation root, beside its immutable version snapshots, and
 served immutable from an incarnation-keyed route. It is made once and never
 remade: evolving a capability keeps the drawing v1 was born with, and
@@ -128,23 +127,55 @@ M5 plan 19).
 _Avoid_: icon, avatar, thumbnail, favicon (the "tile" is the shell's frame around
 the artwork, not the artwork)
 
+**Hue family**:
+One of the eight closed hue names a spec may author for either of a logo's two
+colours: grass green, forest green, teal green, cyan blue, golden yellow, mustard
+ochre, coral orange or amethyst violet. Signal red is reserved and never offered.
+The set is closed for this one purpose, so validating a colour is a word-list
+check rather than a measurement. They are named as *hues* rather than as palette
+tokens because the model was picking the old `sky` for what it depicts: the ground
+is defined as what sits behind the object, and a house went on sky (M5 plan 39;
+ADR-0007, amended 2026-08-25).
+_Avoid_: anchor, tint anchor, palette token, ground colour (the family is the hue,
+not the colour that gets drawn)
+
+**Shade**:
+The concrete colour a logo is actually drawn with — one of the four rungs each hue
+family opens onto, thirty-two in all. **The spec never authors it**: Aluna resolves
+it from the capability's incarnation seed, so two capabilities that name the same
+hue still come out different colours. This is the only entropy in the colour path,
+and it exists because a spec-authoring model collapses to one modal answer for a
+whole neighbourhood of prompts and cannot see any other capability. Every shade is
+saturated and light enough for daylight, with no near-blacks, no pastels and no
+greys. Shades are not design tokens: they reach the generation request and nothing
+else (ADR-0007, amended 2026-08-25).
+_Avoid_: tint, tone, variant, palette token
+
 **Ground colour**:
-The colour a logo's artwork sits on, which the model names as one of the
-palette's eight tint anchors: leaf, shade, teal, sky, sun, ochre, clay or violet.
-Signal red is reserved and never offered. The set is closed for this one purpose,
-so validating a ground is a word-list check rather than a measurement — the eight
-anchors are already saturated and light enough for daylight, with no near-blacks,
-no pastels and no greys. Two capabilities may share one. Distinct from the desk's
-ground, which is where logos sit (M5 plan 39).
+The colour a logo's artwork sits on: the shade resolved from the hue family the
+spec named for the ground. Two capabilities may share a hue family. Distinct from
+the desk's ground, which is where logos sit (M5 plan 39).
 _Avoid_: background colour, brand colour, accent, theme colour
+
+**Companion colour**:
+The second of a logo's two colours: the one the object itself is drawn in, where
+the ground is the field it stands on. Its hue family is authored and must differ
+from the ground's, so a request always carries two colours and never one twice;
+its shade, like the ground's, comes from the seed. Like the subject and the two
+families it is a birth fact that evolution preserves byte-for-byte. It was once
+derived by a closed lookup pairing leaf/shade, teal/sky, sun/ochre and
+clay/violet; that kept it from being an authored fact but capped the product at
+four distinct pairs, so a desk of five capabilities could not avoid two tiles
+wearing the same two colours (ADR-0007, amended 2026-08-25).
+_Avoid_: accent, secondary colour, subject colour, pair colour
 
 **Record noun**:
 The singular common word for one thing a capability holds — a note, a recipe, a
 contact — named by the model alongside the capability's own name. It is what the
 desk's empty state is written around, so a capability reads "add your first
 recipe above" rather than naming itself back at the user. Unlike the logo's
-subject and ground it may change as a capability's purpose does, and changing it
-never causes a logo to be drawn (M5 plan 42).
+subject, ground and companion it may change as a capability's purpose does, and
+changing it never causes a logo to be drawn (M5 plan 42).
 _Avoid_: singular label, item name, entity name, record type
 
 **Prompt bar**:

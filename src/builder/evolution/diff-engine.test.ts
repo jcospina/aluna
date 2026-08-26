@@ -95,7 +95,7 @@ describe("empty-state noun → platform copy only; the birth facts never diff", 
     expect(JSON.stringify(everything.workPlan)).not.toContain("logo");
   });
 
-  test("a moved subject or ground fails closed rather than becoming a fact", () => {
+  test("a moved birth fact fails closed rather than becoming a fact", () => {
     // Validation rejects these first (candidate-validation.test.ts). Reaching the
     // engine anyway must stop it: a birth fact is never explained by a change fact.
     expect(() =>
@@ -105,7 +105,12 @@ describe("empty-state noun → platform copy only; the birth facts never diff", 
     ).toThrow(UnmappedChangeFactError);
     expect(() =>
       diffOf((draft) => {
-        draft.ground = "violet";
+        draft.ground = "amethyst_violet";
+      }),
+    ).toThrow(UnmappedChangeFactError);
+    expect(() =>
+      diffOf((draft) => {
+        draft.companion = "amethyst_violet";
       }),
     ).toThrow(UnmappedChangeFactError);
   });

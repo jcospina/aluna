@@ -10,7 +10,8 @@ const contacts = notesCapabilityRow({
   id: "contacts",
   label: "Contacts",
   subject: "an open notebook",
-  ground: "leaf",
+  ground: "grass_green",
+  companion: "coral_orange",
   noun: "note",
   incarnation_id: "22222222-2222-4222-8222-222222222222",
   artifacts_path: "capabilities/contacts/22222222-2222-4222-8222-222222222222/v1/",
@@ -22,7 +23,8 @@ const recipes = notesCapabilityRow({
   id: "recipes",
   label: "Recipes",
   subject: "an open notebook",
-  ground: "leaf",
+  ground: "grass_green",
+  companion: "coral_orange",
   noun: "note",
   incarnation_id: "33333333-3333-4333-8333-333333333333",
   artifacts_path: "capabilities/recipes/33333333-3333-4333-8333-333333333333/v1/",
@@ -272,7 +274,16 @@ describe("intent resolver fixture catalog", () => {
     // The rule that refuses is about presentation in general, so it names ordinary
     // presentation words. What must never appear is the logo's own vocabulary — that
     // would be the second, logo-specific rule the contract says is not owed.
-    for (const word of ["logo", "icon", "artwork", "drawing", "tile", "palette", "ground"]) {
+    for (const word of [
+      "logo",
+      "icon",
+      "artwork",
+      "drawing",
+      "tile",
+      "palette",
+      "ground",
+      "companion",
+    ]) {
       expect(rules).not.toContain(word);
     }
     // What actually does the refusing: presentation choices the user may state are a

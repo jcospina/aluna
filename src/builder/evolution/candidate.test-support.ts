@@ -53,7 +53,8 @@ export function journalCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
     id: "journal",
     label: "Journal",
     subject: "an open notebook",
-    ground: "leaf",
+    ground: "grass_green",
+    companion: "coral_orange",
     noun: "journal entry",
     schema: {
       fields: [
@@ -141,7 +142,8 @@ export function shelvesCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
     id: "shelves",
     label: "Shelves",
     subject: "a wooden bookshelf",
-    ground: "ochre",
+    ground: "mustard_ochre",
+    companion: "coral_orange",
     noun: "shelf",
     schema: {
       fields: [

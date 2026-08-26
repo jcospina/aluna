@@ -35,7 +35,8 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     id: "notes",
     label: "Notes",
     subject: "an open notebook",
-    ground: "leaf",
+    ground: "grass_green",
+    companion: "coral_orange",
     noun: "note",
     incarnation_id: NOTES_INCARNATION_ID,
     version: 1,
@@ -117,7 +118,8 @@ describe("capability registry store", () => {
       id: "recipes",
       label: "Recipes",
       subject: "an open notebook",
-      ground: "leaf",
+      ground: "grass_green",
+      companion: "coral_orange",
       noun: "note",
       incarnation_id: "22222222-2222-4222-8222-222222222222",
       artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v1/",
@@ -178,7 +180,8 @@ describe("capability registry store", () => {
       id: "reading_list",
       label: "Reading list",
       subject: "an open notebook",
-      ground: "leaf",
+      ground: "grass_green",
+      companion: "coral_orange",
       noun: "note",
       incarnation_id: "22222222-2222-4222-8222-222222222222",
       artifacts_path: "capabilities/reading_list/22222222-2222-4222-8222-222222222222/v1/",
@@ -257,6 +260,7 @@ describe("capability registry store", () => {
       "seed",
       "logo_status",
       "logo_attempts",
+      "companion",
     ]);
   });
 });

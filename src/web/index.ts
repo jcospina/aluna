@@ -15,6 +15,7 @@ export {
   BLANK_PROMPT_NOTICE,
   capabilityLogoElementId,
   PAGE_ASSEMBLY_ANCHORS,
+  type RenderableCapabilityLogo,
   renderBuildSubscriber,
   renderCapabilityLogo,
   renderCapabilityShell,

@@ -43,7 +43,7 @@
         <div class="note note--sky">
           <p>
             <strong>Why this is a contract.</strong>
-            Generation is asked for exactly two things: a subject and a ground colour. The corner,
+            Generation is asked for exactly two things: a subject and its two colours. The corner,
             the shadow, the size and the name under it are all applied afterwards, by code that
             never varies. Whatever the model decides can differ between two logos on the same desk,
             so the list of what it decides is kept as short as it can be.
@@ -261,10 +261,11 @@
                   <td><code>controls.colors</code></td>
                   <td>
                     <strong>Exactly two.</strong>
-                    The capability's ground colour first, then its shell-derived companion from the
-                    closed leaf/shade, teal/sky, sun/ochre and clay/violet lookup. Passing the full
-                    palette returns a busier drawing at seven times the file size, and gives the
-                    model enough colour to build a horizon out of
+                    The capability's ground shade first, then its companion — the colour the object
+                    is drawn in. The model names two of the eight hue families and they must differ;
+                    the incarnation seed resolves each to one of that family's four shades. Passing
+                    the full palette returns a busier drawing at seven times the file size, and
+                    gives the model enough colour to build a horizon out of
                   </td>
                 </tr>
                 <tr>
@@ -346,16 +347,34 @@
 
         <div class="note note--clay">
           <p class="sm">
-            <strong>The ground colour is one of eight, named by the model.</strong>
-            Leaf, shade, teal, sky, sun, ochre, clay or violet, the tint anchors under
-            <a href="./index.html#palette">High Meadow</a>. Signal is reserved and is not offered.
-            The model choosing rather than Aluna hashing is what keeps the colour apt — telescope on
-            sky, recipes on ochre — and a closed list is what makes the check a word against a list.
-            Nothing measures chroma or lightness, because all eight were chosen saturated and light
-            enough for daylight and there is nowhere else to go. Two capabilities landing on the
-            same ground is fine and expected: the palette is small, and
+            <strong>The model names a hue; Aluna names the shade.</strong>
+            The spec authors two of eight hue families — grass&nbsp;green, forest&nbsp;green, teal,
+            cyan, golden&nbsp;yellow, mustard&nbsp;ochre, coral&nbsp;orange, amethyst&nbsp;violet —
+            and they must differ. Each opens onto four shades, and which of the four a capability
+            actually wears is drawn from its incarnation seed. Signal is reserved and is not
+            offered. The model choosing the hue is what keeps the colour apt; the seed choosing the
+            shade is what keeps two capabilities from wearing the same colour, and the check stays a
+            word against a list. Nothing measures chroma or lightness at validation, because all
+            thirty-two rungs were chosen saturated and light enough for daylight.
+          </p>
+          <p class="sm">
+            <strong>The shade ladder exists because the model collapses to a mode.</strong>
+            The vocabulary was the palette's own token names until 2026-08-25, and the first four
+            live capabilities came out
+            <em>sky, leaf, sky, sky</em>
+            — a notebook, a watering can, a laboratory notebook and a house. Balancing the prompt's
+            worked examples had already been tried and did not touch it: five probe builds against
+            the balanced prompt answered with the same companion three times. A spec model asked for
+            a colour for a notebook gives the same answer every time, and each build is a stateless
+            call that has never seen another capability, so nothing upstream of the seed can produce
+            variety. Two of the eight names — <em>sky</em> and
+            <em>shade</em>
+            — also named things rather than hues, and the ground is defined as what sits behind the
+            object; the house went on sky. The names are hues now, and no worked example names a
+            colour at all.
             <a href="#decisions">L9</a>
-            spends nothing on preventing it.
+            still spends nothing on keeping two capabilities apart: two may still name the same hue,
+            and the ladder is what makes that survivable rather than a rule against it.
           </p>
           <p class="sm">
             <strong>A user cannot steer any of this.</strong>
@@ -370,13 +389,15 @@
       <!-- ══ The prompt ════════════════════════════════════════════════ -->
       <section class="window--section" id="prompt" data-window data-title="The prompt">
         <p class="sm">
-          One block for every capability. Two slots: the subject, and the ground named in words.
-          Nothing else varies, so four logos on one desk read as a set.
+          One block for every capability. Three slots: the subject, the colour the object is drawn
+          in, and the ground named in words. Nothing else varies, so four logos on one desk read as
+          a set.
         </p>
 
         <div class="prompt-block">
           <p>
-            A flat colour square of <mark>&lt;subject&gt;</mark>, on
+            A flat colour square of <mark>&lt;subject&gt;</mark>, drawn in
+            <mark>&lt;a flat cool amethyst violet&gt;</mark>, on
             <mark>&lt;a flat warm golden yellow&gt;</mark>
             background. One single flat colour fills the whole background from edge to edge — an
             unbroken field, not panels, not blocks, not stripes, not a checkerboard, no floor, no
@@ -396,7 +417,11 @@
             >an open book lying flat, one page half-turned, with a ribbon bookmark curling out from
             the spine</em
           >. It comes from what the capability actually holds, and it is emitted during spec
-          generation alongside the ground colour.
+          generation alongside the two colours. Both colours are named in words as well as in the
+          controls, for the reason L2 records about the ground: the control alone is ignored. The
+          measurement behind L2 was made on <code>background_color</code>; the companion is named on
+          the same evidence rather than on its own, and the four specimens on this page predate the
+          second slot.
         </p>
 
         <div class="cols">
@@ -408,7 +433,7 @@
               instead of what you don't, since negative lists barely steer this model; the bans that
               survive are the ones about
               <em>content</em>, and bans on treatment do not hold. Offer one colour, never a
-              palette: given eight anchors the model reaches for green every time, or blocks the
+              palette: given the whole palette the model reaches for green every time, or blocks the
               ground into quadrants. Keep spatial words out of the style wording, because they do
               not stay there — "stacked", written to describe how the shapes sit, leaked into the
               subject and returned a stack of books for Customers. Never say screenprint, poster or
@@ -686,8 +711,9 @@
                 </tr>
                 <tr>
                   <td>
-                    <strong>One ground colour</strong>, named from the eight tint anchors, plus one
-                    companion colour derived by the shell's closed pairing
+                    <strong>Two colours</strong>, a ground and a companion, each a shade the seed
+                    drew from one of the eight hue families the model named, and never the same
+                    family twice
                   </td>
                   <td>
                     <strong>The request</strong>: model, style, substyle, size, response format and
@@ -761,8 +787,8 @@
           won and the other was dropped.
           <strong>There is one construction now, and one prompt.</strong>
           The block under <a href="#prompt">the prompt</a> is sent as it stands, the request around
-          it does not vary, and what a caller fills in is a subject and a ground colour. Nothing
-          else on this page is a knob.
+          it does not vary, and what a caller fills in is a subject and two colours. Nothing else on
+          this page is a knob.
         </p>
 
         <h3 class="kicker">What came back that the prompt asked against</h3>
@@ -881,19 +907,22 @@
                     <code>controls.colors</code>
                     carries exactly two, <code>background_color</code>
                     is the first of them, and the prompt names that colour in words. The second is
-                    the ground's fixed companion from the closed palette lookup, never another
-                    authored choice
+                    the companion, which the model names alongside the ground. It was the ground's
+                    fixed partner from a closed four-pair lookup until 2026-08-25 — a cap of four
+                    distinct pairs for the whole product, invisible against four hand-picked
+                    specimens and certain to repeat on a desk of five
                   </td>
                 </tr>
                 <tr>
                   <td>L3</td>
                   <td>
-                    <strong>Generation decides a subject and a colour. Nothing else.</strong>
-                    Every other property of a logo is applied by code that does not vary. The colour
-                    is one of the eight tint anchors by name, so validating it is checking a word
-                    against a list; the subject comes from what the capability is for, and a user
-                    asking for a particular drawing is refused by the intent classifier, like any
-                    other attempt to steer presentation
+                    <strong>Generation decides a subject and two colours. Nothing else.</strong>
+                    Every other property of a logo is applied by code that does not vary. Each
+                    colour names one of the eight hue families, so validating one is checking a word
+                    against a list, and the seed decides which of that family's four shades is
+                    drawn; the subject comes from what the capability is for, and a user asking for
+                    a particular drawing is refused by the intent classifier, like any other attempt
+                    to steer presentation
                   </td>
                 </tr>
                 <tr>

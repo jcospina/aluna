@@ -29,7 +29,7 @@ import {
   type CapabilitySpec,
   FULL_CAPABILITY_TOOLS,
   fieldTypeSchema,
-  LOGO_GROUND_ANCHORS,
+  LOGO_HUE_FAMILIES,
   MAX_CAPABILITY_NOUN_LENGTH,
   MAX_LOGO_SUBJECT_LENGTH,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
@@ -74,7 +74,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
   const tools = FULL_CAPABILITY_TOOLS.join(", ");
   const platformColumns = PLATFORM_COLUMNS.join(", ");
-  const grounds = LOGO_GROUND_ANCHORS.join(" | ");
+  const hues = LOGO_HUE_FAMILIES.join(" | ");
 
   return [
     "You are Aluna's Capability Builder. Author the capability spec for what the user wants to keep track of.",
@@ -105,11 +105,13 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "- Every distinct capability must use a meaningful semantic label and id derived from the user's wording. Never create a mechanical numbered or versioned duplicate.",
     `- noun is the singular common noun for one stored record, lowercase, at most ${MAX_CAPABILITY_NOUN_LENGTH} characters — "note", "recipe", "contact". It completes desk copy such as "add your first <noun> above", so it is a bare noun, never a phrase or a plural.`,
     "",
-    "The capability's logo — you choose the drawing's subject and its colour, and nothing else:",
+    "The capability's logo — you choose the drawing's subject and its two hues, and nothing else:",
     `- subject is a short noun phrase naming one concrete object that stands for this capability, at most ${MAX_LOGO_SUBJECT_LENGTH} characters — "an open notebook", "a brass telescope", "a stack of recipe cards". One object, plainly named. Never letters, words, initials, logos, or a described scene; never a style, medium, palette, layout, or composition instruction.`,
     "- Derive the subject from what the capability is for, never from art direction in the user's words. This is one instruction about where the subject comes from, not a second refusal: a request that only asks for a particular drawing never reaches you, because the intent classifier refuses presentation-steering prompts the way it refuses any other.",
-    `- ground is exactly one of: ${grounds}. Pick the one that suits the subject — a telescope on sky, recipes on ochre. Two capabilities sharing a ground is fine.`,
-    "- These two are chosen once, at birth, and can never be changed afterwards. Choose them for the capability as a whole, not for today's wording.",
+    `- ground is exactly one of: ${hues}. It is the hue of the flat colour the whole square is filled with, behind the object. Name the hue and nothing more: Aluna resolves which of that hue's four shades this capability actually wears, so two capabilities naming the same hue still come out different colours. Naming the same hue another capability already has is fine.`,
+    `- companion is exactly one of the same list and must never be the same value as ground. It is the hue the object itself is drawn in, so name what the object should look like standing on that ground. If the object's own hue is the one you named for the ground, move one of them: two of the same value is not a drawing, it is an object the colour of the wall behind it.`,
+    "- There is no default hue and no safe choice. Every hue in the list is equally available to every capability, and none of them is the one a background is normally expected to be. When the subject has no colour of its own — a notebook, a clipboard, a ledger — take the hue from what the capability is *for*, never from what a backdrop usually looks like.",
+    "- These three are chosen once, at birth, and can never be changed afterwards. Choose them for the capability as a whole, not for today's wording.",
     ...(input.intent.proposed_identity
       ? [
           "Resolver-owned distinct identity — return these values exactly:",

@@ -115,8 +115,8 @@ second copy of them.
 
 The short version: a hosted service (Recraft, `recraftv3_vector`) is called once
 per capability, as the last step of a build that has already cleared its gate, so
-no failed build ever pays for artwork. Aluna supplies a subject and a ground
-colour and nothing else; the shell applies the corner, the shadow, the size and
+no failed build ever pays for artwork. Aluna supplies a subject and two
+colours and nothing else; the shell applies the corner, the shadow, the size and
 the name. Until the artwork lands the tile is a placeholder, which is also what
 marks the ground while the build runs. Local models are a prompt-refinement rig
 only. They are far too slow to sit in the capability-creation path, and Aluna

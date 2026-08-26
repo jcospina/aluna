@@ -26,6 +26,10 @@ import {
   resolveCapabilityDeletionRestoration,
 } from "../capability-deletion/index.ts";
 import {
+  type LogoGenerationProvider,
+  registerCapabilityLogoRoutes,
+} from "../capability-logo/index.ts";
+import {
   createMutationCoordinator,
   type MutationCoordinator,
 } from "../mutation-coordinator/index.ts";
@@ -103,6 +107,12 @@ export interface AppDeps {
   readonly capabilityDestructionFaults?: CapabilityDestructionFaults;
   /** Bounded in-process retry for durable post-commit cleanup. */
   readonly deletionCleanup?: DeletionCleanupSupervisor;
+  /**
+   * The hosted vector service one claimed logo attempt calls. Defaults to the real,
+   * paid client — every test injects a fake, because no automated test may spend
+   * credits (ADR-0007).
+   */
+  readonly logoProvider?: LogoGenerationProvider;
 }
 
 /** The fully-resolved dependency set every route group below is wired from. */
@@ -121,6 +131,7 @@ interface ResolvedAppDeps {
   readonly capabilityDeletionAdapters: readonly OwnedResourceCleanupAdapter[];
   readonly capabilityDestructionFaults?: CapabilityDestructionFaults;
   readonly deletionCleanup: DeletionCleanupSupervisor;
+  readonly logoProvider?: LogoGenerationProvider;
 }
 
 function resolveRegistryDatabases(
@@ -179,6 +190,7 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     registryReadonly: registryDatabases.readonly,
     capabilityDeletionAdapters,
     capabilityDestructionFaults: deps.capabilityDestructionFaults,
+    logoProvider: deps.logoProvider,
     deletionCleanup:
       deps.deletionCleanup ??
       createDeletionCleanupSupervisor({
@@ -376,6 +388,18 @@ export function createApp(deps: AppDeps = {}): Hono {
   registerShellRoute(app, ctx);
   registerBuildJobRoutes(app, ctx);
   registerCapabilityDeletionRoutes(app, ctx);
+
+  // The logo's own two addresses. Registered before the generated capability router so
+  // the four-segment paths are matched by their owner; they cannot collide with the
+  // three-segment `/capability/:id/:action` convention, but the ordering says which
+  // subsystem owns them without anyone having to work that out.
+  registerCapabilityLogoRoutes(app, {
+    registryDatabases: { readwrite: ctx.registryReadwrite, readonly: ctx.registryReadonly },
+    mutationCoordinator: ctx.mutationCoordinator,
+    readGates: ctx.readGates,
+    artifactsRoot: ctx.artifactsRoot,
+    logoProvider: ctx.logoProvider,
+  });
 
   if (demoSurfacesEnabled()) {
     registerPreviewDemoRoutes(app);

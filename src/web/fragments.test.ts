@@ -5,11 +5,16 @@ import {
   BLANK_PROMPT_NOTICE,
   PAGE_ASSEMBLY_ANCHORS,
   renderCapabilityCommitSwap,
+  renderCapabilityLogo,
   renderCapabilityShell,
   renderPromptNotice,
   renderProvisionalLogo,
   renderRehydratedShell,
 } from "./fragments.ts";
+
+// A capability born without artwork — the state every one of these fixtures is in, and
+// the state the desk's load-triggered attempt is armed by.
+const LOGO_ABSENT = { status: "absent", attempts: 0 } as const;
 
 // The shell's detail-modal mount placeholder (public/index.html) — where every rendered
 // shell mounts the one shared read-only detail modal. Kept in sync with fragments.ts.
@@ -118,6 +123,7 @@ describe("web fragments", () => {
         label: "Notes",
         incarnation_id: "11111111-1111-4111-8111-111111111111",
         version: 1,
+        logo: { status: "absent", attempts: 0 },
       },
       '<section class="capability-collection"><div id="notes-records" hx-get="/capability/notes/read"></div></section>',
     );
@@ -157,10 +163,12 @@ describe("web fragments", () => {
       id: "notes",
       label: "Journal",
       subject: "an open notebook",
-      ground: "leaf",
+      ground: "grass_green",
+      companion: "coral_orange",
       noun: "note",
       incarnation_id: "11111111-1111-4111-8111-111111111111",
       version: 2,
+      logo: { status: "absent", attempts: 0 } as const,
     };
     const collection = '<section class="capability-collection"></section>';
 
@@ -230,8 +238,8 @@ describe("on-load logo rehydration", () => {
   test("registry rows render one canonical logo each, and nothing is gated", () => {
     const html = renderRehydratedShell(
       [
-        { id: "notes", label: "Notes" },
-        { id: "recipes", label: "Recipes" },
+        { id: "notes", label: "Notes", incarnation_id: "inc-1", logo: LOGO_ABSENT },
+        { id: "recipes", label: "Recipes", incarnation_id: "inc-2", logo: LOGO_ABSENT },
       ],
       SHELL_FIXTURE,
     );
@@ -291,8 +299,8 @@ describe("on-load logo rehydration", () => {
       // and is not: no logos, no modal, or no opened capability.
       expect(() =>
         renderCapabilityShell(
-          { id: "notes", label: "Notes", incarnation_id: "inc-1", version: 1 },
-          [{ id: "notes", label: "Notes" }],
+          { id: "notes", label: "Notes", incarnation_id: "inc-1", version: 1, logo: LOGO_ABSENT },
+          [{ id: "notes", label: "Notes", incarnation_id: "inc-1", logo: LOGO_ABSENT }],
           "<section>Notes</section>",
           anchor.remove(SHELL_FIXTURE),
         ),
@@ -310,5 +318,140 @@ describe("on-load logo rehydration", () => {
       );
     }
     expect(() => renderRehydratedShell([], SHELL_FIXTURE)).not.toThrow();
+  });
+});
+
+describe("the tile inside a logo", () => {
+  const row = {
+    id: "notes",
+    label: "Notes",
+    incarnation_id: "11111111-1111-4111-8111-111111111111",
+    logo: LOGO_ABSENT,
+  } as const;
+  const attemptUrl = "/capability/notes/11111111-1111-4111-8111-111111111111/logo-attempt";
+  const artworkUrl = "/capability/notes/11111111-1111-4111-8111-111111111111/logo.svg";
+
+  test("an absent tile arms one incarnation-bound attempt", () => {
+    const html = renderCapabilityLogo(row);
+
+    expect(html).toContain(`hx-post="${attemptUrl}"`);
+    expect(html).toContain('hx-trigger="load"');
+    expect(html).toContain('hx-target="#capability-logo-notes"');
+    expect(html).toContain('hx-swap="outerHTML"');
+  });
+
+  // htmx honours one verb per element, and `hx-get` wins. Putting the POST on the button
+  // beside the click's `hx-get` would silently fire the GET and never claim anything.
+  test("the attempt is on the tile, never on the button that opens the capability", () => {
+    const html = renderCapabilityLogo(row);
+    const buttonTag = html.slice(0, html.indexOf(">"));
+
+    expect(buttonTag).toContain('hx-get="/capability/notes"');
+    expect(buttonTag).not.toContain("hx-post");
+    expect(buttonTag).not.toContain("hx-trigger");
+  });
+
+  test("a tile answering an attempt is inert even while it is still absent", () => {
+    const html = renderCapabilityLogo(row, { armLogoAttempt: false });
+
+    expect(html).toContain("logo-tile--pending");
+    expect(html).not.toContain("logo-attempt");
+    expect(html).not.toContain("hx-trigger");
+  });
+
+  // `generating` is a picture being drawn, not a picture arriving late, and `abandoned`
+  // is the permanent placeholder. Neither may claim, and neither animates.
+  test.each(["generating", "abandoned"] as const)("a %s tile claims nothing", (status) => {
+    const html = renderCapabilityLogo({ ...row, logo: { status, attempts: 1 } });
+
+    // The plain placeholder and nothing else: no request of any kind on the tile, and no
+    // artwork address for bytes that are not there.
+    expect(html).toContain('<span class="logo-tile logo-tile--pending"></span>');
+    expect(html).not.toContain("hx-post");
+    expect(html).not.toContain("logo.svg");
+  });
+
+  test("a present tile is the artwork, addressed by incarnation, and arms nothing", () => {
+    const html = renderCapabilityLogo({ ...row, logo: { status: "present", attempts: 1 } });
+
+    expect(html).toContain(`background-image: url('${artworkUrl}')`);
+    expect(html).not.toContain("logo-tile--pending");
+    expect(html).not.toContain("logo-attempt");
+  });
+
+  test("a rebuilt capability's tile addresses its own lifetime, not the previous one", () => {
+    const rebuilt = renderCapabilityLogo({
+      ...row,
+      incarnation_id: "22222222-2222-4222-8222-222222222222",
+      logo: { status: "present", attempts: 1 },
+    });
+
+    expect(rebuilt).toContain("/capability/notes/22222222-2222-4222-8222-222222222222/logo.svg");
+    expect(rebuilt).not.toContain("11111111-1111-4111-8111-111111111111");
+  });
+});
+
+describe("which renders may arm an attempt", () => {
+  const row = {
+    id: "notes",
+    label: "Notes",
+    incarnation_id: "11111111-1111-4111-8111-111111111111",
+    version: 1,
+    logo: LOGO_ABSENT,
+  } as const;
+  const collection = '<section class="capability-collection"></section>';
+
+  test("a newly activated capability's tile arms one", () => {
+    const fragment = renderCapabilityCommitSwap(row, collection);
+
+    expect(fragment).toContain("logo-attempt");
+    expect(fragment).toContain('hx-trigger="load"');
+  });
+
+  // Evolution never enters the logo path. A rename re-renders the tile, and a still
+  // faceless capability would otherwise get a free extra attempt for every rename.
+  test("an evolution that moves the label re-renders the tile inert", () => {
+    const renamed = renderCapabilityCommitSwap(
+      { ...row, label: "Journal", version: 2 },
+      collection,
+      "Notes",
+    );
+
+    expect(renamed).toContain("outerHTML:#capability-logo-notes");
+    expect(renamed).toContain('aria-label="Open Journal"');
+    expect(renamed).not.toContain("logo-attempt");
+    expect(renamed).not.toContain("hx-trigger");
+  });
+
+  test("an evolution that keeps the label re-renders no tile at all", () => {
+    const unchanged = renderCapabilityCommitSwap({ ...row, version: 2 }, collection, "Notes");
+
+    expect(unchanged).not.toContain("data-capability-logo");
+    expect(unchanged).not.toContain("logo-attempt");
+  });
+
+  test("a fresh desk render arms one per faceless capability and no more", () => {
+    const html = renderRehydratedShell(
+      [
+        { id: "notes", label: "Notes", incarnation_id: "inc-1", logo: LOGO_ABSENT },
+        {
+          id: "recipes",
+          label: "Recipes",
+          incarnation_id: "inc-2",
+          logo: { status: "present", attempts: 1 },
+        },
+        {
+          id: "trips",
+          label: "Trips",
+          incarnation_id: "inc-3",
+          logo: { status: "abandoned", attempts: 3 },
+        },
+      ],
+      SHELL_FIXTURE,
+    );
+
+    expect((html.match(/hx-post="[^"]*logo-attempt"/g) ?? []).length).toBe(1);
+    expect(html).toContain("/capability/notes/inc-1/logo-attempt");
+    expect(html).toContain("/capability/recipes/inc-2/logo.svg");
   });
 });

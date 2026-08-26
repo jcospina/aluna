@@ -29,9 +29,11 @@ import type {
 import {
   type CapabilityRow,
   type CapabilitySpec,
-  type LogoGround,
+  type LogoHueFamily,
+  type LogoShade,
   type LogoStatus,
   logoRequestColors,
+  resolveLogoShades,
 } from "../../registry/index.ts";
 import type { BehavioralTierTransition } from "../evolution/behavioral-tier-transition.ts";
 
@@ -166,10 +168,11 @@ export interface DemoCommitPreview {
    */
   readonly behavioralTierTransition?: BehavioralTierTransition;
   /**
-   * The committed logo inputs and the row's durable logo state. `colors` is the exact
-   * ordered pair a request would carry, derived here from the one authored ground, so a
-   * reader can see the second colour is neither authored, stored, nor a choice the
-   * provider client gets to make.
+   * The committed logo inputs and the row's durable logo state. The spec authors two
+   * *hue families*; `colors` is the exact ordered pair a request would carry, resolved
+   * here from those families and the incarnation seed, so a reader can see both which
+   * hue the model named and which of its four shades this capability came up with —
+   * and that neither the caller nor the provider client gets to choose the second one.
    */
   readonly logo: DemoCommitLogoPreview;
   readonly files: readonly string[];
@@ -177,9 +180,11 @@ export interface DemoCommitPreview {
 
 export interface DemoCommitLogoPreview {
   readonly subject: string;
-  readonly ground: LogoGround;
-  /** Ground first, then its fixed companion — the request's colours, in order. */
-  readonly colors: readonly [LogoGround, LogoGround];
+  /** The authored hues — what the model named. */
+  readonly ground: LogoHueFamily;
+  readonly companion: LogoHueFamily;
+  /** Ground first, then companion — the request's resolved colours, in order. */
+  readonly colors: readonly [LogoShade, LogoShade];
   readonly noun: string;
   readonly seed: number;
   readonly status: LogoStatus;
@@ -260,7 +265,10 @@ export function buildCommitPreview(
     logo: {
       subject: commit.row.subject,
       ground: commit.row.ground,
-      colors: logoRequestColors(commit.row.ground),
+      companion: commit.row.companion,
+      colors: logoRequestColors(
+        ...resolveLogoShades(commit.row.ground, commit.row.companion, commit.row.seed),
+      ),
       noun: commit.row.noun,
       seed: commit.row.seed,
       status: commit.row.logo.status,

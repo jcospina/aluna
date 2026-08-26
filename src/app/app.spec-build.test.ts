@@ -23,11 +23,13 @@ import type { RecordMetrics } from "../pipeline/index.ts";
 import type { Provider } from "../provider/index.ts";
 import {
   getCapability,
-  LOGO_GROUND_ANCHORS,
-  type LogoGround,
-  logoGroundCompanion,
+  LOGO_HUE_FAMILIES,
+  type LogoHueFamily,
+  type LogoShade,
   logoSeedSchema,
+  logoShadeFamily,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  resolveLogoShades,
 } from "../registry/index.ts";
 import { assertGatePreview } from "./app.spec-build-assertions.ts";
 import {
@@ -300,8 +302,9 @@ function assertCommitPreviewAndArtifacts(
     behavioralTier: string;
     logo: {
       subject: string;
-      ground: LogoGround;
-      colors: [LogoGround, LogoGround];
+      ground: LogoHueFamily;
+      companion: LogoHueFamily;
+      colors: readonly [LogoShade, LogoShade];
       noun: string;
       seed: number;
       status: string;
@@ -334,15 +337,23 @@ function assertCommitPreviewAndArtifacts(
     "update.ts",
   ]);
 
-  // The developer preview shows the logo's inputs and its state: the three authored
-  // keys, the stored seed, and the lifecycle. `colors` is the derived ordered pair —
-  // the selected ground first, then its fixed companion — so the second colour is
-  // visibly not a fourth key somebody authored.
-  expect(LOGO_GROUND_ANCHORS as readonly string[]).toContain(commitPreview.logo.ground);
-  expect(commitPreview.logo.colors).toEqual([
-    commitPreview.logo.ground,
-    logoGroundCompanion(commitPreview.logo.ground),
-  ]);
+  // The developer preview shows the logo's inputs and its state: the four authored
+  // keys, the stored seed, and the lifecycle. The spec authors two *hues*; `colors` is
+  // the ordered pair the request carries, which is those two hues resolved against the
+  // stored seed — so both what the model chose and what it came out as are readable
+  // without reconstructing either.
+  expect(LOGO_HUE_FAMILIES as readonly string[]).toContain(commitPreview.logo.ground);
+  expect(LOGO_HUE_FAMILIES as readonly string[]).toContain(commitPreview.logo.companion);
+  expect(commitPreview.logo.companion).not.toBe(commitPreview.logo.ground);
+  expect(commitPreview.logo.colors).toEqual(
+    resolveLogoShades(
+      commitPreview.logo.ground,
+      commitPreview.logo.companion,
+      commitPreview.logo.seed,
+    ),
+  );
+  expect(logoShadeFamily(commitPreview.logo.colors[0])).toBe(commitPreview.logo.ground);
+  expect(logoShadeFamily(commitPreview.logo.colors[1])).toBe(commitPreview.logo.companion);
   expect(commitPreview.logo.subject.length).toBeGreaterThan(0);
   expect(commitPreview.logo.noun.length).toBeGreaterThan(0);
   expect(logoSeedSchema.safeParse(commitPreview.logo.seed).success).toBe(true);

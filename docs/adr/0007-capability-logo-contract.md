@@ -11,14 +11,18 @@ the bytes live, what happens when the call fails, and what the spec and the
 registry have to carry. All of that was settled in the desktop design session of 2026-08-20 and is
 recorded in `modules/05-the-desk/PLAN.md` (decisions 34–42).
 
-**None of the delivery half is built.** Four real generations exist, and so do
-the tile and label rules in `design/styles/components/logo-contract.css`. The
-route, the headers, the storage location, the retry sweep, and the spec and
-registry fields are Module 5's work.
+**Status of the delivery half.** Four real generations exist, and so do the tile
+and label rules in `design/styles/components/logo-contract.css`. Epic 5.5 has
+since built the rest in order: the spec and registry fields (5.5/01), then the
+request, the provider client, the incarnation-root storage, the claimed attempt
+and the tile's load-triggered POST (5.5/02). What remains is the logo route's
+immutable cache directive and compressed response (5.5/03) and the desk-load
+sweep's recovery — an interrupted claim, a stale attempt temp, a `present` row
+whose file has gone, and the bounded wait a concurrent claim loser owes (5.5/04).
 
 ## Decision
 
-### Generation decides a subject and a ground colour, and nothing else
+### Generation decides a subject and two colours, and nothing else
 
 One accepted artwork per capability incarnation, with at most three claimed calls
 to a hosted service: Recraft `recraftv3_vector`, bearer token, roughly $0.08 a
@@ -32,17 +36,33 @@ Model, `style`/`substyle` (`vector_illustration` / `bold_stroke`), `size`
 (1024×1024), `response_format` (`b64_json`) and `controls.no_text` are held
 constant for every capability, and no caller may vary them. What changes per
 capability is short: two colours in `controls.colors` with the capability's
-ground first and its shell-derived companion second,
+authored ground first and its authored companion second,
 `controls.background_color` pinned to that same first colour, a
 `random_seed` stored with the capability rather than derived from its name or its
 position, and the prompt block with its subject slot filled.
 
-The companion is a closed symmetric lookup, not a fourth authored or registry
-fact: leaf/shade, teal/sky, sun/ochre and clay/violet. Thus the model still names
-one colour and the provider client has no caller-variable colour choice.
+**Amended 2026-08-25: the companion is authored, not derived.** It was a closed
+symmetric lookup — leaf/shade, teal/sky, sun/ochre and clay/violet — chosen so the
+second colour would not be a fourth authored fact and the provider client would
+have no caller-variable colour choice. It kept both of those properties and cost
+something nobody priced while the contract was being judged against four
+hand-picked specimens: four pairs is the whole product. Two capabilities collide
+25% of the time, four collide 91% of the time, and five collide with certainty —
+a desk of five cannot avoid two tiles wearing the same two colours.
+
+The model now names both. `ground` is the field the drawing sits on and
+`companion` is the colour the object is drawn in; each is one of the same eight
+anchors and they must differ, which the spec refines over the whole object because
+a per-field enum cannot see it. That is 56 ordered pairs against four. (Superseded
+in part by the second 2026-08-25 amendment below: the eight anchors became eight
+hue families, and the concrete shade is resolved from the seed.) The caller
+still chooses nothing — `logoRequestColors` is the one place the ordering is
+fixed — and aptness, which is the argument for letting the model name a colour at
+all, now reaches the second one too.
 
 The ground colour is named twice, once in the control and once in words inside
 the prompt, because naming it in only one of the two places does not work (L2).
+Both halves name the resolved *shade*, not the family the spec authored.
 Exactly two colours go in the list: passing the whole palette returns a busier
 drawing at seven times the file size and hands the model enough colour to build a
 horizon out of. Everything else a logo has is applied afterwards by code that does
@@ -192,19 +212,59 @@ The guard that matters is the attempt cap rather than a spend ceiling. At ~$0.08
 a call, the expensive failure mode is a retry loop, not a few extra attempts, and
 an attempt cap kills the loop where a budget only bounds how long it runs.
 
-### Ground colour: the model names one of the eight tint anchors
+### The colours: the model names two of the eight hue families, the seed names the shade
 
-The model names one of `leaf`, `shade`, `teal`, `sky`, `sun`, `ochre`, `clay` or
-`violet` in the spec. Signal red is reserved for alerts and destructive
-confirmation, and is not offered.
+The model names a `ground` and a `companion`, each one of `grass_green`,
+`forest_green`, `teal_green`, `cyan_blue`, `golden_yellow`, `mustard_ochre`,
+`coral_orange` or `amethyst_violet`, and the two must differ. Each family opens
+onto four shades; **which of the four a capability wears is resolved from its
+incarnation seed**, not authored. Signal red is reserved for alerts and
+destructive confirmation, and is not offered.
 
 This **deletes the chroma-and-lightness validator entirely**. The properties that
-validator checked — in the palette, saturated, light enough for daylight, no
-near-blacks, no pastels, no greys — hold for all eight anchors by construction,
-because the anchors were chosen on exactly those grounds. Validation becomes a
-word-list check against eight names. L9 already permits two capabilities to look
-alike, so no uniqueness rule is owed either. The model choosing rather than Aluna
-hashing is what keeps the colour apt: telescope on sky, recipes on ochre.
+validator checked — saturated, light enough for daylight, no near-blacks, no
+pastels, no greys — hold for all thirty-two shades by construction, because the
+ladder was built on exactly those grounds. Validation stays a word-list check
+against eight names. L9 already permits two capabilities to look alike, so no
+uniqueness rule is owed either. The model choosing the hue is what keeps the
+colour apt; the seed choosing the shade is what keeps two capabilities from
+wearing the same colour when the model picks the same hue twice.
+
+**Amended 2026-08-25 (second): the vocabulary is hues, and the shade is the
+platform's.** The eight anchors were the palette's own token names, and the first
+four live capabilities came out `sky`, `leaf`, `sky`, `sky`. The prompt was not
+the cause in the way it first appeared: an earlier fix had already balanced its
+worked examples so no anchor was named more often than another, and five probe
+builds against that balanced prompt still answered with the same *companion* three
+times out of five. A spec-authoring model collapses to a mode — asked for a colour
+for a notebook it gives the same colour every time — and every build is a
+stateless call that has never seen another capability, so nothing upstream of the
+seed can produce variety. 56 reachable pairs were never the constraint; the model
+simply never reached for them.
+
+Two things changed. The vocabulary became hue words, because two of the eight
+token names — `sky` and `shade` — named things rather than colours, and `ground`
+is defined to the model as what sits *behind* the object: one of the four live
+capabilities was a house, and it went on sky. And the platform took the shade,
+which is the only entropy in the path. The ladder's rungs differ in hue nuance as
+well as lightness, so a capability that names `cyan_blue` may come out cyan,
+azure, aqua or cerulean and two that both name it are still two different tiles.
+That is 896 cross-family ordered pairs against 56 — but the number is not the
+point, because the number was never what was binding.
+
+This does **not** make the desk aware of itself. No capability's colour depends on
+any other's, no uniqueness rule is added, and L9 stands: two capabilities may name
+the same hue, and after the change three of five probe builds still did. What the
+ladder buys is that they no longer come out the same colour.
+
+The eight former anchors survive in the ladder at their exact former bytes, so the
+change widened the vocabulary rather than restating it. The shades are **not**
+design tokens and no longer pretend to be: `ground` and `companion` style nothing
+— the tile is a full-bleed SVG and the shell adds no colour of its own (L8) — so
+the cross-check against `design/styles/tokens.css` is replaced by a direct
+measurement that every shade sits in the daylight band. That measurement is over
+the platform's own literal table, not over model output, so the deleted validator
+stays deleted.
 
 ### Art direction is not the user's to steer
 
@@ -225,9 +285,9 @@ The prompt block may be edited freely and owes no versioning.
 ### What the spec and the registry gain
 
 - **Spec, model-generated:** `subject` (a short phrase describing one object),
-  `ground` (one of the eight anchor names), and `noun` (for the desk's
-  empty-state copy). Subject and ground are immutable birth facts; evolution must
-  preserve them exactly. Noun may evolve as a platform-View fact and never
+  `ground` and `companion` (each one of the eight hue-family names, and they must
+  differ), and `noun` (for the desk's empty-state copy). Subject, ground and
+  companion are immutable birth facts; evolution must preserve them exactly. Noun may evolve as a platform-View fact and never
   selects logo regeneration.
 - **Registry, runtime:** the per-incarnation `seed`, and a durable **logo
   lifecycle** `{ status, attempts }` the desk-load sweep can claim — status is
@@ -245,7 +305,7 @@ is why L11 refuses to draw one.
 
 Keeping the list of what generation decides short is the whole reason the contract
 exists. Anything the model chooses can differ between two logos standing on the
-same desk, and four tiles have to read as a set. A subject and a ground colour is
+same desk, and four tiles have to read as a set. A subject and two colours is
 the smallest list that still gives a capability a face of its own.
 
 The manifest question was decided by measuring rather than by guessing. The
