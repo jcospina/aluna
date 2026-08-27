@@ -113,7 +113,7 @@ describe("the ink system draws the surface's own boundaries", () => {
   });
 
   test("a control shown by an attribute gets its first line", () => {
-    const bar = dom.element("div", "shell-controls");
+    const bar = dom.element("div", "desk__logos");
     const toggle = drawn("button", "btn", bar);
     toggle.box = { w: 0, h: 0 };
     mountInk(toggle);

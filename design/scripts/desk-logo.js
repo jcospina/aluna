@@ -97,6 +97,47 @@ export function nameLogo(root, capability) {
 }
 
 /**
+ * The developer tile's mark: a prompt, and the cursor waiting on the next line.
+ *
+ * Drawn here rather than borrowed. A line icon from a UI set is built to sit inside
+ * running text at a hairline weight, and at 64px on a wallpaper it reads as a small
+ * piece of type someone left on the tile. Every terminal that ships an icon solves
+ * this the same way, and macOS Terminal is the clearest statement of it: a heavy
+ * chevron in the **upper left** of the screen, the cursor bar set **below and to the
+ * right** of it, and the bottom right left empty. That is not `>_` typed on one
+ * baseline — it is a prompt with a cursor on the line under it, which is what makes it
+ * read as a screen with something on it rather than as two characters.
+ *
+ * The coordinates are the face's own, so the mark is composed against the glass rather
+ * than centred in whatever room is left under the title bar. The weight is a subject's
+ * weight, not `--line`: the tile's edge is the boundary here, and what sits on the
+ * glass is artwork — the same freedom a capability's full-bleed logo has.
+ */
+const DEV_ICON_VIEWBOX = "0 0 60 43";
+const DEV_ICON_PATHS = ["M13 9 L23 17.5 L13 26", "M26 29 H41"];
+const DEV_ICON_STROKE = "5.5";
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** @returns {SVGSVGElement} */
+function terminalIcon() {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", DEV_ICON_VIEWBOX);
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", DEV_ICON_STROKE);
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+
+  for (const d of DEV_ICON_PATHS) {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+/**
  * The developer panel's tile (D13). It stands with the apps because it is one,
  * and it is drawn rather than generated so nothing mistakes it for a capability.
  *
@@ -108,11 +149,14 @@ export function devTile(onOpen) {
   button.type = "button";
   button.className = "logo logo--dev";
   button.dataset.dev = "true";
-  button.setAttribute("aria-label", "Open the developer panel");
+  /* The visible label is inside the accessible name, the way a capability logo's is
+   * ("Open Notes"). A name that shared no words with the label would leave a
+   * voice-control user with nothing to say. */
+  button.setAttribute("aria-label", "Open Developer");
 
   const tile = document.createElement("span");
   tile.className = "logo-tile logo-tile--dev";
-  tile.textContent = "</>";
+  tile.append(terminalIcon());
 
   const label = document.createElement("span");
   label.className = "logo-label";

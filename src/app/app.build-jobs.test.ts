@@ -85,14 +85,22 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
     expect(fragment).toContain('sse-swap="fragment"');
     expect(fragment).toContain('sse-swap="commit"');
     expect(fragment).toContain('hx-post="/build/job-one/cancel"');
+    // The listeners name one of the developer panel's eight stages rather than a
+    // <pre> in the shell: the panel is a window that may not be standing, so the
+    // client files the payload under the stage and the panel shows it whenever it
+    // opens. A failed build's error files under `commit` — the block a build fills
+    // when it lands — so it cannot overwrite the Gate verdict that preceded it.
     expect(fragment).toContain('sse-swap="metrics-preview"');
-    expect(fragment).toContain('data-preview-target="spec-metrics-preview"');
+    expect(fragment).toContain('data-preview-stage="metrics"');
     expect(fragment).toContain('sse-swap="spec-preview"');
-    expect(fragment).toContain('data-preview-target="spec-build-preview"');
+    expect(fragment).toContain('data-preview-stage="spec"');
     expect(fragment).toContain('sse-swap="behavioral-tests-preview"');
-    expect(fragment).toContain('data-preview-target="spec-behavioral-tests-preview"');
+    expect(fragment).toContain('data-preview-stage="behavioral-tests"');
+    expect(fragment).toContain('sse-swap="gate-preview"');
+    expect(fragment).toContain('data-preview-stage="gate"');
     expect(fragment).toContain('sse-swap="build-error-preview"');
-    expect(fragment).toContain('data-preview-target="spec-gate-preview"');
+    expect(fragment).toContain('data-preview-stage="commit"');
+    expect(fragment).not.toContain("data-preview-target");
     expect(fragment).toContain('id="prompt-notice" hx-swap-oob="innerHTML"');
     // Proven in Epic 2.6a: htmx-ext-sse wraps a native EventSource that auto-
     // reconnects on a server-closed stream, so the subscriber must close on `done`

@@ -30,13 +30,18 @@ describe("GET / (shell)", () => {
     expect(html).not.toContain('value="I want to keep track of my notes"');
     expect(html).toContain('id="spec-build-trigger"');
     expect(html).toContain("Make it");
-    expect(html).toContain('id="spec-metrics-preview"');
-    expect(html).toContain('id="spec-build-preview"');
-    expect(html).toContain('id="spec-behavioral-tests-preview"');
-    expect(html).toContain('id="spec-migration-preview"');
-    expect(html).toContain('id="spec-units-preview"');
-    expect(html).toContain('id="spec-gate-preview"');
-    expect(html).toContain('id="spec-commit-preview"');
+    // The developer panel's eight readouts left the page with the rail that held
+    // them: they are code blocks in the panel's own window now, built client-side
+    // (public/desk-dev-panel.js). What the page still carries is the way in — the
+    // tile — and the one stage the server already knows the answer to.
+    expect(html).toContain("data-dev-tile");
+    expect(html).toContain('id="dev-stage-seed"');
+    expect(html).toContain('data-dev-stage-seed="metrics"');
+    expect(html).toContain("/static/desk-dev-panel.js");
+    expect(html).not.toContain('class="devbar"');
+    expect(html).not.toContain('id="spec-metrics-preview"');
+    expect(html).not.toContain('id="spec-gate-preview"');
+    expect(html).not.toContain("panel-toggle");
     expect(html).toContain('id="prompt-notice"');
     expect(html).not.toContain("Meet Aluna");
     expect(html).not.toContain('id="intro-trigger"');
@@ -213,7 +218,12 @@ describe("GET / (shell) — browser glue", () => {
     // The address is the desk's to write: the glue reports what happened and never pushes.
     expect(js).not.toContain("history.pushState");
     expect(js).toContain(":scope > [data-active-capability-id]");
-    expect(js).toContain("dataset.previewTarget");
+    // A stage name, not an element id: the developer panel is a window that may not be
+    // standing, so the glue hands the payload over rather than writing it into a <pre>.
+    expect(js).toContain("dataset.previewStage");
+    expect(js).not.toContain("dataset.previewTarget");
+    expect(js).toContain('STAGE_PAYLOAD_EVENT = "aluna:stage-payload"');
+    expect(js).toContain('STAGES_CLEARED_EVENT = "aluna:stages-cleared"');
     expect(js).toContain('addEventListener("aluna:create-cancelled"');
     expect(js).toContain("collapseListFieldRows(form)");
     expect(js).toContain("Element.prototype.querySelectorAll.call(form");
@@ -387,6 +397,7 @@ describe("GET / (shell) — prompt admission", () => {
         return hasSubscriber ? {} : null;
       },
     };
+    let stageClears = 0;
     const documentStub = {
       addEventListener(
         name: string,
@@ -400,6 +411,13 @@ describe("GET / (shell) — prompt admission", () => {
       getElementById(id: string) {
         if (id === "spec-build-output") return output;
         return id === "prompt-notice" ? { replaceChildren: () => (noticeClears += 1) } : null;
+      },
+      // The developer panel is told to start empty when a build is *admitted*, never
+      // when one is merely requested — the panel is a window that may not be standing,
+      // so the glue announces it rather than clearing elements, and a refusal that
+      // announced it would wipe the lifecycle history the page seeded.
+      dispatchEvent(event: { type: string }) {
+        if (event.type === "aluna:stages-cleared") stageClears += 1;
       },
     };
     const windowStub = {
@@ -427,6 +445,9 @@ describe("GET / (shell) — prompt admission", () => {
     });
     expect(prevented).toBe(false);
     expect(noticeClears).toBe(1);
+    // Requesting a build clears nothing. The subscriber arriving is what does, which
+    // `desk-dev-panel.test.ts` pins on the glue's `htmx:afterSwap` handler.
+    expect(stageClears).toBe(0);
 
     hasSubscriber = true;
     listeners.get("htmx:beforeRequest")?.({

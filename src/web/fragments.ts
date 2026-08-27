@@ -36,29 +36,41 @@ const SHELL_LOGO_PLACEHOLDER = "          <!-- Capability logos render here. -->
 // so a clicked capability item always has the modal to open.
 const SHELL_DETAIL_MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here. -->";
 
-const PREVIEW_TARGETS = [
-  ["metrics-preview", "spec-metrics-preview"],
-  ["spec-preview", "spec-build-preview"],
-  ["candidate-preview", "spec-candidate-preview"],
-  ["behavioral-tests-preview", "spec-behavioral-tests-preview"],
-  ["migration-preview", "spec-migration-preview"],
-  ["units-preview", "spec-units-preview"],
-  ["gate-preview", "spec-gate-preview"],
-  ["build-error-preview", "spec-gate-preview"],
-  ["commit-preview", "spec-commit-preview"],
+/**
+ * Which of the developer panel's eight stages each preview event belongs to.
+ *
+ * A stage name rather than an element id, because the panel is a window now
+ * (`public/desk-dev-panel.js`): it may not be standing when a payload arrives, and the
+ * eight `<pre>` elements these once addressed no longer exist in the shell. The client
+ * files the payload under the stage and the panel shows it whenever it opens — so a
+ * developer who starts a build and then reaches for the tile still finds every stage
+ * that has already run. The stage keys are `design/scripts/devpanel.js`'s.
+ *
+ * A failed build's `build-error-preview` files under `commit`, not under `gate`. It
+ * arrives at the terminal, after the Gate has already sent its verdict for a build
+ * that got that far — so filing it under `gate` overwrote the verdict with the error
+ * that followed it, and the Gate block ended up captioned as a verdict it no longer
+ * held. `commit` is the block a build fills when it lands; a build that did not land
+ * says why there instead, and every block above it still reads.
+ */
+const PREVIEW_STAGES = [
+  ["metrics-preview", "metrics"],
+  ["spec-preview", "spec"],
+  ["candidate-preview", "candidate"],
+  ["behavioral-tests-preview", "behavioral-tests"],
+  ["migration-preview", "migration"],
+  ["units-preview", "units"],
+  ["gate-preview", "gate"],
+  ["build-error-preview", "commit"],
+  ["commit-preview", "commit"],
 ] as const;
 
-const CLEAR_ON_ACCEPT_TARGETS = [
-  ["div", "prompt-notice"],
-  ["pre", "spec-metrics-preview"],
-  ["pre", "spec-build-preview"],
-  ["pre", "spec-candidate-preview"],
-  ["pre", "spec-behavioral-tests-preview"],
-  ["pre", "spec-migration-preview"],
-  ["pre", "spec-units-preview"],
-  ["pre", "spec-gate-preview"],
-  ["pre", "spec-commit-preview"],
-] as const;
+/**
+ * What an accepted prompt clears out of band. Only the notice: the panel's stages are
+ * cleared by the shell when it accepts the submission, because a window that is not
+ * open has no elements for an out-of-band swap to find.
+ */
+const CLEAR_ON_ACCEPT_TARGETS = [["div", "prompt-notice"]] as const;
 
 /**
  * The product-voice line `/prompt` answers a blank submission with. `required` on the
@@ -108,9 +120,9 @@ export function renderBuildSubscriber(jobId: string): string {
     `  <button class="btn btn--ghost build-stream__cancel" type="button" hx-post="${escapeHtml(cancelPath)}" hx-swap="none">Cancel</button>`,
     '  <div class="build-stream__fragment" sse-swap="fragment" hx-swap="beforeend"></div>',
     '  <div class="build-stream__commit" aria-live="polite" sse-swap="commit" hx-swap="innerHTML"></div>',
-    ...PREVIEW_TARGETS.map(
-      ([event, target]) =>
-        `  <span hidden aria-hidden="true" sse-swap="${event}" data-preview-target="${target}"></span>`,
+    ...PREVIEW_STAGES.map(
+      ([event, stage]) =>
+        `  <span hidden aria-hidden="true" sse-swap="${event}" data-preview-stage="${stage}"></span>`,
     ),
     "</section>",
     ...CLEAR_ON_ACCEPT_TARGETS.map(

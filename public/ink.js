@@ -20,17 +20,20 @@ import { drawAlso, redrawInk, startInk } from "../design/scripts/ink.js";
  * the markup. Every one of them declares a `border` its stylesheet still reserves;
  * the drawn line is what you see there instead.
  *
- * Two absences are deliberate. The form's `.field__control` is still the bare `<input>`
+ * One absence is deliberate: the form's `.field__control` is still the bare `<input>`
  * rather than the shell around one, so it cannot hold the two layers — the split that
- * fixes it is 5.10/03. And the developer panel's raw payload readouts are hidden by
- * `:empty`, which a drawn element can never be, because the two layers are children:
- * they stay ruled until 5.6/04 gives that panel a window of its own.
+ * fixes it is 5.10/03.
+ *
+ * The developer panel's readouts are not in this list and no longer need to be. They
+ * were ruled rather than drawn because they were hidden by `:empty`, which a drawn
+ * element can never be — the two layers are children. In the panel's own window each
+ * stage is a code block that stands whether a payload has arrived or not, so it asks
+ * the ink system for its frame by name (`data-ink`, already in `INK_SELECTOR`) and
+ * `design/scripts/devpanel.js` sets the attribute where it builds the block.
  */
 const SHELL_INK = [
   /* The prompt rail. The button standing in it is a `.btn`, already drawn. */
   ".prompt__composer",
-  /* The shell's own toggles */
-  ".panel-toggle",
   /* Collection chrome — the search rail and the create panel */
   ".capability-search__control",
   ".capability-collection__create",

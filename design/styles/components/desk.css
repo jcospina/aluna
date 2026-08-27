@@ -147,6 +147,17 @@
   }
 }
 
+/*
+ * Last on the ground, whatever order the DOM ends up in. Every logo that arrives
+ * after first paint — the tile a build stands up, the capability it commits — is
+ * appended to the end of the layer out of band, which would leave the developer tile
+ * stranded in the middle until the next reload put it back. `order` is the grid's
+ * own answer and needs nothing to maintain.
+ */
+.logo--dev {
+  order: 1;
+}
+
 .logo--dev .logo-label {
   opacity: 0.85;
 }
@@ -158,16 +169,44 @@
  * the surface's own line around it.
  */
 
+/*
+ * The tile is a small window, because that is what pressing it opens. It carries
+ * the same two parts every window on this desk carries — a title bar in the pane
+ * gradient, and a face below it — so it reads as furniture at a glance and could
+ * never be mistaken for a capability's artwork, which is full-bleed and has no
+ * chrome. The band is why the mark inside needs no frame of its own: the tile is
+ * the frame.
+ */
 .logo-tile--dev {
   display: grid;
-  place-items: center;
+  grid-template-rows: 0.9375rem 1fr;
   background: var(--surface);
   border: var(--line) solid var(--ink);
-  font-family: var(--font-mono);
-  font-size: 1.1875rem;
-  font-weight: 600;
-  color: var(--ink-2);
-  letter-spacing: -0.03em;
+  color: var(--ink);
+  overflow: hidden;
+}
+
+.logo-tile--dev::before {
+  content: "";
+  background: var(--title-bar);
+  border-bottom: var(--line) solid var(--ink);
+}
+
+/*
+ * The mark fills the glass, so its own coordinates place it: a prompt in the upper
+ * left and the cursor on the line below it, with the bottom right left empty — the
+ * composition every terminal icon uses, and the reason it reads as a screen with
+ * something on it rather than as two characters centred in a box.
+ *
+ * `--line` is not the weight here. That token governs *boundaries*, and the boundary
+ * on this tile is its edge; what sits on the glass is a subject, with the same
+ * freedom a capability's full-bleed artwork has. A hairline there would read as type
+ * someone left on the tile rather than as a drawing.
+ */
+.logo-tile--dev svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 /* ── Windows on the desk ──────────────────────────────────────────────── */
@@ -313,6 +352,13 @@
  * is one activity. Read-only, and outside the product voice: this is the only
  * surface in Aluna set in a monospace face, because it shows raw payloads and a
  * proportional face makes them worse.
+ *
+ * How far the terminal reading goes is settled here: each stage is a code block —
+ * a drawn frame, a caption naming the stage and how many bytes came down the wire,
+ * and the payload in a well below it. No further. There is no gutter, no prompt
+ * mark and no clock, because those describe a session and this describes a build;
+ * and there is no imported editor theme, because every colour a payload wears is
+ * already on this palette.
  */
 
 .window--dev .window__body {
@@ -326,33 +372,123 @@
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
+/*
+ * One stage. The frame is declared as an ordinary border and drawn over by the ink
+ * system (the block asks by name, `data-ink`) — the same line as everything else
+ * inside a window, in the same hand.
+ */
 .devpanel__block {
   display: flex;
   flex-direction: column;
-  gap: 0.1875rem;
+  padding: 0 0.4375rem 0.4375rem;
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+}
+
+/*
+ * Caption over payload, separated by the change of fill rather than by a rule.
+ * A second straight line inside a drawn box would read as the one thing on the
+ * surface nobody bothered to draw.
+ */
+.devpanel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0.375rem 0.0625rem 0.3125rem;
 }
 
 .devpanel__stage {
   font-size: var(--caps-size);
   letter-spacing: var(--caps-tracking);
   text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.devpanel__size {
+  font-family: var(--font-mono);
+  font-size: var(--caps-size);
+  font-variant-numeric: tabular-nums;
   color: var(--ink-3);
 }
 
+/*
+ * The well is dark, and this is the one surface in Aluna where that is allowed.
+ *
+ * Every ground on this palette is tinted green, because the desk is a meadow. That
+ * is right for a surface you look past and wrong for the one surface you read a
+ * hundred lines of JSON on: a saturated ground fights every tint in front of it,
+ * and washing it out only trades the tint for no contrast at all. D13 already puts
+ * this panel outside the product voice and gives it the only monospace face in the
+ * product for exactly this reason — it shows raw payloads. The well is the same
+ * exemption, and it stops at this element: `--ink` is lines and type everywhere
+ * else, and nothing a capability generates may fill with it.
+ *
+ * Inset inside the block rather than run to its edges, so the drawn frame still
+ * reads against surface instead of disappearing into the well.
+ */
 .devpanel__pre {
   margin: 0;
-  padding: 0.375rem 0.5rem;
-  background: var(--ground-deep);
-  border-left: var(--line) solid var(--ink-3);
+  padding: 0.5rem 0.625rem;
+  max-height: 18rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--ink);
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  line-height: 1.45;
-  color: var(--ink-2);
+  line-height: 1.5;
+  color: var(--surface);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/*
+ * `code` in prose is an inline chip — a `--surface-2` fill and a little padding
+ * either side (`base.css`). A payload is not prose: left alone, the chip paints a
+ * pale box behind every line of the well and the block reads as highlighted rather
+ * than as code. The face is the one thing the chip contributes that belongs here,
+ * and it comes from `inherit` on the `<pre>` above.
+ */
+.devpanel__code {
+  padding: 0;
+  background: none;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* A stage with nothing in it yet is a resting dash, not an absence. */
+.devpanel__block:not(.is-filled) .devpanel__pre {
+  color: var(--ink-3);
+}
+
+/*
+ * The payload's five kinds, in the palette's own anchors — re-picked for a dark
+ * well, so each one clears 6:1 against it rather than being the light-ground
+ * choice used at half the contrast. `--signal` is not among them and never will
+ * be: it is the alert colour, and a payload reporting a failed Gate is still a
+ * reading rather than an alarm.
+ */
+.devpanel__key {
+  color: var(--sky);
+}
+
+.devpanel__string {
+  color: var(--leaf);
+}
+
+.devpanel__number {
+  color: var(--sun);
+}
+
+.devpanel__atom {
+  color: var(--violet);
+}
+
+.devpanel__punct {
+  color: var(--ink-3);
 }
 
 /* ── A build, in the window ───────────────────────────────────────────── */
@@ -432,6 +568,30 @@
     height: auto;
     transform: none;
     z-index: 10;
+  }
+
+  /*
+   * Two windows may stand at once (D13), and on a phone the window is the screen —
+   * so the one behind is not behind anything, it is underneath the whole surface.
+   * Exposing only the frontmost is what keeps a hidden window from taking touches
+   * and from being read out by a screen reader off the bottom of a stack. Neither
+   * one's remembered desktop box is touched to do it; widening gives both back.
+   */
+  .window--desk.is-unfocused {
+    display: none;
+  }
+
+  /*
+   * The window is the screen here and the prompt bar floats over the bottom of it, so
+   * the panel's last code block would be behind the bar, unreadable and unscrollable
+   * past. The strip is reserved as a box after the content
+   * rather than as padding on the scroller, for the reason the capability window's
+   * region reserves it the same way: an in-flow box is content, and no engine drops
+   * content from a scrollable overflow area the way some drop bottom padding.
+   */
+  .window--dev .desk-window__content::after {
+    content: "";
+    flex: 0 0 var(--prompt-clearance);
   }
 
   .window__grip {

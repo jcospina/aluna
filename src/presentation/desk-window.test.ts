@@ -602,7 +602,13 @@ describe("who opens the window", () => {
     // The prompt may be an evolution of exactly what is in the window; only a build
     // that finds no window has to say what the window is for.
     expect(BUILD_WINDOW_TITLE).toBe("Making it");
-    expect(code("public/desk-window.js")).toContain("if (!mounted) openWindow(BUILD_WINDOW_TITLE");
+    expect(code("public/desk-window.js")).toContain("else openWindow(BUILD_WINDOW_TITLE");
+    // And a build that *does* find a window brings it forward rather than leaving its
+    // narration behind the developer panel — which below the breakpoint means leaving
+    // it out of the page entirely (5.6/04).
+    expect(code("public/desk-window.js")).toMatch(
+      /if \(mounted\) raise\(mounted\);\s*else openWindow\(BUILD_WINDOW_TITLE/,
+    );
   });
 
   test("a second capability swaps what is inside the frame rather than adding one", () => {

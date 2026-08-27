@@ -331,8 +331,12 @@ describe("the desk breaks at 720px and forms at 620px", () => {
   test("the surfaces that carried a retired breakpoint now carry a live one", () => {
     // Named individually, because a sweep that quietly dropped a rule instead of moving
     // it would satisfy the query test above and lose the layout it was holding.
-    expect(rules("public/css/devbar.css")).toMatch(
-      /@media \(max-width: 720px\) \{\s*\.devbar \{\s*width: min\(22rem, 88vw\);/,
+    // The rail the developer panel used to be is gone; the panel is the second window
+    // now, and what the breakpoint owes it is the one rule two windows need. Below it
+    // the window is the screen, so the one behind is not behind anything and is taken
+    // out of the page rather than stacked underneath the surface.
+    expect(rules("design/styles/components/desk.css")).toMatch(
+      /@media \(max-width: 720px\)[\s\S]*?\.window--desk\.is-unfocused \{\s*display: none;/,
     );
     expect(rules("public/css/detail-modal.css")).toMatch(
       /@media \(max-width: 720px\) \{\s*\.detail-modal \{\s*width: 80vw;\s*max-width: none;/,

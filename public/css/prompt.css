@@ -21,11 +21,12 @@
  * which is exactly where every window stops (desk-geometry.js). Nothing here restates
  * a length the stylesheet already owns.
  *
- * Below the backdrop (z 10) on purpose, which is the one place this departs from
- * the design's `.prompt-bar` (z 20). Z 20 here is the developer panel's own level,
- * and a bar above the backdrop would stay bright over a dimmed desk. 5.4/02 took
- * the capability rail; 5.6/04 takes the panel, and 5.6/01 sets the order against
- * the window instead, which is what the design's 20 is actually above.
+ * Z 5 rather than the design's `.prompt-bar` 20, and the difference is only that
+ * this side has fewer layers to clear. The backdrop and the panel rail the old
+ * number was written against are both gone — the developer panel is a window now —
+ * so what the bar has to be above is the window layer, which is what the design's 20
+ * is above too. `.desk__windows` is z 2 and a stacking context, so no window's own
+ * `--win-z` ever reaches out past it (5.6/01, 5.6/04).
  */
 .prompt {
   position: absolute;

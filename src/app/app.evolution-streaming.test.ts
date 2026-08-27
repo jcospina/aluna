@@ -7,6 +7,7 @@
 // submit/activate/reject seam lives in `app.evolution.test.ts`.
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { DEV_STAGES } from "#design/devpanel.js";
 import {
   candidateFrom,
   journalCapabilityRow,
@@ -228,13 +229,15 @@ describe("the streamed assembly", () => {
   });
 });
 
-// A pre-flight guard for the homepage. Every event the run puts on the wire has to
-// have somewhere to land in the browser: either a `sse-swap` region on the subscriber
-// fragment, or a hidden preview listener whose `data-preview-target` is a real element in
-// the shipped shell. An event with no home is invisible on the homepage — the failure mode
-// that wastes a human sign-off rather than failing a test.
+// A pre-flight guard for the homepage. Every event the run puts on the wire has to have
+// somewhere to land in the browser: either a `sse-swap` region on the subscriber
+// fragment, or a hidden preview listener naming one of the eight stages the developer
+// panel actually builds. An event with no home is invisible on the homepage — the
+// failure mode that wastes a human sign-off rather than failing a test. The panel is a
+// window now, so what a listener has to name is a stage rather than an element id: there
+// is no element to find until the tile is pressed.
 describe("the developer panel can receive everything the run emits", () => {
-  test("every emitted event has a subscriber region and a live shell target", async () => {
+  test("every emitted event has a subscriber region and a real panel stage", async () => {
     const candidate = moodCandidate();
     const { app, submit } = moodEvolutionApp(env, candidate, "Add a mood field");
     const { fragment, streamPath } = await submit();
@@ -250,9 +253,15 @@ describe("the developer panel can receive everything the run emits", () => {
       expect(swapped.has(event)).toBe(true);
     }
 
+    const stages = new Set(DEV_STAGES.map((stage) => stage.key));
+    const named = [...fragment.matchAll(/data-preview-stage="([^"]+)"/g)].map(
+      (match) => match[1] ?? "",
+    );
+    expect(named.length).toBeGreaterThan(0);
+    for (const stage of named) expect(stages.has(stage)).toBe(true);
+
+    // And the way into the panel is on the served page, whatever the stream did.
     const shell = await (await app.request("/")).text();
-    for (const [, target] of [...fragment.matchAll(/data-preview-target="([^"]+)"/g)]) {
-      expect(shell).toContain(`id="${target}"`);
-    }
+    expect(shell).toContain("data-dev-tile");
   });
 });

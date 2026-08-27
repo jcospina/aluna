@@ -29,10 +29,10 @@ import {
 } from "./fragments.ts";
 import { escapeHtml } from "./html.ts";
 
-// Matched by id rather than as an exact tag copy: an attribute added to that `<pre>` in
+// Matched by id rather than as an exact tag copy: an attribute added to that element in
 // index.html used to make this silently return the shell unchanged, killing the developer
 // panel's version history with no error anywhere.
-const METRICS_PREVIEW_TARGET = /<pre\b[^>]*\bid="spec-metrics-preview"[^>]*><\/pre>/;
+const METRICS_SEED_TARGET = /<div\b[^>]*\bid="dev-stage-seed"[^>]*><\/div>/;
 
 /**
  * The collection layout the container arranges a capability's records in. The
@@ -72,10 +72,15 @@ export function renderCachedCapabilitySurface(row: CapabilityRow): string {
 }
 
 /**
- * Seed the developer panel's lifecycle preview into a full-shell page: the latest
+ * Seed the developer panel's lifecycle stage into a full-shell page: the latest
  * generation lifecycles plus the committed-version list per capability. Both
  * full-page paths (`GET /` and direct `GET /capability/:id`) share this, so the
  * version history the developer panel shows survives a refresh on either URL.
+ *
+ * Written as a payload on the page rather than into the panel, because the panel is a
+ * window the client creates and may not be standing at all. It is pretty-printed where
+ * it is shown rather than here: the panel formats every stage the same way, and one
+ * stage arriving pre-indented would be the only one it could not.
  */
 function withLifecycleMetricsPreview(
   shellHtml: string,
@@ -99,14 +104,14 @@ function withLifecycleMetricsPreview(
   if (latest.length === 0 && committedVersions.length === 0 && pendingDeletions.length === 0) {
     return shellHtml;
   }
-  if (!METRICS_PREVIEW_TARGET.test(shellHtml)) {
-    throw new Error("The shell metrics-preview target is missing.");
+  if (!METRICS_SEED_TARGET.test(shellHtml)) {
+    throw new Error("The shell developer-stage seed target is missing.");
   }
   // A replacer function, not a replacement string: the payload carries free-text cleanup
   // errors and model-authored ids, and `$&`, `$\`` and `$'` in a replacement *string* are
   // substitution patterns that would splice the surrounding document into the panel.
-  const panel = `<pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true">${escapeHtml(JSON.stringify({ lifecycles: latest, committedVersions, pendingDeletions }, null, 2))}</pre>`;
-  return shellHtml.replace(METRICS_PREVIEW_TARGET, () => panel);
+  const seed = `<div id="dev-stage-seed" data-dev-stage-seed="metrics" hidden>${escapeHtml(JSON.stringify({ lifecycles: latest, committedVersions, pendingDeletions }))}</div>`;
+  return shellHtml.replace(METRICS_SEED_TARGET, () => seed);
 }
 
 /**

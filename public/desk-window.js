@@ -48,6 +48,7 @@ import {
 } from "../design/scripts/desk-geometry.js";
 import { AlunaWindow } from "../design/scripts/window.js";
 import { addWindowDrag, addWindowGrip, setMaximised } from "../design/scripts/window-gestures.js";
+import { joinStack, leaveStack, raise } from "./desk-stack.js";
 import { RELEASE_REGION_EVENT } from "./region-scope.js";
 
 /** The desk's window layer — the ground the one window stands on. */
@@ -283,12 +284,18 @@ export function localStore() {
  * on read, and holding nonsense — can both be handed to this rather than only reached
  * in a browser.
  *
+ * The key is an argument because there are two records, one per allowed window, and
+ * exactly two: this window's, and the developer panel's (`public/desk-dev-panel.js`).
+ * Reading and writing them is one piece of code so the two cannot drift in how much
+ * they believe of what they find.
+ *
  * @param {Store | null} store
+ * @param {string} [key]
  * @returns {{ box: Box | null, max: boolean }}
  */
-export function loadPresentation(store) {
+export function loadPresentation(store, key = WINDOW_STORAGE_KEY) {
   try {
-    return parsePresentation(store?.getItem(WINDOW_STORAGE_KEY));
+    return parsePresentation(store?.getItem(key));
   } catch {
     return { box: null, max: false };
   }
@@ -311,17 +318,18 @@ export function loadPresentation(store) {
  * @param {Pick<DeskWindow, "box" | "maximised">} entry
  * @param {boolean} isPhone
  * @param {Store | null} store
+ * @param {string} [key]
+ * @param {Record<string, unknown>} [flags] extra presentation this window carries
  */
-export function savePresentation(entry, isPhone, store) {
+export function savePresentation(entry, isPhone, store, key = WINDOW_STORAGE_KEY, flags) {
   if (isPhone) return;
-  const record = JSON.stringify(presentationOf(entry));
+  const record = JSON.stringify({ ...presentationOf(entry), ...flags });
   try {
     /* Compared against what storage actually holds rather than against a copy kept
      * here: the record is shared with every tab on this origin, and a mirror in this
-     * one is wrong the moment another writes — including the moment a future Forget
-     * removes the key. */
-    if (store?.getItem(WINDOW_STORAGE_KEY) === record) return;
-    store?.setItem(WINDOW_STORAGE_KEY, record);
+     * one is wrong the moment another writes. */
+    if (store?.getItem(key) === record) return;
+    store?.setItem(key, record);
   } catch {
     /* A desk that cannot persist is still a working desk. */
   }
@@ -388,7 +396,14 @@ function defaultBox(bounds) {
  * the user never chose. The desk is asked for a first box instead, the first time there
  * is a desk to ask.
  *
- * @param {{ box: StoredBox, maximised: boolean, sized: boolean }} state mutated in place
+ * `state.first` is how a window says what "no preference yet" means for it. The
+ * capability window takes most of the desk because a collection is a list; the
+ * developer panel takes a narrow column at the edge because it is meant to be read
+ * beside one. Everything after that first box — the clamping, the floor, the
+ * maximised case, the phone — is the same question for both, and is answered here once.
+ *
+ * @param {{ box: StoredBox, maximised: boolean, sized: boolean,
+ *           first?: (bounds: DOMRect) => Box }} state mutated in place
  * @param {DOMRect} bounds the desk
  * @param {boolean} isPhone
  * @returns {boolean} whether the window is now worth placing from that box
@@ -397,7 +412,7 @@ export function fitBox(state, bounds, isPhone) {
   if (isPhone || !laidOut(bounds)) return false;
   if (!state.sized) {
     state.sized = true;
-    const first = defaultBox(bounds);
+    const first = (state.first ?? defaultBox)(bounds);
     if (state.maximised) state.box.restore = first;
     else Object.assign(state.box, first);
   }
@@ -421,11 +436,13 @@ export function fitBox(state, bounds, isPhone) {
  * @param {{ box: Box | null, max: boolean }} stored
  * @param {DOMRect} bounds
  * @param {boolean} isPhone
- * @returns {{ box: StoredBox, maximised: boolean, sized: boolean }}
+ * @param {(bounds: DOMRect) => Box} [first] this window's box when nothing is remembered
+ * @returns {{ box: StoredBox, maximised: boolean, sized: boolean,
+ *             first: (bounds: DOMRect) => Box }}
  */
-export function openingGeometry(el, stored, bounds, isPhone) {
+export function openingGeometry(el, stored, bounds, isPhone, first = defaultBox) {
   /** @type {StoredBox} */
-  const box = { ...(stored.box ?? defaultBox(bounds)) };
+  const box = { ...(stored.box ?? first(bounds)) };
   if (stored.max) setMaximised(el, box, true);
 
   /* A box that came out of storage is a preference whatever screen this is; one this
@@ -434,6 +451,7 @@ export function openingGeometry(el, stored, bounds, isPhone) {
     box,
     maximised: stored.max,
     sized: stored.box !== null || (!isPhone && laidOut(bounds)),
+    first,
   };
   if (fitBox(state, bounds, isPhone)) placeWindow(el, box);
   return state;
@@ -503,6 +521,12 @@ function mount(root, title) {
   addLamps(entry);
   syncMaximiseLamp(entry);
   syncForm(entry, phone);
+
+  /* Two windows may stand at once, so this one has to say which it is. Joining puts
+   * it in front, and a pointer landing anywhere on it brings it back — the whole of
+   * stacking for a pair (`public/desk-stack.js`). */
+  joinStack(entry);
+  el.addEventListener("pointerdown", () => raise(entry));
   return entry;
 }
 
@@ -563,6 +587,11 @@ function bindGestures(entry) {
  */
 export function openWindow(title, root = document, openedBy = null) {
   mounted ??= mount(root, title);
+  /* A window that was already up may have been standing behind the developer panel.
+   * Whatever is about to fill it is what the user just asked for, so it comes to the
+   * front — and below the breakpoint that is the difference between the build they
+   * started being on screen and being taken out of the page entirely. */
+  raise(mounted);
   mounted.win.setTitle(title);
   /* The first opener owns the way back. A capability swapped into a window that is
    * already up did not open it, and must not move where putting it away returns. */
@@ -647,6 +676,9 @@ function cancelBuildIn(el) {
 export function tearDownWindow(entry, api) {
   entry.region.dispatchEvent(new CustomEvent(RELEASE_REGION_EVENT, { bubbles: true }));
   api?.swap?.(entry.el, "", { swapStyle: "innerHTML", swapDelay: 0, settleDelay: 0 });
+  /* Before the frame goes: whatever is left standing is now the only window, and on a
+   * phone the survivor is only exposed once it is the front one. */
+  leaveStack(entry);
   entry.win.destroy();
   entry.el.remove();
   focusOpener(entry.openedBy);
@@ -1308,12 +1340,19 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
       const { target } = event;
       if (!(target instanceof Element)) return;
       const logo = target.closest(CAPABILITY_LOGO_SELECTOR);
-      /* The one press the desk declines. Declined here *and* at the request below,
-       * because those are the two halves htmx splits a press into and this listener
-       * cannot stop the second on its own. */
-      if (logo !== null && pressWouldOpen(logo, settledCapabilityInWindow(mounted))) {
+      if (logo === null) return;
+      /* The one press the desk declines *as an opening*. Declined here and at the
+       * request below, because those are the two halves htmx splits a press into and
+       * this listener cannot stop the second on its own. */
+      if (pressWouldOpen(logo, settledCapabilityInWindow(mounted))) {
         openPressedCapability(root, logo);
+        return;
       }
+      /* It opens nothing, but it is still a press on the logo of the thing you want
+       * to look at, so it brings that window forward. Without this the capability
+       * standing behind the developer panel has no way back — and on a phone, where
+       * only the frontmost window is in the page at all, no way back on screen. */
+      if (mounted) raise(mounted);
     },
     true,
   );
@@ -1332,8 +1371,11 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
       if (!(form instanceof HTMLFormElement) || form.id !== PROMPT_FORM_ID) return;
       /* A build takes over whatever the window is holding rather than retitling it:
        * the prompt may be an evolution of exactly what is open. Only a build that
-       * finds no window has to say what the window is for. */
-      if (!mounted) openWindow(BUILD_WINDOW_TITLE, root, form.querySelector("input"));
+       * finds no window has to say what the window is for — but either way the window
+       * it narrates into has to be the one in front, or the story of the build is
+       * behind the developer panel and, on a phone, not in the page at all. */
+      if (mounted) raise(mounted);
+      else openWindow(BUILD_WINDOW_TITLE, root, form.querySelector("input"));
     },
     true,
   );

@@ -114,8 +114,6 @@ const RULED_ON_PURPOSE = new Set([
   "field__control",
   // a spinning circle: the shape of an object, not a boundary
   "capability-search__loading",
-  // text payloads hidden by `:empty`, which a drawn element can never be — 5.6/04
-  "spec-build__preview",
   // this page's own furniture, deliberately named apart from the drawn `.swatch`
   "preview-item",
   "preview-swatch",

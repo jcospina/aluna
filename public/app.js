@@ -7,8 +7,8 @@
 //
 // Today it does three things, all presentation-only (no product logic — the shell
 // is dumb on purpose, ARCH §6.1):
-//   1. Registers the `shell` Alpine component (developer panel / prompt courtesy state).
-//   2. Renders developer-preview SSE payloads as plain text after HTMX receives them.
+//   1. Registers the `shell` Alpine component (prompt courtesy state).
+//   2. Hands developer-preview SSE payloads to the developer panel's window.
 //   3. Promotes a build's terminal presentation once its stream closes.
 //
 // The tile an admitted build stands on the desk is `desk-logos.js`, a module of its own
@@ -17,7 +17,6 @@
 /**
  * The shell's presentation state.
  * @typedef {Object} ShellState
- * @property {boolean} devbarOpen - Developer panel shown.
  * @property {boolean} promptBusy - Courtesy presentation state while a build stream is open.
  * @property {() => void} init - Alpine lifecycle hook; wires the stream courtesy state.
  */
@@ -36,12 +35,6 @@ document.addEventListener("alpine:init", () => {
  */
 function shell() {
   return {
-    // Developer panel shown. Starts closed on every viewport — the panel is a
-    // developer surface, not the default view. Stages stream into it whether it
-    // is open or not (the handlers write unconditionally), so opening it mid-build
-    // reveals the full latest state; nothing is missed by starting closed.
-    devbarOpen: false,
-
     // Courtesy prompt-bar state only — Alpine mirrors HTMX SSE open/close events in
     // the UI and decides nothing. It is not a lock: the build queue admits every job
     // it is handed, and the one-subscriber guard below is what actually holds a
@@ -97,6 +90,18 @@ const WINDOW_REGION_ID = "spec-build-output";
 const PUT_WINDOW_AWAY_EVENT = "aluna:put-window-away";
 
 /**
+ * The two ways this script reaches the developer panel's window, kept in sync with
+ * public/desk-dev-panel.js (STAGE_PAYLOAD_EVENT and STAGES_CLEARED_EVENT) and pinned by
+ * the same platform test. One stage's payload, and a new build starting from an empty
+ * panel rather than the last build's leavings.
+ */
+const STAGE_PAYLOAD_EVENT = "aluna:stage-payload";
+const STAGES_CLEARED_EVENT = "aluna:stages-cleared";
+
+/** One build's subscriber — the node the run's id is written on. */
+const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
+
+/**
  * Whether the window is left holding nothing. Whitespace between swapped nodes is not
  * content; nothing else in there is invisible, because the region is the one surface
  * inside the window the ink system deliberately does not draw.
@@ -131,20 +136,6 @@ function regionHoldsNothing(region) {
 function putAwayEmptyWindow(region) {
   if (!(region instanceof HTMLElement) || !regionHoldsNothing(region)) return;
   document.dispatchEvent(new CustomEvent(PUT_WINDOW_AWAY_EVENT));
-}
-
-/**
- * Pretty-print a structured developer-preview payload, falling back to the raw
- * string if a future event sends non-JSON text.
- * @param {string} raw
- * @returns {string}
- */
-function formatPreviewPayload(raw) {
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2);
-  } catch {
-    return raw;
-  }
 }
 
 /** @param {HTMLElement} surface @returns {boolean} */
@@ -265,11 +256,17 @@ function preserveActiveView(listener, raw) {
   return true;
 }
 
-// ── Developer-preview rendering (Module 2) ──────────────────────────────────
-// HTMX owns the EventSource connection. For the developer panel only, hidden
-// `sse-swap` listener nodes cancel HTMX's HTML swap and write the event payload as
-// text into the target <pre>, preserving the existing liveness surface without
-// reopening a raw EventSource path in app.js.
+// ── Developer-preview delivery ──────────────────────────────────────────────
+// HTMX owns the EventSource connection. Hidden `sse-swap` listener nodes cancel
+// HTMX's HTML swap and hand the raw payload to the developer panel, naming which of
+// the eight stages it belongs to.
+//
+// Handed over rather than written in place, because the panel is a window now: it may
+// not be standing when a stage arrives, and a developer who starts a build and *then*
+// opens it should still find every stage that has already run. The panel keeps them
+// (`public/desk-dev-panel.js`); this only says what came down the wire. The event name
+// is the seam a classic script can reach a module across, and a platform test pins the
+// string at both ends.
 document.addEventListener("htmx:sseBeforeMessage", (event) => {
   const listener = event.target;
   if (!(listener instanceof HTMLElement)) return;
@@ -280,15 +277,13 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
     return;
   }
 
-  const previewTargetId = listener.dataset.previewTarget;
-  if (!previewTargetId) return;
+  const stage = listener.dataset.previewStage;
+  if (!stage) return;
 
   event.preventDefault();
-
-  const previewTarget = document.getElementById(previewTargetId);
-  if (previewTarget === null) return;
-
-  previewTarget.textContent = formatPreviewPayload(message.data);
+  document.dispatchEvent(
+    new CustomEvent(STAGE_PAYLOAD_EVENT, { detail: { stage, payload: message.data } }),
+  );
 });
 
 /**
@@ -360,6 +355,29 @@ document.addEventListener("htmx:beforeRequest", (event) => {
     return;
   }
   document.getElementById("prompt-notice")?.replaceChildren();
+});
+
+/**
+ * A new build starts from an empty panel — and only a build that was actually
+ * admitted.
+ *
+ * The old clear was an out-of-band swap inside the subscriber fragment, so it landed
+ * only when the server returned one. Clearing on the *request* instead would let
+ * every refusal — a blank prompt, a queued sibling, a 500 — wipe the panel, including
+ * the lifecycle history the page seeded, which nothing restores until a reload. So
+ * this waits for the subscriber to arrive and keys off its job id, which also means a
+ * re-swap of the same subscriber cannot clear a build's own stages out from under it.
+ */
+let clearedForJob = "";
+document.addEventListener("htmx:afterSwap", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const subscriber =
+    target.closest(BUILD_SUBSCRIBER_SELECTOR) ?? target.querySelector(BUILD_SUBSCRIBER_SELECTOR);
+  const jobId = subscriber instanceof HTMLElement ? subscriber.dataset.buildJobId : undefined;
+  if (!jobId || jobId === clearedForJob) return;
+  clearedForJob = jobId;
+  document.dispatchEvent(new CustomEvent(STAGES_CLEARED_EVENT));
 });
 
 // HTMX keeps error responses out of the DOM by default. Structured form refusals are

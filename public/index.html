@@ -15,8 +15,8 @@
       (PLAN decisions 1, 3 and 4; design D4, D5). It is not inert after first load:
       the window over that ground is created and destroyed by the client, and
       everything a capability shows happens inside it. The developer panel is the
-      last Module 1–4 chrome the Desk has not replaced yet; it becomes the second
-      window in 5.6/04.
+      one second window and the last one (design D13): read-only furniture, opened
+      from its own tile, allowed to sit beside the capability it reports on.
       High Meadow is the shipped product surface; see design/design-system.md.
     -->
 
@@ -108,6 +108,17 @@
     <script type="module" src="/static/desk-window.js"></script>
 
     <!--
+      The one second window (design D13). It shares the frame, the two lamps and the
+      three gestures with the one above — a window is a window — and differs in the
+      three ways the exception is allowed to: it is never addressed, it may stand
+      beside the capability window rather than replacing it, and what is inside it is
+      the build's raw stage payloads rather than a product sentence. It keeps the
+      second and last presentation record the browser holds, and carries no controls
+      of its own: eight readouts and the frame's own two lamps.
+    -->
+    <script type="module" src="/static/desk-dev-panel.js"></script>
+
+    <!--
       The drawn line. The ink system ships from design/scripts/ the way the token
       layer ships from design/styles/, and /static/ink.js is only the product's half
       of the seam: it names the temporary shell's own chrome and starts the system.
@@ -128,22 +139,19 @@
   -->
   <body hx-history="false">
     <!--
-      The shell. Alpine `shell` component (public/app.js) holds two bits of
-      presentation state: `devbarOpen` (the developer panel shown/expanded) and
-      `promptBusy` (an active build stream is open). These are reflected as classes
-      and attributes the stylesheet keys off; with neither class the markup renders
-      the correct state, so there's no flash before Alpine.
+      The shell. Alpine `shell` component (public/app.js) holds one bit of
+      presentation state: `promptBusy` (an active build stream is open). It is
+      reflected as a class and an attribute the stylesheet keys off; without the
+      class the markup renders the correct state, so there's no flash before Alpine.
+      The developer panel's own shown/put-away state left with the rail: it is the
+      second window now, and a window's state belongs to the window
+      (public/desk-dev-panel.js).
 
       Nothing gates an empty desk. A fresh user gets a wallpaper and a prompt bar,
       and it reads correctly with nothing withheld until a first capability arrives
       (PLAN decision 3).
     -->
-    <div class="shell" x-data="shell" :class="{ 'devbar-open': devbarOpen }">
-      <!-- Backdrop — tap to dismiss the developer panel. The panel floats over the
-           ground at every size rather than taking width from it, so the backdrop rises
-           with it at every size too (devbar.css); inert otherwise. -->
-      <div class="backdrop" @click="devbarOpen = false" aria-hidden="true"></div>
-
+    <div class="shell" x-data="shell">
       <!-- Content column — the ground the logos stand on, the window opens over,
            and the prompt bar floats above. It is what all three are positioned
            against, so they share one set of edges and one floor. -->
@@ -158,35 +166,42 @@
              one more on the ground out of band. -->
         <div class="desk__logos" id="capability-logos">
           <!-- Capability logos render here. -->
-        </div>
 
-        <!-- Temporary control for the developer panel. The branded header row is
-             gone; this remains only to keep that surface reachable until 5.6 gives
-             the panel its own window and its own tile on the desk. -->
-        <div class="shell-controls">
-          <!-- Developer-panel toggle — the classic </> code icon. Opens the panel
-               holding the build's raw generation internals. -->
-          <button
-            type="button"
-            class="panel-toggle shell-controls__dev-toggle"
-            @click="devbarOpen = !devbarOpen"
-            :aria-expanded="devbarOpen ? 'true' : 'false'"
-            aria-controls="developer-panel"
-            aria-label="Toggle developer panel"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="m18 16 4-4-4-4" />
-              <path d="m6 8-4 4 4 4" />
-              <path d="m14.5 4-5 16" />
-            </svg>
+          <!-- The developer tile (design D13). It stands with the apps because it
+               is one, last in the flow and after every capability, and it is drawn
+               rather than generated so nothing mistakes it for a capability: no
+               artwork, and the surface's own line around it.
+
+               Static markup rather than a client-built tile: the panel's own window
+               is created by the client, but the way *in* to it should not wait on a
+               module, and it is not a capability, so nothing about it comes from the
+               registry. It never appears in the capability list and carries none of
+               the capability-logo marking the desk's logo handlers key off, which is
+               what keeps them from ever treating it as one.
+
+               The tile is a small window — a title bar in the pane gradient over a
+               face — because that is what pressing it opens, and because a capability's
+               artwork is full-bleed and carries no chrome, so the two can never be
+               confused. The mark on the glass is drawn rather than borrowed — a heavy
+               prompt in the upper left with the cursor on the line below it, the
+               bottom right left empty, which is the composition every terminal icon
+               uses. It needs no frame of its own: the tile is already the frame. -->
+          <button type="button" class="logo logo--dev" data-dev-tile aria-label="Open Developer">
+            <span class="logo-tile logo-tile--dev">
+              <svg
+                viewBox="0 0 60 43"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="5.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M13 9 L23 17.5 L13 26" />
+                <path d="M26 29 H41" />
+              </svg>
+            </span>
+            <span class="logo-label">Developer</span>
           </button>
         </div>
 
@@ -197,6 +212,16 @@
              capability shows — its collection, and the narration of a build — happens
              inside that window (PLAN decision 1; design D1, D2). -->
         <div class="desk__windows"></div>
+
+        <!-- The developer panel's one seeded stage. Lifecycle metrics and committed
+             versions are known before any stream opens — they are what the platform
+             already did — so the server writes them here and the panel picks them up
+             when it starts (src/web/cached-view.ts, public/desk-dev-panel.js). It used
+             to be written straight into a <pre> in the panel's rail; the panel is a
+             window that may not be standing now, so the page carries the payload and
+             the panel files it under the stage named here. Empty when there is nothing
+             yet to say, and skipped rather than filed. -->
+        <div id="dev-stage-seed" data-dev-stage-seed="metrics" hidden></div>
 
         <!-- Prompt bar — the one thing on the page that belongs to Aluna rather
              than to a capability (design D5). It floats over the ground clear of
@@ -244,80 +269,6 @@
           </div>
         </form>
       </div>
-
-      <!-- Developer panel — the last Module 1–4 chrome, anchored right, holding the
-           build's raw internals: each generation stage's JSON, populated as it
-           streams. A developer-facing verification surface, toggled by the </> icon
-           above; product narration stays in the window. It becomes the second
-           window, opened from its own tile on the desk, in 5.6/04. The stage previews
-           keep their original ids so app.js writes to them unchanged. -->
-      <aside class="devbar" id="developer-panel" aria-label="Developer panel">
-        <!-- Header — panel title plus its own close affordance. The panel also
-             dismisses on a click outside (the shared backdrop), so this is the
-             explicit, discoverable way out for a panel that floats over the desk. -->
-        <header class="devbar__header">
-          <p class="devbar__title">Generation process</p>
-          <button
-            type="button"
-            class="panel-toggle devbar__close"
-            @click="devbarOpen = false"
-            aria-label="Close developer panel"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
-          </button>
-        </header>
-
-        <section class="devbar__block">
-          <h2 class="devbar__block-label">Lifecycle &amp; committed versions</h2>
-          <pre class="spec-build__preview" id="spec-metrics-preview" aria-hidden="true"></pre>
-        </section>
-        <!-- Observational output from an evolution asked for in the prompt bar. The
-             candidate, its change facts, the derived work plan, and the Gate verdict
-             stream here; this panel never contains controls. -->
-        <section class="devbar__block">
-          <h2 class="devbar__block-label">Evolution candidate</h2>
-          <pre class="spec-build__preview" id="spec-candidate-preview" aria-hidden="true"></pre>
-        </section>
-        <section class="devbar__block">
-          <h2 class="devbar__block-label">Behavioral intent</h2>
-          <pre
-            class="spec-build__preview"
-            id="spec-behavioral-tests-preview"
-            aria-hidden="true"
-          ></pre>
-        </section>
-        <section class="devbar__block">
-          <h2 class="devbar__block-label">Spec</h2>
-          <pre class="spec-build__preview" id="spec-build-preview" aria-hidden="true"></pre>
-        </section>
-        <section class="devbar__block">
-          <h2 class="devbar__block-label">Migration</h2>
-          <pre class="spec-build__preview" id="spec-migration-preview" aria-hidden="true"></pre>
-        </section>
-        <section class="devbar__block">
-          <h2 class="devbar__block-label">Units</h2>
-          <pre class="spec-build__preview" id="spec-units-preview" aria-hidden="true"></pre>
-        </section>
-        <section class="devbar__block">
-          <h2 class="devbar__block-label">Gate</h2>
-          <pre class="spec-build__preview" id="spec-gate-preview" aria-hidden="true"></pre>
-        </section>
-        <section class="devbar__block">
-          <h2 class="devbar__block-label">Commit</h2>
-          <pre class="spec-build__preview" id="spec-commit-preview" aria-hidden="true"></pre>
-        </section>
-      </aside>
     </div>
 
     <!-- The one shared read/edit record modal instance mounts here. The server

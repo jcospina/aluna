@@ -36,6 +36,7 @@ import {
   refreshGeometry,
 } from "./desk-geometry.js";
 import { devTile, logoButton, nameLogo } from "./desk-logo.js";
+import { clearStages, DEV_STAGES, devPanelBody, writeStage } from "./devpanel.js";
 import { renderCollection } from "./patterns.js";
 import { mountPromptBar } from "./prompt-bar.js";
 import { wallpaperUrl } from "./wallpaper.js";
@@ -102,22 +103,11 @@ const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: r
 /** @typedef {{ id: string, displaced: string | null, timers: number[] }} Build */
 
 /**
- * The eight stages, in the order they arrive: the key the developer panel files
- * the raw payload under, and the line the window narrates while it runs.
- *
- * Records rather than pairs, for the reason `main.js` gives: a two-element array
- * of unlike things widens to a union on the way in.
+ * The eight stages, in the order they arrive. They live with the panel that files
+ * them — `devpanel.js` — because the product's second window reads the same list,
+ * and a stage the two surfaces disagree about is a stage a developer cannot check.
  */
-const STAGES = [
-  { key: "metrics", line: "Recent lifecycle metrics" },
-  { key: "spec", line: "Reading what you asked for" },
-  { key: "candidate", line: "Drawing the shape of the data" },
-  { key: "behavioral-tests", line: "Writing what it must never get wrong" },
-  { key: "migration", line: "Making room for it" },
-  { key: "units", line: "Building the pieces" },
-  { key: "gate", line: "Checking the whole thing" },
-  { key: "commit", line: "Putting it on the desk" },
-];
+const STAGES = DEV_STAGES;
 
 export class Desk {
   /**
@@ -408,7 +398,7 @@ export class Desk {
     }
     this.dev = this.#mount("dev", "Developer", this.layout.dev);
     this.dev.el.classList.add("window--dev");
-    this.#setBody(this.dev, this.#devBody());
+    this.#setBody(this.dev, devPanelBody());
     this.layout.dev.open = true;
     this.#focus(this.dev);
     this.#save();
@@ -424,47 +414,16 @@ export class Desk {
   }
 
   /**
-   * Read-only, and out of the product voice. Each stage's raw payload as it
-   * streams — the same eight blocks the panel carries today, set as a terminal.
-   *
-   * @returns {HTMLElement}
-   */
-  #devBody() {
-    const shell = document.createElement("div");
-    shell.className = "devpanel";
-    for (const { key, line } of STAGES) {
-      const block = document.createElement("div");
-      block.className = "devpanel__block";
-      block.dataset.stage = key;
-
-      const head = document.createElement("b");
-      head.className = "devpanel__stage";
-      head.textContent = key;
-
-      const body = document.createElement("pre");
-      body.className = "devpanel__pre";
-      body.textContent = "—";
-      body.title = line;
-
-      block.append(head, body);
-      shell.append(block);
-    }
-    return shell;
-  }
-
-  /**
    * @param {string} stage
    * @param {string} payload
    */
   #devWrite(stage, payload) {
-    const pre = this.dev?.el.querySelector(`[data-stage="${stage}"] .devpanel__pre`);
-    if (pre instanceof HTMLElement) pre.textContent = payload;
+    if (this.dev) writeStage(this.dev.el, stage, payload);
   }
 
   /** Clear every block back to its resting dash. */
   #devClear() {
-    const blocks = this.dev?.el.querySelectorAll(".devpanel__pre") ?? [];
-    for (const pre of blocks) if (pre instanceof HTMLElement) pre.textContent = "—";
+    if (this.dev) clearStages(this.dev.el);
   }
 
   /* ── mounting, focus and stacking ─────────────────────────────────────── */

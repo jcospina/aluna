@@ -4,8 +4,8 @@
    and a floating prompt bar. The ground fills the viewport and everything else
    stands on it. The logo layer itself is not styled here: `.desk__logos` and the
    logo it holds ship from design/styles/components/desk.css and logo-contract.css,
-   which is the one copy of those numbers. The last side panel the Desk has not
-   replaced yet lives in devbar.css.
+   which is the one copy of those numbers. The developer tile stands with them, and
+   the panel it opens is the second window (design/styles/components/desk.css).
    ========================================================================== */
 .shell {
   display: flex;
@@ -28,18 +28,6 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-}
-
-/* The temporary control for the developer panel. It floats over the meadow rather
-   than recreating the retired branded header row, and it keeps to the right: the top
-   left of the ground is where the first column of logos stands. */
-.shell-controls {
-  display: flex;
-  justify-content: flex-end;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
 }
 
 /* ── The window's content region — the product's half of the window seam. ── */
@@ -104,48 +92,4 @@
     display: block;
     height: var(--prompt-clearance);
   }
-}
-
-/* =============================================================================
-   The developer panel's toggle (shell chrome) + the gentle press
-   ========================================================================== */
-.panel-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* The one row height, like every other control. */
-  min-width: var(--control-h);
-  min-height: var(--control-h);
-  padding: var(--space-1);
-  color: var(--ink);
-  background: var(--surface);
-  border: var(--line) solid var(--ink);
-  cursor: pointer;
-  transition:
-    transform var(--dur-fast) var(--ease-rise),
-    box-shadow var(--dur-fast) var(--ease-rise);
-}
-.panel-toggle svg {
-  display: block;
-  width: 1.25rem;
-  height: 1.25rem;
-}
-/* Gentle press — tactile but quiet. Hover lifts a small hard shadow and nudges
-   1px down-right; active presses to 2px and flattens the shadow. */
-.panel-toggle:hover {
-  transform: translate(1px, 1px);
-}
-.panel-toggle:active {
-  transform: translate(2px, 2px);
-}
-
-/* ── The developer panel's backdrop — raised at every size, because the panel floats
-   over the ground at every size rather than taking width from it. devbar.css flips it
-   to display:block while the panel is open. ──────────────────────────────── */
-.backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  background: color-mix(in oklch, var(--ink), transparent 55%);
 }

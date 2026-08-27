@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import {
@@ -36,6 +36,7 @@ const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g
 
 const SHELL = read("public/index.html");
 const MODULE = code("public/desk-window.js");
+const PANEL = code("public/desk-dev-panel.js");
 const GLUE = code("public/app.js");
 
 /** The address bar and its history, recorded rather than driven. */
@@ -325,12 +326,28 @@ describe("who moves the address", () => {
   });
 
   test("nothing below capability identity is written down anywhere", () => {
-    // The address, the one storage key, and the Builder's restoration descriptor are the
+    // The address, the two storage keys, and the Builder's restoration descriptor are the
     // three places something could survive the tab, and none may carry a search term, an
     // open record or a draft.
     expect(capabilityIdFromAddress("/capability/notes/record/7")).toBeNull();
     expect(MODULE).toContain('WINDOW_STORAGE_KEY = "aluna.desk.window.v1"');
-    expect(MODULE).not.toMatch(/setItem\((?!\s*WINDOW_STORAGE_KEY)/);
+    expect(PANEL).toContain('DEV_STORAGE_KEY = "aluna.desk.dev.v1"');
+
+    // Two records, one per allowed window, and no third — the count is the promise
+    // (design D9). Read off every key the whole shell names rather than off the two
+    // files that are supposed to name them, so a third key added anywhere in `public/`
+    // is what fails this rather than a careful reader.
+    const shellKeys = new Set(
+      readdirSync(join(ROOT, "public"))
+        .filter((name) => name.endsWith(".js"))
+        .flatMap((name) => [...code(`public/${name}`).matchAll(/"aluna\.desk\.[^"]+"/g)])
+        .map((match) => match[0]),
+    );
+    expect([...shellKeys].sort()).toEqual(['"aluna.desk.dev.v1"', '"aluna.desk.window.v1"']);
+
+    // And no write names a key inline: every one goes through `savePresentation`, which
+    // is handed one of the two constants above.
+    expect(MODULE + PANEL).not.toMatch(/setItem\(\s*"/);
     const descriptor = read("src/pipeline/jobs/restoration.ts");
     expect(descriptor).toContain("readonly capabilityId: string;");
     expect(descriptor).toContain("readonly incarnationId: string;");
