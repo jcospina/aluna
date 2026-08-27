@@ -87,6 +87,19 @@ D1, D2, D12; M5 plan 47, 48).
 _Avoid_: content area and detail modal (both superseded), modal, dialog, popup,
 main panel, canvas, workspace, body
 
+**Address**:
+What the browser bar says, and it says one of exactly two things: `/` is the bare
+desk, and `/capability/:id` is the desk with that capability in the window.
+Nothing below capability identity is ever in it — the search term, the open record
+and a half-typed edit live in the DOM and die with the tab, so a reload comes back
+to the capability's canonical collection and loses them. Logo open/switch and
+put-away push; `popstate` renders the addressed identity without pushing again, and
+focusing the already-open capability adds no duplicate. During a build the address
+keeps naming what the build displaced; a successful v1 activation pushes the new
+capability only when its canonical collection takes the window, and evolution and
+every non-activating terminal add no entry (design D14; M5 plan 6; ARCH §6.1).
+_Avoid_: url, route, path, location, deep link, query string
+
 **Put away**:
 What the clay lamp does. The window disappears, the logo stays where it was, the
 address falls back to `/`, and nothing in storage changes; the same click on the

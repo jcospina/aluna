@@ -236,6 +236,17 @@ describe("detail modal — CSS parity", () => {
     expect(css).toContain("scrollbar-gutter: stable");
   });
 
+  test("the dialog does not clip the line the panel is drawn with", () => {
+    // The panel fills the <dialog> exactly, and its 2px line is centred on that shared
+    // edge — half of it, and the whole of the hard shadow, paints outside the box. A
+    // <dialog> is `overflow: auto` in the UA sheet, and paint is not scrollable overflow,
+    // so the frame was clipped to half weight with no shadow until this said otherwise.
+    const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const dialog = /(?:^|[};])\s*\.detail-modal\s*\{([^}]*)\}/.exec(bare)?.[1];
+    expect(dialog, "no `.detail-modal` rule").toBeDefined();
+    expect(dialog).toMatch(/overflow:\s*visible/);
+  });
+
   test("keeps edit actions sticky at the bottom of the modal", () => {
     expect(fieldsCss).toContain(".capability-edit-form__actions");
     expect(fieldsCss).toContain("position: sticky");

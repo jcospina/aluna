@@ -8,17 +8,20 @@
  * (`src/web/fragments.ts`): only a fresh desk render or a newly activated tile arms one,
  * and the markup an attempt answers with is always inert.
  *
- * That leaves one arming source the server cannot reach — **htmx's history cache**. The
- * logo button carries `hx-push-url`, so opening a capability snapshots the desk's DOM
- * under the previous URL, and Back restores that snapshot and re-processes it, firing
- * every `hx-trigger="load"` it contains. If the snapshot was taken while an attempt was
- * still in flight — and an attempt can run for the better part of a minute — the restored
- * tile is still armed, and Back spends another one. A few taps would spend all three.
+ * That left one arming source the server cannot reach — **htmx's history cache**. The
+ * logo button used to carry `hx-push-url`, so opening a capability snapshotted the desk's
+ * DOM under the previous URL, and Back restored that snapshot and re-processed it, firing
+ * every `hx-trigger="load"` it contained. A snapshot taken while an attempt was still in
+ * flight — and an attempt can run for the better part of a minute — came back still
+ * armed, and a few taps of Back would spend all three.
  *
- * So the tile disarms itself the moment its request starts. The live DOM is what htmx
- * snapshots, so a tile that has already fired can never be restored armed. This is the
- * same idiom `app.js` uses for the records region's one-shot load: take the attributes
- * off once the request they describe is on its way.
+ * 5.6/03 closed that at the source: nothing carries `hx-push-url` any more, the desk
+ * writes its own history entries unmarked, and Back is answered by re-rendering the
+ * address rather than by restoring a body snapshot (design D14). This stays as the rule's
+ * last line. The tile disarms itself the moment its request starts, so a tile that has
+ * already fired cannot be replayed armed by any snapshot mechanism reintroduced later.
+ * It is the same idiom `app.js` uses for the records region's one-shot load: take the
+ * attributes off once the request they describe is on its way.
  */
 
 /** What the tile carries. Kept in step with `renderCapabilityLogo`. */

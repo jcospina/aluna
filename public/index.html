@@ -91,8 +91,10 @@
     <!--
       The one-attempt rule's client half. A faceless tile arms a single load-triggered
       POST that spends a paid generation; this takes the arming attributes off the moment
-      that request starts, so htmx's history cache can never snapshot — and Back can never
-      replay — a tile that has already fired (ADR-0007).
+      that request starts, so a tile that has already fired cannot be replayed armed by
+      anything that later re-processes the DOM it is standing in (ADR-0007). Since 5.6/03
+      htmx's history cache is not one of those: nothing carries `hx-push-url`, and the
+      desk answers Back by re-rendering the address rather than restoring a snapshot.
     -->
     <script type="module" src="/static/logo-attempt.js"></script>
 
@@ -115,7 +117,16 @@
     <script type="module" src="/static/ink.js"></script>
   </head>
 
-  <body>
+  <!--
+    No page of this desk is ever written outside the DOM. htmx snapshots the whole body
+    into `sessionStorage` before it touches history — and it touches history on every
+    `HX-Replace-Url` a deletion route answers with — which would put the search term, the
+    open record and a half-typed edit somewhere they outlive the tab. Nothing below
+    capability identity may leave the DOM (design D14; M5 plan 6), and the snapshot is
+    never read back either: the desk answers Back by re-rendering the address
+    (`public/desk-window.js`), not by restoring a copy of the page.
+  -->
+  <body hx-history="false">
     <!--
       The shell. Alpine `shell` component (public/app.js) holds two bits of
       presentation state: `devbarOpen` (the developer panel shown/expanded) and

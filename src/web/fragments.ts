@@ -168,7 +168,12 @@ export function renderCapabilityLogo(
 ): string {
   const id = escapeHtml(row.id);
   const label = canonicalCapabilityLabel(row);
-  const url = `/capability/${id}`;
+  // URI-encoded rather than only HTML-escaped, and no `hx-push-url`. The desk builds this
+  // same string from `data-capability-id` when the logo is pressed (`capabilityAddress` in
+  // `public/desk-window.js`) and pushes it itself — htmx would push on every press, the
+  // open logo's included, and only the desk knows whether the address already names this
+  // capability (design D14; PLAN decision 6).
+  const url = escapeHtml(`/capability/${encodeURIComponent(row.id)}`);
   return [
     "<button",
     '  type="button"',
@@ -179,7 +184,6 @@ export function renderCapabilityLogo(
     `  hx-get="${url}"`,
     '  hx-target="#spec-build-output"',
     '  hx-swap="innerHTML"',
-    `  hx-push-url="${url}"`,
     `  aria-label="Open ${escapeHtml(label)}"`,
     ">",
     indent(renderCapabilityLogoTile(row, options.armLogoAttempt !== false), 2),

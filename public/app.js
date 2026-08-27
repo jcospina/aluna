@@ -291,6 +291,20 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
   previewTarget.textContent = formatPreviewPayload(message.data);
 });
 
+/**
+ * The surface of the capability standing in the window: a direct child of the region,
+ * never a descendant. A build narrates beside what it displaced and carries a copy of that
+ * surface inside its own subscriber; only the one standing beside it is what the window is
+ * showing, and only that one may name what a build displaces
+ * (public/desk-window.js `capabilityInWindow` owns the rule).
+ * @returns {HTMLElement | null}
+ */
+function activeCapabilitySurface() {
+  const output = document.getElementById(WINDOW_REGION_ID);
+  const surface = output?.querySelector(":scope > [data-active-capability-id]");
+  return surface instanceof HTMLElement ? surface : null;
+}
+
 // Capture the exact active registry identity before POST /prompt appends its dormant
 // subscriber. The server validates both hints and stores only this data-free
 // descriptor on the ephemeral job.
@@ -302,8 +316,8 @@ function configureCapabilityDeletionRestoration(detail) {
   const trigger = detail.elt;
   if (!(trigger instanceof Element) || !trigger.matches("[data-capability-delete]")) return false;
   if (detail.parameters) detail.parameters.restore_surface = "neutral";
-  const surface = document.querySelector("[data-active-capability-id]");
-  if (!(surface instanceof HTMLElement) || !detail.parameters) return true;
+  const surface = activeCapabilitySurface();
+  if (surface === null || !detail.parameters) return true;
   const capabilityId = surface.dataset.activeCapabilityId;
   const incarnationId = surface.dataset.activeCapabilityIncarnation;
   if (!capabilityId || !incarnationId) return true;
@@ -320,8 +334,8 @@ document.addEventListener("htmx:configRequest", (event) => {
   if (configureCapabilityDeletionRestoration(detail)) return;
   const trigger = detail?.elt;
   if (!(trigger instanceof HTMLFormElement) || trigger.id !== "spec-build-form") return;
-  const surface = document.querySelector("[data-active-capability-id]");
-  if (!(surface instanceof HTMLElement) || !detail.parameters) return;
+  const surface = activeCapabilitySurface();
+  if (surface === null || !detail.parameters) return;
   const capabilityId = surface.dataset.activeCapabilityId;
   const incarnationId = surface.dataset.activeCapabilityIncarnation;
   if (!capabilityId || !incarnationId) return;
@@ -454,18 +468,21 @@ function syncListFieldRows(field) {
   });
 }
 
-function syncActiveCapabilityUrl() {
-  const surface = document.querySelector("[data-active-capability-id]");
-  if (!(surface instanceof HTMLElement)) return;
-  if (surface.closest("[data-build-restoration]")) return;
-
-  const capabilityId = surface.dataset.activeCapabilityId;
-  if (!capabilityId) return;
-
-  const capabilityUrl = `/capability/${encodeURIComponent(capabilityId)}`;
-  if (window.location.pathname === capabilityUrl && window.location.search === "") return;
-
-  window.history.replaceState(window.history.state, "", capabilityUrl);
+/**
+ * The window's content changed hands. The desk owns what the address does about it — this
+ * classic script cannot import the module that owns it, so it says what happened rather
+ * than deciding (ARCH §6.1: the shell presents, it never decides).
+ *
+ * `navigated` is true only where a capability *took* the window: a build's successful v1
+ * activation, whose canonical collection is standing somewhere for the first time. Kept
+ * in sync with public/desk-window.js (WINDOW_TOOK_CAPABILITY_EVENT); a platform test pins
+ * that these strings match.
+ * @param {boolean} navigated
+ */
+function tellDeskTheWindowTookCapability(navigated) {
+  document.dispatchEvent(
+    new CustomEvent("aluna:window-took-capability", { detail: { navigated } }),
+  );
 }
 
 // A Confirm submission whose response never arrives — a dropped connection, or a
@@ -603,6 +620,11 @@ function focusCapabilityDeletion(event) {
 }
 
 /** @param {HTMLElement} subscriber */
+// `activated` is the one thing the address cares about: a `commit` is a real pointer
+// activation, and its capability's canonical collection is taking the window. Every
+// restoration puts back what the build displaced and navigated nowhere, so it may not
+// leave an entry behind — not even when it lands after the user has opened something
+// else and the address has moved on without it.
 function terminalPresentationContent(subscriber) {
   const restoration = subscriber.querySelector("[data-build-restoration]");
   if (restoration instanceof HTMLElement) {
@@ -610,15 +632,16 @@ function terminalPresentationContent(subscriber) {
       element: restoration,
       promoteElement: false,
       restorationKind: restoration.dataset.buildRestoration,
+      activated: false,
     };
   }
   const commit = subscriber.querySelector(".build-stream__commit");
   if (commit instanceof HTMLElement && commit.childNodes.length > 0) {
-    return { element: commit, promoteElement: false, restorationKind: undefined };
+    return { element: commit, promoteElement: false, restorationKind: undefined, activated: true };
   }
   const narration = subscriber.querySelector(".build-stream__narration");
   return narration instanceof HTMLElement && narration.childNodes.length > 0
-    ? { element: narration, promoteElement: true, restorationKind: undefined }
+    ? { element: narration, promoteElement: true, restorationKind: undefined, activated: false }
     : null;
 }
 
@@ -660,15 +683,18 @@ function promoteTerminalPresentation(subscriber, output) {
     releaseRegionContent(subscriber);
     subscriber.remove();
   }
-  return terminal?.restorationKind;
+  return { restorationKind: terminal?.restorationKind, activated: terminal?.activated === true };
 }
 
-/** @param {EventTarget | null} eventTarget */
+/**
+ * @param {EventTarget | null} eventTarget
+ * @returns {boolean} whether a real pointer activation took the window
+ */
 function finishTerminalPresentation(eventTarget) {
-  if (!(eventTarget instanceof Element)) return;
+  if (!(eventTarget instanceof Element)) return false;
   const subscriber = eventTarget.closest("[data-build-job-id]");
   const output = subscriber?.closest(`#${WINDOW_REGION_ID}`);
-  if (!(subscriber instanceof HTMLElement) || !(output instanceof HTMLElement)) return;
+  if (!(subscriber instanceof HTMLElement) || !(output instanceof HTMLElement)) return false;
 
   if (subscriber.dataset.preserveActiveView === "true") {
     // Scoped to the subscriber, not the region: the preserved active view stays. Dispatched
@@ -676,10 +702,10 @@ function finishTerminalPresentation(eventTarget) {
     // request — the observer sweep behind it cannot.
     releaseRegionContent(subscriber);
     subscriber.remove();
-    return;
+    return false;
   }
 
-  const restorationKind = promoteTerminalPresentation(subscriber, output);
+  const { restorationKind, activated } = promoteTerminalPresentation(subscriber, output);
   putAwayEmptyWindow(output);
 
   const modal = document.getElementById("aluna-detail-modal");
@@ -691,12 +717,17 @@ function finishTerminalPresentation(eventTarget) {
   ) {
     window.history.replaceState(window.history.state, "", "/");
   }
+  return activated;
 }
 
 document.addEventListener("htmx:sendError", recoverSeveredCapabilityDeletion);
 document.addEventListener("htmx:timeout", recoverSeveredCapabilityDeletion);
 document.addEventListener("htmx:afterSwap", (event) => {
-  syncActiveCapabilityUrl();
+  // A swap is not a navigation: whatever navigated pushed its own address before the
+  // request went out, so this only ever catches the address up with a window that
+  // changed hands underneath it — a cancelled deletion putting the previous capability
+  // back is the one that does.
+  tellDeskTheWindowTookCapability(false);
   focusCapabilityDeletion(event);
 });
 document.addEventListener("htmx:afterSettle", (event) => {
@@ -713,6 +744,9 @@ document.addEventListener("htmx:sseClose", (event) => {
       ? event.detail.type
       : undefined;
   if (closeType !== "message") return;
-  finishTerminalPresentation(event.target);
-  syncActiveCapabilityUrl();
+  // Only a real pointer activation navigated: its capability's canonical collection is
+  // standing somewhere for the first time. A restoration puts back what the build
+  // displaced and is owed no entry — least of all when it lands after the user has opened
+  // something else and the address has already moved on without it.
+  tellDeskTheWindowTookCapability(finishTerminalPresentation(event.target));
 });

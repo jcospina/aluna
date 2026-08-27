@@ -672,7 +672,15 @@ function addLamps(entry) {
   entry.el.addEventListener("window:lamp", (event) => {
     const { action } = /** @type {CustomEvent<{ action?: string }>} */ (event).detail;
     if (action === "maximise") toggleMaximise(entry);
-    if (action === "putaway") putAway();
+    /* The clay lamp is a navigation: the user asked for the bare desk, so the bare desk
+     * is the entry Back steps off (design D14). The other two ways a window goes away are
+     * not. A window emptied by a deletion and one opened for a read that never filled it
+     * are both the address turning out to be wrong rather than the user moving, and each
+     * is corrected in place — neither may leave an entry naming what has gone. */
+    if (action === "putaway") {
+      putAway();
+      pushAddress(DESK_ADDRESS, deskHistory());
+    }
   });
 }
 
@@ -851,6 +859,233 @@ export function capabilityIdFromAddress(pathname) {
   }
 }
 
+/* ── the address ───────────────────────────────────────────────────────────── */
+
+/** The bare desk. Putting the window away comes back here (design D14). */
+export const DESK_ADDRESS = "/";
+
+/**
+ * One capability's address. `renderCapabilityLogo` spells the logo's own request the same
+ * way, so a press and a reload of what the press wrote ask the server for one URL.
+ *
+ * @param {string} id
+ * @returns {string}
+ */
+export function capabilityAddress(id) {
+  return `/capability/${encodeURIComponent(id)}`;
+}
+
+/**
+ * Whether one address is somewhere other than another.
+ *
+ * Two addresses naming the same capability are one place however they are spelled, which
+ * is what stops Back walking a run of entries that all name it — a press on the logo
+ * already open, a swap correcting an address that was already right (design D14).
+ *
+ * @param {string} current the address in the bar
+ * @param {string} next
+ * @returns {boolean}
+ */
+export function isAnotherPlace(current, next) {
+  if (current === next) return false;
+  const here = capabilityIdFromAddress(current);
+  return here === null || here !== capabilityIdFromAddress(next);
+}
+
+/**
+ * The mark on the entries this module writes, and deliberately not htmx's. htmx claims
+ * the entries stamped `{ htmx: true }` and answers a Back onto one by restoring a snapshot
+ * of the whole body — the DOM as it stood, search term and open record included.
+ *
+ * Two things stand between that and the desk, and this is only the second of them. The
+ * shell carries `hx-history="false"`, so no snapshot is ever taken; and `ownHistory` below
+ * takes `popstate` outright, so htmx never answers a Back at all. This mark is what would
+ * still tell the two apart if either were ever undone — it is not read at run time, and
+ * htmx may re-stamp an entry it corrects through `HX-Replace-Url` without consequence.
+ */
+export const DESK_HISTORY_STATE = { aluna: "desk" };
+
+/**
+ * The address bar and its history, or nothing where there is no browser.
+ *
+ * Handed to the two verbs below rather than reached for inside them, the way `localStore`
+ * is handed to `savePresentation`: the whole of the history contract is then something a
+ * test can run, rather than something a test can only read off the source.
+ *
+ * @typedef {{
+ *   location: { pathname: string, search: string },
+ *   history: {
+ *     pushState(state: unknown, unused: string, url: string): void,
+ *     replaceState(state: unknown, unused: string, url: string): void,
+ *   },
+ * }} Bar
+ * @returns {Bar | null}
+ */
+export function deskHistory() {
+  return typeof window === "undefined" ? null : window;
+}
+
+/**
+ * Push one address, unless the bar already names that place.
+ *
+ * The bar is asked rather than a copy kept here. Back and Forward move the address
+ * without passing through this, so a mirror in this module would be wrong the moment the
+ * user pressed either.
+ *
+ * @param {string} next
+ * @param {Bar | null} bar
+ * @returns {string | null} the address it left, for a caller that may have to step back
+ */
+export function pushAddress(next, bar) {
+  if (bar === null) return null;
+  const cameFrom = bar.location.pathname;
+  if (!isAnotherPlace(cameFrom, next)) return null;
+  bar.history.pushState(DESK_HISTORY_STATE, "", next);
+  return cameFrom;
+}
+
+/**
+ * Move the address, adding no entry. A correction rather than a navigation: the user did
+ * not go anywhere, so there is nowhere new for Back to step off.
+ *
+ * Unconditional, unlike the push. A caller correcting an address that may already be right
+ * asks `isAnotherPlace` first; the one stepping a failed press back knows the bar is
+ * carrying the entry that press just made.
+ *
+ * @param {string} next
+ * @param {Bar | null} bar
+ */
+export function replaceAddress(next, bar) {
+  bar?.history.replaceState(DESK_HISTORY_STATE, "", next);
+}
+
+/** The marker the server puts on the surface of the capability standing in a window. */
+export const ACTIVE_CAPABILITY_ATTRIBUTE = "data-active-capability-id";
+
+/** That surface, as a direct child of the region and never as a descendant. */
+const ACTIVE_CAPABILITY_SELECTOR = `:scope > [${ACTIVE_CAPABILITY_ATTRIBUTE}]`;
+
+/**
+ * The capability whose collection is standing in the window — or nothing, for a window
+ * holding a build's narration, a confirmation, or nothing at all.
+ *
+ * Read back off the surface rather than remembered here: one window holds many successive
+ * contents, and a copy kept in this module would be wrong the moment a swap landed on it.
+ *
+ * A direct child on purpose. A build narrates *beside* what it displaced, and the copy of
+ * that surface it carries to put back is nested inside its own subscriber; only the one
+ * standing beside it is what the window is showing. That is the whole of why a build does
+ * not change the address.
+ *
+ * @typedef {{ getAttribute(name: string): string | null }} SurfaceNode
+ * @param {{ region: { querySelector(selector: string): SurfaceNode | null } } | null | undefined} entry
+ * @returns {string | null}
+ */
+export function capabilityInWindow(entry) {
+  const surface = entry?.region.querySelector(ACTIVE_CAPABILITY_SELECTOR);
+  return surface?.getAttribute(ACTIVE_CAPABILITY_ATTRIBUTE) ?? null;
+}
+
+/**
+ * The window's content changed hands, said by a script that cannot import this module —
+ * `app.js` is the one that sees an htmx swap land and a build's terminal promote. It says
+ * what happened and the desk decides what the address does about it, so the rule for
+ * "already there" stays in one place rather than being answered twice.
+ *
+ * `detail.navigated` is true only where a capability *took* the window: a build's
+ * successful v1 activation, whose canonical collection is standing somewhere for the
+ * first time. Kept in sync in `app.js`; a platform test pins the strings.
+ */
+export const WINDOW_TOOK_CAPABILITY_EVENT = "aluna:window-took-capability";
+
+/**
+ * Point the address at the capability standing in the window.
+ *
+ * A capability taking the window is a navigation and is owed an entry. Anything else is
+ * the address catching up with a window that changed hands underneath it — a cancelled
+ * deletion putting the previous capability back — and is owed none. An evolution's commit
+ * and every non-activating terminal carry the id the address already names, so neither
+ * reaches either verb (design D14; ARCH §6.1).
+ *
+ * @param {boolean} navigated
+ */
+function addressTheWindow(navigated) {
+  const id = capabilityInWindow(mounted);
+  if (id === null) return;
+  const next = capabilityAddress(id);
+  const bar = deskHistory();
+  if (bar === null) return;
+  if (navigated) {
+    pushAddress(next, bar);
+    return;
+  }
+  /* A correction asks whether the bar is *exactly* right, where a push asks only whether
+   * it is somewhere else. The difference is what strips a query string and a trailing
+   * slash: nothing here ever writes either, so one in the bar came in from outside — a
+   * link, a hand-typed address — and it is below capability identity, which may not be in
+   * the address at all (design D14). Correcting it costs no entry, so the canonical
+   * spelling wins without the user having navigated anywhere. */
+  if (bar.location.pathname !== next || bar.location.search !== "") replaceAddress(next, bar);
+}
+
+/**
+ * What the window is showing, for the one question a press has to ask of it.
+ *
+ * A run narrating in the window is not a capability standing in it, even though the
+ * collection it displaced is still there beside the subscriber. A press on that
+ * capability's logo is entitled to take the window back off the run, so a build makes the
+ * window hold nothing as far as this question goes.
+ *
+ * @param {DeskWindow | null} entry
+ * @returns {string | null}
+ */
+function settledCapabilityInWindow(entry) {
+  if (entry === null || buildJobIdIn(entry.el) !== null) return null;
+  return capabilityInWindow(entry);
+}
+
+/**
+ * Whether a press on this logo has anything to open.
+ *
+ * The capability already standing in the window is not opened again. There is no new
+ * address to push and nothing to fetch — and fetching would swap the collection out and
+ * straight back in, so the window visibly flickers to arrive exactly where it already
+ * was. Pressing the open logo leaves the window that is up as it is, which is the whole
+ * of what "focusing the already-open capability" means when there is only one window
+ * and it is always the focused one (design D14; ARCH §6.1).
+ *
+ * @param {LogoNode} logo
+ * @param {string | null} showing the capability settled in the window
+ * @returns {boolean}
+ */
+export function pressWouldOpen(logo, showing) {
+  const id = logo.getAttribute("data-capability-id");
+  return id === null || id === "" || id !== showing;
+}
+
+/**
+ * What an address asks of the desk, and the only question a load, a Back and a Forward
+ * ever ask: this address, this desk — what is in the window?
+ *
+ * A logo layer rehydrated from the registry is the only statement on this page of what
+ * exists, so an address naming something not standing there asks for the bare desk. That
+ * is also what a link to a deleted capability should get, and 5.9/03 makes the server say
+ * so.
+ *
+ * @param {LogoRoot} root
+ * @param {string} pathname
+ * @param {string | null} showing the capability already in the window
+ * @returns {{ ask: "bare desk" } | { ask: "nothing" } | { ask: "open", logo: LogoNode, id: string }}
+ */
+export function addressAsks(root, pathname, showing) {
+  const id = capabilityIdFromAddress(pathname);
+  const logo = id === null ? null : logoFor(root, id);
+  if (id === null || logo === null) return { ask: "bare desk" };
+  /* Already standing there: an address that names what the window is holding asks for
+   * nothing, the way a press on the open logo does. */
+  return id === showing ? { ask: "nothing" } : { ask: "open", logo, id };
+}
+
 /**
  * Run once the desk has edges to measure.
  *
@@ -888,23 +1123,34 @@ function whenDeskIsLaidOut(root, open) {
 }
 
 /**
- * The capability the address names, if it names one and the desk has it. A logo
- * layer rehydrated from the registry is the only statement on this page of what
- * exists, so an address naming something not standing there opens nothing and
- * leaves the bare desk — which is also what a link to a deleted capability should
- * do, and 5.9/03 makes the server say so.
+ * Show what an address names, and write nothing back to history.
+ *
+ * The load-time opener and the answer to Back are one function because they are one
+ * question, and answering them apart is how a frame and an address drift out of step.
+ * Neither pushes: the address is already what it is, and an answer that pushed would put
+ * the entry it was answering back on top of the stack — the loop design D14 rules out.
  *
  * @param {ParentNode} root
  * @param {string} pathname
  */
-function openAddressedCapability(root, pathname) {
-  const id = capabilityIdFromAddress(pathname);
-  if (id === null) return;
-
-  const logo = logoFor(root, id);
-  if (!logo) return;
-
-  whenDeskIsLaidOut(root, () => openAddressedWindow(root, pathname, logo));
+function renderAddress(root, pathname) {
+  const asked = addressAsks(root, pathname, capabilityInWindow(mounted));
+  if (asked.ask === "nothing") return;
+  if (asked.ask === "bare desk") {
+    /* Putting the window away cancels a run it was narrating, so a Back out of a build
+     * takes the build with it, silently. Back onto *another capability* falls through to
+     * the swap below instead, which releases the subscriber without cancelling anything,
+     * so the run is orphaned rather than stopped — the same asymmetry a logo press has
+     * had all along. 5.8/04 owns both halves: it puts the leave-a-run warning in front of
+     * put-away, logo and history alike, and routes each through the one cancel teardown
+     * (PLAN decision 17). */
+    putAway();
+    return;
+  }
+  /* The capability's own address, not the one in the bar. `capabilityIdFromAddress`
+   * forgives a trailing slash and the route does not, so a hand-typed `/capability/notes/`
+   * would otherwise be fetched verbatim and answered with a 404. */
+  whenDeskIsLaidOut(root, () => openAddressedWindow(root, capabilityAddress(asked.id), asked.logo));
 }
 
 /**
@@ -914,12 +1160,15 @@ function openAddressedCapability(root, pathname) {
  */
 function openAddressedWindow(root, pathname, logo) {
   const region = openWindow(logoTitle(logo), root, asElement(logo));
-  /* The same fragment a logo click serves, asked for by the same client. The address
-   * is already right, so nothing is pushed. */
+  /* The same fragment a logo click serves, asked for by the same client. The address is
+   * already right, so nothing is pushed — and if the read never fills the window, the
+   * address stops naming a capability nobody is looking at. */
   void htmx()
     ?.ajax?.("GET", pathname, { source: logo, target: region, swap: "innerHTML" })
     .catch(() => undefined)
-    .finally(() => putAwayUnfilledWindow(region));
+    .finally(() => {
+      if (putAwayUnfilledWindow(region)) correctUnfilledAddress(pathname, DESK_ADDRESS);
+    });
 }
 
 /**
@@ -930,11 +1179,35 @@ function openAddressedWindow(root, pathname, logo) {
  * wrong question.
  *
  * @param {Element} region the region the request was aimed at
+ * @returns {boolean} whether there was an unfilled window and it is now gone
  */
 function putAwayUnfilledWindow(region) {
-  if (mounted?.region !== region) return;
-  if (region.childNodes.length > 0) return;
-  putAway();
+  if (mounted?.region !== region) return false;
+  if (region.childNodes.length > 0) return false;
+  return putAway();
+}
+
+/**
+ * A window that never filled leaves no address behind naming what did not open.
+ *
+ * Only where the bar is still carrying the address that press or that Back put there. A
+ * slow failure can answer long after the user has opened something else, and correcting
+ * then would answer the wrong question — the same reason `putAwayUnfilledWindow` asks
+ * which window is up before taking one down.
+ *
+ * A correction rather than a step back. `history.back()` is asynchronous, would arrive as
+ * a `popstate` this desk would then answer, and would throw away a Forward the user may
+ * still have. The cost is one entry naming the same place as the one before it, so a
+ * single Back out of a failed press looks inert; a live address naming a capability
+ * nobody can open is the worse of the two.
+ *
+ * @param {string} attempted the address that was being opened
+ * @param {string} back where to leave the bar instead
+ */
+function correctUnfilledAddress(attempted, back) {
+  const bar = deskHistory();
+  if (bar === null || isAnotherPlace(bar.location.pathname, attempted)) return;
+  replaceAddress(back, bar);
 }
 
 /**
@@ -947,6 +1220,66 @@ function putAwayUnfilledWindow(region) {
  */
 function asElement(logo) {
   return logo instanceof Element ? logo : null;
+}
+
+/**
+ * Stand a press down if the capability it asked for answers unsuccessfully.
+ *
+ * A logo whose capability has gone — deleted in another tab — answers unsuccessfully, and
+ * htmx keeps an unsuccessful response out of the DOM. Nothing swaps, so nothing would take
+ * back the window the press just opened, and the desk would be left holding an empty frame
+ * titled with a capability that no longer exists, at an address naming it.
+ *
+ * The listener stands down on *this* press's own request and no other. Standing down on
+ * the first request to answer would let any other in flight — a logo attempt can run for
+ * the better part of a minute — take it away, and the failure would then go unnoticed.
+ *
+ * @param {Document} root
+ * @param {Element} logo
+ * @param {Element} region the region the press opened
+ * @param {string | null} attempted the address the press asked for
+ * @param {string | null} cameFrom where the bar was before the press pushed, if it pushed
+ */
+function standDownUnsuccessfulPress(root, logo, region, attempted, cameFrom) {
+  /** @param {Event} done */
+  const settle = (done) => {
+    const detail = /** @type {CustomEvent<{ elt?: unknown, successful?: boolean }>} */ (done)
+      .detail;
+    if (detail?.elt !== logo) return;
+    root.removeEventListener("htmx:afterRequest", settle);
+    if (detail.successful !== false) return;
+    /* Both halves are asked first: a slow failure can land after the user has opened
+     * something else, and the window it would take down and the entry it would write over
+     * would both be that. */
+    if (putAwayUnfilledWindow(region) && attempted !== null) {
+      correctUnfilledAddress(attempted, cameFrom ?? DESK_ADDRESS);
+    }
+  };
+  root.addEventListener("htmx:afterRequest", settle);
+}
+
+/**
+ * Open the capability a press asked for.
+ *
+ * The window is stood up before htmx resolves the press into a request, because the
+ * target every existing swap addresses lives inside it.
+ *
+ * The address is pushed before the request goes out rather than after it, because the
+ * swap that answers the press corrects the address on its way in and would otherwise
+ * overwrite the entry this press is owed instead of standing a new one on top of it. It
+ * is therefore pushed before htmx has decided to issue anything; every press that gets
+ * here issues one today, and 5.9 hangs a context menu off this same element, so a control
+ * there that cancels the request will want the push moved onto `htmx:beforeRequest`.
+ *
+ * @param {Document} root
+ * @param {Element} logo
+ */
+function openPressedCapability(root, logo) {
+  const region = openWindow(logoTitle(logo), root, logo);
+  const id = logo.getAttribute("data-capability-id");
+  const attempted = id !== null && id !== "" ? capabilityAddress(id) : null;
+  const cameFrom = attempted === null ? null : pushAddress(attempted, deskHistory());
+  standDownUnsuccessfulPress(root, logo, region, attempted, cameFrom);
 }
 
 /**
@@ -975,22 +1308,12 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
       const { target } = event;
       if (!(target instanceof Element)) return;
       const logo = target.closest(CAPABILITY_LOGO_SELECTOR);
-      if (!logo) return;
-      const region = openWindow(logoTitle(logo), root, logo);
-      /* A logo whose capability has gone — deleted in another tab — answers
-       * unsuccessfully, and htmx keeps an unsuccessful response out of the DOM.
-       * Nothing swaps, so nothing would take back the window the press just opened,
-       * and the desk would be left holding an empty frame titled with a capability
-       * that no longer exists. */
-      root.addEventListener(
-        "htmx:afterRequest",
-        (done) => {
-          const detail = /** @type {CustomEvent<{ elt?: unknown, successful?: boolean }>} */ (done)
-            .detail;
-          if (detail?.elt === logo && detail.successful === false) putAwayUnfilledWindow(region);
-        },
-        { once: true },
-      );
+      /* The one press the desk declines. Declined here *and* at the request below,
+       * because those are the two halves htmx splits a press into and this listener
+       * cannot stop the second on its own. */
+      if (logo !== null && pressWouldOpen(logo, settledCapabilityInWindow(mounted))) {
+        openPressedCapability(root, logo);
+      }
     },
     true,
   );
@@ -1015,7 +1338,58 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
     true,
   );
 
-  openAddressedCapability(root, pathname);
+  /* htmx turns a press into a request from a listener on the logo itself, which runs
+   * after every capture listener on the document and does not consult `defaultPrevented`
+   * — so a press the desk has already declined above would still be fetched. Cancelling
+   * `htmx:beforeRequest` is what stops it, and htmx then fires no `afterRequest` for it,
+   * which is why the press that gets here never stood a listener up for one.
+   *
+   * Matched rather than `closest`: a faceless tile's one-attempt POST is fired from a
+   * span *inside* the logo, and it is not this press. */
+  root.addEventListener("htmx:beforeRequest", (event) => {
+    const elt = /** @type {CustomEvent<{ elt?: unknown }>} */ (event).detail?.elt;
+    if (!(elt instanceof Element) || !elt.matches(CAPABILITY_LOGO_SELECTOR)) return;
+    if (!pressWouldOpen(elt, settledCapabilityInWindow(mounted))) event.preventDefault();
+  });
+
+  /* The window's content changing hands is `app.js`'s to notice and the desk's to
+   * answer, the way putting the window away is. */
+  root.addEventListener(WINDOW_TOOK_CAPABILITY_EVENT, (event) => {
+    const detail = /** @type {CustomEvent<{ navigated?: boolean }>} */ (event).detail;
+    addressTheWindow(detail?.navigated === true);
+  });
+
+  ownHistory(root);
+  renderAddress(root, pathname);
+}
+
+/**
+ * Back and Forward are the desk's to answer.
+ *
+ * htmx answers any entry stamped `{ htmx: true }` — every entry an `HX-Replace-Url` has
+ * touched — by restoring a snapshot of the whole body. A window this module built and
+ * still holds would be replaced by a copy it has never seen, carrying whatever search
+ * term or open record stood there when the snapshot was taken (design D14). So the
+ * property is taken rather than a listener added beside it: two answers to one Back is
+ * the desynchronised frame D14 exists to rule out.
+ *
+ * Taken twice, and that is the load-bearing part. htmx installs its handler on
+ * `DOMContentLoaded` and *chains* whatever it finds there, so taking the property only
+ * before that moment leaves htmx wrapping this and still answering its own entries.
+ * Taking it on both sides of that moment is what makes this independent of which script
+ * ran first.
+ *
+ * @param {ParentNode} root
+ */
+function ownHistory(root) {
+  if (typeof window === "undefined") return;
+  const take = () => {
+    window.onpopstate = () => renderAddress(root, window.location.pathname);
+  };
+  take();
+  if (typeof document !== "undefined" && document.readyState !== "complete") {
+    document.addEventListener("DOMContentLoaded", take, { once: true });
+  }
 }
 
 if (typeof document !== "undefined") {

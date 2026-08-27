@@ -262,9 +262,10 @@ describe("two lamps, and there is no minimise", () => {
   test("the clay lamp puts away, and putting away changes nothing in storage", () => {
     const source = code("public/desk-window.js");
     expect(source).toMatch(/action === "maximise"\) toggleMaximise\(entry\)/);
-    expect(source).toMatch(/action === "putaway"\) putAway\(\)/);
+    expect(source).toMatch(/action === "putaway"\) \{\s*putAway\(\);/);
     // The logo stays where it was and the same click brings the window back — to the
-    // box it had. A put-away that wrote would make the clay lamp a way to forget.
+    // box it had. A put-away that wrote would make the clay lamp a way to forget. The
+    // address is the one thing it does move, and it moves it to the bare desk (D14).
     const putAway = /export function putAway\(\) \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? "";
     expect(putAway, "no `putAway`").not.toBe("");
     expect(putAway).not.toContain("savePresentation");
@@ -354,6 +355,37 @@ describe("the window's content region scrolls, and only when it should", () => {
     const tokens = read("design/styles/tokens.css");
     const rem = Number(new RegExp(`--${gutter}:\\s*([\\d.]+)rem`).exec(tokens)?.[1]);
     expect(rem * 16).toBeGreaterThanOrEqual(reach);
+  });
+
+  test("the records region is a second scroller, and it is guttered on all four sides", () => {
+    // The window's region is not the only scroller in a collection: the records region
+    // scrolls the list under a search rail that stays put, so it needs the same two
+    // things the window's does — a gutter wide enough for everything a card reaches past
+    // its own box, and, sideways, a clip behind it. Every edge of that scrollport cut
+    // through the reach: hovering a card grew a horizontal scrollbar on a vertical list,
+    // and at the foot of a long list the last card's bottom line came out half-weight,
+    // its outer half clipped away.
+    const region = body(rules("public/css/collection.css"), ".capability-records");
+    expect(region).toMatch(/overflow-x:\s*hidden/);
+    expect(region).not.toMatch(/overflow:\s*auto/);
+
+    const gutter = /padding:\s*var\(--(space-\d)\)/.exec(region)?.[1];
+    expect(gutter, "the records region has no gutter").toBeDefined();
+    const tokens = read("design/styles/tokens.css");
+    const rem = Number(new RegExp(`--${gutter}:\\s*([\\d.]+)rem`).exec(tokens)?.[1]);
+    // The furthest a card reaches out of its box: the 3px ring at its 2px offset. The
+    // drawn line reaches ~2px and the press 2px, and both are inside that.
+    expect(rem * 16).toBeGreaterThanOrEqual(5);
+
+    // Pulled back out by exactly as much, and on every side, so nothing moves: the cards
+    // keep their alignment with the rail above and the list keeps its height, and the
+    // gutter is spent on the surface's padding rather than on the list's own box.
+    expect(region).toMatch(new RegExp(`margin:\\s*calc\\(-1 \\* var\\(--${gutter}\\)\\)`));
+    for (const side of ["inline", "block", "top", "bottom", "left", "right"]) {
+      expect(region, `a one-sided \`padding-${side}\` leaves an edge to clip against`).not.toMatch(
+        new RegExp(`padding-${side}:`),
+      );
+    }
   });
 });
 

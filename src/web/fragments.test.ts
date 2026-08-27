@@ -139,7 +139,9 @@ describe("web fragments", () => {
     });
     expect(fragment).toContain("data-capability-logo-oob");
     expect(fragment).toContain('id="capability-logo-notes"');
-    expect(fragment).toContain('hx-push-url="/capability/notes"');
+    // The address is the desk's to write. htmx would push on every press, the open
+    // logo's included, and snapshot the body under the address it left (design D14).
+    expect(fragment).not.toContain('hx-push-url="');
     expect(fragment).toContain('aria-label="Open Notes"');
     // The placeholder tile, and it keeps working: this one is armed, so its own logo
     // request is in flight and the artwork is on its way to this very element. The
@@ -302,9 +304,10 @@ describe("on-load logo rehydration", () => {
     // each pointing at the cached-view route a click serves.
     expect(countMatches(html, "data-capability-logo")).toBe(2);
     expect(html).toContain('hx-get="/capability/notes"');
-    expect(html).toContain('hx-push-url="/capability/notes"');
     expect(html).toContain('hx-get="/capability/recipes"');
-    expect(html).toContain('hx-push-url="/capability/recipes"');
+    // No `hx-push-url` on a logo: `public/desk-window.js` pushes the address itself, so
+    // a press on the logo already open adds no second entry (design D14).
+    expect(html).not.toContain('hx-push-url="');
     expect(html).toContain("Notes");
     expect(html).toContain("Recipes");
 
