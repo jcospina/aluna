@@ -1,7 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { committedRecordsRefreshTarget, refreshCommittedRecords } from "#shell/records-refresh.js";
+import {
+  committedRecordsRefreshTarget,
+  RECORDS_REFRESH_START_EVENT,
+  refreshCommittedRecords,
+} from "#shell/records-refresh.js";
 import { createRecordsRegionRequestCoordinator } from "#shell/records-region-requests.js";
+import { registerRegionRelease } from "#shell/region-scope.js";
 import { createDebouncedCapabilitySearch } from "#shell/search-chrome.js";
 
 describe("refreshCommittedRecords", () => {
@@ -188,5 +193,73 @@ describe("records region request ownership", () => {
     responses.get("/capability/tasks/read?generation=old")?.(new Response("stale records"));
     expect(await older).toEqual({ applied: false, region, query: "" });
     expect(region.innerHTML).toBe("newest records");
+  });
+});
+
+/**
+ * The refresh takes the region before it claims it, and that order is the whole of
+ * whether a mutation's aftermath renders at all: the release runs over everything the
+ * region still holds, so a claim made first is the first thing it aborts.
+ *
+ * Executed rather than read, which means standing up just enough of a browser for the
+ * module's own `region instanceof Element` question to have an answer. Both globals are
+ * put back afterwards, so nothing else in the process sees them.
+ */
+class RegionElement extends EventTarget {
+  innerHTML = "";
+  readonly isConnected = true;
+  readonly attributes: Record<string, string> = {};
+  readonly classList = { contains: () => false };
+  setAttribute(name: string, value: string): void {
+    this.attributes[name] = value;
+  }
+  closest(): null {
+    return null;
+  }
+  querySelectorAll(): readonly never[] {
+    return [];
+  }
+  contains(): boolean {
+    return false;
+  }
+}
+
+describe("a refresh takes the region before it claims it", () => {
+  const globals = globalThis as unknown as Record<string, unknown>;
+  // The three names the module reaches for when it decides it is talking to a browser.
+  const shims = { Element: RegionElement, HTMLFormElement: class {}, window: {} };
+  const absent = Object.keys(shims).filter((name) => !(name in globals));
+
+  beforeAll(() => {
+    for (const name of absent) globals[name] = shims[name as keyof typeof shims];
+  });
+  afterAll(() => {
+    for (const name of absent) delete globals[name];
+  });
+
+  test("releases the read that was already filling it, and still renders its own", async () => {
+    const region = new RegionElement();
+    const viewRead = new AbortController();
+    const announced: string[] = [];
+    region.addEventListener(RECORDS_REFRESH_START_EVENT, () =>
+      announced.push("search stands down"),
+    );
+    // What the View's own one-shot read looks like to the region rule.
+    registerRegionRelease(region, "records read", () => viewRead.abort());
+
+    const result = await refreshCommittedRecords({
+      region,
+      readUrl: "/capability/tasks/read",
+      request: async (_url, init) => {
+        expect(init?.signal?.aborted).toBe(false);
+        return new Response("<article>committed</article>");
+      },
+    });
+
+    expect(announced).toEqual(["search stands down"]);
+    expect(viewRead.signal.aborted).toBe(true);
+    expect(result.applied).toBe(true);
+    expect(region.innerHTML).toBe("<article>committed</article>");
+    expect(region.attributes["aria-busy"]).toBe("false");
   });
 });

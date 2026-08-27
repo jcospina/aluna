@@ -8,76 +8,7 @@ import {
   createRegionReleaseRegistry,
   RELEASE_REGION_EVENT,
 } from "#shell/region-scope.js";
-
-/**
- * A node small enough to run the release rule in Bun. The rule needs three DOM facts and
- * no more — is this anchor still in the document, does that node hold it, and which
- * content region is it in — so this implements exactly those and the tree operations a
- * test performs on them.
- */
-class Node {
-  readonly children: Node[] = [];
-  parent: Node | null = null;
-  /** Only the document root sets this; everything else inherits by being under it. */
-  rooted = false;
-
-  constructor(
-    readonly name: string,
-    readonly region?: string,
-  ) {}
-
-  get isConnected(): boolean {
-    for (let node: Node | null = this; node; node = node.parent) {
-      if (node.rooted) return true;
-    }
-    return false;
-  }
-
-  contains(other: Node): boolean {
-    for (let node: Node | null = other; node; node = node.parent) {
-      if (node === this) return true;
-    }
-    return false;
-  }
-
-  closest(selector: string): Node | null {
-    if (selector !== "[data-content-region]") throw new Error(`Unsupported: ${selector}`);
-    for (let node: Node | null = this; node; node = node.parent) {
-      if (node.region !== undefined) return node;
-    }
-    return null;
-  }
-
-  getAttribute(name: string): string | null {
-    return name === "data-content-region" ? (this.region ?? null) : null;
-  }
-
-  append(...nodes: Node[]): void {
-    for (const node of nodes) {
-      node.parent = this;
-      this.children.push(node);
-    }
-  }
-
-  /** What `innerHTML =` and `replaceChildren()` both are: this content, gone. */
-  replaceChildren(...nodes: Node[]): void {
-    for (const child of this.children) child.parent = null;
-    this.children.length = 0;
-    this.append(...nodes);
-  }
-
-  remove(): void {
-    const siblings = this.parent?.children;
-    if (siblings) siblings.splice(siblings.indexOf(this), 1);
-    this.parent = null;
-  }
-}
-
-function document(): Node {
-  const root = new Node("body");
-  root.rooted = true;
-  return root;
-}
+import { document, Node } from "./region-scope.test-support.ts";
 
 describe("a content region releases what its content started", () => {
   test("replacing the content releases every fetch, controller and read token it acquired", () => {
@@ -283,11 +214,22 @@ describe("the shell's classic-script glue speaks the release vocabulary", () => 
     expect(glue).toContain(`"${RELEASE_REGION_EVENT}"`);
   });
 
-  test("releases the content area before each of its wholesale replacements", () => {
-    // The two places app.js replaces the window's content itself, rather than
-    // leaving it to htmx: promoting a terminal build presentation, and re-answering a
-    // severed deletion confirmation.
-    expect(glue.match(/releaseRegionContent\(output\);/g)).toHaveLength(2);
+  test("releases the content area before it replaces it wholesale", () => {
+    // Re-answering a severed deletion confirmation is the one place app.js replaces the
+    // whole region itself rather than leaving it to htmx, so it is the one place that
+    // releases the whole region.
+    expect(glue.match(/releaseRegionContent\(output\);/g)).toHaveLength(1);
+  });
+
+  test("promoting a build's ending releases through this rule and not around it", () => {
+    // The other replacement keeps something: a restoration's View may already be reading
+    // when the run ends, and releasing the region wholesale would abort it. So the ending
+    // is moved out first and the release runs over what is left, node by node — which is
+    // why nothing there re-fetches by hand. The whole ordering is pinned in
+    // `capability-swap.test.ts`, beside the rule it follows; what belongs here is that it
+    // is this rule it reaches for.
+    expect(glue).toContain("releaseRegionContent(node)");
+    expect(glue).not.toContain("reloadRestoredRecords");
   });
 
   test("the window marks the one region, and the shell starts the system", () => {

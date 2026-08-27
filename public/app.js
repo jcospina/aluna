@@ -5,14 +5,21 @@
 // Type safety without a build: `// @ts-check` + JSDoc means the repo's existing
 // `tsc --noEmit` typechecks this file with zero runtime change.
 //
-// Today it does three things, all presentation-only (no product logic — the shell
-// is dumb on purpose, ARCH §6.1):
+// Everything here is presentation-only (no product logic — the shell is dumb on purpose,
+// ARCH §6.1), and it is what is left over from the shell's modules rather than a subject
+// of its own:
 //   1. Registers the `shell` Alpine component (prompt courtesy state).
 //   2. Hands developer-preview SSE payloads to the developer panel's window.
-//   3. Promotes a build's terminal presentation once its stream closes.
+//   3. Promotes a build's terminal presentation once its stream closes, and reports what
+//      that did to the desk, which owns the address.
+//   4. Repeated-value controls in a form htmx swapped in after page load.
+//   5. Recovers a capability deletion whose reply never arrived, so a destructive action
+//      never looks like it did nothing.
 //
-// The tile an admitted build stands on the desk is `desk-logos.js`, a module of its own
-// beside `region-scope.js` and `swap-target.js`.
+// It is a classic script because it has to run before Alpine starts, which is also why
+// it can import nothing: every constant it shares with a module is restated here and
+// pinned by a platform test. The tile an admitted build stands on the desk is
+// `desk-logos.js`, a module of its own beside `region-scope.js` and `swap-target.js`.
 
 /**
  * The shell's presentation state.
@@ -100,6 +107,12 @@ const STAGES_CLEARED_EVENT = "aluna:stages-cleared";
 
 /** One build's subscriber — the node the run's id is written on. */
 const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
+
+/**
+ * The class htmx puts on an element while its request is in flight, restated here the way
+ * `region-scope.js` restates it; a platform test pins that the two agree.
+ */
+const HTMX_REQUEST_CLASS = "htmx-request";
 
 /**
  * Whether the window is left holding nothing. Whitespace between swapped nodes is not
@@ -665,44 +678,83 @@ function terminalPresentationContent(subscriber) {
 }
 
 /**
- * Re-load a restored capability's records after promotion. Commit promotions are
- * left alone: HTMX already processed the commit content inside the subscriber (the
- * records region's `load` trigger fired there), so re-fetching would only re-render
- * records that are already live — a visible flicker on every successful build.
+ * Everything the region is still holding that is not the content just promoted: the
+ * capability surface the run displaced, and whatever is left of the run's own subscriber.
+ * Each one is released and then detached, while it is still connected — which is the only
+ * moment an htmx request inside it can be aborted.
+ *
+ * A walk of what is leaving, and deliberately not a release of the region itself. The
+ * region is the anchor for work that should outlive every swap it holds
+ * (`region-scope.js`), so releasing at the region would take that work away on a swap
+ * that is not the region's own ending.
+ *
  * @param {HTMLElement} output
- * @param {string | undefined} restorationKind
+ * @param {readonly ChildNode[]} promoted
  */
-function reloadRestoredRecords(output, restorationKind) {
-  if (restorationKind !== "capability") return;
-  const records = output.querySelector('[hx-get][hx-trigger~="load"]');
-  if (!(records instanceof HTMLElement)) return;
-  const readUrl = records.getAttribute("hx-get");
-  const htmx =
-    /** @type {Window & { htmx?: { ajax(method: string, url: string, context: { source: Element, target: Element, swap: string }): Promise<unknown>, trigger(node: Element, eventName: string): void } }} */ (
-      window
-    ).htmx;
-  if (!htmx || !readUrl) return;
-  htmx.trigger(records, "htmx:abort");
-  records.removeAttribute("hx-get");
-  records.removeAttribute("hx-trigger");
-  void htmx
-    .ajax("GET", readUrl, { source: records, target: records, swap: "innerHTML" })
-    .catch(() => undefined);
+function releaseDisplacedContent(output, promoted) {
+  for (const node of [...output.childNodes]) {
+    if (promoted.includes(node)) continue;
+    if (node instanceof Element) releaseRegionContent(node);
+    node.remove();
+  }
 }
 
-/** @param {HTMLElement} subscriber @param {HTMLElement} output */
+/**
+ * Wire up the content the region has just been given, so its own `hx-trigger="load"`
+ * fires — the ordinary way anything this script inserts is wired up, and the same seam
+ * the record swap and the search chrome use.
+ *
+ * Load-bearing, not a belt on braces. htmx runs its own settle 20ms after a swap lands,
+ * and that settle is what would fire the trigger; a run writes its ending and closes the
+ * stream back to back, so the promotion has carried the View out of the subscriber long
+ * before the settle looks for it and the settle then passes it by. Without this the
+ * restored collection stands there with no records and a create form bound to nothing.
+ *
+ * A subtree that is *already* reading is left alone, and that is the load-bearing half.
+ * Processing an element htmx is holding a request on de-initialises it, and htmx's abort
+ * is a lookup of the request it no longer has — so the read would outlive every release
+ * that could stop it, land on a region the user has since searched or swapped away from,
+ * and hold its read token to the end. `htmx-request` is htmx's own mark for exactly that,
+ * and a subtree carrying it has been processed already anyway.
+ *
+ * Last, after the release: a read started before it would be a read the release could
+ * abort.
+ *
+ * @param {readonly ChildNode[]} promoted
+ */
+function processPromotedContent(promoted) {
+  const htmx = /** @type {Window & { htmx?: { process(node: Element): void } }} */ (window).htmx;
+  if (!htmx) return;
+  for (const node of promoted) {
+    if (!(node instanceof Element)) continue;
+    if (node.classList.contains(HTMX_REQUEST_CLASS)) continue;
+    if (node.querySelector(`.${HTMX_REQUEST_CLASS}`) !== null) continue;
+    htmx.process(node);
+  }
+}
+
+/**
+ * Promote what the run ended with, and release only what that displaces.
+ *
+ * The terminal content is moved out of the subscriber *before* anything is released, so
+ * the release runs over exactly the content that is leaving and never over the content
+ * that is arriving.
+ *
+ * @param {HTMLElement} subscriber @param {HTMLElement} output
+ */
 function promoteTerminalPresentation(subscriber, output) {
   const terminal = terminalPresentationContent(subscriber);
-  if (terminal !== null) {
-    releaseRegionContent(output);
-    if (terminal.promoteElement) output.replaceChildren(terminal.element);
-    else output.replaceChildren(...terminal.element.childNodes);
-    reloadRestoredRecords(output, terminal.restorationKind);
-  } else {
+  if (terminal === null) {
     releaseRegionContent(subscriber);
     subscriber.remove();
+    return { restorationKind: undefined, activated: false };
   }
-  return { restorationKind: terminal?.restorationKind, activated: terminal?.activated === true };
+  /** @type {ChildNode[]} */
+  const promoted = terminal.promoteElement ? [terminal.element] : [...terminal.element.childNodes];
+  output.append(...promoted);
+  releaseDisplacedContent(output, promoted);
+  processPromotedContent(promoted);
+  return { restorationKind: terminal.restorationKind, activated: terminal.activated };
 }
 
 /**

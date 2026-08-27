@@ -15,9 +15,9 @@
 
 import {
   createRecordsRegionRequestCoordinator,
-  handOffRecordsRegionFromHtmx,
   recordsRegionRequestCoordinator,
 } from "./records-region-requests.js";
+import { releaseRegionContent } from "./region-scope.js";
 
 /** @typedef {(input: string, init?: RequestInit) => Promise<Response>} RefreshRequest */
 
@@ -83,15 +83,17 @@ function refreshStatusMessage(state) {
 }
 
 /**
+ * Take the region for this refresh: whatever was reading into it — the View's own
+ * one-shot load, a search still settling — leaves through the region rule. There is no
+ * hand-off of its own, because one rule already owns everything a region's content
+ * started.
+ *
  * @param {Element} region
  * @param {string} query
  */
 function startRefresh(region, query) {
   region.dispatchEvent(new CustomEvent(RECORDS_REFRESH_START_EVENT, { bubbles: true }));
-  const htmx =
-    /** @type {Window & { htmx?: { trigger(node: Element, eventName: string): void } }} */ (window)
-      .htmx;
-  handOffRecordsRegionFromHtmx(region, htmx);
+  releaseRegionContent(region);
   const form = searchFormForRegion(region);
   if (form) applyRefreshState(form, region, query === "" ? "idle" : "loading");
 }
@@ -186,8 +188,10 @@ export async function refreshCommittedRecords({
 }) {
   const target = committedRecordsRefreshTarget({ readUrl, searchUrl, activeQuery });
   const domRegion = isDomElement(region) ? region : undefined;
-  const claim = claimRefreshRequest(domRegion, claimRequest);
+  /* Claimed after the region is taken, not before: the release runs over everything the
+   * region still holds, and a claim made first would be the first thing it aborted. */
   if (domRegion) startRefresh(domRegion, target.query);
+  const claim = claimRefreshRequest(domRegion, claimRequest);
   try {
     const html = await requestRefreshHtml(request, target.url, claim.signal);
     if (!claim.isCurrent()) return { applied: false, region, query: target.query };

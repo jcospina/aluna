@@ -20,6 +20,7 @@ import {
   WINDOW_LAYER_SELECTOR,
   windowLayer,
 } from "#shell/desk-window.js";
+import { code as stripComments } from "./source.test-support.ts";
 
 // The window, checked where it is written down. It is created and destroyed by the
 // client, so most of what has to hold is a statement about a file rather than about a
@@ -34,7 +35,7 @@ const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 const rules = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Source with comments stripped, for questions about what the code does. */
-const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+const code = (path: string) => stripComments(read(path));
 
 /** One rule's body, by exact selector. Flat: nesting is not used in these sheets. */
 function body(css: string, selector: string): string {
@@ -613,9 +614,13 @@ describe("who opens the window", () => {
   });
 
   test("a second capability swaps what is inside the frame rather than adding one", () => {
+    // The rule itself is executed against doubles in `capability-swap.test.ts`; this is
+    // the wiring — the one opener, going through it.
     const source = code("public/desk-window.js");
-    expect(source).toContain("mounted ??= mount(root, title)");
-    expect(source).toContain("mounted.win.setTitle(title)");
+    expect(source).toContain(
+      "mounted = windowForOpening(mounted, () => mount(root, title), title, openedBy);",
+    );
+    expect(source).toContain("entry.win.setTitle(title)");
   });
 });
 

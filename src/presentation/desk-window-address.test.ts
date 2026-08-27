@@ -269,7 +269,11 @@ describe("who moves the address", () => {
     expect(GLUE).toContain(
       "tellDeskTheWindowTookCapability(finishTerminalPresentation(event.target))",
     );
-    expect(GLUE.match(/activated: false/g)?.length).toBe(2);
+    // One ending navigates, and it is the commit. Counted rather than merely present:
+    // a second `activated: true` anywhere in the glue is a second thing claiming to have
+    // taken the window, and the address would be pushed for something that put back what
+    // a build displaced.
+    expect(GLUE.match(/activated: true/g)?.length).toBe(1);
   });
 
   test("history is written in one place, and only ever with an address", () => {

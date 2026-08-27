@@ -73,16 +73,3 @@ export function recordsRegionRequestCoordinator(region) {
   coordinators.set(region, coordinator);
   return coordinator;
 }
-
-/**
- * Transfer a records region away from its one-shot HTMX read before any native
- * request claims it. This covers the initial load even when search has not yet
- * created its controller.
- * @param {Element} region
- * @param {{ trigger(node: Element, eventName: string): void } | undefined} htmx
- */
-export function handOffRecordsRegionFromHtmx(region, htmx) {
-  htmx?.trigger(region, "htmx:abort");
-  region.removeAttribute("hx-get");
-  region.removeAttribute("hx-trigger");
-}

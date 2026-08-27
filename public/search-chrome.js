@@ -3,28 +3,14 @@
 import { RECORDS_REFRESH_START_EVENT } from "./records-refresh.js";
 import {
   createRecordsRegionRequestCoordinator,
-  handOffRecordsRegionFromHtmx,
   recordsRegionRequestCoordinator,
 } from "./records-region-requests.js";
-import { registerRegionRelease } from "./region-scope.js";
+import { registerRegionRelease, releaseRegionContent } from "./region-scope.js";
 
 /** @typedef {(input: string, init?: RequestInit) => Promise<Response>} SearchRequest */
 /** @typedef {"idle" | "loading" | "results" | "no-matches" | "error"} SearchState */
 
 export const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
-
-/**
- * Transfer the shared records region from its one-shot HTMX read to native-fetch
- * search ownership. HTMX's public trigger API creates the bubbling, detailed abort
- * event its body-level listener expects; removing the attributes also prevents a
- * not-yet-started load trigger from becoming a second writer.
- *
- * @param {Element} region
- * @param {{ trigger(node: Element, eventName: string): void } | undefined} htmx
- */
-export function handOffRecordsRegionToSearch(region, htmx) {
-  handOffRecordsRegionFromHtmx(region, htmx);
-}
 
 /**
  * Create the request/state core for one capability search field. The browser adapter
@@ -203,10 +189,7 @@ function controllerFor(form) {
   if (!(region instanceof HTMLElement) || !readUrl || !searchUrl) return null;
   const clear = form.querySelector("[data-capability-search-clear]");
   const delayMs = Number(form.dataset.searchDebounceMs) || DEFAULT_SEARCH_DEBOUNCE_MS;
-  const htmx =
-    /** @type {Window & { htmx?: { process(node: Element): void, trigger(node: Element, eventName: string): void } }} */ (
-      window
-    ).htmx;
+  const htmx = /** @type {Window & { htmx?: { process(node: Element): void } }} */ (window).htmx;
   const controller = createDebouncedCapabilitySearch({
     readUrl,
     searchUrl,
@@ -221,10 +204,16 @@ function controllerFor(form) {
       if (clear instanceof HTMLButtonElement) clear.hidden = rawQuery.length === 0;
     },
     cancelExternalRead: () => {
-      // The data-free View starts one HTMX read on load. Once a person searches,
-      // native fetch owns this region; abort an in-flight initial read and remove
-      // its one-shot trigger so a late canonical response cannot overwrite results.
-      handOffRecordsRegionToSearch(region, htmx);
+      // The data-free View starts one read into this region when it lands. Once a person
+      // searches, that read is content the region no longer wants, so it leaves the way
+      // every other piece of a region's work leaves — through the region rule.
+      //
+      // Nothing hand-strips the View's `hx-trigger="load"` any more, and nothing has to:
+      // htmx arms a `load` trigger only where `firstInitCompleted` is unset, and that is
+      // the one key `deInitNode` keeps. So the trigger arms once per element lifetime,
+      // and the `htmx.process(region)` each rendered result runs cannot re-arm it into a
+      // second writer. A platform test pins that guard in the vendored build.
+      releaseRegionContent(region);
     },
   });
   controllers.set(form, controller);
