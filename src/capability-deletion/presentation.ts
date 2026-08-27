@@ -7,10 +7,6 @@ function deletionUrl(capabilityId: string): string {
   return `/capability-deletion/${encodeURIComponent(capabilityId)}`;
 }
 
-function capabilityUrl(capabilityId: string): string {
-  return `/capability/${encodeURIComponent(capabilityId)}`;
-}
-
 function sentenceList(labels: readonly string[]): string {
   if (labels.length === 1) return labels[0] ?? "";
   if (labels.length === 2) return labels.join(" and ");
@@ -48,12 +44,18 @@ function renderDeletionPanel(
   ].join("\n");
 }
 
-/** **Keep it** always goes back to the carried restoration, never to a guessed target. */
+/**
+ * **Keep it** always goes back to the carried restoration, never to a guessed target.
+ *
+ * It carries no `hx-push-url`. The restoration route answers with `HX-Replace-Url`
+ * naming where it actually landed, and a response header wins over the attribute, so the
+ * attribute never decided anything. Saying it twice would only be a second place for the
+ * address to be written from — and Keep it is not a navigation: the window goes back to
+ * what the confirmation displaced, at the address that never moved (design D14).
+ */
 function renderBackAction(restoration: CapabilityDeletionRestorationEvidence): string {
   const url = capabilityDeletionRestorationUrl(restoration);
-  const pushedUrl =
-    restoration.kind === "capability" ? capabilityUrl(restoration.capabilityId) : "/";
-  return `<button class="btn btn--neutral capability-deletion__keep" type="button" hx-get="${escapeHtml(url)}" hx-target="#spec-build-output" hx-swap="innerHTML" hx-push-url="${escapeHtml(pushedUrl)}">Keep it</button>`;
+  return `<button class="btn btn--neutral capability-deletion__keep" type="button" hx-get="${escapeHtml(url)}" hx-target="#spec-build-output" hx-swap="innerHTML">Keep it</button>`;
 }
 
 function capabilityDeletionRestorationUrl(

@@ -87,9 +87,9 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
     expect(html).not.toContain("has-capabilities");
     expect(countMatches(html, "data-capability-logo")).toBe(2);
     expect(html).toContain('hx-get="/capability/notes"');
-    expect(html).toContain('hx-push-url="/capability/notes"');
     expect(html).toContain('hx-get="/capability/recipes"');
-    expect(html).toContain('hx-push-url="/capability/recipes"');
+    // The desk pushes the address on a press, not the logo (design D14).
+    expect(html).not.toContain('hx-push-url="');
     // Ordered by id (the registry's stable order): notes before recipes.
     expect(html.indexOf("/capability/notes")).toBeLessThan(html.indexOf("/capability/recipes"));
     // The load path restores the desk only — no capability view is pre-served into the
@@ -168,7 +168,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
     expect(refreshed).toContain('id="capability-logo-notes"');
     expect(refreshed).toContain("data-capability-logo");
     expect(refreshed).toContain('hx-get="/capability/notes"');
-    expect(refreshed).toContain('hx-push-url="/capability/notes"');
+    expect(refreshed).not.toContain('hx-push-url="');
 
     // Clicking the rehydrated entry serves the spec-rendered, data-free list scaffolding…
     const clicked = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });

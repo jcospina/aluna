@@ -166,8 +166,16 @@ describe("platform-owned capability deletion routes", () => {
     );
     expect(fromOther).toContain("restore_capability_id=boom");
     expect(fromOther).toContain(`restore_incarnation_id=${other.incarnation_id}`);
-    expect(fromOther).toContain('hx-push-url="/capability/boom"');
+    // No `hx-push-url`: the restoration route answers with `HX-Replace-Url` naming where
+    // it actually landed, a response header wins over the attribute, and Keep it is not a
+    // navigation — it puts back what the confirmation displaced (design D14).
+    expect(fromOther).not.toContain('hx-push-url="');
     expect(fromOther).toContain('name="restore_surface" value="capability"');
+
+    const liveKeep = await app.request(
+      `/capability-deletion-restoration?restore_surface=capability&restore_capability_id=${other.id}&restore_incarnation_id=${other.incarnation_id}`,
+    );
+    expect(liveKeep.headers.get("HX-Replace-Url")).toBe("/capability/boom");
 
     const replacementIncarnation = "99999999-9999-4999-8999-999999999999";
     conns.readwrite.run("UPDATE capability_registry SET incarnation_id = ? WHERE id = ?", [
@@ -186,7 +194,7 @@ describe("platform-owned capability deletion routes", () => {
     expect(fromNeutral).toContain(
       'hx-get="/capability-deletion-restoration?restore_surface=neutral"',
     );
-    expect(fromNeutral).toContain('hx-push-url="/"');
+    expect(fromNeutral).not.toContain('hx-push-url="');
     expect(fromNeutral).toContain('name="restore_surface" value="neutral"');
     expect(fromNeutral).not.toContain('name="restore_capability_id"');
 

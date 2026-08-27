@@ -23,6 +23,37 @@
   box-sizing: border-box;
 }
 
+/*
+ * The scrollbar, and it is stated once.
+ *
+ * The two properties are stated differently because they cascade differently.
+ * `scrollbar-color` inherits, so the root is enough and every scroller under it
+ * takes the same thumb. `scrollbar-width` does NOT — its initial value is `auto`
+ * and it is not inherited — so a root declaration would leave the records list,
+ * the modal body and the developer panel on the platform's full-width bar. The
+ * universal selector is how it is said once for all of them; it carries no
+ * specificity, so an element that wants no bar at all still overrides it, and
+ * `.menubar` does.
+ *
+ * The thumb is the faint ink and the track is left empty, so what is under the
+ * lane shows through unchanged. This is the one place that strength is a fill
+ * rather than type: a scrollbar reports where you are in a list and is not a
+ * boundary, so it is not drawn and `--ink` is not what marks it.
+ *
+ * The shape is the platform's. `thin` buys a width and two colours and nothing
+ * else, so the thumb keeps the UA's rounded ends instead of the mitred corner
+ * everything drawn here has. That is the price of the only treatment that lands
+ * in every browser: the `::-webkit-scrollbar` family buys the corner, the well
+ * and the stepper, and abandons Firefox to get them.
+ */
+* {
+  scrollbar-width: thin;
+}
+
+:root {
+  scrollbar-color: var(--ink-3) transparent;
+}
+
 body {
   margin: 0;
   background-color: var(--ground);

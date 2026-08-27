@@ -194,9 +194,27 @@
 /* The records are what scrolls in the list view, so the search rail and the "New X"
    control stay where they were put. `flex-grow: 0`: an empty region takes no height,
    and the empty state reads directly under the rail rather than at the far bottom. */
+/* The gutter is everything a card reaches past its own box, on all four sides. Three
+   things reach: the drawn line, which is a 2px stroke centred on the box's edge and
+   deviating up to 0.9px off it, so ~2px of ink paints *outside* the border box and —
+   being paint, not layout — never enlarges this scroller's scrollable area; the
+   `:hover`/`:active` nudge of 1–2px down-right; and the 5px `:focus-visible` ring (3px
+   at a 2px offset). Without room for that reach the scrollport's edge cuts through it:
+   sideways, a hovered card fell outside the box and, since `overflow-y: auto` computes
+   `overflow-x` to `auto`, flicked a horizontal scrollbar onto a list that is vertical by
+   definition; at the foot of a long list, the last card's bottom line was shaved to half
+   its weight, because scrolling to the end lands its border box flush against the edge
+   and the ink outside it is simply clipped. The padding is pulled straight back out
+   again, so nothing moves: the cards keep their alignment with the search rail above and
+   the list keeps its height, and the gutter is spent on the surface's own padding, which
+   this scroller now spans. `overflow-x: hidden` is the guarantee behind the inline half:
+   a sideways scrollbar here is always a bug. */
 .capability-records {
   flex: 0 1 auto;
   min-height: 0;
+  margin: calc(-1 * var(--space-2));
+  padding: var(--space-2);
+  overflow-x: hidden;
   overflow-y: auto;
 }
 .capability-records--feed {

@@ -34,6 +34,14 @@
   color: var(--ink);
   background: transparent;
   border: 0;
+  /* The panel fills this box exactly, and the line it is drawn with is a 2px stroke
+     centred on its edge — half of it paints *outside* that box, as does the hard
+     shadow, which is cut to the crescent falling clear of the card. A <dialog> is
+     `overflow: auto` in the UA sheet, and paint outside a box is not scrollable
+     overflow, so both were simply clipped: the modal's frame came out at half the
+     weight of every card behind it and cast no shadow at all. Nothing here needs a
+     scrollport — the panel caps its own height and scrolls its own body. */
+  overflow: visible;
 }
 @media (max-width: 720px) {
   .detail-modal {

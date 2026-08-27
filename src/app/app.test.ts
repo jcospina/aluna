@@ -185,7 +185,8 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain('document.addEventListener("htmx:sseOpen"');
     expect(js).toContain('document.addEventListener("htmx:sseClose"');
     expect(js).toContain('document.addEventListener("htmx:sseError"');
-    expect(js).toContain("syncActiveCapabilityUrl");
+    expect(js).toContain("tellDeskTheWindowTookCapability");
+    expect(js).toContain('new CustomEvent("aluna:window-took-capability"');
     expect(js).toContain('document.addEventListener("htmx:configRequest"');
     expect(js).toContain("__aluna_restore_capability_id");
     expect(js).toContain("__aluna_restore_incarnation_id");
@@ -209,7 +210,9 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain('closeType !== "message"');
     expect(js).toContain("modal.close()");
     expect(js).toContain("window.history.replaceState");
-    expect(js).toContain("[data-active-capability-id]");
+    // The address is the desk's to write: the glue reports what happened and never pushes.
+    expect(js).not.toContain("history.pushState");
+    expect(js).toContain(":scope > [data-active-capability-id]");
     expect(js).toContain("dataset.previewTarget");
     expect(js).toContain('addEventListener("aluna:create-cancelled"');
     expect(js).toContain("collapseListFieldRows(form)");
