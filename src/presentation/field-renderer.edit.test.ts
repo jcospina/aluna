@@ -78,35 +78,33 @@ const RECORD = {
 };
 
 describe("edit form — committed update wiring", () => {
-  const form = renderEditForm(CAPABILITY, RECORD, {
-    itemTargetId: "detail-journal-record-1-item",
-  });
+  const form = renderEditForm(CAPABILITY, RECORD);
 
-  test("posts Save to update and declares the shared post-mutation region refresh", () => {
+  test("posts Save to update", () => {
     expect(form).toContain('hx-post="/capability/journal/update"');
     expect(form).toContain('hx-swap="none"');
-    expect(form).toContain('data-item-target-id="detail-journal-record-1-item"');
-    expect(form).toContain("data-post-mutation-refresh");
-    expect(form).toContain('data-mutation-kind="update"');
-    expect(form).toContain('data-records-target-id="journal-records"');
-    expect(form).toContain('data-read-url="/capability/journal/read"');
     expect(form).toContain('<button class="btn btn--primary" type="submit">Save</button>');
     expect(form).not.toContain("aluna:record-updated");
   });
 
-  test("adds the search refresh URL only for search-capable committed rows", () => {
-    expect(form).not.toContain('data-search-url="/capability/journal/search"');
+  test("carries no region-refresh wiring and no item marker: back is the fresh read", () => {
+    // The record replaced the collection, so there is no records region on screen to
+    // refresh into. Leaving the record asks for the collection again instead, and the
+    // record view above the form is what names the item to give focus back to.
+    expect(form).not.toContain("data-post-mutation-refresh");
+    expect(form).not.toContain("data-records-target-id");
+    expect(form).not.toContain("data-read-url");
+    expect(form).not.toContain("data-item-target-id");
+    expect(form).not.toContain("data-mutation-kind");
     expect(
-      renderEditForm({ ...CAPABILITY, actions: [...CAPABILITY.actions, "search"] }, RECORD, {
-        itemTargetId: "detail-journal-record-1-item",
-      }),
-    ).toContain('data-search-url="/capability/journal/search"');
+      renderEditForm({ ...CAPABILITY, actions: [...CAPABILITY.actions, "search"] }, RECORD),
+    ).not.toContain("data-search-url");
   });
 
   test("reserves the warm structured-error target and keeps Cancel non-submitting", () => {
     expect(form).toContain(`id="${capabilityEditErrorId("journal")}"`);
     expect(form).toContain('aria-live="polite"');
-    expect(form).toContain('type="button" data-detail-cancel-edit>Cancel</button>');
+    expect(form).toContain('type="button" data-record-cancel>Cancel</button>');
   });
 
   test("emits exactly one nonblank record target and one presence marker per active field", () => {
@@ -158,14 +156,8 @@ describe("edit form — committed update wiring", () => {
   });
 
   test("fails closed instead of emitting a blank record target", () => {
-    expect(() =>
-      renderEditForm(
-        CAPABILITY,
-        { ...RECORD, id: "   " },
-        {
-          itemTargetId: "item",
-        },
-      ),
-    ).toThrow(/nonblank record id/);
+    expect(() => renderEditForm(CAPABILITY, { ...RECORD, id: "   " })).toThrow(
+      /nonblank record id/,
+    );
   });
 });

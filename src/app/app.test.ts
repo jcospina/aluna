@@ -86,48 +86,47 @@ describe("GET / (shell)", () => {
     expect(body).toContain('defineExtension("sse"');
   });
 
-  test("mounts the one shared detail modal and loads its click-to-open controllers", async () => {
+  test("mounts no modal and loads the record view's own glue instead", async () => {
     const app = createApp();
     const html = await responseText(await app.request("/"));
 
-    // The shared read-only detail modal mounts on every shell — cold-start
-    // included — so a clicked capability item always has the modal to open.
-    // Exactly one shared instance: a platform invariant, not one-per-capability.
-    expect(html).toContain('<dialog id="aluna-detail-modal"');
-    expect(html).toContain('id="aluna-detail-modal-body"');
-    expect(html.split('<dialog id="aluna-detail-modal"').length - 1).toBe(1);
-    // Both dumb glue files load: the modal mechanics and the item click-to-open.
-    expect(html).toContain('<script type="module" src="/static/detail-modal.js"></script>');
+    // Nothing opens over anything else: a record opens through a view swap inside the
+    // window, so the shell mounts no dialog and nothing is ever made inert.
+    expect(html).not.toContain("<dialog");
+    expect(html).not.toContain("detail-modal");
+    expect(html).not.toMatch(/\binert\s*(=|>)/);
+    // The dumb glue files load: the record swap, its mutation feedback, and search.
+    expect(html).toContain('<script type="module" src="/static/record-view.js"></script>');
+    expect(html).toContain('<script type="module" src="/static/record-mutations.js"></script>');
     expect(html).toContain('<script type="module" src="/static/search-chrome.js"></script>');
-    expect(html).toContain('src="/static/item-detail.js"');
   });
 
-  test("serves the item click-to-open controller as JavaScript at its static path", async () => {
+  test("serves the record swap as JavaScript at its static path", async () => {
     const app = createApp();
-    const res = await app.request("/static/item-detail.js");
+    const res = await app.request("/static/record-view.js");
     const body = await res.text();
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type") ?? "").toContain("javascript");
-    // It fires the shared modal's open event when an item is activated.
-    expect(body).toContain("aluna:open-detail");
+    // It swaps a record's form in for the collection, releasing what the collection held.
     expect(body).toContain(".capability-item");
+    expect(body).toContain("releaseRegionContent");
   });
 
-  test("serves the modal state module imported by the controller", async () => {
+  test("serves the record mutation feedback module", async () => {
     const app = createApp();
-    const res = await app.request("/static/detail-modal-state.js");
+    const res = await app.request("/static/record-mutations.js");
     const body = await res.text();
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type") ?? "").toContain("javascript");
-    expect(body).toContain("transitionDetailModalMode");
-    expect(body).toContain('deleteConfirm: "delete-confirm"');
+    expect(body).toContain("data-record-edit-form");
+    expect(body).toContain("leaveRecordView");
   });
 
-  test("serves the committed-read refresh module imported by the controller", async () => {
+  test("serves the committed-read refresh module imported by create and search", async () => {
     const app = createApp();
-    const res = await app.request("/static/detail-modal-refresh.js");
+    const res = await app.request("/static/records-refresh.js");
     const body = await res.text();
 
     expect(res.status).toBe(200);
@@ -213,7 +212,6 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain('records.removeAttribute("hx-trigger")');
     expect(js).toContain(".catch(() => undefined)");
     expect(js).toContain('closeType !== "message"');
-    expect(js).toContain("modal.close()");
     expect(js).toContain("window.history.replaceState");
     // The address is the desk's to write: the glue reports what happened and never pushes.
     expect(js).not.toContain("history.pushState");

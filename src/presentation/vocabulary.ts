@@ -208,19 +208,22 @@ const GLOBAL_SAFE_ATTRS: ReadonlySet<string> = new Set([
 const ELEMENT_ATTRS: Readonly<Record<string, ReadonlySet<string>>> = {
   img: new Set(["src", "srcset", "sizes", "alt", "width", "height", "loading", "decoding"]),
   source: new Set(["src", "srcset", "sizes", "type", "media", "width", "height"]),
+  // `controls` is the one media attribute the item wrapper cannot honour. A record is a
+  // `<button>` and opening it is the only thing it does, so a transport control inside one
+  // is unreachable — the press lands on the record — and interactive content inside a
+  // button is not valid markup either. A record shows media; it does not play it back.
   video: new Set([
     "src",
     "poster",
     "width",
     "height",
-    "controls",
     "muted",
     "loop",
     "autoplay",
     "playsinline",
     "preload",
   ]),
-  audio: new Set(["src", "controls", "muted", "loop", "autoplay", "preload"]),
+  audio: new Set(["src", "muted", "loop", "autoplay", "preload"]),
   track: new Set(["src", "kind", "srclang", "label", "default"]),
   time: new Set(["datetime"]),
   data: new Set(["value"]),

@@ -253,7 +253,7 @@ describe("spec generation stage — authored prompt", () => {
     expect(prompt).toContain("ui_intent.collection.layout is one of: feed | grid");
     expect(prompt).not.toContain("ui_intent.detail");
     expect(prompt).toContain("Do not include ui_intent.views");
-    expect(prompt).toContain("Do not include modal: true");
+    expect(prompt).toContain("Do not author how a record opens");
     expect(prompt).toContain("string | number | boolean | datetime | date | string[]");
     expect(prompt).toContain("string[] is the only list type");
     expect(prompt).toContain("id, created_at, extra are platform-owned");

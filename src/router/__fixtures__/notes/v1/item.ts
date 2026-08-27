@@ -2,7 +2,7 @@
 //
 // One record enters; capability-specific inner markup leaves. The platform-owned
 // presentation adapter supplies the accessible wrapper, escaped record payload, runtime
-// enforcement, and detail-modal template. Like generated item renderers, this fixture has
+// enforcement, and record-view template. Like generated item renderers, this fixture has
 // no imports and escapes every interpolated field value before returning markup.
 
 export default function renderItem(record) {

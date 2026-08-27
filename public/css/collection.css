@@ -3,7 +3,7 @@
    The list scaffolding a capability's records land in (src/presentation/
    list-container.ts): the "New X" disclosure, the records region in one of the
    closed `feed | grid` collection layouts, the empty state, and the standardized
-   accessible item wrapper each record is framed in.
+   item wrapper each record is framed in.
 
    Platform chrome, NOT the generated item vocabulary (design/styles/layout-kit.css):
    these style platform-owned surfaces (the wrapper, the container), while the
@@ -271,27 +271,44 @@
   }
 }
 
-/* ── Item wrapper — the standardized accessible trigger ───────────────────────
-   The consistent, clickable card frame every record is wrapped in (role="button",
-   opens the detail modal). The platform owns this frame; the generated inner markup
-   composes the record's fields within it. Gentle press + accent focus ring, the
-   same tactile-but-quiet language as the buttons and the prompt field. */
+/* ── Item wrapper — the record's own trigger ──────────────────────────────────
+   The consistent, clickable card frame every record is wrapped in. A record is a
+   `<button>`: opening one is the only thing you can do with it, and a button is what
+   the keyboard already reaches (design/design-system.md, "The window and the
+   collection"). The platform owns this frame; the generated inner markup composes the
+   record's fields within it. Gentle press + accent focus ring, the same
+   tactile-but-quiet language as the buttons and the prompt field.
+
+   `font`, `color`, `text-align` and `user-select` are inherited back off the
+   user-agent button defaults, because the card is a card first: the record's own type
+   is set by the layout kit inside it, centring it would be the browser's opinion
+   rather than ours, and a record whose text cannot be selected is a record you cannot
+   quote out of the collection.
+
+   A frame with nothing to open is an `<article>`, not a button, so the press and the
+   pointer belong to the button form alone — a control that takes focus and then does
+   nothing is worse than a card that never offered. */
 .capability-item {
   display: block;
+  width: 100%;
   padding: var(--space-2);
   background: var(--surface);
   border: var(--line) solid var(--ink);
+  font: inherit;
   color: inherit;
   text-align: inherit;
+  user-select: text;
+}
+button.capability-item {
   cursor: pointer;
   transition:
     transform var(--dur-fast) var(--ease-rise),
     box-shadow var(--dur-fast) var(--ease-rise);
 }
-.capability-item:hover {
+button.capability-item:hover {
   transform: translate(1px, 1px);
 }
-.capability-item:active {
+button.capability-item:active {
   transform: translate(2px, 2px);
 }
 /* The wrapper owns its accent ring on keyboard focus; the global :focus-visible

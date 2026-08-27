@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { fieldTypeSchema } from "../registry/index.ts";
-import { oneField, SAMPLE, sampleDetailValue } from "./field-renderer.test-support.ts";
+import { oneField, SAMPLE, sampleFieldValue } from "./field-renderer.test-support.ts";
 import {
   CREATE_CANCELLED_EVENT,
   capabilityCreateErrorId,
@@ -9,17 +9,17 @@ import {
   RECORD_CREATED_EVENT,
   type RenderableCapability,
   renderCreateForm,
-  renderDetailFields,
+  renderEditForm,
 } from "./field-renderer.ts";
 
-// The centralized field renderer is the one platform module that turns
-// a spec into create controls and read-only detail — exhaustive over the pantry
-// (string | number | boolean | datetime | date | string[]). These tests cover every pantry type in
-// both modes from one fixture, the platform-owned create-form wiring + close-on-
-// success, and the data-safety invariants (escaping, absent-value placeholder). The
-// schema-driven sweep ties the renderer to `fieldTypeSchema`, so a future pantry type
-// that isn't handled here breaks a test, not a live view. Detail-display coverage lives
-// in field-renderer.detail.test.ts; shared fixtures in field-renderer.test-support.ts.
+// The centralized field renderer is the one platform module that turns a spec into
+// create and edit controls — exhaustive over the pantry (string | number | boolean |
+// datetime | date | string[]). These tests cover every pantry type in both modes from one
+// fixture, the platform-owned create-form wiring + close-on-success, and the data-safety
+// invariants (escaping). The schema-driven sweep ties the renderer to `fieldTypeSchema`,
+// so a future pantry type that isn't handled here breaks a test, not a live view.
+// Edit-form wiring lives in field-renderer.edit.test.ts; shared fixtures in
+// field-renderer.test-support.ts.
 
 describe("create form — platform wiring + close-on-success", () => {
   const form = renderCreateForm(SAMPLE);
@@ -54,7 +54,9 @@ describe("create form — platform wiring + close-on-success", () => {
     expect(form).toContain('aria-live="polite"');
   });
 
-  test("carries an accessible name and adjacent cancel/add affordances", () => {
+  test("carries an accessible name and puts add beside cancel, in that order", () => {
+    // Save and cancel sit together on the left, save first, so a destructive action can
+    // be kept away from them on the right (design/index.html, "The record form").
     expect(form).toContain('aria-label="Add to Tasks"');
     const cancel =
       `<button class="btn btn--ghost" type="button" data-create-cancel` +
@@ -63,9 +65,9 @@ describe("create form — platform wiring + close-on-success", () => {
       ` $dispatch('${CREATE_CANCELLED_EVENT}')">Cancel</button>`;
     expect(form).toContain(cancel);
     expect(form).toContain('<button class="btn btn--primary" type="submit">Add</button>');
-    expect(form.indexOf(cancel)).toBeLessThan(
+    expect(
       form.indexOf('<button class="btn btn--primary" type="submit">Add</button>'),
-    );
+    ).toBeLessThan(form.indexOf(cancel));
   });
 
   test("cancel cannot be DOM-clobbered by a valid field named reset", () => {
@@ -282,23 +284,24 @@ describe("centralization — exhaustive over the admitted pantry", () => {
   // Drives straight off the registry enum: if the pantry gains a type, this sweep
   // renders it in both modes and fails loudly unless the renderer's two total
   // switches handle it — proof that adding a type is a single-location change.
-  test("every fieldTypeSchema option renders a create control and a detail value", () => {
+  test("every fieldTypeSchema option renders a create control and an edit control", () => {
     for (const type of fieldTypeSchema.options) {
-      const capability = oneField({
+      const probe = oneField({
         name: "value",
         label: "Value",
         type,
         required: true,
         lifecycle: "active",
       });
+      const capability = { ...probe, actions: [...probe.actions, "update"] as const };
 
       const create = renderCreateForm(capability);
       expect(create).toMatch(/<input[^>]*\btype="[^"]+"/);
       expect(create).toContain('name="value"');
 
-      const detail = renderDetailFields(capability, { value: sampleDetailValue(type) });
-      expect(detail).toContain('class="detail-field__value"');
-      expect(detail).not.toContain("detail-field__value--empty");
+      const edit = renderEditForm(capability, { id: "probe-1", value: sampleFieldValue(type) });
+      expect(edit).toMatch(/<input[^>]*\btype="[^"]+"/);
+      expect(edit).toContain('name="value"');
     }
   });
 });

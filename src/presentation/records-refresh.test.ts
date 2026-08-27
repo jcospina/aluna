@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  committedRecordsRefreshTarget,
-  refreshCommittedRecords,
-} from "#shell/detail-modal-refresh.js";
+import { committedRecordsRefreshTarget, refreshCommittedRecords } from "#shell/records-refresh.js";
 import { createRecordsRegionRequestCoordinator } from "#shell/records-region-requests.js";
 import { createDebouncedCapabilitySearch } from "#shell/search-chrome.js";
 

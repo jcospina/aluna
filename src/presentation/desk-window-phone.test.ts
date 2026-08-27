@@ -338,18 +338,16 @@ describe("the desk breaks at 720px and forms at 620px", () => {
     expect(rules("design/styles/components/desk.css")).toMatch(
       /@media \(max-width: 720px\)[\s\S]*?\.window--desk\.is-unfocused \{\s*display: none;/,
     );
-    expect(rules("public/css/detail-modal.css")).toMatch(
-      /@media \(max-width: 720px\) \{\s*\.detail-modal \{\s*width: 80vw;\s*max-width: none;/,
-    );
-    // The guard belongs to the fixed width and to nothing else. Stated from the desk
-    // down, the base rule reaches every width, and left in force below the breakpoint it
-    // would quietly clamp a viewport-relative width to a 4px-wider gutter.
-    expect(rules("public/css/detail-modal.css")).toMatch(
-      /\.detail-modal \{\s*width: 37\.5rem;\s*max-width: calc\(100vw - var\(--space-4\)\);/,
-    );
-    expect(rules("public/css/detail-modal.css")).toMatch(
-      /@media \(max-width: 620px\) \{\s*\.detail-modal \{\s*width: calc\(100vw - var\(--space-3\)\);/,
-    );
+    // The modal's own three width rules left with the modal. A record fills the window it
+    // opened in, so its width is the window's and no sheet restates it — which is the
+    // assertion worth keeping: no shipped sheet sizes a record against the screen.
+    for (const path of SHEETS) {
+      for (const [query] of rules(path).matchAll(/@media[^{]*\{[^@]*?\}/gs)) {
+        expect(query, `${path} sizes the record against the viewport`).not.toContain(
+          "capability-record-view",
+        );
+      }
+    }
   });
 
   test("what is inside the window asks the window, not the screen behind it", () => {
@@ -366,23 +364,12 @@ describe("the desk breaks at 720px and forms at 620px", () => {
     expect(rules("public/css/deletion.css")).toMatch(
       /@container window \(max-width: 620px\) \{\s*\.capability-deletion \{/,
     );
-
-    // A record's fields are laid out in the modal card, so the card is what they ask.
-    expect(rules("public/css/detail-modal.css")).toMatch(
-      /\.detail-modal__panel \{[^}]*container: record \/ inline-size/,
-    );
-    expect(rules("public/css/fields.css")).toMatch(
-      /@container record \(max-width: 28rem\) \{\s*\.detail-field \{/,
-    );
-    expect(rules("public/css/detail-modal.css")).toMatch(
-      /@container record \(max-width: 28rem\) \{\s*\.detail-modal__delete-confirm \{/,
-    );
   });
 
   test("only what the viewport really decides is left on a viewport query", () => {
-    // Three things, and each is genuinely the screen's: the phone form, the panel that
-    // floats over the whole page, and the dialog that is a sibling of the shell.
-    const inWindow = ["capability-collection__header", "capability-deletion", "detail-field"];
+    // What is left on a viewport query is genuinely the screen's: the phone form and the
+    // panel that floats over the whole page.
+    const inWindow = ["capability-collection__header", "capability-deletion"];
     for (const path of SHEETS) {
       for (const [query] of rules(path).matchAll(/@media[^{]*\{[^@]*?\}/gs)) {
         for (const selector of inWindow) {

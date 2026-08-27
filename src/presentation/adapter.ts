@@ -11,11 +11,11 @@
 //     → enforceItemMarkup(...)             the runtime allow-list enforcer, run on EVERY
 //                                           record so a hostile field value can never
 //                                           become executable markup
-//     → renderItemWrapper(..., detailRef)  the accessible trigger: escaped `data-item`
-//                                           payload plus click-to-open hooks
-//     +  renderDetailContentTemplate(...)  the inert detail <template> the shared modal
-//                                           clones on open, so the full record shows even
-//                                           when the card truncates
+//     → renderItemWrapper(..., recordView) the trigger `<button>`: escaped `data-item`
+//                                           payload plus the click-to-open hook
+//     +  renderRecordViewTemplate(...)      the inert <template> the swap clones on open,
+//                                           so the full record's form shows even when the
+//                                           card truncates
 //
 // Deterministic and dependency-free: the enforcer parses with Bun's native HTMLRewriter
 // and everything else is string composition, so `present` is synchronous. The item
@@ -26,15 +26,15 @@ import {
   type CapabilityActionRecord,
   materializeCapabilityActionRecord,
 } from "../capability-data/index.ts";
-import { renderDetailContentTemplate } from "./detail-modal.ts";
 import { enforceItemMarkup } from "./enforcer.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
-import { type ItemDetailRef, renderItemWrapper } from "./list-container.ts";
+import { type ItemRecordViewRef, renderItemWrapper } from "./list-container.ts";
+import { renderRecordViewTemplate } from "./record-view.ts";
 
 /**
  * A record as it reaches presentation: the spec fields plus the platform-populated
  * `id`/`created_at`, seen structurally as a plain keyed object. The adapter keys each
- * record's detail `<template>` off its `id`.
+ * record's view `<template>` off its `id`.
  */
 export type PresentableRecord = Readonly<Record<string, unknown>>;
 
@@ -55,18 +55,18 @@ export type PresentationAdapter = (record: CapabilityActionRecord) => string;
 export type PlatformPresentationAdapter = (record: PresentableRecord) => string;
 
 /** What {@link createPresentationAdapter} closes over: the capability (for the label,
- *  active schema-field order, and the id namespacing the detail templates) and its item renderer. */
+ *  active schema-field order, and the id namespacing the record templates) and its item renderer. */
 export interface PresentationAdapterOptions {
   readonly capability: RenderableCapability;
   readonly renderItem: ItemRenderer;
 }
 
 /**
- * The prefix on each record's detail `<template>` id. The full id is
- * `detail-<capabilityId>-<recordId>` — namespaced by capability so two capabilities'
+ * The prefix on each record's view `<template>` id. The full id is
+ * `record-<capabilityId>-<recordId>` — namespaced by capability so two capabilities'
  * records never collide, and keyed by record so the click controller opens the right one.
  */
-export const DETAIL_TEMPLATE_ID_PREFIX = "detail";
+export const RECORD_TEMPLATE_ID_PREFIX = "record";
 
 /**
  * Build the capability-scoped presentation adapter. Bind once per capability and hand the
@@ -91,31 +91,38 @@ export function createPlatformPresentationAdapter(
 /**
  * Compose one record into safe wrapped item HTML, in the fixed order the platform owns.
  * The enforcer runs on the item renderer's output *before* it reaches the wrapper, so the
- * wrapper only ever frames already-safe markup. The item and its detail `<template>` are
- * emitted together, so a record carries its own detail with it and needs no read-single
- * route.
+ * wrapper only ever frames already-safe markup. The item and its record-view
+ * `<template>` are emitted together, so a record carries its own form with it and needs
+ * no read-single route.
+ *
+ * A capability that cannot be updated has no record surface to open — there is no read
+ * view to fall back on — so it gets neither the template nor the open hook.
  */
 function present(
   capability: RenderableCapability,
   renderItem: ItemRenderer,
   record: PresentableRecord,
 ): string {
-  const templateId = detailTemplateId(capability.id, record);
-  const detail: ItemDetailRef = { templateId, title: capability.label };
+  const templateId = recordTemplateId(capability.id, record);
+  const recordTemplate = renderRecordViewTemplate(templateId, capability, record);
+  const recordView: ItemRecordViewRef | undefined =
+    recordTemplate === "" ? undefined : { templateId };
 
   const safeInnerHtml = enforceItemMarkup(renderItem(projectItemRecord(capability, record)));
-  const item = renderItemWrapper(safeInnerHtml, projectClientRecord(capability, record), detail);
-  const detailTemplate = renderDetailContentTemplate(templateId, capability, record);
+  const item = renderItemWrapper(
+    safeInnerHtml,
+    projectClientRecord(capability, record),
+    recordView,
+  );
 
-  return item + detailTemplate;
+  return item + recordTemplate;
 }
 
 /**
  * Narrow canonical/runtime state before it enters HTML. The client needs the
- * record target plus active values for detail and the future edit surface; the
- * platform timestamp is the one admitted presentational column. `extra` and
- * inactive values remain server-only even if a malformed upstream row includes
- * them.
+ * record target plus active values; the platform timestamp is the one admitted
+ * presentational column. `extra` and inactive values remain server-only even if a
+ * malformed upstream row includes them.
  */
 function projectClientRecord(
   capability: RenderableCapability,
@@ -144,11 +151,11 @@ function projectItemRecord(
 }
 
 /**
- * The id linking one record's item wrapper to its detail `<template>`. `capabilityId` is
+ * The id linking one record's item wrapper to its view `<template>`. `capabilityId` is
  * spec-validated `[a-z][a-z0-9_]*` and a data-tool id is UUID-shaped, so the result is a
  * DOM-safe id. Coerced with `String` rather than asserted so a stray record shape can
  * never throw mid-render; escaping keeps a malformed id inert either way.
  */
-function detailTemplateId(capabilityId: string, record: PresentableRecord): string {
-  return `${DETAIL_TEMPLATE_ID_PREFIX}-${capabilityId}-${String(record.id)}`;
+function recordTemplateId(capabilityId: string, record: PresentableRecord): string {
+  return `${RECORD_TEMPLATE_ID_PREFIX}-${capabilityId}-${String(record.id)}`;
 }

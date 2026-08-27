@@ -2,28 +2,26 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { OPEN_DETAIL_EVENT } from "./detail-modal.ts";
 import { capabilityRecordsRegionId, type RenderableCapability } from "./field-renderer.ts";
 import {
   COLLECTION_LAYOUTS,
   type CollectionLayout,
   collectionLayoutClass,
   DEFAULT_COLLECTION_LAYOUT,
-  ITEM_DETAIL_TEMPLATE_ATTR,
-  ITEM_DETAIL_TITLE_ATTR,
   ITEM_PAYLOAD_ATTR,
+  ITEM_RECORD_VIEW_ATTR,
   ITEM_TRIGGER_CLASS,
   renderCollection,
   renderItemWrapper,
   serializeItemPayload,
 } from "./list-container.ts";
 
-// The list scaffolding container + accessible item wrapper are platform
-// chrome — their escaping/payload/accessibility invariants are deterministic platform
-// tests, not gate rungs the model can fail. These pin: the closed
-// `feed | grid` layout map (unknown layout is unrepresentable), the container's New X /
-// empty state / data-free region, and the wrapper's accessible trigger + escaped
-// `data-item` payload (round-trip, hostile values, byte guard).
+// The list scaffolding container + item wrapper are platform chrome — their
+// escaping/payload/accessibility invariants are deterministic platform tests, not gate
+// rungs the model can fail. These pin: the closed `feed | grid` layout map (unknown
+// layout is unrepresentable), the container's New X / empty state / data-free region, and
+// the wrapper's record `<button>` + escaped `data-item` payload (round-trip, hostile
+// values, byte guard).
 
 const SAMPLE: RenderableCapability = {
   id: "tasks",
@@ -176,15 +174,12 @@ describe("container scaffolding", () => {
     );
   });
 
-  test("Cancel is the only way out, and it returns focus to the New button", () => {
+  test("Cancel is the same exit from the other end, and both return focus to New", () => {
     expect(feed).toContain('x-ref="createTrigger"');
     expect(feed).toContain(
       `@aluna:create-cancelled="createOpen = false; $nextTick(() => $refs.createTrigger.focus())"`,
     );
     expect(feed).toContain("data-create-cancel");
-    // No back control beside it: the two would be one control twice.
-    expect(feed).not.toContain("capability-collection__back");
-    expect(feed).not.toContain("Back to");
   });
 
   test("renders the empty state, written around the capability's record noun", () => {
@@ -309,14 +304,32 @@ describe("container scaffolding — serving mode (loadThroughRead)", () => {
   });
 });
 
-describe("item wrapper — accessible trigger", () => {
+describe("item wrapper — the record button", () => {
   const wrapper = renderItemWrapper('<div class="stack">inner</div>', { title: "Buy oat milk" });
 
-  test("is a keyboard-focusable button that announces it opens a dialog", () => {
+  test("a frame with nothing to open is a card, not a control", () => {
+    // Opening one is the only thing a record does, so a wrapper with no record surface
+    // behind it must not take focus and then do nothing.
+    expect(wrapper).toContain("<article");
     expect(wrapper).toContain(`class="${ITEM_TRIGGER_CLASS}"`);
-    expect(wrapper).toContain('role="button"');
-    expect(wrapper).toContain('tabindex="0"');
-    expect(wrapper).toContain('aria-haspopup="dialog"');
+    expect(wrapper).not.toContain("<button");
+    expect(wrapper).not.toContain("role=");
+    expect(wrapper).not.toContain("tabindex=");
+  });
+
+  test("a record that opens is a real button, with no role, tabindex or dialog ARIA", () => {
+    const record = renderItemWrapper(
+      '<div class="stack">inner</div>',
+      { title: "Buy oat milk" },
+      {
+        templateId: "record-tasks-7",
+      },
+    );
+    expect(record).toContain('<button type="button"');
+    expect(record).toContain(`class="${ITEM_TRIGGER_CLASS}"`);
+    expect(record).not.toContain("role=");
+    expect(record).not.toContain("tabindex=");
+    expect(record).not.toContain("aria-haspopup");
   });
 
   test("frames the inner markup verbatim — it does not re-sanitize its trusted input", () => {
@@ -360,54 +373,46 @@ describe("item wrapper — payload escaping + safety invariants", () => {
   });
 });
 
-// The click-to-open wiring: the wrapper carries the two hooks the shared modal's
-// click controller reads to open one record's detail. Optional so the frame-only shape (the
-// stand-in demo) still renders without them; the real read path always passes them.
-describe("item wrapper — detail open ref (click-to-open hooks)", () => {
+// The click-to-open wiring: the wrapper carries the hook the record swap reads to open
+// one record. Optional so the frame-only shape (the stand-in demo) still renders without
+// it, and so a capability that cannot be updated carries no open hook at all.
+describe("item wrapper — the record-view open hook", () => {
   const wrapper = renderItemWrapper(
     "<span>x</span>",
     { title: "Buy oat milk" },
-    { templateId: "detail-tasks-7", title: "Tasks" },
+    { templateId: "record-tasks-7" },
   );
 
-  test("carries the detail template id + title the click controller opens with", () => {
-    expect(wrapper).toContain(`${ITEM_DETAIL_TEMPLATE_ATTR}="detail-tasks-7"`);
-    expect(wrapper).toContain(`${ITEM_DETAIL_TITLE_ATTR}="Tasks"`);
-    expect(wrapper).toContain('id="detail-tasks-7-item"');
+  test("carries the record-view template id the click controller opens with", () => {
+    expect(wrapper).toContain(`${ITEM_RECORD_VIEW_ATTR}="record-tasks-7"`);
+    expect(wrapper).toContain('id="record-tasks-7-item"');
   });
 
-  test("still carries the record payload alongside the detail hooks", () => {
+  test("still carries the record payload alongside the open hook", () => {
     expect(readBackPayload(wrapper)).toEqual({ title: "Buy oat milk" });
   });
 
-  test("omits the detail hooks when no ref is given (frame-only, the 3.2/02 shape)", () => {
+  test("omits the open hook when no ref is given (frame-only, the 3.2/02 shape)", () => {
     const frameOnly = renderItemWrapper("<span>x</span>", { title: "x" });
-    expect(frameOnly).not.toContain(ITEM_DETAIL_TEMPLATE_ATTR);
-    expect(frameOnly).not.toContain(ITEM_DETAIL_TITLE_ATTR);
+    expect(frameOnly).not.toContain(ITEM_RECORD_VIEW_ATTR);
   });
 
-  test("escapes a hostile title and template id so neither breaks out of its attribute", () => {
-    const hostile = renderItemWrapper(
-      "<span>x</span>",
-      {},
-      { templateId: 't"><script>', title: '"><img src=x onerror=alert(1)>' },
-    );
+  test("escapes a hostile template id so it cannot break out of its attribute", () => {
+    const hostile = renderItemWrapper("<span>x</span>", {}, { templateId: 't"><script>' });
     expect(hostile).not.toContain('"><script>');
-    expect(hostile).not.toContain('"><img');
     expect(hostile).toContain("&quot;&gt;&lt;script&gt;");
-    expect(hostile).toContain("&quot;&gt;&lt;img src=x onerror=alert(1)&gt;");
   });
 });
 
-// No DOM in Bun, so the click-to-open mechanics live in a browser file this test can only
-// read. It pins that the client agrees with the server on the trigger class + the detail
-// hooks (attr ↔ dataset) + the shared open event, and that it activates like a real button
-// (click + Enter + Space) — the item-side analogue of the modal's controller-parity test.
-describe("item click-to-open — controller contract parity (server ⇄ client)", () => {
-  const controller = readFileSync(join(import.meta.dir, "../../public/item-detail.js"), "utf8");
+// No DOM in Bun, so the swap mechanics live in a browser file this test can only read. It
+// pins that the client agrees with the server on the trigger class and the open hook
+// (attr ↔ dataset), and that it does no key handling of its own — a real button already
+// activates on Enter and Space.
+describe("record swap — controller contract parity (server ⇄ client)", () => {
+  const controller = readFileSync(join(import.meta.dir, "../../public/record-view.js"), "utf8");
 
-  // `data-detail-template` → `detailTemplate`: the DOM's dataset camel-casing, so the
-  // server attribute name and the client dataset access are proven to agree by construction.
+  // `data-record-view-template` → `recordViewTemplate`: the DOM's dataset camel-casing, so
+  // the server attribute name and the client dataset access agree by construction.
   function datasetKeyOf(attr: string): string {
     return attr
       .replace(/^data-/, "")
@@ -418,20 +423,34 @@ describe("item click-to-open — controller contract parity (server ⇄ client)"
     expect(controller).toContain(`.${ITEM_TRIGGER_CLASS}`);
   });
 
-  test("reads the same detail hooks the wrapper writes (attr ↔ dataset agree)", () => {
-    expect(controller).toContain(`dataset.${datasetKeyOf(ITEM_DETAIL_TEMPLATE_ATTR)}`);
-    expect(controller).toContain(`dataset.${datasetKeyOf(ITEM_DETAIL_TITLE_ATTR)}`);
+  test("reads the same open hook the wrapper writes (attr ↔ dataset agree)", () => {
+    expect(controller).toContain(`dataset.${datasetKeyOf(ITEM_RECORD_VIEW_ATTR)}`);
   });
 
-  test("dispatches the shared open event the modal controller listens for", () => {
-    expect(controller).toContain(`"${OPEN_DETAIL_EVENT}"`);
-  });
-
-  test("activates on click and on keyboard (Enter + Space), like a real button", () => {
+  test("hand-writes no key handling: the record is already a button", () => {
     expect(controller).toContain('addEventListener("click"');
-    expect(controller).toContain('addEventListener("keydown"');
-    expect(controller).toContain('"Enter"');
-    expect(controller).toContain('" "');
-    expect(controller).toContain("preventDefault");
+    expect(controller).not.toContain('addEventListener("keydown"');
+    expect(controller).not.toContain('"Enter"');
+  });
+});
+
+// The create view is the record form's other entrance, so it arrives under the same bar.
+describe("container scaffolding — the create view is the record form's other entrance", () => {
+  const feed = renderCollection({ capability: SAMPLE, layout: "feed" });
+
+  test("the form arrives under the same back control a record's does", () => {
+    // One surface, two ways in: "in a window it always arrives under a back control,
+    // reached either from a record or from New record" (design/index.html).
+    expect(feed).toContain('class="capability-record-view__bar"');
+    expect(feed).toContain('aria-label="Back to Tasks"');
+    expect(feed).toContain(
+      `@click="createOpen = false; $nextTick(() => $refs.createTrigger.focus())"`,
+    );
+  });
+
+  test("the bar comes above the form it introduces", () => {
+    expect(feed.indexOf("capability-record-view__bar")).toBeLessThan(
+      feed.indexOf("capability-create-form"),
+    );
   });
 });

@@ -6,7 +6,6 @@
 // product shell surface.
 
 import { createPlatformPresentationAdapter } from "../../presentation/adapter.ts";
-import { renderDetailModal } from "../../presentation/detail-modal.ts";
 import { renderCollection } from "../../presentation/list-container.ts";
 import { escapeHtml } from "../../web/html.ts";
 import {
@@ -73,8 +72,6 @@ export function renderFewShotGalleryPreviewPage(): string {
     <link rel="stylesheet" href="/design/styles/index.css">
     <link rel="stylesheet" href="/static/app.css">
     <script defer src="/static/vendor/alpine.min.js"></script>
-    <script type="module" src="/static/detail-modal.js"></script>
-    <script defer src="/static/item-detail.js"></script>
     <!-- The drawn line, as the shipped shell loads it (public/index.html). -->
     <script type="module" src="/static/ink.js"></script>
     <style>
@@ -173,7 +170,9 @@ export function renderFewShotGalleryPreviewPage(): string {
     <p class="preview-banner">
       Dev preview - epic 3.5 few-shot gallery and item-renderer prompt injection.
       The rendered samples below pass through the real presentation adapter, enforcer,
-      item wrapper, collection container, and shared detail modal hooks. The prompt
+      item wrapper and collection container. These exemplars declare create and read
+      only, so no record opens from here — a frame with nothing behind it is a card
+      rather than a control. The prompt
       previews show the exact LLM-facing injection section, including "vary, don't copy"
       framing and the selected <code>collection.layout</code>.
     </p>
@@ -198,7 +197,6 @@ export function renderFewShotGalleryPreviewPage(): string {
         </div>
       </div>
     </section>
-    ${renderDetailModal()}
   </body>
 </html>`;
 }

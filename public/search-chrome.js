@@ -1,6 +1,6 @@
 // @ts-check
 
-import { RECORDS_REFRESH_START_EVENT } from "./detail-modal-refresh.js";
+import { RECORDS_REFRESH_START_EVENT } from "./records-refresh.js";
 import {
   createRecordsRegionRequestCoordinator,
   handOffRecordsRegionFromHtmx,

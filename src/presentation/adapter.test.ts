@@ -5,8 +5,9 @@
 // tests drive it with a **hand-written** item renderer — the composition input a generated
 // renderer replaces — and pin the invariants the model cannot get wrong:
 //
-//   • COMPOSITION — the accessible wrapper + escaped `data-item` payload + click-to-open
-//     hooks + the record's inert detail <template>, in the right order and linked by id.
+//   • COMPOSITION — the trigger `<button>` + escaped `data-item` payload + the
+//     click-to-open hook + the record's inert view <template>, in the right order and
+//     linked by id.
 //   • ENFORCEMENT — the runtime allow-list enforcer runs on EVERY rendered record, so a
 //     hostile field value (even one a renderer forgot to escape) cannot escape as
 //     executable markup through the adapter. This is the safety half of the contract.
@@ -19,15 +20,15 @@ import { escapeHtml } from "../web/html.ts";
 import {
   createPlatformPresentationAdapter,
   createPresentationAdapter,
-  DETAIL_TEMPLATE_ID_PREFIX,
   type ItemRenderer,
   type PresentableRecord,
+  RECORD_TEMPLATE_ID_PREFIX,
 } from "./adapter.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
 import { ITEM_PAYLOAD_ATTR, ITEM_TRIGGER_CLASS } from "./list-container.ts";
 
-// The schema contains one inactive field so the adapter can prove the temporary detail
-// surface follows active form-field order without leaking stored retired values.
+// The schema contains one inactive field so the adapter can prove the record's form
+// follows active form-field order without leaking stored retired values.
 const CAPABILITY: RenderableCapability = {
   id: "reading",
   label: "Reading list",
@@ -91,21 +92,21 @@ function readBackPayload(html: string): unknown {
   return JSON.parse(htmlUnescape(match[1]));
 }
 
-/** The inert detail <template> the adapter emits for a record, content only. */
-function detailTemplateBody(html: string, templateId: string): string {
+/** The inert record-view <template> the adapter emits for a record, content only. */
+function recordTemplateBody(html: string, templateId: string): string {
   const match = new RegExp(`<template id="${templateId}">([\\s\\S]*?)</template>`).exec(html);
   if (!match) throw new Error(`no <template id="${templateId}"> in output`);
   return match[1] ?? "";
 }
 
 // The inner markup the enforcer actually processed — between the wrapper's open tag and
-// </article>. The wrapper's own attributes (incl. the escaped data-item payload, where a
+// </button>. The wrapper's own attributes (incl. the escaped data-item payload, where a
 // hostile value legitimately survives as inert data) are platform chrome, not part of the
 // enforced surface, so a security assertion must look at the inner markup alone. The first
 // literal `>` closes the open tag: every `>` inside data-item is escaped to `&gt;`.
 function innerMarkupOf(html: string): string {
   const openEnd = html.indexOf(">");
-  const close = html.indexOf("</article>");
+  const close = html.indexOf("</button>");
   return html.slice(openEnd + 1, close);
 }
 
@@ -148,7 +149,7 @@ describe("createPresentationAdapter — composition", () => {
     });
   });
 
-  test("wraps item markup in the accessible trigger with the escaped payload + click-to-open hooks", () => {
+  test("wraps item markup in a record button with the escaped payload + the open hook", () => {
     const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
@@ -158,10 +159,13 @@ describe("createPresentationAdapter — composition", () => {
     // Synchronous (record → string): the renderer is resolved before the handler runs.
     expect(typeof html).toBe("string");
 
-    // The accessible wrapper chrome (platform-authored, trusted).
+    // The wrapper chrome (platform-authored, trusted). A record is a real button, so it
+    // carries no role, no tabindex and no dialog ARIA.
+    expect(html).toContain(`<button type="button"`);
     expect(html).toContain(`class="${ITEM_TRIGGER_CLASS}"`);
-    expect(html).toContain('role="button"');
-    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).not.toContain('role="button"');
+    expect(html).not.toContain("tabindex=");
+    expect(html).not.toContain("aria-haspopup");
 
     // The renderer's conforming inner markup passes through unchanged.
     expect(html).toContain('<div class="stack">');
@@ -177,27 +181,26 @@ describe("createPresentationAdapter — composition", () => {
       note: "Tides through endless halls.",
     });
 
-    // Click-to-open hooks: the record's detail template id + the capability label as title.
-    const templateId = `${DETAIL_TEMPLATE_ID_PREFIX}-reading-rec-1`;
-    expect(html).toContain(`data-detail-template="${templateId}"`);
-    expect(html).toContain('data-detail-title="Reading list"');
+    // The click-to-open hook: the record's view template id.
+    const templateId = `${RECORD_TEMPLATE_ID_PREFIX}-reading-rec-1`;
+    expect(html).toContain(`data-record-view-template="${templateId}"`);
     expect(html).toContain(`<template id="${templateId}">`);
   });
 
-  test("emits the item wrapper first, then the record's detail template", () => {
+  test("emits the item wrapper first, then the record's view template", () => {
     const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
     const html = present(record());
-    expect(html.indexOf("<article")).toBeGreaterThanOrEqual(0);
-    expect(html.indexOf("<article")).toBeLessThan(html.indexOf("<template"));
+    expect(html.indexOf("<button")).toBe(0);
+    expect(html.indexOf("<button")).toBeLessThan(html.indexOf("<template"));
     const collectionItem = html.slice(0, html.indexOf("<template"));
-    expect(collectionItem).not.toContain("data-detail-edit");
-    expect(collectionItem).not.toContain("data-detail-delete");
+    expect(collectionItem).not.toContain("data-record-back");
+    expect(collectionItem).not.toContain("capability-edit-form");
   });
 
-  test("keys the detail template to the record id and namespaces it by capability", () => {
+  test("keys the record template to the record id and namespaces it by capability", () => {
     const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
@@ -206,27 +209,24 @@ describe("createPresentationAdapter — composition", () => {
     const second = present(record({ id: "bbb" }));
 
     // Each wrapper's hook matches its own template, and the two records never collide.
-    expect(first).toContain('data-detail-template="detail-reading-aaa"');
-    expect(first).toContain('<template id="detail-reading-aaa">');
-    expect(second).toContain('data-detail-template="detail-reading-bbb"');
-    expect(second).not.toContain("detail-reading-aaa");
+    expect(first).toContain('data-record-view-template="record-reading-aaa"');
+    expect(first).toContain('<template id="record-reading-aaa">');
+    expect(second).toContain('data-record-view-template="record-reading-bbb"');
+    expect(second).not.toContain("record-reading-aaa");
   });
 
-  test("routes active schema fields into the record's detail template in form order", () => {
+  test("routes active schema fields into the record's form in form order", () => {
     const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
     const html = present(record());
-    const body = detailTemplateBody(html, "detail-reading-rec-1");
-    const readMode = body.slice(0, body.indexOf("data-detail-edit-mode"));
+    const body = recordTemplateBody(html, "record-reading-rec-1");
 
-    // The temporary detail surface follows active form-field order and excludes only the
-    // inactive stored field.
-    expect(readMode).toContain("Piranesi");
-    expect(readMode).toContain("Susanna Clarke");
-    expect(readMode).toContain("Tides through endless halls.");
-    expect(readMode).not.toContain("still stored");
+    // The record's form follows active form-field order and excludes only the inactive
+    // stored field.
+    expect(body).not.toContain("still stored");
+    expect(body).toContain('name="title" value="Piranesi"');
     expect(body).toContain('name="author" value="Susanna Clarke"');
     expect(readBackPayload(html)).toMatchObject({ author: "Susanna Clarke" });
   });
@@ -313,10 +313,10 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
     expect(readBackPayload(html)).toMatchObject({ title: hostileTitle });
   });
 
-  test("a hostile field value cannot execute in the record's detail template either", () => {
-    // The sibling test above covers the list half. The record's inert detail <template>
-    // is the other half of what a hostile record reaches: it is cloned into the shared
-    // modal on open, so an unescaped value there would execute at that moment instead.
+  test("a hostile field value cannot execute in the record's view template either", () => {
+    // The sibling test above covers the list half. The record's inert view <template>
+    // is the other half of what a hostile record reaches: it is cloned into the window
+    // on open, so an unescaped value there would execute at that moment instead.
     const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
@@ -324,12 +324,12 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
 
     const hostileTitle = "<script>alert(1)</script><img src=x onerror=alert(2)>";
     const html = present(record({ title: hostileTitle }));
-    const body = detailTemplateBody(html, `${DETAIL_TEMPLATE_ID_PREFIX}-reading-rec-1`);
+    const body = recordTemplateBody(html, `${RECORD_TEMPLATE_ID_PREFIX}-reading-rec-1`);
 
-    // `title` is the first active schema field and also seeds the edit-mode input, so the hostile
-    // value lands in this body twice — both times as inert escaped text. Assert on the
-    // element openings, which are what would execute: the `onerror=alert(2)` characters
-    // legitimately survive as text inside the escaped `&lt;img …&gt;`.
+    // `title` is the first active schema field, so the hostile value seeds its input as
+    // inert escaped text. Assert on the element openings, which are what would execute:
+    // the `onerror=alert(2)` characters legitimately survive as text inside the escaped
+    // `&lt;img …&gt;`.
     expect(body).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(body).not.toMatch(/<script/i);
     expect(body).not.toMatch(/<img/i);

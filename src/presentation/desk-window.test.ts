@@ -457,6 +457,9 @@ describe("the create form takes the window", () => {
         "public/css/collection.css",
         ".capability-collection__list,\n.capability-collection__create",
       ],
+      // The record view is the third thing the window can hold, and it is a link in the
+      // same chain: the collection's place, taken by a column that ends on the same edge.
+      ["public/css/record-view.css", ".capability-record-view"],
       ["public/css/fields.css", ".capability-create-form,\n.capability-edit-form"],
       ["public/css/fields.css", ".capability-create-form__fields,\n.capability-edit-form__fields"],
     ];
@@ -490,14 +493,12 @@ describe("the create form takes the window", () => {
 
   test("create and edit are one shape, not two", () => {
     // They diverged while create was a panel above the list and edit filled a modal.
-    // Now both fill the surface they arrive on, so they say so in one rule.
+    // Both fill the surface they arrive on now, and the modal's height override went
+    // with the modal — so the shape is stated once, in one rule, with no exception.
     const form = body(fields, ".capability-create-form,\n.capability-edit-form");
     expect(form).toMatch(/flex:\s*1 1 auto/);
     expect(form).toMatch(/min-height:\s*0/);
-    // One divergence, stated once: the edit form still lands in the shared modal,
-    // whose panel is not a column, so only it takes a height directly.
-    expect(fields).toMatch(/\.capability-edit-form\s*\{\s*height:\s*100%;\s*\}/);
-    expect(fields.match(/height:\s*100%/g)).toHaveLength(1);
+    expect(fields).not.toMatch(/height:\s*100%/);
   });
 });
 

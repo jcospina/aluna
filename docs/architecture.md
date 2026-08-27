@@ -316,8 +316,9 @@ pre-commit failure sentence.
 
 **Platform presentation** — what fills the window. It is a platform component in
 its own right (§1), not a fourth part of the desk: the reusable, data-free
-mechanics every capability shares — list scaffolding, empty state, accessible item
-wrapper, the in-window record view, which a list item and the create action both
+mechanics every capability shares — list scaffolding, empty state, the item
+wrapper (a record is a `<button>`, so it carries no role, tabindex or key handling
+of its own), the in-window record view, which a list item and the create action both
 open into, spec-rendered fields, and safe composition of generated item output.
 It may read structural spec facts — field type, required state, the collection
 layout (`ui_intent.collection.layout`, a closed value selecting how the list

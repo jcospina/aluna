@@ -1,5 +1,18 @@
 // @ts-check
 
+/**
+ * Re-reading a capability's committed records into the region they already occupy.
+ *
+ * The one place a mutation's aftermath meets the read path: a committed create asks for
+ * the region again rather than splicing a row in by hand, so what the user sees after a
+ * mutation is what the server actually holds. Search is part of that — a refresh honours
+ * the query the collection is filtered by, so a create under an active search does not
+ * silently widen it.
+ *
+ * Kept as a pure seam over `region.innerHTML` so the degraded paths (a failed refresh, a
+ * response that lost its claim) are executable in Bun without a browser DOM.
+ */
+
 import {
   createRecordsRegionRequestCoordinator,
   handOffRecordsRegionFromHtmx,

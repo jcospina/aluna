@@ -34,9 +34,12 @@ import { drawAlso, redrawInk, startInk } from "../design/scripts/ink.js";
 const SHELL_INK = [
   /* The prompt rail. The button standing in it is a `.btn`, already drawn. */
   ".prompt__composer",
-  /* Collection chrome — the search rail and the create panel */
+  /* Collection chrome — the search rail. The create panel is deliberately absent: it
+     carries the record form, and a record's form is the window's whole surface, drawn
+     around by the window's own frame and nothing else (public/css/record-view.css). The
+     two ways into that form are the same surface, so a boundary here would be a line the
+     record view does not have. */
   ".capability-search__control",
-  ".capability-collection__create",
   /*
    * The records themselves. A record is what a user looks at longest, so a straight-edged
    * card on a drawn desk is the one that reads as unfinished. The card's hand comes from
@@ -48,8 +51,6 @@ const SHELL_INK = [
   ".capability-item",
   /* What the platform says to the user */
   ".capability-deletion__notice",
-  /* The shared record modal, until the window replaces it */
-  ".detail-modal__panel",
   /* Form chrome the field renderer owns */
   ".field-list__remove",
 ].join(",");
