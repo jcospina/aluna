@@ -1,13 +1,13 @@
-// The centralized create/edit/detail field renderer: the single platform module that
-// renders a capability's fields deterministically from its spec, in three modes.
+// The centralized create/edit field renderer: the single platform module that renders a
+// capability's fields deterministically from its spec, in the two modes there are.
 //
 //   • CREATE — the platform-owned <form> of input controls the "New X" button opens,
 //     with its HTMX wiring and cancel/close behavior baked in.
-//   • EDIT   — the same controls, prefilled for the shared modal and wired to update.
-//   • DETAIL — the read-only label/value display the shared modal shows, prefilled from
-//     a record payload.
+//   • EDIT   — the same controls, prefilled, wired to update, and the surface a record
+//     opens into. Read-only is not a third: the form is the only view a record has, so
+//     no field is ever printed rather than filled and an absent value is an empty input.
 //
-// Every mode dispatches on the field-type pantry (string | number | boolean | datetime |
+// Both modes dispatch on the field-type pantry (string | number | boolean | datetime |
 // date | string[]) through a **total switch**, so an unhandled type cannot ship silently:
 // a new field type extends exactly one place (the switches below), and until it does the
 // type-checker refuses to build. The exhaustiveness keys on registry `FieldType`, the one
@@ -40,7 +40,7 @@ import { escapeHtml } from "../web/html.ts";
  * create form posts to `/capability/<id>/create` and targets its live region),
  * its user-facing `label` (the form's accessible name), and its `schema.fields`.
  * Both {@link import("../registry/index.ts").CapabilitySpec} and `CapabilityRow`
- * satisfy it structurally, so create (spec) and detail (a committed row + record)
+ * satisfy it structurally, so create (spec) and edit (a committed row + record)
  * share one entry point.
  */
 export interface RenderableCapability {
@@ -57,9 +57,9 @@ export interface RenderableCapability {
 
 /**
  * The DOM event a successful create dispatches (bubbling) once the platform form's
- * close-on-success wiring fires. The list container and the shared modal
- * listen for it to close and refresh — exported so those modules key on
- * one constant rather than re-typing the string.
+ * close-on-success wiring fires. The list container listens for it to close and
+ * refresh — exported so those modules key on one constant rather than re-typing
+ * the string.
  */
 export const RECORD_CREATED_EVENT = "aluna:record-created";
 
@@ -69,9 +69,6 @@ export const RECORD_CREATED_EVENT = "aluna:record-created";
  * disclosure and restore focus to its "New X" trigger.
  */
 export const CREATE_CANCELLED_EVENT = "aluna:create-cancelled";
-
-/** The placeholder shown for an absent (null / undefined / empty) detail value. */
-const EMPTY_VALUE = "—";
 
 /**
  * The id of a capability's live records region — the create form's `hx-target`,
@@ -88,19 +85,18 @@ export function capabilityCreateErrorId(capabilityId: string): string {
   return `${capabilityId}-create-error`;
 }
 
-/** The live region that receives structured update-validation feedback in the modal. */
+/** The live region that receives structured update-validation feedback. */
 export function capabilityEditErrorId(capabilityId: string): string {
   return `${capabilityId}-edit-error`;
 }
 
-/** The live region that receives a failed record-delete response in the modal. */
+/**
+ * The live region a failed record delete is retargeted to
+ * (`src/router/failure-responses.ts`). The confirmation that renders it lands in the
+ * record form's action row in 5.7/02; the id is the wire contract both ends agree on.
+ */
 export function capabilityDeleteErrorId(capabilityId: string): string {
   return `${capabilityId}-delete-error`;
-}
-
-export interface EditFormOptions {
-  /** Stable id of the item wrapper replaced by the update Handler's presented record. */
-  readonly itemTargetId: string;
 }
 
 function searchRefreshAttributes(capability: RenderableCapability): string {
@@ -138,26 +134,32 @@ export function renderCreateForm(capability: RenderableCapability): string {
     `<div id="${errorId}" class="capability-create-form__error" aria-live="polite"></div>` +
     `<div class="capability-create-form__fields">${fields}</div>` +
     `<div class="capability-create-form__actions">` +
+    `<button class="btn btn--primary" type="submit">Add</button>` +
     `<button class="btn btn--ghost" type="button" data-create-cancel` +
     ` @click="$el.ownerDocument.defaultView.HTMLFormElement.prototype.reset.call($el.form);` +
     ` $el.ownerDocument.getElementById('${errorId}').replaceChildren();` +
     ` $dispatch('${CREATE_CANCELLED_EVENT}')">Cancel</button>` +
-    `<button class="btn btn--primary" type="submit">Add</button>` +
     `</div>` +
     `</form>`
   );
 }
 
 /**
- * Render the platform-owned edit form for one record. It uses the same exhaustive field
- * dispatch and authored list-input mode contract as create, but prefills active values and
- * submits the closed update wire markers. Inactive fields, `extra`, and `created_at` are
- * never rendered; the mutation port preserves them from canonical server state.
+ * Render the platform-owned edit form for one record — the record's only view. It uses the
+ * same exhaustive field dispatch and authored list-input mode contract as create, but
+ * prefills active values and submits the closed update wire markers. Inactive fields,
+ * `extra`, and `created_at` are never rendered; the mutation port preserves them from
+ * canonical server state.
+ *
+ * Cancel is the record view's other exit: it leaves the record the way the back control
+ * above the form does, since the window is the whole surface and there is nothing behind
+ * it to click. Going back is a fresh read of the collection, so the form carries no
+ * refresh wiring of its own — and no marker naming the item it came from, because the
+ * record view above it is what the swap reads that from.
  */
 export function renderEditForm(
   capability: RenderableCapability,
   record: Readonly<Record<string, unknown>>,
-  options: EditFormOptions,
 ): string {
   const recordId = record.id;
   if (typeof recordId !== "string" || recordId.trim() === "") {
@@ -168,45 +170,21 @@ export function renderEditForm(
     .map((field) => renderEditField(capability.id, field, capability.form, record[field.name]))
     .join("");
   const errorId = capabilityEditErrorId(capability.id);
-  const targetId = escapeHtml(options.itemTargetId);
   const escapedRecordId = escapeHtml(recordId);
   const label = escapeHtml(capability.label);
 
   return (
-    `<form class="capability-edit-form" data-modal-edit-form aria-label="Edit ${label}"` +
-    ` data-item-target-id="${targetId}"` +
-    ` data-post-mutation-refresh` +
-    ` data-mutation-kind="update"` +
-    ` data-records-target-id="${capabilityRecordsRegionId(capability.id)}"` +
-    ` data-read-url="/capability/${capability.id}/read"` +
-    searchRefreshAttributes(capability) +
+    `<form class="capability-edit-form" data-record-edit-form aria-label="Edit ${label}"` +
     ` hx-post="/capability/${capability.id}/update" hx-swap="none">` +
     `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapedRecordId}">` +
     `<div id="${errorId}" class="capability-edit-form__error" aria-live="polite"></div>` +
     `<div class="capability-edit-form__fields">${fields}</div>` +
     `<div class="capability-edit-form__actions">` +
-    `<button class="btn btn--ghost" type="button" data-detail-cancel-edit>Cancel</button>` +
     `<button class="btn btn--primary" type="submit">Save</button>` +
+    `<button class="btn btn--ghost" type="button" data-record-cancel>Cancel</button>` +
     `</div>` +
     `</form>`
   );
-}
-
-/**
- * Render the read-only detail display for one record: a `<dl>` of humanized field
- * labels and formatted values, in the fields/order the capability's
- * active schema fields in authored order. The record is untrusted live data — every
- * value is escaped and an absent one shows the placeholder — so the module holds no
- * state between renders.
- */
-export function renderDetailFields(
-  capability: RenderableCapability,
-  record: Readonly<Record<string, unknown>>,
-): string {
-  const rows = activeSpecFields(capability.schema.fields)
-    .map((field) => renderDetailField(field, record[field.name]))
-    .join("");
-  return `<dl class="detail-fields">${rows}</dl>`;
 }
 
 // ── Create controls ─────────────────────────────────────────────────────────
@@ -337,7 +315,7 @@ function renderEditField(
 /**
  * A datetime-local control cannot carry an offset or trailing Z, while canonical
  * datetime storage intentionally can. Keep the exact committed value in the named
- * hidden control and let the modal controller update it only when the visible local
+ * hidden control and let the mutation glue update it only when the visible local
  * control actually changes. Saving an unrelated field is therefore lossless.
  */
 function renderEditDatetimeField(capabilityId: string, field: SpecField, value: unknown): string {
@@ -503,99 +481,7 @@ function renderRepeatableListField(capabilityId: string, field: SpecField): stri
   );
 }
 
-// ── Detail values ───────────────────────────────────────────────────────────
-
-function renderDetailField(field: SpecField, value: unknown): string {
-  const label = escapeHtml(field.label);
-  const emptyModifier = isEmptyValue(value) ? " detail-field__value--empty" : "";
-  const rendered = formatDetailValue(field.type, value);
-
-  return (
-    `<div class="detail-field">` +
-    `<dt class="detail-field__label">${label}</dt>` +
-    `<dd class="detail-field__value${emptyModifier}">${rendered}</dd>` +
-    `</div>`
-  );
-}
-
-/**
- * The total dispatch from a pantry field type to its read-only display — the detail
- * half of the one place Module 4/6 extend. Returns HTML-safe markup: string/number
- * are escaped text, boolean reads as Yes/No, date/datetime ride a semantic `<time>`.
- * Absent values short-circuit to the placeholder before the switch.
- */
-function formatDetailValue(type: FieldType, value: unknown): string {
-  if (isEmptyValue(value)) return EMPTY_VALUE;
-
-  switch (type) {
-    case "string":
-      return escapeHtml(String(value));
-    case "number":
-      return escapeHtml(String(value));
-    case "boolean":
-      // Real records carry a JS boolean (the data ports normalize 0/1 → false/true);
-      // a non-boolean payload falls back to its escaped string rather than lying.
-      if (value === true) return "Yes";
-      if (value === false) return "No";
-      return escapeHtml(String(value));
-    case "datetime":
-      return formatDatetime(value);
-    case "date":
-      return formatDate(value);
-    case "string[]":
-      return formatStringList(value);
-    default:
-      return assertNever(type);
-  }
-}
-
-function formatStringList(value: unknown): string {
-  if (!Array.isArray(value)) return escapeHtml(String(value));
-  return `<ul class="detail-field__list">${value
-    .map((element) => `<li>${escapeHtml(String(element))}</li>`)
-    .join("")}</ul>`;
-}
-
-/**
- * Render a stored datetime as a semantic `<time>`. The visible text is a
- * deterministic, timezone-free tidy of the ISO value (`2026-06-23T09:30:00.000Z` →
- * `2026-06-23 09:30`) so tests and output never depend on the host locale/zone; a
- * value that is not ISO-shaped shows verbatim. Both the attribute and the text are
- * escaped.
- */
-function formatDatetime(value: unknown): string {
-  const raw = String(value);
-  const isoAttribute = escapeHtml(raw);
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(raw);
-  const text = match ? `${match[1]} ${match[2]}` : isoAttribute;
-  return `<time datetime="${isoAttribute}">${text}</time>`;
-}
-
-/**
- * Render a stored calendar date as a semantic `<time>` — date-only sibling of
- * {@link formatDatetime}. The `YYYY-MM-DD` ISO value shows verbatim (no timezone
- * math); a non-ISO value falls back to its escaped string. Digits/hyphens only, so
- * the visible text needs no escaping; the attribute is escaped regardless.
- */
-function formatDate(value: unknown): string {
-  const raw = String(value);
-  const isoAttribute = escapeHtml(raw);
-  const match = /^\d{4}-\d{2}-\d{2}/.exec(raw);
-  const text = match?.[0] ?? isoAttribute;
-  return `<time datetime="${isoAttribute}">${text}</time>`;
-}
-
 // ── Shared helpers ──────────────────────────────────────────────────────────
-
-/** Absent for display purposes: null, undefined, or the empty string. `false`/`0` are values. */
-function isEmptyValue(value: unknown): boolean {
-  return (
-    value === null ||
-    value === undefined ||
-    value === "" ||
-    (Array.isArray(value) && value.length === 0)
-  );
-}
 
 /** Compile-time exhaustiveness guard: reached only if a `FieldType` case is unhandled. */
 function assertNever(value: never): never {

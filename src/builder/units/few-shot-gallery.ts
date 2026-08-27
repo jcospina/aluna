@@ -67,7 +67,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
     notes: [
       "Uses feed-friendly hierarchy and truncation.",
       "Turns source/tag into visible metadata without adding an inner card.",
-      "Composes only one record. The platform owns the trigger, payload, and modal.",
+      "Composes only one record. The platform owns the trigger, the payload, and the record's own view.",
     ],
     capability: {
       id: "research_notes",

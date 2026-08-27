@@ -4,7 +4,6 @@
 // The shell is dumb on purpose (CONTEXT.md "Shell"): the server sends fragments and
 // the client places them. These renderers are the server side of that contract.
 
-import { renderDetailModal } from "../presentation/detail-modal.ts";
 import {
   type CapabilityRow,
   canonicalCapabilityLabel,
@@ -30,11 +29,6 @@ const PROVISIONAL_LOGO_ATTRIBUTE = "data-provisional-logo";
 // The shell's logo-layer placeholder comment (public/index.html) — where the on-load
 // rehydration and direct `/capability/:id` navigation inject one logo per capability.
 const SHELL_LOGO_PLACEHOLDER = "          <!-- Capability logos render here. -->";
-
-// The shell's detail-modal placeholder comment (public/index.html) — where every
-// server-rendered shell mounts the one shared read-only detail modal instance (epic
-// so a clicked capability item always has the modal to open.
-const SHELL_DETAIL_MODAL_PLACEHOLDER = "    <!-- Shared detail modal mounts here. -->";
 
 /**
  * Which of the developer panel's eight stages each preview event belongs to.
@@ -366,19 +360,15 @@ export function renderCapabilitySurface(
  * `has-capabilities` state, and an empty desk needs no gate. The content target left it
  * with the shell's content area: the window is created by the client, so there is no
  * hole in the served page for a capability's collection to be composed into any more.
+ * The detail-modal placeholder left with the modal: a record opens through an ordinary
+ * view swap inside the window, so there is nothing left to mount.
  *
- * The modal placeholder is the one temporary entry. Opening a record still goes through
- * the shared modal until 5.7/01 replaces it with a view swap inside the window, and the
- * list collapses to the logo layer alone there.
+ * One anchor is what remains, and it still fails loudly.
  */
 export const PAGE_ASSEMBLY_ANCHORS = [
   {
     name: "the logo-layer placeholder",
     remove: (shellHtml: string) => shellHtml.replace(SHELL_LOGO_PLACEHOLDER, ""),
-  },
-  {
-    name: "the detail-modal placeholder",
-    remove: (shellHtml: string) => shellHtml.replace(SHELL_DETAIL_MODAL_PLACEHOLDER, ""),
   },
 ] as const;
 
@@ -401,21 +391,16 @@ export function renderRehydratedShell(
   rows: readonly RenderableCapabilityLogo[],
   shellHtml: string,
 ): string {
-  // The shared detail modal mounts on every rendered shell — an empty desk included — so
-  // the first capability a fresh user builds can open it without a page refresh (the
-  // commit swap adds content + a logo, not the modal). An empty desk means no
-  // capabilities, never no modal: the modal is data-free platform chrome.
-  const withModal = injectDetailModal(shellHtml);
   if (rows.length === 0) {
     // An empty desk inserts no logos — but the anchor the first commit will need is
     // checked here, on the page a fresh user actually loads, rather than left to fail on
     // that commit. An anchor whose check is data-dependent is an anchor that fails loudly
     // only for users who already have capabilities.
-    requireLogoLayerAnchor(withModal);
-    return withModal;
+    requireLogoLayerAnchor(shellHtml);
+    return shellHtml;
   }
 
-  return injectCapabilityLogos(withModal, renderCapabilityLogos(rows));
+  return injectCapabilityLogos(shellHtml, renderCapabilityLogos(rows));
 }
 
 // Render one canonical logo per registry row, shell-indented and joined. The single
@@ -442,19 +427,6 @@ function injectCapabilityLogos(shellHtml: string, logosHtml: string): string {
   // `\'` into `&#39;`, so a label reading `$\'` becomes the `$&` pattern — and `$\`` splices
   // the whole preceding document into the `aria-label` it lands in.
   return shellHtml.replace(SHELL_LOGO_PLACEHOLDER, () => `${SHELL_LOGO_PLACEHOLDER}\n${logosHtml}`);
-}
-
-// Mount the one shared read-only detail modal instance at the shell's placeholder
-// (public/index.html), rendered from the single renderDetailModal source so the served
-// markup can never drift from the module + its tests. Loud on a missing placeholder — same
-// fail-fast contract as the logo injection — so a shell that silently dropped the modal
-// (and with it every item's click-to-open) is caught in tests, not in the UI.
-function injectDetailModal(shellHtml: string): string {
-  const withModal = shellHtml.replace(SHELL_DETAIL_MODAL_PLACEHOLDER, renderDetailModal());
-  if (withModal === shellHtml) {
-    throw new Error("The shell detail-modal placeholder is missing.");
-  }
-  return withModal;
 }
 
 /**

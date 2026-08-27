@@ -1,11 +1,16 @@
-// The platform list scaffolding and accessible item wrapper: the structural chrome a
-// capability's records land in. Platform-owned and presentational only — no capability
-// rule, no canonical state.
+// The platform list scaffolding and item wrapper: the structural chrome a capability's
+// records land in. Platform-owned and presentational only — no capability rule, no
+// canonical state.
+//
+// A record is a `<button>`. Opening one is the only thing you can do with it, and a
+// button is what the keyboard already reaches, so the wrapper carries no `role`, no
+// `tabindex` and no key handling of its own (`design/design-system.md`, "The window and
+// the collection").
 //
 // The wrapper is platform chrome, not generated markup, so the runtime allow-list
-// enforcer never runs on it — its `role`/`tabindex`/`data-item` are platform-authored
-// and trusted. The enforcer runs on the *inner* markup an item renderer emits, applied
-// by the presentation adapter before it reaches this wrapper. renderItemWrapper frames
+// enforcer never runs on it — its `data-item` payload is platform-authored and trusted.
+// The enforcer runs on the *inner* markup an item renderer emits, applied by the
+// presentation adapter before it reaches this wrapper. renderItemWrapper frames
 // already-safe markup; it does not re-parse or sanitize.
 //
 // The container is data-free: live records arrive through the `read` action into the
@@ -20,12 +25,15 @@ import {
   renderCreateForm,
 } from "./field-renderer.ts";
 import { inkSeedAttr } from "./ink-seed.ts";
+import { itemElementIdForTemplate, renderRecordFormBar } from "./record-view.ts";
 
 /**
  * The closed set of collection layouts. `table`/`masonry` are deliberately out of
  * scope: a true table dissolves the per-record creative surface. Kept as a `const`
  * tuple so a test can sweep every member and prove the map below is exhaustive.
  */
+export { itemElementIdForTemplate } from "./record-view.ts";
+
 export const COLLECTION_LAYOUTS = ["feed", "grid"] as const;
 export type CollectionLayout = (typeof COLLECTION_LAYOUTS)[number];
 
@@ -33,7 +41,7 @@ export type CollectionLayout = (typeof COLLECTION_LAYOUTS)[number];
 export const DEFAULT_COLLECTION_LAYOUT: CollectionLayout = "feed";
 
 /**
- * The stable class the item wrapper carries — the detail modal's click-to-open hook and
+ * The stable class the item wrapper carries — the record swap's click-to-open hook and
  * the item chrome's style anchor. Exported so those modules key on one constant rather
  * than a copied string.
  */
@@ -47,35 +55,21 @@ export const ITEM_TRIGGER_CLASS = "capability-item";
 export const ITEM_PAYLOAD_ATTR = "data-item";
 
 /**
- * The attribute pointing at the record's inert detail `<template>`, which the modal
- * clones on open. The click controller (public/item-detail.js) reads it as the open
- * event's `sourceId`, so the modal shows the full record through the centralized field
- * renderer even when the item truncates — no client-side field formatting, no
- * read-single route.
+ * The attribute pointing at the record's inert view `<template>`, which the swap clones
+ * on open. The click controller (public/record-view.js) reads it, so the record's form
+ * comes from the centralized field renderer even when the item truncates — no
+ * client-side field formatting, no read-single route.
  */
-export const ITEM_DETAIL_TEMPLATE_ATTR = "data-detail-template";
+export const ITEM_RECORD_VIEW_ATTR = "data-record-view-template";
 
 /**
- * The modal title the trigger opens with — the capability label. Read by the click
- * controller and set via `textContent`, so it can never inject markup.
+ * What the wrapper needs to open one record. This is the platform-owned open target the
+ * click controller reads; the model never authors the swap.
  */
-export const ITEM_DETAIL_TITLE_ATTR = "data-detail-title";
-
-/**
- * What the wrapper needs to open one record's detail. This is the platform-owned open
- * target the click controller reads; the model never authors modal wiring.
- */
-export interface ItemDetailRef {
+export interface ItemRecordViewRef {
   /** The `<template>` id to clone on open. The caller owns making it unique and
-   *  DOM-safe (in practice `detail-<capabilityId>-<recordId>`). */
+   *  DOM-safe (in practice `record-<capabilityId>-<recordId>`). */
   readonly templateId: string;
-  /** The modal title — the capability label. */
-  readonly title: string;
-}
-
-/** Stable DOM id for the item paired with one inert modal template. */
-export function itemElementIdForTemplate(templateId: string): string {
-  return `${templateId}-item`;
 }
 
 /**
@@ -168,7 +162,7 @@ function renderSearchFeedback(capability: RenderableCapability): string {
  *
  * **Two views of one surface, not a panel over a list (design D2).** Pressing "New X"
  * does not open a card above the records: it swaps the collection out and gives the
- * whole window to the form, which is the same thing opening a record will do in 5.7/01.
+ * whole window to the form, which is the same thing opening a record does.
  * A list you can no longer see is a list the form is not competing with, and the form
  * gets the height it needs for its fields to be readable rather than a strip at the top.
  *
@@ -177,11 +171,14 @@ function renderSearchFeedback(capability: RenderableCapability): string {
  * is also a content region: the read, search and refresh requests that write it are
  * released the moment its content is replaced or the region goes away.
  *
- * The form view closes itself when a create succeeds for *this* capability, or when
- * Cancel dispatches {@link CREATE_CANCELLED_EVENT}. Cancel is the only way out and
- * needs no back control beside it — they would be one control twice. Every close
- * gives focus back to the control that opened the form, because a view swap that
- * drops focus leaves a keyboard user at the top of the desk.
+ * The form arrives under the same back control a record's does, because it is the same
+ * surface reached the other way ("in a window it always arrives under a back control,
+ * reached either from a record or from New record" — `design/index.html`). Cancel inside
+ * the form is that exit from the other end, and both close the view the same way: a
+ * create succeeds for *this* capability, or Cancel dispatches
+ * {@link CREATE_CANCELLED_EVENT}. Every close gives focus back to the control that opened
+ * the form, because a view swap that drops focus leaves a keyboard user at the top of the
+ * desk.
  */
 export function renderCollection(options: CollectionOptions): string {
   const { capability } = options;
@@ -236,6 +233,7 @@ export function renderCollection(options: CollectionOptions): string {
     `<p class="capability-empty">Nothing here yet — add your first ${escapeHtml(capability.noun)} above.</p>` +
     `</div>` +
     `<div class="capability-collection__create" x-ref="createPanel" x-show="createOpen" x-cloak>` +
+    renderRecordFormBar(capability.label, ` @click="${backToTrigger}"`) +
     renderCreateForm(capability) +
     `</div>` +
     `</section>`
@@ -243,15 +241,15 @@ export function renderCollection(options: CollectionOptions): string {
 }
 
 /**
- * Wrap one record's already-safe inner markup in the standardized accessible trigger: a
- * `role="button"` control with `aria-haspopup="dialog"` carrying the caller-supplied
- * client projection as an escaped `data-item` payload. The presentation adapter owns
- * that projection and excludes server-only canonical state before calling this.
+ * Wrap one record's already-safe inner markup in the standardized trigger: a real
+ * `<button>` carrying the caller-supplied client projection as an escaped `data-item`
+ * payload. The presentation adapter owns that projection and excludes server-only
+ * canonical state before calling this.
  *
- * Given an {@link ItemDetailRef} it also carries the two hooks the click controller reads
- * to open the shared read-only detail modal prefilled with this record. `detail` is
- * optional so the frame alone can render without click-to-open; the real read path always
- * passes it.
+ * Given an {@link ItemRecordViewRef} it also carries the hook the click controller reads
+ * to swap this record's form into the window. `recordView` is optional so the frame alone
+ * can render without click-to-open, and a capability that cannot be updated has no record
+ * surface to open; the real read path always passes it.
  *
  * `innerHtml` is trusted — the presentation adapter has already run it through the
  * runtime enforcer. This function frames it; it does not sanitize.
@@ -265,18 +263,18 @@ export function renderCollection(options: CollectionOptions): string {
 export function renderItemWrapper(
   innerHtml: string,
   record: Readonly<Record<string, unknown>>,
-  detail?: ItemDetailRef,
+  recordView?: ItemRecordViewRef,
 ): string {
   const payload = escapeHtml(serializeItemPayload(record));
-  const itemId = detail ? ` id="${escapeHtml(itemElementIdForTemplate(detail.templateId))}"` : "";
-  const detailHooks = detail
-    ? ` ${ITEM_DETAIL_TEMPLATE_ATTR}="${escapeHtml(detail.templateId)}"` +
-      ` ${ITEM_DETAIL_TITLE_ATTR}="${escapeHtml(detail.title)}"`
-    : "";
+  const attributes = `class="${ITEM_TRIGGER_CLASS}" ${ITEM_PAYLOAD_ATTR}="${payload}"${inkSeedAttr(record.id)}`;
+  // Nothing to open is not a button. Opening one is the only thing a record does, so a
+  // frame with no record surface behind it is a card rather than a control that would
+  // take focus and then do nothing.
+  if (!recordView) return `<article ${attributes}>${innerHtml}</article>`;
+  const itemId = escapeHtml(itemElementIdForTemplate(recordView.templateId));
   return (
-    `<article${itemId} class="${ITEM_TRIGGER_CLASS}" role="button" tabindex="0"` +
-    ` aria-haspopup="dialog" ${ITEM_PAYLOAD_ATTR}="${payload}"${detailHooks}` +
-    `${inkSeedAttr(record.id)}>${innerHtml}</article>`
+    `<button type="button" id="${itemId}" ${attributes}` +
+    ` ${ITEM_RECORD_VIEW_ATTR}="${escapeHtml(recordView.templateId)}">${innerHtml}</button>`
   );
 }
 

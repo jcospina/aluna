@@ -29,7 +29,7 @@ import {
   createArtifactCleanupAdapter,
   destroyCapability,
 } from "../../capability-deletion/index.ts";
-import { renderDetailFields } from "../../presentation/index.ts";
+import { renderEditForm } from "../../presentation/index.ts";
 import { createReadGateCoordinator } from "../../read-gates/index.ts";
 import {
   type CapabilitySpec,
@@ -119,12 +119,12 @@ describe("the due-date tracer", () => {
       expect(verifyCapabilitySnapshot(versionDirectory(env, 1)).spec).toEqual(committedSpec());
 
       // The record written before the column existed is intact and readable, with the new
-      // value absent — shown as the platform empty value, never as a broken row.
+      // value absent — an empty input in the record's form, never a broken row.
       const stored = env.conns.readonly
         .query('SELECT "text", "due_date" FROM "cap_notes" WHERE "id" = ?')
         .get("note-1") as { text: string; due_date: string | null };
       expect(stored).toEqual({ text: HISTORICAL_TEXT, due_date: null });
-      const detail = renderDetailFields(
+      const recordForm = renderEditForm(
         {
           id: candidate.id,
           label: candidate.label,
@@ -134,10 +134,10 @@ describe("the due-date tracer", () => {
           actions: candidate.tools,
           item: candidate.ui_intent.item,
         },
-        { ...stored, created_at: "2026-07-27T00:00:00Z" },
+        { ...stored, id: "note-1", created_at: "2026-07-27T00:00:00Z" },
       );
-      expect(detail).toContain("Due date");
-      expect(detail).toContain("—");
+      expect(recordForm).toContain("Due date");
+      expect(recordForm).toContain('id="edit-notes-due_date" type="date" name="due_date" value=""');
 
       // The tier is honoured in both directions: tier-on freezes the behavioral artifact
       // into the snapshot, tier-off carries none by contract.

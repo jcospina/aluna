@@ -1,0 +1,68 @@
+/* =============================================================================
+   The record, in the window — platform CHROME (Module 5 · epic 5.7/01).
+   What a record opens into (src/presentation/record-view.ts): a back control above
+   the form, and the form itself in edit mode. There is no modal and no read view,
+   so this is the only surface one record has, and the create view arrives under the
+   same bar because it is the same surface reached the other way.
+
+   Two views of one window, not a panel over a list (design D2): this takes the
+   collection's place and is laid out the same way — a column that fills the window,
+   so the form's action row sits on the window's own bottom edge rather than
+   somewhere down the page. The design's own `.detail` scrolls as a whole; here the
+   form's fields scroll inside it instead, which is what the create form already does
+   and what keeps the back control in place while a long record is read.
+
+   The window's frame is the only line around this, so nothing here draws a boundary.
+   ========================================================================== */
+
+.capability-record-view {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  gap: var(--space-3);
+}
+
+/* Back is navigation and sits above the form; Cancel in the action row is the form's
+   own escape and leaves the same way. Both exist because the window is the whole
+   surface — with nothing behind it to click, there has to be a way out at the top. */
+.capability-record-view__bar {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+/* A quiet control that reads as a way back, not a button standing on the surface: no
+   fill and no boundary, because a drawn button here would compete with the form's own
+   Save for the eye. */
+.capability-record-view__back {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  font: inherit;
+  font-size: var(--type-sm);
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.capability-record-view__back:hover {
+  color: var(--ink);
+}
+.capability-record-view__back:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.capability-record-view__back:disabled {
+  cursor: default;
+  color: var(--ink-3);
+}
+
+/* An optical nudge, not a layout step: the arrow's glyph sits a hair high against the
+   label's baseline. The design states the same 1px correction directly
+   (design/styles/components/collection.css, `.detail__arrow`). */
+.capability-record-view__arrow {
+  display: inline-flex;
+  translate: 0 0.0625rem;
+}

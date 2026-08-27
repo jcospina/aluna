@@ -16,9 +16,9 @@
 @import "css/demo.css"; /* cold-start, build stream, raw stage previews      */
 @import "css/prompt.css"; /* the prompt bar, floating over the ground         */
 @import "css/components.css"; /* platform button variants (design-system color)*/
-@import "css/fields.css"; /* capability create/edit/detail field chrome       */
+@import "css/fields.css"; /* capability create + edit field chrome            */
 @import "css/collection.css"; /* list layout + item wrapper chrome (M3 §3.2)   */
-@import "css/detail-modal.css"; /* shared read/edit record modal (M4 §4.3/01)  */
+@import "css/record-view.css"; /* the record's own view inside the window       */
 @import "css/a11y.css"; /* focus ring + reduced-motion                        */
 
 /* The seam, last — as it is in design/styles/index.css, and for the same reason:

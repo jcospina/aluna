@@ -133,17 +133,16 @@ describe("deterministic capability router — presentation adapter and empty rea
     const res = await app.request("/capability/notes/read");
     expect(res.status).toBe(200);
     const body = await res.text();
-    // The record came back through the adapter: the accessible wrapper, the escaped payload,
-    // the record-keyed detail hook, and the renderer's inner markup — none authored by the
-    // handler itself.
+    // The record came back through the adapter: the record button, the escaped payload,
+    // the record-keyed open hook, and the renderer's inner markup — none authored by the
+    // handler itself. The record's own view rides beside it, back control and all.
     expect(body).toContain('class="capability-item"');
     expect(body).toContain("data-item=");
-    expect(body).toContain('data-detail-template="detail-notes-');
+    expect(body).toContain('data-record-view-template="record-notes-');
     expect(body).toContain('<span class="text-lg truncate">Buy milk</span>');
-    expect(body).toContain("data-detail-edit");
-    expect(body).toContain("data-detail-delete");
+    expect(body).toContain("data-record-back");
+    expect(body).toContain("data-record-edit-form");
     expect(body).toContain("/capability/notes/update");
-    expect(body).toContain("/capability/notes/delete");
   });
 
   test("a missing required item renderer fails cleanly before the handler loads", async () => {

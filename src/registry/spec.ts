@@ -13,8 +13,9 @@
 //     Every object is strict, so any extra key fails validation.
 //   - `ui_intent` records only capability-specific presentation choices: item direction,
 //     the closed collection layout (`feed | grid`), and one closed
-//     input mode for every active `string[]`. It never stores `views` or `modal: true` —
-//     the shared modal is a platform invariant. `tools` is the fixed five-Action tuple;
+//     input mode for every active `string[]`. It never stores `views` or how a record
+//     opens — the view swap into the window is the platform's. `tools` is the fixed
+//     five-Action tuple;
 //     `read_dependencies` carries exactly one array per Action; `behavior` is free text the
 //     behavioral tier generates tests from; `behavioral_errors` is the stable validation
 //     error contract product copy must not stand in for.

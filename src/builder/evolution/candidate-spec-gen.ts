@@ -102,7 +102,7 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
     `- list input mode is exactly ${listInputModes}. Choose comma_separated only for short atomic values whose grammar cannot meaningfully contain commas (tags, genres, categories, skills). Choose repeatable when an element may contain a comma (quotes, addresses, citations, or names as entered).`,
     "- ui_intent.item.shows is an ordered list of active schema field names; it may also include created_at. Never show an inactive field.",
     `- ui_intent.collection.layout is one of: ${collectionLayouts}.`,
-    "- Do not include ui_intent.views. Do not include modal: true; the shared modal is a platform invariant.",
+    "- Do not include ui_intent.views. Do not author how a record opens; opening one swaps the collection for its form inside the window, and that is the platform's.",
     "",
     "Identity and text:",
     '- label is the short user-facing capability name, like "Notes" or "Reading list" — a name, not a sentence. You may refine it.',

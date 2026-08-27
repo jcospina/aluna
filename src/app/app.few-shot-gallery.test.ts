@@ -30,10 +30,13 @@ describe("GET /demo/few-shot-gallery (few-shot gallery, epic 3.5)", () => {
     expect(html).toContain('class="capability-records capability-records--grid"');
     expect(html).toContain("Workshop wall before launch");
     expect(html).toContain("Token discipline for generated interfaces");
-    expect(html).toContain("data-detail-template=");
-    expect(html).toContain('<dialog id="aluna-detail-modal"');
-    expect(html).toContain('src="/static/detail-modal.js"');
-    expect(html).toContain('src="/static/item-detail.js"');
+    // The exemplar capabilities declare create + read only, so no record opens here:
+    // there is no read view to fall back on, and no modal anywhere to open one in. A
+    // frame with nothing behind it is a card, so the page loads no swap it cannot serve.
+    expect(html).not.toContain("data-record-view-template=");
+    expect(html).not.toContain("<dialog");
+    expect(html).not.toContain("record-view.js");
+    expect(html).toContain("<article");
   });
 
   test("previews the injected prompt section with vary-dont-copy framing and layout context", async () => {

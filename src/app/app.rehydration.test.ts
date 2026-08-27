@@ -59,10 +59,8 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
     expect(html).toContain('class="desk__windows"');
     expect(html).toContain('hx-post="/prompt"');
 
-    // An empty desk means no capabilities, never no modal: the shared detail modal mounts
-    // even here, so the FIRST capability this user builds can open it without a refresh.
-    expect(html).toContain('<dialog id="aluna-detail-modal"');
-    expect(html).not.toContain("Shared detail modal mounts here"); // placeholder consumed
+    // Nothing opens over anything else, so a cold-start desk mounts no dialog at all.
+    expect(html).not.toContain("<dialog");
   });
 
   test("registry rows stand one logo each on the desk, with nothing gated", async () => {

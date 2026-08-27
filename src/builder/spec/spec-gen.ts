@@ -97,7 +97,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "- list input mode is exactly comma_separated | repeatable. Choose comma_separated only for short atomic values whose grammar cannot meaningfully contain commas (tags, genres, categories, skills). Choose repeatable when an element may contain a comma (quotes, addresses, citations, or names as entered). There is no quoting or escaping in comma_separated mode, so never choose it for comma-bearing element semantics.",
     "- ui_intent.item.shows is the ordered list of active schema field names the item renderer may receive; it may also include created_at.",
     `- ui_intent.collection.layout is one of: ${collectionLayouts}. Use feed for text-forward lists and grid for visually dominant collections.`,
-    "- Do not include ui_intent.views. Do not include modal: true; the shared modal is a platform invariant, not authored state.",
+    "- Do not include ui_intent.views. Do not author how a record opens; opening one swaps the collection for its form inside the window, and that is the platform's, not authored state.",
     "",
     "Identity:",
     "- id is the engineering identity (it becomes a table and folder name). Short, lowercase, never shown to the user.",

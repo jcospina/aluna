@@ -143,15 +143,15 @@ function activeViewIsCanonical(surface) {
   const collection = surface.querySelector("[data-search-state]");
   const searchInput = surface.querySelector("[data-capability-search-input]");
   const createPanel = surface.querySelector(".capability-collection__create");
-  const modal = document.getElementById("aluna-detail-modal");
   const searchIsIdle =
     collection instanceof HTMLElement && collection.dataset.searchState === "idle";
   const searchIsEmpty = searchInput instanceof HTMLInputElement && searchInput.value === "";
   const createIsClosed =
     !(createPanel instanceof HTMLElement) ||
     window.getComputedStyle(createPanel).display === "none";
-  const modalIsClosed = !(modal instanceof HTMLDialogElement) || !modal.open;
-  return searchIsIdle && searchIsEmpty && createIsClosed && modalIsClosed;
+  // An open record needs no question of its own: it replaced the collection, so the
+  // search state this asks for is not on the surface at all and the answer is already no.
+  return searchIsIdle && searchIsEmpty && createIsClosed;
 }
 
 /**
@@ -725,9 +725,6 @@ function finishTerminalPresentation(eventTarget) {
 
   const { restorationKind, activated } = promoteTerminalPresentation(subscriber, output);
   putAwayEmptyWindow(output);
-
-  const modal = document.getElementById("aluna-detail-modal");
-  if (modal instanceof HTMLDialogElement && modal.open) modal.close();
 
   if (
     restorationKind === "neutral" &&

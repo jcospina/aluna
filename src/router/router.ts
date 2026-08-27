@@ -569,8 +569,8 @@ async function buildPresentationAdapter(
   return createPresentationAdapter({ capability: renderableFromRow(row), renderItem });
 }
 
-// The slice of a row the presentation adapter needs: the id (namespaces the detail
-// templates), the user-facing label (the modal title), and the fields (the detail body).
+// The slice of a row the presentation adapter needs: the id (namespaces the record-view
+// templates), the user-facing label (what back goes back to), and the fields (the form).
 function renderableFromRow(row: CapabilityRow): RenderableCapability {
   return {
     id: row.id,

@@ -1,6 +1,5 @@
-// Shared fixtures for the field-renderer test files (field-renderer.test.ts and
-// field-renderer.detail.test.ts). One capability fixture plus the single-field probe
-// and detail-value sampler drive both the create-form and detail-display suites.
+// Shared fixtures for the field-renderer test files. One capability fixture plus the
+// single-field probe and value sampler drive the create-form and edit-form suites.
 
 import type { FieldType, SpecField } from "../registry/index.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
@@ -47,7 +46,7 @@ export function oneField(
   };
 }
 
-export function sampleDetailValue(type: FieldType): string | number | boolean | readonly string[] {
+export function sampleFieldValue(type: FieldType): string | number | boolean | readonly string[] {
   switch (type) {
     case "string":
       return "a value";

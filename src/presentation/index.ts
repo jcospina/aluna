@@ -1,7 +1,7 @@
 // The platform presentation layer. Module 3 introduces the capability-scoped
 // presentation surface: the runtime allow-list enforcer, the
-// centralized create/edit/detail field renderer (deterministic from the
-// spec), the list container/item wrapper, the shared read/edit modal
+// centralized create/edit field renderer (deterministic from the
+// spec), the list container/item wrapper, the in-window record view
 // and the presentation adapter that composes them
 // into the record → safe wrapped item HTML the router injects into every Handler.
 //
@@ -13,12 +13,12 @@
 export {
   createPlatformPresentationAdapter,
   createPresentationAdapter,
-  DETAIL_TEMPLATE_ID_PREFIX,
   type ItemRenderer,
   type PlatformPresentationAdapter,
   type PresentableRecord,
   type PresentationAdapter,
   type PresentationAdapterOptions,
+  RECORD_TEMPLATE_ID_PREFIX,
 } from "./adapter.ts";
 export {
   isTokenFrom,
@@ -27,15 +27,6 @@ export {
   TYPE_SIZE_TOKENS,
   tokenList,
 } from "./design-tokens.ts";
-export {
-  DETAIL_MODAL_BODY_ID,
-  DETAIL_MODAL_ID,
-  DETAIL_MODAL_TITLE_ID,
-  OPEN_DETAIL_EVENT,
-  renderDetailContent,
-  renderDetailContentTemplate,
-  renderDetailModal,
-} from "./detail-modal.ts";
 export { enforceItemMarkup } from "./enforcer.ts";
 export {
   capabilityCreateErrorId,
@@ -45,7 +36,6 @@ export {
   RECORD_CREATED_EVENT,
   type RenderableCapability,
   renderCreateForm,
-  renderDetailFields,
   renderEditForm,
 } from "./field-renderer.ts";
 export {
@@ -54,16 +44,21 @@ export {
   type CollectionOptions,
   collectionLayoutClass,
   DEFAULT_COLLECTION_LAYOUT,
-  ITEM_DETAIL_TEMPLATE_ATTR,
-  ITEM_DETAIL_TITLE_ATTR,
   ITEM_PAYLOAD_ATTR,
+  ITEM_RECORD_VIEW_ATTR,
   ITEM_TRIGGER_CLASS,
-  type ItemDetailRef,
+  type ItemRecordViewRef,
   itemElementIdForTemplate,
   renderCollection,
   renderItemWrapper,
   serializeItemPayload,
 } from "./list-container.ts";
+export {
+  RECORD_BACK_ATTR,
+  RECORD_VIEW_ATTR,
+  renderRecordView,
+  renderRecordViewTemplate,
+} from "./record-view.ts";
 export { describeStyleViolation, sanitizeStyle } from "./style-discipline.ts";
 export {
   ALLOWED_CLASSES,

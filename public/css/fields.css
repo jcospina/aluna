@@ -1,11 +1,11 @@
 /* =============================================================================
-   Capability field chrome — the create form's controls and the read-only detail
-   display, rendered deterministically from a spec by the centralized field
-   renderer (src/presentation/field-renderer.ts, Module 3 · epic 3.2/01).
+   Capability field chrome — the create and edit forms' controls, rendered
+   deterministically from a spec by the centralized field renderer
+   (src/presentation/field-renderer.ts, Module 3 · epic 3.2/01).
 
    Platform CHROME, not the generated item vocabulary (design/styles/layout-kit.css):
-   these style the platform-owned create/detail surfaces the "New X" button and the
-   shared modal open, never markup the item renderer emits. Treatment follows the
+   these style the platform-owned surfaces the "New X" button and a record open,
+   never markup the item renderer emits. Treatment follows the
    established Aluna field (.prompt__field, prompt.css) — surface fill, a drawn
    boundary, mitred corners, an accent focus ring and no press travel so a
    control stays put while it's being filled. Tokens only; no raw values.
@@ -26,12 +26,6 @@
   flex: 1 1 auto;
   min-height: 0;
   gap: var(--space-3);
-}
-/* The edit form still arrives in the shared modal, whose panel is not a column for it
-   to be an item of, so there it takes the height directly. It joins the rule above
-   when 5.7/01 gives a record its own view in the window and the modal is deleted. */
-.capability-edit-form {
-  height: 100%;
 }
 /*
  * The rhythm is the design system's: `--space-4` between fields, where the product
@@ -57,7 +51,12 @@
 }
 /* Stuck to the bottom, and stated as `sticky` rather than left to flex order: the
    fields above scroll, and a row that merely came last would scroll away with the
-   last field on a form longer than the window. */
+   last field on a form longer than the window.
+
+   Save and Cancel sit on the left, in that order, and a destructive action is kept
+   away from them on the right (design/index.html, "The record form"). That separation
+   carries "close means put away" down to the record: a destructive action is never
+   next to a routine one. */
 .capability-create-form__actions,
 .capability-edit-form__actions {
   position: sticky;
@@ -66,7 +65,6 @@
   bottom: 0;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--space-2);
   padding: var(--space-4) var(--space-2) var(--space-2);
   background: var(--surface);
@@ -179,69 +177,4 @@
 }
 .field__label--inline {
   cursor: pointer;
-}
-
-/* ── Read-only detail ─────────────────────────────────────────────────────────
-   The shared modal (3.2/04) fills this from a record payload. A two-column
-   key/value list: a quiet sentence-case label sits in a fixed left column so
-   labels and values line up down the whole record, scannable without ruling every
-   row off — tone + spacing do the separating (design/design-system.md "clean, not
-   boxed"). Values carry the reading weight, wrap, and keep their own line breaks so
-   a multi-line field reads faithfully. Below the modal's narrow width the pair
-   stacks so neither column is crushed. */
-.detail-fields {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-}
-/* One field: a fixed label column + a flexible value column, aligned on the first
-   baseline so a short label sits level with the top line of a long, wrapping value.
-   The label column is a fixed width (not a shared grid) because each pair is wrapped
-   in its own element — a fixed width still lines the columns up across every row. */
-.detail-field {
-  display: grid;
-  grid-template-columns: 8rem minmax(0, 1fr);
-  column-gap: var(--space-3);
-  align-items: baseline;
-}
-.detail-field__label {
-  margin: 0;
-  font-family: var(--font-body);
-  font-size: var(--type-sm);
-  line-height: 1.4;
-  color: var(--ink-2);
-}
-.detail-field__value {
-  /* Reset the UA `<dd>` indent (margin-inline-start: 40px); the grid places the
-     value now, not the browser default. */
-  margin: 0;
-  font-family: var(--font-body);
-  font-size: var(--type-base);
-  line-height: 1.5;
-  color: var(--ink);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.detail-field__value--empty {
-  color: var(--ink-3);
-}
-
-.detail-field__list {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding-inline-start: var(--space-3);
-}
-/* Stack the label over its value where the pair no longer fits beside itself.
-   Asked of the card the fields are in rather than of the viewport: the label column is a
-   fixed 8rem and the value gets what is left, so what decides is how wide the *card* is,
-   and 28rem is the width the card had when the retired viewport rule used to stack. On
-   the viewport that number had drifted — the card is at its widest just above the form
-   breakpoint, so stacking there stacked fields with room to spare. */
-@container record (max-width: 28rem) {
-  .detail-field {
-    grid-template-columns: 1fr;
-    row-gap: var(--space-1);
-  }
 }
