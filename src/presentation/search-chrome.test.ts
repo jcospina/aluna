@@ -3,7 +3,6 @@ import { describe, expect, test } from "bun:test";
 import {
   createDebouncedCapabilitySearch,
   DEFAULT_SEARCH_DEBOUNCE_MS,
-  handOffRecordsRegionToSearch,
   type SearchState,
 } from "#shell/search-chrome.js";
 
@@ -135,24 +134,38 @@ describe("debounced capability search", () => {
 });
 
 describe("capability search request ownership", () => {
-  test("the HTMX handoff aborts an actual pending external request and removes its trigger", () => {
-    const externalRequest = new AbortController();
-    const attributes = new Set(["hx-get", "hx-trigger"]);
-    const region = {
-      removeAttribute: (name: string) => attributes.delete(name),
-    } as unknown as Parameters<typeof handOffRecordsRegionToSearch>[0];
-    const htmx = {
-      trigger: (node: typeof region, eventName: string) => {
-        expect(node).toBe(region);
-        expect(eventName).toBe("htmx:abort");
-        externalRequest.abort();
+  test("the region is taken from whatever was reading it before this query claims it", async () => {
+    // The order is the rule. Search hands `cancelExternalRead` a release of the whole
+    // region, so a claim made first would be the first thing that release aborted — and
+    // the query would then own nothing and render nothing.
+    const scheduled = controlledSchedule();
+    const order: string[] = [];
+    const search = createDebouncedCapabilitySearch({
+      readUrl: "/capability/journal/read",
+      searchUrl: "/capability/journal/search",
+      schedule: scheduled.schedule,
+      cancelSchedule: scheduled.cancel,
+      claimRequest: () => {
+        order.push("claim");
+        const controller = new AbortController();
+        return {
+          abort: () => controller.abort(),
+          isCurrent: () => !controller.signal.aborted,
+          release: () => undefined,
+          signal: controller.signal,
+        };
       },
-    };
+      request: async () => new Response("<article>match</article>"),
+      render: () => order.push("render"),
+      state: () => undefined,
+      cancelExternalRead: () => order.push("take the region"),
+    });
 
-    handOffRecordsRegionToSearch(region, htmx);
+    search.update("guji");
+    scheduled.runLatest();
+    await waitUntil(() => order.includes("render"));
 
-    expect(externalRequest.signal.aborted).toBe(true);
-    expect(attributes).toEqual(new Set());
+    expect(order).toEqual(["take the region", "claim", "render"]);
   });
 
   test("an older response cannot overwrite a newer query", async () => {

@@ -115,7 +115,7 @@ describe("it is the second window, and there is no third", () => {
     );
     // And every opening raises, so a capability swapped into a standing window is
     // never left behind the panel either.
-    expect(WINDOW).toMatch(/mounted \?\?= mount\(root, title\);[\s\S]{0,400}raise\(mounted\);/);
+    expect(WINDOW).toMatch(/mounted = windowForOpening\([\s\S]{0,400}raise\(mounted\);/);
   });
 
   test("the address wins on load; a restored panel stands behind it", () => {

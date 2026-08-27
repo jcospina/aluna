@@ -576,9 +576,33 @@ function bindGestures(entry) {
 /* ── opening and putting away ──────────────────────────────────────────────── */
 
 /**
- * Open the window, or bring what is already open under a new title. One window: a
- * second capability swaps what is inside the frame rather than standing another
- * frame beside it (design D1, D2).
+ * The window an opening lands in. One window: a standing one is retitled and handed
+ * back, so a second capability swaps what is inside the frame rather than standing
+ * another frame beside it (design D1, D2). Nothing here reaches the geometry or the
+ * frame — the box, the maximised flag and the seed the hand was rolled from are settled
+ * at mount, so a change of contents moves nothing and redraws nothing (design D10).
+ *
+ * `mount` is taken as a thunk rather than reached for, so the rule is one testable thing
+ * rather than a shape only a browser can hold — the way `tearDownWindow` is.
+ *
+ * @template {{ win: { setTitle(title: string): void }, openedBy: unknown }} T
+ * @param {T | null} standing
+ * @param {() => T} mountWindow
+ * @param {string} title
+ * @param {T["openedBy"]} openedBy where focus goes back to when it is put away
+ * @returns {T}
+ */
+export function windowForOpening(standing, mountWindow, title, openedBy) {
+  const entry = standing ?? mountWindow();
+  entry.win.setTitle(title);
+  /* The first opener owns the way back. A capability swapped into a window that is
+   * already up did not open it, and must not move where putting it away returns. */
+  entry.openedBy ??= openedBy;
+  return entry;
+}
+
+/**
+ * Open the window, and hand back the region whatever opened it is about to fill.
  *
  * @param {string} title
  * @param {ParentNode} [root]
@@ -586,16 +610,12 @@ function bindGestures(entry) {
  * @returns {HTMLElement} the content region, ready to be swapped into
  */
 export function openWindow(title, root = document, openedBy = null) {
-  mounted ??= mount(root, title);
+  mounted = windowForOpening(mounted, () => mount(root, title), title, openedBy);
   /* A window that was already up may have been standing behind the developer panel.
    * Whatever is about to fill it is what the user just asked for, so it comes to the
    * front — and below the breakpoint that is the difference between the build they
    * started being on screen and being taken out of the page entirely. */
   raise(mounted);
-  mounted.win.setTitle(title);
-  /* The first opener owns the way back. A capability swapped into a window that is
-   * already up did not open it, and must not move where putting it away returns. */
-  mounted.openedBy ??= openedBy;
   return mounted.region;
 }
 

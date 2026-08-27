@@ -201,16 +201,20 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain("outputHasOnlyDormantSubscriber");
     expect(js).toContain("promoteElement");
     expect(js).toContain("subscriber.remove()");
-    expect(js).toContain("output.replaceChildren(...terminal.element.childNodes)");
+    expect(js).toContain("output.append(...promoted)");
+    expect(js).toContain("releaseDisplacedContent(output, promoted)");
+    // The promoted View is wired up rather than re-fetched, so its own `load` trigger is
+    // the one canonical read — whether or not htmx's 20ms settle got there first.
+    expect(js).toContain("processPromotedContent(promoted)");
+    expect(js).toContain("htmx.process(node)");
     expect(js).toContain("commit.childNodes.length > 0");
     expect(js).toContain('subscriber.querySelector(".build-stream__narration")');
-    expect(js).toContain("reloadRestoredRecords(output, terminal.restorationKind)");
-    expect(js).toContain('.ajax("GET", readUrl');
-    expect(js).toContain("source: records, target: records");
-    expect(js).toContain('htmx.trigger(records, "htmx:abort")');
-    expect(js).toContain('records.removeAttribute("hx-get")');
-    expect(js).toContain('records.removeAttribute("hx-trigger")');
-    expect(js).toContain(".catch(() => undefined)");
+    // The window has no refresh verb, so the glue has no hand-rebuilt read: the
+    // restoration's own View read is kept alive by promoting before releasing, and
+    // every open is one fresh read (PLAN decision 15; ARCH §8).
+    expect(js).not.toContain("reloadRestoredRecords");
+    expect(js).not.toContain('.ajax("GET"');
+    expect(js).not.toContain('removeAttribute("hx-trigger")');
     expect(js).toContain('closeType !== "message"');
     expect(js).toContain("window.history.replaceState");
     // The address is the desk's to write: the glue reports what happened and never pushes.
