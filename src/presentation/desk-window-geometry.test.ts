@@ -585,8 +585,14 @@ describe("the floor is the token's, not this module's", () => {
     // the opening, which must place before the frame measures it, and every later
     // re-fit. A third would be a box written to the page without meeting the floor.
     expect(MODULE.match(/placeWindow\(/g)).toHaveLength(2);
+    expect(MODULE.match(/if \(fitBox\(/g)).toHaveLength(2);
     expect(MODULE).toContain("if (fitBox(state, bounds, isPhone)) placeWindow(el, box)");
     expect(MODULE).toMatch(
+      /if \(fitBox\(entry, entry\.layer\.getBoundingClientRect\(\), phone\)\) \{\s*placeWindow\(entry\.el, entry\.box\);/,
+    );
+    // And the panel places through the same two, never a copy of them.
+    expect(code("public/desk-dev-panel.js")).not.toMatch(/placeWindow\((?![\s\S]{0,40}entry\.box)/);
+    expect(code("public/desk-dev-panel.js")).toMatch(
       /if \(fitBox\(entry, entry\.layer\.getBoundingClientRect\(\), phone\)\) \{\s*placeWindow\(entry\.el, entry\.box\);/,
     );
     // The gestures reach the same clamps rather than a second copy of them.

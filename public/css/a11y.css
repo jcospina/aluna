@@ -23,8 +23,6 @@
     animation-iteration-count: 1 !important;
     /* biome-ignore-end lint/complexity/noImportantStyles: end reset */
   }
-  .panel-toggle:hover,
-  .panel-toggle:active,
   .btn:hover,
   .btn:active,
   .capability-item:hover,

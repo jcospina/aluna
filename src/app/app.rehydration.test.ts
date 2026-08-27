@@ -110,10 +110,14 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
 
     const html = await responseText(await app.request("/"));
 
-    expect(html).toContain('id="spec-metrics-preview"');
+    // Seeded onto the page for the developer panel to pick up when it opens. The
+    // panel is a window now and may not be standing, so the payload rides the page
+    // rather than being written into a <pre> the shell no longer has. Compact here
+    // and indented where it is shown: the panel formats every stage the same way.
+    expect(html).toContain('id="dev-stage-seed"');
     expect(html).toContain("build-interrupted-preview");
-    expect(html).toContain("&quot;lifecycleStatus&quot;: &quot;interrupted&quot;");
-    expect(html).toContain("&quot;outcome&quot;: &quot;interrupted&quot;");
+    expect(html).toContain("&quot;lifecycleStatus&quot;:&quot;interrupted&quot;");
+    expect(html).toContain("&quot;outcome&quot;:&quot;interrupted&quot;");
   });
 
   test("serving a committed capability reads the collection layout from ui_intent", async () => {
@@ -199,8 +203,8 @@ test("GET / lists committed versions per capability in the developer preview", a
     const html = await responseText(await app.request("/"));
 
     expect(html).toContain("&quot;committedVersions&quot;");
-    expect(html).toContain("&quot;liveVersion&quot;: 2");
-    expect(html).toContain("&quot;versions&quot;: [");
+    expect(html).toContain("&quot;liveVersion&quot;:2");
+    expect(html).toContain("&quot;versions&quot;:[");
   } finally {
     teardownScratchDbEnv(env);
   }

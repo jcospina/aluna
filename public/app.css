@@ -11,9 +11,8 @@
    ========================================================================== */
 
 @import "css/base.css"; /* shell sizing + Alpine x-cloak                      */
-@import "css/shell.css"; /* desk ground, logo layer, panel toggle, backdrop  */
+@import "css/shell.css"; /* desk ground, logo layer, window content region  */
 @import "css/deletion.css"; /* permanent capability-deletion confirmation     */
-@import "css/devbar.css"; /* the developer panel + responsive                 */
 @import "css/demo.css"; /* cold-start, build stream, raw stage previews      */
 @import "css/prompt.css"; /* the prompt bar, floating over the ground         */
 @import "css/components.css"; /* platform button variants (design-system color)*/

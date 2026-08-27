@@ -97,17 +97,14 @@ describe("the capability surface", () => {
     expect(html).not.toContain("Show me the guided repair");
     // What a direct navigation serves is the whole desk and nothing composed into it:
     // the window is the client's to create, and it asks for the fragment below. The
-    // read-only developer panel is untouched by any of this.
-    const panel = html.slice(
-      html.indexOf('<aside class="devbar" id="developer-panel"'),
-      html.indexOf("</aside>") + "</aside>".length,
-    );
+    // read-only developer panel is untouched by any of this — and it is a window of
+    // its own now, so what the page carries is its tile rather than its contents.
     expect(html).toContain('data-capability-id="journal"');
     expect(html).toContain('class="desk__windows"');
     expect(html).not.toContain("data-active-capability-id");
-    expect(panel).toContain('id="spec-candidate-preview"');
-    expect(panel).toContain("Evolution candidate");
-    expect(panel).not.toContain('name="intent"');
+    expect(html).toContain("data-dev-tile");
+    expect(html).toContain('aria-label="Open Developer"');
+    expect(html).not.toContain('class="devbar"');
 
     // The same address, asked for the way the window asks for it.
     const fragment = await (
