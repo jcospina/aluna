@@ -382,7 +382,8 @@ document.addEventListener("htmx:afterSwap", (event) => {
 
 // HTMX keeps error responses out of the DOM by default. Structured form refusals are
 // the exception: the router retargets them to the active create/edit/delete aria-live error
-// region, while leaving the response unsuccessful so values and modal state survive.
+// region, while leaving the response unsuccessful so typed values and the standing
+// confirmation survive.
 document.addEventListener("htmx:beforeSwap", (event) => {
   const detail = /** @type {CustomEvent<{ xhr: XMLHttpRequest, shouldSwap: boolean }>} */ (event)
     .detail;

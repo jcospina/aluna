@@ -1,8 +1,9 @@
 /* =============================================================================
    The record, in the window — platform CHROME (Module 5 · epic 5.7/01).
    What a record opens into (src/presentation/record-view.ts): a back control above
-   the form, and the form itself in edit mode. There is no modal and no read view,
-   so this is the only surface one record has, and the create view arrives under the
+   the form, the form itself in edit mode, and the confirmation that stands in for the
+   form's action row while a delete is being asked about. There is no modal and no read
+   view, so this is the only surface one record has, and the create view arrives under the
    same bar because it is the same surface reached the other way.
 
    Two views of one window, not a panel over a list (design D2): this takes the
@@ -15,12 +16,14 @@
    The window's frame is the only line around this, so nothing here draws a boundary.
    ========================================================================== */
 
+/* No column gap: the confirmation takes the action row's place at the form's bottom edge,
+   and a gap would drop it a step below the rule the row sits under — the one thing "in
+   place" cannot afford. The bar carries its own spacing instead. */
 .capability-record-view {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
-  gap: var(--space-3);
 }
 
 /* Back is navigation and sits above the form; Cancel in the action row is the form's
@@ -29,6 +32,9 @@
 .capability-record-view__bar {
   display: flex;
   flex: 0 0 auto;
+}
+.capability-record-view > .capability-record-view__bar {
+  margin-block-end: var(--space-3);
 }
 
 /* A quiet control that reads as a way back, not a button standing on the surface: no
@@ -65,4 +71,55 @@
 .capability-record-view__arrow {
   display: inline-flex;
   translate: 0 0.0625rem;
+}
+
+/* ── The record's deletion confirmation ──────────────────────────────────────
+   It stands where the form's action row stands: the copy on the left, Cancel beside
+   Delete record on the right, under the same rule and on the same fill, so pressing
+   Delete swaps the row for the question and nothing else moves.
+
+   The form's sibling rather than a child, because a form cannot nest inside another form
+   and this one posts a delete of its own — so it repeats the row's treatment rather than
+   inheriting it. It needs none of the row's stickiness: the form above it is what
+   scrolls, and this sits below that scroller rather than inside it. */
+.capability-record-delete {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2) var(--space-2);
+  background: var(--surface);
+  border-top: var(--line) solid var(--ink-hair);
+}
+.capability-record-delete[hidden] {
+  display: none;
+}
+.capability-record-delete__copy {
+  min-width: 0;
+  color: var(--ink-2);
+}
+.capability-record-delete__copy p {
+  margin: 0;
+  font-size: var(--type-sm);
+}
+.capability-record-delete__error:not(:empty) {
+  margin-top: var(--space-1);
+}
+.capability-record-delete__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+}
+
+/* Measured against the window it stands in rather than the screen behind it: a window
+   dragged narrow on a wide screen needs the stack just as much as a phone does. */
+@container window (max-width: 620px) {
+  .capability-record-delete {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .capability-record-delete__actions .btn {
+    flex: 1 1 0;
+  }
 }

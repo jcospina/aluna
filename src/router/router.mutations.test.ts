@@ -139,7 +139,7 @@ describe("deterministic capability router — target-bound mutation authority", 
     ]);
   });
 
-  test("missing delete stays warm and retargets the modal confirmation error region", async () => {
+  test("missing delete stays warm and retargets the confirmation's error region", async () => {
     const app = createApp({
       capabilityRouter: {
         databases,

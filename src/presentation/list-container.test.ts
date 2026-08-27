@@ -15,6 +15,7 @@ import {
   renderItemWrapper,
   serializeItemPayload,
 } from "./list-container.ts";
+import { renderRecordViewTemplate } from "./record-view.ts";
 
 // The list scaffolding container + item wrapper are platform chrome — their
 // escaping/payload/accessibility invariants are deterministic platform tests, not gate
@@ -338,6 +339,46 @@ describe("item wrapper — the record button", () => {
 
   test("carries the caller-supplied client projection as a data-item payload", () => {
     expect(readBackPayload(wrapper)).toEqual({ title: "Buy oat milk" });
+  });
+});
+
+// Nothing in the collection destroys a record (PLAN decision 22). A delete starts by
+// opening the record, so the only destructive control anywhere is in the record's own
+// surface — never on a row of the list, and never in the collection's chrome.
+describe("the collection — no per-row delete", () => {
+  // Built the way the adapter builds it (src/presentation/adapter.ts): each item is
+  // emitted beside the inert `<template>` carrying that record's view, so the fixture is
+  // the markup the criterion is actually about.
+  const RECORD = { id: "task-7", created_at: "2026-08-27T00:00:00.000Z", title: "Buy oat milk" };
+  const templateId = "record-tasks-task-7";
+  const items =
+    renderItemWrapper('<div class="stack">inner</div>', RECORD, { templateId }) +
+    renderRecordViewTemplate(templateId, SAMPLE, RECORD);
+  const collection = renderCollection({ capability: SAMPLE, items });
+  // What the user can actually reach: a `<template>`'s content is inert until cloned, so
+  // the record's own surface is not part of the collection on screen.
+  const reachable = collection.replace(/<template[\s\S]*?<\/template>/g, "");
+
+  test("nothing reachable in the collection offers a delete", () => {
+    expect(reachable).not.toContain("data-record-delete");
+    expect(reachable).not.toContain("capability-record-delete");
+    expect(reachable).not.toContain("/delete");
+    expect(reachable).not.toContain("btn--danger");
+  });
+
+  test("the delete the collection carries is inert until the record is opened", () => {
+    // It travels with the record so opening one needs no round trip; until then it is
+    // template content, which is not rendered, not scripted and not clickable.
+    expect(collection).toContain("capability-record-delete");
+    expect(collection.indexOf("capability-record-delete")).toBeGreaterThan(
+      collection.indexOf("<template"),
+    );
+  });
+
+  test("opening the record is still the only thing a row does", () => {
+    const row = renderItemWrapper("<span>inner</span>", RECORD, { templateId });
+    expect(row).toContain(ITEM_RECORD_VIEW_ATTR);
+    expect(row).not.toContain("data-record-delete");
   });
 });
 

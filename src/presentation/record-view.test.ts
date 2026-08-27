@@ -1,9 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { applyDeleteConfirmation, deleteOutcomeDisposition } from "#shell/record-mutations.js";
 import { claimRecordExit, releaseRecordExit, swapInRecordView } from "#shell/record-view.js";
 import { createRegionReleaseRegistry } from "#shell/region-scope.js";
-import type { RenderableCapability } from "./field-renderer.ts";
+import {
+  capabilityDeleteConfirmationId,
+  capabilityDeleteErrorId,
+  type RenderableCapability,
+} from "./field-renderer.ts";
 import { itemElementIdForTemplate } from "./list-container.ts";
 import {
   RECORD_BACK_ATTR,
@@ -110,6 +115,79 @@ describe("the record view — a record opens in edit mode", () => {
   });
 });
 
+// Record deletion changes container and nothing else (PLAN decision 22): the shape the
+// modal had is the shape the form's action row keeps, and the only way to a delete is to
+// open the record first.
+describe("the record view — deletion lives in the form's action row", () => {
+  const view = renderRecordView(CAPABILITY, RECORD, TEMPLATE_ID);
+  const confirmationId = capabilityDeleteConfirmationId("notes");
+
+  test("the confirmation is the form's sibling, below it and never inside it", () => {
+    // A form cannot nest inside another form, and this one posts a delete of its own.
+    const formEnd = view.indexOf("</form>") + "</form>".length;
+    expect(view.slice(0, formEnd)).not.toContain("capability-record-delete");
+    expect(view.slice(formEnd)).toContain('<form class="capability-record-delete"');
+  });
+
+  test("keeps the modal's copy, and Cancel beside Delete record", () => {
+    expect(view).toContain(
+      `<p id="${confirmationId}">Delete this record? You won’t be able to bring it back.</p>`,
+    );
+    expect(view).toContain(
+      `<button class="btn btn--ghost" type="button" data-record-cancel-delete` +
+        ` aria-describedby="${confirmationId}">Cancel</button>`,
+    );
+    expect(view).toContain(
+      `<button class="btn btn--danger" type="submit"` +
+        ` aria-describedby="${confirmationId}">Delete record</button>`,
+    );
+    expect(view.indexOf("data-record-cancel-delete")).toBeLessThan(view.indexOf(">Delete record<"));
+  });
+
+  test("its Cancel is not the record view's Cancel, so it cannot leave the record", () => {
+    // `public/record-view.js` leaves on `[data-record-cancel]`; a different attribute name
+    // is what keeps cancelling the question from also cancelling the record.
+    const confirmation = view.slice(view.indexOf("capability-record-delete"));
+    expect(confirmation).not.toContain("data-record-cancel>");
+    expect(confirmation).not.toContain("data-record-cancel ");
+  });
+
+  test("posts the delete for the record the form is editing, and swaps nothing", () => {
+    expect(view).toContain('hx-post="/capability/notes/delete"');
+    const targets = view.match(/name="__aluna_record_id" value="[^"]+"/g) ?? [];
+    expect(targets).toEqual([
+      'name="__aluna_record_id" value="note-1"',
+      'name="__aluna_record_id" value="note-1"',
+    ]);
+  });
+
+  test("starts hidden, and reserves the live region a refusal is retargeted to", () => {
+    expect(view).toContain("data-record-delete-form hidden");
+    expect(view).toContain(`id="${capabilityDeleteErrorId("notes")}"`);
+    expect(view).toContain('aria-live="polite"');
+  });
+
+  test("deleting opens nothing over anything: it is still one surface", () => {
+    expect(view).not.toContain("<dialog");
+    expect(view).not.toContain("aria-modal");
+    expect(view).not.toContain('role="alertdialog"');
+  });
+
+  test("a capability that cannot delete carries no destructive control at all", () => {
+    const keeps = { ...CAPABILITY, actions: ["create", "read", "update", "search"] as const };
+    const kept = renderRecordView(keeps, RECORD, TEMPLATE_ID);
+    expect(kept).toContain("capability-edit-form");
+    expect(kept).not.toContain("data-record-delete");
+    expect(kept).not.toContain("capability-record-delete");
+  });
+
+  test("a record with no usable id cannot render a confirmation that would delete nothing", () => {
+    expect(() => renderRecordView(CAPABILITY, { ...RECORD, id: "  " }, TEMPLATE_ID)).toThrow(
+      /nonblank record id/,
+    );
+  });
+});
+
 describe("the record view — the inert template it travels in", () => {
   test("wraps the view in a template keyed by the id the item points at", () => {
     const html = renderRecordViewTemplate(TEMPLATE_ID, CAPABILITY, RECORD);
@@ -161,6 +239,123 @@ describe("the record swap — the way out (server ⇄ client)", () => {
     expect(controller).toContain("export function leaveRecordView");
     expect(mutations).toContain('import { leaveRecordView } from "./record-view.js"');
     expect(mutations).toContain("leaveRecordView(view)");
+  });
+});
+
+// The swap's own rules, run in Bun against structural doubles. The release rule is
+// deliberately structural (`public/region-scope.js`) so the thing the acceptance criterion
+// names — what a swap releases — can be executed rather than grepped for.
+// The confirmation's own rules, run in Bun against structural doubles for the same reason
+// the release rule is: what the acceptance criteria name — the row and the question
+// trading places, and where a finished delete leaves the user — is executed rather than
+// grepped for.
+describe("the record's deletion — the row and the question trade places", () => {
+  /** The four facts the rule needs of a record view, and no more. */
+  function surface(confirming = false) {
+    const focused: string[] = [];
+    const cleared: number[] = [];
+    let errors = 1;
+    return {
+      focused,
+      cleared,
+      get errors() {
+        return errors;
+      },
+      toggle: {
+        actions: { hidden: confirming, trigger: "delete-trigger" },
+        question: {
+          hidden: !confirming,
+          cancel: "confirmation-cancel",
+          clearError: () => {
+            errors = 0;
+            cleared.push(1);
+          },
+        },
+        focus: (control: string) => void focused.push(control),
+      },
+    };
+  }
+
+  test("asking hides the action row, shows the question, and lands on Cancel", () => {
+    const view = surface();
+    applyDeleteConfirmation({ confirming: true, ...view.toggle });
+    expect(view.toggle.actions.hidden).toBe(true);
+    expect(view.toggle.question.hidden).toBe(false);
+    expect(view.focused).toEqual(["confirmation-cancel"]);
+  });
+
+  test("Cancel restores the row and gives focus back to the Delete that opened it", () => {
+    const view = surface(true);
+    applyDeleteConfirmation({ confirming: false, ...view.toggle });
+    expect(view.toggle.actions.hidden).toBe(false);
+    expect(view.toggle.question.hidden).toBe(true);
+    expect(view.focused).toEqual(["delete-trigger"]);
+  });
+
+  test("exactly one of the two is ever shown", () => {
+    for (const confirming of [true, false]) {
+      const view = surface(!confirming);
+      applyDeleteConfirmation({ confirming, ...view.toggle });
+      expect(view.toggle.actions.hidden).not.toBe(view.toggle.question.hidden);
+    }
+  });
+
+  test("every asking starts with an empty error region", () => {
+    // A refusal from the last attempt would otherwise sit under the new question,
+    // describing something the user has not tried yet.
+    const view = surface();
+    applyDeleteConfirmation({ confirming: true, ...view.toggle });
+    expect(view.errors).toBe(0);
+    expect(view.cleared).toHaveLength(1);
+  });
+});
+
+describe("the record's deletion — where a finished delete leaves the user", () => {
+  test("a committed delete leaves the record, the way a committed update does", () => {
+    expect(deleteOutcomeDisposition({ successful: true, outcomeUnknown: false })).toBe("leave");
+  });
+
+  test("a refused delete leaves the question standing, so the refusal has somewhere to land", () => {
+    expect(deleteOutcomeDisposition({ successful: false, outcomeUnknown: false })).toBe("stand");
+  });
+
+  test("a severed delete keeps the question and says what it cannot confirm", () => {
+    expect(deleteOutcomeDisposition({ successful: false, outcomeUnknown: true })).toBe(
+      "stand-and-say",
+    );
+  });
+});
+
+// The wiring those rules hang off cannot be evaluated without a browser, so it is read.
+// Each assertion names a call site rather than a declaration: deleting the listener or the
+// outcome branch fails these, which is exactly what a declaration-only grep would not.
+describe("the record's deletion — the wiring (server ⇄ client)", () => {
+  const mutations = readFileSync(join(import.meta.dir, "../../public/record-mutations.js"), "utf8");
+
+  test("both of the server's controls drive the toggle", () => {
+    expect(mutations).toContain(
+      "setDeleteConfirming(view, control.matches(DELETE_TRIGGER_SELECTOR))",
+    );
+    expect(mutations).toContain('"[data-record-cancel-delete]"');
+    expect(mutations).toContain('".capability-edit-form__actions"');
+  });
+
+  test("the delete's outcome is handled, and its request says what it is doing", () => {
+    expect(mutations).toContain("handleDeleteOutcome(deleteForm, successful, outcomeUnknown)");
+    expect(mutations).toContain("setDeletePending(deleteForm, true)");
+    expect(mutations).toContain('setPending(form, pending, "I’m deleting…", "Delete record"');
+  });
+
+  test("the form beneath a standing question cannot be submitted", () => {
+    // A hidden submit button is still the form's default button, so Enter in any field
+    // would save — and, mid-delete, race the delete it is answering.
+    expect(mutations).toContain("!standingDeleteConfirmation(view)) return;");
+    expect(mutations).toContain("event.stopPropagation()");
+  });
+
+  test("Escape dismisses the question, the one exit a `<dialog>` used to supply", () => {
+    expect(mutations).toContain('if (event.key !== "Escape") return;');
+    expect(mutations).toContain("setDeleteConfirming(view, false)");
   });
 });
 

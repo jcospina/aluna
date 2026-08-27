@@ -319,7 +319,9 @@ its own right (§1), not a fourth part of the desk: the reusable, data-free
 mechanics every capability shares — list scaffolding, empty state, the item
 wrapper (a record is a `<button>`, so it carries no role, tabindex or key handling
 of its own), the in-window record view, which a list item and the create action both
-open into, spec-rendered fields, and safe composition of generated item output.
+open into, the deletion confirmation that replaces that form's action row in place — so
+deleting a record starts by opening it and no list row carries a delete of its own —
+spec-rendered fields, and safe composition of generated item output.
 It may read structural spec facts — field type, required state, the collection
 layout (`ui_intent.collection.layout`, a closed value selecting how the list
 container arranges items), and the closed per-`string[]` list input mode — but it

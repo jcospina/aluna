@@ -77,8 +77,10 @@ const RECORD = {
   remembered_at: "2000-02-29T23:59:59.999+14:00",
 };
 
+const EDIT_FORM = renderEditForm(CAPABILITY, RECORD);
+
 describe("edit form — committed update wiring", () => {
-  const form = renderEditForm(CAPABILITY, RECORD);
+  const form = EDIT_FORM;
 
   test("posts Save to update", () => {
     expect(form).toContain('hx-post="/capability/journal/update"');
@@ -109,11 +111,11 @@ describe("edit form — committed update wiring", () => {
 
   test("emits exactly one nonblank record target and one presence marker per active field", () => {
     const targets =
-      form.match(new RegExp(`name="${ALUNA_RECORD_ID_MARKER}" value="[^"]+"`, "g")) ?? [];
+      EDIT_FORM.match(new RegExp(`name="${ALUNA_RECORD_ID_MARKER}" value="[^"]+"`, "g")) ?? [];
     expect(targets).toEqual([`name="${ALUNA_RECORD_ID_MARKER}" value="record-1"`]);
 
     const presence =
-      form.match(new RegExp(`name="${ALUNA_PRESENT_MARKER}" value="[^"]+"`, "g")) ?? [];
+      EDIT_FORM.match(new RegExp(`name="${ALUNA_PRESENT_MARKER}" value="[^"]+"`, "g")) ?? [];
     expect(presence).toEqual([
       `name="${ALUNA_PRESENT_MARKER}" value="entry"`,
       `name="${ALUNA_PRESENT_MARKER}" value="reflection"`,
@@ -159,5 +161,37 @@ describe("edit form — committed update wiring", () => {
     expect(() => renderEditForm(CAPABILITY, { ...RECORD, id: "   " })).toThrow(
       /nonblank record id/,
     );
+  });
+});
+
+// Record deletion changes container and nothing else (PLAN decision 22). The trigger is
+// part of the row this renderer draws; the confirmation it opens is the record view's, and
+// is proved there.
+describe("the record form's action row — the destructive control", () => {
+  test("carries Delete after Save and Cancel, and it does not submit", () => {
+    // Only the separately submitted confirmation can invoke the Action, so a misfired
+    // press on this one can never destroy a record.
+    expect(EDIT_FORM).toContain(
+      '<button class="btn btn--danger capability-edit-form__delete" type="button"' +
+        " data-record-delete>Delete</button>",
+    );
+    expect(EDIT_FORM.indexOf("data-record-cancel>")).toBeLessThan(
+      EDIT_FORM.indexOf("data-record-delete>"),
+    );
+  });
+
+  test("the confirmation is not the form's to render — a form cannot nest in a form", () => {
+    expect(EDIT_FORM).not.toContain("capability-record-delete");
+    expect(EDIT_FORM.trim().endsWith("</form>")).toBe(true);
+    expect(EDIT_FORM.match(/<form/g)).toHaveLength(1);
+  });
+
+  test("a capability that cannot delete carries no destructive control", () => {
+    const keepsEverything = renderEditForm(
+      { ...CAPABILITY, actions: ["create", "read", "update"] },
+      RECORD,
+    );
+    expect(keepsEverything).not.toContain("data-record-delete");
+    expect(keepsEverything).not.toContain("btn--danger");
   });
 });

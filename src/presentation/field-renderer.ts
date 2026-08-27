@@ -92,11 +92,20 @@ export function capabilityEditErrorId(capabilityId: string): string {
 
 /**
  * The live region a failed record delete is retargeted to
- * (`src/router/failure-responses.ts`). The confirmation that renders it lands in the
- * record form's action row in 5.7/02; the id is the wire contract both ends agree on.
+ * (`src/router/failure-responses.ts`). It rides the confirmation that replaces the record
+ * form's action row, which is the only place a record delete is ever asked for; the id is
+ * the wire contract both ends agree on.
  */
 export function capabilityDeleteErrorId(capabilityId: string): string {
   return `${capabilityId}-delete-error`;
+}
+
+/**
+ * The confirmation's own copy, named so both its controls are described by the sentence
+ * they act on. One record view is live at a time, so one live element carries this.
+ */
+export function capabilityDeleteConfirmationId(capabilityId: string): string {
+  return `${capabilityId}-delete-confirmation`;
 }
 
 function searchRefreshAttributes(capability: RenderableCapability): string {
@@ -156,6 +165,9 @@ export function renderCreateForm(capability: RenderableCapability): string {
  * it to click. Going back is a fresh read of the collection, so the form carries no
  * refresh wiring of its own — and no marker naming the item it came from, because the
  * record view above it is what the swap reads that from.
+ *
+ * The action row also carries Delete. The confirmation it opens is rendered beside this
+ * form by the record view, not inside it (`record-view.ts`).
  */
 export function renderEditForm(
   capability: RenderableCapability,
@@ -182,8 +194,26 @@ export function renderEditForm(
     `<div class="capability-edit-form__actions">` +
     `<button class="btn btn--primary" type="submit">Save</button>` +
     `<button class="btn btn--ghost" type="button" data-record-cancel>Cancel</button>` +
+    renderDeleteTrigger(capability) +
     `</div>` +
     `</form>`
+  );
+}
+
+/**
+ * The destructive action, kept away from Save and Cancel on the far side of the row
+ * (`design/index.html`, "The record form"). It opens the confirmation and nothing else —
+ * only the separately submitted confirmation form can invoke the server Action, so a
+ * misfired press here can never destroy a record.
+ *
+ * A capability that cannot delete has no trigger, the way a record being created has no
+ * Delete at all: there is nothing to destroy yet.
+ */
+function renderDeleteTrigger(capability: RenderableCapability): string {
+  if (!capability.actions.includes("delete")) return "";
+  return (
+    `<button class="btn btn--danger capability-edit-form__delete" type="button"` +
+    ` data-record-delete>Delete</button>`
   );
 }
 

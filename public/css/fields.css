@@ -1,5 +1,5 @@
 /* =============================================================================
-   Capability field chrome — the create and edit forms' controls, rendered
+   Capability field chrome — the create and edit forms and their controls, rendered
    deterministically from a spec by the centralized field renderer
    (src/presentation/field-renderer.ts, Module 3 · epic 3.2/01).
 
@@ -72,6 +72,26 @@
      system keeps for the one rule that lives inside a form, not full ink, which
      would read as a second boundary under the last field. */
   border-top: var(--line) solid var(--ink-hair);
+}
+/* The row goes away while the confirmation stands in its place, so the state boundary is
+   the `hidden` attribute; without this the display rule above would keep it on. */
+.capability-create-form__actions[hidden],
+.capability-edit-form__actions[hidden] {
+  display: none;
+}
+/* The design isolates the destructive action with a `.form__spacer` element; a margin
+   does the same job without a node that exists only to be empty. */
+.capability-edit-form__delete {
+  margin-inline-start: auto;
+}
+/* Three controls need more room than two. Measured against the window they stand in
+   rather than the screen behind it, at the design's own 620px
+   (design/styles/components/form-controls.css, `.form__actions`). */
+@container window (max-width: 620px) {
+  .capability-create-form__actions,
+  .capability-edit-form__actions {
+    flex-wrap: wrap;
+  }
 }
 
 /* One field: label stacked above its control (the everyday case). */

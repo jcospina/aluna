@@ -16,16 +16,30 @@
 //
 // Two halves, the way this repo splits every presentation module:
 //
-//   • MARKUP (this file) — the back control and the record's form, materialized beside
-//     each item as an inert `<template>` at list-render time. Pure string functions.
+//   • MARKUP (this file) — the back control, the record's form and the confirmation that
+//     replaces the form's action row, materialized beside each item as an inert
+//     `<template>` at list-render time. Pure string functions.
 //   • MECHANICS (public/record-view.js) — the swap itself: clone the template, release the
 //     collection's scope, put the record view in its place, and take it back out again.
 //
 // The form rides that inert template rather than a route of its own, so the full record
 // opens even when the item truncates and there is still no read-single route.
+//
+// Deletion lives in that form's action row and nowhere else: pressing Delete replaces the
+// row in place with the confirmation the deleted modal used to carry, so destroying a
+// record starts by opening it and the collection carries no per-row delete (PLAN decision
+// 22). The trigger is part of the row the field renderer draws; the confirmation is
+// rendered here, beside the form, and its mechanics ride `public/record-mutations.js`
+// with the other record mutations.
 
+import { ALUNA_RECORD_ID_MARKER } from "../router/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
-import { type RenderableCapability, renderEditForm } from "./field-renderer.ts";
+import {
+  capabilityDeleteConfirmationId,
+  capabilityDeleteErrorId,
+  type RenderableCapability,
+  renderEditForm,
+} from "./field-renderer.ts";
 
 /** The marker the record view carries — what the mechanics swap out on the way back. */
 export const RECORD_VIEW_ATTR = "data-record-view";
@@ -80,7 +94,8 @@ export function renderRecordFormBar(label: string, controlAttributes: string): s
  * Render one record's view: the back control, then the record's form in edit mode.
  *
  * `Cancel` inside the form is the same exit from the other end; both exist because the
- * window is the whole surface and there is nothing behind it to click.
+ * window is the whole surface and there is nothing behind it to click. The form arrives
+ * with the deletion confirmation beside it, hidden until its action row asks for it.
  *
  * A capability that cannot be updated has no record surface at all — there is no read
  * view to fall back on — so this renders nothing rather than an inert form, and the item
@@ -98,7 +113,50 @@ export function renderRecordView(
     ` data-item-target-id="${itemTargetId}">` +
     renderRecordFormBar(capability.label, ` ${RECORD_BACK_ATTR}`) +
     renderEditForm(capability, record) +
+    renderDeleteConfirmation(capability, record) +
     `</div>`
+  );
+}
+
+/**
+ * The confirmation that replaces the form's action row in place — the copy, the live
+ * region a refused delete is retargeted to, and Cancel beside Delete record. Hiding the
+ * row above it is what puts this in the row's place, so nothing moves and the record stays
+ * readable above the question: the shape the deleted modal had, in the container it now
+ * lives in.
+ *
+ * It is the form's sibling rather than a child because a form cannot nest inside another
+ * form and this one posts a delete of its own. That is also why it is composed here rather
+ * than by the form's own renderer.
+ */
+function renderDeleteConfirmation(
+  capability: RenderableCapability,
+  record: Readonly<Record<string, unknown>>,
+): string {
+  if (!capability.actions.includes("delete")) return "";
+  const recordId = record.id;
+  if (typeof recordId !== "string" || recordId.trim() === "") {
+    throw new Error("Cannot render a deletion confirmation without a nonblank record id.");
+  }
+  const confirmationId = capabilityDeleteConfirmationId(capability.id);
+  const errorId = capabilityDeleteErrorId(capability.id);
+  return (
+    `<form class="capability-record-delete" data-record-delete-form hidden` +
+    ` aria-describedby="${confirmationId}"` +
+    ` hx-post="/capability/${capability.id}/delete" hx-swap="none">` +
+    `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}"` +
+    ` value="${escapeHtml(recordId)}">` +
+    `<div class="capability-record-delete__copy">` +
+    `<p id="${confirmationId}">Delete this record? You won’t be able to bring it back.</p>` +
+    `<div id="${errorId}" class="capability-record-delete__error" aria-live="polite"></div>` +
+    `</div>` +
+    `<div class="capability-record-delete__actions">` +
+    `<button class="btn btn--ghost" type="button" data-record-cancel-delete` +
+    ` aria-describedby="${confirmationId}">Cancel</button>` +
+    `<button class="btn btn--danger" type="submit"` +
+    ` aria-describedby="${confirmationId}">Delete record</button>` +
+    `</div>` +
+    `</form>`
   );
 }
 
