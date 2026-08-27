@@ -1,5 +1,6 @@
 /* =============================================================================
    Components — platform button variants (the palette's accent roles, activated)
+   and the refusal notice they sit beside
    Platform CHROME, not the item vocabulary: the closed-value contract forbids
    interactive descendants inside generated item markup (design/design-system.md),
    so the item renderer never emits a button — these power platform affordances
@@ -88,4 +89,18 @@
 }
 .btn--ghost:hover {
   background: var(--surface);
+}
+
+/* ── The refusal notice ──────────────────────────────────────────────────────
+   What the router writes into a form's live error region. `--signal` is the palette's
+   alert colour and is reserved for exactly this and for destructive confirmation
+   (design/styles/tokens.css); without it a refusal renders in body ink, indistinguishable
+   from the question or the field it is answering. */
+.notice[data-role="error"] {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--type-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--signal);
 }

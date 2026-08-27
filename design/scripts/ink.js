@@ -208,6 +208,19 @@ function layer(className) {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("class", className);
   svg.setAttribute("aria-hidden", "true");
+  /*
+   * Out of flow and taking no room until it is drawn. `refresh` declines to draw an
+   * element it cannot measure — which is every element mounted inside a `display: none`
+   * subtree — and an `<svg>` with no width, height or viewBox takes the default replaced
+   * size, 300 by 150. Left at that, the layer becomes a 300×150 phantom the instant the
+   * subtree is shown: in flow it would widen its host, and out of flow it overflows
+   * whatever holds the host and flashes a scrollbar there, for the frame before the
+   * resize watch draws it for real. The stylesheet says the same two things once
+   * `.is-ink` lands, and `refresh` overwrites the size on the first draw.
+   */
+  svg.style.position = "absolute";
+  svg.style.width = "0";
+  svg.style.height = "0";
   return svg;
 }
 
@@ -229,6 +242,14 @@ function refresh(el, force = false) {
   const w = Math.round(el.offsetWidth);
   const h = Math.round(el.offsetHeight);
   if (w < 2 || h < 2) return;
+
+  /*
+   * Claimed on the first draw and not at mount, because `.is-ink` is what makes the
+   * element's own border transparent. An element mounted before it can be measured has
+   * no drawn line yet, and taking its border away in that state would leave it with no
+   * boundary at all until the resize watch reaches it.
+   */
+  el.classList.add("is-ink");
 
   const styles = getComputedStyle(el);
   const hand = readHand(styles);
@@ -291,7 +312,6 @@ export function mountInk(el) {
 
   el.prepend(ground);
   el.append(ink);
-  el.classList.add("is-ink");
 
   /*
    * The absolutely positioned layers need a positioned ancestor. Set here rather

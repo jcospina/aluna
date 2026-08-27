@@ -126,6 +126,32 @@ describe("the ink system draws the surface's own boundaries", () => {
     expect(inkOf(toggle)).toContain('stroke-width="2"');
   });
 
+  test("a control mounted before it can be measured costs nothing until it is drawn", () => {
+    // Anything mounted inside a `display: none` subtree measures zero, so the first draw
+    // is the resize watch's. Until then the element must keep its own border and its
+    // layers must take no room: an `<svg>` with no size of its own is 300 by 150, which
+    // in flow widens its host and out of flow overflows whatever holds it.
+    const bar = dom.element("div", "desk__logos");
+    const toggle = drawn("button", "btn", bar);
+    toggle.box = { w: 0, h: 0 };
+    mountInk(toggle);
+
+    expect(toggle.classes.has("is-ink")).toBe(false);
+    for (const child of toggle.children) {
+      expect(child.style.position).toBe("absolute");
+      expect(child.style.width).toBe("0");
+      expect(child.style.height).toBe("0");
+    }
+
+    toggle.box = { w: 40, h: 40 };
+    dom.mutate({ type: "attributes", target: toggle });
+    dom.frame();
+
+    // The border is handed over at the same moment the line replaces it, never before.
+    expect(toggle.classes.has("is-ink")).toBe(true);
+    for (const child of toggle.children) expect(child.style.height).toBe("40px");
+  });
+
   test("an element that cannot hold the layers is left ruled rather than blanked", () => {
     const input = drawn("input", "field__control");
     mountInk(input);
