@@ -125,7 +125,14 @@ describe("admitted generation lifecycle ordering", () => {
     // own preview attempt, which the bounded presenter swallows when it fails too. The
     // tile itself needs no undoing here: the same dead subscriber that closed the row is
     // the one that never received it.
-    expect(seen).toEqual(["narration", "fragment", "metrics-preview", "metrics-preview"]);
+    // Two `fragment`s at admission: the tile on the ground, and the window's own name.
+    expect(seen).toEqual([
+      "narration",
+      "fragment",
+      "fragment",
+      "metrics-preview",
+      "metrics-preview",
+    ]);
     // Only the resolver call was made — no Builder stage ran behind a dead subscriber.
     expect(prompts).toHaveLength(1);
     expect(metrics.lifecycles.at(-1)).toMatchObject({

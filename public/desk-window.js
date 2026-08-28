@@ -42,12 +42,20 @@ import {
   PHONE,
   PROMPT_CLEARANCE,
   placeWindow,
-  readBox,
   refreshGeometry,
 } from "../design/scripts/desk-geometry.js";
 import { AlunaWindow } from "../design/scripts/window.js";
 import { addWindowDrag, addWindowGrip, setMaximised } from "../design/scripts/window-gestures.js";
 import { joinStack, leaveStack, raise } from "./desk-stack.js";
+/* Where a window is remembered is its own subject (`desk-window-store.js`). Re-exported
+ * here as well as imported, so this module stays the one face the desk's rules are
+ * reached through and no caller has to know the record moved. */
+import {
+  forgetOnDismissal,
+  loadPresentation,
+  localStore,
+  savePresentation,
+} from "./desk-window-store.js";
 import { RELEASE_REGION_EVENT } from "./region-scope.js";
 
 /** The desk's window layer — the ground the one window stands on. */
@@ -63,6 +71,14 @@ export const PROMPT_FORM_ID = "spec-build-form";
 const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
 
 /**
+ * What a run that has already ended is holding while it waits to be read. Kept in sync
+ * with `public/app.js` and the server's `renderBuildEnding`; a platform test pins that
+ * these strings match. A run wearing one is over — there is nothing left to cancel and
+ * nothing left to warn about.
+ */
+const BUILD_ENDING_SELECTOR = "[data-build-ending]";
+
+/**
  * The window's content region. The id is the temporary shell's and every existing
  * swap still addresses it; what changed is where it lives and who makes it.
  */
@@ -76,7 +92,30 @@ export const WINDOW_CONTENT_ID = "spec-build-output";
 export const WINDOW_CONTENT_REGION = "the window's content";
 
 /** What the title bar says while a build has the window and no capability does. */
-export const BUILD_WINDOW_TITLE = "Making it";
+/**
+ * The two names the desk gives a window itself while a run has it.
+ *
+ * The title is information (M5 plan 1): a window titled after the capability that
+ * happens to be open is actively wrong while a build is making something *else*, and a
+ * gerund is wrong once the run has stopped. `Thinking…` is said at submit, before there
+ * is anything else to say; the server names it again the moment resolution settles what
+ * the run is (`renderBuildWindowTitle`), and an activation renames it after the
+ * capability that took the window.
+ *
+ * `BUILD_WINDOW_TITLE` is what is left for the degenerate case: a window a run opened
+ * itself, whose run then ended without activating, so there is no earlier name to put
+ * back and no capability to name it after. A noun rather than a gerund, the way the
+ * developer panel's own title is — it names whose window this is and claims nothing.
+ */
+export const THINKING_WINDOW_TITLE = "Thinking…";
+export const BUILD_WINDOW_TITLE = "Aluna";
+
+/**
+ * The desk being told what the window is called now. `null` means *put back the name the
+ * run took over*. Kept in sync with public/app.js (NAME_THE_WINDOW_EVENT); a platform
+ * test pins that these strings match.
+ */
+export const NAME_THE_WINDOW_EVENT = "aluna:name-the-window";
 
 /**
  * Ask for the window to be put away, from a script that cannot import this module —
@@ -84,13 +123,6 @@ export const BUILD_WINDOW_TITLE = "Making it";
  * been left holding nothing. Kept in sync there; a platform test pins the strings.
  */
 export const PUT_WINDOW_AWAY_EVENT = "aluna:put-window-away";
-
-/**
- * The one presentation record this module keeps, and the only key it writes. The
- * developer panel's is 5.6/04's, and those two are the whole of what the browser
- * remembers (design D9; ARCH §6.1).
- */
-export const WINDOW_STORAGE_KEY = "aluna.desk.window.v1";
 
 /**
  * Set on the desk ground below the breakpoint, so the page states the form the script
@@ -164,6 +196,7 @@ function htmx() {
  * @property {Element | null} openedBy what to give focus back to when it is put away
  * @property {boolean} gestures whether the drag and the grip have been bound
  * @property {boolean} sized whether this box was ever authored against a desk
+ * @property {string | null} [displacedTitle] the name a run took over, owed back
  */
 
 /** The one window (design D1). The developer panel's second one is 5.6/04. */
@@ -202,195 +235,19 @@ export function windowLayer(root) {
   return /** @type {HTMLElement} */ (layer);
 }
 
-/* ── what the browser remembers ────────────────────────────────────────────── */
-
-/**
- * The record, as it is written down: one box and one flag, and no third thing. While
- * the window is maximised the box it is standing in is the desk's, so the box kept
- * here is the one it will be given back — which is what stops a wide screen writing
- * *its* width minus the inset into the record and stranding the window on a narrower
- * one (PLAN decision 18).
- *
- * @typedef {Box & { max: boolean }} Presentation
- */
-
-/**
- * Read a record back, believing as little of it as possible.
- *
- * A presentation preference is the shell's to keep and never the shell's to depend
- * on: malformed JSON, something that is not an object, geometry that is not four
- * finite numbers, or a flag that is not a boolean each fall back to this window's
- * default rather than reaching the desk. A bad preference may not stop an addressed
- * capability from opening, so nothing in here throws and nothing in here is trusted.
- *
- * The box is `readBox`'s question and the flag is this one's; each falls back on its
- * own, so a good box survives a bad flag.
- *
- * @param {string | null | undefined} raw
- * @returns {{ box: Box | null, max: boolean }}
- */
-export function parsePresentation(raw) {
-  /** @type {{ box: Box | null, max: boolean }} */
-  const fresh = { box: null, max: false };
-  if (typeof raw !== "string") return fresh;
-
-  let stored;
-  try {
-    stored = JSON.parse(raw);
-  } catch {
-    return fresh;
-  }
-  if (stored === null || typeof stored !== "object") return fresh;
-
-  /* `readBox` is `desk-geometry.js`'s, so the product and the design page believe
-   * exactly the same things about a remembered box. */
-  return { box: readBox(stored), max: stored.max === true };
-}
-
-/**
- * What a window is worth remembering as. `setMaximised` stashes the pre-maximise box
- * on the live one and clears it again on the way back, so the normal box is always
- * exactly that — no second geometry record, and no second key.
- *
- * @param {Pick<DeskWindow, "box" | "maximised">} entry
- * @returns {Presentation}
- */
-export function presentationOf(entry) {
-  const { x, y, w, h } = entry.box.restore ?? entry.box;
-  return { x, y, w, h, max: entry.maximised };
-}
-
-/**
- * The store, where the browser has one to give.
- *
- * Reached for behind a `try`, not just read behind one: a browser told to block site
- * data throws on the *access* to `localStorage`, before any method is called. Storage
- * that cannot be opened is storage that remembers nothing, which is a working desk.
- *
- * @typedef {{ getItem(key: string): string | null, setItem(key: string, value: string): void,
- *             removeItem?(key: string): void }} Store
- * @returns {Store | null}
- */
-export function localStore() {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Read the record back. The store is an argument so the two ways it fails — throwing
- * on read, and holding nonsense — can both be handed to this rather than only reached
- * in a browser.
- *
- * The key is an argument because there are two records, one per allowed window, and
- * exactly two: this window's, and the developer panel's (`public/desk-dev-panel.js`).
- * Reading and writing them is one piece of code so the two cannot drift in how much
- * they believe of what they find.
- *
- * @param {Store | null} store
- * @param {string} [key]
- * @returns {{ box: Box | null, max: boolean }}
- */
-export function loadPresentation(store, key = WINDOW_STORAGE_KEY) {
-  try {
-    return parsePresentation(store?.getItem(key));
-  } catch {
-    return { box: null, max: false };
-  }
-}
-
-/**
- * Write the record, unless the desk is a phone. There the window is the screen and the
- * box it is standing in is the stylesheet's, so writing would turn a narrow browser
- * into a new desktop preference — the desktop record is read past, never over.
- *
- * Called where the user *authored* something: a finished drag or resize, the maximise
- * lamp, and the moment a phone becomes a desk. Deliberately not called on every resize
- * tick, and the difference matters. A clamp is not a preference: `fitToDesk` only ever
- * pulls a box in, so persisting each tick would let one transient narrowing — a browser
- * dragged small, a sidebar opened, a tablet turned — erode the remembered box for good,
- * with no way back to the screen it was authored on. The screen is clamped; the record
- * keeps what was asked for. (It also kept a synchronous, disk-backed write on the
- * resize path, which is the last place one belongs.)
- *
- * @param {Pick<DeskWindow, "box" | "maximised">} entry
- * @param {boolean} isPhone
- * @param {Store | null} store
- * @param {string} [key]
- * @param {Record<string, unknown>} [flags] extra presentation this window carries
- */
-export function savePresentation(entry, isPhone, store, key = WINDOW_STORAGE_KEY, flags) {
-  if (isPhone) return;
-  const record = JSON.stringify({ ...presentationOf(entry), ...flags });
-  try {
-    /* Compared against what storage actually holds rather than against a copy kept
-     * here: the record is shared with every tab on this origin, and a mirror in this
-     * one is wrong the moment another writes. */
-    if (store?.getItem(key) === record) return;
-    store?.setItem(key, record);
-  } catch {
-    /* A desk that cannot persist is still a working desk. */
-  }
-}
-
-/**
- * Drop the record, so the next window opens the way a first one does.
- *
- * A remembered box is a remembered *window*. While one is up, moving it is the user
- * saying where their window goes, and a browser closed on it should find it there
- * again. Dismissing it ends that window, and the box goes with it — otherwise a
- * position authored for one capability outlives it and the next capability opens
- * wherever the last was left standing, which reads as the desk failing to centre a
- * window rather than as a preference being honoured (design D9).
- *
- * No phone rule, and the asymmetry with `savePresentation` is the point. That rule
- * exists to stop a screen-sized box being *authored* as a desktop preference; there is
- * no box here to author. What is left is the user's own gesture, and a window dismissed
- * on a narrow browser is the same one window ending — so the record goes, rather than a
- * box surviving on a technicality and standing the next desktop window in the old place.
- *
- * The record is shared with every tab on this origin, so the last gesture wins: a
- * dismissal here drops a box another tab authored a moment ago. That is the same
- * single-record bargain `savePresentation` already makes, and the reason it refuses to
- * keep a mirror of what it wrote.
- *
- * `removeItem` is called optionally: `localStorage` has it, and a store handed in by a
- * test is only obliged to hold the two methods the record is otherwise kept with.
- *
- * @param {Store | null} store
- * @param {string} [key]
- */
-export function forgetPresentation(store, key = WINDOW_STORAGE_KEY) {
-  try {
-    store?.removeItem?.(key);
-  } catch {
-    /* A desk that cannot forget is still a working desk. */
-  }
-}
-
-/**
- * What a window going away means for the record, decided apart from the going away.
- *
- * A dismissal forgets and a bare desk does not, and the difference is one boolean: on a
- * cold load at `/` there was no window, nothing was dismissed, and the record of a
- * window the browser was closed on is the whole feature. That is the single most
- * load-bearing rule in this file, so it is a function that can be run rather than an
- * order of two statements that can only be read.
- *
- * @param {boolean} hadWindow whether there was a window to dismiss
- * @param {Store | null} store
- * @returns {boolean} whether a window was dismissed
- */
-export function forgetOnDismissal(hadWindow, store) {
-  if (!hadWindow) return false;
-  forgetPresentation(store);
-  return true;
-}
-
 /** This page's window, remembered in this page's store. @param {DeskWindow} entry */
 const remember = (entry) => savePresentation(entry, phone, localStore());
+
+export {
+  forgetOnDismissal,
+  forgetPresentation,
+  loadPresentation,
+  localStore,
+  parsePresentation,
+  presentationOf,
+  savePresentation,
+  WINDOW_STORAGE_KEY,
+} from "./desk-window-store.js";
 
 /* ── where the window sits ─────────────────────────────────────────────────── */
 
@@ -654,7 +511,7 @@ function bindGestures(entry) {
  * `mount` is taken as a thunk rather than reached for, so the rule is one testable thing
  * rather than a shape only a browser can hold — the way `tearDownWindow` is.
  *
- * @template {{ win: { setTitle(title: string): void }, openedBy: unknown }} T
+ * @template {{ win: { setTitle(title: string): void }, openedBy: unknown, displacedTitle?: string | null }} T
  * @param {T | null} standing
  * @param {() => T} mountWindow
  * @param {string} title
@@ -664,6 +521,8 @@ function bindGestures(entry) {
 export function windowForOpening(standing, mountWindow, title, openedBy) {
   const entry = standing ?? mountWindow();
   entry.win.setTitle(title);
+  /* Whatever opened it named it, so it is no longer holding a name for a run. */
+  entry.displacedTitle = null;
   /* The first opener owns the way back. A capability swapped into a window that is
    * already up did not open it, and must not move where putting it away returns. */
   entry.openedBy ??= openedBy;
@@ -728,13 +587,58 @@ export function dismissWindow() {
 }
 
 /**
- * The build the window was narrating, if it was narrating one.
+ * A run standing in the window, whether it is still going or has ended and is waiting to
+ * be read. What a press has to know about, because either one is holding the window.
  *
- * @param {{ querySelector(selector: string): { getAttribute(name: string): string | null } | null }} el
+ * @param {{ querySelector(selector: string): { getAttribute(name: string): string | null, querySelector(selector: string): unknown } | null }} el
+ * @returns {{ getAttribute(name: string): string | null, querySelector(selector: string): unknown } | null}
+ */
+export function buildRunIn(el) {
+  return el.querySelector(BUILD_SUBSCRIBER_SELECTOR);
+}
+
+/**
+ * Call the window something, remembering what it was called first.
+ *
+ * @param {string} title
+ * @param {string} [displaced] the name to put back when the run does not activate
+ */
+export function nameWindow(title, displaced) {
+  if (!mounted) return;
+  if (displaced !== undefined) mounted.displacedTitle ??= displaced;
+  mounted.win.setTitle(title);
+}
+
+/**
+ * Put back the name the run took over, if it took one over.
+ *
+ * A run that activated is not this: its capability took the window and is what the
+ * window is called now, which `addressTheWindow` writes from the ground.
+ */
+export function releaseWindowName() {
+  if (!mounted) return;
+  const displaced = mounted.displacedTitle;
+  mounted.displacedTitle = null;
+  if (displaced !== null && displaced !== undefined) mounted.win.setTitle(displaced);
+}
+
+/**
+ * The build the window is narrating, if it is narrating one.
+ *
+ * A run that ended and is only waiting to be read does not count. Its subscriber stays
+ * standing until the ending is dismissed (PLAN decision 25), and everything that asks
+ * *this* question is asking about work in progress: what putting the window away has to
+ * cancel, and — from 5.8/04 — what it has to warn about first. Neither is owed for a run
+ * that is already over, and a warning about losing a build that finished minutes ago is
+ * worse than no warning at all. Whether the window is *held* is `buildRunIn`.
+ *
+ * @param {{ querySelector(selector: string): { getAttribute(name: string): string | null, querySelector(selector: string): unknown } | null }} el
  * @returns {string | null}
  */
 export function buildJobIdIn(el) {
-  return el.querySelector(BUILD_SUBSCRIBER_SELECTOR)?.getAttribute("data-build-job-id") ?? null;
+  const run = buildRunIn(el);
+  if (run === null || run.querySelector(BUILD_ENDING_SELECTOR) !== null) return null;
+  return run.getAttribute("data-build-job-id");
 }
 
 /**
@@ -1183,16 +1087,21 @@ function addressTheWindow(navigated) {
 /**
  * What the window is showing, for the one question a press has to ask of it.
  *
- * A run narrating in the window is not a capability standing in it, even though the
- * collection it displaced is still there beside the subscriber. A press on that
- * capability's logo is entitled to take the window back off the run, so a build makes the
- * window hold nothing as far as this question goes.
+ * A run in the window is not a capability standing in it, even though the collection it
+ * displaced is still there beside the subscriber. A press on that capability's logo is
+ * entitled to take the window back off the run, so a build makes the window hold nothing
+ * as far as this question goes.
+ *
+ * `buildRunIn` rather than `buildJobIdIn`: a run that has ended and is waiting to be read
+ * is still covering the collection, so a press on that capability's logo is still a press
+ * that changes what the window shows, and declining it as "already showing" would leave
+ * the person looking at an ending they just asked to leave.
  *
  * @param {DeskWindow | null} entry
  * @returns {string | null}
  */
 function settledCapabilityInWindow(entry) {
-  if (entry === null || buildJobIdIn(entry.el) !== null) return null;
+  if (entry === null || buildRunIn(entry.el) !== null) return null;
   return capabilityInWindow(entry);
 }
 
@@ -1521,13 +1430,16 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
     (event) => {
       const form = event.target;
       if (!(form instanceof HTMLFormElement) || form.id !== PROMPT_FORM_ID) return;
-      /* A build takes over whatever the window is holding rather than retitling it:
-       * the prompt may be an evolution of exactly what is open. Only a build that
-       * finds no window has to say what the window is for — but either way the window
-       * it narrates into has to be the one in front, or the story of the build is
-       * behind the developer panel and, on a phone, not in the page at all. */
+      /* A build takes over whatever the window is holding, and says so. The name it
+       * finds there is remembered, because a run that does not activate owes it back:
+       * an evolution of exactly what is open ends where it started, and a failure
+       * leaves the person exactly where they were. Either way the window it narrates
+       * into has to be the one in front, or the story of the build is behind the
+       * developer panel and, on a phone, not in the page at all. */
+      const displaced = mounted?.win.title ?? BUILD_WINDOW_TITLE;
       if (mounted) raise(mounted);
-      else openWindow(BUILD_WINDOW_TITLE, root, form.querySelector("input"));
+      else openWindow(THINKING_WINDOW_TITLE, root, form.querySelector("input"));
+      nameWindow(THINKING_WINDOW_TITLE, displaced);
     },
     true,
   );
@@ -1547,10 +1459,27 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
   });
 
   /* The window's content changing hands is `app.js`'s to notice and the desk's to
-   * answer, the way putting the window away is. */
+   * answer, the way putting the window away is. A capability that took the window is
+   * also what the window is called now — read off the ground, so the title bar and the
+   * logo can only ever say the same thing. */
   root.addEventListener(WINDOW_TOOK_CAPABILITY_EVENT, (event) => {
     const detail = /** @type {CustomEvent<{ navigated?: boolean }>} */ (event).detail;
     addressTheWindow(detail?.navigated === true);
+    const showing = capabilityInWindow(mounted);
+    const logo = showing === null ? null : logoFor(root, showing);
+    if (logo !== null && mounted) {
+      mounted.displacedTitle = null;
+      mounted.win.setTitle(logoTitle(logo));
+    }
+  });
+
+  /* What the run turned out to be, told by the server through the shell. A `null` name
+   * is a run ending without activating: the window gets back the name it was called
+   * before the prompt was sent. */
+  root.addEventListener(NAME_THE_WINDOW_EVENT, (event) => {
+    const title = /** @type {CustomEvent<{ title?: unknown }>} */ (event).detail?.title;
+    if (typeof title === "string" && title !== "") nameWindow(title);
+    else releaseWindowName();
   });
 
   ownHistory(root);

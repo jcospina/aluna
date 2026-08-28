@@ -75,14 +75,63 @@ const CLEAR_ON_ACCEPT_TARGETS = [["div", "prompt-notice"]] as const;
 export const BLANK_PROMPT_NOTICE = "What would you like me to make?";
 
 /**
- * The out-of-band `#prompt-notice` swap: the one shape every warm, non-building answer
- * speaks in, whether it is a terminal build outcome (`terminal-presentation.ts`), a
- * restoration notice, or the blank-prompt refusal. Single-sourced here so the id and the
- * swap mode cannot drift between the paths that emit it — the shell clears this element
- * on every submission (`public/app.js`), so the line retires by itself.
+ * The out-of-band `#prompt-notice` swap: the one shape every warm answer that never
+ * became a build speaks in — a warm deflection, a deletion's outcome, the blank-prompt
+ * refusal. Single-sourced here so the id and the swap mode cannot drift between the
+ * paths that emit it — the shell clears this element on every submission
+ * (`public/app.js`), so the line retires by itself.
+ *
+ * A build's own terminal outcome no longer speaks here. A failure, a stale refusal and a
+ * measured no-op end the narration instead ({@link renderBuildEnding}) and the window
+ * holds there, because the log is already the live region and is already where the person
+ * is looking (PLAN decision 23).
  */
 export function renderPromptNotice(notice: string): string {
   return `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(notice)}</div>`;
+}
+
+/**
+ * The one control a run offers, and the id both of its faces share. While the run is
+ * working it stops the run; once the run has something to tell you it gives the window
+ * back.
+ *
+ * Keyed by the build id rather than fixed. The shell admits one subscriber at a time,
+ * but it can only refuse a subscriber that has already landed — two submissions inside
+ * one round trip are exactly the queued-submit window that guard exists for, and with a
+ * fixed id one run's ending would out-of-band its way onto the *other* run's Cancel and
+ * offer to dismiss a build that is still going. A build id is a `crypto.randomUUID`
+ * behind a `build-` prefix, so this is a valid element id, and htmx matches an
+ * out-of-band swap by the element's own id rather than through a selector.
+ */
+function buildStreamControlElementId(buildId: string): string {
+  return `build-stream-control-${buildId}`;
+}
+
+/**
+ * A run's last line, and the control that ends the wait.
+ *
+ * A build that fails, is refused as stale or comes back a measured no-op says so where
+ * the person is already looking — the narration is the live region, and the desk gains no
+ * surface of its own for it (PLAN decision 23). The line stands on its own rather than
+ * running on from the working prose, because it is the ending and not another step.
+ *
+ * The control rides with it as an out-of-band sidecar so the two can never disagree:
+ * the moment the ending is on screen, Cancel is no longer a thing there is to do, and
+ * the same place in the control row offers the way back instead. What that press
+ * actually gives back is the restoration the same terminal already streamed, which the
+ * shell holds rather than places (PLAN decision 25).
+ *
+ * **Continue**, not "Got it": "Got it" is Aluna's word — it opens every build
+ * (`build-jobs.ts`) and CONTEXT.md's voice table uses it as the exemplar of Aluna
+ * speaking — so a button wearing it puts both parties' words in one voice inside a single
+ * scroll. Every other control in the product names the act from the person's side.
+ */
+export function renderBuildEnding(buildId: string, line: string): string {
+  const controlId = escapeHtml(buildStreamControlElementId(buildId));
+  return [
+    `<p class="build-stream__ending" data-build-ending>${escapeHtml(line)}</p>`,
+    `<button id="${controlId}" class="btn btn--outline build-stream__dismiss" type="button" data-build-dismiss hx-swap-oob="outerHTML">Continue</button>`,
+  ].join("\n");
 }
 
 /**
@@ -111,9 +160,11 @@ export function renderBuildSubscriber(jobId: string): string {
   return [
     `<section class="build-stream" data-build-job-id="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}" sse-close="done">`,
     '  <div class="build-stream__narration" aria-live="polite" sse-swap="narration" hx-swap="beforeend"></div>',
-    `  <button class="btn btn--ghost build-stream__cancel" type="button" hx-post="${escapeHtml(cancelPath)}" hx-swap="none">Cancel</button>`,
     '  <div class="build-stream__fragment" sse-swap="fragment" hx-swap="beforeend"></div>',
     '  <div class="build-stream__commit" aria-live="polite" sse-swap="commit" hx-swap="innerHTML"></div>',
+    // Last, so it stands where every other action in the window stands: on the
+    // window's own bottom edge, under the story rather than beside it.
+    `  <button id="${escapeHtml(buildStreamControlElementId(jobId))}" class="btn btn--outline build-stream__cancel" type="button" hx-post="${escapeHtml(cancelPath)}" hx-swap="none">Cancel</button>`,
     ...PREVIEW_STAGES.map(
       ([event, stage]) =>
         `  <span hidden aria-hidden="true" sse-swap="${event}" data-preview-stage="${stage}"></span>`,
@@ -123,6 +174,31 @@ export function renderBuildSubscriber(jobId: string): string {
       ([tag, target]) => `<${tag} id="${target}" hx-swap-oob="innerHTML"></${tag}>`,
     ),
   ].join("\n");
+}
+
+/**
+ * What the window is called while a run has it, once the run knows what it is.
+ *
+ * The title is information, not decoration: a window titled with the capability that
+ * happens to be open is actively wrong while a build is making something *else*, and
+ * "Making it" is wrong while the run is still working out what was asked for. So the
+ * desk names the window `Thinking…` at submit — its own word, before any of this has
+ * been reached — and the server names it here the moment resolution settles the
+ * question: **Building…** for a new capability, and the capability's own label for an
+ * evolution, which is the name the window will keep.
+ *
+ * It rides `fragment` and lands nowhere, the way the provisional tile does
+ * ({@link renderProvisionalLogo}) — so it adds no app-level SSE event name (ADR-0002).
+ * The shell reads it and hands it to the desk, which owns the window; nothing is placed
+ * in the region.
+ */
+export const BUILD_WINDOW_TITLE_ATTRIBUTE = "data-build-window-title";
+
+/** What a window is called while something new is being made in it. */
+export const BUILDING_WINDOW_TITLE = "Building…";
+
+export function renderBuildWindowTitle(title: string): string {
+  return `<div ${BUILD_WINDOW_TITLE_ATTRIBUTE}="${escapeHtml(title)}"></div>`;
 }
 
 /**

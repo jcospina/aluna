@@ -81,6 +81,21 @@
     <script type="module" src="/static/search-chrome.js"></script>
 
     <!--
+      Repeated-value controls — the rows a list field is typed into. Delegated on the
+      document, so it works in every create/edit form htmx swaps in after page load, and
+      it no-ops on a page that has none.
+    -->
+    <script type="module" src="/static/list-field.js"></script>
+
+    <!--
+      A capability deletion whose reply never arrived. A destructive action must never
+      look like it did nothing, so this asks the server what is actually true and shows
+      its answer. It also tells the server what a deletion displaces, so **Keep it** has
+      somewhere to go back to.
+    -->
+    <script type="module" src="/static/capability-deletion.js"></script>
+
+    <!--
       The tile an admitted build stands on the desk. The server sends it as an
       out-of-band sidecar the moment resolution admits a new capability; this places
       the press and takes the tile down at the build's terminal, whatever that

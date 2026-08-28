@@ -40,6 +40,7 @@ const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g
 const rules = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\//g, "");
 
 const MODULE = code("public/desk-window.js");
+const STORE = code("public/desk-window-store.js");
 
 type Box = { x: number; y: number; w: number; h: number };
 type Stored = Box & { max?: boolean; restore?: Box };
@@ -667,7 +668,7 @@ describe("what a remembered box is, asked in one place", () => {
     expect(readBox({ x: 1, y: 2, w: 3, h: 4, restore: { x: 9 } })).not.toHaveProperty("restore");
 
     // The product and the design page believe the same things, because they ask once.
-    expect(MODULE).toContain("readBox(stored)");
+    expect(STORE).toContain("readBox(stored)");
     expect(code("design/scripts/desk.js")).toContain("readBox(stored.window)");
   });
 });

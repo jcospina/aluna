@@ -14,9 +14,29 @@
 .build-stream {
   display: none;
 }
+/* Two views of one window, laid out the way the collection and the record form are: a
+   column that fills the window, so the run's control row sits on the window's own
+   bottom edge rather than directly under however much story there happens to be. The
+   story is what scrolls, the way a record's fields do. */
 .build-stream:has(> .build-stream__narration:not(:empty)),
 .build-stream:has(> .build-stream__commit:not(:empty)) {
-  display: block;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+.build-stream > .build-stream__narration {
+  flex: 0 1 auto;
+  min-height: 0;
+  /* The step between the story and the control, held here rather than on the control:
+     the control's own `margin-top: auto` cannot also state a minimum, and a padding on
+     the control would be room inside its drawn line rather than above it. */
+  margin-bottom: var(--space-2);
+  overflow-y: auto;
+}
+.build-stream > .build-stream__commit {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 #spec-build-output:has(> .build-stream > .build-stream__narration:not(:empty))
   > [data-active-capability-id],
@@ -25,17 +45,44 @@
   display: none;
 }
 
-.build-stream > .build-stream__cancel {
+/* The run's one control, in one place. While the run works it stops the run; once the
+   run has something to tell you the same place offers the way back
+   (`renderBuildEnding`, src/web/fragments.ts). `margin-top: auto` rather than a fixed
+   step: it is the last child, so this is what holds it against the bottom edge when
+   the story is short and leaves it under the story when the story is long.
+
+   The right and bottom margins are the room the control needs *outside* its border
+   box, and it is `.desk-window__region` — a scroller, so `overflow-x: hidden` and
+   `overflow-y: auto` — that makes them load-bearing. A drawn line is a 2px stroke
+   centred on a deviating path and inked twice, the second pass down-right of the
+   first, so it paints about 1px clear of the box on every side; pressing adds 2px of
+   down-right travel and the focus ring another 1.5px. Held flush against the
+   scroller's corner the control kept its top and left strokes and had its right and
+   bottom ones shaved, which reads as a bevelled, inset button rather than a drawn
+   one. This is the same room `.capability-surface` takes for the same reason. */
+.build-stream > .build-stream__cancel,
+.build-stream > .build-stream__dismiss {
   display: flex;
+  flex: 0 0 auto;
   width: fit-content;
-  margin-top: var(--space-2);
+  margin-top: auto;
+  margin-right: var(--space-2);
+  margin-bottom: var(--space-2);
   margin-left: auto;
 }
 
+/* The last thing the narration says. It stands on its own line rather than running on
+   from the working prose, because it is the ending and not another step. */
+.build-stream__ending {
+  margin-top: var(--space-2);
+}
+
 /* Commit swap: once the capability surface lands, the build narration is no
-   longer the visible state; the window should read as the active capability. */
+   longer the visible state; the window should read as the active capability — and
+   there is no run left to cancel, so the control goes with the story. */
 .build-stream:has(.build-stream__commit:not(:empty)) .build-stream__narration,
-.build-stream:has(.build-stream__commit:not(:empty)) .build-stream__fragment {
+.build-stream:has(.build-stream__commit:not(:empty)) .build-stream__fragment,
+.build-stream:has(.build-stream__commit:not(:empty)) .build-stream__cancel {
   display: none;
 }
 

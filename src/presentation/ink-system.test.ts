@@ -241,3 +241,46 @@ describe("the ink system draws the records the platform hands it", () => {
     expect(seedOf(card)).toBe(seed);
   });
 });
+
+// Where the two layers sit, which is a different question from what they draw.
+//
+// They are absolutely positioned, so the drawn element has to be their containing block.
+// Get that wrong and the boundary is drawn at the right size, in the right shape, in some
+// ancestor's corner — a button's line painted at the top-left of the window while the
+// button stands at the bottom-right.
+describe("the box the layers sit in", () => {
+  test("a control mounted off-document still gets the box its layers sit in", () => {
+    // The layers are absolutely positioned, so the element they belong to has to be the
+    // containing block. A detached element has no computed style — every property is the
+    // empty string, `position` included — so the ask at mount cannot be answered, and an
+    // element mounted before it is in the document is exactly what an out-of-band swap
+    // produces. Unanswered, its layers belong to whatever containing block is above it
+    // and are drawn in *that* element's corner: right size, right shape, nowhere near
+    // the thing they are the boundary of. Seen in a browser as a button's boundary
+    // painted at the top-left of the window while the button sat at the bottom-right.
+    const loose = dom.element("button", "btn");
+    loose.box = { w: 84, h: 36 };
+    loose.remove(); // off-document, the way an out-of-band swap's element arrives
+    expect(loose.isConnected).toBe(false);
+    mountInk(loose);
+
+    // Put into the document and drawn.
+    const bar = dom.element("div", "build-stream");
+    bar.append(loose);
+    dom.mutate({ type: "attributes", target: loose });
+    dom.frame();
+
+    expect(loose.style.position).toBe("relative");
+    expect(loose.classes.has("is-ink")).toBe(true);
+  });
+
+  test("a control that positions itself is never overridden", () => {
+    const held = drawn("button", "btn", dom.body);
+    held.position = "absolute";
+    held.box = { w: 40, h: 40 };
+    mountInk(held);
+    dom.frame();
+
+    expect(held.style.position).toBeUndefined();
+  });
+});

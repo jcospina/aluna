@@ -12,9 +12,9 @@
 //   2. Hands developer-preview SSE payloads to the developer panel's window.
 //   3. Promotes a build's terminal presentation once its stream closes, and reports what
 //      that did to the desk, which owns the address.
-//   4. Repeated-value controls in a form htmx swapped in after page load.
-//   5. Recovers a capability deletion whose reply never arrived, so a destructive action
-//      never looks like it did nothing.
+//   4. Holds a run that ended with something to tell you, and gives the window back on
+//      the press — including the one-subscriber guard and the restoration capture that
+//      an outgoing prompt goes through.
 //
 // It is a classic script because it has to run before Alpine starts, which is also why
 // it can import nothing: every constant it shares with a module is restated here and
@@ -62,7 +62,24 @@ function shell() {
       document.addEventListener("htmx:sseOpen", () => {
         this.promptBusy = true;
       });
-      document.addEventListener("htmx:sseClose", () => wakePrompt(true));
+      document.addEventListener("htmx:sseClose", () => {
+        // A run that stopped with something to tell you is not finished with the person
+        // yet. Unlock the bar, but keep the words that produced the ending — a line that
+        // says "mind trying again?" beside a field that was just wiped is asking for
+        // something it took away — and put the keyboard on the control the window is
+        // waiting on, which is also the only way an assistive technology is told the
+        // control is there at all.
+        const ending = heldRunEnding();
+        if (ending === null) {
+          wakePrompt(true);
+          return;
+        }
+        this.promptBusy = false;
+        requestAnimationFrame(() => {
+          const control = document.querySelector(BUILD_DISMISS_SELECTOR);
+          if (control instanceof HTMLElement) control.focus();
+        });
+      });
       // `htmx:sseError` fires on every transient drop while the transport is still
       // retrying, so waking on it unlocked the prompt mid-build. Wake only once the
       // connection itself is dead; the field keeps its text either way.
@@ -107,6 +124,57 @@ const STAGES_CLEARED_EVENT = "aluna:stages-cleared";
 
 /** One build's subscriber — the node the run's id is written on. */
 const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
+
+/**
+ * A run that ended with something to say, and the control that ends the wait. Both are
+ * authored by the server (`renderBuildEnding`, `src/web/fragments.ts`); a platform test
+ * pins that these strings match. A subscriber carrying an ending is a run that has
+ * already stopped and is only waiting to be read — the window holds there until the
+ * ending is dismissed, and only then does the run give back what it displaced.
+ */
+const BUILD_ENDING_SELECTOR = "[data-build-ending]";
+const BUILD_DISMISS_SELECTOR = "[data-build-dismiss]";
+
+/**
+ * Where a held run keeps the restoration it was streamed. A `<template>`, because the
+ * restored collection reads through its own `hx-trigger="load"` the moment htmx settles
+ * over it: parked in the live document it would fetch records into a subscriber nobody
+ * can see, and do it again when the dismissal moves it into the window. Template content
+ * is inert and unsearchable from the document, so it does neither.
+ */
+const HELD_RESTORATION_ATTRIBUTE = "data-held-restoration";
+
+/** The prompt field, focused back after a dismissal the way stream close focuses it. */
+const PROMPT_FIELD_ID = "spec-build-prompt";
+
+/**
+ * What the window is called while a run has it. The server names it the moment it knows
+ * what the run is (`renderBuildWindowTitle`, `src/web/fragments.ts`); the desk owns the
+ * window and is what actually writes it. Kept in sync with public/desk-window.js
+ * (NAME_THE_WINDOW_EVENT) and the server's attribute; a platform test pins all three.
+ *
+ * A `null` name means *put back what the run took over* — what a run that ended without
+ * activating owes the window, since nothing it was called during the work is true any
+ * more.
+ */
+const BUILD_WINDOW_TITLE_ATTRIBUTE = "data-build-window-title";
+const NAME_THE_WINDOW_EVENT = "aluna:name-the-window";
+
+/** @param {string | null} title */
+function nameTheWindow(title) {
+  document.dispatchEvent(new CustomEvent(NAME_THE_WINDOW_EVENT, { detail: { title } }));
+}
+
+/**
+ * The ending a run in the window is holding, if it is holding one.
+ * @returns {HTMLElement | null}
+ */
+function heldRunEnding() {
+  const ending = document
+    .getElementById(WINDOW_REGION_ID)
+    ?.querySelector(`${BUILD_SUBSCRIBER_SELECTOR} ${BUILD_ENDING_SELECTOR}`);
+  return ending instanceof HTMLElement ? ending : null;
+}
 
 /**
  * The class htmx puts on an element while its request is in flight, restated here the way
@@ -269,6 +337,51 @@ function preserveActiveView(listener, raw) {
   return true;
 }
 
+/**
+ * The run saying what it turned out to be. It lands nowhere — the desk owns the window,
+ * so this is told rather than placed (ARCH §6.1).
+ *
+ * @param {HTMLElement} listener
+ * @param {string} raw
+ * @returns {boolean}
+ */
+function nameTheWindowFrom(listener, raw) {
+  if (!listener.classList.contains("build-stream__fragment")) return false;
+  const template = document.createElement("template");
+  template.innerHTML = raw;
+  const named = template.content.querySelector(`[${BUILD_WINDOW_TITLE_ATTRIBUTE}]`);
+  if (!(named instanceof HTMLElement)) return false;
+  const title = named.getAttribute(BUILD_WINDOW_TITLE_ATTRIBUTE);
+  if (title) nameTheWindow(title);
+  return true;
+}
+
+/**
+ * Park a held run's restoration instead of letting htmx place it.
+ *
+ * The ending arrives before the restoration does, so by the time this runs the
+ * subscriber already says whether the run is one that waits. A held restoration is the
+ * same fragment every other terminal gets — it is only given back later, when the
+ * person has read the ending and asked for it.
+ *
+ * @param {HTMLElement} listener
+ * @param {string} raw
+ * @returns {boolean}
+ */
+function holdRestoration(listener, raw) {
+  if (!listener.classList.contains("build-stream__fragment")) return false;
+  const subscriber = listener.closest(BUILD_SUBSCRIBER_SELECTOR);
+  if (!(subscriber instanceof HTMLElement)) return false;
+  if (subscriber.querySelector(BUILD_ENDING_SELECTOR) === null) return false;
+
+  subscriber.querySelector(`template[${HELD_RESTORATION_ATTRIBUTE}]`)?.remove();
+  const held = document.createElement("template");
+  held.setAttribute(HELD_RESTORATION_ATTRIBUTE, "");
+  held.innerHTML = raw;
+  subscriber.append(held);
+  return true;
+}
+
 // ── Developer-preview delivery ──────────────────────────────────────────────
 // HTMX owns the EventSource connection. Hidden `sse-swap` listener nodes cancel
 // HTMX's HTML swap and hand the raw payload to the developer panel, naming which of
@@ -285,7 +398,11 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
   if (!(listener instanceof HTMLElement)) return;
 
   const message = /** @type {CustomEvent<MessageEvent<string>>} */ (event).detail;
-  if (preserveActiveView(listener, message.data)) {
+  if (
+    nameTheWindowFrom(listener, message.data) ||
+    preserveActiveView(listener, message.data) ||
+    holdRestoration(listener, message.data)
+  ) {
     event.preventDefault();
     return;
   }
@@ -316,30 +433,10 @@ function activeCapabilitySurface() {
 // Capture the exact active registry identity before POST /prompt appends its dormant
 // subscriber. The server validates both hints and stores only this data-free
 // descriptor on the ephemeral job.
-/**
- * @param {{ elt?: Element, parameters?: Record<string, unknown> }} detail
- * @returns {boolean}
- */
-function configureCapabilityDeletionRestoration(detail) {
-  const trigger = detail.elt;
-  if (!(trigger instanceof Element) || !trigger.matches("[data-capability-delete]")) return false;
-  if (detail.parameters) detail.parameters.restore_surface = "neutral";
-  const surface = activeCapabilitySurface();
-  if (surface === null || !detail.parameters) return true;
-  const capabilityId = surface.dataset.activeCapabilityId;
-  const incarnationId = surface.dataset.activeCapabilityIncarnation;
-  if (!capabilityId || !incarnationId) return true;
-  detail.parameters.restore_surface = "capability";
-  detail.parameters.restore_capability_id = capabilityId;
-  detail.parameters.restore_incarnation_id = incarnationId;
-  return true;
-}
-
 document.addEventListener("htmx:configRequest", (event) => {
   const detail =
     /** @type {CustomEvent<{ elt?: Element, parameters?: Record<string, unknown> }>} */ (event)
       .detail;
-  if (configureCapabilityDeletionRestoration(detail)) return;
   const trigger = detail?.elt;
   if (!(trigger instanceof HTMLFormElement) || trigger.id !== "spec-build-form") return;
   const surface = activeCapabilitySurface();
@@ -363,9 +460,23 @@ document.addEventListener("htmx:beforeRequest", (event) => {
   const detail = /** @type {CustomEvent<{ elt?: Element }>} */ (event).detail;
   if (!(detail?.elt instanceof HTMLFormElement) || detail.elt.id !== "spec-build-form") return;
   const output = document.getElementById(WINDOW_REGION_ID);
-  if (output?.querySelector("[data-build-job-id]")) {
-    event.preventDefault();
-    return;
+  const standing = output?.querySelector(BUILD_SUBSCRIBER_SELECTOR);
+  if (standing instanceof HTMLElement) {
+    // A run that is still going is exactly what this guard is for. A run that has ended
+    // and is only waiting to be read is not: typing the next prompt is a way of saying
+    // you have read it, so the run gets out of the way rather than swallowing the
+    // submission and looking like the prompt bar did nothing.
+    //
+    // Dropped rather than given back. What the run displaced was never taken away, only
+    // covered, so it is already standing there — and `htmx:configRequest` has just read
+    // this build's restoration identity off it, which the incoming run will re-resolve at
+    // its own terminal. Placing the parked collection here would start a records read for
+    // a surface the arriving subscriber covers again in the same frame.
+    if (standing.querySelector(BUILD_ENDING_SELECTOR) === null) {
+      event.preventDefault();
+      return;
+    }
+    dropHeldRun(standing);
   }
   document.getElementById("prompt-notice")?.replaceChildren();
 });
@@ -417,89 +528,6 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   detail.shouldSwap = true;
 });
 
-// Repeated-value controls are platform presentation. Event delegation keeps them
-// working in forms HTMX swaps in after page load without per-form script tags.
-document.addEventListener("click", (event) => {
-  if (!(event.target instanceof Element)) return;
-
-  const button = event.target.closest("[data-list-field-add], [data-list-field-remove]");
-  if (!(button instanceof HTMLButtonElement)) return;
-  if (button.hasAttribute("data-list-field-add")) addListFieldRow(button);
-  else removeListFieldRow(button);
-});
-
-/** @param {HTMLButtonElement} button */
-function addListFieldRow(button) {
-  const field = button.closest("[data-list-field]");
-  const values = field?.querySelector("[data-list-field-values]");
-  const firstRow = values?.querySelector("[data-list-field-row]");
-  if (!(field instanceof HTMLElement) || !(values instanceof HTMLElement) || !firstRow) return;
-
-  const row = firstRow.cloneNode(true);
-  if (!(row instanceof HTMLElement)) return;
-  const input = row.querySelector("input");
-  if (input instanceof HTMLInputElement) input.value = "";
-  values.append(row);
-  syncListFieldRows(field);
-  input?.focus();
-}
-
-/** @param {HTMLButtonElement} button */
-function removeListFieldRow(button) {
-  const field = button.closest("[data-list-field]");
-  const row = button.closest("[data-list-field-row]");
-  if (!(field instanceof HTMLElement) || !(row instanceof HTMLElement)) return;
-
-  const rows = field.querySelectorAll("[data-list-field-row]");
-  if (rows.length === 1) {
-    const input = row.querySelector("input");
-    if (input instanceof HTMLInputElement) input.value = "";
-    input?.focus();
-    return;
-  }
-  row.remove();
-  syncListFieldRows(field);
-}
-
-/** @param {HTMLFormElement} form */
-function collapseListFieldRows(form) {
-  for (const field of Element.prototype.querySelectorAll.call(form, "[data-list-field]")) {
-    if (!(field instanceof HTMLElement)) continue;
-    const rows = [...field.querySelectorAll("[data-list-field-row]")];
-    for (const row of rows.slice(1)) row.remove();
-    syncListFieldRows(field);
-  }
-}
-
-document.addEventListener("aluna:record-created", (event) => {
-  if (event.target instanceof HTMLFormElement) collapseListFieldRows(event.target);
-});
-
-document.addEventListener("aluna:create-cancelled", (event) => {
-  const trigger = event.target;
-  const form = trigger instanceof Element ? Element.prototype.closest.call(trigger, "form") : null;
-  if (form instanceof HTMLFormElement) collapseListFieldRows(form);
-});
-
-/** @param {HTMLElement} field */
-function syncListFieldRows(field) {
-  const label = field.dataset.listFieldLabel ?? "Value";
-  const inputId = field.dataset.listInputId ?? "list-value";
-  const rows = field.querySelectorAll("[data-list-field-row]");
-
-  rows.forEach((row, index) => {
-    const input = row.querySelector("input");
-    const remove = row.querySelector("[data-list-field-remove]");
-    if (input instanceof HTMLInputElement) {
-      input.id = `${inputId}-${index + 1}`;
-      input.setAttribute("aria-label", `${label} ${index + 1}`);
-    }
-    if (remove instanceof HTMLButtonElement) {
-      remove.setAttribute("aria-label", `Remove ${label} value ${index + 1}`);
-    }
-  });
-}
-
 /**
  * The window's content changed hands. The desk owns what the address does about it — this
  * classic script cannot import the module that owns it, so it says what happened rather
@@ -515,140 +543,6 @@ function tellDeskTheWindowTookCapability(navigated) {
   document.dispatchEvent(
     new CustomEvent("aluna:window-took-capability", { detail: { navigated } }),
   );
-}
-
-// A Confirm submission whose response never arrives — a dropped connection, or a
-// server that went away mid-request — swaps nothing at all. HTMX then leaves the
-// confirmation panel sitting on screen at the same URL, while the deletion itself may
-// already be permanently committed: the destructive action looks like it did nothing.
-// Never leave that stale panel up. Ask the server what is actually true and show its
-// answer, whether that is the panel again or "already gone".
-const CAPABILITY_DELETION_RECHECK_DELAYS_MS = [200, 800, 2000];
-
-/**
- * The preflight URL for a Confirm form, carrying the same restoration evidence the
- * submission did so a recovered panel still knows where **Keep it** goes back to.
- * @param {Element} form
- * @returns {string | null}
- */
-function capabilityDeletionPreflightUrl(form) {
-  const base = form.getAttribute("data-capability-deletion-confirm");
-  if (!base) return null;
-  const query = new URLSearchParams();
-  for (const name of ["restore_surface", "restore_capability_id", "restore_incarnation_id"]) {
-    const field = form.querySelector(`input[name="${name}"]`);
-    if (field instanceof HTMLInputElement && field.value) query.set(name, field.value);
-  }
-  const suffix = query.toString();
-  return suffix ? `${base}?${suffix}` : base;
-}
-
-/** @param {string} copy */
-function writeCapabilityDeletionRecheckNotice(copy) {
-  const notice = document.getElementById("prompt-notice");
-  if (notice instanceof HTMLElement) notice.textContent = copy;
-}
-
-/**
- * @param {string} preflightUrl
- * @param {number} attempt
- * @returns {Promise<void>}
- */
-async function recheckCapabilityDeletion(preflightUrl, attempt) {
-  const delay = CAPABILITY_DELETION_RECHECK_DELAYS_MS[attempt];
-  if (delay === undefined) {
-    writeCapabilityDeletionRecheckNotice(
-      "I still can’t tell what happened. Reload the page to see the latest.",
-    );
-    return;
-  }
-  await new Promise((resolve) => setTimeout(resolve, delay));
-
-  const response = await fetch(preflightUrl, { headers: { "HX-Request": "true" } }).catch(
-    () => null,
-  );
-  if (response === null || !response.ok) {
-    await recheckCapabilityDeletion(preflightUrl, attempt + 1);
-    return;
-  }
-
-  const html = await response.text();
-
-  // The window may have been put away while this was in flight. That is the *good*
-  // ending — the danger this recovery exists for is a stale confirmation panel left
-  // standing, and there is no panel left to be stale. What is still owed is the
-  // answer, so it is read out of the reply and left at the prompt bar rather than
-  // reported as "I can't tell", which would be untrue: we just found out.
-  const output = document.getElementById(WINDOW_REGION_ID);
-  if (!(output instanceof HTMLElement)) {
-    writeCapabilityDeletionRecheckNotice(noticeIn(html));
-    applyReplaceUrl(response);
-    return;
-  }
-  const htmx =
-    /** @type {Window & { htmx?: { swap(target: Element, content: string, spec: { swapStyle: string, swapDelay: number, settleDelay: number }): void } }} */ (
-      window
-    ).htmx;
-  // Retire the "checking" line first so an out-of-band notice in the answer — the one
-  // that explains a capability turning out to be already gone — is what the user is
-  // left reading.
-  writeCapabilityDeletionRecheckNotice("");
-  releaseRegionContent(output);
-  if (htmx) htmx.swap(output, html, { swapStyle: "innerHTML", swapDelay: 0, settleDelay: 0 });
-  else output.innerHTML = html;
-
-  applyReplaceUrl(response);
-}
-
-/**
- * The server decides where this leaves the user. A capability that turned out to be
- * gone answers with the home URL, and honouring it is what stops a reload from
- * landing on the deleted capability's dead route. HTMX applies this header for its
- * own requests; this one is ours, so apply it ourselves.
- * @param {Response} response
- */
-function applyReplaceUrl(response) {
-  const replaceUrl = response.headers.get("HX-Replace-Url");
-  if (replaceUrl) window.history.replaceState(window.history.state, "", replaceUrl);
-}
-
-/**
- * What a deletion reply says to the user, read out of the out-of-band notice it
- * carries. Parsed into an inert template, so nothing in it runs or loads.
- * @param {string} html
- * @returns {string}
- */
-function noticeIn(html) {
-  const template = document.createElement("template");
-  template.innerHTML = html;
-  return (
-    template.content.querySelector("#prompt-notice")?.textContent?.trim() ||
-    "That’s sorted — the desk is up to date."
-  );
-}
-
-/** @param {Event} event */
-function recoverSeveredCapabilityDeletion(event) {
-  const detail = /** @type {CustomEvent<{ elt?: Element }>} */ (event).detail;
-  const form = detail?.elt;
-  if (!(form instanceof Element)) return;
-  const preflightUrl = capabilityDeletionPreflightUrl(form);
-  if (preflightUrl === null) return;
-
-  writeCapabilityDeletionRecheckNotice("Something interrupted that. Let me check what happened…");
-  void recheckCapabilityDeletion(preflightUrl, 0);
-}
-
-/** @param {Event} event */
-function focusCapabilityDeletion(event) {
-  const target =
-    event instanceof CustomEvent && typeof event.detail === "object" && event.detail !== null
-      ? event.detail.target
-      : undefined;
-  if (!(target instanceof Element)) return;
-  const heading = target.querySelector("[data-capability-deletion-focus]");
-  if (!(heading instanceof HTMLElement)) return;
-  requestAnimationFrame(() => heading.focus());
 }
 
 /** @param {HTMLElement} subscriber */
@@ -758,12 +652,123 @@ function promoteTerminalPresentation(subscriber, output) {
 }
 
 /**
+ * Promote what a run ended with, and answer for what that leaves the desk holding: a
+ * window with nothing in it goes away, and a run that gave back the bare desk is at the
+ * desk's own address.
+ *
+ * @param {HTMLElement} subscriber
+ * @param {HTMLElement} output
+ * @param {boolean} mayPutWindowAway
+ * @returns {boolean} whether a real pointer activation took the window
+ */
+function completeTerminalPresentation(subscriber, output, mayPutWindowAway) {
+  const { restorationKind, activated } = promoteTerminalPresentation(subscriber, output);
+  // An activation renames the window after the capability that just took it; every other
+  // ending puts back the name the run took over, because nothing it was called while it
+  // worked is true any more.
+  if (!activated) nameTheWindow(null);
+  if (mayPutWindowAway) putAwayEmptyWindow(output);
+
+  if (
+    restorationKind === "neutral" &&
+    (window.location.pathname !== "/" || window.location.search !== "")
+  ) {
+    window.history.replaceState(window.history.state, "", "/");
+  }
+  return activated;
+}
+
+/**
+ * Take the run's story down, having been read. Always first, so nothing downstream can
+ * still mistake this run for one that is waiting — the rescue below reads exactly that.
+ * @param {HTMLElement} subscriber
+ */
+function retireBuildEnding(subscriber) {
+  subscriber.querySelector(BUILD_ENDING_SELECTOR)?.remove();
+}
+
+/**
+ * Let a read run go without giving anything back.
+ *
+ * What the run displaced was never taken away, only covered (`demo.css` hides it for as
+ * long as the narration is standing), so uncovering it is the whole of what this owes.
+ * Reached two ways: the next prompt, which is about to cover it again anyway, and a run
+ * whose restoration never arrived at all because its terminal write ran out of its bound.
+ *
+ * @param {HTMLElement} subscriber
+ * @param {boolean} mayPutWindowAway
+ */
+function dropHeldRun(subscriber, mayPutWindowAway = false) {
+  const output = subscriber.closest(`#${WINDOW_REGION_ID}`);
+  nameTheWindow(null);
+  retireBuildEnding(subscriber);
+  releaseRegionContent(subscriber);
+  subscriber.remove();
+  if (mayPutWindowAway && output instanceof HTMLElement) putAwayEmptyWindow(output);
+  tellDeskTheWindowTookCapability(false);
+}
+
+/**
+ * The end of the wait: a run that had something to tell you gives back what it displaced.
+ *
+ * The restoration was parked rather than placed (`holdRestoration`), so this is where it
+ * finally reaches the region — moved into the run's own fragment surface first, so the
+ * one promotion path in this file is the one that carries it out, and so the restored
+ * collection is processed exactly once, on its way into the window.
+ *
+ * @param {HTMLElement} subscriber
+ */
+function giveBackTheWindow(subscriber) {
+  const output = subscriber.closest(`#${WINDOW_REGION_ID}`);
+  const held = subscriber.querySelector(`template[${HELD_RESTORATION_ATTRIBUTE}]`);
+  const surface = subscriber.querySelector(".build-stream__fragment");
+  if (!(output instanceof HTMLElement)) return;
+  if (!(held instanceof HTMLTemplateElement) || !(surface instanceof HTMLElement)) {
+    dropHeldRun(subscriber, true);
+    return;
+  }
+
+  retireBuildEnding(subscriber);
+  surface.replaceChildren(held.content);
+  held.remove();
+  completeTerminalPresentation(subscriber, output, true);
+  tellDeskTheWindowTookCapability(false);
+}
+
+/**
+ * A held ending that is about to be destroyed rather than read.
+ *
+ * The window is the only place this sentence lives now, and the window can be put away,
+ * swapped for another capability, or navigated off — none of which is the person saying
+ * they have read it. The line moves to the prompt bar's standing slot on the way out, so
+ * a build that failed can never leave the desk looking exactly as it did before the
+ * prompt was typed. It is the same element every warm answer that never became a build
+ * already speaks in, not a surface of the desk's own (PLAN decisions 23 and 24).
+ *
+ * htmx's own cleanup is the hook, because it is the one thing every disappearance goes
+ * through: the subscriber carries `hx-ext`/`sse-connect`, so htmx cleans it up whichever
+ * way it leaves. A dismissal never reaches this — the ending is retired before anything
+ * is released.
+ *
+ * @param {EventTarget | null} eventTarget
+ */
+function rescueHeldEnding(eventTarget) {
+  if (!(eventTarget instanceof Element)) return;
+  const ending = eventTarget.matches?.(BUILD_SUBSCRIBER_SELECTOR)
+    ? eventTarget.querySelector(BUILD_ENDING_SELECTOR)
+    : null;
+  const notice = document.getElementById("prompt-notice");
+  if (!(ending instanceof HTMLElement) || !(notice instanceof HTMLElement)) return;
+  notice.textContent = ending.textContent;
+}
+
+/**
  * @param {EventTarget | null} eventTarget
  * @returns {boolean} whether a real pointer activation took the window
  */
 function finishTerminalPresentation(eventTarget) {
   if (!(eventTarget instanceof Element)) return false;
-  const subscriber = eventTarget.closest("[data-build-job-id]");
+  const subscriber = eventTarget.closest(BUILD_SUBSCRIBER_SELECTOR);
   const output = subscriber?.closest(`#${WINDOW_REGION_ID}`);
   if (!(subscriber instanceof HTMLElement) || !(output instanceof HTMLElement)) return false;
 
@@ -776,27 +781,39 @@ function finishTerminalPresentation(eventTarget) {
     return false;
   }
 
-  const { restorationKind, activated } = promoteTerminalPresentation(subscriber, output);
-  putAwayEmptyWindow(output);
-
-  if (
-    restorationKind === "neutral" &&
-    (window.location.pathname !== "/" || window.location.search !== "")
-  ) {
-    window.history.replaceState(window.history.state, "", "/");
+  // A run that ended with something to tell you stops here. The story stays up, the
+  // surface it displaced stays covered, and nothing is given back until the ending is
+  // dismissed (PLAN decision 25). Cancel never reaches this: it has no ending, because
+  // the person who pressed it already knows why the run stopped.
+  if (subscriber.querySelector(BUILD_ENDING_SELECTOR) !== null) {
+    nameTheWindow(null);
+    return false;
   }
-  return activated;
+
+  return completeTerminalPresentation(subscriber, output, true);
 }
 
-document.addEventListener("htmx:sendError", recoverSeveredCapabilityDeletion);
-document.addEventListener("htmx:timeout", recoverSeveredCapabilityDeletion);
-document.addEventListener("htmx:afterSwap", (event) => {
+// The press that ends the wait. The control is about to be detached, so focus goes to the
+// prompt bar rather than being dropped on `<body>` — and the person's words are still in
+// it, because a run that ends by asking them to try again may not wipe what they typed.
+document.addEventListener("click", (event) => {
+  if (!(event.target instanceof Element)) return;
+  const dismiss = event.target.closest(BUILD_DISMISS_SELECTOR);
+  if (!(dismiss instanceof HTMLElement)) return;
+  const subscriber = dismiss.closest(BUILD_SUBSCRIBER_SELECTOR);
+  if (!(subscriber instanceof HTMLElement)) return;
+  giveBackTheWindow(subscriber);
+  document.getElementById(PROMPT_FIELD_ID)?.focus();
+});
+
+document.addEventListener("htmx:beforeCleanupElement", (event) => rescueHeldEnding(event.target));
+
+document.addEventListener("htmx:afterSwap", () => {
   // A swap is not a navigation: whatever navigated pushed its own address before the
   // request went out, so this only ever catches the address up with a window that
   // changed hands underneath it — a cancelled deletion putting the previous capability
   // back is the one that does.
   tellDeskTheWindowTookCapability(false);
-  focusCapabilityDeletion(event);
 });
 document.addEventListener("htmx:afterSettle", (event) => {
   const target = /** @type {CustomEvent<{ target?: unknown }>} */ (event).detail?.target;

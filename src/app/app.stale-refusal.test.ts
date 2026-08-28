@@ -16,9 +16,10 @@ import type { ZodType } from "zod";
 import type { IntentClassification } from "../intent-resolver/index.ts";
 import { listGenerationLifecycles } from "../metrics/index.ts";
 import { createMetricsRecorder } from "../pipeline/index.ts";
-import { STALE_BUILD_NOTICE } from "../pipeline/streaming/terminal-presentation.ts";
+import { STALE_BUILD_ENDING } from "../pipeline/streaming/terminal-presentation.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
 import { getCapability, insertCapability } from "../registry/index.ts";
+import { renderBuildEnding } from "../web/index.ts";
 import {
   buildJobIdFromSubscriber,
   collectSseEvents,
@@ -119,11 +120,12 @@ test("a registry change between resolution and the lease head refuses stale and 
   const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
   const names = events.map((event) => event.event);
 
-  // The warm foreground story: a product-voice line with no internals in it, the canonical
-  // committed View restored beneath it, and a terminal `done`.
-  expect(eventData(events, "narration")).toContain(STALE_BUILD_NOTICE);
+  // The warm foreground story: a product-voice line with no internals in it, ending the
+  // narration where the person is already looking, the canonical committed View streamed
+  // for the window to hold until it is dismissed, and a terminal `done`.
+  expect(eventData(events, "narration")).toContain(renderBuildEnding(jobId, STALE_BUILD_ENDING));
   expect(eventData(events, "fragment")).toContain('data-build-restoration="capability"');
-  expect(eventData(events, "fragment")).toContain('id="prompt-notice"');
+  expect(eventData(events, "fragment")).not.toContain("prompt-notice");
   expect(eventData(events, "done")).toBe("error");
   // `commit` stays reserved for a real pointer activation, and there was none.
   expect(names).not.toContain("commit");

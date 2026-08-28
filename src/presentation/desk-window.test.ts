@@ -4,7 +4,6 @@ import { join, resolve } from "node:path";
 
 import { setMaximised, trackPointer } from "#design/window-gestures.js";
 import {
-  BUILD_WINDOW_TITLE,
   buildCancelUrl,
   buildJobIdIn,
   CAPABILITY_LOGO_SELECTOR,
@@ -186,13 +185,19 @@ describe("the window holds the one content region", () => {
   test("putting the window away cancels the build it was narrating", () => {
     // The window is the only way back to a run's narration, so leaving the server
     // building something nobody can see is the worse half of a half-done teardown.
-    const el = {
+    const windowHolding = (ending: unknown) => ({
       querySelector: (selector: string) =>
-        selector === "[data-build-job-id]" ? { getAttribute: () => "build 7/8" } : null,
-    };
-    expect(buildJobIdIn(el)).toBe("build 7/8");
+        selector === "[data-build-job-id]"
+          ? { getAttribute: () => "build 7/8", querySelector: () => ending }
+          : null,
+    });
+    expect(buildJobIdIn(windowHolding(null))).toBe("build 7/8");
     expect(buildCancelUrl("build 7/8")).toBe("/build/build%207%2F8/cancel");
     expect(buildJobIdIn({ querySelector: () => null })).toBeNull();
+    // A run that already ended and is only waiting to be read is not being narrated.
+    // Cancelling it would post to a job the queue deleted, and 5.8/04's warning would
+    // ask about losing a build that finished minutes ago.
+    expect(buildJobIdIn(windowHolding({}))).toBeNull();
   });
 
   test("the classic-script glue and the window agree on both strings", () => {
@@ -599,19 +604,6 @@ describe("who opens the window", () => {
     expect(source).toContain(`form.id !== PROMPT_FORM_ID`);
     expect(PROMPT_FORM_ID).toBe("spec-build-form");
     expect(SHELL).toContain(`id="${PROMPT_FORM_ID}"`);
-  });
-
-  test("a build takes the window over rather than retitling what is already open", () => {
-    // The prompt may be an evolution of exactly what is in the window; only a build
-    // that finds no window has to say what the window is for.
-    expect(BUILD_WINDOW_TITLE).toBe("Making it");
-    expect(code("public/desk-window.js")).toContain("else openWindow(BUILD_WINDOW_TITLE");
-    // And a build that *does* find a window brings it forward rather than leaving its
-    // narration behind the developer panel — which below the breakpoint means leaving
-    // it out of the page entirely (5.6/04).
-    expect(code("public/desk-window.js")).toMatch(
-      /if \(mounted\) raise\(mounted\);\s*else openWindow\(BUILD_WINDOW_TITLE/,
-    );
   });
 
   test("a second capability swaps what is inside the frame rather than adding one", () => {

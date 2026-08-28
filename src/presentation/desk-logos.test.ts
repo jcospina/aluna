@@ -204,6 +204,20 @@ describe("the terminal cleanup path", () => {
     });
   }
 
+  test("a run whose window holds its ending still takes its tile down at the close", () => {
+    // The window waits, the tile does not. A run that failed, was refused as stale or
+    // came back a measured no-op holds its story until it is dismissed (PLAN decision
+    // 25), but by then the run is over and there is no in-flight story left for a tile
+    // to be the way back to — and no capability for it to become. The close is the
+    // terminal cleanup, and it is the only ending this module needs to know about.
+    const { root, tile, narration } = deskWithBuild("build-1");
+    startDeskLogos(root);
+
+    root.dispatch("htmx:sseClose", { target: narration, detail: { type: "message" } });
+
+    expect(tile.parent).toBeNull();
+  });
+
   test("a close belonging to another build leaves this one standing", () => {
     const { root, tile, layer } = deskWithBuild("build-1");
     const other = new Node({ "data-build-job-id": "build-2" });

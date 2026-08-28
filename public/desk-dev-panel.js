@@ -165,7 +165,7 @@ function rememberOpen(open) {
  * than through `loadPresentation`, which answers about geometry: a record whose box is
  * nonsense may still carry a good flag, and the panel should still open.
  *
- * @param {import("./desk-window.js").Store | null} store
+ * @param {import("./desk-window-store.js").Store | null} store
  * @returns {boolean}
  */
 export function storedOpenFlag(store) {

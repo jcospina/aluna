@@ -104,6 +104,7 @@ async function presentStale(
   if (!context.canPresent()) return undefined;
   await deliverStalePresentation(
     context.send,
+    context.job.id,
     context.restoration(),
     context.timeoutMs,
     context.metricsPreview(terminal.refusal.incarnationId),
@@ -174,6 +175,7 @@ async function presentFailed(
   }
   await deliverFailedPresentation(
     context.send,
+    context.job.id,
     terminal.error,
     context.restoration(),
     context.timeoutMs,

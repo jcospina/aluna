@@ -523,12 +523,15 @@ a reload rehydrates the ground from the registry, and the address puts the live
 View back in the window.
 
 Any non-activating terminal path — `no_change`, stale or collision, cancellation,
-or failure — resolves the presenter's descriptor against the then-current registry.
-Through ADR-0002's `fragment` event it restores that canonical live View plus its
-`read` result, or the bare desk, clears search, and returns the window's record,
-edit, and delete-confirm state to the collection before sending `done`. It puts no
-permanent logo on the ground and removes any build-id provisional tile. Terminal presenter work is bounded, and active ownership
-releases in `finally`. `commit` is reserved for a real pointer activation.
+or failure — resolves the presenter's descriptor against the then-current registry
+and streams that canonical live View, or the bare desk, through ADR-0002's
+`fragment` event before sending `done`. Placing it clears search and returns the
+window's record, edit, and delete-confirm state to the collection, and its `read`
+runs when it reaches the window. Cancellation places it as it lands; the three
+below hold it until the ending is dismissed. It puts no permanent logo on the
+ground and removes any build-id provisional tile. Terminal presenter work is
+bounded, and active ownership releases in `finally`. `commit` is reserved for a
+real pointer activation.
 
 Restoration waits whenever Aluna has something to say. A build that fails, is
 refused as stale, or comes back a measured no-op adds one final line to the
@@ -1044,7 +1047,8 @@ Intent Resolver  ── classify (new/extend/ui/query) + overlap resolve + frien
           Presenter terminal branch
                     ├─ activated: one committed View swap in the window
                     │  (+ conditional logo sidecar)
-                    └─ not activated: restore live View or bare desk via fragment + done
+                    └─ not activated: stream live View or bare desk via fragment + done
+                       (placed at once on cancel; held behind the ending otherwise)
 ```
 
 The user watches the UI assemble itself, narrated in friendly language and never in

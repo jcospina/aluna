@@ -88,6 +88,7 @@ export async function presentEvolutionOutcome(
   if (!input.canPresent()) return undefined;
   await deliverCandidateNoChangePresentation(
     input.send,
+    input.job.id,
     JSON.stringify(
       buildEvolutionCandidateNoChangePreview(
         input.active,
@@ -123,6 +124,7 @@ export async function presentEvolutionFailure(
   if (error instanceof CandidateValidationError) {
     await deliverCandidateRejectedPresentation(
       input.send,
+      input.job.id,
       JSON.stringify(
         buildEvolutionCandidateRejectedPreview(input.active, input.intentText, error.issues),
       ),
@@ -133,6 +135,7 @@ export async function presentEvolutionFailure(
   }
   await deliverFailedPresentation(
     input.send,
+    input.job.id,
     error,
     restoration,
     boundFor(input),

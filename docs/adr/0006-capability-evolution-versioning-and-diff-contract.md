@@ -253,6 +253,27 @@ desk/logo registry rehydration and leaves `success/activated` intact. Module 8
 may reuse the same Builder with a different confirmed-proposal presenter without
 reclassification.
 
+**Amended 2026-08-28: restoration waits when Aluna has something to tell you, and
+there is no modal left to close.** Two clauses of the paragraph above are
+superseded by Module 5 and nothing else in it is. The descriptor keeps its exact
+shape and still carries no search, record, edit, delete-confirm or draft data.
+
+*"Close modal/edit/delete-confirm state"* — the read-only detail modal was deleted
+rather than ported (5.7/01, PLAN decision 1): a record opens through an ordinary
+view swap inside the window, under a back control. Restoration still returns the
+window's record, edit and delete-confirm state to the collection, because those
+are what it replaces; the modal half has nothing left to close.
+
+*"No-change, stale/collision, cancellation, and failure resolve that descriptor…
+and send `done`"* — the four no longer restore alike (PLAN decisions 23 and 25).
+No-change, stale/collision and failure each end the narration with their own
+authored product-voice line and **hold the window until the person dismisses it**,
+and only then is the displaced collection placed. Cancellation alone restores at
+once, because the person who pressed Cancel already knows why the run stopped.
+Every one of them still streams its restoration through `fragment` before `done`,
+inside the same bound and under the same lease; what waits is the placement, which
+the shell owns. See ADR-0002's 2026-08-28 update for the wire-level detail.
+
 ### Dependency-safe permanent deletion
 
 Confirmed capability deletion uses the same mutation coordinator and never

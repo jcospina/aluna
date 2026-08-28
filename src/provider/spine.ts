@@ -162,6 +162,54 @@ export function pumpStream<U>(source: AsyncIterable<U>): AsyncIterable<U> {
 }
 
 /**
+ * Somewhere for the fault the SDK swallows to go.
+ *
+ * `streamObject` reports a transport fault — a rejected key, a rate limit, a dropped
+ * connection — to `onError` and nowhere else. Its `partialObjectStream` ends as though
+ * the model produced nothing, and `object` and `usage` never settle at all, so a caller
+ * awaiting one of them waits for ever. This is the small piece that turns that one
+ * callback back into the three handles the contract promises.
+ *
+ * Exported for a network-free unit test, like `pumpStream` and `selectWire`.
+ */
+export function providerFault() {
+  let report: (fault: unknown) => void = () => undefined;
+  let fault: unknown;
+  let faulted = false;
+  const raised = new Promise<never>((_, reject) => {
+    report = reject;
+  });
+  // A fault raised with nothing racing it — a caller that only iterates the stream — is
+  // still a rejection, and an unhandled one is a crash rather than a failed build.
+  void raised.catch(() => undefined);
+
+  return {
+    onError: ({ error }: { error: unknown }) => {
+      fault = error;
+      faulted = true;
+      report(error);
+    },
+
+    /**
+     * A handle the SDK may leave pending for ever, settled by the fault if one lands.
+     * Raced rather than replaced: a fault settles a handle the SDK left open, and never
+     * overrides one the SDK settled itself.
+     */
+    settle: <T>(handle: Promise<T>): Promise<T> => Promise.race([handle, raised]),
+
+    /**
+     * The stream with the fault put back where the SDK dropped it. A caller that only
+     * iterates would otherwise read a clean, empty stream and conclude the model said
+     * nothing at all.
+     */
+    async *surface<U>(source: AsyncIterable<U>): AsyncGenerator<U> {
+      yield* source;
+      if (faulted) throw fault;
+    },
+  };
+}
+
+/**
  * Build the one real provider behind the contract. Resolves the config trio eagerly
  * (key + model + endpoint), so a missing key fails *here*, loudly, with the
  * actionable message from `requireApiKey` — never as a confusing mid-stream error
@@ -180,11 +228,31 @@ export function createProvider(env: NodeJS.ProcessEnv = process.env): Provider {
       // final value against `schema` and *rejects* `object` if the model's output
       // never conforms — so the contract's "non-conformance surfaces on .object"
       // guarantee (issue 02) is the SDK's, realized, not re-implemented here.
+      //
+      // # A transport fault reaches none of the SDK's three handles
+      //
+      // Model non-conformance rejects `object`. A *transport* fault — a rejected key,
+      // a rate limit, a dropped connection — does not, and this was verified against
+      // a live 401: `partialObjectStream` **ends cleanly**, as though the model simply
+      // produced nothing, and `object` and `usage` are left permanently pending. The
+      // SDK's only report of it is the default `onError`, which logs to the console
+      // and returns. A caller awaiting `object` therefore waits for ever: the build's
+      // resolver never throws, its pipeline never reaches its failure presenter, and
+      // the window keeps narrating work that stopped minutes ago.
+      //
+      // Taking `onError` is what closes that. It replaces the SDK's console logging
+      // with the one thing the contract needs — a fault that settles the handles the
+      // contract says will settle — so a provider fault comes out of `generate` the
+      // same way a malformed object already does, as a rejection the caller can
+      // present. Nothing else in the codebase learns a new failure mode.
+      const fault = providerFault();
+
       const result = streamObject({
         model,
         schema,
         prompt,
         providerOptions: adapter.providerOptions,
+        onError: fault.onError,
       });
 
       // The SDK's partial-object stream, final-object promise, and usage promise *are*
@@ -195,13 +263,17 @@ export function createProvider(env: NodeJS.ProcessEnv = process.env): Provider {
       // nothing else in the codebase sees them. `usage` is narrowed to our three-count
       // `TokenUsage`, dropping SDK-only figures (reasoning/cached tokens) M2 omits.
       return {
-        partialStream: pumpStream(result.partialObjectStream) as AsyncIterable<DeepPartial<T>>,
-        object: result.object as Promise<T>,
-        usage: result.usage.then(({ inputTokens, outputTokens, totalTokens }) => ({
-          inputTokens,
-          outputTokens,
-          totalTokens,
-        })),
+        partialStream: fault.surface(
+          pumpStream(result.partialObjectStream) as AsyncIterable<DeepPartial<T>>,
+        ),
+        object: fault.settle(result.object as Promise<T>),
+        usage: fault.settle(
+          result.usage.then(({ inputTokens, outputTokens, totalTokens }) => ({
+            inputTokens,
+            outputTokens,
+            totalTokens,
+          })),
+        ),
       };
     },
   };

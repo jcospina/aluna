@@ -66,9 +66,14 @@ function assertBuildEventOrder(events: SseEvent[]): void {
   // is the build's own opening event. The tile is deliberately ahead of that: it is the
   // ambient half of the signal and it belongs to admission, not to the run.
   expect(eventNames[0]).toBe("narration");
-  // It rides `fragment` rather than adding a fifth app-level event name (ADR-0002).
+  // It rides `fragment` rather than adding a fifth app-level event name (ADR-0002) — and
+  // so does the window's name, which is the same fact told to the other surface: the
+  // moment admission knows this is a new capability, the window can stop saying
+  // `Thinking…` and say what it is doing (M5 plan 1).
   expect(eventNames[1]).toBe("fragment");
-  expect(eventNames[2]).toBe("metrics-preview");
+  expect(eventNames[2]).toBe("fragment");
+  expect(events[2]?.data ?? "").toContain('data-build-window-title="Building…"');
+  expect(eventNames[3]).toBe("metrics-preview");
   expect(events[1]?.data ?? "").toContain('hx-swap-oob="beforeend:#capability-logos"');
   expect(events[1]?.data ?? "").toContain("data-provisional-logo=");
   expect(events.filter((event) => event.data.includes("data-provisional-logo"))).toHaveLength(1);

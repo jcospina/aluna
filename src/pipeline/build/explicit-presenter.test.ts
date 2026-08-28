@@ -22,8 +22,9 @@ import {
   teardownScratchDbEnv,
 } from "../../app/app.test-support.ts";
 import type { CommitCapabilityResult } from "../../builder/index.ts";
+import { renderBuildEnding } from "../../web/index.ts";
 import type { BuildJob, SendBuildEvent } from "../jobs/build-jobs.ts";
-import { STALE_BUILD_NOTICE } from "../streaming/terminal-presentation.ts";
+import { STALE_BUILD_ENDING } from "../streaming/terminal-presentation.ts";
 import type { CoreBuildTerminal } from "./core-builder.ts";
 import { createExplicitPresenter } from "./explicit-presenter.ts";
 
@@ -153,7 +154,7 @@ test("a terminal that delivers completely sends exactly one done, last", async (
 
   expect(completion).toBe("terminal-sent");
   expect(transport.events.map((entry) => entry.event)).toEqual(["narration", "fragment", "done"]);
-  expect(transport.events[0]?.data).toContain(STALE_BUILD_NOTICE);
+  expect(transport.events[0]?.data).toBe(renderBuildEnding(JOB.id, STALE_BUILD_ENDING));
 });
 
 test("a stale terminal whose restoration stalls is let go rather than retried behind the stall", async () => {

@@ -1,10 +1,18 @@
 import { describe, expect, test } from "bun:test";
 
 import { createMutationCoordinator } from "../../mutation-coordinator/index.ts";
+import { renderBuildEnding } from "../../web/index.ts";
 import {
+  CANDIDATE_NO_CHANGE_ENDING,
+  CANDIDATE_REJECTED_ENDING,
   deliverActivatedPresentation,
+  deliverCandidateNoChangePresentation,
+  deliverCandidateRejectedPresentation,
   deliverFailedPresentation,
   deliverRestoredPresentation,
+  deliverStalePresentation,
+  FAILED_BUILD_ENDING,
+  STALE_BUILD_ENDING,
 } from "./terminal-presentation.ts";
 
 /**
@@ -109,6 +117,7 @@ describe("deliverFailedPresentation", () => {
       async (event, data) => {
         events.push({ event, data });
       },
+      "build-1",
       failure,
       '<div data-build-restoration="neutral"></div>',
       20,
@@ -128,13 +137,101 @@ describe("deliverFailedPresentation", () => {
       message: failure.message,
     });
     expect(events[1]?.data).toMatch(/mind trying again/i);
-    // The restored View replaces the narration at promotion, so the same product
-    // voice must persist through the fragment's out-of-band prompt notice.
-    expect(events[2]?.data).toContain('id="prompt-notice" hx-swap-oob="innerHTML"');
-    expect(events[2]?.data).toMatch(/mind trying again/i);
+    expect(events[1]?.data).toContain("data-build-ending");
     expect(events[1]?.data).not.toMatch(/behavioral|gate|internal/i);
-    expect(events[2]?.data).toContain('data-build-restoration="neutral"');
+    // The window holds on the ending, so the line is not also left behind as a notice
+    // on the desk: the log is the live region and is where the person is already
+    // looking (PLAN decision 23).
+    expect(events[2]?.data).not.toContain("prompt-notice");
+    expect(events[2]?.data).toBe('<div data-build-restoration="neutral"></div>');
     expect(events[3]?.data).toBe("error");
+  });
+});
+
+/**
+ * The three terminals that have something to tell you (PLAN decisions 23 and 25).
+ *
+ * Each one says its own thing — a failure, a refusal and a measured no-op are three
+ * different pieces of news and get three authored lines, not one generic apology. Each
+ * says it as the last thing the narration says, and each streams the restoration it is
+ * not yet placing: the shell parks it until the ending is dismissed.
+ */
+describe("a terminal the window holds", () => {
+  /** @returns the events one held terminal wrote, in order. */
+  async function held(
+    deliver: (send: (event: string, data: string) => Promise<void>) => Promise<boolean>,
+  ) {
+    const events: Array<{ event: string; data: string }> = [];
+    await deliver(async (event, data) => {
+      events.push({ event, data });
+    });
+    return events;
+  }
+
+  const BUILD_ID = "build-1";
+  const RESTORATION = '<div data-build-restoration="capability"><p>collection</p></div>';
+
+  const TERMINALS = [
+    {
+      name: "a build that failed",
+      line: FAILED_BUILD_ENDING,
+      deliver: (send: (event: string, data: string) => Promise<void>) =>
+        deliverFailedPresentation(send, BUILD_ID, new Error("internal"), RESTORATION, 20),
+    },
+    {
+      name: "a refusal as stale",
+      line: STALE_BUILD_ENDING,
+      deliver: (send: (event: string, data: string) => Promise<void>) =>
+        deliverStalePresentation(send, BUILD_ID, RESTORATION, 20),
+    },
+    {
+      name: "a measured no-op",
+      line: CANDIDATE_NO_CHANGE_ENDING,
+      deliver: (send: (event: string, data: string) => Promise<void>) =>
+        deliverCandidateNoChangePresentation(send, BUILD_ID, "{}", RESTORATION, "{}", 20),
+    },
+    {
+      name: "a candidate that could not be shaped",
+      line: CANDIDATE_REJECTED_ENDING,
+      deliver: (send: (event: string, data: string) => Promise<void>) =>
+        deliverCandidateRejectedPresentation(send, BUILD_ID, "{}", RESTORATION, 20),
+    },
+  ] as const;
+
+  test("the four authored lines are four different sentences", () => {
+    expect(new Set(TERMINALS.map(({ line }) => line)).size).toBe(TERMINALS.length);
+  });
+
+  for (const { name, line, deliver } of TERMINALS) {
+    test(`${name} ends the narration with its own line and holds the restoration`, async () => {
+      const events = await held(deliver);
+      const narration = events.filter((entry) => entry.event === "narration");
+      const fragment = events.filter((entry) => entry.event === "fragment");
+
+      expect(narration).toHaveLength(1);
+      expect(narration[0]?.data).toBe(renderBuildEnding(BUILD_ID, line));
+      expect(narration[0]?.data).toContain("data-build-ending");
+      expect(narration[0]?.data).toContain("data-build-dismiss");
+
+      expect(fragment).toHaveLength(1);
+      expect(fragment[0]?.data).toBe(RESTORATION);
+      expect(fragment[0]?.data).not.toContain("prompt-notice");
+
+      // The ending is the last thing said, and nothing commits behind it.
+      const names = events.map(({ event }) => event);
+      expect(names.at(-1)).toBe("done");
+      expect(names).not.toContain("commit");
+      expect(names.indexOf("narration")).toBeLessThan(names.indexOf("fragment"));
+    });
+  }
+
+  test("cancel leaves nothing to dismiss", async () => {
+    const events = await held((send) =>
+      deliverRestoredPresentation(send, RESTORATION, "cancelled", 20),
+    );
+
+    expect(events.map(({ event }) => event)).toEqual(["fragment", "done"]);
+    expect(events.some(({ data }) => data.includes("data-build-ending"))).toBe(false);
   });
 });
 

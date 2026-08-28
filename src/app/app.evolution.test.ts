@@ -26,13 +26,14 @@ import {
 import { INTENT_RESOLVER_PROMPT_PREFIX } from "../intent-resolver/index.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import {
-  CANDIDATE_NO_CHANGE_NOTICE,
-  CANDIDATE_REJECTED_NOTICE,
-  FAILED_BUILD_NOTICE,
-  STALE_BUILD_NOTICE,
+  CANDIDATE_NO_CHANGE_ENDING,
+  CANDIDATE_REJECTED_ENDING,
+  FAILED_BUILD_ENDING,
+  STALE_BUILD_ENDING,
 } from "../pipeline/streaming/terminal-presentation.ts";
 import type { Provider } from "../provider/index.ts";
 import { compareAndSwapCapability, getCapability } from "../registry/index.ts";
+import { renderBuildEnding } from "../web/index.ts";
 import {
   buildEvolutionRouteGates,
   type EvolutionRouteFixture,
@@ -188,13 +189,14 @@ describe("admission", () => {
       ),
       recordMetrics,
     );
-    const { streamPath } = await submitEvolution(app, "Add a mood field");
+    const { jobId, streamPath } = await submitEvolution(app, "Add a mood field");
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
-    // A warm product-voice failure with the person's own View back under it — the same
-    // terminal shape any pre-admission failure gets, not a bare error.
-    expect(eventData(events, "narration")).toContain(FAILED_BUILD_NOTICE);
+    // A warm product-voice failure ending the narration, with the person's own View
+    // streamed for the window to hold until it is dismissed — the same terminal shape
+    // any pre-admission failure gets, not a bare error.
+    expect(eventData(events, "narration")).toContain(renderBuildEnding(jobId, FAILED_BUILD_ENDING));
     expect(eventData(events, "fragment")).toContain("capability-surface");
     expect(eventData(events, "fragment")).toContain('data-active-capability-id="journal"');
     expect(eventData(events, "done")).toBe("error");
@@ -287,7 +289,10 @@ describe("an accepted candidate", () => {
     expect(prompts[0]).toContain("Add a mood field");
     expect(events.filter((event) => event.event === "commit")).toHaveLength(1);
     expect(eventData(events, "commit")).toContain('data-active-capability-version="2"');
-    expect(eventData(events, "fragment")).toBe("");
+    // The one `fragment` an evolution sends is the window's name, and it is the name the
+    // window keeps: an evolution's capability already exists, so there is no later moment
+    // when the title becomes truer (M5 plan 1). No restoration — this one activated.
+    expect(eventData(events, "fragment")).toBe('<div data-build-window-title="Journal"></div>');
     expect(eventData(events, "done")).toBe("ok");
     const commitPreview = JSON.parse(eventData(events, "commit-preview"));
     expect(commitPreview.version).toBe(2);
@@ -368,7 +373,7 @@ describe("a measured no-op", () => {
       identical,
       "Keep it exactly as it is",
     );
-    const { streamPath } = await submit();
+    const { jobId, streamPath } = await submit();
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
@@ -390,8 +395,11 @@ describe("a measured no-op", () => {
     expect(finalLifecycle?.lifecycleStatus).toBe("success");
     expect(finalLifecycle?.outcome).toBe("no_change");
 
-    // Warm close in product voice, committed View restored, no version bump.
-    expect(eventData(events, "narration")).toContain(CANDIDATE_NO_CHANGE_NOTICE);
+    // Warm close in product voice ending the narration, committed View held for the
+    // dismissal, no version bump.
+    expect(eventData(events, "narration")).toContain(
+      renderBuildEnding(jobId, CANDIDATE_NO_CHANGE_ENDING),
+    );
     expect(eventData(events, "fragment")).toContain("capability-surface");
     expect(eventData(events, "done")).toBe("ok");
     expect(eventData(events, "commit")).toBe("");
@@ -409,12 +417,12 @@ describe("a rejected candidate", () => {
       (field) => field.name !== "archived_reason",
     );
     const { app, lifecycles, submit } = scratchApp(env, authored, "Forget the archive note");
-    const { streamPath } = await submit();
+    const { jobId, streamPath } = await submit();
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
     const narration = eventData(events, "narration");
-    expect(narration).toContain(CANDIDATE_REJECTED_NOTICE);
+    expect(narration).toContain(renderBuildEnding(jobId, CANDIDATE_REJECTED_ENDING));
 
     const preview = JSON.parse(eventData(events, "candidate-preview"));
     expect(preview.status).toBe("rejected");
@@ -470,12 +478,12 @@ describe("a stale target", () => {
       },
     };
     const app = makeScratchApp(env, racing, recordMetrics);
-    const { streamPath } = await submitEvolution(app, "Add a mood field");
+    const { jobId, streamPath } = await submitEvolution(app, "Add a mood field");
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
     expect(eventData(events, "done")).toBe("error");
-    expect(eventData(events, "narration")).toContain(STALE_BUILD_NOTICE);
+    expect(eventData(events, "narration")).toContain(renderBuildEnding(jobId, STALE_BUILD_ENDING));
     expect(events.map((event) => event.event)).not.toContain("candidate-preview");
     expect(events.map((event) => event.event)).not.toContain("commit");
     // Nothing was authored, and the competing version is still the live one: a refusal

@@ -175,12 +175,16 @@ export function installFakeDom(): FakeDom {
       addEventListener: () => {},
       removeEventListener: () => {},
     },
+    // A detached element has no computed style at all: the browser answers every
+    // property with the empty string, `position` included. That is not a detail — a
+    // guard reading `=== "static"` silently declines on it — so the fake answers the
+    // way a browser does rather than the way it is convenient to.
     getComputedStyle: (el: FakeElement) => ({
-      getPropertyValue: (name: string) => el.properties[name] ?? "",
-      borderLeftWidth: `${el.borderWidth}px`,
-      borderTopWidth: `${el.borderWidth}px`,
-      borderTopLeftRadius: `${el.radius}px`,
-      position: el.position,
+      getPropertyValue: (name: string) => (el.isConnected ? (el.properties[name] ?? "") : ""),
+      borderLeftWidth: el.isConnected ? `${el.borderWidth}px` : "",
+      borderTopWidth: el.isConnected ? `${el.borderWidth}px` : "",
+      borderTopLeftRadius: el.isConnected ? `${el.radius}px` : "",
+      position: el.isConnected ? el.position : "",
     }),
     requestAnimationFrame: (callback: () => void) => frames.push(callback),
     ResizeObserver: observerClass(resize),

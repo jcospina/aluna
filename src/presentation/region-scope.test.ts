@@ -215,10 +215,17 @@ describe("the shell's classic-script glue speaks the release vocabulary", () => 
   });
 
   test("releases the content area before it replaces it wholesale", () => {
-    // Re-answering a severed deletion confirmation is the one place app.js replaces the
-    // whole region itself rather than leaving it to htmx, so it is the one place that
-    // releases the whole region.
-    expect(glue.match(/releaseRegionContent\(output\);/g)).toHaveLength(1);
+    // Re-answering a severed deletion confirmation is the one place the shell replaces
+    // the whole region itself rather than leaving it to htmx, so it is the one place
+    // that releases the whole region. It is its own module now
+    // (`public/capability-deletion.js`), and it restates the vocabulary the way every
+    // module that cannot import the classic script's copy does.
+    const recovery = readFileSync(
+      join(import.meta.dir, "../../public/capability-deletion.js"),
+      "utf8",
+    );
+    expect(recovery.match(/releaseRegionContent\(output\);/g)).toHaveLength(1);
+    expect(recovery).toContain(`RELEASE_REGION_EVENT = "${RELEASE_REGION_EVENT}"`);
   });
 
   test("promoting a build's ending releases through this rule and not around it", () => {

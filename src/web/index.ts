@@ -12,10 +12,14 @@ export {
 } from "./cached-view.ts";
 export {
   BLANK_PROMPT_NOTICE,
+  BUILD_WINDOW_TITLE_ATTRIBUTE,
+  BUILDING_WINDOW_TITLE,
   capabilityLogoElementId,
   PAGE_ASSEMBLY_ANCHORS,
   type RenderableCapabilityLogo,
+  renderBuildEnding,
   renderBuildSubscriber,
+  renderBuildWindowTitle,
   renderCapabilityLogo,
   renderPromptNotice,
   renderProvisionalLogo,

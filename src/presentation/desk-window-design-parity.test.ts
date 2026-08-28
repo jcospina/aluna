@@ -11,7 +11,8 @@ const ROOT = resolve(import.meta.dir, "../..");
 const code = (path: string) =>
   readFileSync(join(ROOT, path), "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
 
-const MODULE = code("public/desk-window.js");
+/** Where a window is remembered — its own module since M5 plan 1. */
+const STORE = code("public/desk-window-store.js");
 
 describe("what a remembered box is, asked in one place", () => {
   test("the design page's desk keeps the same record rule the product does", () => {
@@ -53,6 +54,6 @@ describe("what a remembered box is, asked in one place", () => {
     // And its key is its own: the handbook is served from the product's origin, so an
     // unqualified `aluna.desk.*` would sit beside the product's two looking like a third.
     expect(deskScript).toContain('STORAGE_KEY = "aluna.design.desk.layout.v2"');
-    expect(MODULE).toContain('WINDOW_STORAGE_KEY = "aluna.desk.window.v1"');
+    expect(STORE).toContain('WINDOW_STORAGE_KEY = "aluna.desk.window.v1"');
   });
 });

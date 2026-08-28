@@ -247,6 +247,53 @@ closing a stream whose subscriber left the document (`nodeReplaced`,
 `nodeMissing`) is another. Both mean the sink is gone, which the server already
 reads as cancellation, so both take the tile down.
 
+## Update (2026-08-28 — restoration waits when Aluna has something to tell you)
+
+The `fragment` row above lists four non-activating terminals and says restoration
+"clears search/modal/edit state". One of those three words is now wrong, and the
+timing the row implies is wrong for three of the four terminals. The mechanism it
+describes is not.
+
+**There is no modal to close.** The read-only detail modal was deleted rather
+than ported (5.7/01): a record opens through an ordinary view swap inside the
+window, under a back control. The restoration descriptor's shape is untouched —
+exact open capability id + incarnation, or the bare desk — and it still restores
+that capability's canonical collection rather than the search term, record
+subview, delete-confirm state or half-typed draft it displaced, because it never
+carried any of them. Its modal-closing half simply has nothing left to close.
+
+**Restoration is no longer immediate for every non-activating terminal.** A
+build that fails, is refused as stale, or comes back a measured no-op adds a
+final line to the narration in the same product voice and **holds the window
+until the person dismisses it**; only then does it give back what it displaced
+(`modules/05-the-desk/PLAN.md`, decisions 23 and 25). Cancellation is the
+exception and restores at once, because the person who pressed Cancel already
+knows why the run stopped.
+
+No event name is added or removed. The three held terminals still emit the same
+three events in the same order, inside the same bound, while the build lease is
+held: the ending over `narration`, the restoration over `fragment`, then `done`.
+Two payloads changed shape. The `narration` payload carries markup rather than
+text — the authored line plus an out-of-band swap of the run's own control, which
+stops offering to cancel a run that has stopped and offers the way back instead —
+and the `fragment` payload lost the out-of-band `#prompt-notice` copy those three
+terminals used to leave behind, because the log is already the live region and is
+already where the person is looking (decision 23). `#prompt-notice` keeps every
+other caller: the blank-prompt refusal, the warm deflections, and each of
+capability deletion's four outcomes. It finds its counterpart on the prompt bar in
+5.8/03.
+
+The restoration is parked by the client rather than placed, so a held run's
+collection never reads records into a subscriber nobody can see; the dismissal is
+what puts it in the window. **That separates resolution from placement in time.**
+The descriptor is still resolved against the registry as the terminal runs, but
+the HTML it resolves to now waits for a press. Records are re-read when the
+collection reaches the window, so only the surface around them is as old as the
+ending; and every way the registry can move underneath a held run — another build,
+a deletion — first takes the run's own window, which drops the ending with it. The
+window is the only place the ending lives, so a teardown that is not a dismissal
+carries the line to `#prompt-notice` on its way out rather than losing it.
+
 ## Historical update (Epic 1.5 — predates Module 2 finalization)
 
 This paragraph records the state at the end of Module 1. Its open-question

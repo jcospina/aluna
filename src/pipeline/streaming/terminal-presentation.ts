@@ -1,11 +1,11 @@
 import type { Send } from "../../sse/index.ts";
-import { renderPromptNotice } from "../../web/fragments.ts";
+import { renderBuildEnding } from "../../web/fragments.ts";
 import { buildDemoErrorPreview } from "./previews.ts";
 
 export const DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS = 2_000;
 
-/** The product-voice failure line: narrated live, and left behind as the notice. */
-export const FAILED_BUILD_NOTICE = "Hmm, that didn't work. Mind trying again?";
+/** The product-voice failure line: the last thing the narration says. */
+export const FAILED_BUILD_ENDING = "Hmm, that didn't work. Mind trying again?";
 
 export async function runBoundedTerminalPresentation(
   send: Send,
@@ -72,25 +72,25 @@ export async function deliverActivatedPresentation(
 
 /**
  * Present a pre-activation failure completely while the build lease is held.
- * The narration is transient — terminal promotion replaces the subscriber with the
- * restored View — so the same product-voice line also rides the fragment as an
- * out-of-band `#prompt-notice` swap and stays visible after the View is restored.
+ * The narration ends with the failure line and the window holds there: the restoration
+ * is streamed with everything else, and the shell keeps it until the person says they
+ * have read the ending (PLAN decision 25).
  */
 export async function deliverFailedPresentation(
   send: Send,
+  buildId: string,
   error: unknown,
   restorationFragment: string,
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
   metricsPreview?: string,
 ): Promise<boolean> {
-  const persistentNotice = renderPromptNotice(FAILED_BUILD_NOTICE);
   return runBoundedTerminalPresentation(
     send,
     async (sendWhileActive) => {
       if (metricsPreview !== undefined) await sendWhileActive("metrics-preview", metricsPreview);
       await sendWhileActive("build-error-preview", JSON.stringify(buildDemoErrorPreview(error)));
-      await sendWhileActive("narration", FAILED_BUILD_NOTICE);
-      await sendWhileActive("fragment", `${restorationFragment}\n${persistentNotice}`);
+      await sendWhileActive("narration", renderBuildEnding(buildId, FAILED_BUILD_ENDING));
+      await sendWhileActive("fragment", restorationFragment);
       await sendWhileActive("done", "error");
     },
     timeoutMs,
@@ -129,33 +129,33 @@ export async function deliverRestoredPresentation(
  * An evolution's two non-activating terminal outcomes, in product voice
  * with zero internals. Neither changes anything durable beyond its own
  * metrics row: the developer preview carries the total rejection or the zero-fact Diff,
- * and the displaced View is restored beneath the notice. An accepted candidate is no
- * longer a terminal shape of its own — an accepted
+ * and the displaced View waits behind the ending until it is dismissed. An accepted
+ * candidate is no longer a terminal shape of its own — an accepted
  * candidate goes on to publish and activate, and ends in `commit`.
  */
-export const CANDIDATE_REJECTED_NOTICE =
+export const CANDIDATE_REJECTED_ENDING =
   "Hmm, I couldn't quite shape that change safely. Mind telling me again, a little differently?";
-export const CANDIDATE_NO_CHANGE_NOTICE =
+export const CANDIDATE_NO_CHANGE_ENDING =
   "That's already exactly how this works — nothing to change.";
 
 /**
  * Deliver the warm rejection: the developer-panel candidate preview carrying every
- * validation issue, one warm narration line (kept visible as the persistent prompt
- * notice), and the restored View.
+ * validation issue, the warm line the narration ends on, and the restoration the shell
+ * holds until it is dismissed.
  */
 export async function deliverCandidateRejectedPresentation(
   send: Send,
+  buildId: string,
   candidatePreview: string,
   restorationFragment: string,
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
 ): Promise<boolean> {
-  const persistentNotice = renderPromptNotice(CANDIDATE_REJECTED_NOTICE);
   return runBoundedTerminalPresentation(
     send,
     async (sendWhileActive) => {
       await sendWhileActive("candidate-preview", candidatePreview);
-      await sendWhileActive("narration", CANDIDATE_REJECTED_NOTICE);
-      await sendWhileActive("fragment", `${restorationFragment}\n${persistentNotice}`);
+      await sendWhileActive("narration", renderBuildEnding(buildId, CANDIDATE_REJECTED_ENDING));
+      await sendWhileActive("fragment", restorationFragment);
       await sendWhileActive("done", "error");
     },
     timeoutMs,
@@ -164,26 +164,26 @@ export async function deliverCandidateRejectedPresentation(
 
 /**
  * Deliver the measured no-op: the developer-panel candidate preview
- * carrying the zero-fact Diff, the `success/no_change` metrics row's preview, one
- * warm narration line kept as the persistent prompt notice, the committed View
- * restored through `fragment`, and a warm `done=ok`. No version bumped, no unit or
- * DDL work ran — the candidate was semantically identical.
+ * carrying the zero-fact Diff, the `success/no_change` metrics row's preview, the warm
+ * line the narration ends on, the committed View streamed through `fragment` for the
+ * shell to hold until it is dismissed, and a warm `done=ok`. No version bumped, no unit
+ * or DDL work ran — the candidate was semantically identical.
  */
 export async function deliverCandidateNoChangePresentation(
   send: Send,
+  buildId: string,
   candidatePreview: string,
   restorationFragment: string,
   metricsPreview: string,
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
 ): Promise<boolean> {
-  const persistentNotice = renderPromptNotice(CANDIDATE_NO_CHANGE_NOTICE);
   return runBoundedTerminalPresentation(
     send,
     async (sendWhileActive) => {
       await sendWhileActive("metrics-preview", metricsPreview);
       await sendWhileActive("candidate-preview", candidatePreview);
-      await sendWhileActive("narration", CANDIDATE_NO_CHANGE_NOTICE);
-      await sendWhileActive("fragment", `${restorationFragment}\n${persistentNotice}`);
+      await sendWhileActive("narration", renderBuildEnding(buildId, CANDIDATE_NO_CHANGE_ENDING));
+      await sendWhileActive("fragment", restorationFragment);
       await sendWhileActive("done", "ok");
     },
     timeoutMs,
@@ -196,28 +196,29 @@ export async function deliverCandidateNoChangePresentation(
  * the true thing, which is that the world moved while Aluna was queued and their words were
  * about the older one. Nothing durable changed except this build's own refusal row.
  */
-export const STALE_BUILD_NOTICE =
+export const STALE_BUILD_ENDING =
   "That changed while I was getting to it, so I stopped rather than guess. Have a look and tell me again?";
 
 /**
- * Deliver a refused admission: the direct `failed/stale` row's metrics preview, one warm
- * narration line kept visible as the persistent prompt notice, the then-current canonical
- * View restored through `fragment` with no desk sidecar, and `done=error`. No provider
- * work ran and no product state moved, so there is nothing else to say.
+ * Deliver a refused admission: the direct `failed/stale` row's metrics preview, the warm
+ * line the narration ends on, and the then-current canonical View streamed through
+ * `fragment` with no desk sidecar — which the shell holds until the ending is dismissed —
+ * then `done=error`. No provider work ran and no product state moved, so there is
+ * nothing else to say.
  */
 export async function deliverStalePresentation(
   send: Send,
+  buildId: string,
   restorationFragment: string,
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
   metricsPreview?: string,
 ): Promise<boolean> {
-  const persistentNotice = renderPromptNotice(STALE_BUILD_NOTICE);
   return runBoundedTerminalPresentation(
     send,
     async (sendWhileActive) => {
       if (metricsPreview !== undefined) await sendWhileActive("metrics-preview", metricsPreview);
-      await sendWhileActive("narration", STALE_BUILD_NOTICE);
-      await sendWhileActive("fragment", `${restorationFragment}\n${persistentNotice}`);
+      await sendWhileActive("narration", renderBuildEnding(buildId, STALE_BUILD_ENDING));
+      await sendWhileActive("fragment", restorationFragment);
       await sendWhileActive("done", "error");
     },
     timeoutMs,

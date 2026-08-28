@@ -16,8 +16,16 @@ import { classifyIntentWithUsage, type IntentClassification } from "../../intent
 import type { MutationCoordinator } from "../../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
 import { abortableProvider, type Provider } from "../../provider/index.ts";
-import { type ActiveRegistryCatalog, readActiveRegistryCatalog } from "../../registry/index.ts";
-import { renderProvisionalLogo } from "../../web/index.ts";
+import {
+  type ActiveRegistryCatalog,
+  canonicalCapabilityLabel,
+  readActiveRegistryCatalog,
+} from "../../registry/index.ts";
+import {
+  BUILDING_WINDOW_TITLE,
+  renderBuildWindowTitle,
+  renderProvisionalLogo,
+} from "../../web/index.ts";
 import type {
   BuildPipeline,
   BuildPipelineCompletion,
@@ -103,6 +111,12 @@ async function runExistingCapabilityIntent(
     catalogFingerprint: catalog.fingerprint,
     resolver,
   });
+  // The window has been saying `Thinking…` since the prompt was sent. It is an evolution
+  // of a capability that already exists, so the name it will keep is the one it already
+  // has — there is no moment later when it becomes truer.
+  if (context.canPresent()) {
+    await context.send("fragment", renderBuildWindowTitle(canonicalCapabilityLabel(active)));
+  }
   context.job.resolution = {
     intent,
     outcome: "build",
@@ -176,9 +190,11 @@ async function runNewCapabilityIntent(
   };
   // The one place a new capability is announced on the ground, and it is here on purpose:
   // this is the moment resolution admitted a *new* capability, which an evolution and a
-  // deflection never reach.
+  // deflection never reach. It is also the moment the window can stop saying `Thinking…`
+  // and say what it is doing, which is the same fact told to the other surface.
   if (context.canPresent()) {
     await context.send("fragment", renderProvisionalLogo(context.job.id));
+    await context.send("fragment", renderBuildWindowTitle(BUILDING_WINDOW_TITLE));
   }
   return runCoreBuild({
     buildId: context.job.id,
@@ -302,6 +318,7 @@ export function createPromptBuildPipeline(input: PromptBuildPipelineDeps): Build
       }
       await deliverFailedPresentation(
         context.send,
+        context.job.id,
         error,
         renderRestorationFragment(context.job.restoration, deps.buildDatabases.readonly),
         deps.terminalPresenterTimeoutMs,

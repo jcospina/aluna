@@ -1,4 +1,6 @@
+import { renderBuildEnding } from "../../web/fragments.ts";
 import type { PromptResolutionMemory } from "../build/resolved-request.ts";
+import { FAILED_BUILD_ENDING } from "../streaming/terminal-presentation.ts";
 import type { RestorationDescriptor } from "./restoration.ts";
 
 export type BuildJobStatus = "pending" | "running" | "done";
@@ -46,7 +48,6 @@ export interface BuildJobQueueOptions {
 }
 
 const DEFAULT_BUILD_NARRATION = "Got it. I'm putting that together now.";
-const BUILD_FAILURE_NARRATION = "Hmm, that didn't work. Mind trying again?";
 const DEFAULT_PENDING_JOB_TTL_MS = 60_000;
 const NEUTRAL_RESTORATION: RestorationDescriptor = { kind: "neutral" };
 
@@ -155,7 +156,12 @@ export class BuildJobQueue {
     } catch (err) {
       console.error("Aluna build job failed:", err instanceof Error ? err.message : err);
       if (!isAborted()) {
-        await send("narration", BUILD_FAILURE_NARRATION);
+        // The last resort: a pipeline that threw *and* had not already presented its own
+        // terminal. It has no restoration to give back — nothing here knows what the run
+        // displaced — but it is still a build that failed, so it ends the narration the
+        // way every failure does and the window holds there. Dismissing it drops the
+        // story and leaves the surface the run only ever covered.
+        await send("narration", renderBuildEnding(job.id, FAILED_BUILD_ENDING));
         await send("done", "error");
       }
     } finally {

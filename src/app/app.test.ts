@@ -226,11 +226,24 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).not.toContain("dataset.previewTarget");
     expect(js).toContain('STAGE_PAYLOAD_EVENT = "aluna:stage-payload"');
     expect(js).toContain('STAGES_CLEARED_EVENT = "aluna:stages-cleared"');
-    expect(js).toContain('addEventListener("aluna:create-cancelled"');
-    expect(js).toContain("collapseListFieldRows(form)");
-    expect(js).toContain("Element.prototype.querySelectorAll.call(form");
-    expect(js).toContain("focusCapabilityDeletion(event)");
-    expect(js).toContain("[data-capability-deletion-focus]");
+    // A run that ended with something to tell you holds the window there; the press is
+    // what gives back what it displaced (PLAN decisions 23 and 25).
+    expect(js).toContain('BUILD_ENDING_SELECTOR = "[data-build-ending]"');
+    expect(js).toContain('BUILD_DISMISS_SELECTOR = "[data-build-dismiss]"');
+    expect(js).toContain("holdRestoration");
+    expect(js).toContain("giveBackTheWindow");
+    expect(js).toContain("dropHeldRun");
+    expect(js).toContain("rescueHeldEnding");
+    // The repeated-value rows are a module of their own now (public/list-field.js), so
+    // the glue neither owns them nor knows they exist.
+    expect(js).not.toContain("collapseListFieldRows");
+    expect(js).not.toContain("data-list-field");
+    // Recovering a severed capability deletion is a module of its own too
+    // (`public/capability-deletion.js`), and it took its half of `htmx:configRequest`
+    // with it — the glue's copy now only captures what a *prompt* displaces.
+    expect(js).not.toContain("focusCapabilityDeletion");
+    expect(js).not.toContain("[data-capability-deletion-focus]");
+    expect(js).not.toContain("restore_surface");
     // The rail and the gate it hid behind are gone from the page and from the glue.
     expect(js).not.toContain("hasCapabilities");
     expect(html).not.toContain("has-capabilities");
@@ -314,11 +327,15 @@ test("keeps a pending stream dormant until foreground narration begins", async (
 
 test("permanent deletion captures neutral or exact-capability restoration in browser glue", async () => {
   const app = createApp();
-  const js = await responseText(await app.request("/static/app.js"));
+  // Its own module since M5 plan 1 — deletion recovery is a subject, reached only
+  // through events, and nothing about it has to be in place before Alpine starts.
+  const js = await responseText(await app.request("/static/capability-deletion.js"));
   const css = await responseText(await app.request("/static/css/demo.css"));
+  const shell = await responseText(await app.request("/"));
 
   expect(js).toContain('detail.parameters.restore_surface = "neutral"');
   expect(js).toContain('detail.parameters.restore_surface = "capability"');
+  expect(shell).toContain('<script type="module" src="/static/capability-deletion.js"></script>');
   expect(css).not.toContain("data-capability-deletion-neutral");
 });
 
@@ -383,84 +400,6 @@ describe("GET / (shell) — prompt admission", () => {
     // An unmarked 4xx body is still none of the shell's business.
     expect(swapDecision(409, '<p class="notice">something else entirely</p>')).toBe(false);
   });
-
-  test("prompt admission clears an old notice and rejects a queued sibling subscriber", () => {
-    const listeners = new Map<
-      string,
-      (event: { detail: Record<string, unknown>; preventDefault(): void }) => void
-    >();
-    class FormStub {
-      id = "spec-build-form";
-    }
-    let hasSubscriber = false;
-    let noticeClears = 0;
-    const output = {
-      querySelector() {
-        return hasSubscriber ? {} : null;
-      },
-    };
-    let stageClears = 0;
-    const documentStub = {
-      addEventListener(
-        name: string,
-        listener: (event: { detail: Record<string, unknown>; preventDefault(): void }) => void,
-      ) {
-        listeners.set(name, listener);
-      },
-      querySelector() {
-        return null;
-      },
-      getElementById(id: string) {
-        if (id === "spec-build-output") return output;
-        return id === "prompt-notice" ? { replaceChildren: () => (noticeClears += 1) } : null;
-      },
-      // The developer panel is told to start empty when a build is *admitted*, never
-      // when one is merely requested — the panel is a window that may not be standing,
-      // so the glue announces it rather than clearing elements, and a refusal that
-      // announced it would wipe the lifecycle history the page seeded.
-      dispatchEvent(event: { type: string }) {
-        if (event.type === "aluna:stages-cleared") stageClears += 1;
-      },
-    };
-    const windowStub = {
-      Alpine: { data() {} },
-      matchMedia() {
-        return { matches: true, addEventListener() {} };
-      },
-    };
-    const appScript = readFileSync(resolve("public/app.js"), "utf8");
-    Function(
-      "document",
-      "window",
-      "requestAnimationFrame",
-      "HTMLInputElement",
-      "HTMLFormElement",
-      appScript,
-    )(documentStub, windowStub, () => undefined, class InputStub {}, FormStub);
-
-    let prevented = false;
-    listeners.get("htmx:beforeRequest")?.({
-      detail: { elt: new FormStub() },
-      preventDefault: () => {
-        prevented = true;
-      },
-    });
-    expect(prevented).toBe(false);
-    expect(noticeClears).toBe(1);
-    // Requesting a build clears nothing. The subscriber arriving is what does, which
-    // `desk-dev-panel.test.ts` pins on the glue's `htmx:afterSwap` handler.
-    expect(stageClears).toBe(0);
-
-    hasSubscriber = true;
-    listeners.get("htmx:beforeRequest")?.({
-      detail: { elt: new FormStub() },
-      preventDefault: () => {
-        prevented = true;
-      },
-    });
-    expect(prevented).toBe(true);
-    expect(noticeClears).toBe(1);
-  });
 });
 
 describe("GET / (shell) — stream close glue", () => {
@@ -503,8 +442,12 @@ describe("GET / (shell) — stream close glue", () => {
       "window",
       "requestAnimationFrame",
       "HTMLInputElement",
+      "HTMLElement",
       appScript,
-    )(documentStub, windowStub, (callback: () => void) => callback(), InputStub);
+      // `HTMLElement` because the close first asks whether the window is holding an
+      // ending; a window with nothing in it answers no, and the prompt wakes as it always
+      // has. What it does when the answer is yes is `app.build-ending.test.ts`.
+    )(documentStub, windowStub, (callback: () => void) => callback(), InputStub, class {});
 
     listeners.get("alpine:init")?.();
     const state = shellFactory?.();
