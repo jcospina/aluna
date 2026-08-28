@@ -166,18 +166,31 @@ export function renderCapabilityDeletionPreCommitFailure(
   );
 }
 
+/**
+ * Every way a deletion is turned down while everything it would have destroyed is still
+ * there. `drain_timeout` — the refusal `destroyCapability`'s `deletion_drain_timeout`
+ * outcome renders as — is a member in its own right rather than a shade of the generic
+ * failure, because "something was still finishing" is a different thing to be told than
+ * "it didn’t work", and it invites a retry the others do not.
+ */
+export type CapabilityDeletionRefusal =
+  | { readonly kind: "blocked"; readonly dependents: readonly CapabilityRow[] }
+  | { readonly kind: "busy" }
+  | { readonly kind: "drain_timeout" }
+  | { readonly kind: "stale" };
+
 export function renderCapabilityDeletionRefusalRestoration(
   target: CapabilityRow,
   restoredSurface: string,
-  refusal:
-    | { readonly kind: "blocked"; readonly dependents: readonly CapabilityRow[] }
-    | { readonly kind: "busy" }
-    | { readonly kind: "stale" },
+  refusal: CapabilityDeletionRefusal,
 ): string {
   const label = canonicalCapabilityLabel(target);
   const notice = (() => {
     if (refusal.kind === "busy") {
       return `I’m making another change right now, so I didn’t delete ${label}. Try again when I’m finished.`;
+    }
+    if (refusal.kind === "drain_timeout") {
+      return `Something in ${label} was still finishing, so I didn’t delete it. Everything you had there is still safe — try again in a moment.`;
     }
     if (refusal.kind === "stale") {
       return `${label} changed after you opened this page, so I didn’t delete it.`;

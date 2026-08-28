@@ -23,7 +23,7 @@ type MutationAction = "create" | "update" | "delete";
 // refuses to swap any 4xx by default, so the shell's rescue in `public/app.js` needs a
 // structured marker to recognise this as a refusal worth showing. Without it the copy
 // below is written but never reaches a screen.
-const READ_UNAVAILABLE_FRAGMENT =
+export const READ_UNAVAILABLE_FRAGMENT =
   '<p class="notice" data-role="error" data-error-code="read_unavailable">I’m making a careful change here. Give me a moment, then try that again.</p>';
 
 export function assertReadOwnership(signal: AbortSignal): void {

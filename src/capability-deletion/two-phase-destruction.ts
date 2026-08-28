@@ -4,7 +4,11 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
 import { deriveCapabilityTableDdl } from "../capability-data/ddl.ts";
-import type { ReadGateCoordinator } from "../read-gates/index.ts";
+import {
+  type ReadGateCloseLease,
+  type ReadGateCoordinator,
+  ReadGateDrainTimeoutError,
+} from "../read-gates/index.ts";
 import {
   type CapabilityDeletionTombstone,
   type CapabilityRow,
@@ -53,12 +57,26 @@ export interface DestroyCapabilityInput {
   readonly faults?: CapabilityDestructionFaults;
 }
 
-export interface CapabilityDestructionResult {
+/**
+ * The drain outdid its deadline, so nothing was destroyed and the gate is open again.
+ *
+ * It is deliberately its own outcome rather than a throw: a deletion refused because
+ * active work would not finish in time is a different thing to tell the user than a
+ * deletion that failed, and collapsing the two leaves them looking at a sentence that
+ * cannot explain what happened. ADR-0006 names it `deletion_drain_timeout`.
+ */
+export interface CapabilityDrainTimeoutResult {
+  readonly status: "deletion_drain_timeout";
+}
+
+export interface CapabilityDestroyedResult {
   readonly status: "deleted" | "cleanup_pending";
   readonly tombstone: CapabilityDeletionTombstone;
   readonly payloads: InstalledPayloadPurgeResult;
   readonly cleanupError?: unknown;
 }
+
+export type CapabilityDestructionResult = CapabilityDestroyedResult | CapabilityDrainTimeoutResult;
 
 export interface RecoverCapabilityDeletionInput {
   readonly database: Database;
@@ -204,7 +222,15 @@ export async function destroyCapability(
     incarnationId: input.target.incarnation_id,
   };
   input.readGates.synchronizeCatalog([incarnation]);
-  const closeLease = await input.readGates.closeAndDrain(incarnation);
+  let closeLease: ReadGateCloseLease;
+  try {
+    closeLease = await input.readGates.closeAndDrain(incarnation);
+  } catch (error) {
+    // `closeAndDrain` has already reopened the gate in its own `finally`, so there is
+    // nothing left to undo — only something to say.
+    if (error instanceof ReadGateDrainTimeoutError) return { status: "deletion_drain_timeout" };
+    throw error;
+  }
   let committed = false;
   let payloads = NO_INSTALLED_PAYLOADS;
   try {

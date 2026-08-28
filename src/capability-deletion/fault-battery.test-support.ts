@@ -7,6 +7,10 @@ import type { PlatformDatabase } from "../persistence/db.ts";
 import type { CapabilityIncarnation } from "../read-gates/index.ts";
 import type { CapabilityRow } from "../registry/index.ts";
 import type { FakeOwnedResourceStore } from "./seam-fakes/owned-resources.test-support.ts";
+import type {
+  CapabilityDestroyedResult,
+  CapabilityDestructionResult,
+} from "./two-phase-destruction.ts";
 
 export const METRIC_ID = "metric-under-deletion";
 export const BUILD_ID = "build-under-deletion";
@@ -64,4 +68,17 @@ export function stagePending(store: FakeOwnedResourceStore, row: CapabilityRow, 
 
 export function incarnationOf(row: CapabilityRow): CapabilityIncarnation {
   return { capabilityId: row.id, incarnationId: row.incarnation_id };
+}
+
+/**
+ * Narrow a destruction outcome to the one that crossed the commit. A drain timeout is a
+ * refusal with nothing behind it, so a test that goes on to read the tombstone or the
+ * purge counts is asserting the drain succeeded whether it says so or not — this says so.
+ */
+export function expectDestroyed(result: CapabilityDestructionResult): CapabilityDestroyedResult {
+  expect(result.status).not.toBe("deletion_drain_timeout");
+  if (result.status === "deletion_drain_timeout") {
+    throw new Error("The deletion drain timed out instead of committing.");
+  }
+  return result;
 }

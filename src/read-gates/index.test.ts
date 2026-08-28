@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
+import { DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS } from "../router/generated-code.ts";
 import {
   type CapabilityIncarnation,
   createReadGateCoordinator,
+  DEFAULT_READ_DRAIN_TIMEOUT_MS,
   ReadGateDrainTimeoutError,
   ReadGateUnavailableError,
 } from "./index.ts";
@@ -208,5 +210,25 @@ describe("ReadGateCoordinator ownership and recovery", () => {
     ).rejects.toBeInstanceOf(ReadGateUnavailableError);
     expect(began).toBe(false);
     expect(coordinator.reopen(closing)).toBe(true);
+  });
+});
+
+describe("the drain deadline and the Handler deadline", () => {
+  test("the drain waits longer than the longest a single Handler may run", () => {
+    // Asserted as a relationship, not as two literals. Below this ordering a perfectly
+    // well-behaved reader outlives the drain and fails a deletion for a reason the user
+    // cannot see, and one window holds several concurrent read tokens whenever a
+    // canonical read, a debounced search and a post-mutation refresh overlap.
+    expect(DEFAULT_READ_DRAIN_TIMEOUT_MS).toBeGreaterThan(DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS);
+  });
+
+  test("the gap is closed from the drain side, leaving room for the rest of a token scope", () => {
+    // Reads are never capped downward to meet the drain: reads are what the user is
+    // doing, deletions are rare and deliberate. So the margin has to be real — a route
+    // holds its tokens across reading the request and rendering the answer too, not only
+    // across the Handler — rather than a single millisecond that satisfies the ordering.
+    expect(
+      DEFAULT_READ_DRAIN_TIMEOUT_MS - DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS,
+    ).toBeGreaterThanOrEqual(1_000);
   });
 });

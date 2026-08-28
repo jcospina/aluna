@@ -11,17 +11,32 @@
 // its time, and shows two numbers side by side: what the region's scope is holding, and
 // how many readers the server is tracking. Navigate away mid-read and both empty at once.
 //
+// The same two numbers make the *other* invisible timing watchable: a deletion's drain.
+// The drain deadline sits above the longest a single handler may run, so a slow read now
+// delays a deletion instead of failing it — but nothing about a five- or ten-second wait
+// is visible from a page that answers in milliseconds either. So the preview offers to
+// drain its own gate and reports how long the wait actually took.
+//
 // Its read gate is its own coordinator over a synthetic incarnation, so the preview never
-// touches the registry's. Scaffolding: it comes down when the window ships the same rule
-// on a real capability.
+// touches the registry's. Nothing here is ever finalized: a successful drain reopens the
+// gate, because the preview has to survive being used twice. Scaffolding: it comes down
+// when the window ships the same rule on a real capability.
 
 import type { Hono } from "hono";
 import {
   type CapabilityIncarnation,
   createReadGateCoordinator,
+  DEFAULT_READ_DRAIN_TIMEOUT_MS,
+  ReadGateDrainTimeoutError,
   type ReadGateSnapshotEntry,
+  ReadGateUnavailableError,
 } from "../read-gates/index.ts";
-import { CapabilityReadAbandonedError, withHandlerDeadline } from "../router/index.ts";
+import {
+  CapabilityReadAbandonedError,
+  DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS,
+  READ_UNAVAILABLE_FRAGMENT,
+  withHandlerDeadline,
+} from "../router/index.ts";
 import { escapeHtml } from "../web/html.ts";
 
 export const REGION_LIFECYCLE_PREVIEW_ROUTE = "/demo/region-lifecycle";
@@ -52,6 +67,29 @@ function viewFrom(raw: string | undefined): "list" | "record" {
 function readAnswer(view: "list" | "record", holdMs: number): string {
   const what = view === "record" ? "One record" : "Twelve records";
   return `${what} — the server held its read token for ${holdMs}ms and answered.`;
+}
+
+export type PreviewDrainOutcome = "already_closing" | "deletion_drain_timeout" | "drained";
+
+export interface PreviewDrainReport {
+  readonly outcome: PreviewDrainOutcome;
+  readonly waitedMs: number;
+  /** The deadline actually in force, so the page never restates the number itself. */
+  readonly deadlineMs: number;
+  /** What the deadline used to be, which is the whole reason this readout exists. */
+  readonly previousDeadlineMs: number;
+}
+
+/** The deadline this preview exists to show the drain waiting past. */
+const SUPERSEDED_DRAIN_TIMEOUT_MS = 5_000;
+
+function drainReport(outcome: PreviewDrainOutcome, waitedMs: number): PreviewDrainReport {
+  return {
+    outcome,
+    waitedMs,
+    deadlineMs: DEFAULT_READ_DRAIN_TIMEOUT_MS,
+    previousDeadlineMs: SUPERSEDED_DRAIN_TIMEOUT_MS,
+  };
 }
 
 export interface RegionLifecyclePreviewSurface {
@@ -99,6 +137,38 @@ export function registerRegionLifecyclePreviewRoutes(app: Hono): RegionLifecycle
       );
     } catch (error) {
       if (error instanceof CapabilityReadAbandonedError) return new Response(null, { status: 499 });
+      // A closing gate admits no new readers. This is the real route's refusal — the same
+      // bytes and the same 409 a capability read answers with, not a stand-in — and here
+      // it is on screen long enough to read.
+      if (error instanceof ReadGateUnavailableError) {
+        return c.html(READ_UNAVAILABLE_FRAGMENT, 409);
+      }
+      throw error;
+    }
+  });
+
+  // The drain, at the production deadline. It closes the gate, waits for whatever is
+  // still reading, and reopens — the preview is never destroyed, so `finalizeClose` is
+  // deliberately absent. The elapsed time is the point of the route.
+  app.post(`${REGION_LIFECYCLE_PREVIEW_ROUTE}/drain`, async (c) => {
+    const startedAt = Date.now();
+    try {
+      const lease = await readGates.closeAndDrain(PREVIEW_INCARNATION);
+      readGates.reopen(lease);
+      return c.json(drainReport("drained", Date.now() - startedAt), 200, {
+        "cache-control": "no-store",
+      });
+    } catch (error) {
+      if (error instanceof ReadGateDrainTimeoutError) {
+        return c.json(drainReport("deletion_drain_timeout", Date.now() - startedAt), 200, {
+          "cache-control": "no-store",
+        });
+      }
+      if (error instanceof ReadGateUnavailableError) {
+        return c.json(drainReport("already_closing", Date.now() - startedAt), 200, {
+          "cache-control": "no-store",
+        });
+      }
       throw error;
     }
   });
@@ -141,6 +211,9 @@ export function renderRegionLifecyclePreviewPage(): string {
         margin: 0 0 var(--space-1);
         font-family: var(--font-display);
         font-size: var(--type-lg);
+      }
+      .preview-window + .preview-title {
+        margin-block-start: var(--space-6);
       }
       .preview-controls {
         display: flex;
@@ -186,9 +259,11 @@ export function renderRegionLifecyclePreviewPage(): string {
 
   <body>
     <p class="preview-banner">
-      Developer preview. The release rule itself ships in the shell; this page only makes
-      it slow enough to watch. Its read gate is a preview coordinator over a synthetic
-      incarnation, so nothing here touches the registry.
+      Developer preview, and it speaks in engineering terms rather than product voice —
+      read tokens, handler deadlines, gate states. The release rule itself ships in the
+      shell; this page only makes it slow enough to watch. Its read gate is a preview
+      coordinator over a synthetic incarnation, so nothing here touches the registry and
+      nothing here is ever deleted.
     </p>
 
     <h1 class="preview-title">A content region releases what its content started</h1>
@@ -209,6 +284,26 @@ export function renderRegionLifecyclePreviewPage(): string {
     </div>
 
     <div class="preview-window" data-preview-window></div>
+
+    <h2 class="preview-title">A deletion waits for the reader</h2>
+    <p class="preview-view">
+      Start a read that holds for longer than five seconds, then drain the gate while it is
+      still running. The gate goes to <code>closing</code>, refuses new reads, and waits —
+      past the old five-second deadline — until the reader finishes on its own. The drain
+      deadline is ${DEFAULT_READ_DRAIN_TIMEOUT_MS}ms; it used to be
+      ${SUPERSEDED_DRAIN_TIMEOUT_MS}ms, which is less than the
+      ${DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS}ms a single handler may run, so this same
+      wait used to refuse the deletion instead.
+    </p>
+    <p class="preview-view">
+      Nothing is deleted here. This drains the preview's own gate and reopens it — the
+      waiting half of a real deletion, without the destructive half.
+    </p>
+
+    <div class="preview-controls">
+      <button type="button" class="btn btn--danger" data-preview-drain>Drain the gate</button>
+      <span class="preview-view" data-preview-drain-status aria-live="polite">Not draining.</span>
+    </div>
 
     <div class="preview-panels">
       <section>

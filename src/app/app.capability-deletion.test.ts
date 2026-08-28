@@ -401,7 +401,7 @@ describe("platform-owned capability deletion routes", () => {
     expect((await app.request("/capability/boom")).status).toBe(200);
   });
 
-  test("a drain timeout is pre-commit and restores the exact canonical View", async () => {
+  test("a drain timeout speaks for itself and restores the exact canonical View", async () => {
     const target = deletionTarget(dir);
     install(conns, target);
     const readGates = createReadGateCoordinator({ drainTimeoutMs: 1 });
@@ -420,7 +420,10 @@ describe("platform-owned capability deletion routes", () => {
     );
     const html = await response.text();
     expect(html).toContain('data-active-capability-id="notes"');
-    expect(html).toContain("I couldn’t delete Notes");
+    // Its own sentence, not the generic pre-commit failure: the user is told that active
+    // work did not finish, which is the one refusal here that invites trying again.
+    expect(html).toContain("Something in Notes was still finishing, so I didn’t delete it.");
+    expect(html).not.toContain("I couldn’t delete Notes");
     expect(response.headers.get("HX-Replace-Url")).toBe("/capability/notes");
     expect(readGates.snapshot()[0]).toMatchObject({ state: "active", readerCount: 1 });
     if (!tokens) throw new Error("the held read token was not acquired");

@@ -8,6 +8,7 @@ import { renderCachedCapabilitySurface } from "../web/index.ts";
 import type { DeletionCleanupSupervisor } from "./cleanup-supervisor.ts";
 import { admitCapabilityDeletion } from "./front-half.ts";
 import {
+  type CapabilityDeletionRefusal,
   renderCapabilityDeletionAlreadyGone,
   renderCapabilityDeletionCommitted,
   renderCapabilityDeletionPreCommitFailure,
@@ -207,6 +208,17 @@ function presentCapabilityDeletionAdmission(
   if (!execution.destruction) {
     throw new Error("Admitted capability deletion did not run its destruction lifecycle.");
   }
+  // Nothing was destroyed and the gate is open again, so this is a refusal that reads
+  // like one — not the generic failure, which cannot say what the user should do next.
+  if (execution.destruction.status === "deletion_drain_timeout") {
+    return capabilityDeletionRefusalResponse(
+      c,
+      outcome.target,
+      request.restoration,
+      { kind: "drain_timeout" },
+      database,
+    );
+  }
   return committedCapabilityDeletionResponse(
     c,
     outcome.target,
@@ -220,10 +232,7 @@ function capabilityDeletionRefusalResponse(
   c: Context,
   target: CapabilityRow,
   restoration: CapabilityDeletionRestoration,
-  refusal:
-    | { readonly kind: "blocked"; readonly dependents: readonly CapabilityRow[] }
-    | { readonly kind: "busy" }
-    | { readonly kind: "stale" },
+  refusal: CapabilityDeletionRefusal,
   database: Database,
 ): Response {
   const restored = resolveCurrentCapabilityDeletionRestoration(restoration, database);
