@@ -4,8 +4,6 @@ import { join, resolve } from "node:path";
 
 import { setMaximised, trackPointer } from "#design/window-gestures.js";
 import {
-  buildCancelUrl,
-  buildJobIdIn,
   CAPABILITY_LOGO_SELECTOR,
   capabilityIdFromAddress,
   logoFor,
@@ -182,24 +180,6 @@ describe("the window holds the one content region", () => {
     expect(gone).toEqual([]);
   });
 
-  test("putting the window away cancels the build it was narrating", () => {
-    // The window is the only way back to a run's narration, so leaving the server
-    // building something nobody can see is the worse half of a half-done teardown.
-    const windowHolding = (ending: unknown) => ({
-      querySelector: (selector: string) =>
-        selector === "[data-build-job-id]"
-          ? { getAttribute: () => "build 7/8", querySelector: () => ending }
-          : null,
-    });
-    expect(buildJobIdIn(windowHolding(null))).toBe("build 7/8");
-    expect(buildCancelUrl("build 7/8")).toBe("/build/build%207%2F8/cancel");
-    expect(buildJobIdIn({ querySelector: () => null })).toBeNull();
-    // A run that already ended and is only waiting to be read is not being narrated.
-    // Cancelling it would post to a job the queue deleted, and 5.8/04's warning would
-    // ask about losing a build that finished minutes ago.
-    expect(buildJobIdIn(windowHolding({}))).toBeNull();
-  });
-
   test("the classic-script glue and the window agree on both strings", () => {
     // `app.js` is a classic script and cannot import a module, so it restates the
     // region's id and the put-away event. Neither may drift from the module that
@@ -268,7 +248,12 @@ describe("two lamps, and there is no minimise", () => {
   test("the clay lamp dismisses, and a dismissed window is not remembered", () => {
     const source = code("public/desk-window.js");
     expect(source).toMatch(/action === "maximise"\) toggleMaximise\(entry\)/);
-    expect(source).toMatch(/action === "putaway"\) \{\s*dismissWindow\(\);/);
+    // The lamp still means *put away*, and it is no longer silent when there is a run
+    // to lose: it asks first, and does exactly the same thing on a yes (5.8/04).
+    expect(source).toMatch(
+      /action === "putaway"\) \{\s*const away = \(\) => \{\s*dismissWindow\(\);/,
+    );
+    expect(source).toContain("if (!askBeforeLeaving(entry.el, away)) away();");
     // The logo stays where it was and the same click brings the window back — centred,
     // the way a first window opens. A dismissed window is over, so the box it stood in
     // is not a preference every window after it inherits. The address moves too, to the

@@ -109,7 +109,7 @@ describe("it is the second window, and there is no third", () => {
     // at all, no way back on screen. Same for a build: it narrates into the window it
     // finds, so that window has to be the one in front.
     expect(WINDOW).toMatch(
-      /if \(pressWouldOpen\([\s\S]{0,140}\n\s*if \(mounted\) raise\(mounted\);/,
+      /if \(pressWouldOpen\([\s\S]{0,340}\n\s*if \(mounted\) raise\(mounted\);/,
     );
     expect(WINDOW).toMatch(
       /if \(mounted\) raise\(mounted\);\s*else\s*openWindow\(THINKING_WINDOW_TITLE/,

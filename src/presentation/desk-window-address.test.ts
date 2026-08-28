@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-
+import { answerTraversal, travelled } from "#shell/desk-address.js";
 import {
   ACTIVE_CAPABILITY_ATTRIBUTE,
   addressAsks,
@@ -36,6 +36,8 @@ const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g
 
 const SHELL = read("public/index.html");
 const MODULE = code("public/desk-window.js");
+/** The address and the history it is written into, lifted out of the module above. */
+const ADDRESS = code("public/desk-address.js");
 const STORE = code("public/desk-window-store.js");
 const PANEL = code("public/desk-dev-panel.js");
 const GLUE = code("public/app.js");
@@ -50,10 +52,31 @@ function barAt(pathname: string, search = "") {
         wrote.push({ how: "push", state, address }),
       replaceState: (state: unknown, _unused: string, address: string) =>
         wrote.push({ how: "replace", state, address }),
+      go: (delta: number) => wrote.push({ how: "go", state: delta, address: "" }),
     },
     wrote,
   };
 }
+
+/**
+ * Where the desk currently thinks it is, discovered by writing one entry and reading the
+ * number back off it. The count is the module's own, so a test that wants to spell a Back
+ * has to ask rather than assume.
+ */
+function here(): number {
+  const bar = barAt("/probe");
+  pushAddress("/capability/probe", bar);
+  return (bar.wrote[0]?.state as { index: number }).index;
+}
+
+/** One step back, and the entry it lands on. */
+function back() {
+  const at = here();
+  return { here: at, event: { state: { ...DESK_HISTORY_STATE, index: at - 1 } } };
+}
+
+/** A desk with nothing running: every traversal is taken as it always was. */
+const nothingHeld = { hold: () => false };
 
 /** One logo, as much of one as the rules under test actually touch. */
 function logoNode(id: string, label: string) {
@@ -113,7 +136,11 @@ describe("the address names the capability and nothing else", () => {
     const moved = barAt("/capability/notes");
     expect(pushAddress("/capability/recipes", moved)).toBe("/capability/notes");
     expect(moved.wrote).toEqual([
-      { how: "push", state: DESK_HISTORY_STATE, address: "/capability/recipes" },
+      {
+        how: "push",
+        state: { ...DESK_HISTORY_STATE, index: expect.any(Number) },
+        address: "/capability/recipes",
+      },
     ]);
 
     // A press on the logo already open, however the bar happens to spell it.
@@ -138,7 +165,11 @@ describe("the address names the capability and nothing else", () => {
     const bar = barAt("/capability/recipes");
     replaceAddress("/capability/notes", bar);
     expect(bar.wrote).toEqual([
-      { how: "replace", state: DESK_HISTORY_STATE, address: "/capability/notes" },
+      {
+        how: "replace",
+        state: { ...DESK_HISTORY_STATE, index: expect.any(Number) },
+        address: "/capability/notes",
+      },
     ]);
     expect(() => replaceAddress("/", null)).not.toThrow();
   });
@@ -197,6 +228,157 @@ describe("the address names the capability and nothing else", () => {
   });
 });
 
+// Back and Forward, and what they cost when a run is standing in the window
+// (PLAN decision 17). The traversal is answered in `desk-address.js`, handed the desk's
+// own answers rather than reaching into the window for them.
+describe("Back and Forward are the desk's to answer", () => {
+  test("Back and Forward are the desk's to answer, and answering pushes nothing", () => {
+    // htmx installs its own `window.onpopstate` on `DOMContentLoaded` and chains whatever
+    // it finds, so taking the property only before that moment would leave htmx wrapping
+    // this one and still restoring a body snapshot for its own entries. Taken on both
+    // sides of that moment, this is independent of which script ran first.
+    expect(ADDRESS).toContain("window.onpopstate = (event) =>");
+    expect(ADDRESS).toContain(
+      'document.addEventListener("DOMContentLoaded", take, { once: true })',
+    );
+    expect(ADDRESS).toMatch(/take\(\);\s*if \(typeof document !== "undefined"/);
+
+    // The load-time opener and the answer to Back are one function, so the frame and the
+    // address cannot drift, and neither writes history. The history module is handed that
+    // one function rather than reaching for it, so there is still only one of it.
+    expect(MODULE).toMatch(/render: \(landed\) => renderAddress\(root, landed\),/);
+    expect(MODULE).toMatch(/\}\);\s*renderAddress\(root, pathname\);/);
+    const answer = /function renderAddress\(root, pathname\) \{[\s\S]*?\n\}/.exec(MODULE)?.[0];
+    expect(answer, "no `renderAddress`").toBeDefined();
+    expect(answer).not.toContain("pushAddress");
+    expect(answer).not.toContain("replaceAddress");
+  });
+
+  test("a traversal knows how far it moved, or says it cannot tell", () => {
+    // The number is what the two `go` calls are sized from. An entry htmx replaced the
+    // state of on its way past carries none, and guessing a direction off one would step
+    // the person somewhere they never asked to be.
+    expect(travelled({ aluna: "desk", index: 4 }, 6)).toBe(-2);
+    expect(travelled({ aluna: "desk", index: 7 }, 6)).toBe(1);
+    expect(travelled({ htmx: true }, 6)).toBeNull();
+    expect(travelled(null, 6)).toBeNull();
+  });
+
+  test("a traversal nothing is holding is rendered, and writes nothing", () => {
+    const bar = barAt("/capability/recipes");
+    const rendered: string[] = [];
+    answerTraversal(back(), { render: (at) => rendered.push(at), ...nothingHeld }, bar);
+    expect(rendered).toEqual(["/capability/recipes"]);
+    expect(bar.wrote).toEqual([]);
+  });
+
+  test("a held traversal is stepped back off, and taken again exactly once on a yes", () => {
+    // The question is asked *instead of* the move, so the move is undone while it stands
+    // and taken again if the person says yes — two `go` calls of equal and opposite size,
+    // which is what leaves the stack neither an entry wider nor an entry shorter
+    // (PLAN decision 17).
+    const bar = barAt("/capability/recipes");
+    const rendered: string[] = [];
+    const render = (at: string) => rendered.push(at);
+    let confirm = () => {};
+    const stepped = back();
+
+    answerTraversal(
+      stepped.event,
+      {
+        render,
+        hold: (go) => {
+          confirm = go;
+          return true;
+        },
+      },
+      bar,
+    );
+    // Nothing rendered — the window still holds the run — and the bar is back where the
+    // desk actually is, with no entry written for the asking.
+    expect(rendered).toEqual([]);
+    expect(bar.wrote).toEqual([{ how: "go", state: 1, address: "" }]);
+
+    // The desk's own step back arrives as a `popstate` of its own. Answering it would
+    // render the address the question is still standing over.
+    answerTraversal(
+      { state: { ...DESK_HISTORY_STATE, index: stepped.here } },
+      {
+        render,
+        ...nothingHeld,
+      },
+      bar,
+    );
+    expect(rendered).toEqual([]);
+
+    confirm();
+    expect(bar.wrote.at(-1)).toEqual({ how: "go", state: -1, address: "" });
+    // Which arrives as an ordinary traversal with nothing left to hold it.
+    answerTraversal(stepped.event, { render, ...nothingHeld }, bar);
+    expect(rendered).toEqual(["/capability/recipes"]);
+    expect(bar.wrote.filter((entry) => entry.how !== "go")).toEqual([]);
+  });
+
+  test("a traversal onto an entry the desk did not write is never held", () => {
+    // A move onto an unstamped entry is a move *out* of the desk — the page unloads and
+    // takes the run with it whatever anyone answers, so a question there would be a
+    // question about nothing. It is also the one branch that could not be undone: there is
+    // no measured distance to step back, so holding it would mean rewriting an entry the
+    // desk does not own, and a back-out would leave that entry clobbered.
+    const bar = barAt("/somewhere-else");
+    const rendered: string[] = [];
+    let asked = false;
+    answerTraversal(
+      { state: { htmx: true } },
+      {
+        render: (at) => rendered.push(at),
+        hold: () => {
+          asked = true;
+          return true;
+        },
+      },
+      bar,
+    );
+    expect(asked).toBe(false);
+    expect(rendered).toEqual(["/somewhere-else"]);
+    expect(bar.wrote).toEqual([]);
+  });
+
+  test("the desk's own step back is swallowed once, and only the one it asked for", () => {
+    // A bare flag is cleared only by the arrival it waits for, so a `go` the browser
+    // silently declines — a delta past the end of the session's history — would leave it
+    // set and eat the next Back the person actually pressed. The expectation names the
+    // entry instead, so it is wrong about one traversal at worst.
+    const bar = barAt("/capability/recipes");
+    const rendered: string[] = [];
+    const render = (at: string) => rendered.push(at);
+    const stepped = back();
+    answerTraversal(stepped.event, { render, hold: () => true }, bar);
+    expect(bar.wrote).toEqual([{ how: "go", state: 1, address: "" }]);
+
+    // Something other than the step the desk asked for. It is answered rather than eaten,
+    // and the expectation is spent either way.
+    answerTraversal(
+      { state: { ...DESK_HISTORY_STATE, index: stepped.here - 2 } },
+      {
+        render,
+        ...nothingHeld,
+      },
+      bar,
+    );
+    expect(rendered).toEqual(["/capability/recipes"]);
+    answerTraversal(
+      { state: { ...DESK_HISTORY_STATE, index: stepped.here - 3 } },
+      {
+        render,
+        ...nothingHeld,
+      },
+      bar,
+    );
+    expect(rendered).toEqual(["/capability/recipes", "/capability/recipes"]);
+  });
+});
+
 // Where the two verbs are reached from. One gesture, one entry; everything else corrects
 // in place or writes nothing at all (design D14; ARCH §6.1).
 describe("who moves the address", () => {
@@ -215,7 +397,7 @@ describe("who moves the address", () => {
     // `htmx:beforeRequest` is the only thing that stops the fetch.
     expect(MODULE).toContain('root.addEventListener("htmx:beforeRequest"');
     expect(MODULE).toContain(
-      "if (!pressWouldOpen(elt, settledCapabilityInWindow(mounted))) event.preventDefault();",
+      "if (!pressWouldOpen(elt, settledCapabilityInWindow(mounted)) || leavingIsBeingAsked()) {",
     );
     // Matched, never `closest`: a faceless tile's one-attempt POST fires from a span
     // inside the logo and must not be cancelled with it.
@@ -302,9 +484,12 @@ describe("who moves the address", () => {
     // anywhere in this module to be written down. (`app.js` still applies the two
     // `HX-Replace-Url` corrections the server dictates; both write an address and neither
     // pushes — the assertions in the glue test below are what pin that.)
-    expect(MODULE.match(/history\.pushState/g)).toHaveLength(1);
-    expect(MODULE.match(/history\.replaceState/g)).toHaveLength(1);
+    expect(ADDRESS.match(/history\.pushState/g)).toHaveLength(1);
+    expect(ADDRESS.match(/history\.replaceState/g)).toHaveLength(1);
+    expect(MODULE).not.toContain("history.pushState");
+    expect(MODULE).not.toContain("history.replaceState");
     expect(MODULE).not.toContain("window.history");
+    expect(ADDRESS).not.toContain("window.history");
   });
 
   test("no page of this desk is ever written outside the DOM", () => {
@@ -312,24 +497,6 @@ describe("who moves the address", () => {
     // it touches history on every `HX-Replace-Url` a deletion route answers with. The
     // search term, the open record and a half-typed edit would outlive the tab there.
     expect(SHELL).toContain('<body hx-history="false">');
-  });
-
-  test("Back and Forward are the desk's to answer, and answering pushes nothing", () => {
-    // htmx installs its own `window.onpopstate` on `DOMContentLoaded` and chains whatever
-    // it finds, so taking the property only before that moment would leave htmx wrapping
-    // this one and still restoring a body snapshot for its own entries. Taken on both
-    // sides of that moment, this is independent of which script ran first.
-    expect(MODULE).toContain("window.onpopstate = () =>");
-    expect(MODULE).toContain('document.addEventListener("DOMContentLoaded", take, { once: true })');
-    expect(MODULE).toMatch(/take\(\);\s*if \(typeof document !== "undefined"/);
-
-    // The load-time opener and the answer to Back are one function, so the frame and the
-    // address cannot drift, and neither writes history.
-    expect(MODULE).toMatch(/ownHistory\(root\);\s*renderAddress\(root, pathname\);/);
-    const answer = /function renderAddress\(root, pathname\) \{[\s\S]*?\n\}/.exec(MODULE)?.[0];
-    expect(answer, "no `renderAddress`").toBeDefined();
-    expect(answer).not.toContain("pushAddress");
-    expect(answer).not.toContain("replaceAddress");
   });
 
   test("the glue says what happened and the desk decides what the address does", () => {

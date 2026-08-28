@@ -215,7 +215,10 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).not.toContain("reloadRestoredRecords");
     expect(js).not.toContain('.ajax("GET"');
     expect(js).not.toContain('removeAttribute("hx-trigger")');
-    expect(js).toContain('closeType !== "message"');
+    // Both closes are asked the same question, and only a stream the server finished is a
+    // run with something to say: `nodeReplaced`/`nodeMissing` are the desk taking a run
+    // down, and the navigation that did it owns focus and the field from there.
+    expect(js.match(/closeTypeOf\(event\) !== "message"/g)).toHaveLength(2);
     expect(js).toContain("window.history.replaceState");
     // The address is the desk's to write: the glue reports what happened and never pushes.
     expect(js).not.toContain("history.pushState");
@@ -410,7 +413,7 @@ describe("GET / (shell) — prompt admission", () => {
 
 describe("GET / (shell) — stream close glue", () => {
   test("clears and refocuses the prompt when the build stream closes", () => {
-    const listeners = new Map<string, () => void>();
+    const listeners = new Map<string, (event?: Event) => void>();
     class InputStub {
       value = "track my notes";
       focused = false;
@@ -466,7 +469,18 @@ describe("GET / (shell) — stream close glue", () => {
     state.init();
     state.promptBusy = true;
 
-    listeners.get("htmx:sseClose")?.();
+    // A close the desk caused — a run left at 5.8/04's question, a logo switch — is not a
+    // run finishing with something to say. The navigation that caused it has already put
+    // focus where it belongs, and the words in the field were never sent.
+    listeners.get("htmx:sseClose")?.(
+      new CustomEvent("htmx:sseClose", { detail: { type: "nodeReplaced" } }),
+    );
+    expect(state.promptBusy).toBe(true);
+    expect(promptField.focused).toBe(false);
+
+    listeners.get("htmx:sseClose")?.(
+      new CustomEvent("htmx:sseClose", { detail: { type: "message" } }),
+    );
 
     expect(state.promptBusy).toBe(false);
     expect(promptField.value).toBe("");

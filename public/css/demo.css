@@ -85,11 +85,81 @@
   margin-top: var(--space-2);
 }
 
+/* The question a navigation asks before it takes the live run (PLAN decision 17).
+
+   It is asked over the window rather than under the story, because it is a confirmation
+   and the story behind it is not what is being decided. Two elements do that: this one
+   is the veil it darkens, and the panel inside it is what is read.
+
+   Scoped to the window and no further. `.window__body` is already the positioned ground
+   under every window, so this fills the window from the title bar to the bottom edge —
+   its own padding included — and stops there: it holds still while the narration behind
+   it goes on scrolling, and the desk, the logos and the prompt bar are untouched. The two
+   lamps stay above it and stay pressable, which is what keeps the frame's own controls
+   from being taken away by a question about one of them.
+
+   Nothing here is a modal: the page is not made inert, focus is not trapped, and the
+   whole of it lives inside the run's own surface (design D2 still holds — there is no
+   second surface, and this is the run's first one speaking loudly). */
+.build-stream__leaving {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  /* The story is dimmed rather than covered: it is still what the question is about, and
+     a person deciding whether to lose it should be able to see what they are losing.
+
+     Mixed `in srgb`, and that is not a style choice. `transparent` is fully transparent
+     black and carries no hue at all; interpolating it in `oklch` leaves the result with
+     `hue: none`, and a hue of none is a hue of zero — the veil came out pink over a cream
+     window. Every other mix in this product is `oklch` because both sides are colours. */
+  background: color-mix(in srgb, var(--ink) 38%, transparent);
+}
+.build-stream__leaving-panel {
+  --ink-shadow: var(--shadow-window);
+
+  display: flex;
+  width: min(30rem, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  text-align: center;
+  background: var(--surface);
+  border: var(--line) solid var(--ink-hair);
+}
+.build-stream__leaving-panel p {
+  max-width: 34ch;
+  margin: 0;
+  font-size: var(--type-md);
+  line-height: 1.4;
+  color: var(--ink);
+}
+.build-stream__leaving-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+/* Each goes away while the other stands in its place, so the state boundary is the
+   `hidden` attribute — and without this the two `display` rules above would keep both on,
+   `.btn`'s own `inline-flex` covering the control even where its rule no longer matches.
+   The same rule the record form's action row carries for the same reason
+   (`fields.css`, `record-view.css`). */
+.build-stream > .build-stream__cancel[hidden],
+.build-stream > .build-stream__leaving[hidden] {
+  display: none;
+}
+
 /* Commit swap: once the capability surface lands, the build narration is no
    longer the visible state; the window should read as the active capability — and
    there is no run left to cancel, so the control goes with the story. */
 .build-stream:has(.build-stream__commit:not(:empty)) .build-stream__narration,
 .build-stream:has(.build-stream__commit:not(:empty)) .build-stream__fragment,
+.build-stream:has(.build-stream__commit:not(:empty)) .build-stream__leaving,
 .build-stream:has(.build-stream__commit:not(:empty)) .build-stream__cancel {
   display: none;
 }

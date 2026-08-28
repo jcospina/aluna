@@ -163,6 +163,80 @@ export function renderBuildEnding(buildId: string, line: string): string {
 }
 
 /**
+ * The three marks the shell finds the leave-a-run question by, and the id its copy is
+ * announced through. `public/leaving-a-run.js` restates the selectors and a platform test
+ * pins the two copies against each other, the way every other shell/server pair is pinned.
+ */
+export const RUN_LEAVING_ATTRIBUTE = "data-run-leaving";
+export const RUN_LEAVING_BACK_ATTRIBUTE = "data-run-leaving-back";
+export const RUN_LEAVING_GO_ATTRIBUTE = "data-run-leaving-go";
+
+/**
+ * What the run asks before the person leaves it, and what the two answers are called.
+ *
+ * Leaving the live run kills it, so the desk says the one true cost and the one true
+ * reassurance: the making stops, and nothing that already exists is touched — which is
+ * design D3's promise, still kept (`design/index.html`). No "build", no "cancel", no
+ * "job": the run is *this*, the thing being made (ARCH §9.7).
+ *
+ * Both answers name the act from the person's side, and both name their object. **Keep
+ * going** on its own reads as *yes, go on with what I asked* — which is the destructive
+ * reading, on the answer focus lands on so that an answer given blind loses nothing. So it
+ * says what is being kept, the way **Keep it** does on a deletion.
+ */
+export const LEAVING_A_RUN_QUESTION =
+  "If you leave now, I’ll stop making this. Nothing you already have will change.";
+export const LEAVING_A_RUN_BACK_OUT = "Keep making it";
+export const LEAVING_A_RUN_GO_AHEAD = "Stop and leave";
+
+/**
+ * The question's own copy, named so both its answers are described by it. Keyed by the
+ * build id for the same reason the control above is: the shell admits one subscriber at a
+ * time but can only refuse one that has already landed, and two ids the same would let one
+ * run's question describe the other's.
+ */
+function buildStreamLeavingElementId(buildId: string): string {
+  return `build-stream-leaving-${buildId}`;
+}
+
+/**
+ * The question that asks before a navigation takes the live run away (PLAN decision 17).
+ *
+ * It ships with the run and stands hidden, exactly the way the record form's deletion
+ * confirmation does (`src/presentation/record-view.ts`): a surface that has to appear
+ * *without* the region changing hands cannot be fetched or swapped in, because the swap
+ * that delivered it would be the very teardown it exists to ask about. So the answer is
+ * already in the page, and the desk only stops hiding it.
+ *
+ * Two elements, because it is asked over the window rather than under the story: the
+ * outer one is the ground it darkens, and the panel inside it is what is read. It is not
+ * a modal and it is not a second surface (design D2) — nothing opens over the desk, the
+ * page is not made inert, focus is not trapped, and the whole of it stays inside the run
+ * it is about. It is the run's own surface saying one thing loudly, over its own window
+ * and no further. The run's control is hidden for as long as it stands, because a Cancel
+ * beside a question about stopping is two ways to say one thing.
+ */
+function renderLeavingWarning(jobId: string): string {
+  const questionId = escapeHtml(buildStreamLeavingElementId(jobId));
+  const describedBy = `aria-describedby="${questionId}"`;
+  return [
+    `  <div class="build-stream__leaving" ${RUN_LEAVING_ATTRIBUTE} hidden>`,
+    // No `role` and no description on the panel. A `group` with no accessible name is
+    // ignored by assistive technology, and a description hung on an ignored element is
+    // read by nobody; what actually reaches the person is the description on each answer,
+    // which is why both carry it.
+    `    <div class="build-stream__leaving-panel">`,
+    `      <p id="${questionId}">${LEAVING_A_RUN_QUESTION}</p>`,
+    `      <div class="build-stream__leaving-actions">`,
+    `        <button class="btn btn--warm" type="button" ${RUN_LEAVING_BACK_ATTRIBUTE} ${describedBy}>${LEAVING_A_RUN_BACK_OUT}</button>`,
+    `        <button class="btn btn--outline" type="button" ${RUN_LEAVING_GO_ATTRIBUTE} ${describedBy}>${LEAVING_A_RUN_GO_AHEAD}</button>`,
+    `      </div>`,
+    `    </div>`,
+    `  </div>`,
+  ].join("\n");
+}
+
+/**
  * The per-build SSE subscriber fragment returned by an accepted `/prompt`. It opens
  * an htmx-ext-sse connection to the build's stream, appends `narration` events as
  * they arrive, and lets final `fragment` events land in the same content surface.
@@ -193,6 +267,9 @@ export function renderBuildSubscriber(jobId: string): string {
     // Last, so it stands where every other action in the window stands: on the
     // window's own bottom edge, under the story rather than beside it.
     `  <button id="${escapeHtml(buildStreamControlElementId(jobId))}" class="btn btn--outline build-stream__cancel" type="button" hx-post="${escapeHtml(cancelPath)}" hx-swap="none">Cancel</button>`,
+    // Beside the control rather than instead of it, and hidden until a navigation asks
+    // for it. It takes the control's place on the bottom edge while it stands.
+    renderLeavingWarning(jobId),
     ...PREVIEW_STAGES.map(
       ([event, stage]) =>
         `  <span hidden aria-hidden="true" sse-swap="${event}" data-preview-stage="${stage}"></span>`,

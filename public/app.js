@@ -106,7 +106,13 @@ function shell() {
       document.addEventListener("htmx:sseOpen", () => {
         this.promptBusy = true;
       });
-      document.addEventListener("htmx:sseClose", () => {
+      document.addEventListener("htmx:sseClose", (event) => {
+        // Only a stream the server finished. `nodeReplaced` and `nodeMissing` are the desk
+        // taking a run down — a leave confirmed at 5.8/04's question, a logo switch — and
+        // the navigation that did it has already put focus where it belongs. Waking here
+        // would throw focus at the prompt bar a frame later, over the logo the window
+        // handed it back to, and would wipe words the person had typed but not sent.
+        if (closeTypeOf(event) !== "message") return;
         // A run that stopped with something to tell you is not finished with the person
         // yet. Unlock the bar, but keep the words that produced the ending — a line that
         // says "mind trying again?" beside a field that was just wiped is asking for
@@ -218,6 +224,18 @@ function aSentenceAboutTheRunWasRetired() {
 /** @param {string | null} title */
 function nameTheWindow(title) {
   document.dispatchEvent(new CustomEvent(NAME_THE_WINDOW_EVENT, { detail: { title } }));
+}
+
+/**
+ * Why a stream closed: `message` for one the server finished, `nodeReplaced` or
+ * `nodeMissing` for one whose subscriber left the document (htmx's SSE extension).
+ * @param {Event} event
+ * @returns {string | undefined}
+ */
+function closeTypeOf(event) {
+  return event instanceof CustomEvent && typeof event.detail === "object" && event.detail !== null
+    ? event.detail.type
+    : undefined;
 }
 
 /**
@@ -510,9 +528,9 @@ document.addEventListener("htmx:configRequest", (event) => {
 // and retire any explanation from the preceding request.
 //
 // The subscriber lives inside the window, so a window that has been put away leaves no
-// subscriber to find — which is correct rather than a hole: putting the window away
-// cancels the run it was narrating (desk-window.js), so there is nothing left to be
-// the second of.
+// subscriber to find — which is correct rather than a hole: putting the window away asks
+// first and then ends the run it was narrating (public/leaving-a-run.js), so there is
+// nothing left to be the second of.
 document.addEventListener("htmx:beforeRequest", (event) => {
   const detail = /** @type {CustomEvent<{ elt?: Element }>} */ (event).detail;
   if (!(detail?.elt instanceof HTMLFormElement) || detail.elt.id !== PROMPT_FORM_ID) return;
@@ -976,11 +994,7 @@ document.addEventListener("htmx:afterSettle", (event) => {
   }
 });
 document.addEventListener("htmx:sseClose", (event) => {
-  const closeType =
-    event instanceof CustomEvent && typeof event.detail === "object" && event.detail !== null
-      ? event.detail.type
-      : undefined;
-  if (closeType !== "message") return;
+  if (closeTypeOf(event) !== "message") return;
   // Only a real pointer activation navigated: its capability's canonical collection is
   // standing somewhere for the first time. A restoration puts back what the build
   // displaced and is owed no entry — least of all when it lands after the user has opened

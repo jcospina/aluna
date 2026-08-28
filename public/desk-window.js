@@ -28,6 +28,13 @@
  * window to be seen waiting, so it would be indistinguishable from one put away, and
  * both come back by the same click on the same logo (design D12).
  *
+ * Two subjects that were sections here are modules beside it, and both are re-exported
+ * through this file so the desk's rules are still reached through one face: where the
+ * window sits (`desk-window-store.js`), and the address with the history it is written
+ * into (`desk-address.js`). A third is not re-exported because nothing outside it needs
+ * its vocabulary — `leaving-a-run.js`, which owns the question every navigation below
+ * stands behind and the one way a run the person is leaving ends.
+ *
  * Where the window sits is remembered and what is in it is not. One record holds one
  * normal box and a maximised *flag*, so a desk that comes back on a different screen
  * fills that screen rather than the one it left, and a box that no longer fits is
@@ -46,6 +53,16 @@ import {
 } from "../design/scripts/desk-geometry.js";
 import { AlunaWindow } from "../design/scripts/window.js";
 import { addWindowDrag, addWindowGrip, setMaximised } from "../design/scripts/window-gestures.js";
+import {
+  capabilityAddress,
+  capabilityIdFromAddress,
+  DESK_ADDRESS,
+  deskHistory,
+  isAnotherPlace,
+  pushAddress,
+  replaceAddress,
+  startDeskHistory,
+} from "./desk-address.js";
 import { joinStack, leaveStack, raise } from "./desk-stack.js";
 /* Where a window is remembered is its own subject (`desk-window-store.js`). Re-exported
  * here as well as imported, so this module stays the one face the desk's rules are
@@ -56,6 +73,13 @@ import {
   localStore,
   savePresentation,
 } from "./desk-window-store.js";
+import {
+  askBeforeLeaving,
+  buildRunIn,
+  endRunIn,
+  leavingIsBeingAsked,
+  startLeavingGuard,
+} from "./leaving-a-run.js";
 import { RELEASE_REGION_EVENT } from "./region-scope.js";
 
 /** The desk's window layer — the ground the one window stands on. */
@@ -66,17 +90,6 @@ export const CAPABILITY_LOGO_SELECTOR = "[data-capability-logo]";
 
 /** The prompt bar's form. A build needs a window to narrate into. */
 export const PROMPT_FORM_ID = "spec-build-form";
-
-/** One build's subscriber — the node the run's id is written on. */
-const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
-
-/**
- * What a run that has already ended is holding while it waits to be read. Kept in sync
- * with `public/app.js` and the server's `renderBuildEnding`; a platform test pins that
- * these strings match. A run wearing one is over — there is nothing left to cancel and
- * nothing left to warn about.
- */
-const BUILD_ENDING_SELECTOR = "[data-build-ending]";
 
 /**
  * The window's content region. The id is the temporary shell's and every existing
@@ -180,9 +193,6 @@ const WALL_SHADOW = 0.4;
  */
 const DEFAULT_FILL = { w: 0.62, h: 0.72 };
 
-/** `/capability/:id`, and nothing below it (design D14). */
-const CAPABILITY_ADDRESS = /^\/capability\/([^/]+)\/?$/;
-
 /**
  * The two things this module borrows from htmx.
  *
@@ -263,6 +273,16 @@ export function windowLayer(root) {
 /** This page's window, remembered in this page's store. @param {DeskWindow} entry */
 const remember = (entry) => savePresentation(entry, phone, localStore());
 
+export {
+  capabilityAddress,
+  capabilityIdFromAddress,
+  DESK_ADDRESS,
+  DESK_HISTORY_STATE,
+  deskHistory,
+  isAnotherPlace,
+  pushAddress,
+  replaceAddress,
+} from "./desk-address.js";
 export {
   forgetOnDismissal,
   forgetPresentation,
@@ -580,13 +600,20 @@ export function openWindow(title, root = document, openedBy = null) {
  * asking it to — one emptied by a deletion, one opened for a read that never filled it
  * — both reach this and neither is a decision about where windows go.
  *
+ * Ending a run it was narrating is the backstop rather than the path, and it is the same
+ * ending every other way out of a run uses (`endRunIn`, `leaving-a-run.js`) rather than a
+ * second sequence assembled here. Every navigation that can reach this with a run still
+ * going now asks first and ends the run itself, so by the time this runs there is nothing
+ * left to end; the call stays because a window that somehow goes away over a live run may
+ * never leave the server making something nobody can see.
+ *
  * @returns {boolean} whether there was a window to put away
  */
 export function putAway() {
   const entry = mounted;
   if (!entry) return false;
   mounted = null;
-  cancelBuildIn(entry.el);
+  endRunIn(entry.el);
   tearDownWindow(entry, htmx());
   return true;
 }
@@ -612,17 +639,6 @@ export function dismissWindow() {
 }
 
 /**
- * A run standing in the window, whether it is still going or has ended and is waiting to
- * be read. What a press has to know about, because either one is holding the window.
- *
- * @param {{ querySelector(selector: string): { getAttribute(name: string): string | null, querySelector(selector: string): unknown } | null }} el
- * @returns {{ getAttribute(name: string): string | null, querySelector(selector: string): unknown } | null}
- */
-export function buildRunIn(el) {
-  return el.querySelector(BUILD_SUBSCRIBER_SELECTOR);
-}
-
-/**
  * Call the window something, remembering what it was called first.
  *
  * @param {string} title
@@ -645,51 +661,6 @@ export function releaseWindowName() {
   const displaced = mounted.displacedTitle;
   mounted.displacedTitle = null;
   if (displaced !== null && displaced !== undefined) mounted.win.setTitle(displaced);
-}
-
-/**
- * The build the window is narrating, if it is narrating one.
- *
- * A run that ended and is only waiting to be read does not count. Its subscriber stays
- * standing until the ending is dismissed (PLAN decision 25), and everything that asks
- * *this* question is asking about work in progress: what putting the window away has to
- * cancel, and — from 5.8/04 — what it has to warn about first. Neither is owed for a run
- * that is already over, and a warning about losing a build that finished minutes ago is
- * worse than no warning at all. Whether the window is *held* is `buildRunIn`.
- *
- * @param {{ querySelector(selector: string): { getAttribute(name: string): string | null, querySelector(selector: string): unknown } | null }} el
- * @returns {string | null}
- */
-export function buildJobIdIn(el) {
-  const run = buildRunIn(el);
-  if (run === null || run.querySelector(BUILD_ENDING_SELECTOR) !== null) return null;
-  return run.getAttribute("data-build-job-id");
-}
-
-/**
- * Where a build is cancelled. The same route the run's own Cancel control posts to.
- * @param {string} jobId
- * @returns {string}
- */
-export const buildCancelUrl = (jobId) => `/build/${encodeURIComponent(jobId)}/cancel`;
-
-/**
- * Putting the window away during a build cancels the build.
- *
- * The window is the only way back to a run's narration, so closing it makes the run
- * unreachable; leaving the server building a capability nobody can see, and that will
- * simply appear on the desk later, is the worse half of a half-done teardown. This is
- * the run's own cancel path, pressed on the user's behalf. **5.8/04 puts a warning in
- * front of this** — today the clay lamp cancels a build without asking.
- *
- * @param {HTMLElement} el the window
- */
-function cancelBuildIn(el) {
-  const jobId = buildJobIdIn(el);
-  if (jobId === null) return;
-  /* `keepalive`, because the node that would have carried an htmx request is about to
-   * be detached and the page may be on its way out behind it. */
-  void fetch(buildCancelUrl(jobId), { method: "POST", keepalive: true }).catch(() => undefined);
 }
 
 /**
@@ -752,8 +723,14 @@ function addLamps(entry) {
      * are both the address turning out to be wrong rather than the user moving, and each
      * is corrected in place — neither may leave an entry naming what has gone. */
     if (action === "putaway") {
-      dismissWindow();
-      pushAddress(DESK_ADDRESS, deskHistory());
+      const away = () => {
+        dismissWindow();
+        pushAddress(DESK_ADDRESS, deskHistory());
+      };
+      /* Not silent when there is something to lose (design D3, as decision 17 amends
+       * it). The lamp still means *put away* and still changes nothing that is true;
+       * it simply asks first when putting the window away would take a run with it. */
+      if (!askBeforeLeaving(entry.el, away)) away();
     }
   });
 }
@@ -919,125 +896,6 @@ export function logoFor(root, id) {
     if (logo.getAttribute("data-capability-id") === id) return logo;
   }
   return null;
-}
-
-/**
- * The capability an address names — and an address names a capability or nothing at
- * all (design D14). No search term, no open record and no draft has ever been in
- * here, so there is nothing below the id to parse and nothing to keep in step.
- *
- * @param {string} pathname
- * @returns {string | null}
- */
-export function capabilityIdFromAddress(pathname) {
-  const match = CAPABILITY_ADDRESS.exec(pathname);
-  if (!match?.[1]) return null;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    /* A malformed escape names no capability. */
-    return null;
-  }
-}
-
-/* ── the address ───────────────────────────────────────────────────────────── */
-
-/** The bare desk. Putting the window away comes back here (design D14). */
-export const DESK_ADDRESS = "/";
-
-/**
- * One capability's address. `renderCapabilityLogo` spells the logo's own request the same
- * way, so a press and a reload of what the press wrote ask the server for one URL.
- *
- * @param {string} id
- * @returns {string}
- */
-export function capabilityAddress(id) {
-  return `/capability/${encodeURIComponent(id)}`;
-}
-
-/**
- * Whether one address is somewhere other than another.
- *
- * Two addresses naming the same capability are one place however they are spelled, which
- * is what stops Back walking a run of entries that all name it — a press on the logo
- * already open, a swap correcting an address that was already right (design D14).
- *
- * @param {string} current the address in the bar
- * @param {string} next
- * @returns {boolean}
- */
-export function isAnotherPlace(current, next) {
-  if (current === next) return false;
-  const here = capabilityIdFromAddress(current);
-  return here === null || here !== capabilityIdFromAddress(next);
-}
-
-/**
- * The mark on the entries this module writes, and deliberately not htmx's. htmx claims
- * the entries stamped `{ htmx: true }` and answers a Back onto one by restoring a snapshot
- * of the whole body — the DOM as it stood, search term and open record included.
- *
- * Two things stand between that and the desk, and this is only the second of them. The
- * shell carries `hx-history="false"`, so no snapshot is ever taken; and `ownHistory` below
- * takes `popstate` outright, so htmx never answers a Back at all. This mark is what would
- * still tell the two apart if either were ever undone — it is not read at run time, and
- * htmx may re-stamp an entry it corrects through `HX-Replace-Url` without consequence.
- */
-export const DESK_HISTORY_STATE = { aluna: "desk" };
-
-/**
- * The address bar and its history, or nothing where there is no browser.
- *
- * Handed to the two verbs below rather than reached for inside them, the way `localStore`
- * is handed to `savePresentation`: the whole of the history contract is then something a
- * test can run, rather than something a test can only read off the source.
- *
- * @typedef {{
- *   location: { pathname: string, search: string },
- *   history: {
- *     pushState(state: unknown, unused: string, url: string): void,
- *     replaceState(state: unknown, unused: string, url: string): void,
- *   },
- * }} Bar
- * @returns {Bar | null}
- */
-export function deskHistory() {
-  return typeof window === "undefined" ? null : window;
-}
-
-/**
- * Push one address, unless the bar already names that place.
- *
- * The bar is asked rather than a copy kept here. Back and Forward move the address
- * without passing through this, so a mirror in this module would be wrong the moment the
- * user pressed either.
- *
- * @param {string} next
- * @param {Bar | null} bar
- * @returns {string | null} the address it left, for a caller that may have to step back
- */
-export function pushAddress(next, bar) {
-  if (bar === null) return null;
-  const cameFrom = bar.location.pathname;
-  if (!isAnotherPlace(cameFrom, next)) return null;
-  bar.history.pushState(DESK_HISTORY_STATE, "", next);
-  return cameFrom;
-}
-
-/**
- * Move the address, adding no entry. A correction rather than a navigation: the user did
- * not go anywhere, so there is nowhere new for Back to step off.
- *
- * Unconditional, unlike the push. A caller correcting an address that may already be right
- * asks `isAnotherPlace` first; the one stepping a failed press back knows the bar is
- * carrying the entry that press just made.
- *
- * @param {string} next
- * @param {Bar | null} bar
- */
-export function replaceAddress(next, bar) {
-  bar?.history.replaceState(DESK_HISTORY_STATE, "", next);
 }
 
 /** The marker the server puts on the surface of the capability standing in a window. */
@@ -1248,13 +1106,10 @@ function renderAddress(root, pathname) {
   const asked = addressAsks(root, pathname, capabilityInWindow(mounted));
   if (asked.ask === "nothing") return;
   if (asked.ask === "bare desk") {
-    /* Putting the window away cancels a run it was narrating, so a Back out of a build
-     * takes the build with it, silently. Back onto *another capability* falls through to
-     * the swap below instead, which releases the subscriber without cancelling anything,
-     * so the run is orphaned rather than stopped — the same asymmetry a logo press has
-     * had all along. 5.8/04 owns both halves: it puts the leave-a-run warning in front of
-     * put-away, logo and history alike, and routes each through the one cancel teardown
-     * (PLAN decision 17). */
+    /* No run reaches here any more. A traversal that would take one is held above
+     * (`answerTraversal`), and a confirmed one has already ended the run through the
+     * one cancel path — so this is only ever the window going away over something that
+     * was already over (PLAN decision 17). */
     stopWaitingForDesk();
     /* `addressAsks` answers "bare desk" to two different things: the bare desk, and an
      * address naming a capability that is not on the ground — a link to a deleted one,
@@ -1377,6 +1232,21 @@ function standDownUnsuccessfulPress(root, logo, region, attempted, cameFrom) {
 }
 
 /**
+ * Make the press again, now that the run it would have taken is over.
+ *
+ * A real click rather than a call into the opener, because the press is two halves and
+ * only one of them is this module's: the desk stands the window up and writes the
+ * address, and htmx turns the same click into the request that fills it. Replaying the
+ * click is the only way to get both, and it is the one that cannot drift — a confirmed
+ * switch and an ordinary press are then literally the same press.
+ *
+ * @param {Element} logo
+ */
+function pressAgain(logo) {
+  if (logo instanceof HTMLElement) logo.click();
+}
+
+/**
  * Open the capability a press asked for.
  *
  * The window is stood up before htmx resolves the press into a request, because the
@@ -1401,6 +1271,41 @@ function openPressedCapability(root, logo) {
 }
 
 /**
+ * What a press on a capability's logo does.
+ *
+ * The one press the desk declines *as an opening* is declined here and at the request
+ * below, because those are the two halves htmx splits a press into and the listener
+ * cannot stop the second on its own.
+ *
+ * @param {Document} root
+ * @param {Element} logo
+ */
+function answerPress(root, logo) {
+  if (pressWouldOpen(logo, settledCapabilityInWindow(mounted))) {
+    /* A switch that would replace a live run asks first, and what it does on a yes is
+     * the press the person already made, made again — so a confirmed switch opens its
+     * target through exactly the path an unguarded press takes, and there is no second
+     * opener to keep in step with this one. htmx's own half of the press is declined
+     * for as long as the question stands. */
+    if (askBeforeLeaving(mounted?.el ?? null, () => pressAgain(logo))) return;
+    openPressedCapability(root, logo);
+    return;
+  }
+  /* It opens nothing, but it is still a press on the logo of the thing you want to look
+   * at, so it brings that window forward. Without this the capability standing behind
+   * the developer panel has no way back — and on a phone, where only the frontmost
+   * window is in the page at all, no way back on screen.
+   *
+   * And it gives back the name a run took over. A confirmed switch onto the capability
+   * the run displaced — an evolution's own logo, which is the ordinary case — replays as
+   * a press that now opens nothing, because the collection it asked for is uncovered
+   * already. Nothing swaps, so nothing else would put the title back, and the window
+   * would keep saying `Evolving…` over a settled collection. */
+  releaseWindowName();
+  if (mounted) raise(mounted);
+}
+
+/**
  * Both openers, and the load-time one.
  *
  * The two listeners are on the capture phase so the window — and with it the target
@@ -1420,25 +1325,18 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
    * the phone's is never built with a grip and a lamp it may not use. */
   watchViewport(root, layer);
 
+  /* The question every navigation below stands behind, and the one place a run the
+   * person is leaving ends (`leaving-a-run.js`). Started here rather than from its own
+   * module evaluation, so the desk has one starter and one root. */
+  startLeavingGuard(root);
+
   root.addEventListener(
     "click",
     (event) => {
       const { target } = event;
       if (!(target instanceof Element)) return;
       const logo = target.closest(CAPABILITY_LOGO_SELECTOR);
-      if (logo === null) return;
-      /* The one press the desk declines *as an opening*. Declined here and at the
-       * request below, because those are the two halves htmx splits a press into and
-       * this listener cannot stop the second on its own. */
-      if (pressWouldOpen(logo, settledCapabilityInWindow(mounted))) {
-        openPressedCapability(root, logo);
-        return;
-      }
-      /* It opens nothing, but it is still a press on the logo of the thing you want
-       * to look at, so it brings that window forward. Without this the capability
-       * standing behind the developer panel has no way back — and on a phone, where
-       * only the frontmost window is in the page at all, no way back on screen. */
-      if (mounted) raise(mounted);
+      if (logo !== null) answerPress(root, logo);
     },
     true,
   );
@@ -1489,7 +1387,9 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
   root.addEventListener("htmx:beforeRequest", (event) => {
     const elt = /** @type {CustomEvent<{ elt?: unknown }>} */ (event).detail?.elt;
     if (!(elt instanceof Element) || !elt.matches(CAPABILITY_LOGO_SELECTOR)) return;
-    if (!pressWouldOpen(elt, settledCapabilityInWindow(mounted))) event.preventDefault();
+    if (!pressWouldOpen(elt, settledCapabilityInWindow(mounted)) || leavingIsBeingAsked()) {
+      event.preventDefault();
+    }
   });
 
   /* The first thing a run has to say is what the frame was for, and this is the message
@@ -1532,37 +1432,14 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
     else releaseWindowName();
   });
 
-  ownHistory(root);
+  startDeskHistory({
+    render: (landed) => renderAddress(root, landed),
+    /* A traversal that would take a live run asks first, and the answer is what moves.
+     * A desk with nothing running answers `false` and the traversal is taken as it
+     * always was. */
+    hold: (go) => askBeforeLeaving(mounted?.el ?? null, go),
+  });
   renderAddress(root, pathname);
-}
-
-/**
- * Back and Forward are the desk's to answer.
- *
- * htmx answers any entry stamped `{ htmx: true }` — every entry an `HX-Replace-Url` has
- * touched — by restoring a snapshot of the whole body. A window this module built and
- * still holds would be replaced by a copy it has never seen, carrying whatever search
- * term or open record stood there when the snapshot was taken (design D14). So the
- * property is taken rather than a listener added beside it: two answers to one Back is
- * the desynchronised frame D14 exists to rule out.
- *
- * Taken twice, and that is the load-bearing part. htmx installs its handler on
- * `DOMContentLoaded` and *chains* whatever it finds there, so taking the property only
- * before that moment leaves htmx wrapping this and still answering its own entries.
- * Taking it on both sides of that moment is what makes this independent of which script
- * ran first.
- *
- * @param {ParentNode} root
- */
-function ownHistory(root) {
-  if (typeof window === "undefined") return;
-  const take = () => {
-    window.onpopstate = () => renderAddress(root, window.location.pathname);
-  };
-  take();
-  if (typeof document !== "undefined" && document.readyState !== "complete") {
-    document.addEventListener("DOMContentLoaded", take, { once: true });
-  }
 }
 
 if (typeof document !== "undefined") {
