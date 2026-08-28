@@ -37,7 +37,6 @@
  */
 
 import {
-  EDGE,
   fillDesk,
   fitToDesk,
   PHONE,
@@ -268,7 +267,8 @@ export function presentationOf(entry) {
  * data throws on the *access* to `localStorage`, before any method is called. Storage
  * that cannot be opened is storage that remembers nothing, which is a working desk.
  *
- * @typedef {{ getItem(key: string): string | null, setItem(key: string, value: string): void }} Store
+ * @typedef {{ getItem(key: string): string | null, setItem(key: string, value: string): void,
+ *             removeItem?(key: string): void }} Store
  * @returns {Store | null}
  */
 export function localStore() {
@@ -335,6 +335,60 @@ export function savePresentation(entry, isPhone, store, key = WINDOW_STORAGE_KEY
   }
 }
 
+/**
+ * Drop the record, so the next window opens the way a first one does.
+ *
+ * A remembered box is a remembered *window*. While one is up, moving it is the user
+ * saying where their window goes, and a browser closed on it should find it there
+ * again. Dismissing it ends that window, and the box goes with it — otherwise a
+ * position authored for one capability outlives it and the next capability opens
+ * wherever the last was left standing, which reads as the desk failing to centre a
+ * window rather than as a preference being honoured (design D9).
+ *
+ * No phone rule, and the asymmetry with `savePresentation` is the point. That rule
+ * exists to stop a screen-sized box being *authored* as a desktop preference; there is
+ * no box here to author. What is left is the user's own gesture, and a window dismissed
+ * on a narrow browser is the same one window ending — so the record goes, rather than a
+ * box surviving on a technicality and standing the next desktop window in the old place.
+ *
+ * The record is shared with every tab on this origin, so the last gesture wins: a
+ * dismissal here drops a box another tab authored a moment ago. That is the same
+ * single-record bargain `savePresentation` already makes, and the reason it refuses to
+ * keep a mirror of what it wrote.
+ *
+ * `removeItem` is called optionally: `localStorage` has it, and a store handed in by a
+ * test is only obliged to hold the two methods the record is otherwise kept with.
+ *
+ * @param {Store | null} store
+ * @param {string} [key]
+ */
+export function forgetPresentation(store, key = WINDOW_STORAGE_KEY) {
+  try {
+    store?.removeItem?.(key);
+  } catch {
+    /* A desk that cannot forget is still a working desk. */
+  }
+}
+
+/**
+ * What a window going away means for the record, decided apart from the going away.
+ *
+ * A dismissal forgets and a bare desk does not, and the difference is one boolean: on a
+ * cold load at `/` there was no window, nothing was dismissed, and the record of a
+ * window the browser was closed on is the whole feature. That is the single most
+ * load-bearing rule in this file, so it is a function that can be run rather than an
+ * order of two statements that can only be read.
+ *
+ * @param {boolean} hadWindow whether there was a window to dismiss
+ * @param {Store | null} store
+ * @returns {boolean} whether a window was dismissed
+ */
+export function forgetOnDismissal(hadWindow, store) {
+  if (!hadWindow) return false;
+  forgetPresentation(store);
+  return true;
+}
+
 /** This page's window, remembered in this page's store. @param {DeskWindow} entry */
 const remember = (entry) => savePresentation(entry, phone, localStore());
 
@@ -359,14 +413,29 @@ const laidOut = (bounds) => bounds.width >= 2 && bounds.height >= 2;
  * The first box a window gets, fitted to the desk it is opening on. `fitToDesk`
  * carries the prompt bar's floor, so a window is never born under the bar.
  *
+ * Centred, the way a window on a desktop opens: the room left over is halved and spent
+ * evenly — an equal gap above and below, and an equal gap to either side, which are two
+ * measurements rather than one. The desk it is centred in is the
+ * room a window may actually stand in — the surface less the strip the prompt bar
+ * holds along the bottom — so an equal gap above and below is an equal gap to the two
+ * edges the window has.
+ *
+ * No floor of its own under the halved room. `fitToDesk` clamps `y` into the desk
+ * anyway, and its top is the desk's top rather than the inset the logo grid keeps — so
+ * a second, higher floor here would only ever disagree with the one that wins. On a
+ * desk too short for a window's minimum height there is no room to halve at all, and
+ * the window comes back up to that top edge.
+ *
  * @param {DOMRect} bounds
  * @returns {Box}
  */
 function defaultBox(bounds) {
   refreshGeometry();
+  const floor = bounds.height - PROMPT_CLEARANCE;
   const w = Math.round(bounds.width * DEFAULT_FILL.w);
-  const h = Math.round((bounds.height - PROMPT_CLEARANCE) * DEFAULT_FILL.h);
-  return fitToDesk(bounds, { x: Math.round((bounds.width - w) / 2), y: EDGE, w, h });
+  const h = Math.round(floor * DEFAULT_FILL.h);
+  const y = Math.round((floor - h) / 2);
+  return fitToDesk(bounds, { x: Math.round((bounds.width - w) / 2), y, w, h });
 }
 
 /**
@@ -623,6 +692,10 @@ export function openWindow(title, root = document, openedBy = null) {
  * Put the window away. The logo stays where it was and the same click brings the
  * window back, which is the whole of what the clay lamp promises (design D3).
  *
+ * Says nothing about the record. The two ways a window goes away without the user
+ * asking it to — one emptied by a deletion, one opened for a read that never filled it
+ * — both reach this and neither is a decision about where windows go.
+ *
  * @returns {boolean} whether there was a window to put away
  */
 export function putAway() {
@@ -632,6 +705,26 @@ export function putAway() {
   cancelBuildIn(entry.el);
   tearDownWindow(entry, htmx());
   return true;
+}
+
+/**
+ * The user closing their window: it goes away, and the box it was standing in is
+ * forgotten with it.
+ *
+ * The other half of what a remembered box means. A record is kept so a window survives
+ * the browser being closed on it — the tab goes, the window was never dismissed, and
+ * it comes back where it was left. A window the user *did* dismiss is over, and its
+ * box is not a standing preference for every window after it: the next capability
+ * opens centred, the way a first one does.
+ *
+ * Both ways a user dismisses a window arrive here — the clay lamp, and a Back that
+ * lands on the bare desk. They are one gesture wearing two faces (the lamp pushes the
+ * very address that Back arrives at), so they may not answer this differently.
+ *
+ * @returns {boolean} whether there was a window to dismiss
+ */
+export function dismissWindow() {
+  return forgetOnDismissal(putAway(), localStore());
 }
 
 /**
@@ -730,7 +823,7 @@ function addLamps(entry) {
      * are both the address turning out to be wrong rather than the user moving, and each
      * is corrected in place — neither may leave an entry naming what has gone. */
     if (action === "putaway") {
-      putAway();
+      dismissWindow();
       pushAddress(DESK_ADDRESS, deskHistory());
     }
   });
@@ -751,7 +844,14 @@ function gestureHost(entry) {
     box: entry.box,
     bounds: () => entry.layer.getBoundingClientRect(),
     standDown: () => entry.maximised || phone,
-    onEnd: () => remember(entry),
+    /* Only while this is still the window on the desk. Taking the frame out of the page
+     * releases the pointer capture a drag is running on, and the browser answers that
+     * with a `lostpointercapture` the gesture reads as an ending — so a Back pressed
+     * mid-drag would reach here after the teardown and write the box of a window that
+     * has just been dismissed straight back over the record it dropped. */
+    onEnd: () => {
+      if (mounted === entry) remember(entry);
+    },
   };
 }
 
@@ -1139,6 +1239,25 @@ export function addressAsks(root, pathname, showing) {
 }
 
 /**
+ * The addressed open still waiting for a desk with edges, if there is one.
+ *
+ * A press and a submit cancel a waiting open by mounting a window, which the observer
+ * asks about before it opens anything. A Back onto the bare desk cannot say it that
+ * way — it takes a window down rather than putting one up — so it says it here. Without
+ * this, a Back pressed during a cold load is answered by the window opening anyway, at
+ * the address the user just left, in the box they just dismissed.
+ *
+ * @type {ResizeObserver | null}
+ */
+let waitingForDesk = null;
+
+/** Stop waiting, whether the wait ended or was overtaken. */
+function stopWaitingForDesk() {
+  waitingForDesk?.disconnect();
+  waitingForDesk = null;
+}
+
+/**
  * Run once the desk has edges to measure.
  *
  * On a cold load the shell's stylesheets arrive through `@import`s, so at the moment
@@ -1147,16 +1266,18 @@ export function addressAsks(root, pathname, showing) {
  * corner. A press and a submit both happen long after that. The address is the one
  * opener that runs at exactly that moment, so it is the one that waits.
  *
- * Whatever is waiting is the *oldest* thing the user asked for, so anything they do
- * in the meantime wins: a press or a submit that opens the window first cancels this
- * outright rather than flipping a live build's window over to a capability a moment
- * later. The observer disconnects either way, so a desk that never gains edges does
- * not leave one watching it for the life of the page.
+ * Only one open ever waits, and it is the newest thing the user asked for: a second
+ * address overtakes the first here rather than leaving two observers racing, and a
+ * press or a submit cancels the wait outright by mounting a window, which the observer
+ * asks about before it opens anything — so a live build's window is never flipped over
+ * to a capability a moment later. The observer disconnects on every one of those, so a
+ * desk that never gains edges does not leave one watching it for the life of the page.
  *
  * @param {ParentNode} root
  * @param {() => void} open
  */
 function whenDeskIsLaidOut(root, open) {
+  stopWaitingForDesk();
   const layer = windowLayer(root);
   const laidOut = () => {
     const bounds = layer.getBoundingClientRect();
@@ -1168,9 +1289,13 @@ function whenDeskIsLaidOut(root, open) {
   }
   const observer = new ResizeObserver(() => {
     if (!laidOut() && !mounted) return;
-    observer.disconnect();
+    /* Its own wait, not whichever one is current: a callback already queued when this
+     * observer was overtaken would otherwise cancel the open that overtook it. */
+    if (waitingForDesk === observer) stopWaitingForDesk();
+    else observer.disconnect();
     if (!mounted) open();
   });
+  waitingForDesk = observer;
   observer.observe(layer);
 }
 
@@ -1196,7 +1321,14 @@ function renderAddress(root, pathname) {
      * had all along. 5.8/04 owns both halves: it puts the leave-a-run warning in front of
      * put-away, logo and history alike, and routes each through the one cancel teardown
      * (PLAN decision 17). */
-    putAway();
+    stopWaitingForDesk();
+    /* `addressAsks` answers "bare desk" to two different things: the bare desk, and an
+     * address naming a capability that is not on the ground — a link to a deleted one,
+     * or a Back onto the capability whose deletion emptied the window. Only the first is
+     * the user dismissing their window. The second is the address turning out to be
+     * wrong, which is corrected in place and may not erase a box the user authored. */
+    if (pathname === DESK_ADDRESS) dismissWindow();
+    else putAway();
     return;
   }
   /* The capability's own address, not the one in the bar. `capabilityIdFromAddress`

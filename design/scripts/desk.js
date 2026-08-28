@@ -31,6 +31,7 @@ import {
   fillDesk,
   fitToDesk,
   PHONE,
+  PROMPT_CLEARANCE,
   placeWindow,
   readBox,
   refreshGeometry,
@@ -90,7 +91,10 @@ const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: r
  * they are shown — no rows, no z-order, and nothing belonging to a
  * capability's own schema. All of it is how things look to the user, which is
  * the shell's to keep.
- * @typedef {{ window: StoredBox, dev: StoredBox & { open: boolean } }} Layout
+ * The capability window's box is `null` until one is authored: a window nobody has
+ * moved has no preference to keep, and the box it opens on is decided against the
+ * desk it opens on rather than written down once (D9).
+ * @typedef {{ window: StoredBox | null, dev: StoredBox & { open: boolean } }} Layout
  */
 
 /**
@@ -157,12 +161,13 @@ export class Desk {
    */
   #load() {
     /** @type {Layout} */
-    const fresh = { window: { ...DEFAULT_WINDOW }, dev: { ...DEFAULT_DEV, open: false } };
+    const fresh = { window: null, dev: { ...DEFAULT_DEV, open: false } };
     try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
       if (!stored || typeof stored !== "object") return fresh;
+      const window = readBox(stored.window);
       return {
-        window: { ...(readBox(stored.window) ?? fresh.window), max: stored.window?.max === true },
+        window: window === null ? null : { ...window, max: stored.window?.max === true },
         dev: {
           ...(readBox(stored.dev) ?? fresh.dev),
           max: stored.dev?.max === true,
@@ -179,7 +184,7 @@ export class Desk {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          window: record(this.layout.window),
+          window: this.layout.window === null ? null : record(this.layout.window),
           dev: { ...record(this.layout.dev), open: this.layout.dev.open === true },
         }),
       );
@@ -236,6 +241,7 @@ export class Desk {
    */
   #watchViewport() {
     const phone = window.matchMedia(PHONE);
+    let was = phone.matches;
 
     const onResize = () => {
       refreshGeometry();
@@ -245,6 +251,13 @@ export class Desk {
         this.#syncForm(entry);
         this.#refit(entry.el, entry.box, entry.maximised);
       }
+      /* A clamp is not a preference: `#refit` only ever pulls a box in, so writing on
+       * every tick would let one transient narrowing erode the remembered box for good.
+       * Only the crossing is authored — that is the moment a phone becomes a desk and
+       * the desktop box is the live one again. */
+      if (was === phone.matches) return;
+      was = phone.matches;
+      if (this.win) this.layout.window = this.win.box;
       this.#save();
     };
 
@@ -260,11 +273,33 @@ export class Desk {
     new ResizeObserver(onResize).observe(this.root);
   }
 
+  /**
+   * The box a window with no preference opens on: the default size, centred in the
+   * room a window may actually stand in — the desk less the strip the prompt bar
+   * holds — so the gaps above, below and to both sides are equal (D9).
+   *
+   * Measured when it is asked for rather than written down once, because a desk that
+   * is hidden or still unstyled has no room to halve — which is why the record holds
+   * `null` until a gesture authors a box, rather than holding one decided too early.
+   * A desk with no edges at all still falls back to the fixed default, and `#refit`
+   * pulls it inside whatever desk it lands on.
+   *
+   * @returns {Box}
+   */
+  #defaultWindow() {
+    const { w, h } = DEFAULT_WINDOW;
+    const bounds = this.root.getBoundingClientRect();
+    if (bounds.width < 2 || bounds.height < 2) return { ...DEFAULT_WINDOW };
+    refreshGeometry();
+    const floor = bounds.height - PROMPT_CLEARANCE;
+    return { x: Math.round((bounds.width - w) / 2), y: Math.round((floor - h) / 2), w, h };
+  }
+
   /** Forget both boxes. The capabilities themselves are untouched. */
   resetLayout() {
     this.close();
     this.closeDev();
-    this.layout = { window: { ...DEFAULT_WINDOW }, dev: { ...DEFAULT_DEV, open: false } };
+    this.layout = { window: null, dev: { ...DEFAULT_DEV, open: false } };
     this.#save();
     this.renderLogos();
   }
@@ -353,8 +388,10 @@ export class Desk {
   }
 
   /**
-   * Close means put away. The window disappears, the logo stays, nothing in
-   * storage changes, and the address falls back to the bare desk.
+   * Close means put away. The window disappears, the logo stays, and the address
+   * falls back to the bare desk. Says nothing about the record: this is also how a
+   * window goes away when it was never dismissed — a cancelled build takes its
+   * window with it — and that is not a decision about where windows go.
    */
   close() {
     if (this.build) this.cancelBuild({ silent: true });
@@ -366,10 +403,28 @@ export class Desk {
     this.#announce();
   }
 
+  /**
+   * The user closing their window: it goes away, and the box it stood in goes with
+   * it, so the next window opens on the default (D9). A record is kept so a window
+   * survives the browser being closed on it, not so one window's box is inherited by
+   * every window after it.
+   */
+  dismiss() {
+    const had = this.win !== null;
+    this.close();
+    if (!had) return;
+    this.layout.window = null;
+    this.#save();
+  }
+
   /** @returns {DeskWindow} */
   #ensureWindow() {
     if (this.win) return this.win;
-    this.win = this.#mount("capability", "", this.layout.window);
+    /* Decided here rather than at load: a desk still gaining its stylesheets measures
+     * nothing, and a box halved against nothing is not centred. Not written into the
+     * layout either — a box the desk chose is not a box the user asked for, and the
+     * record stays empty until a gesture authors one. */
+    this.win = this.#mount("capability", "", this.layout.window ?? this.#defaultWindow());
     return this.win;
   }
 
@@ -521,8 +576,24 @@ export class Desk {
       bounds: () => this.root.getBoundingClientRect(),
       standDown: () => entry.maximised || this.#phone(),
       onStart: () => this.#focus(entry),
-      onEnd: () => this.#save(),
+      onEnd: () => this.#author(entry),
     };
+  }
+
+  /**
+   * Where a box becomes a preference. The desk hands a first window a box it chose,
+   * and a box the desk chose is not one the user asked for — so the record stays
+   * empty until a finished gesture or the leaf lamp says otherwise (D9).
+   *
+   * The developer panel's box is the layout's own object, mounted by reference and
+   * moved in place, so it needs no promoting. So does the capability window's, once
+   * there is one; this is only the first box crossing over.
+   *
+   * @param {DeskWindow} entry
+   */
+  #author(entry) {
+    if (entry.kind === "capability") this.layout.window = entry.box;
+    this.#save();
   }
 
   /* ── lamps ────────────────────────────────────────────────────────────── */
@@ -555,7 +626,7 @@ export class Desk {
       if (action === "maximise" && !this.#phone()) this.#toggleMaximise(entry);
       if (action === "putaway") {
         if (entry.kind === "dev") this.closeDev();
-        else this.close();
+        else this.dismiss();
       }
     });
   }
@@ -573,7 +644,7 @@ export class Desk {
     setMaximised(entry.el, entry.box, entry.maximised);
     this.#refit(entry.el, entry.box, entry.maximised);
     this.#focus(entry);
-    this.#save();
+    this.#author(entry);
   }
 
   /* ── growing a capability ─────────────────────────────────────────────── */

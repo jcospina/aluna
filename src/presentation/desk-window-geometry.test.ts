@@ -12,8 +12,11 @@ import {
   readBox,
 } from "#design/desk-geometry.js";
 import { setMaximised } from "#design/window-gestures.js";
+import { DEV_STORAGE_KEY } from "#shell/desk-dev-panel.js";
 import {
   fitBox,
+  forgetOnDismissal,
+  forgetPresentation,
   loadPresentation,
   localStore,
   openingGeometry,
@@ -81,6 +84,9 @@ function fakeStore(seed: Record<string, string> = {}) {
     getItem: (k: string) => held.get(k) ?? null,
     setItem: (k: string, v: string) => {
       held.set(k, v);
+    },
+    removeItem: (k: string) => {
+      held.delete(k);
     },
   };
 }
@@ -190,12 +196,33 @@ describe("opening a window on what was remembered", () => {
     expect(state.sized, "a remembered box is a preference on any screen").toBe(true);
   });
 
-  test("nothing remembered opens on a box the desk chose, above the prompt bar", () => {
+  test("nothing remembered opens centred on the desk, above the prompt bar", () => {
+    // The room left over is halved and spent evenly — to both sides, and above and
+    // below as well. The desk it is centred in is the room a window may stand in: the
+    // surface less the strip the prompt bar holds, so an equal gap above and below is
+    // an equal gap to the two edges the window actually has.
     const el = fakeEl();
     const state = openingGeometry(el as never, { box: null, max: false }, desk(1280, 720), false);
     expect(state.box.w).toBeGreaterThan(MIN_SIZE.w);
     expect(state.box.y + state.box.h).toBeLessThanOrEqual(720 - PROMPT_CLEARANCE);
+    expect(state.box.x, "unequal side gaps").toBe(1280 - state.box.x - state.box.w);
+    const floor = 720 - PROMPT_CLEARANCE;
+    expect(state.box.y, "unequal gaps above and below").toBe(floor - state.box.y - state.box.h);
     expect(state.sized).toBe(true);
+  });
+
+  test("a desk with no room to halve gives the window back the top edge", () => {
+    // `fitToDesk` has the last word: below a window's minimum height there is nothing
+    // left to halve, and centring may not push the window off the top to pretend there
+    // is. The one floor is the desk's, never a second one written here — and this is
+    // why there is no inset floor under the halved room. `clampPosition`'s top is 0, so
+    // a higher floor of this module's own could only ever disagree with the one that
+    // wins; an invariant either way, which is what this pins. The centring above is
+    // what a lost `y` would fail.
+    const el = fakeEl();
+    const state = openingGeometry(el as never, { box: null, max: false }, desk(900, 200), false);
+    expect(state.box.h).toBe(MIN_SIZE.h);
+    expect(state.box.y).toBe(0);
   });
 
   test("a desk with no edges yet places nothing, and calls no box its own", () => {
@@ -323,6 +350,101 @@ describe("a bad preference cannot stop the desk loading", () => {
   });
 });
 
+describe("a dismissed window is forgotten", () => {
+  const fresh = { box: null, max: false };
+
+  test("forgetting drops the record, so the next window opens where a first one does", () => {
+    const store = fakeStore({ [WINDOW_STORAGE_KEY]: '{"x":11,"y":22,"w":333,"h":244,"max":true}' });
+    forgetPresentation(store);
+    expect(loadPresentation(store)).toEqual(fresh);
+    expect([...store.held.keys()]).toEqual([]);
+  });
+
+  test("a window dismissed forgets; a desk that had none to dismiss does not", () => {
+    // The whole rule, run rather than read. The second half is what keeps the feature:
+    // a cold load at `/` renders the bare desk with nothing mounted, and a record of a
+    // window the browser was closed on may not be wiped by arriving at the desk.
+    const record = '{"x":11,"y":22,"w":333,"h":244,"max":false}';
+
+    const nothingUp = fakeStore({ [WINDOW_STORAGE_KEY]: record });
+    expect(forgetOnDismissal(false, nothingUp)).toBe(false);
+    expect(nothingUp.getItem(WINDOW_STORAGE_KEY)).toBe(record);
+
+    const dismissed = fakeStore({ [WINDOW_STORAGE_KEY]: record });
+    expect(forgetOnDismissal(true, dismissed)).toBe(true);
+    expect(dismissed.getItem(WINDOW_STORAGE_KEY)).toBeNull();
+  });
+
+  test("forgetting reaches only this window's key", () => {
+    // The developer panel's record (5.6/04) sits in the same store and is its own
+    // window's business. Closing a capability window may not close that one.
+    const store = fakeStore({
+      [WINDOW_STORAGE_KEY]: '{"x":11,"y":22,"w":333,"h":244}',
+      [DEV_STORAGE_KEY]: '{"x":9,"y":9,"w":320,"h":600,"open":true}',
+    });
+    forgetPresentation(store);
+    expect([...store.held.keys()]).toEqual([DEV_STORAGE_KEY]);
+  });
+
+  test("a phone forgets, even though it never remembers", () => {
+    // The asymmetry with `savePresentation` is deliberate. The phone rule stops a
+    // screen-sized box being *authored* as a desktop preference; there is no box here
+    // to author, only the user's own gesture. A window dismissed on a narrow browser is
+    // the same one window ending, so the record ends with it rather than surviving on a
+    // technicality and standing the next desktop window in the old place.
+    const store = fakeStore({ [WINDOW_STORAGE_KEY]: '{"x":11,"y":22,"w":333,"h":244}' });
+    savePresentation({ box: { x: 0, y: 0, w: 390, h: 780 }, maximised: false }, true, store);
+    expect(store.getItem(WINDOW_STORAGE_KEY)).toBe('{"x":11,"y":22,"w":333,"h":244}');
+    forgetPresentation(store);
+    expect(store.getItem(WINDOW_STORAGE_KEY)).toBeNull();
+    // The store is the *first* argument, and there is no second one to be told the form
+    // in. Restoring a phone parameter would leave it undefined here — falsy, so the
+    // assertions above would still pass while every real phone stopped forgetting.
+    expect(forgetPresentation.length, "`forgetPresentation` grew a parameter").toBe(1);
+  });
+
+  test("a dismissal is the only way a window going away reaches the record", () => {
+    // The lamp and a Back onto the bare desk are one gesture wearing two faces — the
+    // lamp pushes the very address Back arrives at — so either forgets. Nothing else
+    // does. `forgetOnDismissal` is where the rule is decided, and it is run in
+    // `desk-window-geometry.test.ts`; here is only the wiring into it.
+    expect(MODULE).toMatch(
+      /export function dismissWindow\(\) \{\s*return forgetOnDismissal\(putAway\(\), localStore\(\)\);\s*\}/,
+    );
+
+    // A bare-desk answer covers two different things, and only one is a dismissal: an
+    // address naming a capability that is not on the ground gets the same answer, and
+    // that is the address turning out to be wrong rather than the user closing a window.
+    const bare = /ask === "bare desk"\) \{([\s\S]*?)\n {4}return;/.exec(MODULE)?.[1] ?? "";
+    expect(bare, "no bare-desk branch").not.toBe("");
+    expect(bare).toMatch(/if \(pathname === DESK_ADDRESS\) dismissWindow\(\);\s*else putAway\(\);/);
+
+    // The other two ways a window goes away: emptied by a deletion, and opened for a
+    // read that never filled it. Neither may erase a box the user authored.
+    const unfilled = /function putAwayUnfilledWindow\([\s\S]*?\n\}/.exec(MODULE)?.[0] ?? "";
+    expect(unfilled, "no `putAwayUnfilledWindow`").not.toBe("");
+    expect(unfilled).not.toContain("dismissWindow");
+    expect(MODULE).toMatch(/PUT_WINDOW_AWAY_EVENT, \(\) => \{\s*putAway\(\);/);
+    // Two call sites and the declaration itself: a fourth match is a third dismissal.
+    expect(MODULE.match(/dismissWindow\(\)/g), "a third dismissal").toHaveLength(3);
+  });
+
+  test("storage that cannot be cleared is storage a desk still works without", () => {
+    const throws = {
+      getItem: () => null,
+      setItem() {},
+      removeItem() {
+        throw new Error("The operation is insecure.");
+      },
+    };
+    expect(() => forgetPresentation(throws)).not.toThrow();
+    expect(() => forgetPresentation(null)).not.toThrow();
+    // A store old enough, or fake enough, to hold only the two methods the record is
+    // otherwise kept with.
+    expect(() => forgetPresentation({ getItem: () => null, setItem() {} })).not.toThrow();
+  });
+});
+
 describe("one record, and no extra key", () => {
   test("a whole session of a window writes one key and no other", () => {
     // The capability window's is one of exactly two presentation records the browser
@@ -435,7 +557,13 @@ describe("the desk changing size is a thing something reacts to", () => {
     expect(onResize.match(/remember\(/g), "the resize path writes unconditionally").toHaveLength(1);
 
     // The three places a box is authored, and the only three that write.
-    expect(MODULE).toContain("onEnd: () => remember(entry)");
+    //
+    // The gesture's is guarded on the window still being the one on the desk. Taking a
+    // frame out of the page releases the pointer capture a drag runs on, and the browser
+    // answers with a `lostpointercapture` the gesture reads as an ending — so a Back
+    // pressed mid-drag reaches `onEnd` after the teardown, and an unguarded write would
+    // put the box of a just-dismissed window straight back over the record it dropped.
+    expect(MODULE).toMatch(/onEnd: \(\) => \{\s*if \(mounted === entry\) remember\(entry\);\s*\}/);
     expect(MODULE).toMatch(/syncMaximiseLamp\(entry\);\s*remember\(entry\);/);
     expect(MODULE.match(/remember\(/g), "a fourth place writes").toHaveLength(3);
     // And it is the phone guard that every one of them goes through.
@@ -541,25 +669,6 @@ describe("what a remembered box is, asked in one place", () => {
     // The product and the design page believe the same things, because they ask once.
     expect(MODULE).toContain("readBox(stored)");
     expect(code("design/scripts/desk.js")).toContain("readBox(stored.window)");
-  });
-
-  test("the design page's desk keeps the same record rule the product does", () => {
-    // `design/scripts/desk.js` is the other surface that remembers a window, and D9 and
-    // decision 18 are written about it too. It used to write the desk-filled box *and*
-    // the box to restore to — a second geometry in the one entry, and a remembered width
-    // that belonged to whatever screen the window happened to be maximised on.
-    const deskScript = code("design/scripts/desk.js");
-    expect(deskScript).toMatch(
-      /function record\(box\) \{\s*const \{ x, y, w, h \} = box\.restore \?\? box;/,
-    );
-    expect(deskScript).toContain("window: record(this.layout.window)");
-    expect(deskScript).not.toContain("JSON.stringify(this.layout)");
-    // The record carries no box to give back, so the mount is where that comes from.
-    expect(deskScript).toMatch(/setMaximised\(el, box, maximised\);\s*this\.#refit\(/);
-    // And its key is its own: the handbook is served from the product's origin, so an
-    // unqualified `aluna.desk.*` would sit beside the product's two looking like a third.
-    expect(deskScript).toContain('STORAGE_KEY = "aluna.design.desk.layout.v2"');
-    expect(MODULE).toContain('WINDOW_STORAGE_KEY = "aluna.desk.window.v1"');
   });
 });
 

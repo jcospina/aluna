@@ -260,13 +260,14 @@ describe("two lamps, and there is no minimise", () => {
     expect(MODULE).toContain('lamp?.setAttribute("aria-pressed"');
   });
 
-  test("the clay lamp puts away, and putting away changes nothing in storage", () => {
+  test("the clay lamp dismisses, and a dismissed window is not remembered", () => {
     const source = code("public/desk-window.js");
     expect(source).toMatch(/action === "maximise"\) toggleMaximise\(entry\)/);
-    expect(source).toMatch(/action === "putaway"\) \{\s*putAway\(\);/);
-    // The logo stays where it was and the same click brings the window back — to the
-    // box it had. A put-away that wrote would make the clay lamp a way to forget. The
-    // address is the one thing it does move, and it moves it to the bare desk (D14).
+    expect(source).toMatch(/action === "putaway"\) \{\s*dismissWindow\(\);/);
+    // The logo stays where it was and the same click brings the window back — centred,
+    // the way a first window opens. A dismissed window is over, so the box it stood in
+    // is not a preference every window after it inherits. The address moves too, to the
+    // bare desk (D14).
     const putAway = /export function putAway\(\) \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? "";
     expect(putAway, "no `putAway`").not.toBe("");
     expect(putAway).not.toContain("savePresentation");
