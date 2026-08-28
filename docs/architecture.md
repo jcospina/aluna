@@ -280,8 +280,17 @@ control ever means destruction.
 **The window** — one window, and it is the content area. A collection, one record,
 a confirmation and the narration of a build all land in the same frame. Nothing
 opens over anything else, which is why Aluna has no modal. The user drags the
-window, resizes it, maximises it and puts it away; putting it away changes nothing
-in storage and leaves the logo where it was. Put-away, logo switching and
+window, resizes it, maximises it and dismisses it; dismissing it leaves the logo
+where it was and drops the window's presentation record, so the next window opens
+centred rather than wherever the last one was left. The record is what lets a
+window survive the browser closing on it, not a box one window bequeaths to every
+window after it: the two dismissals — the clay lamp and a Back onto the bare desk
+itself — forget, on a phone as on a desk, while a window emptied by a deletion, one
+opened for a read that never filled it, and a Back onto an address naming a
+capability no longer on the ground are corrections and forget nothing. A first box
+is centred in the room a window may stand in — the surface less the prompt bar's
+strip — so the gap above equals the gap below, and the gap to either side is equal
+in turn. Put-away, logo switching and
 Back/Forward while a build/evolution is running warn first inside the still-mounted
 run surface, because each would remove the run and replacing that surface merely
 to ask would cancel it prematurely. Confirmation uses the one cancel teardown and

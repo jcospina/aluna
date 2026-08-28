@@ -256,6 +256,24 @@ describe("who moves the address", () => {
     );
   });
 
+  test("a Back onto the bare desk cancels an open still waiting for a desk to measure", () => {
+    // A press and a submit cancel a waiting open by mounting a window, which the
+    // observer asks about before opening anything. A Back takes a window *down*, so it
+    // cannot say it that way — without this, a Back during a cold load is answered by
+    // the window opening anyway, at the address just left, in the box just dismissed.
+    const source = code("public/desk-window.js");
+    const bare = /ask === "bare desk"\) \{([\s\S]*?)\n {4}return;/.exec(source)?.[1] ?? "";
+    expect(bare).toContain("stopWaitingForDesk();");
+    const waiting = /function whenDeskIsLaidOut\([\s\S]*?\n\}/.exec(source)?.[0] ?? "";
+    expect(waiting, "no `whenDeskIsLaidOut`").not.toBe("");
+    // Overtaken as well as ended: a second addressed open may not leave the first
+    // observer watching the layer for the life of the page.
+    expect(waiting).toMatch(
+      /function whenDeskIsLaidOut\(root, open\) \{\s*stopWaitingForDesk\(\);/,
+    );
+    expect(waiting).toContain("waitingForDesk = observer;");
+  });
+
   test("the answer to a swap corrects the spelling, and only a real activation pushes", () => {
     // A correction asks whether the bar is exactly right where a push asks only whether it
     // is somewhere else — which is what strips a query string and a trailing slash, both
