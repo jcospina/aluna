@@ -112,8 +112,10 @@ M5 plan 17, 19).
 The same leave-run warning guards switching to another capability logo and
 Back/Forward while a build or evolution is mounted; confirmation uses the one
 cancel teardown and then completes the requested navigation.
-_Avoid_: minimise, hide, dismiss, exit; "close" names the gesture, "put away" is
-what it does
+_Avoid_: minimise, hide, exit; "close" names the gesture, "put away" is what it
+does. **Dismiss** is not a synonym for it either — it is the word for ending a
+run's held ending and getting the collection back (see **Ending**), which leaves
+the window standing
 
 **Logo**:
 A capability's picture, and its permanent identity on the desk. A hosted vector
@@ -361,10 +363,28 @@ The adapter that turns the Core Builder's terminal lifecycle event into what a
 person sees. The explicit-loop presenter takes the window, narrates the
 foreground product-voice story, and emits one View `commit` — only for a real
 pointer activation. Every non-activating terminal instead gives back what the
-build displaced, restoring the canonical committed View through `fragment` with
-no sidecar for the desk. Presentation is not a Builder invariant: Module 8 may
-choose another presenter entirely (PLAN decisions 29, 31; ADR-0002).
+build displaced, streaming the canonical committed View through `fragment` with
+no sidecar for the desk. Cancellation gives it back at once; a failure, a stale
+refusal and a measured no-op end the narration with their own authored line and
+the window **holds** there until the person dismisses the ending, which is when
+the collection is placed (PLAN decisions 23, 25). Presentation is not a Builder
+invariant: Module 8 may choose another presenter entirely (PLAN decisions 29, 31;
+ADR-0002).
 _Avoid_: renderer, view layer, the SSE handler
+
+**Ending**:
+The last line of a run's narration, and the only thing a build that did not
+succeed leaves on screen. A failure, a stale refusal and a measured no-op each
+have their own authored sentence; the log is already the live region and is
+already where the person is looking, so the desk has no notice surface of its own
+for them (PLAN decision 23). An ending holds the window — the collection the run
+displaced stays covered — until the person **dismisses** it. Dismissing an ending
+is not putting the window away: it ends a wait and gives the collection back,
+where putting away takes the whole window off the desk. A window torn down while
+an ending is still standing carries the line to the prompt bar's notice on its way
+out, because the window is the only place it lives.
+_Avoid_: error, toast, notice, banner, alert; the message is a line of the
+narration and not a component
 
 **Stale refusal**:
 What happens when a resolved build request's target expectation, expected-absence,

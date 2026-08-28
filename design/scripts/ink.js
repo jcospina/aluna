@@ -250,6 +250,8 @@ function refresh(el, force = false) {
    * boundary at all until the resize watch reaches it.
    */
   el.classList.add("is-ink");
+  /* Asked again here, because the first ask may have been unanswerable. */
+  ensurePositioned(el);
 
   const styles = getComputedStyle(el);
   const hand = readHand(styles);
@@ -313,13 +315,7 @@ export function mountInk(el) {
   el.prepend(ground);
   el.append(ink);
 
-  /*
-   * The absolutely positioned layers need a positioned ancestor. Set here rather
-   * than in ink.css, and only when the element is static: this runs after every
-   * component stylesheet, so a blanket `position: relative` would override a
-   * component that positions itself.
-   */
-  if (getComputedStyle(el).position === "static") el.style.position = "relative";
+  ensurePositioned(el);
 
   const seed = Number(el.dataset.inkSeed ?? nextSeed());
   el.dataset.inkSeed = String(seed);
@@ -332,6 +328,29 @@ export function mountInk(el) {
   MOUNTED.set(el, { ground, ink, seed, key: "", container });
   watchIn(el, container);
   refresh(el, true);
+}
+
+/**
+ * Give the two absolutely positioned layers a positioned ancestor to sit in.
+ *
+ * Set here rather than in ink.css, and only where the element is static: this runs
+ * after every component stylesheet, so a blanket `position: relative` would override a
+ * component that positions itself.
+ *
+ * **A detached element answers `""`, not `"static"`.** That is the whole reason this is
+ * a function and is asked twice. An element mounted before it is in the document — an
+ * out-of-band swap is the way that happens — has no computed style at all, so a guard
+ * reading `=== "static"` silently declines to position it and never asks again. Its
+ * layers then belong to whatever containing block is above it and are drawn in that
+ * element's corner, at the right size, nowhere near the thing they are the boundary of.
+ * The first draw is the second ask, and by then the element is always in the document,
+ * because nothing off-document can be measured.
+ *
+ * @param {HTMLElement} el
+ */
+function ensurePositioned(el) {
+  const { position } = getComputedStyle(el);
+  if (position === "static" || position === "") el.style.position = "relative";
 }
 
 /** @param {HTMLElement} el */

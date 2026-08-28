@@ -36,6 +36,7 @@ const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g
 
 const SHELL = read("public/index.html");
 const MODULE = code("public/desk-window.js");
+const STORE = code("public/desk-window-store.js");
 const PANEL = code("public/desk-dev-panel.js");
 const GLUE = code("public/app.js");
 
@@ -222,10 +223,11 @@ describe("who moves the address", () => {
     expect(MODULE).not.toContain("elt.closest(CAPABILITY_LOGO_SELECTOR)");
     expect(CAPABILITY_LOGO_SELECTOR).toBe("[data-capability-logo]");
 
-    // A run narrating in the window is not a capability standing in it: the press is
-    // entitled to take the window back off the build it displaced.
+    // A run in the window is not a capability standing in it: the press is entitled to
+    // take the window back off the build it displaced — and off an ending it is holding,
+    // which is still covering that capability's collection.
     expect(MODULE).toMatch(
-      /function settledCapabilityInWindow\(entry\) \{[\s\S]{0,160}buildJobIdIn\(entry\.el\) !== null\) return null;/,
+      /function settledCapabilityInWindow\(entry\) \{[\s\S]{0,160}buildRunIn\(entry\.el\) !== null\) return null;/,
     );
   });
 
@@ -352,7 +354,7 @@ describe("who moves the address", () => {
     // three places something could survive the tab, and none may carry a search term, an
     // open record or a draft.
     expect(capabilityIdFromAddress("/capability/notes/record/7")).toBeNull();
-    expect(MODULE).toContain('WINDOW_STORAGE_KEY = "aluna.desk.window.v1"');
+    expect(STORE).toContain('WINDOW_STORAGE_KEY = "aluna.desk.window.v1"');
     expect(PANEL).toContain('DEV_STORAGE_KEY = "aluna.desk.dev.v1"');
 
     // Two records, one per allowed window, and no third — the count is the promise

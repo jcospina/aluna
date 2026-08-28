@@ -30,6 +30,7 @@ const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g
 
 const PANEL = code("public/desk-dev-panel.js");
 const WINDOW = code("public/desk-window.js");
+const WINDOW_STORE = code("public/desk-window-store.js");
 const STACK = code("public/desk-stack.js");
 const GLUE = code("public/app.js");
 const SHELL = read("public/index.html");
@@ -111,7 +112,7 @@ describe("it is the second window, and there is no third", () => {
       /if \(pressWouldOpen\([\s\S]{0,140}\n\s*if \(mounted\) raise\(mounted\);/,
     );
     expect(WINDOW).toMatch(
-      /if \(mounted\) raise\(mounted\);\s*else openWindow\(BUILD_WINDOW_TITLE/,
+      /if \(mounted\) raise\(mounted\);\s*else openWindow\(THINKING_WINDOW_TITLE/,
     );
     // And every opening raises, so a capability swapped into a standing window is
     // never left behind the panel either.
@@ -144,7 +145,7 @@ describe("it is the second window, and there is no third", () => {
     );
     // Presentation only: the desktop *box* is read past, never written over, which is
     // `savePresentation`'s own phone guard rather than a second rule here.
-    expect(WINDOW).toContain("if (isPhone) return;");
+    expect(WINDOW_STORE).toContain("if (isPhone) return;");
     expect(PANEL).toMatch(/savePresentation\(mounted, phone, localStore\(\), DEV_STORAGE_KEY/);
   });
 });

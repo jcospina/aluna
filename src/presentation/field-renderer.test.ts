@@ -174,7 +174,7 @@ describe("create form — one control per pantry type — scalar and list contro
     expect(listForm).toContain("data-list-field-add>Add another</button>");
     expect(listForm).toContain("data-list-field-remove");
     expect(listForm).not.toContain('name="tags" required');
-    // A cross-file contract, not decoration: `syncListFieldRows` (public/app.js) reads
+    // A cross-file contract, not decoration: `syncListFieldRows` (list-field.js) reads
     // both attributes to re-key every row's `input.id` and `aria-label` after an add or
     // remove. Drop or rename either and the rows silently fall back to the generic
     // "Value 1 / Value 2" accessible names and collide on `list-value-N` ids.

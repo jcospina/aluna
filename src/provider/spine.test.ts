@@ -15,7 +15,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { API_KEY_ENV_VAR } from "./config.ts";
-import { createProvider, pumpStream, selectWire } from "./spine.ts";
+import { createProvider, providerFault, pumpStream, selectWire } from "./spine.ts";
 
 describe("selectWire (the registry, keyed by baseURL)", () => {
   test("routes Anthropic Messages hosts to the Anthropic wire", () => {
@@ -128,5 +128,75 @@ describe("pumpStream (self-driving partial stream)", () => {
       })(),
     ).rejects.toThrow("stream blew up");
     expect(seen).toEqual(["first"]);
+  });
+});
+
+/**
+ * The fault the SDK reports to `onError` and nowhere else.
+ *
+ * Verified against a live 401 before this existed: `partialObjectStream` ended cleanly
+ * at 915ms and `object`/`usage` were still pending at 45s, so the resolver awaiting
+ * `object` never returned and the build narrated work that had already stopped. Every
+ * provider fault behaved that way — a rejected key, a rate limit, a dropped connection —
+ * because none of them is model non-conformance, which is the only thing the SDK rejects
+ * `object` for.
+ */
+describe("providerFault (the fault the SDK swallows)", () => {
+  const pending = () => new Promise<never>(() => undefined);
+
+  test("settles a handle the SDK would have left pending for ever", async () => {
+    const fault = providerFault();
+    const object = fault.settle(pending());
+
+    fault.onError({ error: new Error("Incorrect API key provided. (status 401)") });
+
+    await expect(object).rejects.toThrow("Incorrect API key provided");
+  });
+
+  test("never overrides a handle the SDK settled itself", async () => {
+    const fault = providerFault();
+    const object = fault.settle(Promise.resolve({ ok: true }));
+
+    fault.onError({ error: new Error("arrived after the object did") });
+
+    expect(await object).toEqual({ ok: true });
+  });
+
+  test("puts the fault back on a stream that ended as though nothing was wrong", async () => {
+    const fault = providerFault();
+    async function* clean() {
+      yield { partial: 1 };
+      fault.onError({ error: new Error("rate limited") });
+    }
+
+    const read = async () => {
+      const seen = [];
+      for await (const item of fault.surface(clean())) seen.push(item);
+      return seen;
+    };
+
+    await expect(read()).rejects.toThrow("rate limited");
+  });
+
+  test("a stream that really did end cleanly still ends cleanly", async () => {
+    const fault = providerFault();
+    async function* clean() {
+      yield { partial: 1 };
+    }
+
+    const seen = [];
+    for await (const item of fault.surface(clean())) seen.push(item);
+
+    expect(seen).toEqual([{ partial: 1 }]);
+  });
+
+  test("a fault nothing is racing is not an unhandled rejection", async () => {
+    // A caller that only iterates never touches `settle`'s promise. An unhandled
+    // rejection here is a crashed process rather than a failed build.
+    const fault = providerFault();
+    fault.onError({ error: new Error("nobody is listening") });
+
+    await Bun.sleep(1);
+    expect(true).toBe(true);
   });
 });

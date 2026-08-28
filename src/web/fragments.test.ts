@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   BLANK_PROMPT_NOTICE,
+  BUILDING_WINDOW_TITLE,
   PAGE_ASSEMBLY_ANCHORS,
+  renderBuildWindowTitle,
   renderCapabilityCommitSwap,
   renderCapabilityLogo,
   renderPromptNotice,
@@ -500,5 +502,22 @@ describe("which renders may arm an attempt", () => {
     expect((html.match(/hx-post="[^"]*logo-attempt"/g) ?? []).length).toBe(1);
     expect(html).toContain("/capability/notes/inc-1/logo-attempt");
     expect(html).toContain("/capability/recipes/inc-2/logo.svg");
+  });
+});
+
+describe("renderBuildWindowTitle", () => {
+  test("is a name and nothing else — it lands nowhere and adds no event name", () => {
+    expect(renderBuildWindowTitle(BUILDING_WINDOW_TITLE)).toBe(
+      '<div data-build-window-title="Building…"></div>',
+    );
+    // No out-of-band target: the desk owns the window, so this is told rather than
+    // placed. It rides `fragment` the way the provisional tile does (ADR-0002).
+    expect(renderBuildWindowTitle("x")).not.toContain("hx-swap-oob");
+  });
+
+  test("escapes a capability's own label", () => {
+    expect(renderBuildWindowTitle('Ben & Jerry\'s "list"')).toBe(
+      '<div data-build-window-title="Ben &amp; Jerry&#39;s &quot;list&quot;"></div>',
+    );
   });
 });
