@@ -5,7 +5,7 @@ import type { Database } from "bun:sqlite";
 
 import { getCapability } from "../../registry/index.ts";
 import { renderCachedCapabilitySurface } from "../../web/cached-view.ts";
-import { renderPromptNotice } from "../../web/fragments.ts";
+import { type PromptNoticeTone, renderPromptNotice } from "../../web/fragments.ts";
 
 export const RESTORATION_CAPABILITY_ID_FIELD = "__aluna_restore_capability_id";
 export const RESTORATION_INCARNATION_ID_FIELD = "__aluna_restore_incarnation_id";
@@ -49,6 +49,7 @@ export function renderRestorationFragment(
   database: Database,
   notice?: string,
   behavior: RestorationBehavior = "replace",
+  tone: PromptNoticeTone = "answer",
 ): string {
   const behaviorAttribute =
     behavior === "preserve" ? ' data-build-restoration-behavior="preserve"' : "";
@@ -64,5 +65,8 @@ export function renderRestorationFragment(
     }
   }
   if (notice === undefined) return restoration;
-  return [restoration, renderPromptNotice(notice)].join("\n");
+  // Whether the sentence is a refusal is the caller's to say, not this function's: it
+  // carries whatever it is handed out to the prompt bar, and only the caller knows
+  // whether Aluna was declining or answering.
+  return [restoration, renderPromptNotice(notice, tone)].join("\n");
 }

@@ -1,7 +1,7 @@
 import type { CapabilityRow } from "../registry/index.ts";
 import { canonicalCapabilityLabel } from "../registry/index.ts";
 import { escapeHtml } from "../web/html.ts";
-import { capabilityLogoElementId } from "../web/index.ts";
+import { capabilityLogoElementId, renderPromptNotice } from "../web/index.ts";
 
 function deletionUrl(capabilityId: string): string {
   return `/capability-deletion/${encodeURIComponent(capabilityId)}`;
@@ -148,10 +148,7 @@ export function renderCapabilityDeletionCommitted(
   const notice = cleanupPending
     ? `I deleted ${label} permanently. It won’t come back, even though I still have a little tidying up to do.`
     : `I deleted ${label} permanently.`;
-  const outOfBandUpdates = [
-    renderLogoRemoval(target.id),
-    `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(notice)}</div>`,
-  ];
+  const outOfBandUpdates = [renderLogoRemoval(target.id), renderPromptNotice(notice)];
   return joinRestorationWithNotice(restoredSurface, outOfBandUpdates.join(""));
 }
 
@@ -162,7 +159,10 @@ export function renderCapabilityDeletionPreCommitFailure(
   const label = canonicalCapabilityLabel(target);
   return joinRestorationWithNotice(
     restoredSurface,
-    `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(`I couldn’t delete ${label}. Everything you had there is still safe.`)}</div>`,
+    renderPromptNotice(
+      `I couldn’t delete ${label}. Everything you had there is still safe.`,
+      "refusal",
+    ),
   );
 }
 
@@ -198,10 +198,7 @@ export function renderCapabilityDeletionRefusalRestoration(
     const names = dependentCapabilityNames(refusal.dependents);
     return `I can’t delete ${label} while ${names} ${refusal.dependents.length === 1 ? "uses" : "use"} it.`;
   })();
-  return joinRestorationWithNotice(
-    restoredSurface,
-    `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(notice)}</div>`,
-  );
+  return joinRestorationWithNotice(restoredSurface, renderPromptNotice(notice, "refusal"));
 }
 
 /**
@@ -212,6 +209,6 @@ export function renderCapabilityDeletionRefusalRestoration(
 export function renderCapabilityDeletionAlreadyGone(capabilityId: string): string {
   return [
     renderLogoRemoval(capabilityId),
-    `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml("That’s already gone, so I didn’t delete anything.")}</div>`,
+    renderPromptNotice("That’s already gone, so I didn’t delete anything."),
   ].join("");
 }

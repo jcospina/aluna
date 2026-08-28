@@ -16,6 +16,8 @@ export {
   BUILDING_WINDOW_TITLE,
   capabilityLogoElementId,
   PAGE_ASSEMBLY_ANCHORS,
+  PROMPT_REFUSAL_ATTRIBUTE,
+  type PromptNoticeTone,
   type RenderableCapabilityLogo,
   renderBuildEnding,
   renderBuildSubscriber,

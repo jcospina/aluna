@@ -112,7 +112,7 @@ describe("it is the second window, and there is no third", () => {
       /if \(pressWouldOpen\([\s\S]{0,140}\n\s*if \(mounted\) raise\(mounted\);/,
     );
     expect(WINDOW).toMatch(
-      /if \(mounted\) raise\(mounted\);\s*else openWindow\(THINKING_WINDOW_TITLE/,
+      /if \(mounted\) raise\(mounted\);\s*else\s*openWindow\(THINKING_WINDOW_TITLE/,
     );
     // And every opening raises, so a capability swapped into a standing window is
     // never left behind the panel either.

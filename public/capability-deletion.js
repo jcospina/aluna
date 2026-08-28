@@ -16,6 +16,8 @@
  * it** has somewhere to go back to, and giving the recovered panel its focus.
  */
 
+import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
+
 /**
  * The surface of the capability standing in the window: a direct child of the region,
  * never a descendant. Restated here rather than shared, the way this shell's classic
@@ -92,10 +94,14 @@ export function capabilityDeletionPreflightUrl(form) {
   return suffix ? `${base}?${suffix}` : base;
 }
 
-/** @param {string} copy */
-function writeCapabilityDeletionRecheckNotice(copy) {
-  const notice = document.getElementById("prompt-notice");
-  if (notice instanceof HTMLElement) notice.textContent = copy;
+/**
+ * @param {string} copy the empty string retires whatever is standing
+ * @param {boolean} [refused] whether this is Aluna turning the deletion down
+ */
+function writeCapabilityDeletionRecheckNotice(copy, refused = false) {
+  document.dispatchEvent(
+    new CustomEvent(PROMPT_BAR_MESSAGE_EVENT, { detail: { sentence: copy, refused } }),
+  );
 }
 
 /**
@@ -108,6 +114,7 @@ async function recheckCapabilityDeletion(preflightUrl, attempt) {
   if (delay === undefined) {
     writeCapabilityDeletionRecheckNotice(
       "I still can’t tell what happened. Reload the page to see the latest.",
+      true,
     );
     return;
   }
@@ -130,7 +137,8 @@ async function recheckCapabilityDeletion(preflightUrl, attempt) {
   // reported as "I can't tell", which would be untrue: we just found out.
   const output = document.getElementById(WINDOW_REGION_ID);
   if (!(output instanceof HTMLElement)) {
-    writeCapabilityDeletionRecheckNotice(noticeIn(html));
+    const answer = noticeIn(html);
+    writeCapabilityDeletionRecheckNotice(answer.sentence, answer.refused);
     applyReplaceUrl(response);
     return;
   }
@@ -165,15 +173,19 @@ function applyReplaceUrl(response) {
  * What a deletion reply says to the user, read out of the out-of-band notice it
  * carries. Parsed into an inert template, so nothing in it runs or loads.
  * @param {string} html
- * @returns {string}
+ * @returns {{ sentence: string, refused: boolean }}
  */
 function noticeIn(html) {
   const template = document.createElement("template");
   template.innerHTML = html;
-  return (
-    template.content.querySelector("#prompt-notice")?.textContent?.trim() ||
-    "That’s sorted — the desk is up to date."
-  );
+  const notice = template.content.querySelector("#prompt-notice");
+  return {
+    sentence: notice?.textContent?.trim() || "That’s sorted — the desk is up to date.",
+    // Carried across rather than flattened: a deletion Aluna turned down says so with the
+    // bar's cue whichever way the answer reached us — out of band, or read back out of
+    // this recovery's own reply (`renderPromptNotice`, `src/web/fragments.ts`).
+    refused: notice?.querySelector("[data-prompt-refusal]") !== null,
+  };
 }
 
 /** @param {Event} event */

@@ -381,7 +381,7 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
     // with nothing to swap, so a blank submit would look like nothing happened. No
     // subscriber fragment means no stream opens, so the prompt bar stays live.
     if (!hasMeaningfulPromptContent(submission.prompt)) {
-      return c.html(renderPromptNotice(BLANK_PROMPT_NOTICE), 200, {
+      return c.html(renderPromptNotice(BLANK_PROMPT_NOTICE, "refusal"), 200, {
         "cache-control": "no-store",
       });
     }
