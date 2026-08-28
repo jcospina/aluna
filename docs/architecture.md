@@ -308,7 +308,11 @@ work; it resets only the developer panel's next-load open preference.
 
 Logo open/switch and put-away push `/capability/:id` or `/` into browser history;
 `popstate` renders that identity without pushing another entry, and focusing the
-already-open capability adds none. Search, record subview and draft remain
+already-open capability adds none. Every entry the desk writes carries its place in the
+run of them, which is what lets a traversal that would take a running build or evolution
+be held: it is stepped back off while the question stands and taken again exactly once on
+confirmation, so the stack is neither an entry wider for the asking nor an entry shorter
+for the answering. Search, record subview and draft remain
 DOM-only and are not encoded in history. During a build the address stays on the
 displaced identity; successful v1 activation pushes the new capability only when
 its canonical collection takes the window, while evolution and non-activation do

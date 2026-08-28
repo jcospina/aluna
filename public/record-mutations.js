@@ -27,6 +27,7 @@
  * cancellable from above the form.
  */
 
+import { leavingIsBeingAsked } from "./leaving-a-run.js";
 import { leaveRecordView } from "./record-view.js";
 import { refreshCommittedRecordsForMutation } from "./records-refresh.js";
 
@@ -329,6 +330,12 @@ function installRecordMutations() {
   // reason Cancel is disabled there: the server may already have committed.
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    // One press, one question. A run covers the collection without removing it, so a record
+    // view with a standing confirmation can be sitting behind the question a navigation is
+    // asking (`public/leaving-a-run.js`); that one is the one on screen and the one Escape
+    // means, and answering both with a single press would close a question the person
+    // never saw.
+    if (leavingIsBeingAsked()) return;
     // Asked of the document rather than of what has focus: the window holds one record view
     // at a time, and a user who has clicked away still means this question by Escape.
     const view = document.querySelector(RECORD_VIEW_SELECTOR);

@@ -94,7 +94,10 @@ Nothing below capability identity is ever in it — the search term, the open re
 and a half-typed edit live in the DOM and die with the tab, so a reload comes back
 to the capability's canonical collection and loses them. Logo open/switch and
 put-away push; `popstate` renders the addressed identity without pushing again, and
-focusing the already-open capability adds no duplicate. During a build the address
+focusing the already-open capability adds no duplicate. A traversal that would take a
+running build or evolution is held instead of taken: it is stepped back off while the
+question stands and taken again exactly once if the person confirms, so asking costs no
+entry and answering costs no more than the one move. During a build the address
 keeps naming what the build displaced; a successful v1 activation pushes the new
 capability only when its canonical collection takes the window, and evolution and
 every non-activating terminal add no entry (design D14; M5 plan 6; ARCH §6.1).
@@ -583,5 +586,8 @@ Narration, proposals, confirmations, and errors all speak in product voice.
 | "All set. Want to add anything else?" | "Build committed; v1 artifacts written." |
 | "Hmm, that didn't work — mind trying again?" | "Smoke test failed; build aborted." |
 
-The one piece of voice copy shipped today is the cold-start prompt placeholder:
-**"What would you like to keep track of?"** — warm, jargon-free, on-thesis.
+Authored copy is written where the surface that speaks it is rendered — the prompt bar's
+cold-start placeholder (`public/index.html`), everything the platform says about a build
+or a deletion (`src/web/fragments.ts`, `src/presentation/record-view.ts`,
+`src/capability-deletion/`). The placeholder is still the exemplar: **"What would you like
+to keep track of?"** — warm, jargon-free, on-thesis.

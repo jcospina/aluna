@@ -69,8 +69,9 @@ export function removeProvisionalLogo(root, buildId) {
 /**
  * Bring the in-flight story back into view. The narration streams into the window's
  * content region, so the tile is the way back to it from anywhere on the desk while
- * that window is up — and a window put away mid-build cancels the build, which takes
- * this tile down with it, so there is never a tile pointing at a story that is gone.
+ * that window is up — and a window put away mid-build asks first and then ends the build
+ * (`leaving-a-run.js`), which takes this tile down with it, so there is never a tile
+ * pointing at a story that is gone.
  * @param {LogoRoot} root
  * @param {string} buildId
  */
