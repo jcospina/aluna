@@ -7,7 +7,38 @@
  * move one exact incarnation from active to closing and drain its current readers.
  */
 
-export const DEFAULT_READ_DRAIN_TIMEOUT_MS = 5_000;
+/**
+ * How long a close waits for its readers before the deletion gives up on them.
+ *
+ * Closing signals cancellation to every reader it already tracks, so this is not how long
+ * a read is allowed to live — it is how long the drain waits for a scope that has not yet
+ * reached a point where it can notice. It sits *above* the longest a single generated
+ * Handler may run (`DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS` in
+ * `src/router/generated-code.ts`), and that ordering is the point of the number rather
+ * than an accident of two literals: below it, a route the router will abandon on its own
+ * outlives the drain and fails a deletion for a reason the user cannot see. One window
+ * holds several concurrent read tokens whenever a canonical read, a debounced search and
+ * a post-mutation refresh overlap, which makes that overlap ordinary rather than exotic.
+ *
+ * The gap is closed from this side only. The Handler deadline is not shortened to meet
+ * it: reads are what the user is doing, deletions are rare and deliberate, and capping a
+ * slow read to speed up a rare operation is the wrong trade. What sits above the Handler
+ * deadline is headroom rather than a proof — a route holds its tokens across reading the
+ * request too, which the Handler deadline does not cover — and the ordering itself is
+ * asserted by test rather than left to two literals that happen to agree today.
+ *
+ * Longer-lived token scopes exist and are not covered by that ordering: a logo attempt
+ * holds one across provider I/O bounded by `DEFAULT_LOGO_GENERATION_TIMEOUT_MS`, six
+ * times this deadline. They stay compatible by *observing* the cancellation a close
+ * signals, which `src/capability-logo/attempt.test.ts` pins — not by being shorter.
+ *
+ * The raise has a real cost, taken deliberately: deletion holds the mutation
+ * coordinator's non-queued lease across the whole drain, so a drain that runs all the way
+ * to this deadline refuses every other write for that long. That is the price of never
+ * refusing a deletion that would have succeeded a moment later. A drain that still
+ * expires is reported as its own outcome rather than as a generic failure.
+ */
+export const DEFAULT_READ_DRAIN_TIMEOUT_MS = 15_000;
 
 export interface CapabilityIncarnation {
   readonly capabilityId: string;

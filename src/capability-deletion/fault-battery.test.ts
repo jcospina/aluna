@@ -22,11 +22,7 @@ import { join } from "node:path";
 
 import { applyCapabilityTableDdl } from "../capability-data/ddl.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
-import {
-  createReadGateCoordinator,
-  ReadGateDrainTimeoutError,
-  type ReadTokenSet,
-} from "../read-gates/index.ts";
+import { createReadGateCoordinator, type ReadTokenSet } from "../read-gates/index.ts";
 import {
   getCapability,
   insertCapability,
@@ -42,6 +38,7 @@ import {
   teardownRouterTest,
 } from "../router/router.test-support.ts";
 import {
+  expectDestroyed,
   expectGenerationMetricSurvives,
   incarnationOf,
   seedGenerationMetric,
@@ -274,15 +271,17 @@ describe("the capability-deletion fault battery", () => {
     });
     expect(held).toBeDefined();
 
-    await expect(
-      destroyCapability({
+    // A drain that runs out is an outcome, not a throw: the caller has to be able to tell
+    // "active work would not finish in time" apart from "the deletion failed".
+    expect(
+      await destroyCapability({
         target,
         database: conns.readwrite,
         readonlyDatabase: conns.readonly,
         readGates,
         adapters,
       }),
-    ).rejects.toBeInstanceOf(ReadGateDrainTimeoutError);
+    ).toEqual({ status: "deletion_drain_timeout" });
 
     // The in-flight read was asked to stop, the gate reopened, and nothing was collected.
     expect(held?.signal.aborted).toBe(true);
@@ -329,7 +328,10 @@ describe("the capability-deletion fault battery", () => {
       adapters,
     });
 
-    expect(destroyed.payloads).toEqual({ redactedEvents: 1, releasedOwnership: 1 });
+    expect(expectDestroyed(destroyed).payloads).toEqual({
+      redactedEvents: 1,
+      releasedOwnership: 1,
+    });
     expect(
       ingestCapabilityEvents(late, [{ id: "event-2", records: [{ text: "private" }] }], {
         database: conns.readwrite,

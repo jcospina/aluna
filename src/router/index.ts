@@ -18,8 +18,10 @@ export type {
   CapabilityUpdateContext,
   CapabilityUpdateHandler,
 } from "./contract.ts";
+export { READ_UNAVAILABLE_FRAGMENT } from "./failure-responses.ts";
 export {
   CapabilityReadAbandonedError,
+  DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS,
   withHandlerDeadline,
 } from "./generated-code.ts";
 export {

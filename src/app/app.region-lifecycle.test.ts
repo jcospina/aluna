@@ -8,6 +8,31 @@ async function trackedReaders(app: ReturnType<typeof createApp>): Promise<number
   return readers.reduce((sum, gate) => sum + gate.readerCount, 0);
 }
 
+async function waitForGateState(
+  app: ReturnType<typeof createApp>,
+  expected: "active" | "closing",
+): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const response = await app.request("/demo/region-lifecycle/readers");
+    const { readers } = (await response.json()) as { readers: { state: string }[] };
+    if (readers.every((gate) => gate.state === expected)) return;
+    await Bun.sleep(5);
+  }
+  throw new Error(`The preview gate never reached ${expected}.`);
+}
+
+interface DrainReportBody {
+  readonly outcome: string;
+  readonly waitedMs: number;
+  readonly deadlineMs: number;
+  readonly previousDeadlineMs: number;
+}
+
+async function drain(app: ReturnType<typeof createApp>): Promise<DrainReportBody> {
+  const response = await app.request("/demo/region-lifecycle/drain", { method: "POST" });
+  return (await response.json()) as DrainReportBody;
+}
+
 async function waitForReaders(
   app: ReturnType<typeof createApp>,
   expected: number,
@@ -89,5 +114,52 @@ describe("GET /demo/region-lifecycle (the content region's release rule, epic 5.
 
     expect((await request).status).toBe(499);
     expect(await waitForReaders(app, 0)).toBe(0);
+  });
+});
+
+// The drain half of the preview: the deadline that used to sit *below* the longest a
+// single handler may run now sits above it, so a slow reader delays a deletion instead of
+// failing it — and a wait measured in seconds is not something a page can otherwise show.
+describe("POST /demo/region-lifecycle/drain (the raised drain deadline, epic 5.8)", () => {
+  test("the drain waits for a slow read, reports the wait, and reopens the gate", async () => {
+    const app = createApp();
+    const reading = app.request("/demo/region-lifecycle/read?view=list&ms=1000");
+    await waitForReaders(app, 1);
+
+    const report = await drain(app);
+
+    expect(report.outcome).toBe("drained");
+    // It waited for the reader rather than cutting it short or refusing. The floor is well
+    // under the hold so a loaded machine cannot turn the margin into a failure.
+    expect(report.waitedMs).toBeGreaterThanOrEqual(400);
+    expect((await reading).status).toBe(200);
+    // The two numbers the readout exists to put side by side: a wait longer than the
+    // superseded deadline is a deletion that used to fail for a reason nobody could see.
+    expect(report.deadlineMs).toBeGreaterThan(report.previousDeadlineMs);
+
+    // Nothing is ever finalized here, so the reopened gate takes readers again.
+    expect(await trackedReaders(app)).toBe(0);
+    const after = await app.request("/demo/region-lifecycle/read?view=list&ms=0");
+    expect(after.status).toBe(200);
+    expect(await after.text()).toContain("read token");
+  });
+
+  test("a closing gate answers a new read with the router's own refusal", async () => {
+    const app = createApp();
+    // Held long enough that the reader cannot finish — and reopen the gate — between the
+    // moment the poll below sees `closing` and the moment the refused read is admitted.
+    const reading = app.request("/demo/region-lifecycle/read?view=list&ms=2000");
+    await waitForReaders(app, 1);
+    const draining = drain(app);
+    await waitForGateState(app, "closing");
+
+    const refused = await app.request("/demo/region-lifecycle/read?view=list&ms=0");
+
+    // The real bytes and the real status: htmx will not swap a 4xx unaided, so the
+    // preview showing a 200 here would be showing something production never does.
+    expect(refused.status).toBe(409);
+    expect(await refused.text()).toContain("I’m making a careful change here.");
+    expect((await reading).status).toBe(200);
+    expect((await draining).outcome).toBe("drained");
   });
 });

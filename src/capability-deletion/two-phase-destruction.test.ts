@@ -134,6 +134,40 @@ describe("two-phase capability destruction", () => {
     ).toEqual({ id: "old-metric" });
   });
 
+  test("a slow but well-behaved reader delays the deletion instead of failing it", async () => {
+    const target = notesRow();
+    install(conns, target);
+    // What this pins is the behaviour, not the numbers: a reader that has not yet reached
+    // a point where it could notice the close is waited for rather than refused. The
+    // production ordering the behaviour depends on — the drain deadline sitting above the
+    // longest a single Handler may run — is asserted in `src/read-gates/index.test.ts`.
+    // The deadline here is far above the hold so the assertion can never turn into a race.
+    const HELD_MS = 100;
+    const DRAIN_MS = 5_000;
+    const readGates = createReadGateCoordinator({ drainTimeoutMs: DRAIN_MS });
+    const identity = incarnation(target);
+    const tokens = readGates.tryAcquire({ catalog: [identity], incarnations: [identity] });
+    expect(tokens).toBeDefined();
+    if (!tokens) throw new Error("the slow reader did not acquire its read token");
+    const startedAt = Date.now();
+    setTimeout(() => readGates.release(tokens), HELD_MS);
+
+    const result = await destroyCapability({
+      target,
+      database: conns.readwrite,
+      readonlyDatabase: conns.readonly,
+      readGates,
+      adapters: [],
+    });
+
+    expect(result.status).toBe("deleted");
+    // The drain waited for the reader instead of giving up on it.
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(HELD_MS);
+    expect(getCapability(target.id, conns.readonly)).toBeNull();
+    expect(tableExists(conns.readonly, "cap_notes")).toBe(false);
+    expect(readGates.snapshot()).toEqual([]);
+  });
+
   test("a collector failure is pre-commit: registry, table, and reads reopen unchanged", async () => {
     const target = notesRow();
     install(conns, target);

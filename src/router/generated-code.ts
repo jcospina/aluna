@@ -45,9 +45,17 @@ export const ITEM_RENDERER_FILE = "item.ts";
  * closed rather than writing after the rollback.
  *
  * Handlers do local SQLite work, so this is a stuck-code deadline, not a budget. It sits
- * above the read-gate drain deadline on purpose: a deletion racing a genuinely stuck
- * Handler may be refused once and then succeed on the retry its copy invites — which is
- * the honest outcome, as opposed to a refusal that could never come true.
+ * *below* the read-gate drain deadline on purpose (`DEFAULT_READ_DRAIN_TIMEOUT_MS` in
+ * `src/read-gates/index.ts`): a route abandoned here hands its read tokens back before a
+ * deletion gives up waiting for them, so a merely slow Handler can never fail a deletion
+ * for a reason the user cannot see. The gap is closed from the drain side, never by
+ * capping this one downward — reads are what the user is doing.
+ *
+ * The route's token scope is slightly wider than this deadline: reading the request body
+ * happens inside the tokens and outside the deadline. That is not a hole, because a
+ * record mutation takes its coordinator lease before it parses and deletion's own lease
+ * is a non-queued try-acquire — so a deletion racing a slow upload is refused as busy at
+ * the front half rather than left waiting at the drain.
  */
 export const DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS = 10_000;
 

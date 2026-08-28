@@ -27,6 +27,7 @@ export {
   REDACTED_EVENT_PAYLOAD,
 } from "./installed-payloads.ts";
 export {
+  type CapabilityDeletionRefusal,
   type CapabilityDeletionRestorationEvidence,
   dependentCapabilityNames,
   renderCapabilityDeletionAlreadyGone,
@@ -37,8 +38,10 @@ export {
 } from "./presentation.ts";
 export {
   type CapabilityDeletionRecoveryResult,
+  type CapabilityDestroyedResult,
   type CapabilityDestructionFaults,
   type CapabilityDestructionResult,
+  type CapabilityDrainTimeoutResult,
   createArtifactCleanupAdapter,
   createProductionCapabilityDeletionAdapters,
   type DestroyCapabilityInput,

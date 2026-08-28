@@ -15,6 +15,7 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../../router/router.test-support.ts";
+import { expectDestroyed } from "../fault-battery.test-support.ts";
 import { destroyCapability } from "../two-phase-destruction.ts";
 import {
   type AdmittedEventContext,
@@ -204,7 +205,10 @@ describe("the Module 7 Event Log acceptance fake", () => {
       adapters: [],
     });
     expect(destroyed.status).toBe("deleted");
-    expect(destroyed.payloads).toEqual({ redactedEvents: 1, releasedOwnership: 1 });
+    expect(expectDestroyed(destroyed).payloads).toEqual({
+      redactedEvents: 1,
+      releasedOwnership: 1,
+    });
 
     const purged = listFakeEventLogRows(conns.readonly);
     expect(purged).toEqual([
@@ -281,7 +285,10 @@ describe("the Module 7 Event Log acceptance fake", () => {
     // The payload is one canonical blob, so a deleted owner's content cannot be excised
     // from it — the whole row is redacted even though `boom` still exists. The surviving
     // owner keeps its ownership row, now pointing at a content-free deletion fact.
-    expect(destroyed.payloads).toEqual({ redactedEvents: 1, releasedOwnership: 1 });
+    expect(expectDestroyed(destroyed).payloads).toEqual({
+      redactedEvents: 1,
+      releasedOwnership: 1,
+    });
     expect(listFakeEventLogRows(conns.readonly)).toEqual([
       {
         id: "event-1",

@@ -10,6 +10,7 @@ import { regionScopeReport, releaseRegionContent } from "./region-scope.js";
 
 const READ_URL = "/demo/region-lifecycle/read";
 const READERS_URL = "/demo/region-lifecycle/readers";
+const DRAIN_URL = "/demo/region-lifecycle/drain";
 const READERS_POLL_MS = 250;
 
 /** @param {string} selector @returns {HTMLElement} */
@@ -22,6 +23,7 @@ function required(selector) {
 const host = required("[data-preview-window]");
 const scopeReadout = required("[data-preview-scope]");
 const readersReadout = required("[data-preview-readers]");
+const drainStatus = required("[data-preview-drain-status]");
 
 /** The region the preview creates and destroys, the way the window will. */
 function ensureRegion() {
@@ -85,6 +87,47 @@ async function show(view) {
   }
 }
 
+/** @param {number} ms */
+function seconds(ms) {
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/**
+ * Close the gate and wait it out, ticking while it waits. The wait is the whole point, so
+ * the elapsed time keeps moving on the page rather than appearing all at once at the end.
+ */
+async function drain() {
+  const startedAt = performance.now();
+  const ticking = setInterval(() => {
+    drainStatus.textContent = `Draining — waited ${seconds(performance.now() - startedAt)} so far.`;
+  }, 100);
+  try {
+    const response = await fetch(DRAIN_URL, { method: "POST" });
+    const report =
+      /** @type {{ outcome: string, waitedMs: number, previousDeadlineMs: number, deadlineMs: number }} */ (
+        await response.json()
+      );
+    if (report.outcome === "already_closing") {
+      drainStatus.textContent = "A drain is already running.";
+      return;
+    }
+    const waited = seconds(report.waitedMs);
+    const past =
+      report.waitedMs > report.previousDeadlineMs
+        ? ` — past the old ${seconds(report.previousDeadlineMs)} deadline, which would have refused it`
+        : "";
+    drainStatus.textContent =
+      report.outcome === "drained"
+        ? `Drained after ${waited}${past}. The gate is open again.`
+        : `Gave up after ${waited}: deletion_drain_timeout at the ${seconds(report.deadlineMs)} deadline.`;
+  } catch {
+    drainStatus.textContent = "The drain request never answered.";
+  } finally {
+    clearInterval(ticking);
+    void paintReaders();
+  }
+}
+
 document.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
@@ -109,6 +152,11 @@ document.addEventListener("click", (event) => {
   if (target.closest("[data-preview-back]")) {
     ensureRegion();
     paintScope();
+    return;
+  }
+
+  if (target.closest("[data-preview-drain]")) {
+    void drain();
   }
 });
 
