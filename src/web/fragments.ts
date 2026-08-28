@@ -67,12 +67,33 @@ const PREVIEW_STAGES = [
 const CLEAR_ON_ACCEPT_TARGETS = [["div", "prompt-notice"]] as const;
 
 /**
- * The product-voice line `/prompt` answers a blank submission with. `required` on the
- * shell's prompt field (public/index.html) is the first line of defence; this is what a
- * whitespace/invisible/control-only string — which may pass HTML5 validation — and any
- * unusable non-browser POST get.
+ * The product-voice line a blank submission is answered with.
+ *
+ * The bar answers it without asking (`public/prompt-bar.js` restates this line, and a
+ * platform test pins that the two agree): nothing to build is nothing to open a window
+ * for, so an empty field and one holding only spaces are the same submission and neither
+ * reaches the wire. This is what every submission that did not come from that bar gets —
+ * a non-browser POST, and anything the bar's own reading let through.
+ *
+ * The field carries no `required`. The browser's bubble is not the desk's voice, it
+ * cannot tell an empty field from one holding three spaces, and it answers the first
+ * while ignoring the second — so the bar says the same true thing for both instead.
  */
 export const BLANK_PROMPT_NOTICE = "What would you like me to make?";
+
+/**
+ * Whether a sentence on the prompt bar is Aluna answering or Aluna turning something
+ * down. It is the message that knows, so the message says so, and the shell needs no
+ * table of which sentences are refusals.
+ */
+export type PromptNoticeTone = "answer" | "refusal";
+
+/**
+ * The marker a refused sentence carries into the prompt bar's one live slot. The shell
+ * flashes the bar for 400ms when it lands (`public/app.js`, `.prompt.is-refused`) —
+ * the attention cue kept from the design, no longer the whole message (PLAN decision 24).
+ */
+export const PROMPT_REFUSAL_ATTRIBUTE = "data-prompt-refusal";
 
 /**
  * The out-of-band `#prompt-notice` swap: the one shape every warm answer that never
@@ -81,13 +102,20 @@ export const BLANK_PROMPT_NOTICE = "What would you like me to make?";
  * paths that emit it — the shell clears this element on every submission
  * (`public/app.js`), so the line retires by itself.
  *
+ * The slot is one replaceable `aria-live` region rather than a stack or a timer: each
+ * sentence replaces the one before it, and nothing schedules its own removal.
+ *
  * A build's own terminal outcome no longer speaks here. A failure, a stale refusal and a
  * measured no-op end the narration instead ({@link renderBuildEnding}) and the window
  * holds there, because the log is already the live region and is already where the person
  * is looking (PLAN decision 23).
  */
-export function renderPromptNotice(notice: string): string {
-  return `<div id="prompt-notice" hx-swap-oob="innerHTML">${escapeHtml(notice)}</div>`;
+export function renderPromptNotice(notice: string, tone: PromptNoticeTone = "answer"): string {
+  const sentence =
+    tone === "refusal"
+      ? `<span ${PROMPT_REFUSAL_ATTRIBUTE}>${escapeHtml(notice)}</span>`
+      : escapeHtml(notice);
+  return `<div id="prompt-notice" hx-swap-oob="innerHTML">${sentence}</div>`;
 }
 
 /**

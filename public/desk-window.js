@@ -108,6 +108,31 @@ export const WINDOW_CONTENT_REGION = "the window's content";
  * developer panel's own title is — it names whose window this is and claims nothing.
  */
 export const THINKING_WINDOW_TITLE = "Thinking…";
+
+/**
+ * A window a prompt stood up that has not yet been given anything to show.
+ *
+ * A build has to take the window at submit: the story of a build needs somewhere to be
+ * told, and htmx resolves where a response lands *before* it sends the request. Most
+ * prompts earn that frame a moment later, when the narration starts. A prompt that never
+ * becomes a build — one restating a capability the desk already has, say — earns it never,
+ * and a frame that appears and vanishes reads as a fault rather than as an answer.
+ *
+ * So the frame is stood up unrevealed and shown by the first thing worth showing. The
+ * class is `visibility`, not `display`: the window is measured when it mounts, and a box
+ * with no layout would be drawn at nothing and stay that way.
+ */
+const PENDING_WINDOW_CLASS = "is-pending";
+
+/**
+ * The window itself, reached from whatever inside it is being talked about.
+ * @typedef {{
+ *   matches?: (selector: string) => boolean,
+ *   closest?: (selector: string) => { classList: { remove(name: string): void } } | null,
+ * }} RevealingListener
+ */
+const DESK_WINDOW_SELECTOR = ".window--desk";
+
 export const BUILD_WINDOW_TITLE = "Aluna";
 
 /**
@@ -1430,6 +1455,11 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
     (event) => {
       const form = event.target;
       if (!(form instanceof HTMLFormElement) || form.id !== PROMPT_FORM_ID) return;
+      /* A submission the bar has already turned down never becomes a request, so there is
+       * nothing for a window to hold. Opening one anyway is a frame that appears and
+       * closes in the same breath, which reads as a fault rather than as a refusal
+       * (`public/prompt-bar.js` refuses a blank prompt and cancels the submit). */
+      if (event.defaultPrevented) return;
       /* A build takes over whatever the window is holding, and says so. The name it
        * finds there is remembered, because a run that does not activate owes it back:
        * an evolution of exactly what is open ends where it started, and a failure
@@ -1438,7 +1468,11 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
        * developer panel and, on a phone, not in the page at all. */
       const displaced = mounted?.win.title ?? BUILD_WINDOW_TITLE;
       if (mounted) raise(mounted);
-      else openWindow(THINKING_WINDOW_TITLE, root, form.querySelector("input"));
+      /* Nothing was standing, so this frame exists only for a run that may turn out to
+       * have nothing to say. It waits out of sight until it is given something. */ else
+        openWindow(THINKING_WINDOW_TITLE, root, form.querySelector("input"))
+          .closest(DESK_WINDOW_SELECTOR)
+          ?.classList.add(PENDING_WINDOW_CLASS);
       nameWindow(THINKING_WINDOW_TITLE, displaced);
     },
     true,
@@ -1456,6 +1490,22 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
     const elt = /** @type {CustomEvent<{ elt?: unknown }>} */ (event).detail?.elt;
     if (!(elt instanceof Element) || !elt.matches(CAPABILITY_LOGO_SELECTOR)) return;
     if (!pressWouldOpen(elt, settledCapabilityInWindow(mounted))) event.preventDefault();
+  });
+
+  /* The first thing a run has to say is what the frame was for, and this is the message
+   * carrying it: `htmx:sseBeforeMessage` is dispatched on the element listening for that
+   * event, which is the narration or the commit itself. Nothing else reveals the window —
+   * a restoration landing in it is the run giving back what it displaced, which is the
+   * opposite of having something to show.
+   *
+   * The message rather than the swap: htmx's SSE extension swaps without an event info
+   * object, so `htmx:afterSwap` arrives for these with no target on it at all. */
+  root.addEventListener("htmx:sseBeforeMessage", (event) => {
+    /* Structural, like every other node this module is handed: the rule is proved against
+     * a double, and `Element` is a browser global a double does not have. */
+    const listener = /** @type {RevealingListener | null} */ (event.target);
+    if (listener?.matches?.(".build-stream__narration, .build-stream__commit") !== true) return;
+    listener.closest?.(DESK_WINDOW_SELECTOR)?.classList.remove(PENDING_WINDOW_CLASS);
   });
 
   /* The window's content changing hands is `app.js`'s to notice and the desk's to

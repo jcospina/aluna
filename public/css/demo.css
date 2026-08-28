@@ -14,6 +14,14 @@
 .build-stream {
   display: none;
 }
+/* A window a prompt stood up before anything was known, waiting out of sight for the
+   first thing worth showing (`PENDING_WINDOW_CLASS`, /static/desk-window.js). A prompt
+   that never becomes a build never reveals it, so an answer that belongs on the prompt
+   bar does not also flash an empty frame across the desk. `visibility` rather than
+   `display`, so the frame is measured and drawn at its real size while it waits. */
+.window--desk.is-pending {
+  visibility: hidden;
+}
 /* Two views of one window, laid out the way the collection and the record form are: a
    column that fills the window, so the run's control row sits on the window's own
    bottom edge rather than directly under however much story there happens to be. The

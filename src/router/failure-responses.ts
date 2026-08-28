@@ -39,7 +39,7 @@ export function readUnavailable(
   if (capabilityId && action && isMutationAction(action)) {
     retargetMutationError(c, capabilityId, action);
     return c.html(
-      '<p class="notice" data-role="error" data-error-code="read_unavailable">I\'m making a careful change here. Give me a moment, then try that again.</p>',
+      '<p class="notice" data-role="error" data-error-code="read_unavailable">I’m making a careful change here. Give me a moment, then try that again.</p>',
       422,
     );
   }
@@ -53,7 +53,7 @@ export function recordMutationRefusal(
 ): Response {
   retargetMutationError(c, capabilityId, action);
   return c.html(
-    '<p class="notice" data-role="error" data-error-code="mutation_busy">I\'m still putting something together. Give me a moment, then try that again.</p>',
+    '<p class="notice" data-role="error" data-error-code="mutation_busy">I’m still putting something together. Give me a moment, then try that again.</p>',
     422,
   );
 }

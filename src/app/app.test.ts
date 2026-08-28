@@ -282,8 +282,12 @@ describe("GET / (shell) — browser glue", () => {
       "window",
       "requestAnimationFrame",
       "HTMLInputElement",
+      "Element",
       appScript,
-    )(documentStub, windowStub, () => undefined, class InputStub {});
+      // `Element` because the rescue asks *which surface asked* before it decides where
+      // the refusal lands. Nothing was recorded for this request, so the answer is the
+      // window it was already aimed at.
+    )(documentStub, windowStub, () => undefined, class InputStub {}, class ElementStub {});
 
     for (const [code, status] of [
       ["missing_required_fields", 422],
@@ -368,6 +372,7 @@ describe("GET / (shell) — prompt admission", () => {
       "requestAnimationFrame",
       "HTMLInputElement",
       "HTMLFormElement",
+      "Element",
       appScript,
     )(
       {
@@ -379,6 +384,7 @@ describe("GET / (shell) — prompt admission", () => {
       },
       { matchMedia: () => ({ matches: false, addEventListener() {} }) },
       () => undefined,
+      class {},
       class {},
       class {},
     );
@@ -425,6 +431,11 @@ describe("GET / (shell) — stream close glue", () => {
       getElementById(id: string) {
         return id === "spec-build-prompt" ? promptField : null;
       },
+      // The close asks the prompt bar whether it was still saying anything about the run.
+      // No bar is standing in this scene, so nothing answers and nothing is cancelled —
+      // which is the same as "there was nothing to retire", and the prompt wakes and
+      // clears as it always has.
+      dispatchEvent: () => true,
     };
     const windowStub = {
       Alpine: {

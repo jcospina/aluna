@@ -64,6 +64,11 @@ export async function streamDeflection({
       buildDatabases.readonly,
       explanation,
       preserveActiveView ? "preserve" : "replace",
+      // A deflection is Aluna declining to build what was asked for — a prompt the
+      // resolver refuses, or one that restates something already on the desk. It is
+      // rejected before a build starts, so it speaks on the prompt bar and the bar
+      // flashes with it (PLAN decision 24).
+      "refusal",
     ),
     resolutionOutcome === "cancelled" ? "cancelled" : "ok",
     terminalPresenterTimeoutMs,

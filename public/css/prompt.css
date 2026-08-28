@@ -139,6 +139,33 @@
   display: none;
 }
 
+/*
+ * The refusal flash. The design's own `is-refused` state at the design's own 400ms
+ * (`design/scripts/prompt-bar.js`), kept as the attention cue now that the sentence above
+ * the rail carries the message — a wordless flash says something went wrong and nothing
+ * about what (PLAN decision 24).
+ *
+ * Two rules that can never both apply, because the design drew one case and this issue
+ * brought the other. A *blank* prompt is what the design refuses, and its rule is kept
+ * exactly as `design/styles/components/desk.css` writes it: the placeholder goes
+ * `--signal` at 4.68:1. Every refusal the desk adds here **preserves what was typed**, so
+ * there is no placeholder on screen at all for those and that rule lands on nothing —
+ * the rail takes `--well-alert` for the same 400ms instead, the design's own declared
+ * fill for an input in an alert state (`design/styles/tokens.css`).
+ *
+ * Scoped on `:placeholder-shown` so neither ever costs the other anything: the fill would
+ * drop the design's placeholder to 4.06:1, and the placeholder rule has nothing to say
+ * when the field is full. The fill recolours no type, so the words stay at 11.85:1 — and
+ * at 6.98:1 under the `.prompt--busy` dimming that runs while a build holds the bar,
+ * which is exactly when the desk's own two refusals fire.
+ */
+.prompt.is-refused .prompt__field::placeholder {
+  color: var(--signal);
+}
+.prompt.is-refused:has(.prompt__field:not(:placeholder-shown)) .prompt__composer {
+  background: var(--well-alert);
+}
+
 /* ── Phone ────────────────────────────────────────────────────────────────── */
 /* The design's 720px desk breakpoint. The bar keeps the ground either side of it
    at a width where 6rem of gutter would leave a bar too narrow to type in. */

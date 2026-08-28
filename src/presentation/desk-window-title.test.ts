@@ -42,7 +42,7 @@ describe("what the window is called while a run has it", () => {
     // narration behind the developer panel — which below the breakpoint means leaving
     // it out of the page entirely (5.6/04).
     expect(source).toMatch(
-      /if \(mounted\) raise\(mounted\);\s*else openWindow\(THINKING_WINDOW_TITLE/,
+      /if \(mounted\) raise\(mounted\);\s*else\s*openWindow\(THINKING_WINDOW_TITLE/,
     );
   });
 

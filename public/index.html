@@ -104,6 +104,15 @@
     <script type="module" src="/static/desk-logos.js"></script>
 
     <!--
+      The prompt bar's one live slot: everything the desk turns down before a build
+      starts is explained there, and so is a structured refusal that arrived from the
+      desk rather than from inside the window (PLAN decisions 24, 26). A module, like
+      the rules above it — nothing calls into it, and the shell glue and the deletion
+      module both say what happened and let it place the sentence.
+    -->
+    <script type="module" src="/static/prompt-bar.js"></script>
+
+    <!--
       The one-attempt rule's client half. A faceless tile arms a single load-triggered
       POST that spends a paid generation; this takes the arming attributes off the moment
       that request starts, so a tile that has already fired cannot be replayed armed by
@@ -269,7 +278,6 @@
               name="prompt"
               x-ref="promptField"
               :disabled="promptBusy"
-              required
               aria-label="Prompt"
               placeholder="What would you like to keep track of?"
             >

@@ -85,10 +85,13 @@ describe("capability-deletion presentation", () => {
     const refusal = renderCapabilityDeletionRefusalRestoration(notesRow(), "", { kind: "busy" });
 
     expect(failure).toBe(
-      '<div id="prompt-notice" hx-swap-oob="innerHTML">I couldn’t delete Notes. Everything you had there is still safe.</div>',
+      '<div id="prompt-notice" hx-swap-oob="innerHTML"><span data-prompt-refusal>I couldn’t delete Notes. Everything you had there is still safe.</span></div>',
     );
     expect(refusal.startsWith('<div id="prompt-notice"')).toBe(true);
     expect(refusal).toContain("I’m making another change right now");
+    // Both are Aluna turning the deletion down, so both flash the bar; the committed and
+    // already-gone outcomes above are answers and carry no marker.
+    expect(refusal).toContain("<span data-prompt-refusal>");
   });
 
   test("Confirm carries the preflight URL the shell re-asks when a response never lands", () => {

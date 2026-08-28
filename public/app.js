@@ -22,6 +22,50 @@
 // `desk-logos.js`, a module of its own beside `region-scope.js` and `swap-target.js`.
 
 /**
+ * The two things the desk turns down while a run has the window: a second prompt, and a
+ * desk action that would take the window from it. One opening sentence, because it is one
+ * true thing; the second half names what the person just did, so the two are never each
+ * other. Neither is `mutation_busy`'s "I'm still putting something together", which is a
+ * record write refused inside the window (`src/router/failure-responses.ts`).
+ */
+const BUILD_IN_FLIGHT_REFUSAL =
+  "I’m still making the last thing you asked for. Let me finish, then tell me the next one.";
+const DESK_ACTION_REFUSAL =
+  "I’m still making the last thing you asked for. Let me finish, then try that again.";
+
+/**
+ * A capability's logo, restated from `public/desk-window.js` the way this file restates
+ * every constant it shares with a module; a platform test pins that the two agree.
+ */
+const CAPABILITY_LOGO_SELECTOR = "[data-capability-logo]";
+
+/**
+ * The prompt bar's ids and its one refusal marker, restated the way this file restates
+ * every constant it shares with a module. The bar itself is `public/prompt-bar.js`.
+ */
+const PROMPT_FIELD_ID = "spec-build-prompt";
+const PROMPT_FORM_ID = "spec-build-form";
+const PROMPT_NOTICE_ID = "prompt-notice";
+const PROMPT_REFUSAL_SELECTOR = "[data-prompt-refusal]";
+
+/**
+ * What the desk says on the prompt bar. The bar is a module of its own and this script can
+ * import nothing, so the glue says what happened and the bar places it (ARCH §6.1). Kept
+ * in sync with public/prompt-bar.js; a platform test pins that these strings match.
+ *
+ * `aboutTheRun` marks the two sentences the desk says *while a run has the window*, which
+ * stop being true the moment that run ends.
+ *
+ * @param {string} sentence the empty string retires whatever is standing
+ * @param {boolean} [refused] @param {boolean} [aboutTheRun]
+ */
+function tellThePromptBar(sentence, refused = false, aboutTheRun = false) {
+  document.dispatchEvent(
+    new CustomEvent("aluna:prompt-bar-message", { detail: { sentence, refused, aboutTheRun } }),
+  );
+}
+
+/**
  * The shell's presentation state.
  * @typedef {Object} ShellState
  * @property {boolean} promptBusy - Courtesy presentation state while a build stream is open.
@@ -53,7 +97,7 @@ function shell() {
       const wakePrompt = (clear) => {
         this.promptBusy = false;
         requestAnimationFrame(() => {
-          const promptField = document.getElementById("spec-build-prompt");
+          const promptField = document.getElementById(PROMPT_FIELD_ID);
           if (clear && promptField instanceof HTMLInputElement) promptField.value = "";
           promptField?.focus();
         });
@@ -71,7 +115,10 @@ function shell() {
         // control is there at all.
         const ending = heldRunEnding();
         if (ending === null) {
-          wakePrompt(true);
+          // A sentence about the run that just ended retires with it. The words in the
+          // field are then the ones the person typed *while* they were told to wait, and
+          // were never submitted — so those stay too, for the same reason the ending's do.
+          wakePrompt(!aSentenceAboutTheRunWasRetired());
           return;
         }
         this.promptBusy = false;
@@ -144,9 +191,6 @@ const BUILD_DISMISS_SELECTOR = "[data-build-dismiss]";
  */
 const HELD_RESTORATION_ATTRIBUTE = "data-held-restoration";
 
-/** The prompt field, focused back after a dismissal the way stream close focuses it. */
-const PROMPT_FIELD_ID = "spec-build-prompt";
-
 /**
  * What the window is called while a run has it. The server names it the moment it knows
  * what the run is (`renderBuildWindowTitle`, `src/web/fragments.ts`); the desk owns the
@@ -159,6 +203,17 @@ const PROMPT_FIELD_ID = "spec-build-prompt";
  */
 const BUILD_WINDOW_TITLE_ATTRIBUTE = "data-build-window-title";
 const NAME_THE_WINDOW_EVENT = "aluna:name-the-window";
+
+/**
+ * Ask the prompt bar to retire anything it was still saying about the run that just ended.
+ * Kept in sync with public/prompt-bar.js; a platform test pins that these strings match.
+ * @returns {boolean} whether there was such a sentence
+ */
+function aSentenceAboutTheRunWasRetired() {
+  const asked = new CustomEvent("aluna:retire-run-sentence", { cancelable: true });
+  document.dispatchEvent(asked);
+  return asked.defaultPrevented;
+}
 
 /** @param {string | null} title */
 function nameTheWindow(title) {
@@ -328,10 +383,12 @@ function preserveActiveView(listener, raw) {
   );
   if (!shouldPreserve) return false;
 
-  const explanation = template.content.querySelector("#prompt-notice");
-  const promptNotice = document.getElementById("prompt-notice");
-  if (explanation instanceof HTMLElement && promptNotice instanceof HTMLElement) {
-    promptNotice.textContent = explanation.textContent;
+  const explanation = template.content.querySelector(`#${PROMPT_NOTICE_ID}`);
+  if (explanation instanceof HTMLElement) {
+    tellThePromptBar(
+      explanation.textContent ?? "",
+      explanation.querySelector(PROMPT_REFUSAL_SELECTOR) !== null,
+    );
   }
   subscriber.dataset.preserveActiveView = "true";
   return true;
@@ -438,7 +495,7 @@ document.addEventListener("htmx:configRequest", (event) => {
     /** @type {CustomEvent<{ elt?: Element, parameters?: Record<string, unknown> }>} */ (event)
       .detail;
   const trigger = detail?.elt;
-  if (!(trigger instanceof HTMLFormElement) || trigger.id !== "spec-build-form") return;
+  if (!(trigger instanceof HTMLFormElement) || trigger.id !== PROMPT_FORM_ID) return;
   const surface = activeCapabilitySurface();
   if (surface === null || !detail.parameters) return;
   const capabilityId = surface.dataset.activeCapabilityId;
@@ -458,7 +515,7 @@ document.addEventListener("htmx:configRequest", (event) => {
 // the second of.
 document.addEventListener("htmx:beforeRequest", (event) => {
   const detail = /** @type {CustomEvent<{ elt?: Element }>} */ (event).detail;
-  if (!(detail?.elt instanceof HTMLFormElement) || detail.elt.id !== "spec-build-form") return;
+  if (!(detail?.elt instanceof HTMLFormElement) || detail.elt.id !== PROMPT_FORM_ID) return;
   const output = document.getElementById(WINDOW_REGION_ID);
   const standing = output?.querySelector(BUILD_SUBSCRIBER_SELECTOR);
   if (standing instanceof HTMLElement) {
@@ -472,14 +529,63 @@ document.addEventListener("htmx:beforeRequest", (event) => {
     // this build's restoration identity off it, which the incoming run will re-resolve at
     // its own terminal. Placing the parked collection here would start a records read for
     // a surface the arriving subscriber covers again in the same frame.
-    if (standing.querySelector(BUILD_ENDING_SELECTOR) === null) {
+    if (runIsUsingTheWindow()) {
       event.preventDefault();
+      tellThePromptBar(BUILD_IN_FLIGHT_REFUSAL, true, true);
       return;
     }
     dropHeldRun(standing);
   }
-  document.getElementById("prompt-notice")?.replaceChildren();
+  tellThePromptBar("");
 });
+
+/**
+ * What the desk does, and what the bar has to say about it. A desk action is a request made
+ * from the ground rather than from inside the window: a capability's logo, and the controls
+ * 5.9 hangs on one. One that would take the window while a run is using it is refused
+ * before it can, and the run stays mounted — a desk action may never become a second way
+ * to cancel a build (PLAN decision 20). One that goes ahead answers whatever the bar was
+ * still saying.
+ *
+ * Opening a capability is exempt from the refusal only: it is a navigation, and what it
+ * owes the run it walks away from is a warning (5.8/04). `matches` rather than `closest`,
+ * so a control *hung on* a logo — 5.9's menu and rename editor — is furniture like any
+ * other. The prompt bar has its own guard above, with its own sentence.
+ */
+document.addEventListener("htmx:beforeRequest", (event) => {
+  const detail = /** @type {CustomEvent<{ elt?: unknown, target?: unknown }>} */ (event).detail;
+  const asking = detail?.elt;
+  if (!(asking instanceof Element) || asking.id === PROMPT_FORM_ID) return;
+  if (asking.closest(`#${WINDOW_REGION_ID}`) !== null) return;
+  // Where this would land is htmx's own answer, already resolved and handed over on this
+  // event. Borrowed rather than reimplemented, for the reason `public/swap-target.js`
+  // gives: a second reading of `hx-target` has to re-derive inheritance, `this`, the
+  // extended selectors and `hx-disinherit`, and every drift is either a refusal of a
+  // healthy request or silence on the one this exists to catch.
+  const takingTheWindow =
+    detail?.target instanceof Element && detail.target.id === WINDOW_REGION_ID;
+  const openingACapability = asking.matches(CAPABILITY_LOGO_SELECTOR);
+  if (!takingTheWindow && !openingACapability) return;
+  if (takingTheWindow && !openingACapability && runIsUsingTheWindow()) {
+    event.preventDefault();
+    tellThePromptBar(DESK_ACTION_REFUSAL, true, true);
+    return;
+  }
+  tellThePromptBar("");
+});
+
+/**
+ * Whether a run is using the window, rather than only standing in it. A run that has
+ * stopped and is waiting to be read is not — the same line the one-subscriber guard
+ * draws, so the two guards can never disagree about what "in use" means.
+ * @returns {boolean}
+ */
+function runIsUsingTheWindow() {
+  const standing = document
+    .getElementById(WINDOW_REGION_ID)
+    ?.querySelector(BUILD_SUBSCRIBER_SELECTOR);
+  return standing instanceof HTMLElement && standing.querySelector(BUILD_ENDING_SELECTOR) === null;
+}
 
 /**
  * A new build starts from an empty panel — and only a build that was actually
@@ -504,13 +610,34 @@ document.addEventListener("htmx:afterSwap", (event) => {
   document.dispatchEvent(new CustomEvent(STAGES_CLEARED_EVENT));
 });
 
+/**
+ * The sentence out of a structured refusal, read from the marked element the router wrote
+ * it in (`src/router/failure-responses.ts`). Parsed into an inert template, so nothing in
+ * it runs or loads.
+ * @param {string} html
+ * @returns {string}
+ */
+function refusalSentence(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  return template.content.querySelector("[data-error-code]")?.textContent?.trim() ?? "";
+}
+
 // HTMX keeps error responses out of the DOM by default. Structured form refusals are
 // the exception: the router retargets them to the active create/edit/delete aria-live error
 // region, while leaving the response unsuccessful so typed values and the standing
 // confirmation survive.
+//
+// Where the refusal lands is one ownership rule and not a table of codes: it renders on
+// the surface it arrived from (PLAN decision 26). A window action's refusal renders in
+// the window, which is where the router already aimed it. Anything that asked from
+// outside the window — the desk, the prompt bar — hears it on the prompt bar instead,
+// and whatever the window was holding stays exactly as it was.
 document.addEventListener("htmx:beforeSwap", (event) => {
-  const detail = /** @type {CustomEvent<{ xhr: XMLHttpRequest, shouldSwap: boolean }>} */ (event)
-    .detail;
+  const detail =
+    /** @type {CustomEvent<{ xhr: XMLHttpRequest, shouldSwap: boolean, requestConfig?: { elt?: unknown } }>} */ (
+      event
+    ).detail;
   const response = detail?.xhr?.responseText;
   // 409 is the read-gate refusal while a deletion drains: the capability is briefly
   // unreadable, not broken. It has to be listed here or htmx drops it and the click
@@ -524,6 +651,22 @@ document.addEventListener("htmx:beforeSwap", (event) => {
     "mutation_failed",
   ].some((code) => response.includes(`data-error-code="${code}"`));
   if (!isStructuredFormRefusal) return;
+
+  // Which surface asked. `detail.elt` is the swap *target* here — htmx dispatches this
+  // event on it — but the request's own configuration is on the same detail and names the
+  // element that made it, so nothing has to be remembered from an earlier event.
+  const asking = detail.requestConfig?.elt;
+  if (asking instanceof Element && asking.closest(`#${WINDOW_REGION_ID}`) === null) {
+    // A refusal whose sentence could not be read is still shown where it was aimed.
+    // Moving it to a slot and finding nothing to put there answers the person with
+    // silence, which is the one thing this rule exists to stop.
+    const sentence = refusalSentence(response);
+    if (sentence) {
+      detail.shouldSwap = false;
+      tellThePromptBar(sentence, true);
+      return;
+    }
+  }
 
   detail.shouldSwap = true;
 });
@@ -757,9 +900,11 @@ function rescueHeldEnding(eventTarget) {
   const ending = eventTarget.matches?.(BUILD_SUBSCRIBER_SELECTOR)
     ? eventTarget.querySelector(BUILD_ENDING_SELECTOR)
     : null;
-  const notice = document.getElementById("prompt-notice");
-  if (!(ending instanceof HTMLElement) || !(notice instanceof HTMLElement)) return;
-  notice.textContent = ending.textContent;
+  if (!(ending instanceof HTMLElement)) return;
+  // Carried as the ending it already was, not turned into a refusal on the way. It had
+  // its moment in the window's own live region; this is only the line surviving the
+  // window, so it arrives without the cue a fresh refusal comes with.
+  tellThePromptBar(ending.textContent ?? "");
 }
 
 /**
@@ -778,6 +923,13 @@ function finishTerminalPresentation(eventTarget) {
     // request — the observer sweep behind it cannot.
     releaseRegionContent(subscriber);
     subscriber.remove();
+    // The run took the window over and then turned out not to need it, so it gives back
+    // the name it displaced: a prompt that built nothing may not leave the window called
+    // `Thinking…` over a collection that has been standing there the whole time. And when
+    // there was nothing to keep — a bare desk asking for something it already has — the
+    // window is left holding nothing, and a window holding nothing does not exist.
+    nameTheWindow(null);
+    putAwayEmptyWindow(output);
     return false;
   }
 

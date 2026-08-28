@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { ZodType } from "zod";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
@@ -273,7 +275,9 @@ describe("blank-prompt refusal", () => {
       // so a 422 here would make a blank submit look like nothing happened at all.
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toContain("text/html");
-      expect(body).toBe(renderPromptNotice(BLANK_PROMPT_NOTICE));
+      // A refusal, so it carries the marker the prompt bar flashes on (PLAN decision 24).
+      expect(body).toBe(renderPromptNotice(BLANK_PROMPT_NOTICE, "refusal"));
+      expect(body).toContain("<span data-prompt-refusal>");
       // The signed-off line itself, pinned as a literal: comparing the body to the
       // renderer alone would compare the implementation to itself and let a silent
       // copy edit ship green past the sign-off gate.
@@ -299,19 +303,24 @@ describe("blank-prompt refusal", () => {
     });
   }
 
-  test("the shell's own `required` guard is still in front of the server's", async () => {
-    // Defence in depth, in that order: the browser refuses a truly empty field, and the
-    // server refuses what HTML5 lets through (whitespace) plus every non-browser POST.
-    // Pinned so removing `required` from `#spec-build-prompt` cannot pass silently.
+  test("the bar's own guard is in front of the server's, and says the same thing", async () => {
+    // Defence in depth, and one answer: the bar refuses a blank submission before it can
+    // become a request — an empty field and one holding only spaces alike, because the
+    // browser's own `required` could tell those apart and would answer only the first,
+    // in its own voice, after a window had already been stood up for it. The server
+    // refuses every submission that did not come from that bar.
     const html = await responseText(
       await createApp({ capabilityRouter: { databases: conns } }).request("/"),
     );
     const fieldStart = html.lastIndexOf("<input", html.indexOf('id="spec-build-prompt"'));
     const field = html.slice(fieldStart, html.indexOf(">", fieldStart) + 1);
+    const bar = readFileSync(resolve("public/prompt-bar.js"), "utf8");
 
     expect(field).toContain('id="spec-build-prompt"');
     expect(field).toContain('name="prompt"');
-    expect(field).toContain("required");
+    expect(field).not.toContain("required");
+    expect(bar).toContain(`const BLANK_PROMPT_NOTICE = "${BLANK_PROMPT_NOTICE}";`);
+    expect(bar).toContain("/[\\p{White_Space}\\p{Default_Ignorable_Code_Point}\\p{Cc}]/gu");
   });
 
   test("a typed prompt still enters the build-job lifecycle unchanged", async () => {
