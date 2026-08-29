@@ -134,7 +134,7 @@ describe("the record view — deletion lives in the form's action row", () => {
       `<p id="${confirmationId}">Delete this record? You won’t be able to bring it back.</p>`,
     );
     expect(view).toContain(
-      `<button class="btn btn--ghost" type="button" data-record-cancel-delete` +
+      `<button class="btn btn--outline" type="button" data-record-cancel-delete` +
         ` aria-describedby="${confirmationId}">Cancel</button>`,
     );
     expect(view).toContain(

@@ -59,7 +59,7 @@ describe("create form — platform wiring + close-on-success", () => {
     // be kept away from them on the right (design/index.html, "The record form").
     expect(form).toContain('aria-label="Add to Tasks"');
     const cancel =
-      `<button class="btn btn--ghost" type="button" data-create-cancel` +
+      `<button class="btn btn--outline" type="button" data-create-cancel` +
       ` @click="$el.ownerDocument.defaultView.HTMLFormElement.prototype.reset.call($el.form);` +
       ` $el.ownerDocument.getElementById('${capabilityCreateErrorId("tasks")}').replaceChildren();` +
       ` $dispatch('${CREATE_CANCELLED_EVENT}')">Cancel</button>`;

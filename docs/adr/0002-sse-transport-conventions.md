@@ -294,6 +294,35 @@ a deletion — first takes the run's own window, which drops the ending with it.
 window is the only place the ending lives, so a teardown that is not a dismissal
 carries the line to `#prompt-notice` on its way out rather than losing it.
 
+## Update (2026-08-28 — a deletion that did not happen says so in the window too)
+
+The update above lists "each of capability deletion's four outcomes" among
+`#prompt-notice`'s remaining callers. Two of them have since moved (5.9/02).
+
+**The confirmation fills the window, so its answer belongs there.** A deletion
+refused before the tombstone commits — busy, stale, blocked on reverse
+dependencies, or `deletion_drain_timeout` — and one that fails before commit now
+replace the question in the window with an authored sentence and hold there until
+the person dismisses it, the way a held build ending does — with one difference
+that matters: a build ending parks already-resolved HTML on the client, while a
+deletion ending carries only evidence and resolves at the press. The press is what
+runs the restoration, and it is the same data-free route **Keep it** takes
+(`/capability-deletion-restoration`, evidence only), re-resolved against the
+then-current registry rather than rendered when the ending was written. Nothing is
+placed and no address moves until the press, so a held deletion ending carries no
+`HX-Replace-Url`; the restoration route answers for the address itself.
+
+**Two outcomes stay on the prompt bar, because neither leaves anything in the
+window to hold.** A committed deletion removes the logo out of band and gives back
+the displaced capability or nothing at all — there is no terminal state for the
+deleted capability — and a capability that turns out to be already gone answers the
+same way, because a deletion may never close a capability it was not about. Their sentences ride `#prompt-notice`, which keeps the
+blank-prompt refusal and the warm deflections as before.
+
+A window torn down over an unread deletion ending carries its sentence to
+`#prompt-notice` on the way out, for the reason the build ending already does:
+the window is the only place it lives.
+
 ## Historical update (Epic 1.5 — predates Module 2 finalization)
 
 This paragraph records the state at the end of Module 1. Its open-question

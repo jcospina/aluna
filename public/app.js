@@ -275,11 +275,12 @@ function regionHoldsNothing(region) {
  *
  * Stated as that invariant rather than as a list of the flows that reach it, because
  * the list is longer than it looks and every entry wants the same answer. Every one
- * of them is a deletion whose restoration is neutral — nothing to go back to:
- * a capability deleted, one that turned out to be already gone, a deletion refused,
- * one that failed before commit, and **Keep it** pressed with nothing behind it. In
- * all five the window is left empty and the prompt bar carries the explanation, and
- * an empty drawn frame on the desk says less than no frame at all.
+ * of them is a deletion whose restoration is neutral — nothing to go back to: a
+ * capability deleted, one that turned out to be already gone, and the press that gives
+ * the window back with nothing behind it, whether that is **Keep it** on the question
+ * or **Continue** on the ending a refusal, a timeout or a pre-commit failure left
+ * standing. In all of them the window is left empty, and an empty drawn frame on the
+ * desk says less than no frame at all.
  *
  * A rule keyed on emptiness has one hazard: a swap that empties the region and then
  * refills it. That is why this is asked at settle — htmx's own "I am finished with

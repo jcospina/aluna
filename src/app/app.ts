@@ -16,13 +16,13 @@ import { streamSSE } from "hono/streaming";
 import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
 import { renderFewShotGalleryPreviewPage } from "../builder/units/few-shot-gallery-preview.ts";
 import {
+  alreadyGoneResponse,
   type CapabilityDestructionFaults,
   createDeletionCleanupSupervisor,
   createProductionCapabilityDeletionAdapters,
   type DeletionCleanupSupervisor,
   handleCapabilityDeletionConfirmation,
   type OwnedResourceCleanupAdapter,
-  renderCapabilityDeletionAlreadyGone,
   renderCapabilityDeletionConfirmation,
   resolveCapabilityDeletionRestoration,
 } from "../capability-deletion/index.ts";
@@ -448,14 +448,6 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
 
   app.get("/capability-deletion/:id", (c) => {
     const capabilityId = c.req.param("id");
-    const target = getCapability(capabilityId, ctx.registryReadonly);
-    if (!target) {
-      return c.html(renderCapabilityDeletionAlreadyGone(capabilityId), 200, {
-        "cache-control": "no-store",
-        "HX-Replace-Url": "/",
-      });
-    }
-    const dependents = listCapabilityDependents(target, ctx.registryReadonly);
     const query = new URL(c.req.url).searchParams;
     const restoration = resolveCapabilityDeletionRestoration(
       query.getAll("restore_capability_id"),
@@ -463,6 +455,13 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
       ctx.registryReadonly,
       query.getAll("restore_surface"),
     );
+    const target = getCapability(capabilityId, ctx.registryReadonly);
+    // Even a target that has gone in the meantime owes back the capability the doorway
+    // displaced; a deletion may never close a capability it was not about.
+    if (!target) {
+      return alreadyGoneResponse(c, capabilityId, restoration, ctx.registryReadonly);
+    }
+    const dependents = listCapabilityDependents(target, ctx.registryReadonly);
     return c.html(
       renderCapabilityDeletionConfirmation(
         target,

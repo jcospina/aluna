@@ -56,8 +56,11 @@ payload. Content-free generation metrics remain as experiment data. The doorway 
 the logo's context menu; the confirmation fills the window in authored product
 voice; on commit the logo vanishes and the window puts itself away unless the
 confirmation displaced a different open capability, whose canonical collection
-then returns. Delete is the
-one name for this act, in UI copy and in every document (M5 plan 19, 20).
+then returns. A deletion turned down before the commit — busy, stale, blocked on
+reverse dependencies, out of drain time, or failed — answers with an **ending** in
+the same window and waits there; the press gives back what the question displaced,
+by the one route **Keep it** already took. Delete is the one name for this act, in
+UI copy and in every document (M5 plan 19, 20).
 _Avoid_: retire, archive, remove, hide, deactivate
 
 **Desk**:
@@ -117,7 +120,7 @@ Back/Forward while a build or evolution is mounted; confirmation uses the one
 cancel teardown and then completes the requested navigation.
 _Avoid_: minimise, hide, exit; "close" names the gesture, "put away" is what it
 does. **Dismiss** is not a synonym for it either — it is the word for ending a
-run's held ending and getting the collection back (see **Ending**), which leaves
+held ending and getting back whatever it covered (see **Ending**), which leaves
 the window standing
 
 **Logo**:
@@ -376,18 +379,21 @@ ADR-0002).
 _Avoid_: renderer, view layer, the SSE handler
 
 **Ending**:
-The last line of a run's narration, and the only thing a build that did not
-succeed leaves on screen. A failure, a stale refusal and a measured no-op each
-have their own authored sentence; the log is already the live region and is
-already where the person is looking, so the desk has no notice surface of its own
-for them (PLAN decision 23). An ending holds the window — the collection the run
-displaced stays covered — until the person **dismisses** it. Dismissing an ending
-is not putting the window away: it ends a wait and gives the collection back,
+What a thing that took the window leaves on screen when it did not do what it set
+out to do. A build has one — the last line of its narration, with its own authored
+sentence for a failure, a stale refusal and a measured no-op; the log is already
+the live region and is already where the person is looking, so the desk has no
+notice surface of its own for them (PLAN decision 23). A deletion has one too, and
+it is a panel rather than a line, because the question it answers was a panel: one
+authored sentence in place of the question, for every way a deletion is turned
+down before the commit. An ending holds the window — whatever it displaced stays
+covered — until the person **dismisses** it. Dismissing an ending
+is not putting the window away: it ends a wait and gives back what was covered,
 where putting away takes the whole window off the desk. A window torn down while
 an ending is still standing carries the line to the prompt bar's notice on its way
 out, because the window is the only place it lives.
-_Avoid_: error, toast, notice, banner, alert; the message is a line of the
-narration and not a component
+_Avoid_: error, toast, notice, banner, alert; the message stands where the thing
+that took the window was, and is not a component of the desk
 
 **Stale refusal**:
 What happens when a resolved build request's target expectation, expected-absence,

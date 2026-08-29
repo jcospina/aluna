@@ -564,6 +564,11 @@ describe("the strings the desk restates", () => {
       expect(source).toContain('const PROMPT_FIELD_ID = "spec-build-prompt";');
       expect(source).toContain('const PROMPT_NOTICE_ID = "prompt-notice";');
     }
+    // The deletion module hands the keyboard back to the same field every way out of a
+    // deletion, so it restates that id too.
+    expect(readFileSync(resolve("public/capability-deletion.js"), "utf8")).toContain(
+      'const PROMPT_FIELD_ID = "spec-build-prompt";',
+    );
     expect(deskWindow).toContain('export const PROMPT_FORM_ID = "spec-build-form";');
   });
 

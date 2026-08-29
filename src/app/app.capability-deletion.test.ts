@@ -107,6 +107,12 @@ describe("platform-owned capability deletion routes", () => {
       capabilityRouter: { databases: conns, loadHandler: loader.loadHandler },
     });
 
+    // The route a held ending's dismissal presses is on the zero-AI path too: it is the
+    // same one **Keep it** takes, and it must not wake a resolver either.
+    expect(
+      (await app.request("/capability-deletion-restoration?restore_surface=neutral")).status,
+    ).toBe(200);
+
     // Deletion's doorway is the logo's own context menu and nowhere else (5.9/01). It
     // ships hidden with the logo, so nothing on the standing desk is a destructive
     // control, and there is exactly one of them per capability.
@@ -132,9 +138,14 @@ describe("platform-owned capability deletion routes", () => {
     );
     expect(confirmation.status).toBe(200);
     const confirmationHtml = await confirmation.text();
+    // The refusal fills the window that asked the question and names what depends on the
+    // capability. It holds there: nothing is restored and the address has not moved,
+    // because the restoration runs on the dismissal and answers for the address itself.
     expect(confirmationHtml).toContain("I can’t delete Notes while Reading list uses it");
+    expect(confirmationHtml).toContain("data-capability-deletion-ending");
     expect(confirmationHtml).not.toContain("data-active-capability-id");
-    expect(confirmation.headers.get("HX-Replace-Url")).toBe("/");
+    expect(confirmationHtml).not.toContain("prompt-notice");
+    expect(confirmation.headers.get("HX-Replace-Url")).toBe(null);
 
     conns.readwrite.run("UPDATE capability_registry SET read_dependencies = ? WHERE id = ?", [
       JSON.stringify({ create: [], read: [], update: [], delete: [], search: [] }),
@@ -167,7 +178,7 @@ describe("platform-owned capability deletion routes", () => {
       )
     ).text();
     expect(fromOther).toContain(
-      'class="btn btn--neutral capability-deletion__keep" type="button" hx-get="/capability-deletion-restoration?',
+      'class="btn btn--outline capability-deletion__keep" type="button" data-capability-deletion-exit hx-get="/capability-deletion-restoration?',
     );
     expect(fromOther).toContain("restore_capability_id=boom");
     expect(fromOther).toContain(`restore_incarnation_id=${other.incarnation_id}`);
@@ -269,8 +280,10 @@ describe("platform-owned capability deletion routes", () => {
       confirmationRequest(target.incarnation_id),
     );
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("I’m making another change right now");
-    expect(response.headers.get("HX-Replace-Url")).toBe("/");
+    const busyHtml = await response.text();
+    expect(busyHtml).toContain("I’m making another change right now");
+    expect(busyHtml).toContain("data-capability-deletion-ending");
+    expect(response.headers.get("HX-Replace-Url")).toBe(null);
     expect(mutationCoordinator.snapshot()).toEqual(before);
     expect(mutationCoordinator.cancelBuild(reservation)).toBe(true);
   });
@@ -406,6 +419,39 @@ describe("platform-owned capability deletion routes", () => {
     expect((await app.request("/capability/boom")).status).toBe(200);
   });
 
+  test("a target that is already gone still gives back the capability it displaced", async () => {
+    const other = boomRow();
+    install(conns, other);
+    const app = createApp({
+      artifactsRoot: join(dir, "artifacts"),
+      capabilityRouter: { databases: conns },
+    });
+
+    // Nothing named `notes` was ever installed, so this is the concurrent-vanish case.
+    const confirmed = await app.request(
+      "/capability-deletion/notes/confirm",
+      confirmationWithRestoration("whatever", other),
+    );
+    const html = await confirmed.text();
+
+    // A deletion may never close a capability it was not about.
+    expect(html).toContain('data-active-capability-id="boom"');
+    expect(html).toContain("That’s already gone, so I didn’t delete anything.");
+    expect(confirmed.headers.get("HX-Replace-Url")).toBe("/capability/boom");
+
+    // And the doorway's own GET answers the same way.
+    const preflight = await app.request(
+      `/capability-deletion/notes?restore_surface=capability&restore_capability_id=${other.id}&restore_incarnation_id=${other.incarnation_id}`,
+    );
+    expect(await preflight.text()).toContain('data-active-capability-id="boom"');
+    expect(preflight.headers.get("HX-Replace-Url")).toBe("/capability/boom");
+
+    // With nothing behind it, the region is left empty for the window to put itself away.
+    const bare = await app.request("/capability-deletion/notes?restore_surface=neutral");
+    expect(await bare.text()).not.toContain("data-active-capability-id");
+    expect(bare.headers.get("HX-Replace-Url")).toBe("/");
+  });
+
   test("a drain timeout speaks for itself and restores the exact canonical View", async () => {
     const target = deletionTarget(dir);
     install(conns, target);
@@ -424,12 +470,20 @@ describe("platform-owned capability deletion routes", () => {
       confirmationWithRestoration(target.incarnation_id, target),
     );
     const html = await response.text();
-    expect(html).toContain('data-active-capability-id="notes"');
     // Its own sentence, not the generic pre-commit failure: the user is told that active
     // work did not finish, which is the one refusal here that invites trying again.
     expect(html).toContain("Something in Notes was still finishing, so I didn’t delete it.");
     expect(html).not.toContain("I couldn’t delete Notes");
-    expect(response.headers.get("HX-Replace-Url")).toBe("/capability/notes");
+    // It reports in the window and waits there. What it gives back is carried as evidence
+    // rather than as a rendered surface, so the dismissal resolves it against the registry
+    // as it is *then* — the same route **Keep it** presses.
+    expect(html).toContain("data-capability-deletion-ending");
+    expect(html).not.toContain('data-active-capability-id="notes"');
+    expect(html).toContain(
+      "/capability-deletion-restoration?restore_surface=capability&amp;restore_capability_id=notes",
+    );
+    expect(response.headers.get("HX-Replace-Url")).toBe(null);
+    // The drain gave up, so nothing was destroyed and the gate is open to readers again.
     expect(readGates.snapshot()[0]).toMatchObject({ state: "active", readerCount: 1 });
     if (!tokens) throw new Error("the held read token was not acquired");
     expect(readGates.release(tokens)).toBe(true);
@@ -439,9 +493,11 @@ describe("platform-owned capability deletion routes", () => {
   test("a pre-commit manifest failure preserves an authoritative neutral surface", async () => {
     const target = deletionTarget(dir);
     install(conns, target);
+    const readGates = createReadGateCoordinator();
     const app = createApp({
       artifactsRoot: join(dir, "artifacts"),
-      capabilityRouter: { databases: conns },
+      readGates,
+      capabilityRouter: { databases: conns, readGates },
       capabilityDestructionFaults: {
         afterManifestCollected: () => {
           throw new Error("manifest unavailable");
@@ -456,8 +512,14 @@ describe("platform-owned capability deletion routes", () => {
     const html = await response.text();
     expect(html).not.toContain("data-active-capability-id");
     expect(html).toContain("I couldn’t delete Notes");
-    expect(response.headers.get("HX-Replace-Url")).toBe("/");
+    expect(html).toContain("data-capability-deletion-ending");
+    expect(response.headers.get("HX-Replace-Url")).toBe(null);
     expect(getCapabilityForTest(conns, target.id)).toBe(true);
+    // Reads are open again: the failure was before the point of no return, so the
+    // committed ground and View are still authoritative. Asserted on the gate itself —
+    // `every` over an empty snapshot is vacuously true and would prove nothing.
+    expect(readGates.snapshot()).toHaveLength(1);
+    expect(readGates.snapshot()[0]).toMatchObject({ state: "active" });
   });
 });
 

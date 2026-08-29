@@ -20,7 +20,7 @@ export function dependentCapabilityNames(dependents: readonly CapabilityRow[]): 
 /**
  * The advisory preflight's dependency warning. It is deliberately *not* the refusal:
  * the authoritative answer comes from the lease-held revalidation on Confirm, and that
- * one speaks through {@link renderCapabilityDeletionRefusalRestoration}.
+ * one speaks through {@link renderCapabilityDeletionRefusal}.
  */
 function renderDependencyNotice(targetLabel: string, dependents: readonly CapabilityRow[]): string {
   if (dependents.length === 0) return "";
@@ -55,8 +55,23 @@ function renderDeletionPanel(
  */
 function renderBackAction(restoration: CapabilityDeletionRestorationEvidence): string {
   const url = capabilityDeletionRestorationUrl(restoration);
-  return `<button class="btn btn--neutral capability-deletion__keep" type="button" hx-get="${escapeHtml(url)}" hx-target="#spec-build-output" hx-swap="innerHTML">Keep it</button>`;
+  return `<button class="btn btn--outline capability-deletion__keep" type="button" ${DELETION_EXIT_ATTRIBUTE} hx-get="${escapeHtml(url)}" hx-target="#spec-build-output" hx-swap="innerHTML">Keep it</button>`;
 }
+
+/**
+ * The one mark on every way out of a deletion — **Keep it**, **Continue**, and the commit
+ * itself. Each press destroys the control behind it, and two of them destroy the menu item
+ * it hung on, so the shell reads this to hand the keyboard back to the desk rather than
+ * dropping it on `<body>` (`public/capability-deletion.js`).
+ */
+export const DELETION_EXIT_ATTRIBUTE = "data-capability-deletion-exit";
+
+/**
+ * The ending's own two marks: the panel that holds the window, and the sentence inside it
+ * that the shell carries to the prompt bar if the window goes before it is read.
+ */
+export const DELETION_ENDING_ATTRIBUTE = "data-capability-deletion-ending";
+export const DELETION_SENTENCE_ATTRIBUTE = "data-capability-deletion-sentence";
 
 function capabilityDeletionRestorationUrl(
   restoration: CapabilityDeletionRestorationEvidence,
@@ -109,7 +124,7 @@ export function renderCapabilityDeletionConfirmation(
     // A permanent deletion takes real work — drain the readers, cross the commit, clear
     // what it owns. Say so while it runs, the way the prompt bar says "Making it": the
     // control names the act in progress and stops being pressable until it lands.
-    `  <button class="btn btn--danger" type="submit">`,
+    `  <button class="btn btn--danger" type="submit" ${DELETION_EXIT_ATTRIBUTE}>`,
     `    <span class="capability-deletion__label" data-deletion-idle-label>Delete permanently</span>`,
     `    <span class="capability-deletion__label" data-deletion-busy-label>Erasing…</span>`,
     `  </button>`,
@@ -152,17 +167,50 @@ export function renderCapabilityDeletionCommitted(
   return joinRestorationWithNotice(restoredSurface, outOfBandUpdates.join(""));
 }
 
+/**
+ * A deletion that did not happen, said in the window that asked for it.
+ *
+ * The confirmation filled the window, so its answer belongs in the same place rather
+ * than on the prompt bar behind it (PLAN decision 20): the sentence replaces the
+ * question and the window holds until the person says they have read it. Only then does
+ * the restoration run — and it is the *same* restoration **Keep it** takes, re-resolved
+ * at the moment of the press against the then-current registry, so a held ending can
+ * never give back a capability that has gone in the meantime.
+ *
+ * **One sentence and one control, with no heading over them**, the way a run's ending is
+ * one line and its control (`renderBuildEnding`). A heading here could only say again
+ * what the sentence says — and the stale refusal would have had it assert the capability
+ * is unchanged in the same breath as the sentence saying it changed. The sentence is what
+ * the window is for, so the sentence is what takes the keyboard: it is read out on
+ * arrival rather than a title invented to sit above it.
+ *
+ * **Continue**, the way a held build ending names its control: this is the person saying
+ * they have read it, and every control in the product names the act from their side.
+ */
+function renderCapabilityDeletionEnding(
+  sentence: string,
+  restoration: CapabilityDeletionRestorationEvidence,
+): string {
+  const url = capabilityDeletionRestorationUrl(restoration);
+  return [
+    `<section class="capability-deletion capability-deletion--ending" aria-labelledby="${DELETION_ENDING_ELEMENT_ID}" ${DELETION_ENDING_ATTRIBUTE}>`,
+    `  <p class="capability-deletion__ending" id="${DELETION_ENDING_ELEMENT_ID}" tabindex="-1" data-capability-deletion-focus ${DELETION_SENTENCE_ATTRIBUTE}>${escapeHtml(sentence)}</p>`,
+    `  <div class="capability-deletion__actions"><button class="btn btn--outline" type="button" ${DELETION_EXIT_ATTRIBUTE} hx-get="${escapeHtml(url)}" hx-target="#spec-build-output" hx-swap="innerHTML">Continue</button></div>`,
+    `</section>`,
+  ].join("\n");
+}
+
+/** The sentence is the ending's own accessible name, so it is addressable. */
+const DELETION_ENDING_ELEMENT_ID = "capability-deletion-ending";
+
 export function renderCapabilityDeletionPreCommitFailure(
   target: Pick<CapabilityRow, "id" | "label" | "display_label_override">,
-  restoredSurface: string,
+  restoration: CapabilityDeletionRestorationEvidence,
 ): string {
   const label = canonicalCapabilityLabel(target);
-  return joinRestorationWithNotice(
-    restoredSurface,
-    renderPromptNotice(
-      `I couldn’t delete ${label}. Everything you had there is still safe.`,
-      "refusal",
-    ),
+  return renderCapabilityDeletionEnding(
+    `I couldn’t delete ${label}. Everything you had there is still safe.`,
+    restoration,
   );
 }
 
@@ -179,36 +227,53 @@ export type CapabilityDeletionRefusal =
   | { readonly kind: "drain_timeout" }
   | { readonly kind: "stale" };
 
-export function renderCapabilityDeletionRefusalRestoration(
-  target: CapabilityRow,
-  restoredSurface: string,
+/** The four authored sentences, one per way a deletion is turned down. */
+function capabilityDeletionRefusalSentence(
+  target: Pick<CapabilityRow, "id" | "label" | "display_label_override">,
   refusal: CapabilityDeletionRefusal,
 ): string {
   const label = canonicalCapabilityLabel(target);
-  const notice = (() => {
-    if (refusal.kind === "busy") {
-      return `I’m making another change right now, so I didn’t delete ${label}. Try again when I’m finished.`;
-    }
-    if (refusal.kind === "drain_timeout") {
-      return `Something in ${label} was still finishing, so I didn’t delete it. Everything you had there is still safe — try again in a moment.`;
-    }
-    if (refusal.kind === "stale") {
-      return `${label} changed after you opened this page, so I didn’t delete it.`;
-    }
-    const names = dependentCapabilityNames(refusal.dependents);
-    return `I can’t delete ${label} while ${names} ${refusal.dependents.length === 1 ? "uses" : "use"} it.`;
-  })();
-  return joinRestorationWithNotice(restoredSurface, renderPromptNotice(notice, "refusal"));
+  if (refusal.kind === "busy") {
+    return `I’m making another change right now, so I didn’t delete ${label}. Try again when I’m finished.`;
+  }
+  if (refusal.kind === "drain_timeout") {
+    return `Something in ${label} was still finishing, so I didn’t delete it. Everything you had there is still safe — try again in a moment.`;
+  }
+  if (refusal.kind === "stale") {
+    return `${label} changed after you opened this page, so I didn’t delete it.`;
+  }
+  const names = dependentCapabilityNames(refusal.dependents);
+  return `I can’t delete ${label} while ${names} ${refusal.dependents.length === 1 ? "uses" : "use"} it.`;
+}
+
+export function renderCapabilityDeletionRefusal(
+  target: CapabilityRow,
+  refusal: CapabilityDeletionRefusal,
+  restoration: CapabilityDeletionRestorationEvidence,
+): string {
+  return renderCapabilityDeletionEnding(
+    capabilityDeletionRefusalSentence(target, refusal),
+    restoration,
+  );
 }
 
 /**
- * A capability that is already gone has no page of its own left to stand on, so this
- * is not a panel: it is the neutral home state plus an explanation. Anything else
+ * A capability that is already gone has no page of its own left to stand on, so this is
+ * not a panel and not an ending: there is nothing to hold and nothing to decide. It is
+ * the answer, plus whatever the question displaced — an unrelated capability that was
+ * open goes back where it was, because a deletion may never close a capability it was
+ * not about, and with nothing behind it the window puts itself away. Anything else
  * strands the user on a dead capability URL that 404s the moment they reload.
  */
-export function renderCapabilityDeletionAlreadyGone(capabilityId: string): string {
-  return [
-    renderLogoRemoval(capabilityId),
-    renderPromptNotice("That’s already gone, so I didn’t delete anything."),
-  ].join("");
+export function renderCapabilityDeletionAlreadyGone(
+  capabilityId: string,
+  restoredSurface = "",
+): string {
+  return joinRestorationWithNotice(
+    restoredSurface,
+    [
+      renderLogoRemoval(capabilityId),
+      renderPromptNotice("That’s already gone, so I didn’t delete anything."),
+    ].join(""),
+  );
 }

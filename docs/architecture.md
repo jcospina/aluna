@@ -327,6 +327,20 @@ Deletion drain expiry is the distinct typed outcome `deletion_drain_timeout`, so
 the window can explain timed-out active work instead of reusing a generic
 pre-commit failure sentence.
 
+Every deletion turned down before the tombstone commits — busy, stale, blocked on
+reverse dependencies, drain expiry, and pre-commit failure — replaces the
+confirmation in the window with its own authored sentence and holds there until
+the person dismisses it, the way a held build ending does. Reads are open to that
+incarnation by the time any of them is said: `busy` and `stale` never closed a
+gate, and drain expiry and pre-commit failure reopened the one they closed. The
+press runs the same data-free restoration route **Keep it** takes, re-resolved
+against the then-current registry, so backing out and dismissing an ending are one
+path — though what is carried across is evidence rather than a build ending's
+already-resolved HTML. A commit and an already-gone answer leave
+nothing in the window to hold and keep the prompt bar; there is no terminal state
+for the deleted capability. A window torn down over an unread deletion ending
+carries its sentence to the prompt bar on the way out.
+
 **Platform presentation** — what fills the window. It is a platform component in
 its own right (§1), not a fourth part of the desk: the reusable, data-free
 mechanics every capability shares — list scaffolding, empty state, the item
@@ -1158,7 +1172,8 @@ completes.
 Deletion runs in the window like everything else. The doorway is the logo's context
 menu and never the window chrome, and the confirmation fills the window in authored
 product voice. Before tombstone commit the committed ground and View stay
-authoritative, and pre-commit failure restores them. At commit the logo vanishes;
+authoritative; refusal, timeout and pre-commit failure leave them so and give them
+back on the dismissal rather than at once. At commit the logo vanishes;
 the window puts itself away when the deleted capability was previously open or the
 desk was bare, and otherwise restores the unrelated capability the confirmation
 displaced. There is no terminal state for the deleted capability. A link to a

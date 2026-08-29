@@ -76,10 +76,10 @@ import {
 } from "./desk-window-store.js";
 import {
   askBeforeLeaving,
-  buildJobIdIn,
   buildRunIn,
   endRunIn,
   leavingIsBeingAsked,
+  runIsUsingWindow,
   startLeavingGuard,
 } from "./leaving-a-run.js";
 import { RELEASE_REGION_EVENT } from "./region-scope.js";
@@ -1307,7 +1307,10 @@ function answerPress(root, logo) {
  */
 function windowForDoorways(root) {
   return {
-    isNarrating: () => mounted !== null && buildJobIdIn(mounted.region) !== null,
+    /* The same question the desk's refusal asks (`runIsUsingTheWindow`, `public/app.js`),
+     * and not `buildJobIdIn`'s: a press that is about to be turned down must leave the
+     * run holding everything it holds, including the name on its window. */
+    isNarrating: () => mounted !== null && runIsUsingWindow(mounted.region),
     logoFor: (id) => {
       const found = id === "" ? null : logoFor(root, id);
       return found instanceof Element ? found : null;

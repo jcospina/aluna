@@ -1,9 +1,9 @@
 /* =============================================================================
    Permanent capability deletion
 
-   A focused inline checkpoint in the window. It deliberately avoids a second
-   modal layer: the deletion doorway starts the action, and the full loss scope stays
-   visible beside the user's ordinary context until they confirm or return.
+   The question fills the window and, when the answer is no, so does the ending that
+   replaces it. No second modal layer: the doorway on the logo starts the action, the
+   window is the one surface it uses, and what it displaced is given back on the press.
    ========================================================================== */
 
 .capability-deletion {
@@ -61,11 +61,15 @@
 .capability-deletion__actions form {
   margin: 0;
 }
-.btn.capability-deletion__keep {
-  background: transparent;
-}
-.btn.capability-deletion__keep:hover {
-  background: var(--surface);
+
+/* The ending a refused, timed-out or failed deletion leaves standing. It is one sentence
+   and one way out, and the sentence is the whole of what the window has to say — so it
+   carries the panel's own voice rather than the supporting weight the question's body
+   copy takes under its heading. */
+.capability-deletion__ending {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--ink);
 }
 
 /* In flight. HTMX marks the submitting form `htmx-request` for exactly as long as the

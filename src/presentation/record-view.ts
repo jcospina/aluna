@@ -151,7 +151,7 @@ function renderDeleteConfirmation(
     `<div id="${errorId}" class="capability-record-delete__error" aria-live="polite"></div>` +
     `</div>` +
     `<div class="capability-record-delete__actions">` +
-    `<button class="btn btn--ghost" type="button" data-record-cancel-delete` +
+    `<button class="btn btn--outline" type="button" data-record-cancel-delete` +
     ` aria-describedby="${confirmationId}">Cancel</button>` +
     `<button class="btn btn--danger" type="submit"` +
     ` aria-describedby="${confirmationId}">Delete record</button>` +

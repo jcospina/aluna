@@ -9,10 +9,11 @@ import type { DeletionCleanupSupervisor } from "./cleanup-supervisor.ts";
 import { admitCapabilityDeletion } from "./front-half.ts";
 import {
   type CapabilityDeletionRefusal,
+  type CapabilityDeletionRestorationEvidence,
   renderCapabilityDeletionAlreadyGone,
   renderCapabilityDeletionCommitted,
   renderCapabilityDeletionPreCommitFailure,
-  renderCapabilityDeletionRefusalRestoration,
+  renderCapabilityDeletionRefusal,
 } from "./presentation.ts";
 import {
   type CapabilityDestructionFaults,
@@ -67,33 +68,51 @@ async function readCapabilityDeletionConfirmation(
   deps: CapabilityDeletionHttpDeps,
 ): Promise<CapabilityDeletionConfirmationRequest | Response> {
   const capabilityId = c.req.param("id") ?? "";
-  const visibleTarget = getCapability(capabilityId, deps.registryReadonly);
-  if (!visibleTarget) return alreadyGoneResponse(c, capabilityId);
+  // The form is read before the target is looked for, because even a target that is
+  // already gone owes the window back whatever the question displaced.
   const form = await c.req.raw.formData();
+  const restoration = resolveCapabilityDeletionRestoration(
+    stringFormValues(form, "restore_capability_id"),
+    stringFormValues(form, "restore_incarnation_id"),
+    deps.registryReadonly,
+    stringFormValues(form, "restore_surface"),
+  );
+  const visibleTarget = getCapability(capabilityId, deps.registryReadonly);
+  if (!visibleTarget) {
+    return alreadyGoneResponse(c, capabilityId, restoration, deps.registryReadonly);
+  }
   const incarnationValues = form.getAll("incarnation_id");
   const incarnationId =
     incarnationValues.length === 1 && typeof incarnationValues[0] === "string"
       ? incarnationValues[0]
       : "";
-  return {
-    capabilityId,
-    incarnationId,
-    restoration: resolveCapabilityDeletionRestoration(
-      stringFormValues(form, "restore_capability_id"),
-      stringFormValues(form, "restore_incarnation_id"),
-      deps.registryReadonly,
-      stringFormValues(form, "restore_surface"),
-    ),
-    visibleTarget,
-  };
+  return { capabilityId, incarnationId, restoration, visibleTarget };
 }
 
-/** A target that is already gone lands on the neutral home state, never a dead URL. */
-function alreadyGoneResponse(c: Context, capabilityId: string): Response {
-  return c.html(renderCapabilityDeletionAlreadyGone(capabilityId), 200, {
-    "cache-control": "no-store",
-    "HX-Replace-Url": "/",
-  });
+/**
+ * A target that is already gone lands on the neutral home state, never a dead URL — and
+ * never on a *bare* desk when the confirmation displaced somebody else. The capability
+ * that was open comes back and the address goes with it; only with nothing behind it
+ * does this leave the region empty for the window to put itself away.
+ */
+export function alreadyGoneResponse(
+  c: Context,
+  capabilityId: string,
+  restoration: CapabilityDeletionRestoration,
+  database: Database,
+): Response {
+  const restored = resolveCurrentCapabilityDeletionRestoration(restoration, database);
+  return c.html(
+    renderCapabilityDeletionAlreadyGone(
+      capabilityId,
+      restored ? renderCachedCapabilitySurface(restored) : "",
+    ),
+    200,
+    {
+      "cache-control": "no-store",
+      "HX-Replace-Url": capabilityUrlForDeletionRestoration(restored),
+    },
+  );
 }
 
 function stringFormValues(
@@ -152,17 +171,12 @@ function presentCapabilityDeletionExecution(
     );
   }
   if (execution.kind === "precommit_failure") {
-    const restored = resolveCurrentCapabilityDeletionRestoration(request.restoration, database);
-    return c.html(
+    return heldCapabilityDeletionEnding(
+      c,
       renderCapabilityDeletionPreCommitFailure(
         execution.current,
-        restored ? renderCachedCapabilitySurface(restored) : "",
+        deletionRestorationEvidence(request.restoration),
       ),
-      200,
-      {
-        "cache-control": "no-store",
-        "HX-Replace-Url": capabilityUrlForDeletionRestoration(restored),
-      },
     );
   }
   return presentCapabilityDeletionAdmission(c, request, execution, database);
@@ -176,34 +190,21 @@ function presentCapabilityDeletionAdmission(
 ): Response {
   const { outcome } = execution;
   if (outcome.status === "busy") {
-    return capabilityDeletionRefusalResponse(
-      c,
-      request.visibleTarget,
-      request.restoration,
-      { kind: "busy" },
-      database,
-    );
+    return capabilityDeletionRefusalResponse(c, request.visibleTarget, request.restoration, {
+      kind: "busy",
+    });
   }
   if (outcome.status === "stale") {
     const current = getCapability(request.capabilityId, database);
     return current
-      ? capabilityDeletionRefusalResponse(
-          c,
-          current,
-          request.restoration,
-          { kind: "stale" },
-          database,
-        )
-      : alreadyGoneResponse(c, request.capabilityId);
+      ? capabilityDeletionRefusalResponse(c, current, request.restoration, { kind: "stale" })
+      : alreadyGoneResponse(c, request.capabilityId, request.restoration, database);
   }
   if (outcome.status === "blocked") {
-    return capabilityDeletionRefusalResponse(
-      c,
-      outcome.target,
-      request.restoration,
-      { kind: "blocked", dependents: outcome.dependents },
-      database,
-    );
+    return capabilityDeletionRefusalResponse(c, outcome.target, request.restoration, {
+      kind: "blocked",
+      dependents: outcome.dependents,
+    });
   }
   if (!execution.destruction) {
     throw new Error("Admitted capability deletion did not run its destruction lifecycle.");
@@ -211,13 +212,9 @@ function presentCapabilityDeletionAdmission(
   // Nothing was destroyed and the gate is open again, so this is a refusal that reads
   // like one — not the generic failure, which cannot say what the user should do next.
   if (execution.destruction.status === "deletion_drain_timeout") {
-    return capabilityDeletionRefusalResponse(
-      c,
-      outcome.target,
-      request.restoration,
-      { kind: "drain_timeout" },
-      database,
-    );
+    return capabilityDeletionRefusalResponse(c, outcome.target, request.restoration, {
+      kind: "drain_timeout",
+    });
   }
   return committedCapabilityDeletionResponse(
     c,
@@ -233,21 +230,40 @@ function capabilityDeletionRefusalResponse(
   target: CapabilityRow,
   restoration: CapabilityDeletionRestoration,
   refusal: CapabilityDeletionRefusal,
-  database: Database,
 ): Response {
-  const restored = resolveCurrentCapabilityDeletionRestoration(restoration, database);
-  return c.html(
-    renderCapabilityDeletionRefusalRestoration(
-      target,
-      restored ? renderCachedCapabilitySurface(restored) : "",
-      refusal,
-    ),
-    200,
-    {
-      "cache-control": "no-store",
-      "HX-Replace-Url": capabilityUrlForDeletionRestoration(restored),
-    },
+  return heldCapabilityDeletionEnding(
+    c,
+    renderCapabilityDeletionRefusal(target, refusal, deletionRestorationEvidence(restoration)),
   );
+}
+
+/**
+ * An ending fills the window and stays there until the person dismisses it, so nothing
+ * has moved yet: no restored surface rides along, and the address is left exactly where
+ * the confirmation left it. The restoration route the dismissal presses answers with its
+ * own `HX-Replace-Url` naming where the window actually lands, which is the one moment
+ * the address is allowed to change (design D14).
+ */
+function heldCapabilityDeletionEnding(c: Context, ending: string): Response {
+  return c.html(ending, 200, { "cache-control": "no-store" });
+}
+
+/**
+ * The data-free evidence a held ending carries forward, so its dismissal re-resolves the
+ * restoration against the then-current registry rather than against a row read here — a
+ * capability that goes while the ending is standing must give back the bare desk, not a
+ * surface rendered before it went.
+ */
+function deletionRestorationEvidence(
+  restoration: CapabilityDeletionRestoration,
+): CapabilityDeletionRestorationEvidence {
+  return restoration.kind === "neutral"
+    ? { kind: "neutral" }
+    : {
+        kind: "capability",
+        capabilityId: restoration.row.id,
+        incarnationId: restoration.row.incarnation_id,
+      };
 }
 
 export function resolveCapabilityDeletionRestoration(
