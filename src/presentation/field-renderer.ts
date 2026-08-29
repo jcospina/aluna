@@ -144,7 +144,7 @@ export function renderCreateForm(capability: RenderableCapability): string {
     `<div class="capability-create-form__fields">${fields}</div>` +
     `<div class="capability-create-form__actions">` +
     `<button class="btn btn--primary" type="submit">Add</button>` +
-    `<button class="btn btn--ghost" type="button" data-create-cancel` +
+    `<button class="btn btn--outline" type="button" data-create-cancel` +
     ` @click="$el.ownerDocument.defaultView.HTMLFormElement.prototype.reset.call($el.form);` +
     ` $el.ownerDocument.getElementById('${errorId}').replaceChildren();` +
     ` $dispatch('${CREATE_CANCELLED_EVENT}')">Cancel</button>` +
@@ -193,7 +193,7 @@ export function renderEditForm(
     `<div class="capability-edit-form__fields">${fields}</div>` +
     `<div class="capability-edit-form__actions">` +
     `<button class="btn btn--primary" type="submit">Save</button>` +
-    `<button class="btn btn--ghost" type="button" data-record-cancel>Cancel</button>` +
+    `<button class="btn btn--outline" type="button" data-record-cancel>Cancel</button>` +
     renderDeleteTrigger(capability) +
     `</div>` +
     `</form>`

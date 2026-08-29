@@ -3,13 +3,16 @@ import { describe, expect, test } from "bun:test";
 import type { CapabilityRow } from "../registry/index.ts";
 import { boomRow, notesRow } from "../router/router.test-support.ts";
 import {
+  type CapabilityDeletionRestorationEvidence,
   dependentCapabilityNames,
   renderCapabilityDeletionAlreadyGone,
   renderCapabilityDeletionCommitted,
   renderCapabilityDeletionConfirmation,
   renderCapabilityDeletionPreCommitFailure,
-  renderCapabilityDeletionRefusalRestoration,
+  renderCapabilityDeletionRefusal,
 } from "./presentation.ts";
+
+const NEUTRAL: CapabilityDeletionRestorationEvidence = { kind: "neutral" };
 
 describe("capability-deletion presentation", () => {
   test("names the capability and explains permanent loss in plain product voice", () => {
@@ -23,7 +26,9 @@ describe("capability-deletion presentation", () => {
       "I keep a few measurements about creating or changing Notes, but never your content",
     );
     expect(html).toContain('class="capability-deletion__retention"');
-    expect(html).toContain('class="btn btn--neutral capability-deletion__keep"');
+    // `.btn--outline` is the design system's name for the action you take when you are
+    // not taking the action; `neutral` is a name that system explicitly refuses.
+    expect(html).toContain('class="btn btn--outline capability-deletion__keep"');
     expect(html).toContain("Delete permanently</span>");
     expect(html).not.toContain("Permanent deletion");
     expect(html).not.toContain("content-free");
@@ -43,7 +48,7 @@ describe("capability-deletion presentation", () => {
     // Assert the grammar through the *live* refusal, not a parallel renderer: this is
     // the copy Confirm actually answers with once lease-held revalidation refuses.
     const blocked = (dependents: CapabilityRow[]) =>
-      renderCapabilityDeletionRefusalRestoration(notesRow(), "", { kind: "blocked", dependents });
+      renderCapabilityDeletionRefusal(notesRow(), { kind: "blocked", dependents }, NEUTRAL);
 
     expect(blocked([alpha])).toContain("I can’t delete Notes while Reading list uses it.");
     expect(blocked([alpha, beta])).toContain(
@@ -78,22 +83,6 @@ describe("capability-deletion presentation", () => {
     );
   });
 
-  test("a neutral refusal or pre-commit failure leaves no primary bytes either", () => {
-    // Only out-of-band updates may survive: a separator would leave a text node, and a
-    // `#spec-build-output` holding one stops matching `:empty` — an empty bordered bar.
-    const failure = renderCapabilityDeletionPreCommitFailure(notesRow(), "");
-    const refusal = renderCapabilityDeletionRefusalRestoration(notesRow(), "", { kind: "busy" });
-
-    expect(failure).toBe(
-      '<div id="prompt-notice" hx-swap-oob="innerHTML"><span data-prompt-refusal>I couldn’t delete Notes. Everything you had there is still safe.</span></div>',
-    );
-    expect(refusal.startsWith('<div id="prompt-notice"')).toBe(true);
-    expect(refusal).toContain("I’m making another change right now");
-    // Both are Aluna turning the deletion down, so both flash the bar; the committed and
-    // already-gone outcomes above are answers and carry no marker.
-    expect(refusal).toContain("<span data-prompt-refusal>");
-  });
-
   test("Confirm carries the preflight URL the shell re-asks when a response never lands", () => {
     const html = renderCapabilityDeletionConfirmation(notesRow(), []);
 
@@ -119,5 +108,81 @@ describe("capability-deletion presentation", () => {
       '<div data-capability-deletion-logo-removal hx-swap-oob="delete:#capability-logo-notes"></div><div id="prompt-notice" hx-swap-oob="innerHTML">That’s already gone, so I didn’t delete anything.</div>',
     );
     expect(html).not.toContain("capability-deletion__actions");
+  });
+});
+
+describe("the ending a deletion that did not happen leaves in the window", () => {
+  test("a refusal and a pre-commit failure each fill the window and hold there", () => {
+    const failure = renderCapabilityDeletionPreCommitFailure(notesRow(), NEUTRAL);
+    const refusal = renderCapabilityDeletionRefusal(notesRow(), { kind: "busy" }, NEUTRAL);
+
+    for (const ending of [failure, refusal]) {
+      // The sentence lives in the window now, not on the prompt bar behind it, and the
+      // window holds it: nothing is restored and no address moves until the press.
+      expect(ending).not.toContain("prompt-notice");
+      expect(ending).toContain("data-capability-deletion-ending");
+      expect(ending).toContain('hx-get="/capability-deletion-restoration?restore_surface=neutral"');
+      expect(ending).toContain(">Continue</button>");
+      // One sentence and one control. A heading over it could only say again what the
+      // sentence says, so the sentence is the ending's own name and takes the keyboard.
+      expect(ending).not.toContain("<h1");
+      expect(ending.split("<p ").length - 1).toBe(1);
+      expect(ending).toContain(
+        '<p class="capability-deletion__ending" id="capability-deletion-ending" tabindex="-1" data-capability-deletion-focus data-capability-deletion-sentence>',
+      );
+      expect(ending).toContain('aria-labelledby="capability-deletion-ending"');
+      // An ordinary in-window section: no dialog, no inertness, no focus trap.
+      expect(ending).not.toContain("role=");
+      expect(ending).not.toContain("inert");
+    }
+    expect(failure).toContain("I couldn’t delete Notes. Everything you had there is still safe.");
+    expect(refusal).toContain("I’m making another change right now");
+  });
+
+  test("the four refusals keep four sentences, and the drain has its own", () => {
+    const say = (refusal: Parameters<typeof renderCapabilityDeletionRefusal>[1]) =>
+      renderCapabilityDeletionRefusal(notesRow(), refusal, NEUTRAL);
+
+    expect(say({ kind: "busy" })).toContain(
+      "I’m making another change right now, so I didn’t delete Notes. Try again when I’m finished.",
+    );
+    expect(say({ kind: "drain_timeout" })).toContain(
+      "Something in Notes was still finishing, so I didn’t delete it. Everything you had there is still safe — try again in a moment.",
+    );
+    expect(say({ kind: "stale" })).toContain(
+      "Notes changed after you opened this page, so I didn’t delete it.",
+    );
+    // The drain is not a shade of the generic failure: it says what was happening and it
+    // invites the retry that will probably work.
+    expect(say({ kind: "drain_timeout" })).not.toContain("I couldn’t delete Notes.");
+  });
+
+  test("a held ending carries the evidence forward rather than a rendered surface", () => {
+    const other = { ...boomRow(), id: "ledger", incarnation_id: "inc-ledger" };
+    const ending = renderCapabilityDeletionRefusal(
+      notesRow(),
+      { kind: "busy" },
+      {
+        kind: "capability",
+        capabilityId: other.id,
+        incarnationId: other.incarnation_id,
+      },
+    );
+
+    // The same restoration route **Keep it** takes, re-resolved at the press.
+    expect(ending).toContain(
+      `hx-get="/capability-deletion-restoration?restore_surface=capability&amp;restore_capability_id=ledger&amp;restore_incarnation_id=inc-ledger"`,
+    );
+    expect(ending).not.toContain("data-active-capability-id");
+  });
+
+  test("an ending escapes every label it renders", () => {
+    const target = notesRow({ label: '<img src=x onerror="alert(1)">' });
+    const ending = renderCapabilityDeletionRefusal(target, { kind: "stale" }, NEUTRAL);
+
+    expect(ending).not.toContain("<img");
+    expect(ending).toContain(
+      "&lt;img src=x onerror=&quot;alert(1)&quot;&gt; changed after you opened this page",
+    );
   });
 });

@@ -119,6 +119,10 @@ export class El {
     this.attributes.set(name, value);
   }
 
+  removeAttribute(name: string): void {
+    this.attributes.delete(name);
+  }
+
   matches(selector: string): boolean {
     // One compound selector only. A descendant selector reaching this would match on its
     // first bracket group and quietly answer about the wrong node, which is exactly the
@@ -195,8 +199,28 @@ export class El {
     this.focused = true;
   }
 
-  dispatchEvent(event: { type: string }): void {
+  /** Listeners bound to this node, which is where htmx dispatches a swap's own events. */
+  private readonly handlers = new Map<string, Array<(event: unknown) => void>>();
+
+  addEventListener(name: string, listener: (event: unknown) => void): void {
+    this.handlers.set(name, [...(this.handlers.get(name) ?? []), listener]);
+  }
+
+  removeEventListener(name: string, listener: (event: unknown) => void): void {
+    const bound = this.handlers.get(name) ?? [];
+    const at = bound.indexOf(listener);
+    if (at >= 0) bound.splice(at, 1);
+  }
+
+  /**
+   * The browser runs a node's own listeners whether or not the node is still in the
+   * document — which is the whole reason a rule that has to hear about a swap into a
+   * detached region binds itself here rather than to the document.
+   */
+  dispatchEvent(event: { type: string }): boolean {
     this.dispatched.push(event.type);
+    for (const listener of [...(this.handlers.get(event.type) ?? [])]) listener(event);
+    return true;
   }
 }
 
@@ -277,6 +301,45 @@ function watchForStop(event: unknown, stopped: string[]): void {
   };
 }
 
+/**
+ * As much of a document as the shell's rules reach for, over the nodes standing on the
+ * page. Its own function rather than another twenty lines inside `desk()`: what a
+ * document answers is a subject, and the desk is already at the file's line ceiling.
+ */
+function documentOver(
+  page: { page: El; region: El; notice: El; promptForm: El; promptField: El },
+  listeners: Map<string, Array<(event: unknown) => void>>,
+  dispatched: Array<{ type: string; detail: unknown }>,
+) {
+  return {
+    addEventListener(name: string, listener: (event: unknown) => void) {
+      listeners.set(name, [...(listeners.get(name) ?? []), listener]);
+    },
+    querySelector: (selector: string) => page.region.querySelector(selector),
+    getElementById: (id: string) => {
+      if (id === WINDOW_REGION_ID) return page.region;
+      if (id === "prompt-notice") return page.notice;
+      if (id === "spec-build-form") return page.promptForm;
+      return id === "spec-build-prompt" ? page.promptField : null;
+    },
+    createElement: (tag: string) => (tag === "template" ? new Template() : new El(tag)),
+    /**
+     * What the browser answers for a node that is still in the page, and for one that has
+     * been taken out of it — which is how a rule tells an answer that still has somewhere
+     * to land from one that does not.
+     */
+    contains: (node: unknown) => {
+      for (let at = node as El | null; at; at = at.parent) if (at === page.page) return true;
+      return false;
+    },
+    dispatchEvent: (event: { type: string; detail?: unknown }) => {
+      dispatched.push({ type: event.type, detail: event.detail });
+      for (const listener of listeners.get(event.type) ?? []) listener(event);
+      return true;
+    },
+  };
+}
+
 /** One run standing in the window, with the surface it displaced beside it. */
 export function desk() {
   const region = new El("div", { id: WINDOW_REGION_ID });
@@ -319,24 +382,16 @@ export function desk() {
   // The field is inside the bar, the way it is in the shell: the blank-prompt rule reads
   // what was typed off the form that was submitted, not off the document.
   promptForm.append(promptField);
-  const documentStub = {
-    addEventListener(name: string, listener: (event: unknown) => void) {
-      listeners.set(name, [...(listeners.get(name) ?? []), listener]);
-    },
-    querySelector: (selector: string) => region.querySelector(selector),
-    getElementById: (id: string) => {
-      if (id === WINDOW_REGION_ID) return region;
-      if (id === "prompt-notice") return notice;
-      if (id === "spec-build-form") return promptForm;
-      return id === "spec-build-prompt" ? promptField : null;
-    },
-    createElement: (tag: string) => (tag === "template" ? new Template() : new El(tag)),
-    dispatchEvent: (event: { type: string; detail?: unknown }) => {
-      dispatched.push({ type: event.type, detail: event.detail });
-      for (const listener of listeners.get(event.type) ?? []) listener(event);
-      return true;
-    },
-  };
+  /* The page everything stands on. Without one, nothing in here can have *left* the
+   * document, and a rule that asks whether its answer still has somewhere to land could
+   * only ever be proved in a browser. */
+  const page = new El("body");
+  page.append(region, notice, promptForm);
+  const documentStub = documentOver(
+    { page, region, notice, promptForm, promptField },
+    listeners,
+    dispatched,
+  );
   /** The `shell` component, so the courtesy state can be driven the way Alpine drives it. */
   let shellFactory: (() => ShellState) | null = null;
   const windowStub = {
@@ -399,6 +454,8 @@ export function desk() {
   };
 
   return {
+    /** The document the shell was started on, for a module started on it beside them. */
+    root: documentStub,
     region,
     displaced,
     subscriber,

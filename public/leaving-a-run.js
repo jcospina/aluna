@@ -130,6 +130,29 @@ export function buildRunIn(el) {
 }
 
 /**
+ * Whether a run is *using* the window rather than only standing in it.
+ *
+ * The one line two guards have to draw the same way: the desk refuses a piece of desk
+ * furniture that would take the window from a run (`public/app.js`), and the doorway
+ * decides whether to stand a window up and rename it for the answer that press is about
+ * to get (`public/desk-doorway.js`). Asked differently they disagree over a run that has
+ * activated but not yet closed its stream — the refusal turns the press down while the
+ * doorway has already renamed the window over the run's own content, which is the press
+ * changing something after all.
+ *
+ * A run holding an ending is not using the window: it has stopped, and the desk lets it
+ * be displaced. The line `buildJobIdIn` draws is a different one — work still in flight
+ * — and it may not be borrowed for this.
+ *
+ * @param {WindowNode} el
+ * @returns {boolean}
+ */
+export function runIsUsingWindow(el) {
+  const run = buildRunIn(el);
+  return run !== null && run.querySelector(BUILD_ENDING_SELECTOR) === null;
+}
+
+/**
  * The build the window is narrating, if it is narrating one.
  *
  * A run that ended and is only waiting to be read does not count. Its subscriber stays

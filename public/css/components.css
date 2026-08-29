@@ -78,18 +78,14 @@
   color: var(--surface);
   background: var(--signal);
 }
-/* Neutral — the surface-weight default (same treatment as today's buttons). */
-.btn--neutral {
-  color: var(--ink);
-  background: var(--surface);
-}
-/* Ghost — no fill until hovered; for tertiary actions that shouldn't compete. Its
-   line is drawn like every other button's, so the fill is the whole difference. */
-.btn--ghost {
+/* Nothing but the line — the action you take when you are not taking the action, and
+   the one variant of the seven that carries no fill (design/design-system.md, Buttons).
+   Stated here because the `.btn` above sets a fill the manifest's own base does not, and
+   this sheet loads after it: without this the one unfilled variant comes out filled.
+   `neutral` and `ghost` were two more names for the same face and the design system
+   refuses both by name; they are gone, and this is what they were. */
+.btn--outline {
   background: transparent;
-}
-.btn--ghost:hover {
-  background: var(--surface);
 }
 
 /* ── The refusal notice ──────────────────────────────────────────────────────

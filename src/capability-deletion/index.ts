@@ -13,6 +13,7 @@ export {
   type CapabilityDeletionFrontHalfDeps,
 } from "./front-half.ts";
 export {
+  alreadyGoneResponse,
   type CapabilityDeletionHttpDeps,
   type CapabilityDeletionRestoration,
   handleCapabilityDeletionConfirmation,
@@ -29,12 +30,15 @@ export {
 export {
   type CapabilityDeletionRefusal,
   type CapabilityDeletionRestorationEvidence,
+  DELETION_ENDING_ATTRIBUTE,
+  DELETION_EXIT_ATTRIBUTE,
+  DELETION_SENTENCE_ATTRIBUTE,
   dependentCapabilityNames,
   renderCapabilityDeletionAlreadyGone,
   renderCapabilityDeletionCommitted,
   renderCapabilityDeletionConfirmation,
   renderCapabilityDeletionPreCommitFailure,
-  renderCapabilityDeletionRefusalRestoration,
+  renderCapabilityDeletionRefusal,
 } from "./presentation.ts";
 export {
   type CapabilityDeletionRecoveryResult,

@@ -43,6 +43,24 @@ lamp dissolves with one window — only one capability is visible, every open is
 fresh read, and builds and deletions both take the window — so nothing is added
 here and nothing is reopened.
 
+Amendment (2026-08-28): the sentence above about refusal, timeout and failure
+having "somewhere to say so: the window's build narration" is corrected. A
+deletion has no build narration — it runs no build and streams nothing. What it
+has, since 5.9/02, is an **ending of its own in the same window the confirmation
+filled**: the question is replaced by one authored sentence and one control, the
+window holds there until the person dismisses it, and only the press runs the
+restoration. That restoration is the same data-free route **Keep it** takes, so
+backing out and dismissing an ending are one path and not two, and it is
+re-resolved against the then-current registry at the press rather than rendered
+when the ending was written. Every pre-commit outcome reaches it — busy, stale,
+blocked on reverse dependencies, `deletion_drain_timeout` and pre-commit failure
+— and reads are open to the incarnation by the time any of them is said: `busy`
+and `stale` never closed a gate at all, and drain expiry and pre-commit failure
+reopened the one they closed, which the contract below already required. The commit and the already-gone answer keep the prompt
+bar, because neither leaves anything in the window to hold: there is still no
+terminal state for the deleted capability. A window torn down over an unread
+deletion ending carries its sentence to the prompt bar on the way out.
+
 The fixed-five-Action candidate clauses below describe the steady state after
 Module 4 epic 4.4; immutable snapshot/publication clauses apply after 4.5's
 greenfield reset/rebuild makes v1 under that contract. The Module 4 PLAN's
