@@ -21,7 +21,12 @@ export {
   recordCapabilityDeletionCleanupFailure,
   removeCapabilityDeletionTombstone,
 } from "./deletion-tombstones.ts";
-export { canonicalCapabilityLabel, isCapabilityNameLabel } from "./labels.ts";
+export {
+  canonicalCapabilityLabel,
+  effectiveCapabilityLabel,
+  isCapabilityNameLabel,
+  MAX_CAPABILITY_LABEL_CHARS,
+} from "./labels.ts";
 export {
   type CapabilityLogoState,
   capabilityLogoStateSchema,
@@ -111,6 +116,7 @@ export {
   listCapabilityDependents,
   REGISTRY_TABLE,
   releaseLogoClaim,
+  renameCapability,
   resolveActionReadDependencies,
   StaleCapabilityRegistryError,
   settleLogoGeneration,

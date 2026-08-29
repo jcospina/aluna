@@ -30,7 +30,7 @@ function renderDependencyNotice(targetLabel: string, dependents: readonly Capabi
 }
 
 function renderDeletionPanel(
-  target: Pick<CapabilityRow, "id" | "label" | "incarnation_id">,
+  target: Pick<CapabilityRow, "id" | "label" | "display_label_override" | "incarnation_id">,
   body: string,
   actions: string,
 ): string {
@@ -140,7 +140,7 @@ function joinRestorationWithNotice(restoredSurface: string, notice: string): str
 }
 
 export function renderCapabilityDeletionCommitted(
-  target: Pick<CapabilityRow, "id" | "label">,
+  target: Pick<CapabilityRow, "id" | "label" | "display_label_override">,
   restoredSurface: string,
   cleanupPending: boolean,
 ): string {
@@ -153,7 +153,7 @@ export function renderCapabilityDeletionCommitted(
 }
 
 export function renderCapabilityDeletionPreCommitFailure(
-  target: Pick<CapabilityRow, "id" | "label">,
+  target: Pick<CapabilityRow, "id" | "label" | "display_label_override">,
   restoredSurface: string,
 ): string {
   const label = canonicalCapabilityLabel(target);

@@ -315,6 +315,7 @@ describe("capability row shape", () => {
       artifacts_path: `capabilities/notes/${incarnation_id}/v1/`,
       seed: 184206,
       logo: { status: "absent" as const, attempts: 0 },
+      display_label_override: null,
     };
     expect(capabilityRowSchema.parse(row)).toEqual(row);
 
@@ -355,6 +356,7 @@ describe("capability row shape", () => {
       artifacts_path: `capabilities/notes/${incarnation_id}/v1/`,
       seed: 184206,
       logo: { status: "absent", attempts: 0 },
+      display_label_override: null,
     };
 
     expect(capabilityRowSchema.safeParse(row).success).toBe(true);

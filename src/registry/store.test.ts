@@ -73,6 +73,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     artifacts_path: `capabilities/notes/${NOTES_INCARNATION_ID}/v1/`,
     seed: 184206,
     logo: { status: "absent", attempts: 0 },
+    display_label_override: null,
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -261,6 +262,9 @@ describe("capability registry store", () => {
       "logo_status",
       "logo_attempts",
       "companion",
+      // The one name the platform owns. Nullable and defaultless: a capability nobody has
+      // renamed says so, rather than restating its authored label in a second column.
+      "display_label_override",
     ]);
   });
 });

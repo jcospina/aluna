@@ -112,7 +112,9 @@ describe("the address names the capability and nothing else", () => {
       id: "my notes",
       label: "My notes",
       incarnation_id: "inc-1",
+      version: 1,
       logo: { status: "absent", attempts: 0 },
+      display_label_override: null,
     });
     expect(logo).toContain(`hx-get="${capabilityAddress("my notes")}"`);
     // The address is the desk's to write. htmx would push on every press, the open

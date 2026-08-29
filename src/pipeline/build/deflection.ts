@@ -88,10 +88,17 @@ function sameTokens(left: Set<string>, right: Set<string>): boolean {
   return left.size === right.size && [...left].every((token) => right.has(token));
 }
 
+/**
+ * Every name this capability answers to. A rename gives it a second one, and it is the one
+ * the person will type — while the sentence this deflection ends in is already written
+ * with it (`canonicalCapabilityLabel`, below). Matching on the authored name alone is how
+ * "journal" fails to find the capability the desk plainly calls Journal.
+ */
 function duplicateCapabilityIdentityTokens(capability: CapabilityRow): readonly Set<string>[] {
   return [
     duplicateMatchTokens(capability.id, false),
     duplicateMatchTokens(capability.label, false),
+    duplicateMatchTokens(canonicalCapabilityLabel(capability), false),
   ];
 }
 

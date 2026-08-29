@@ -51,6 +51,7 @@ import {
 import {
   type CapabilityRow,
   type CapabilitySpec,
+  canonicalCapabilityLabel,
   capabilitySpecFromRow,
   readActiveRegistryCatalog,
 } from "../registry/index.ts";
@@ -571,10 +572,14 @@ async function buildPresentationAdapter(
 
 // The slice of a row the presentation adapter needs: the id (namespaces the record-view
 // templates), the user-facing label (what back goes back to), and the fields (the form).
+//
+// The label is the effective one — what the user renamed this to, or what the model
+// authored. The place a person goes back to should be called what it is called on the
+// desk, and the same canonical reading serves the collection (`src/web/cached-view.ts`).
 function renderableFromRow(row: CapabilityRow): RenderableCapability {
   return {
     id: row.id,
-    label: row.label,
+    label: canonicalCapabilityLabel(row),
     noun: row.noun,
     schema: row.schema,
     form: row.ui_intent.form,

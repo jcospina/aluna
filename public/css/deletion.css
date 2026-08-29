@@ -47,12 +47,16 @@
   background: color-mix(in oklch, var(--sun), var(--surface) 70%);
   border: var(--line) solid color-mix(in oklch, var(--sun), var(--ink) 30%);
 }
+/* The one control row on this surface where the two choices must not sit close enough to
+   be mistaken for each other: one puts the capability back and the other ends it. Side by
+   side they get more air than a control row's default for that reason alone; stacked, the
+   container query below takes it back. */
 .capability-deletion__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
-  padding-top: var(--space-1);
+  gap: var(--space-4);
+  padding-top: var(--space-2);
 }
 .capability-deletion__actions form {
   margin: 0;
@@ -98,5 +102,11 @@ form.htmx-request .capability-deletion__label[data-deletion-busy-label] {
   .capability-deletion__actions form,
   .capability-deletion__actions .btn {
     width: 100%;
+  }
+  /* Stacked, the two are already unmistakable: each is a full-width block and one of them
+     is signal red. The wide gap above is what keeps them apart *side by side*; kept here
+     it would only be a hole down the middle of a narrow window. */
+  .capability-deletion__actions {
+    gap: var(--space-2);
   }
 }

@@ -108,6 +108,7 @@ export function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow 
     artifacts_path: NOTES_ARTIFACTS,
     seed: 184206,
     logo: { status: "absent", attempts: 0 },
+    display_label_override: null,
     ...overrides,
   };
 }
@@ -127,6 +128,7 @@ export function boomRow(): CapabilityRow {
     version: 1,
     seed: 730051,
     logo: { status: "absent", attempts: 0 },
+    display_label_override: null,
     schema: {
       fields: [
         { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },

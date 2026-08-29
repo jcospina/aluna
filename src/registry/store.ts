@@ -78,6 +78,7 @@ interface StoredRow {
   prompt_context: string;
   logo_status: string;
   logo_attempts: number;
+  display_label_override: string | null;
 }
 
 /**
@@ -93,7 +94,10 @@ const WRITE_PLACEHOLDERS = WRITE_COLUMNS.split(", ")
   .map(() => "?")
   .join(", ");
 
-const ROW_COLUMNS = `${WRITE_COLUMNS}, logo_status, logo_attempts`;
+// Everything a write supplies plus the two things it may not touch: the logo lifecycle,
+// and the platform's own display-label override. Both are read here and moved only by the
+// dedicated functions below.
+const ROW_COLUMNS = `${WRITE_COLUMNS}, logo_status, logo_attempts, display_label_override`;
 
 // Rehydrate a stored row and re-validate it. Validating on the way out too is
 // deliberate: the registry drives DDL, routing, and generation, so a row that
@@ -112,6 +116,7 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
     version: stored.version,
     seed: stored.seed,
     logo: { status: stored.logo_status, attempts: stored.logo_attempts },
+    display_label_override: stored.display_label_override,
     schema,
     ui_intent: JSON.parse(stored.ui_intent),
     behavior: stored.behavior,
@@ -170,7 +175,9 @@ export function compareAndSwapCapability(
   // Both branches RETURN the row they actually left behind, so the caller receives
   // the stored logo lifecycle rather than an echo of what it passed in. The update
   // sets neither the seed nor the lifecycle: both belong to the incarnation, and the
-  // incarnation survives evolution unchanged.
+  // incarnation survives evolution unchanged. It does not set the display-label override
+  // either, and for the same reason — a rename belongs to the capability the user has on
+  // their desk, not to the version an evolution is replacing, so it survives one.
   const stored = (
     expected.state === "absent"
       ? database
@@ -224,6 +231,49 @@ export function compareAndSwapCapability(
 }
 
 /**
+ * Move one capability's display-label override, and nothing else.
+ *
+ * Its own function rather than a column on the write shape, for the reason the logo
+ * lifecycle has one: an evolution's CAS is built from a row read seconds earlier, so a
+ * write that could carry this value is a write that could quietly undo a rename made in
+ * between. Here the only column in the `SET` is the override.
+ *
+ * Bound to the exact incarnation *and* version the menu opened on. A capability deleted
+ * and recreated under the same id is a different lifetime and must not inherit a name
+ * chosen for the previous one; a capability that has evolved since the menu opened is
+ * being renamed under a spec the person never saw. Both come back `null`, which the
+ * caller answers as a refusal rather than as a write that did nothing.
+ *
+ * @returns the row as it now stands, or `null` when no active row matched.
+ */
+export function renameCapability(
+  expectation: {
+    readonly capabilityId: string;
+    readonly incarnationId: string;
+    readonly version: number;
+  },
+  override: string | null,
+  database: Database = db,
+): CapabilityRow | null {
+  const stored = database
+    .query(
+      `UPDATE ${REGISTRY_TABLE}
+       SET display_label_override = ?
+       WHERE id = ? AND incarnation_id = ? AND version = ?
+         AND lifecycle_state = 'active'
+       RETURNING ${ROW_COLUMNS}`,
+    )
+    .get(
+      override,
+      expectation.capabilityId,
+      expectation.incarnationId,
+      expectation.version,
+    ) as StoredRow | null;
+
+  return stored ? parseStoredRow(stored) : null;
+}
+
+/**
  * What a caller may hand a write: the write shape, or a whole row it already holds.
  * A row's logo lifecycle is dropped here rather than written — writes do not own it —
  * so passing one is a convenience, never a way to set a status.
@@ -233,6 +283,7 @@ export type CapabilityRegistryWriteInput = CapabilityRegistryWrite | CapabilityR
 function validateWrite(row: CapabilityRegistryWriteInput): CapabilityRegistryWrite {
   const write: Record<string, unknown> = { ...row };
   delete write.logo;
+  delete write.display_label_override;
   return capabilityRegistryWriteSchema.parse(write);
 }
 

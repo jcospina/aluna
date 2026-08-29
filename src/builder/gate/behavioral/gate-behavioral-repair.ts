@@ -417,6 +417,7 @@ function scratchDependencyRows(input: CapabilityGateInput): CapabilityRow[] {
     artifacts_path: `scratch/${fixture.spec.id}`,
     seed: SCRATCH_DEPENDENCY_SEED,
     logo: { status: LOGO_BIRTH_STATUS, attempts: 0 },
+    display_label_override: null,
   }));
 }
 

@@ -63,10 +63,11 @@ import {
   replaceAddress,
   startDeskHistory,
 } from "./desk-address.js";
-import { joinStack, leaveStack, raise } from "./desk-stack.js";
 /* Where a window is remembered is its own subject (`desk-window-store.js`). Re-exported
  * here as well as imported, so this module stays the one face the desk's rules are
  * reached through and no caller has to know the record moved. */
+import { answerDoorway, WINDOW_DOORWAY_SELECTOR, whenTheRequestFails } from "./desk-doorway.js";
+import { joinStack, leaveStack, raise } from "./desk-stack.js";
 import {
   forgetOnDismissal,
   loadPresentation,
@@ -75,6 +76,7 @@ import {
 } from "./desk-window-store.js";
 import {
   askBeforeLeaving,
+  buildJobIdIn,
   buildRunIn,
   endRunIn,
   leavingIsBeingAsked,
@@ -1214,21 +1216,14 @@ function asElement(logo) {
  * @param {string | null} cameFrom where the bar was before the press pushed, if it pushed
  */
 function standDownUnsuccessfulPress(root, logo, region, attempted, cameFrom) {
-  /** @param {Event} done */
-  const settle = (done) => {
-    const detail = /** @type {CustomEvent<{ elt?: unknown, successful?: boolean }>} */ (done)
-      .detail;
-    if (detail?.elt !== logo) return;
-    root.removeEventListener("htmx:afterRequest", settle);
-    if (detail.successful !== false) return;
+  whenTheRequestFails(root, logo, () => {
     /* Both halves are asked first: a slow failure can land after the user has opened
      * something else, and the window it would take down and the entry it would write over
      * would both be that. */
     if (putAwayUnfilledWindow(region) && attempted !== null) {
       correctUnfilledAddress(attempted, cameFrom ?? DESK_ADDRESS);
     }
-  };
-  root.addEventListener("htmx:afterRequest", settle);
+  });
 }
 
 /**
@@ -1306,6 +1301,27 @@ function answerPress(root, logo) {
 }
 
 /**
+ * The handful of things a doorway asks of the window, named once.
+ * @param {Document} root
+ * @returns {import("./desk-doorway.js").WindowForDoorways}
+ */
+function windowForDoorways(root) {
+  return {
+    isNarrating: () => mounted !== null && buildJobIdIn(mounted.region) !== null,
+    logoFor: (id) => {
+      const found = id === "" ? null : logoFor(root, id);
+      return found instanceof Element ? found : null;
+    },
+    titleOf: (logo) => logoTitle(logo),
+    fallbackTitle: BUILD_WINDOW_TITLE,
+    openWindow: (title, openedBy) => openWindow(title, root, openedBy),
+    putAwayUnfilled: (region) => {
+      putAwayUnfilledWindow(region);
+    },
+  };
+}
+
+/**
  * Both openers, and the load-time one.
  *
  * The two listeners are on the capture phase so the window — and with it the target
@@ -1336,7 +1352,12 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
       const { target } = event;
       if (!(target instanceof Element)) return;
       const logo = target.closest(CAPABILITY_LOGO_SELECTOR);
-      if (logo !== null) answerPress(root, logo);
+      if (logo !== null) {
+        answerPress(root, logo);
+        return;
+      }
+      const doorway = target.closest(WINDOW_DOORWAY_SELECTOR);
+      if (doorway !== null) answerDoorway(root, doorway, windowForDoorways(root));
     },
     true,
   );

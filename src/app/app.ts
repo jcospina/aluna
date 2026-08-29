@@ -33,6 +33,7 @@ import {
   recoverCapabilityLogos,
   registerCapabilityLogoRoutes,
 } from "../capability-logo/index.ts";
+import { handleCapabilityRename } from "../capability-rename/index.ts";
 import {
   createMutationCoordinator,
   type MutationCoordinator,
@@ -483,6 +484,15 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
 }
 
 /**
+ * Renaming from the logo's own context menu. A top-level platform route for the reason
+ * deletion's are: it loads no Handler, asks no resolver and constructs no provider, so
+ * the path from the menu to the registry is deterministic and zero-AI end to end.
+ */
+function registerCapabilityRenameRoutes(app: Hono, ctx: ResolvedAppDeps): void {
+  app.post("/capability-rename/:id", (c) => handleCapabilityRename(c, ctx));
+}
+
+/**
  * Build the Hono app from {@link AppDeps}, applying the production defaults for any
  * dependency a caller does not inject, then attaching every route group.
  */
@@ -505,6 +515,7 @@ export function createApp(deps: AppDeps = {}): Hono {
   registerCapabilityPageRecovery(app, recoverLogos);
   registerBuildJobRoutes(app, ctx);
   registerCapabilityDeletionRoutes(app, ctx);
+  registerCapabilityRenameRoutes(app, ctx);
 
   // The logo's own two addresses. Registered before the generated capability router so
   // the four-segment paths are matched by their owner; they cannot collide with the
