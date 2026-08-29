@@ -15,6 +15,7 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../router/router.test-support.ts";
+import { NOT_FOUND_NOTICE } from "../web/index.ts";
 import { createApp } from "./app.ts";
 
 function dependentOnNotes(id = "reading_list", label = "Reading list"): CapabilityRow {
@@ -363,7 +364,12 @@ describe("platform-owned capability deletion routes", () => {
 
     const shell = await (await app.request("/")).text();
     expect(shell).not.toContain("capability-logo-notes");
-    expect((await app.request("/capability/notes")).status).toBe(404);
+    // The address survives the tile, and it answers with the desk plus its sentence
+    // rather than a page — still a 404, because the capability really is gone
+    // (`app.deleted-capability-address.test.ts` holds the whole of that behavior).
+    const stale = await app.request("/capability/notes");
+    expect(stale.status).toBe(404);
+    expect(await stale.text()).toContain(NOT_FOUND_NOTICE);
     expect(
       conns.readonly
         .query(

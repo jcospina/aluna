@@ -47,7 +47,7 @@ describe("deterministic capability router — routing refusals and failures", ()
 
     expect(res.status).toBe(404);
     const body = await res.text();
-    expect(body).toMatch(/can't find that/i);
+    expect(body).toMatch(/can’t find that/i);
     // No internals leak, and no handler load was even attempted.
     expect(body).not.toMatch(/handler|capability|registry|undefined|stack/i);
     expect(spy.calls).toHaveLength(0);
@@ -68,7 +68,7 @@ describe("deterministic capability router — routing refusals and failures", ()
     ] as const) {
       const res = await app.request(`/capability/notes/${action}`, { method });
       expect(res.status).toBe(404);
-      expect(await res.text()).toMatch(/can't find that/i);
+      expect(await res.text()).toMatch(/can’t find that/i);
     }
     expect(spy.calls).toHaveLength(0);
   });
@@ -207,7 +207,7 @@ describe("deterministic capability router — rejected method/Action matrix", ()
         if (expected.has(`${method} ${action}`)) continue;
         const response = await app.request(`/capability/notes/${action}`, { method });
         expect(response.status).toBe(404);
-        expect(await response.text()).toMatch(/can't find that/i);
+        expect(await response.text()).toMatch(/can’t find that/i);
       }
     }
 

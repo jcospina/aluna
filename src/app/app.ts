@@ -10,6 +10,7 @@
 // so a production bundle does not answer them. All three are scaffolding for work the
 // window has not absorbed yet, and come down with it.
 
+import type { Context } from "hono";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { streamSSE } from "hono/streaming";
@@ -280,12 +281,17 @@ function registerShellRoute(
  * arriving in a desk that is already standing, not a desk being drawn.
  */
 function registerCapabilityPageRecovery(app: Hono, recoverLogos: () => Promise<void>): void {
-  app.use("/capability/:id", async (c, next) => {
+  const recover = async (c: Context, next: () => Promise<void>) => {
     if (c.req.method === "GET" && c.req.header("HX-Request") !== "true") {
       await recoverLogos();
     }
     await next();
-  });
+  };
+  // Both spellings of the one address (`CAPABILITY_VIEW_TRAILING_SLASH_ROUTE`): a desk
+  // drawn for a bookmark carrying a trailing slash owes the same reconciliation as one
+  // drawn for a bookmark without it.
+  app.use("/capability/:id", recover);
+  app.use("/capability/:id/", recover);
 }
 
 /**

@@ -56,9 +56,9 @@ import { addWindowDrag, addWindowGrip, setMaximised } from "../design/scripts/wi
 import {
   capabilityAddress,
   capabilityIdFromAddress,
+  correctUnfilledAddress,
   DESK_ADDRESS,
   deskHistory,
-  isAnotherPlace,
   pushAddress,
   replaceAddress,
   startDeskHistory,
@@ -278,6 +278,7 @@ const remember = (entry) => savePresentation(entry, phone, localStore());
 export {
   capabilityAddress,
   capabilityIdFromAddress,
+  correctUnfilledAddress,
   DESK_ADDRESS,
   DESK_HISTORY_STATE,
   deskHistory,
@@ -1118,13 +1119,19 @@ function renderAddress(root, pathname) {
      * or a Back onto the capability whose deletion emptied the window. Only the first is
      * the user dismissing their window. The second is the address turning out to be
      * wrong, which is corrected in place and may not erase a box the user authored. */
-    if (pathname === DESK_ADDRESS) dismissWindow();
-    else putAway();
+    if (pathname === DESK_ADDRESS) {
+      dismissWindow();
+      return;
+    }
+    putAway();
+    /* The correction the sentence above promises and did not make. Left alone the bar goes
+     * on naming a capability nobody can open — what `correctUnfilledAddress` itself calls
+     * the worse of the two costs — and a replace keeps the Forward the person still has. */
+    correctUnfilledAddress(pathname, DESK_ADDRESS);
     return;
   }
-  /* The capability's own address, not the one in the bar. `capabilityIdFromAddress`
-   * forgives a trailing slash and the route does not, so a hand-typed `/capability/notes/`
-   * would otherwise be fetched verbatim and answered with a 404. */
+  /* The capability's own address, not the one in the bar: both spellings of it reach the
+   * view, and this asks for the one the logo's own press asks for. */
   whenDeskIsLaidOut(root, () => openAddressedWindow(root, capabilityAddress(asked.id), asked.logo));
 }
 
@@ -1160,29 +1167,6 @@ function putAwayUnfilledWindow(region) {
   if (mounted?.region !== region) return false;
   if (region.childNodes.length > 0) return false;
   return putAway();
-}
-
-/**
- * A window that never filled leaves no address behind naming what did not open.
- *
- * Only where the bar is still carrying the address that press or that Back put there. A
- * slow failure can answer long after the user has opened something else, and correcting
- * then would answer the wrong question — the same reason `putAwayUnfilledWindow` asks
- * which window is up before taking one down.
- *
- * A correction rather than a step back. `history.back()` is asynchronous, would arrive as
- * a `popstate` this desk would then answer, and would throw away a Forward the user may
- * still have. The cost is one entry naming the same place as the one before it, so a
- * single Back out of a failed press looks inert; a live address naming a capability
- * nobody can open is the worse of the two.
- *
- * @param {string} attempted the address that was being opened
- * @param {string} back where to leave the bar instead
- */
-function correctUnfilledAddress(attempted, back) {
-  const bar = deskHistory();
-  if (bar === null || isAnotherPlace(bar.location.pathname, attempted)) return;
-  replaceAddress(back, bar);
 }
 
 /**

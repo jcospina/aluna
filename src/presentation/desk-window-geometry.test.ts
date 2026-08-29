@@ -418,7 +418,13 @@ describe("a dismissed window is forgotten", () => {
     // that is the address turning out to be wrong rather than the user closing a window.
     const bare = /ask === "bare desk"\) \{([\s\S]*?)\n {4}return;/.exec(MODULE)?.[1] ?? "";
     expect(bare, "no bare-desk branch").not.toBe("");
-    expect(bare).toMatch(/if \(pathname === DESK_ADDRESS\) dismissWindow\(\);\s*else putAway\(\);/);
+    expect(bare).toMatch(
+      /if \(pathname === DESK_ADDRESS\) \{\s*dismissWindow\(\);\s*return;\s*\}\s*putAway\(\);/,
+    );
+    // And the wrong address is corrected rather than left standing. Without this the bar
+    // goes on naming a capability nobody can open, which is the cost
+    // `correctUnfilledAddress` itself calls the worse of the two.
+    expect(bare).toContain("correctUnfilledAddress(pathname, DESK_ADDRESS)");
 
     // The other two ways a window goes away: emptied by a deletion, and opened for a
     // read that never filled it. Neither may erase a box the user authored.

@@ -16,6 +16,7 @@ export {
   BUILDING_WINDOW_TITLE,
   capabilityLogoElementId,
   capabilityLogoFaceElementId,
+  NOT_FOUND_NOTICE,
   PAGE_ASSEMBLY_ANCHORS,
   PROMPT_REFUSAL_ATTRIBUTE,
   type PromptNoticeTone,

@@ -185,6 +185,30 @@ export function replaceAddress(next, bar) {
   bar?.history.replaceState(entryState(), "", next);
 }
 
+/**
+ * A window that never filled, or an address that turned out to name nothing, leaves no
+ * address behind naming what did not open.
+ *
+ * Only where the bar is still carrying the address that press, that Back or that load put
+ * there. A slow failure can answer long after the user has opened something else, and
+ * correcting then would answer the wrong question — the same reason
+ * `putAwayUnfilledWindow` asks which window is up before taking one down.
+ *
+ * A correction rather than a step back. `history.back()` is asynchronous, would arrive as
+ * a `popstate` this desk would then answer, and would throw away a Forward the user may
+ * still have. The cost is one entry naming the same place as the one before it, so a
+ * single Back out of a failed press looks inert; a live address naming a capability
+ * nobody can open is the worse of the two.
+ *
+ * @param {string} attempted the address that was being opened
+ * @param {string} back where to leave the bar instead
+ */
+export function correctUnfilledAddress(attempted, back) {
+  const bar = deskHistory();
+  if (bar === null || isAnotherPlace(bar.location.pathname, attempted)) return;
+  replaceAddress(back, bar);
+}
+
 /* ── Back and Forward ──────────────────────────────────────────────────────── */
 
 /**
