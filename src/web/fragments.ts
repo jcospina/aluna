@@ -8,10 +8,18 @@ import {
   type CapabilityRow,
   canonicalCapabilityLabel,
   LOGO_MAX_CLAIMED_ATTEMPTS,
+  MAX_CAPABILITY_LABEL_CHARS,
 } from "../registry/index.ts";
 import { escapeHtml } from "./html.ts";
 
 const CAPABILITY_LOGO_LAYER_TARGET = "#capability-logos";
+
+/**
+ * What Save says while its write waits its turn in the coordinator's queue. A rename goes
+ * behind a build that is already queued, so the wait is real and occasionally long — and a
+ * control that only goes grey has not said anything about it.
+ */
+const SAVING_LABEL = "Saving…";
 
 /**
  * The element id one capability's logo carries. Deletion addresses it to take the logo
@@ -21,6 +29,32 @@ const CAPABILITY_LOGO_LAYER_TARGET = "#capability-logos";
  */
 export function capabilityLogoElementId(capabilityId: string): string {
   return `capability-logo-${capabilityId}`;
+}
+
+/**
+ * The button inside that slot — the tile and the name, and the press that opens the
+ * capability. Named separately because it is what one swap and only one is addressed at:
+ * an arriving picture replaces the face, never the whole slot, so a rename form standing
+ * open beside it survives artwork landing underneath it.
+ */
+export function capabilityLogoFaceElementId(capabilityId: string): string {
+  return `capability-logo-face-${capabilityId}`;
+}
+
+/** The menu that opens on one capability's logo. */
+export function capabilityLogoMenuElementId(capabilityId: string): string {
+  return `capability-logo-menu-${capabilityId}`;
+}
+
+/** The inline label form that same menu opens. */
+export function capabilityRenameElementId(capabilityId: string): string {
+  return `capability-rename-${capabilityId}`;
+}
+
+/** Where that form says why a name will not do. Client-side only: the server's own
+ * refusals are structured and speak on the prompt bar (PLAN decision 26). */
+export function capabilityRenameErrorElementId(capabilityId: string): string {
+  return `capability-rename-error-${capabilityId}`;
 }
 
 /** The attribute the shell's `desk-logos.js` keys a provisional tile by. */
@@ -346,7 +380,7 @@ export interface CapabilityLogoRenderOptions {
 
 export type RenderableCapabilityLogo = Pick<
   CapabilityRow,
-  "id" | "label" | "incarnation_id" | "logo"
+  "id" | "label" | "display_label_override" | "incarnation_id" | "version" | "logo"
 >;
 
 export function renderCapabilityLogo(
@@ -362,20 +396,167 @@ export function renderCapabilityLogo(
   // capability (design D14; PLAN decision 6).
   const url = escapeHtml(`/capability/${encodeURIComponent(row.id)}`);
   return [
-    "<button",
-    '  type="button"',
+    // The slot, not the button, is what the id names. Everything that addresses one
+    // capability's place on the desk — the attempt's own swap, evolution's replacement,
+    // deletion's `delete:` — means the whole of it, and a menu left standing where its
+    // logo used to be is exactly what naming the button instead would leave behind.
+    "<div",
     `  id="${capabilityLogoElementId(id)}"`,
-    '  class="logo"',
-    "  data-capability-logo",
+    '  class="logo-slot"',
+    "  data-logo-slot",
     `  data-capability-id="${id}"`,
-    `  hx-get="${url}"`,
-    '  hx-target="#spec-build-output"',
-    '  hx-swap="innerHTML"',
-    `  aria-label="Open ${escapeHtml(label)}"`,
     ">",
-    indent(renderCapabilityLogoTile(row, options.armLogoAttempt !== false), 2),
-    `  <span class="logo-label">${escapeHtml(label)}</span>`,
-    "</button>",
+    "  <button",
+    '    type="button"',
+    `    id="${capabilityLogoFaceElementId(id)}"`,
+    '    class="logo"',
+    "    data-capability-logo",
+    `    data-capability-id="${id}"`,
+    `    hx-get="${url}"`,
+    '    hx-target="#spec-build-output"',
+    '    hx-swap="innerHTML"',
+    `    aria-label="Open ${escapeHtml(label)}"`,
+    // A menu opens on this button, and a reader that is only told "Open Notes, button"
+    // has no way to learn that. `aria-expanded` is moved by the shell as the menu opens
+    // and closes (`public/logo-menu.js`).
+    '    aria-haspopup="menu"',
+    '    aria-expanded="false"',
+    "  >",
+    indent(renderCapabilityLogoTile(row, options.armLogoAttempt !== false), 4),
+    `    <span class="logo-label" data-logo-label>${escapeHtml(label)}</span>`,
+    "  </button>",
+    indent(renderCapabilityLogoMenu(row, label), 2),
+    indent(renderCapabilityRenameEditor(row, label), 2),
+    "</div>",
+  ].join("\n");
+}
+
+/**
+ * Just the face: the tile and the name under it, with nothing the menu hangs on the slot
+ * beside them.
+ *
+ * What an arriving picture swaps, and the only swap that is not the user's own doing —
+ * which is exactly why it is narrow. A load-triggered attempt answers seconds after the
+ * desk renders, and replacing the whole slot with it would take away a rename form the
+ * person had opened and typed into in the meantime, with no message and nothing to
+ * recover the value from.
+ */
+export function renderCapabilityLogoFace(
+  row: RenderableCapabilityLogo,
+  options: CapabilityLogoRenderOptions = {},
+): string {
+  const slot = renderCapabilityLogo(row, options);
+  const opened = slot.indexOf("  <button");
+  const closed = slot.indexOf("  </button>") + "  </button>".length;
+  return slot.slice(opened, closed).replace(/^ {2}/gm, "");
+}
+
+/**
+ * The two things you can do to a capability rather than with it, and nothing else.
+ *
+ * Ships with the logo and hidden, the way the record view ships its delete confirmation:
+ * the shell un-hides it and no round trip stands between a right-click and the menu. It
+ * is a sibling of the button rather than a child because a `<button>` may not contain
+ * interactive content, which is also why the rename editor below is one.
+ *
+ * Delete is the doorway 4.x built and 5.9 finally hangs: the confirmation it opens fills
+ * the window (5.9/02), so this control asks for the window like any other piece of desk
+ * furniture and is refused on the prompt bar when a run still owns it (PLAN decision 20).
+ * Nothing destructive appears in window chrome, which is what leaves D3 standing.
+ */
+function renderCapabilityLogoMenu(row: RenderableCapabilityLogo, label: string): string {
+  const id = escapeHtml(row.id);
+  const deletionUrl = escapeHtml(`/capability-deletion/${encodeURIComponent(row.id)}`);
+  return [
+    "<div",
+    `  id="${capabilityLogoMenuElementId(id)}"`,
+    '  class="logo-menu"',
+    "  data-logo-menu",
+    // Drawn rather than ruled, like every other boundary on this surface. The menu is
+    // hidden until it opens, so it has no box to measure at load; the ink system watches
+    // `hidden` and draws it the moment it has one.
+    "  data-ink",
+    "  hidden",
+    '  role="menu"',
+    `  aria-label="${escapeHtml(label)}"`,
+    ">",
+    '  <button type="button" class="logo-menu__item" role="menuitem" data-logo-menu-rename>',
+    "    Rename",
+    "  </button>",
+    '  <button type="button" class="logo-menu__item" role="menuitem"',
+    "    data-capability-delete",
+    // The window is made by the client and does not exist until something asks for one, so
+    // a control on the ground that swaps into it says so and the desk opens one first
+    // (`WINDOW_DOORWAY_SELECTOR`, `public/desk-window.js`). The id is what lets the window
+    // it opens be called what the capability is called.
+    "    data-window-doorway",
+    `    data-capability-id="${id}"`,
+    `    hx-get="${deletionUrl}"`,
+    '    hx-target="#spec-build-output"',
+    '    hx-swap="innerHTML"',
+    "  >",
+    "    Delete",
+    "  </button>",
+    "</div>",
+  ].join("\n");
+}
+
+/**
+ * The one inline rename form, anchored where the label already lives.
+ *
+ * It stands under the tile with the label hidden beside it, so nothing about the
+ * capability's place on the desk moves and no modal opens — Aluna has none. The value it
+ * opens with is the effective label, which is what the person is looking at.
+ *
+ * The incarnation and version it was opened on ride with the submission. They are what
+ * binds the write to the exact capability the menu opened on: a delete-and-recreate under
+ * the same id, or an evolution that landed in between, is refused rather than renamed.
+ *
+ * It answers into the slot rather than the window. A refusal is a 4xx, which htmx does not
+ * swap, so the typed value and the editor's focus survive one untouched while its sentence
+ * goes to the prompt bar (PLAN decision 26).
+ */
+function renderCapabilityRenameEditor(row: RenderableCapabilityLogo, label: string): string {
+  const id = escapeHtml(row.id);
+  const renameUrl = escapeHtml(`/capability-rename/${encodeURIComponent(row.id)}`);
+  const slot = escapeHtml(`#${capabilityLogoElementId(id)}`);
+  return [
+    "<form",
+    `  id="${capabilityRenameElementId(id)}"`,
+    '  class="logo-rename"',
+    "  data-logo-rename",
+    "  data-ink",
+    "  hidden",
+    `  hx-post="${renameUrl}"`,
+    `  hx-target="${slot}"`,
+    '  hx-swap="outerHTML"',
+    '  hx-disabled-elt="find button"',
+    ">",
+    '  <span class="field__control logo-rename__control">',
+    '    <input class="field__input" type="text"',
+    '      name="label"',
+    "      data-logo-rename-input",
+    `      value="${escapeHtml(label)}"`,
+    `      maxlength="${MAX_CAPABILITY_LABEL_CHARS}"`,
+    '      autocomplete="off"',
+    '      spellcheck="false"',
+    `      aria-label="Rename ${escapeHtml(label)}"`,
+    `      aria-describedby="${capabilityRenameErrorElementId(id)}"`,
+    "    >",
+    "  </span>",
+    `  <input type="hidden" name="incarnation_id" value="${escapeHtml(row.incarnation_id)}">`,
+    `  <input type="hidden" name="version" value="${row.version}">`,
+    '  <div class="logo-rename__actions">',
+    '    <button type="submit" class="btn btn--primary btn--sm" data-logo-rename-save',
+    `      data-busy-label="${escapeHtml(SAVING_LABEL)}"`,
+    "    >Save</button>",
+    '    <button type="button" class="btn btn--outline btn--sm" data-logo-rename-cancel>',
+    "      Cancel",
+    "    </button>",
+    "  </div>",
+    `  <p class="logo-rename__error" id="${capabilityRenameErrorElementId(id)}"`,
+    '    data-logo-rename-error role="alert"></p>',
+    "</form>",
   ].join("\n");
 }
 
@@ -403,7 +584,7 @@ function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): 
     '<span class="logo-tile logo-tile--pending logo-tile--working"',
     `  hx-post="${escapeHtml(capabilityLogoAttemptUrl(row))}"`,
     '  hx-trigger="load"',
-    `  hx-target="${escapeHtml(`#${capabilityLogoElementId(row.id)}`)}"`,
+    `  hx-target="${escapeHtml(`#${capabilityLogoFaceElementId(row.id)}`)}"`,
     '  hx-swap="outerHTML"',
     "></span>",
   ].join("\n");
@@ -498,14 +679,21 @@ function renderCapabilityLogoOob(row: RenderableCapabilityLogo): string {
   ].join("\n");
 }
 
-// An evolution moving the capability's label. **Inert**: evolution never enters the logo
-// path, so re-rendering a still-faceless tile here must not become a third way to arm an
-// attempt. Only a fresh desk render or a newly activated tile may do that.
+// An evolution. **Inert**: evolution never enters the logo path, so re-rendering a still
+// faceless tile here must not become a third way to arm an attempt. Only a fresh desk
+// render or a newly activated tile may do that.
+//
+// Sent whether or not the label moved. It used to be skipped for an evolution that kept
+// its name, on the reasoning that the label was the only thing on the desk an evolution
+// could change. Since 5.9/01 the slot also carries the version a rename is bound to, and
+// a desk left holding the old number refuses every rename of that capability — for ever,
+// with the stale sentence, until the page is reloaded. The saving was one small fragment;
+// the cost was a control that silently stopped working.
 function renderCapabilityLogoReplacement(row: RenderableCapabilityLogo): string {
   const targetId = capabilityLogoElementId(row.id);
   return renderCapabilityLogo(row, { armLogoAttempt: false }).replace(
-    "<button",
-    () => `<button hx-swap-oob="${escapeHtml(`outerHTML:#${targetId}`)}"`,
+    "<div",
+    () => `<div hx-swap-oob="${escapeHtml(`outerHTML:#${targetId}`)}"`,
   );
 }
 
@@ -622,9 +810,7 @@ export function renderCapabilityCommitSwap(
   const logo =
     previousLabel === undefined
       ? renderCapabilityLogoOob(row)
-      : previousLabel === row.label
-        ? ""
-        : renderCapabilityLogoReplacement(row);
+      : renderCapabilityLogoReplacement(row);
   return [renderCapabilitySurface(row, collectionHtml), logo].filter(Boolean).join("\n");
 }
 

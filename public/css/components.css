@@ -14,11 +14,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
-  /* One row height, shared with every field, so a control row aligns without a
-     nudge. Stated rather than left to fall out of the padding. */
-  min-height: var(--control-h);
-  padding: var(--space-1) var(--space-2);
+  /* No row height, no padding and no gap. `design/styles/components/form-controls.css`
+     owns the control row and the three sizes that ride on it — `.btn--sm`, the base, and
+     `.btn--lg` — and this sheet loads after the manifest, so restating any of them here
+     did not merely duplicate them: it silently defeated the size modifiers, and a
+     `.btn--sm` on the desk came out at the full row height with a squeezed padding.
+     The same argument the type size below is left out for. */
   font-family: var(--font-body);
   /* No size. A button is set in small caps and `design/styles/components/controls.css`
      already says so — restating a size here only overrode it, because this sheet loads

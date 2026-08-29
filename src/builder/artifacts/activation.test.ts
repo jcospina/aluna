@@ -182,8 +182,9 @@ describe("activatePublishedSnapshot — point of no return", () => {
       finalizeMetrics: () => finalizeSuccess(conns, buildId, INCARNATION_ID),
     });
 
-    // The evolution kept the capability's label, so the commit swap is the content
-    // surface alone: no desk sidecar, because the logo already reads correctly.
+    // The evolution kept the capability's label, and the slot still comes back — it
+    // carries the version a rename is bound to, and a desk left holding the old one
+    // refuses every rename of this capability until the page is reloaded (5.9/01).
     // `src/web/fragments.test.ts` pins the same property on the renderer in isolation;
     // proving it here keeps it true downstream of a *real* activation, where
     // `previousLabel` comes off the pointer swap rather than a test argument.
@@ -191,8 +192,10 @@ describe("activatePublishedSnapshot — point of no return", () => {
     expect(commit.row.label).toBe("Notes");
     const swap = renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel);
     expect(swap).toContain('data-active-capability-id="notes"');
-    expect(swap).not.toContain("hx-swap-oob");
-    expect(swap).not.toContain("data-capability-logo");
+    expect(swap).toContain("outerHTML:#capability-logo-notes");
+    expect(swap).toContain(`name="version" value="${commit.row.version}"`);
+    // And inert: an evolution never enters the logo path.
+    expect(swap).not.toContain("logo-attempt");
   });
 
   test("wrong expected incarnation and version are stale CAS writes that touch no pointer", async () => {

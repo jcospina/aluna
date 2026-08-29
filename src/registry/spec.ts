@@ -353,6 +353,11 @@ export const capabilityRowSchema = z
   .strictObject({
     ...capabilityRegistryShape,
     logo: capabilityLogoStateSchema,
+    // What the user renamed this capability to, and `null` while they have not. Row-only
+    // for the same reason the logo lifecycle is: a write shape that could carry it is a
+    // write that could wipe a rename, and an evolution builds its write from a row read
+    // seconds earlier. Only `renameCapability` in `store.ts` moves this value.
+    display_label_override: z.string().nullable(),
   })
   .superRefine(validateSpecSemantics);
 export type CapabilityRow = z.infer<typeof capabilityRowSchema>;

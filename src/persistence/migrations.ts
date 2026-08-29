@@ -335,6 +335,21 @@ export const MIGRATIONS: readonly Migration[] = [
       database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN companion TEXT;`);
     },
   },
+  // The one name the platform owns: what the user renamed this capability to, if they
+  // ever did. Nullable and defaultless, because absence is the honest reading — most
+  // capabilities are still called what they were authored as, and NULL says exactly that
+  // rather than restating the authored label in a second place that could then drift.
+  //
+  // The authored `label` beside it is never touched by a rename, so every immutable
+  // `spec.json` snapshot stays byte-for-byte truthful about what the model wrote. The
+  // effective name a person reads is `display_label_override ?? label`, resolved at the
+  // one place every display path already goes through (`canonicalCapabilityLabel`).
+  {
+    id: "0014_capability_display_label_override",
+    up: (database) => {
+      database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN display_label_override TEXT;`);
+    },
+  },
 ];
 
 // The set of migration ids already recorded in the ledger. Returns empty when the

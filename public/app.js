@@ -667,6 +667,10 @@ document.addEventListener("htmx:beforeSwap", (event) => {
     "read_unavailable",
     "record_not_found",
     "mutation_failed",
+    // A rename the desk turned down (`src/capability-rename/presentation.ts`). It is the
+    // first refusal that can only ever have come from outside the window, so it always
+    // takes the branch below and always speaks on the prompt bar.
+    "rename_refused",
   ].some((code) => response.includes(`data-error-code="${code}"`));
   if (!isStructuredFormRefusal) return;
 

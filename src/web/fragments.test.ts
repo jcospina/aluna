@@ -18,6 +18,9 @@ import { escapeHtml } from "./html.ts";
 // the state the desk's load-triggered attempt is armed by.
 const LOGO_ABSENT = { status: "absent", attempts: 0 } as const;
 
+/** The platform-owned half every logo fixture below carries unchanged. */
+const NEVER_RENAMED = { version: 1, display_label_override: null } as const;
+
 // The shell's logo placeholder comment, with the 10-space indent the injection matches
 // on. Kept in sync with fragments.ts.
 const LOGO_PLACEHOLDER = "          <!-- Capability logos render here. -->";
@@ -40,10 +43,37 @@ function countMatches(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
 
+/** The logo's own `<button>` — the one that opens the capability — and nothing around it. */
+function logoButton(html: string): string {
+  const opened = html.indexOf("<button");
+  return opened === -1 ? "" : html.slice(opened, html.indexOf("</button>", opened));
+}
+
+/** Just that button's opening tag, where the one verb a press carries has to be. */
+function logoButtonTag(html: string): string {
+  const button = logoButton(html);
+  return button.slice(0, button.indexOf(">"));
+}
+
+/** The menu's opening tag, where its role and its hidden state are written. */
+function menuTag(html: string): string {
+  const marker = html.indexOf("data-logo-menu");
+  if (marker === -1) return "";
+  return html.slice(html.lastIndexOf("<div", marker), html.indexOf(">", marker));
+}
+
+/** How many ways into permanent deletion this markup offers. Exactly one, on the menu. */
+function deleteDoorways(html: string): number {
+  return countMatches(html, "data-capability-delete");
+}
+
 interface OobInspection {
   readonly logoCount: number;
   readonly logoInsideOobCount: number;
   readonly oobCount: number;
+  /** Whether the swap addresses the whole slot — the logo, its menu and its editor. */
+  readonly oobIsSlotItself: boolean;
+  /** Never true. The button inside the slot is not what any swap is addressed at. */
   readonly oobIsLogoItself: boolean;
   readonly oobValue: string | null;
 }
@@ -53,6 +83,7 @@ async function inspectLogoOob(fragment: string): Promise<OobInspection> {
   let logoCount = 0;
   let logoInsideOobCount = 0;
   let oobCount = 0;
+  let oobIsSlotItself = false;
   let oobIsLogoItself = false;
   let oobValue: string | null = null;
 
@@ -78,6 +109,11 @@ async function inspectLogoOob(fragment: string): Promise<OobInspection> {
         }
       },
     })
+    .on("[data-logo-slot]", {
+      element(element) {
+        oobIsSlotItself ||= element.getAttribute("hx-swap-oob") !== null;
+      },
+    })
     .on("[data-capability-logo]", {
       element(element) {
         logoCount += 1;
@@ -87,7 +123,7 @@ async function inspectLogoOob(fragment: string): Promise<OobInspection> {
     });
 
   await new Response(rewriter.transform(new Response(fragment)).body).text();
-  return { logoCount, logoInsideOobCount, oobCount, oobIsLogoItself, oobValue };
+  return { logoCount, logoInsideOobCount, oobCount, oobIsSlotItself, oobIsLogoItself, oobValue };
 }
 
 describe("prompt notice", () => {
@@ -123,6 +159,7 @@ describe("web fragments", () => {
         incarnation_id: "11111111-1111-4111-8111-111111111111",
         version: 1,
         logo: { status: "absent", attempts: 0 },
+        display_label_override: null,
       },
       '<section class="capability-collection"><div id="notes-records" hx-get="/capability/notes/read"></div></section>',
     );
@@ -131,6 +168,7 @@ describe("web fragments", () => {
       logoCount: 1,
       logoInsideOobCount: 1,
       oobCount: 1,
+      oobIsSlotItself: false,
       oobIsLogoItself: false,
       oobValue: "beforeend:#capability-logos",
     });
@@ -144,10 +182,12 @@ describe("web fragments", () => {
     // request is in flight and the artwork is on its way to this very element. The
     // provisional tile comes down in the same beat, and the ground never goes still.
     expect(fragment).toContain('class="logo-tile logo-tile--pending logo-tile--working"');
-    // Deletion's doorway is the logo's context menu (5.9/02), not a second control
-    // riding on the tile.
-    expect(fragment).not.toContain("data-capability-delete");
-    expect(fragment).not.toContain("/capability-deletion/notes");
+    // Deletion's doorway is the logo's context menu and nothing else — never a second
+    // control riding on the tile, and never anything in the window's chrome (design D3).
+    expect(fragment).toContain('role="menu"');
+    expect(fragment).toContain('hx-get="/capability-deletion/notes"');
+    expect(deleteDoorways(fragment)).toBe(1);
+    expect(menuTag(fragment)).toContain("hidden");
     expect(fragment).toContain(
       'data-active-capability-incarnation="11111111-1111-4111-8111-111111111111"',
     );
@@ -170,14 +210,18 @@ describe("web fragments", () => {
       incarnation_id: "11111111-1111-4111-8111-111111111111",
       version: 2,
       logo: { status: "absent", attempts: 0 } as const,
+      display_label_override: null,
     };
     const collection = '<section class="capability-collection"></section>';
 
     const changed = renderCapabilityCommitSwap(evolved, collection, "Notes");
+    // The swap is addressed at the slot, so a re-rendered logo brings its menu and its
+    // editor with it rather than replacing a button and leaving the old two beside it.
     expect(await inspectLogoOob(changed)).toMatchObject({
       logoCount: 1,
       oobCount: 1,
-      oobIsLogoItself: true,
+      oobIsSlotItself: true,
+      oobIsLogoItself: false,
       oobValue: "outerHTML:#capability-logo-notes",
     });
     expect(changed).not.toContain("beforeend:#capability-logos");
@@ -185,8 +229,12 @@ describe("web fragments", () => {
     expect(changed).toContain('aria-label="Open Journal"');
     expect(changed).not.toContain('aria-label="Open Notes"');
 
+    // And it comes back even when the name did not move. The slot carries the version a
+    // rename is bound to, so a desk left holding the old one refuses every rename of this
+    // capability until the page is reloaded (5.9/01).
     const unchanged = renderCapabilityCommitSwap(evolved, collection, "Journal");
-    expect(await inspectLogoOob(unchanged)).toMatchObject({ logoCount: 0, oobCount: 0 });
+    expect(await inspectLogoOob(unchanged)).toMatchObject({ logoCount: 1, oobCount: 1 });
+    expect(unchanged).toContain('name="version" value="2"');
     expect(unchanged).toContain('data-active-capability-id="notes"');
     expect(unchanged).not.toContain("capability-evolution");
   });
@@ -261,13 +309,21 @@ describe("on-load logo rehydration", () => {
     // shell's own `<script>` tags into the body. Escaping manufactures the hazard rather
     // than avoiding it: `escapeHtml` turns a label's `'` into `&#39;`, so `$'` becomes `$&`.
     const plain = renderRehydratedShell(
-      [{ id: "notes", label: "Plain", incarnation_id: "inc-1", logo: LOGO_ABSENT }],
+      [
+        {
+          id: "notes",
+          label: "Plain",
+          incarnation_id: "inc-1",
+          logo: LOGO_ABSENT,
+          ...NEVER_RENAMED,
+        },
+      ],
       SHELL_FIXTURE,
     );
 
     for (const label of ["Cost $` log", "Cheap $' finds", "A $& b"]) {
       const html = renderRehydratedShell(
-        [{ id: "notes", label, incarnation_id: "inc-1", logo: LOGO_ABSENT }],
+        [{ id: "notes", label, incarnation_id: "inc-1", logo: LOGO_ABSENT, ...NEVER_RENAMED }],
         SHELL_FIXTURE,
       );
 
@@ -283,8 +339,20 @@ describe("on-load logo rehydration", () => {
   test("registry rows render one canonical logo each, and nothing is gated", () => {
     const html = renderRehydratedShell(
       [
-        { id: "notes", label: "Notes", incarnation_id: "inc-1", logo: LOGO_ABSENT },
-        { id: "recipes", label: "Recipes", incarnation_id: "inc-2", logo: LOGO_ABSENT },
+        {
+          id: "notes",
+          label: "Notes",
+          incarnation_id: "inc-1",
+          logo: LOGO_ABSENT,
+          ...NEVER_RENAMED,
+        },
+        {
+          id: "recipes",
+          label: "Recipes",
+          incarnation_id: "inc-2",
+          logo: LOGO_ABSENT,
+          ...NEVER_RENAMED,
+        },
       ],
       SHELL_FIXTURE,
     );
@@ -303,10 +371,14 @@ describe("on-load logo rehydration", () => {
     expect(html).toContain("Notes");
     expect(html).toContain("Recipes");
 
-    // A real `<button>`, which is what lets 5.9 open a context menu from the keyboard
-    // without hand-written key handling, and what carries the live label a rename changes.
-    expect(html.match(/<button\s+type="button"/g)).toHaveLength(2);
-    expect(html).toContain('<span class="logo-label">Notes</span>');
+    // A real `<button>`, which is what lets the logo take the menu key without any
+    // hand-written key handling, and what carries the live label a rename changes.
+    expect(countMatches(html, "<button")).toBeGreaterThanOrEqual(2);
+    expect(countMatches(html, "data-logo-slot")).toBe(2);
+    // One menu per logo, each holding exactly its two items and nothing else.
+    expect(countMatches(html, 'role="menu"')).toBe(2);
+    expect(countMatches(html, 'role="menuitem"')).toBe(4);
+    expect(html).toContain('<span class="logo-label" data-logo-label>Notes</span>');
 
     // Logos render in the order the registry hands them over (notes before recipes).
     expect(html.indexOf("/capability/notes")).toBeLessThan(html.indexOf("/capability/recipes"));
@@ -339,7 +411,15 @@ describe("on-load logo rehydration", () => {
       // and is not: a desk with no logos on it.
       expect(() =>
         renderRehydratedShell(
-          [{ id: "notes", label: "Notes", incarnation_id: "inc-1", logo: LOGO_ABSENT }],
+          [
+            {
+              id: "notes",
+              label: "Notes",
+              incarnation_id: "inc-1",
+              logo: LOGO_ABSENT,
+              ...NEVER_RENAMED,
+            },
+          ],
           anchor.remove(SHELL_FIXTURE),
         ),
       ).toThrow(anchorRaises[anchor.name] as RegExp);
@@ -365,6 +445,7 @@ describe("the tile inside a logo", () => {
     label: "Notes",
     incarnation_id: "11111111-1111-4111-8111-111111111111",
     logo: LOGO_ABSENT,
+    ...NEVER_RENAMED,
   } as const;
   const attemptUrl = "/capability/notes/11111111-1111-4111-8111-111111111111/logo-attempt";
   const artworkUrl = "/capability/notes/11111111-1111-4111-8111-111111111111/logo.svg";
@@ -389,11 +470,10 @@ describe("the tile inside a logo", () => {
   // beside the click's `hx-get` would silently fire the GET and never claim anything.
   test("the attempt is on the tile, never on the button that opens the capability", () => {
     const html = renderCapabilityLogo(row);
-    const buttonTag = html.slice(0, html.indexOf(">"));
 
-    expect(buttonTag).toContain('hx-get="/capability/notes"');
-    expect(buttonTag).not.toContain("hx-post");
-    expect(buttonTag).not.toContain("hx-trigger");
+    expect(logoButtonTag(html)).toContain('hx-get="/capability/notes"');
+    expect(logoButtonTag(html)).not.toContain("hx-post");
+    expect(logoButtonTag(html)).not.toContain("hx-trigger");
   });
 
   test("a tile answering an attempt is inert even while it is still absent", () => {
@@ -414,9 +494,10 @@ describe("the tile inside a logo", () => {
     const html = renderCapabilityLogo({ ...row, logo: { status, attempts: 1 } });
 
     // The plain placeholder and nothing else: no request of any kind on the tile, and no
-    // artwork address for bytes that are not there.
+    // artwork address for bytes that are not there. Read off the button rather than the
+    // whole slot — the rename form beside it posts, and always has.
     expect(html).toContain('<span class="logo-tile logo-tile--pending"></span>');
-    expect(html).not.toContain("hx-post");
+    expect(logoButton(html)).not.toContain("hx-post");
     expect(html).not.toContain("logo.svg");
   });
 
@@ -433,6 +514,7 @@ describe("the tile inside a logo", () => {
       ...row,
       incarnation_id: "22222222-2222-4222-8222-222222222222",
       logo: { status: "present", attempts: 1 },
+      display_label_override: null,
     });
 
     expect(rebuilt).toContain("/capability/notes/22222222-2222-4222-8222-222222222222/logo.svg");
@@ -445,8 +527,8 @@ describe("which renders may arm an attempt", () => {
     id: "notes",
     label: "Notes",
     incarnation_id: "11111111-1111-4111-8111-111111111111",
-    version: 1,
     logo: LOGO_ABSENT,
+    ...NEVER_RENAMED,
   } as const;
   const collection = '<section class="capability-collection"></section>';
 
@@ -472,28 +554,39 @@ describe("which renders may arm an attempt", () => {
     expect(renamed).not.toContain("hx-trigger");
   });
 
-  test("an evolution that keeps the label re-renders no tile at all", () => {
+  test("an evolution that keeps the label still re-renders the slot, inert", () => {
     const unchanged = renderCapabilityCommitSwap({ ...row, version: 2 }, collection, "Notes");
 
-    expect(unchanged).not.toContain("data-capability-logo");
+    // The name is the same and the version is not, and the version is what a rename binds
+    // to — so the slot comes back carrying the new one, without arming anything.
+    expect(unchanged).toContain("data-capability-logo");
+    expect(unchanged).toContain('name="version" value="2"');
     expect(unchanged).not.toContain("logo-attempt");
   });
 
   test("a fresh desk render arms one per faceless capability and no more", () => {
     const html = renderRehydratedShell(
       [
-        { id: "notes", label: "Notes", incarnation_id: "inc-1", logo: LOGO_ABSENT },
+        {
+          id: "notes",
+          label: "Notes",
+          incarnation_id: "inc-1",
+          logo: LOGO_ABSENT,
+          ...NEVER_RENAMED,
+        },
         {
           id: "recipes",
           label: "Recipes",
           incarnation_id: "inc-2",
           logo: { status: "present", attempts: 1 },
+          ...NEVER_RENAMED,
         },
         {
           id: "trips",
           label: "Trips",
           incarnation_id: "inc-3",
           logo: { status: "abandoned", attempts: 3 },
+          ...NEVER_RENAMED,
         },
       ],
       SHELL_FIXTURE,

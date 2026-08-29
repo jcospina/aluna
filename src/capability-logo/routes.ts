@@ -19,7 +19,7 @@ import type { Context, Hono } from "hono";
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import type { CapabilityIncarnation, ReadGateCoordinator } from "../read-gates/index.ts";
-import { renderCapabilityLogo } from "../web/index.ts";
+import { renderCapabilityLogoFace } from "../web/index.ts";
 import {
   type CapabilityLogoAttemptOutcome,
   readActiveIncarnationCatalog,
@@ -215,9 +215,15 @@ export function registerCapabilityLogoRoutes(app: Hono, deps: CapabilityLogoRout
     // Re-read rather than infer from the outcome: the tile states what the registry now
     // holds, which is also the right answer when this request lost the claim to another.
     const row = readAttemptTarget(target, deps.registryDatabases);
-    // A capability deleted while its logo was being drawn has no tile; an empty body
-    // swapped as `outerHTML` takes the button off the desk, which is correct.
-    return c.html(row ? renderCapabilityLogo(row, { armLogoAttempt: false }) : "", 200, NO_STORE);
+    // The face and not the slot: this swap is the only one on the desk nobody asked for,
+    // and the menu and the rename editor beside the button are the user's own state
+    // (5.9/01). A capability deleted while its logo was being drawn has no tile; an empty
+    // body swapped as `outerHTML` takes the button off the desk, which is correct.
+    return c.html(
+      row ? renderCapabilityLogoFace(row, { armLogoAttempt: false }) : "",
+      200,
+      NO_STORE,
+    );
   });
 
   app.get("/capability/:id/:incarnation_id/logo.svg", (c) => {

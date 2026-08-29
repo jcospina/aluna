@@ -1,4 +1,8 @@
-import type { CapabilityRow, CapabilitySpec } from "../../registry/index.ts";
+import {
+  type CapabilityRow,
+  type CapabilitySpec,
+  canonicalCapabilityLabel,
+} from "../../registry/index.ts";
 
 interface SeparateCapabilityIdentity {
   readonly id: string;
@@ -32,9 +36,22 @@ function containsIdentityTokens(container: Set<string>, identity: Set<string>): 
   return identity.size > 0 && [...identity].every((token) => container.has(token));
 }
 
-function identitiesFor(capability: Pick<CapabilityRow, "id" | "label">): readonly Set<string>[] {
-  return [identityTokens(capability.id), identityTokens(capability.label)];
+/**
+ * Every name this capability answers to: its id, the label the model authored, and — when
+ * the user has renamed it — the name they gave it. All three, because a rename does not
+ * retire the old ones and the resolver is shown the new one (`formatCapability`,
+ * `src/intent-resolver/resolver.ts`). Matching on fewer than the resolver sees is how a
+ * second tile called what a tile on the desk is already called gets admitted.
+ */
+function identitiesFor(capability: RenameableIdentity): readonly Set<string>[] {
+  return [
+    identityTokens(capability.id),
+    identityTokens(capability.label),
+    identityTokens(canonicalCapabilityLabel(capability)),
+  ];
 }
+
+type RenameableIdentity = Pick<CapabilityRow, "id" | "label" | "display_label_override">;
 
 /**
  * A trailing number/version is mechanical only when the text before it still names an
@@ -44,7 +61,7 @@ function identitiesFor(capability: Pick<CapabilityRow, "id" | "label">): readonl
  */
 function hasMechanicalIdentity(
   value: string,
-  capabilities: readonly Pick<CapabilityRow, "id" | "label">[],
+  capabilities: readonly RenameableIdentity[],
 ): boolean {
   const match = /^(.*?)(?:[_\s-]*(?:v(?:ersion)?[_\s-]*)?\d+)$/i.exec(value.trim());
   const base = match?.[1];

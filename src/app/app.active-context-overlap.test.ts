@@ -287,7 +287,9 @@ describe("homepage separate semantic overlap", () => {
     expect(prompts[1]).not.toContain("namespace");
     expect(prompts[1]).toContain("meaningful semantic label and id");
     expect(eventData(events, "commit")).toContain('data-capability-id="work_contacts"');
-    expect(eventData(events, "commit")).toContain('<span class="logo-label">Work contacts</span>');
+    expect(eventData(events, "commit")).toContain(
+      '<span class="logo-label" data-logo-label>Work contacts</span>',
+    );
     expect(eventData(events, "commit")).not.toContain("contacts_2");
     expect(getCapability("work_contacts", env.conns.readonly)?.label).toBe("Work contacts");
     expect(metrics.lifecycles.at(-1)?.resolver?.overlapResolution).toBe("namespace");

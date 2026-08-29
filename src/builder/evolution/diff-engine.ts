@@ -189,7 +189,13 @@ export function diffCapabilitySpec(
 function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): readonly ChangeFact[] {
   const facts: ChangeFact[] = [];
 
-  if (canonicalCapabilityLabel(committed) !== canonicalCapabilityLabel(candidate)) {
+  // Authored labels, canonicalized. The override a rename writes is deliberately not in
+  // this comparison: a diff is over what the model wrote, and renaming desk furniture is
+  // not a change to a spec — it makes no version and it reaches no candidate.
+  const authored = (spec: CapabilitySpec) => ({ ...spec, display_label_override: null });
+  if (
+    canonicalCapabilityLabel(authored(committed)) !== canonicalCapabilityLabel(authored(candidate))
+  ) {
     facts.push({ kind: "capability_label" });
   }
   // `noun` is a platform-View fact: it moves one sentence of platform copy and

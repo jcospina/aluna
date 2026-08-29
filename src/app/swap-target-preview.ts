@@ -37,11 +37,13 @@ const PREVIEW_ROW = Object.freeze({
   id: "swap_target_preview",
   label: "Swap target preview",
   incarnation_id: "00000000-0000-4000-8000-0000000000ee",
+  version: 1,
   // Deliberately not `absent`: an absent tile arms a load-triggered POST at the paid
   // attempt route, and this preview exists to rehearse page-assembly anchors, not to
   // order artwork for a capability that does not exist. `abandoned` is the one status
   // that means "no artwork, and none coming".
   logo: { status: "abandoned", attempts: 3 },
+  display_label_override: null,
 } satisfies RenderableCapabilityLogo);
 
 interface AnchorOutcome {

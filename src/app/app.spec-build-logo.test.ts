@@ -164,7 +164,10 @@ describe("a build and the logo it does not pay for", () => {
     // And the desk shows it on the next load, with nothing left to claim.
     const desk = await (await app.request("/")).text();
     expect(desk).toContain(`/capability/notes/${row?.incarnation_id}/logo.svg`);
-    expect(desk).not.toContain('hx-post="/capability');
+    // Nothing left to claim. Named at the attempt route rather than at every POST on the
+    // desk: the logo's own menu carries a rename form, and the shell loads the attempt
+    // module's script on every page whether or not a tile has one to spend.
+    expect(desk).not.toContain('hx-post="/capability/notes');
   });
 });
 

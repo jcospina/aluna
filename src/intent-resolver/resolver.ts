@@ -10,6 +10,7 @@ import type { Provider, TokenUsage } from "../provider/index.ts";
 import {
   type ActiveRegistryCatalog,
   type CapabilityRow,
+  canonicalCapabilityLabel,
   readActiveRegistryCatalog,
 } from "../registry/index.ts";
 import { type IntentClassification, intentClassificationSchema } from "./schema.ts";
@@ -52,7 +53,9 @@ function formatCapability(capability: CapabilityRow): string {
   });
   return [
     `- id: ${capability.id}`,
-    `  label: ${capability.label}`,
+    // The effective label, which is the name the person would use for this in a prompt.
+    // A capability they renamed is one they will ask for by its new name.
+    `  label: ${canonicalCapabilityLabel(capability)}`,
     `  version: ${capability.version}`,
     `  prompt_context: ${capability.prompt_context}`,
     "  content_free_field_catalog:",

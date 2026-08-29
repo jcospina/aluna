@@ -269,6 +269,7 @@ export function notesCapabilityRow(overrides: Partial<CapabilityRow> = {}): Capa
     artifacts_path: `capabilities/notes/${NOTES_INCARNATION_ID}/v1/`,
     seed: NOTES_LOGO_SEED,
     logo: { status: "absent", attempts: 0 },
+    display_label_override: null,
     ...overrides,
   } as CapabilityRow;
 }

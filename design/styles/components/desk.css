@@ -45,6 +45,27 @@
   gap: var(--space-3) var(--space-2);
 }
 
+/*
+ * The slot, which is what a capability actually occupies here: its logo, the short menu
+ * that opens on the logo, and the one inline form that menu opens (PLAN decision 19).
+ *
+ * The grid item, so everything addressed at one capability's place on the desk — the
+ * tile's own attempt, an evolution's replacement, a deletion's removal — means the whole
+ * of it, and no menu is ever left standing where its logo used to be. It stretches its
+ * button across the cell exactly as the button used to stretch itself, so the press area
+ * is the one it always was.
+ *
+ * It passes presses on like the layer above it: the layer is as tall as the desk whether
+ * it holds twenty logos or one, and a slot inherits that reach. What is in the slot takes
+ * the presses.
+ */
+.logo-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
 /* The button only. What is inside it is the logo contract's — see
    `logo-contract.css`, which stacks the tile and the name. */
 .logo {
@@ -53,6 +74,159 @@
   background: transparent;
   cursor: pointer;
   pointer-events: auto;
+  /*
+   * A press held on a logo opens Aluna's menu and nothing else. Without these, the same
+   * gesture also raises the operating system's own — iOS Safari's callout over the tile's
+   * image, and a text selection dragging out of the name underneath it — so the person
+   * gets two menus and a highlighted label for one press. The tile is a background image
+   * and the name is text, which is exactly the pair both platforms react to.
+   */
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/*
+ * The name is where the form goes, so the name gets out of its way. `display` rather than
+ * `visibility`, because the form takes the space the label was using: the tile does not
+ * move and nothing else on the desk does either.
+ */
+[data-renaming] .logo-label {
+  display: none;
+}
+
+/* ── The menu on a logo ───────────────────────────────────────────────── */
+/*
+ * Two items and no more: what you can do *to* a capability rather than with it. It is
+ * reached from the logo and never from the window chrome, which is what leaves D3
+ * standing and keeps every lamp the colour it was.
+ *
+ * Framed on `--surface` and raised, like the prompt rail — but it does not cast. What
+ * casts onto the desk is a closed list (the window, the prompt rail, the logo tile) and
+ * a menu that is gone the moment it is used does not join it.
+ *
+ * `[hidden]` is restated because a `display` here would otherwise outrank the user
+ * agent's own rule and leave the menu on screen for ever.
+ */
+.logo-menu {
+  /*
+   * Placed at the pointer, the way every context menu is: it opens from the tip of the
+   * cursor and runs down and to the right of it. `fixed`, so the two numbers the shell
+   * writes are the pointer's own — nothing has to be measured against the slot, the grid,
+   * or a scrolled ancestor. Opened from the keyboard it is placed at the logo instead,
+   * which is where the person is looking.
+   */
+  /*
+   * The same object the drawn listbox is, because it is the same kind of thing: a small
+   * panel you choose one row out of. It takes the frame hand for holding others, the
+   * 3px gutter the drawn line overhangs into, and `--surface` under ink — so a menu on
+   * the desk and a picker in a form are recognisably one component family.
+   */
+  --ink-hand: frame;
+
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  min-width: 9rem;
+  flex-direction: column;
+  padding: 3px;
+  border: var(--line) solid var(--ink);
+  background: var(--surface);
+  pointer-events: auto;
+}
+
+.logo-menu[hidden] {
+  display: none;
+}
+
+/* One item to a row, set exactly as a drawn listbox sets one of its options. */
+.logo-menu__item {
+  display: flex;
+  align-items: center;
+  padding: 0.4375rem 0.5625rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--control-text);
+  line-height: 1.35;
+  text-align: left;
+}
+
+/*
+ * Where the pointer and the keyboard are. A fill and not an edge, for the reason the
+ * listbox gives: a row outlined inside a box that already has an edge reads as two boxes.
+ */
+.logo-menu__item:hover,
+.logo-menu__item:focus-visible {
+  background: var(--ground-deep);
+}
+
+/* ── The one inline rename form ───────────────────────────────────────── */
+/*
+ * Where the label was, and nowhere else. It is not a modal — Aluna has none — and it does
+ * not displace whatever the window is holding: the capability you are renaming may well
+ * be open behind it and stays exactly as it was.
+ */
+.logo-rename {
+  /*
+   * Placed at the label it replaces, and clamped to the screen from there — the same two
+   * numbers the menu above is placed by, written by the same rule. A form in the flow of
+   * the grid was the obvious thing and is the wrong one: it is wider than a cell and
+   * taller than the space under one, so on the first column it hung off the left edge of
+   * the desk and on the bottom row its guidance went under the prompt bar. Neither is a
+   * place a sentence explaining a refusal may be put.
+   */
+  --ink-hand: frame;
+
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  width: 12rem;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: var(--line) solid var(--ink);
+  background: var(--surface);
+  pointer-events: auto;
+}
+
+.logo-rename[hidden] {
+  display: none;
+}
+
+/*
+ * Save and Cancel, at the small row height the design system already names. They fill the
+ * width between them rather than sitting as two small blocks under a full-width field:
+ * a control row that does not line up with the field above it reads as an afterthought.
+ */
+.logo-rename__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.logo-rename__actions .btn {
+  flex: 1;
+}
+
+/*
+ * Why a name will not do, said where the name is. A client-side reading is not a refusal
+ * the desk has made, so it never reaches the prompt bar — the bar answers for what the
+ * desk turned down (PLAN decision 26), and this is the editor answering for itself.
+ */
+.logo-rename__error {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--type-xs);
+  text-align: center;
+}
+
+.logo-rename__error:empty {
+  display: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -215,6 +389,19 @@
   position: absolute;
   inset: 0;
   z-index: 2;
+  pointer-events: none;
+}
+
+/*
+ * Where an open logo menu stands. Above every window and above the prompt rail, because a
+ * menu you have just asked for is the frontmost thing on the desk for as long as it is
+ * open — and the logo layer it lives on the rest of the time is deliberately under the
+ * windows. It holds nothing otherwise and takes no presses of its own.
+ */
+.desk__menus {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
   pointer-events: none;
 }
 

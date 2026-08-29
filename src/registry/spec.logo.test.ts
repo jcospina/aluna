@@ -24,6 +24,7 @@ function validRow(overrides: Record<string, unknown> = {}) {
     artifacts_path: `capabilities/notes/${INCARNATION_ID}/v1/`,
     seed: 184206,
     logo: { status: "absent" as const, attempts: 0 },
+    display_label_override: null,
     ...overrides,
   };
 }
@@ -173,6 +174,9 @@ describe("the platform-owned runtime values", () => {
   test("the write shape carries the seed but has no room for a lifecycle at all", () => {
     const write = { ...validRow() } as Record<string, unknown>;
     delete write.logo;
+    // The rename override is row-only for the same reason the lifecycle is, and is
+    // dropped at the same boundary: a write may not carry either.
+    delete write.display_label_override;
     expect(capabilityRegistryWriteSchema.safeParse(write).success).toBe(true);
     // A write that tried to name a status is refused rather than quietly ignored here;
     // the store drops the key explicitly at its own boundary.

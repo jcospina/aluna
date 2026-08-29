@@ -123,6 +123,15 @@
     <script type="module" src="/static/logo-attempt.js"></script>
 
     <!--
+      The short menu that opens on a logo, and the one inline rename form it opens
+      (PLAN decision 19). Three ways in — right-click, press-and-hold, and the menu key
+      or Shift+F10 — and one component behind all three. The menu and the editor ship
+      hidden with each logo, so nothing here builds markup and no round trip stands
+      between a right-click and the menu. A module, like the rules above it.
+    -->
+    <script type="module" src="/static/logo-menu.js"></script>
+
+    <!--
       The one window. `design/scripts/window.js` is the window itself, the way
       `design/scripts/ink.js` is the drawn line; this is the product's half of that
       seam — it owns when the one window exists, what is in it, and what the two lamps
@@ -240,6 +249,15 @@
              capability shows — its collection, and the narration of a build — happens
              inside that window (PLAN decision 1; design D1, D2). -->
         <div class="desk__windows"></div>
+
+        <!-- The menu layer. A logo's context menu opens at the tip of the cursor and
+             has to stand over everything on the desk, including the window it may
+             be opened beside — and the logo layer it is rendered into sits *under*
+             the window layer, which is correct for logos and wrong for a menu. So
+             the open menu is lifted here for as long as it is open and put back on
+             its logo when it closes. Empty in the page: it holds nothing until
+             someone asks for a menu (public/logo-menu.js). -->
+        <div class="desk__menus" id="capability-menus"></div>
 
         <!-- The developer panel's one seeded stage. Lifecycle metrics and committed
              versions are known before any stream opens — they are what the platform

@@ -1,6 +1,6 @@
 # A short context menu opens on a capability's logo, three ways in, and Rename changes the label and nothing else
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -56,32 +56,32 @@ surface while duplicating the ground.
 
 ## Acceptance criteria
 
-- [ ] Right-click, press-and-hold and the menu key or Shift+F10 all open the same
+- [x] Right-click, press-and-hold and the menu key or Shift+F10 all open the same
       menu on a capability's logo
-- [ ] Rename opens one inline label form with Save and Cancel; it does not open a
+- [x] Rename opens one inline label form with Save and Cancel; it does not open a
       modal or displace the capability window
-- [ ] The menu carries Rename and Delete and nothing else
-- [ ] It exposes menu/menuitem semantics, arrow-key movement and Escape, and
+- [x] The menu carries Rename and Delete and nothing else
+- [x] It exposes menu/menuitem semantics, arrow-key movement and Escape, and
       opening/closing it returns focus predictably
-- [ ] No destructive affordance appears in window chrome; no lamp changes colour
-- [ ] Rename changes the label live on the desk; the id, the address and the
+- [x] No destructive affordance appears in window chrome; no lamp changes colour
+- [x] Rename changes the label live on the desk; the id, the address and the
       artwork are untouched and no build runs
-- [ ] Blank/invalid labels fail in the inline editor, stored text is escaped, and
+- [x] Blank/invalid labels fail in the inline editor, stored text is escaped, and
       Save exposes its waiting state rather than appearing to lose the action
-- [ ] A server-side rename refusal speaks on the prompt bar, preserves the inline
+- [x] A server-side rename refusal speaks on the prompt bar, preserves the inline
       value/focus and performs no partial label/catalog update
-- [ ] Rename is one coordinator-owned, incarnation/version-bound platform write;
+- [x] Rename is one coordinator-owned, incarnation/version-bound platform write;
       it cannot join another transaction or race a deleted/recreated incarnation
-- [ ] Authored `spec.label`, immutable snapshots and the active version stay
+- [x] Authored `spec.label`, immutable snapshots and the active version stay
       unchanged; shell and resolver reads use the effective label override
-- [ ] The rename advances the resolver catalog binding; an older resolved request
+- [x] The rename advances the resolver catalog binding; an older resolved request
       that has not revalidated is refused stale, without rename jumping the
       coordinator's FIFO queue
-- [ ] The menu is dismissible by keyboard and by clicking away, and returns focus
+- [x] The menu is dismissible by keyboard and by clicking away, and returns focus
       to the logo
-- [ ] Touch movement/scroll/release cancels a pending long-press and its consumed
+- [x] Touch movement/scroll/release cancels a pending long-press and its consumed
       gesture cannot also fire the logo's ordinary open action
-- [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
+- [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -93,3 +93,97 @@ hold on a touch device and confirm the third way in.
 ## Blocked by
 
 - modules/05-the-desk/5.8-message-surfaces-and-restoration/issues/04-closing-during-a-build-warns-first.md
+
+## What landed
+
+**The name a capability answers to is now two.** A nullable
+`display_label_override` column (migration `0014`) sits beside the authored
+`spec.label`, and `canonicalCapabilityLabel` resolves `override ?? label` once so
+no display path has to remember the precedence. The field is on the row schema
+only, never the write shape, and the CAS `SET` list does not name it — so an
+evolution structurally cannot wipe a rename, and only `renameCapability` moves it.
+It is required rather than optional on the label helpers' parameter type, so a row
+projection has to opt in instead of silently reverting a rename.
+
+**One route, one write.** `POST /capability-rename/:id` (`src/capability-rename/`)
+is a top-level platform route: no Handler, no resolver, no provider. The label is
+checked, then a cheap readonly look refuses a submission that provably cannot
+match, then `withPlatformWrite` queues the one conditional UPDATE bound to the
+exact incarnation and version. Because the override is ordinary semantic registry
+content, it is inside the resolver catalog's fingerprint with no extra machinery,
+so a build resolved before a rename is refused stale at its lease head.
+
+**The logo became a slot.** `renderCapabilityLogo` now emits
+`<div data-logo-slot>` holding the button, the two-item menu and the inline rename
+form, both shipped hidden. The slot carries the element id, so everything addressed
+at one capability's place on the desk means the whole of it. The one exception is
+the logo attempt, which swaps `renderCapabilityLogoFace` — the button alone —
+because a picture arriving is the only swap nobody asked for and it must not take
+away a name someone is typing.
+
+**`public/logo-menu.js`** owns the three ways in and the editor. An open panel is
+lifted into a new `#capability-menus` layer (the logo layer sits under the windows,
+which is right for logos and wrong for a menu) and put back on its own logo on the
+way down. `public/desk-doorway.js` answers the presses on the ground that need a
+window before htmx resolves their target.
+
+## Findings fixed
+
+Every one from the two adversarial passes.
+
+- **An evolution that kept its name sent no logo replacement**, so the desk went on
+  holding the old version number and *every* rename of that capability was refused
+  stale for ever, until a reload. The commit swap now always re-renders the slot.
+- **The rename route could be flooded.** Any valid label with a nonsense id still
+  took a coordinator ticket, and short writes and deletion refuse while anything is
+  queued — so an unauthenticated loop could turn every record write on the desk into
+  `mutation_busy`. A readonly pre-check now refuses before the queue, the way the
+  logo attempt already guards its own paid claim. The request's abort signal is
+  passed through, and a cancelled admission is answered rather than raised.
+- **A logo attempt landing under an open editor destroyed it.** The attempt now
+  replaces the face, not the slot.
+- **Duplicate/overlap identity matched only the authored label** while the resolver
+  was shown the effective one — so "journal" missed a capability the desk plainly
+  called Journal, and a second identically-named tile could be admitted. Both
+  matchers now carry every name a capability answers to.
+- **Escape leaked to two other document-level handlers** — a standing record
+  confirmation and the leaving-a-run question — because `stopPropagation` does not
+  stop a listener on the same node. The whole keydown moved outside the document,
+  in capture, which holds whatever order these modules load in.
+- **An out-of-band swap orphaned the lifted panel**, and a deletion's `delete:`
+  fires no swap event at all. `htmx:oobAfterSwap` and a settle-time reconcile now
+  bring home anything whose logo has left the document.
+- **A doorway could leave an empty window standing** on a failed request, and named
+  the window after whatever was already in it — a destructive confirmation under
+  another capability's name. Both fixed; a run narrating into the window is left
+  untouched, and the prompt-bar refusal still governs.
+- **The consumed post-hold click could eat a keyboard activation**, so the first
+  press of Rename did nothing on a platform that suppresses its own click. Only
+  clicks with a press behind them are taken now.
+- **A native `contextmenu` fired beside the hold timer** and tore the menu down and
+  rebuilt it; it is moved rather than reopened.
+- **No touch-callout or selection suppression on the logo**, so a press-and-hold
+  raised the platform's own menu beside ours.
+- **A scroll left both panels glued to the viewport.** The menu is put away; the
+  editor follows its label, because it is holding typed text.
+- **`.btn--sm` was dead on the product surface.** `public/css/components.css`
+  restated the control height and padding the design layer owns and loaded after
+  it, silently defeating every size modifier. Removed, per that sheet's own rule.
+- **A refusal with no readable sentence would have been swapped into the slot.**
+  Rename refusals now answer `HX-Reswap: none`.
+- Delete no longer drops focus on the body; the logo says `aria-haspopup` and
+  carries `aria-expanded`; Save says `Saving…` rather than only going grey; a press
+  that goes nowhere leaves a half-typed name alone.
+- The `aluna:ink-moved` seam was **removed after measuring**: the ink system's own
+  mutation pass already re-registers a drawn element that changes parent.
+
+## Verification
+
+`bun run test` (1978), `bun run typecheck` and `bun run lint` clean.
+
+Exercised live against the running desk: all three ways in; rename end to end with
+the artwork, id and address unchanged and focus returning to the logo; Cancel and
+Escape; the client refusal staying in the editor; a stale refusal speaking on the
+prompt bar with the typed value and focus preserved and no partial write; Delete
+opening the confirmation in the window, titled after its own capability, and
+backing out with **Keep it**; the menu standing over an open window.

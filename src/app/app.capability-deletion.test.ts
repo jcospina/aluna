@@ -107,12 +107,17 @@ describe("platform-owned capability deletion routes", () => {
       capabilityRouter: { databases: conns, loadHandler: loader.loadHandler },
     });
 
-    // The desk stands the capability's logo and nothing else on it. Deletion's doorway is
-    // the logo's context menu, which arrives in 5.9/02; until then the preflight is
-    // reached by its address, and no control on the desk starts a destructive act.
+    // Deletion's doorway is the logo's own context menu and nowhere else (5.9/01). It
+    // ships hidden with the logo, so nothing on the standing desk is a destructive
+    // control, and there is exactly one of them per capability.
     const shell = await (await app.request("/")).text();
     expect(shell).toContain('id="capability-logo-notes"');
-    expect(shell).not.toContain("/capability-deletion/notes");
+    expect(shell.split('hx-get="/capability-deletion/notes"').length - 1).toBe(1);
+    // Hidden until someone asks for it, so a standing desk offers no destructive control
+    // at all — and marked as a doorway, because the confirmation it opens fills the window
+    // and the window does not exist until the desk is asked for one.
+    expect(/data-logo-menu\s+data-ink\s+hidden/.test(shell)).toBe(true);
+    expect(shell).toContain("data-window-doorway");
 
     const preflight = await (await app.request("/capability-deletion/notes")).text();
     expect(preflight).toContain("Delete Notes permanently?");

@@ -110,6 +110,7 @@ function journalsCatalog(): readonly CapabilityRow[] {
       artifacts_path: `capabilities/journals/${JOURNALS_INCARNATION}/v1/`,
       seed: 184206,
       logo: { status: "absent", attempts: 0 },
+      display_label_override: null,
       schema: {
         fields: [
           {

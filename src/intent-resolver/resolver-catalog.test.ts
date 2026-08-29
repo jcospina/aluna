@@ -108,6 +108,7 @@ describe("intent resolver active catalog", () => {
   test("fingerprints ignore object key insertion order", () => {
     const row = notesCapabilityRow();
     const reordered = {
+      display_label_override: row.display_label_override,
       prompt_context: row.prompt_context,
       artifacts_path: row.artifacts_path,
       seed: row.seed,

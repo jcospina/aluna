@@ -94,7 +94,7 @@ describe("the attempt route", () => {
 
     expect(response.status).toBe(200);
     expect(logoState()).toEqual({ status: "present", attempts: 1 });
-    expect(html).toContain('id="capability-logo-notes"');
+    expect(html).toContain('id="capability-logo-face-notes"');
     expect(html).toContain(`background-image: url('${LOGO_PATH}')`);
     expect(html).not.toContain("logo-tile--pending");
   });
@@ -141,18 +141,24 @@ describe("the attempt route", () => {
     expect(logoState()).toEqual({ status: "absent", attempts: 1 });
     // …but the markup that came back carries no load trigger, so one page load cannot
     // recursively spend all three attempts.
-    expect(html).toContain('id="capability-logo-notes"');
+    expect(html).toContain('id="capability-logo-face-notes"');
     expect(html).toContain("logo-tile--pending");
     expect(html).not.toContain("logo-attempt");
     expect(html).not.toContain('hx-trigger="load"');
   });
 
-  test("replaces only the tile — nothing else comes back with it", async () => {
+  test("replaces only the face — nothing else comes back with it", async () => {
     install(conns, notesRow());
 
     const html = await (await appWith(drawing).request(ATTEMPT_PATH, ATTEMPT)).text();
 
-    expect(html.match(/<button/g) ?? []).toHaveLength(1);
+    // The button and nothing around it. This is the one swap on the desk nobody asked
+    // for, and the menu and the rename editor beside the button are the user's own
+    // state: a picture arriving must never take away a name being typed (5.9/01).
+    expect(html.match(/data-capability-logo\b/g) ?? []).toHaveLength(1);
+    expect(html).not.toContain("data-logo-slot");
+    expect(html).not.toContain("data-logo-menu");
+    expect(html).not.toContain("data-logo-rename");
     expect(html).not.toContain("hx-swap-oob");
     expect(html).not.toContain("capability-collection");
     expect(html).not.toContain("<html");

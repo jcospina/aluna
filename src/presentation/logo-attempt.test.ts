@@ -109,7 +109,9 @@ describe("the module and the markup agree", () => {
       id: "notes",
       label: "Notes",
       incarnation_id: "11111111-1111-4111-8111-111111111111",
+      version: 1,
       logo: { status: "absent", attempts: 0 },
+      display_label_override: null,
     });
 
     expect(rendered).toContain(
