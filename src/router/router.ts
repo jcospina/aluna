@@ -55,7 +55,11 @@ import {
   capabilitySpecFromRow,
   readActiveRegistryCatalog,
 } from "../registry/index.ts";
-import { renderCachedCapabilitySurface, renderRehydratedShellPage } from "../web/index.ts";
+import {
+  NOT_FOUND_NOTICE,
+  renderCachedCapabilitySurface,
+  renderRehydratedShellPage,
+} from "../web/index.ts";
 import type {
   CapabilityCreateHandler,
   CapabilityDeleteHandler,
@@ -138,6 +142,16 @@ export interface CapabilityRouterDeps {
 // exactly the method/Action pairs below; any other pair fails before code loads.
 const CAPABILITY_ROUTE = "/capability/:id/:action";
 const CAPABILITY_VIEW_ROUTE = "/capability/:id";
+/**
+ * The same address with a trailing slash, which is the same place.
+ *
+ * The desk has always said so — `capabilityIdFromAddress` (`public/desk-address.js`) reads
+ * the id straight through one — and the server had not, so a hand-typed or bookmarked
+ * `/capability/notes/` fell past every route in this file to Hono's own bare-text 404:
+ * no shell, no styles, nothing to go back to, whether or not the capability existed. One
+ * address that names a capability, spelled two ways (design D14).
+ */
+const CAPABILITY_VIEW_TRAILING_SLASH_ROUTE = "/capability/:id/";
 const METHOD_BY_ACTION = {
   create: "POST",
   delete: "POST",
@@ -160,9 +174,10 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
   const readGates = deps.readGates ?? createReadGateCoordinator();
   const handlerTimeoutMs = deps.handlerTimeoutMs ?? DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS;
 
-  app.get(CAPABILITY_VIEW_ROUTE, (c) =>
-    handleCapabilityViewRequest(c, databases, lookupCapability, readActiveCatalog, readGates),
-  );
+  const view = (c: Context) =>
+    handleCapabilityViewRequest(c, databases, lookupCapability, readActiveCatalog, readGates);
+  app.get(CAPABILITY_VIEW_ROUTE, view);
+  app.get(CAPABILITY_VIEW_TRAILING_SLASH_ROUTE, view);
   // Catch every HTTP method here so a wrong pair receives the same warm product
   // boundary instead of falling through to Hono's generic 404 response.
   app.all(CAPABILITY_ROUTE, (c) =>
@@ -188,8 +203,11 @@ function handleCapabilityViewRequest(
   readGates: ReadGateCoordinator,
 ): Response {
   const id = c.req.param("id");
+  // Hono routes no empty segment onto `:id`, so this is a guard rather than a path — and
+  // it answers the way the `!row` branch below does, because an address with nothing where
+  // the name goes names nothing, exactly as an address naming something gone does.
   if (!id) {
-    return c.html(NOT_FOUND_FRAGMENT, 404);
+    return missingCapabilityView(c, databases, []);
   }
 
   const captured = captureCapabilityRead(
@@ -201,7 +219,7 @@ function handleCapabilityViewRequest(
   );
   const { catalog, row } = captured;
   if (!row) {
-    return c.html(NOT_FOUND_FRAGMENT, 404);
+    return missingCapabilityView(c, databases, catalog);
   }
 
   const tokens = readGates.tryAcquire({
@@ -229,6 +247,38 @@ function handleCapabilityViewRequest(
   } finally {
     readGates.release(tokens);
   }
+}
+
+/**
+ * An address that no longer names anything — a bookmark, a second tab, a reload after the
+ * capability it named was deleted, or a link that was never right (PLAN decision 21).
+ *
+ * A direct navigation loads the bare desk and says why on the prompt bar, in the slot the
+ * bar already has. It opens no window: the served desk carries no logo for that id, and
+ * `addressAsks` (`public/desk-window.js`) answers an address naming nothing that is
+ * standing with the bare desk. So this case adds no window state and no third notice
+ * component — there is nothing to design inside a window for a capability that is gone.
+ *
+ * An `HX-Request` is a different question and keeps a fragment: it is a press on a tile in
+ * a desk that is already up, and answering it with a whole page would swap a document into
+ * a window. That fragment says the same sentence and carries `data-error-code`, so the
+ * shell lifts it onto the same prompt bar the page above seeds — a second tab's press on a
+ * tile the other tab deleted is answered rather than swallowed.
+ *
+ * Still a 404. The status is about the capability the address names, which is genuinely
+ * not there; the desk in the body is what the person gets *instead*, not a claim that the
+ * address was good. `no-store` for the same reason `/` sets it: the page names every
+ * logo's incarnation-keyed address, and those are served `immutable` for a year.
+ */
+function missingCapabilityView(
+  c: Context,
+  databases: PlatformDatabase,
+  catalog: readonly CapabilityRow[],
+): Response {
+  if (c.req.header("HX-Request") === "true") return c.html(NOT_FOUND_FRAGMENT, 404);
+  return c.html(renderRehydratedShellPage(databases.readonly, catalog, NOT_FOUND_NOTICE), 404, {
+    "cache-control": "no-store",
+  });
 }
 
 async function handleCapabilityRequest(

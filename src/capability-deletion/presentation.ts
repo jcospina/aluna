@@ -263,7 +263,9 @@ export function renderCapabilityDeletionRefusal(
  * the answer, plus whatever the question displaced — an unrelated capability that was
  * open goes back where it was, because a deletion may never close a capability it was
  * not about, and with nothing behind it the window puts itself away. Anything else
- * strands the user on a dead capability URL that 404s the moment they reload.
+ * leaves the address naming a capability that is not there — which a reload now answers
+ * with the bare desk and a sentence (PLAN decision 21) rather than a broken page, but
+ * that is a floor under the mistake, not a reason to make it.
  */
 export function renderCapabilityDeletionAlreadyGone(
   capabilityId: string,

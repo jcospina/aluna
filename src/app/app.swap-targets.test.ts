@@ -32,16 +32,18 @@ describe(`GET ${SWAP_TARGET_PREVIEW_ROUTE} (loud swap targets, epic 5.3)`, () =>
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type") ?? "").toContain("text/html");
 
-    // One anchor, one raised error — and the intact shell still assembles, so the
-    // preview is showing a real failure rather than a page that never worked. The shell
+    // Two anchors, two raised errors — and the intact shell still assembles, so the
+    // preview is showing real failures rather than a page that never worked. The shell
     // root left the list with the rail it flipped: an empty desk needs no gate. The
     // content target left it with the shell's content area: the window is created by
     // the client, so the served page has no hole to compose a collection into. The
     // detail-modal anchor left it with the modal: a record opens by a view swap inside
-    // the window, so there is nothing left to mount.
-    expect(html.split("<span data-anchor-raised>").length - 1).toBe(1);
+    // the window, so there is nothing left to mount. The prompt bar's notice slot
+    // joined it with 5.9/03: a page load can arrive already having a sentence to say.
+    expect(html.split("<span data-anchor-raised>").length - 1).toBe(2);
     expect(html).toContain("<span data-anchor-assembled>");
     expect(html).toContain("The shell logo-layer placeholder is missing.");
+    expect(html).toContain("The shell prompt-bar notice slot is missing.");
     expect(html).not.toContain("content target");
     expect(html).not.toContain("detail-modal placeholder");
   });

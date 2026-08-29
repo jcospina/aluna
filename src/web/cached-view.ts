@@ -129,14 +129,23 @@ function withLifecycleMetricsPreview(
  * a direct navigation still owes is the *whole* desk — every sibling logo, not just the
  * addressed one — which is why the caller may hand in the catalog it already read
  * rather than this reading the registry a second time under different tokens.
+ *
+ * `notice` is the one thing a load can arrive already having to say: an address naming a
+ * capability that is not on the desk gets this same page with that sentence in the prompt
+ * bar's slot, and no window (PLAN decision 21).
  */
 export function renderRehydratedShellPage(
   database: Database,
   catalog?: readonly CapabilityRow[],
+  notice?: string,
 ): string {
   const rows = catalog ?? (isRegistryInitialized(database) ? listCapabilities(database) : []);
   const shellHtml = readFileSync(resolve(process.cwd(), "public/index.html"), "utf8");
-  return renderRehydratedShell(rows, withLifecycleMetricsPreview(shellHtml, database, catalog));
+  return renderRehydratedShell(
+    rows,
+    withLifecycleMetricsPreview(shellHtml, database, catalog),
+    notice,
+  );
 }
 
 /**

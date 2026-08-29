@@ -64,6 +64,18 @@ const PROVISIONAL_LOGO_ATTRIBUTE = "data-provisional-logo";
 // rehydration and direct `/capability/:id` navigation inject one logo per capability.
 const SHELL_LOGO_PLACEHOLDER = "          <!-- Capability logos render here. -->";
 
+// The prompt bar's one live slot, empty, as the shell ships it (public/index.html). Page
+// assembly seeds a sentence into it for the one load that arrives already having something
+// to say — a link to a capability that is not there (PLAN decision 21). Every other
+// sentence reaches it as the out-of-band swap `renderPromptNotice` writes.
+//
+// Matched by id and kept open-tag-first, for the reason `METRICS_SEED_TARGET` gives one
+// module over (`src/web/cached-view.ts`): this is a real element that CSS styles, that
+// `public/prompt-bar.js` writes into and that `public/logo-menu.js` measures, so it is the
+// likeliest element in the shell to gain an attribute one day. An exact tag copy would
+// turn that attribute into an outage on every page, `/` included.
+const SHELL_PROMPT_NOTICE_SLOT = /(<div\b[^>]*\bid="prompt-notice"[^>]*>)<\/div>/;
+
 /**
  * Which of the developer panel's eight stages each preview event belongs to.
  *
@@ -114,6 +126,24 @@ const CLEAR_ON_ACCEPT_TARGETS = [["div", "prompt-notice"]] as const;
  * while ignoring the second — so the bar says the same true thing for both instead.
  */
 export const BLANK_PROMPT_NOTICE = "What would you like me to make?";
+
+/**
+ * What every address and every press that names nothing is answered with — a link to a
+ * capability that is gone, a tile a second tab is still standing for one, a name Aluna
+ * never had (PLAN decision 21). One sentence, so the two carriers cannot drift into two
+ * voices on the one surface they both speak on: page assembly seeds it below, and
+ * `NOT_FOUND_FRAGMENT` (`src/router/failure-responses.ts`) marks it for the shell to lift
+ * onto the prompt bar or into the window, whichever asked.
+ *
+ * Brief, and it stops where the truth stops. A deletion that finished takes its registry
+ * row with it, so most of the time a bookmark to a capability deleted an hour ago and a
+ * mistyped one arrive indistinguishable — the tombstone only outlives the row while its
+ * cleanup is still outstanding, which is not a distinction to hang copy on. A sentence
+ * claiming the capability *used to* be there would be guessing, and one narrating the
+ * desk the person is already looking at would be spending the second half of a brief
+ * notice on what the viewport already says.
+ */
+export const NOT_FOUND_NOTICE = "Hmm — I can’t find that one.";
 
 /**
  * Whether a sentence on the prompt bar is Aluna answering or Aluna turning something
@@ -732,12 +762,19 @@ export function renderCapabilitySurface(
  * The detail-modal placeholder left with the modal: a record opens through an ordinary
  * view swap inside the window, so there is nothing left to mount.
  *
- * One anchor is what remains, and it still fails loudly.
+ * Two anchors are what remain, and both still fail loudly. The prompt bar's slot is
+ * required on every page whether or not that page has a sentence for it: an anchor
+ * checked only when a notice is passed would fail loudly only for the one load that
+ * carries one, which is the data-dependence the empty-desk case below exists to close.
  */
 export const PAGE_ASSEMBLY_ANCHORS = [
   {
     name: "the logo-layer placeholder",
     remove: (shellHtml: string) => shellHtml.replace(SHELL_LOGO_PLACEHOLDER, ""),
+  },
+  {
+    name: "the prompt bar's notice slot",
+    remove: (shellHtml: string) => shellHtml.replace(SHELL_PROMPT_NOTICE_SLOT, ""),
   },
 ] as const;
 
@@ -754,22 +791,56 @@ export const PAGE_ASSEMBLY_ANCHORS = [
  * This is now the only full-page assembly there is: direct navigation to
  * `/capability/:id` renders this same desk, because a page with a capability already
  * composed into it would need a hole to compose it into, and the shell no longer has
- * one.
+ * one — including the navigation whose capability is not there, which loads this desk
+ * with `notice` speaking on the prompt bar (PLAN decision 21).
  */
 export function renderRehydratedShell(
   rows: readonly RenderableCapabilityLogo[],
   shellHtml: string,
+  notice?: string,
 ): string {
+  const spoken = withPromptNotice(shellHtml, notice);
   if (rows.length === 0) {
     // An empty desk inserts no logos — but the anchor the first commit will need is
     // checked here, on the page a fresh user actually loads, rather than left to fail on
     // that commit. An anchor whose check is data-dependent is an anchor that fails loudly
     // only for users who already have capabilities.
-    requireLogoLayerAnchor(shellHtml);
-    return shellHtml;
+    requireLogoLayerAnchor(spoken);
+    return spoken;
   }
 
-  return injectCapabilityLogos(shellHtml, renderCapabilityLogos(rows));
+  return injectCapabilityLogos(spoken, renderCapabilityLogos(rows));
+}
+
+/**
+ * Seed the prompt bar's slot with the sentence this load arrives having, and require the
+ * slot either way.
+ *
+ * The sentence is placed rather than swapped because there is nothing to swap into yet:
+ * an out-of-band `#prompt-notice` div in a document the browser is loading is inert
+ * markup, not an htmx swap, so a full page load is the one path `renderPromptNotice`
+ * cannot serve. The element, its `aria-live` and every attribute it carries are the
+ * shell's own — the open tag is taken from the shell rather than restated here — and only
+ * the text arrives from this, which is why this adds no notice component.
+ *
+ * A seeded sentence is always an answer and never a refusal, so it carries no
+ * `data-prompt-refusal`. That is not a shortcut: the 400ms cue fires on
+ * `htmx:oobAfterSwap` (`public/prompt-bar.js`), which a page load never dispatches, and a
+ * marker whose cue can never run would be a claim the bar could not honour. Nothing on
+ * this path is a refusal anyway — the person followed a link, and Aluna is answering it.
+ */
+function withPromptNotice(shellHtml: string, notice: string | undefined): string {
+  if (!SHELL_PROMPT_NOTICE_SLOT.test(shellHtml)) {
+    throw new Error("The shell prompt-bar notice slot is missing.");
+  }
+  if (notice === undefined) return shellHtml;
+  // A replacer function for the same reason the logo injection uses one: `$&`, `` $` ``
+  // and `$'` are substitution patterns in a replacement *string*, and escaping the
+  // sentence manufactures them rather than avoiding them.
+  return shellHtml.replace(
+    SHELL_PROMPT_NOTICE_SLOT,
+    (_slot, openTag: string) => `${openTag}${escapeHtml(notice)}</div>`,
+  );
 }
 
 // Render one canonical logo per registry row, shell-indented and joined. The single

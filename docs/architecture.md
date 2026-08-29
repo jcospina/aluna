@@ -918,7 +918,9 @@ ordering is asymmetric and explicit:
   puts itself away only when the deleted capability was the open one; otherwise the
   displaced open View is restored from its current canonical state. A direct
   address for an absent capability loads the bare desk and speaks its brief notice
-  through the prompt bar's existing message region. Later cleanup retries do not
+  through the prompt bar's existing message region, answers 404 because the
+  capability the address names really is absent, and is corrected to the bare
+  desk's own address once the page is up. Later cleanup retries do not
   resurrect the deleted surface.
 
 Boot recovery runs before serving affected routes. It never infers ownership from
@@ -1179,7 +1181,10 @@ desk was bare, and otherwise restores the unrelated capability the confirmation
 displaced. There is no terminal state for the deleted capability. A link to a
 deleted capability loads the bare desk and speaks a brief notice through the
 prompt bar, which covers a reload, a bookmark and a second tab without a window
-state or third notice component of its own.
+state or third notice component of its own. The response keeps the 404 the absent
+capability earns — the desk is what the person gets instead, not a claim the
+address was good — and the same sentence answers a press on a tile a second tab is
+still standing for a capability that is gone.
 External cleanup retries cannot resurrect the deleted surface.
 
 ## 9. Operating principles

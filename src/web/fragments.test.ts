@@ -3,7 +3,9 @@ import { describe, expect, test } from "bun:test";
 import {
   BLANK_PROMPT_NOTICE,
   BUILDING_WINDOW_TITLE,
+  NOT_FOUND_NOTICE,
   PAGE_ASSEMBLY_ANCHORS,
+  PROMPT_REFUSAL_ATTRIBUTE,
   renderBuildWindowTitle,
   renderCapabilityCommitSwap,
   renderCapabilityLogo,
@@ -30,12 +32,18 @@ const LOGO_PLACEHOLDER = "          <!-- Capability logos render here. -->";
 // markup to be inspectable. Neither the window layer nor the record holds an anchor: the
 // window is created by the client and a record opens by a view swap inside it, so nothing
 // else is composed into the page.
+// The prompt bar's one live slot, spelled exactly as the shipped shell spells it — a
+// page-assembly anchor is only as good as the fixture agreeing with `public/index.html`,
+// and the real shell is held to this same string every time `/` renders.
+const NOTICE_SLOT = '<div id="prompt-notice" class="prompt__notice" aria-live="polite"></div>';
+
 const SHELL_FIXTURE = [
   '<div class="shell" x-data="shell">',
   '  <div class="desk__logos" id="capability-logos">',
   LOGO_PLACEHOLDER,
   "  </div>",
   '  <div class="desk__windows"></div>',
+  `  ${NOTICE_SLOT}`,
   "</div>",
 ].join("\n");
 
@@ -397,6 +405,7 @@ describe("on-load logo rehydration", () => {
   // disagree about what "missing" means for an anchor.
   const anchorRaises: Record<string, RegExp> = {
     "the logo-layer placeholder": /logo-layer placeholder/i,
+    "the prompt bar's notice slot": /notice slot/i,
   };
 
   test("PAGE_ASSEMBLY_ANCHORS names every anchor the assembly replaces", () => {
@@ -436,6 +445,77 @@ describe("on-load logo rehydration", () => {
       );
     }
     expect(() => renderRehydratedShell([], SHELL_FIXTURE)).not.toThrow();
+  });
+});
+
+describe("the sentence a page load arrives already having", () => {
+  test("a load with nothing to say leaves the notice slot exactly as the shell ships it", () => {
+    expect(renderRehydratedShell([], SHELL_FIXTURE)).toContain(NOTICE_SLOT);
+  });
+
+  test("a link to a capability that is not there loads the desk with its sentence spoken", () => {
+    // The bare desk plus one sentence in the slot the prompt bar already has: no window is
+    // composed in for the address that named nothing, and no second notice element appears
+    // anywhere on the page (PLAN decision 21).
+    const html = renderRehydratedShell([], SHELL_FIXTURE, NOT_FOUND_NOTICE);
+
+    expect(html).toContain(
+      `<div id="prompt-notice" class="prompt__notice" aria-live="polite">${NOT_FOUND_NOTICE}</div>`,
+    );
+    expect(countMatches(html, 'id="prompt-notice"')).toBe(1);
+    // An answer, never a refusal: the 400ms cue fires on `htmx:oobAfterSwap`, which a page
+    // load never dispatches, so a marker here would be a claim the bar could not honour.
+    expect(html).not.toContain(PROMPT_REFUSAL_ATTRIBUTE);
+  });
+
+  test("an attribute added to the shell's slot is kept, and does not break the seeding", () => {
+    // The mistake `METRICS_SEED_TARGET` already paid for once (`src/web/cached-view.ts`):
+    // an exact tag copy turns a harmless attribute on a real, styled, scripted element
+    // into a page that will not assemble — and this element is the one in the shell most
+    // likely to gain one.
+    const shell = SHELL_FIXTURE.replace(
+      'id="prompt-notice"',
+      'id="prompt-notice" data-testid="notice"',
+    );
+
+    const html = renderRehydratedShell([], shell, NOT_FOUND_NOTICE);
+
+    expect(html).toContain('data-testid="notice"');
+    expect(html).toContain(`aria-live="polite">${NOT_FOUND_NOTICE}</div>`);
+    expect(() => renderRehydratedShell([], shell)).not.toThrow();
+  });
+
+  test("the seeded sentence is escaped, and its `$` patterns are spliced in literally", () => {
+    // The same hazard the logo injection guards: `$&`, `` $` `` and `$'` are substitution
+    // patterns in a replacement *string*, and escaping manufactures them — `escapeHtml`
+    // turns `'` into `&#39;`, so `$'` becomes `$&`. Nothing model-authored reaches here
+    // today, and the guard is what keeps that from being the only reason it is safe.
+    const html = renderRehydratedShell([], SHELL_FIXTURE, '$` $& $\' <b>x</b> "q"');
+
+    expect(html).toContain("$` $&amp; $&#39; &lt;b&gt;x&lt;/b&gt; &quot;q&quot;</div>");
+    expect(html).not.toContain("<b>x</b>");
+    expect(countMatches(html, 'id="capability-logos"')).toBe(1);
+  });
+
+  test("a desk with logos on it speaks the sentence too", () => {
+    // The address that named nothing is still a whole desk: every sibling logo stands on
+    // it, and the sentence says why the one the link named is not among them.
+    const html = renderRehydratedShell(
+      [
+        {
+          id: "notes",
+          label: "Notes",
+          incarnation_id: "inc-1",
+          logo: LOGO_ABSENT,
+          ...NEVER_RENAMED,
+        },
+      ],
+      SHELL_FIXTURE,
+      NOT_FOUND_NOTICE,
+    );
+
+    expect(html).toContain(`aria-live="polite">${NOT_FOUND_NOTICE}</div>`);
+    expect(html).toContain('data-capability-id="notes"');
   });
 });
 

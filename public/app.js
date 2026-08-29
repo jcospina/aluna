@@ -672,6 +672,10 @@ document.addEventListener("htmx:beforeSwap", (event) => {
     // first refusal that can only ever have come from outside the window, so it always
     // takes the branch below and always speaks on the prompt bar.
     "rename_refused",
+    // An address or a press that names nothing (`NOT_FOUND_FRAGMENT`). A second tab's
+    // desk still stands the tile of a capability the other tab deleted, and a press on it
+    // used to open a window, get this, and take the window back down without a word.
+    "not_found",
   ].some((code) => response.includes(`data-error-code="${code}"`));
   if (!isStructuredFormRefusal) return;
 

@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { BLANK_PROMPT_NOTICE, PROMPT_REFUSAL_ATTRIBUTE, renderPromptNotice } from "../web/index.ts";
+import { NOT_FOUND_FRAGMENT } from "../router/failure-responses.ts";
+import {
+  BLANK_PROMPT_NOTICE,
+  NOT_FOUND_NOTICE,
+  PROMPT_REFUSAL_ATTRIBUTE,
+  renderPromptNotice,
+} from "../web/index.ts";
 import {
   closeStream,
   desk,
@@ -90,12 +96,17 @@ const READ_UNAVAILABLE =
  * One structured refusal, asked for by `asking` and answered by the router.
  * @returns whether htmx was told to swap the response where it was aimed.
  */
-function structuredRefusal(scene: ReturnType<typeof desk>, asking: El, body = READ_UNAVAILABLE) {
+function structuredRefusal(
+  scene: ReturnType<typeof desk>,
+  asking: El,
+  body = READ_UNAVAILABLE,
+  status = 409,
+) {
   // htmx dispatches `htmx:beforeSwap` on the swap target, so `elt` here is the region and
   // the element that asked rides in the request's own configuration — the shape a live
   // browser check against the vendored htmx confirmed.
   const detail = {
-    xhr: { status: 409, responseText: body },
+    xhr: { status, responseText: body },
     shouldSwap: false,
     elt: scene.region,
     requestConfig: { elt: asking },
@@ -311,6 +322,19 @@ describe("a structured refusal renders on the surface it arrived from", () => {
     // land where it was already going rather than moved to a slot with nothing in it.
     expect(structuredRefusal(scene, deskLogo(), unreadable)).toBe(true);
     expect(spoken(scene)).toBe("");
+  });
+
+  test("a press on a tile whose capability has gone speaks, rather than flickering a window", () => {
+    const scene = desk();
+
+    // The router's own fragment, not a copy of it: the code the server marks a refusal
+    // with and the codes this shell rescues are two halves of one contract, and htmx drops
+    // any 4xx the shell does not claim — so a fragment written for a screen it never
+    // reaches is the failure this pins (5.9/03).
+    expect(structuredRefusal(scene, deskLogo(), NOT_FOUND_FRAGMENT, 404)).toBe(false);
+    expect(spoken(scene)).toBe(NOT_FOUND_NOTICE);
+    expect(refused(scene)).toBe(true);
+    expect(scene.region.childNodes).toEqual([scene.displaced, scene.subscriber]);
   });
 
   test("and an unmarked 4xx is still none of the shell's business", () => {

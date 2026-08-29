@@ -15,6 +15,7 @@ import {
   capabilityEditErrorId,
 } from "../presentation/index.ts";
 import { ReadGateClosingError } from "../read-gates/index.ts";
+import { NOT_FOUND_NOTICE } from "../web/index.ts";
 import type { WireProtocolAction } from "./wire-protocol.ts";
 
 type MutationAction = "create" | "update" | "delete";
@@ -74,9 +75,21 @@ function isMutationAction(action: WireProtocolAction): action is MutationAction 
  * for an unknown capability and an undeclared action — the user need not, and must
  * not, learn which internal check failed. Neither names an internal (no "handler",
  * "action", "capability", "route").
+ *
+ * It carries `data-error-code` for the reason the header of this file gives: htmx will
+ * not swap a 4xx unaided, so an unmarked refusal body is one nobody ever sees. This one
+ * had gone unmarked, and the press it answers is the second tab's — a tile still standing
+ * for a capability the other tab deleted. Unmarked, that press mounted a window, got
+ * nothing, and took the window back down without a word (5.9/03).
+ *
+ * The sentence itself is `NOT_FOUND_NOTICE`, shared with the page a link to the same
+ * capability loads, because the shell lifts this one onto the prompt bar when the desk is
+ * what asked — the same slot that page seeds. Two sentences there would be one voice
+ * saying the same thing two ways. "It might be something I haven't made yet" is what the
+ * sharing cost: it was written when this only answered a name Aluna had never heard of,
+ * and it is false of the case that now reaches it most often.
  */
-export const NOT_FOUND_FRAGMENT =
-  "<p class=\"notice\">Hmm — I can't find that here. It might be something I haven't made yet.</p>";
+export const NOT_FOUND_FRAGMENT = `<p class="notice" data-role="error" data-error-code="not_found">${NOT_FOUND_NOTICE}</p>`;
 export const INTERNAL_ERROR_FRAGMENT =
   '<p class="notice">Hmm, something went sideways on my end just now. Mind trying again?</p>';
 export const MUTATION_FAILURE_FRAGMENT =

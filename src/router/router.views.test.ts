@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { createApp } from "../app/app.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import { insertCapability } from "../registry/index.ts";
+import { NOT_FOUND_NOTICE } from "../web/index.ts";
 import type { CapabilityContext } from "./contract.ts";
 import {
   boomRow,
@@ -341,6 +342,59 @@ describe("deterministic capability router — logo rehydration and labels", () =
     expect(body).toContain('id="capability-logo-boom"');
     expect(body).toContain('hx-get="/capability/notes"');
     expect(body).toContain('hx-get="/capability/boom"');
+  });
+
+  test("a link to a capability that is not there loads the bare desk and says so", async () => {
+    // The second-tab, bookmark and reload cases after a deletion, and a link that was
+    // never right — one page load, because a finished deletion takes its registry row
+    // with it and the two cannot be told apart (PLAN decision 21).
+    install(conns, boomRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes");
+    const body = await res.text();
+
+    // The whole desk, and the surviving capability still standing on it.
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(body).toContain("<!doctype html>");
+    expect(await collectCapabilityLogoText(body)).toEqual(["Boom"]);
+    expect(body).not.toContain("capability-logo-notes");
+
+    // The sentence, in the prompt bar's own slot — no window, and no second notice
+    // element anywhere on the page.
+    expect(body).toContain(
+      `<div id="prompt-notice" class="prompt__notice" aria-live="polite">${NOT_FOUND_NOTICE}</div>`,
+    );
+    expect(body.match(/id="prompt-notice"/g)).toHaveLength(1);
+
+    // Still a 404: the desk is what the person gets instead, not a claim the address
+    // was good.
+    expect(res.status).toBe(404);
+  });
+
+  test("a press on a tile that has gone is answered with the fragment, never a document", async () => {
+    // An `HX-Request` is a press inside a desk that is already up. Answering it with a
+    // whole page would swap a document into the window.
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
+    const body = await res.text();
+
+    expect(res.status).toBe(404);
+    expect(body).toMatch(/can’t find that/i);
+    expect(body).not.toContain("<!doctype html>");
+    expect(body).not.toContain("prompt-notice");
+  });
+
+  test("an empty registry answers a stale link with a desk that has nothing on it", async () => {
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const body = await (await app.request("/capability/notes")).text();
+
+    expect(await collectCapabilityLogoText(body)).toEqual([]);
+    expect(body).toContain(`aria-live="polite">${NOT_FOUND_NOTICE}</div>`);
+    expect(body).toContain('id="capability-logos"');
   });
 
   test("direct capability navigation writes a canonical short name under a legacy sentence label", async () => {

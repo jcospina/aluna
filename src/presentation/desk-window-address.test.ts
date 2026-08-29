@@ -224,6 +224,10 @@ describe("the address names the capability and nothing else", () => {
     // a deleted capability among them (5.9/03 makes the server say so).
     expect(addressAsks(root, "/", null)).toEqual({ ask: "bare desk" });
     expect(addressAsks(root, "/capability/recipes", "notes")).toEqual({ ask: "bare desk" });
+    // The cold load of that link, which is the case 5.9/03 exists for: nothing is in the
+    // window yet, so the answer may not depend on something already being there.
+    expect(addressAsks(root, "/capability/recipes", null)).toEqual({ ask: "bare desk" });
+    expect(addressAsks(root, "/capability/recipes/", null)).toEqual({ ask: "bare desk" });
     // Nothing below identity is an address at all, so nothing below it can be asked for.
     expect(addressAsks(root, "/capability/notes/read", "notes")).toEqual({ ask: "bare desk" });
     expect(addressAsks(root, "/capability/notes/record/7", "notes")).toEqual({ ask: "bare desk" });
@@ -436,9 +440,11 @@ describe("who moves the address", () => {
     expect(MODULE).toMatch(
       /putAwayUnfilledWindow\(region\)\) correctUnfilledAddress\(pathname, DESK_ADDRESS\)/,
     );
-    // The correction stands down where the user has moved on since.
-    expect(MODULE).toMatch(
-      /function correctUnfilledAddress\(attempted, back\) \{[\s\S]{0,200}isAnotherPlace\(bar\.location\.pathname, attempted\)\) return;/,
+    // The correction stands down where the user has moved on since. It lives with the
+    // other verbs that move the bar — it reaches for nothing else — and `desk-window.js`
+    // re-exports it, so the desk's rules are still reached through the one face they have.
+    expect(ADDRESS).toMatch(
+      /export function correctUnfilledAddress\(attempted, back\) \{[\s\S]{0,200}isAnotherPlace\(bar\.location\.pathname, attempted\)\) return;/,
     );
   });
 

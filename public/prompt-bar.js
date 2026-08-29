@@ -91,6 +91,7 @@ const BLANK_PROMPT_CHARACTERS = /[\p{White_Space}\p{Default_Ignorable_Code_Point
  *   getElementById(id: string): unknown,
  *   createElement(tag: string): unknown,
  *   addEventListener(type: string, listener: (event: any) => void, capture?: boolean): void,
+ *   readyState?: string,
  * }} PromptBarRoot
  */
 
@@ -173,6 +174,40 @@ export function startPromptBar(root) {
     if (swapped?.id !== PROMPT_NOTICE_ID) return;
     if (swapped.querySelector?.(PROMPT_REFUSAL_SELECTOR)) flashPromptRefusal(root);
   });
+
+  sayAgainWhatThePageArrivedWith(root);
+}
+
+/**
+ * Say again the sentence the page arrived already carrying.
+ *
+ * Page assembly seeds one into this slot for the one load that has something to say before
+ * anybody has asked it anything — an address naming a capability that is not there
+ * (`renderRehydratedShell`, PLAN decision 21). A live region announces what *changes* in
+ * it, never what was already standing when the document was parsed, so a sentence served
+ * with the page is read by eye and by nobody else. Every other sentence on this bar is a
+ * change and is therefore spoken; this one had to be made into one.
+ *
+ * The words never move. It is the same sentence put back in the same slot, so a browser
+ * that never reaches `DOMContentLoaded` is exactly as well off as it was before this
+ * existed — and the flag is what stops a document that had already finished from hearing
+ * it twice.
+ *
+ * @param {PromptBarRoot} root
+ */
+function sayAgainWhatThePageArrivedWith(root) {
+  const notice = /** @type {Slot | null} */ (root.getElementById(PROMPT_NOTICE_ID) ?? null);
+  const standing = notice?.textContent ?? "";
+  if (notice === null || standing === "") return;
+  let saidIt = false;
+  const sayItAgain = () => {
+    if (saidIt) return;
+    saidIt = true;
+    notice.replaceChildren();
+    notice.textContent = standing;
+  };
+  root.addEventListener("DOMContentLoaded", sayItAgain);
+  if (root.readyState === "complete") sayItAgain();
 }
 
 /**
