@@ -7,7 +7,7 @@
 //
 // Three layers, in order:
 //
-//   1. The registry's own spec gate (`promptCapabilitySpecSchema`) — structural shape, the
+//   1. The registry's own spec gate (`capabilitySpecSchema`) — structural shape, the
 //      fixed five-Action inventory, Action ownership in errors/dependencies, list-input
 //      coverage, reserved names, active-only presentation references. Its strict objects
 //      also reject every platform-owned lifecycle key (`incarnation_id`, `version`, build
@@ -25,7 +25,8 @@ import type { ZodError } from "zod";
 import {
   type CapabilityRow,
   type CapabilitySpec,
-  promptCapabilitySpecSchema,
+  capabilitySpecSchema,
+  isChoiceFieldType,
   type SpecField,
 } from "../../registry/index.ts";
 import type { DependencyGenerationCatalogEntry } from "./dependency-catalog.ts";
@@ -108,7 +109,7 @@ export interface ValidateCandidateSpecInput {
  * carrying every violation.
  */
 export function validateCandidateSpec(input: ValidateCandidateSpecInput): CapabilitySpec {
-  const parsed = promptCapabilitySpecSchema.safeParse(input.candidate);
+  const parsed = capabilitySpecSchema.safeParse(input.candidate);
   if (!parsed.success) {
     throw new CandidateValidationError(zodIssues(parsed.error));
   }
@@ -189,9 +190,41 @@ function committedFieldIssues(
       message: `field "${committedField.name}" type is immutable; expected "${committedField.type}", got "${returned.type}"`,
     });
   }
+  if (returned.type === committedField.type) {
+    issues.push(...choiceOptionIssues(committedField, returned));
+  }
   const transitionIssue = lifecycleTransitionIssue(committedField, returned);
   if (transitionIssue) issues.push(transitionIssue);
   return issues;
+}
+
+/**
+ * A committed choice value is stored data. Rows already hold it, so it may never be
+ * removed, renamed or reordered — the committed values must survive as the prefix of the
+ * candidate's, and anything beyond that prefix is an append. Refusing here, before the
+ * Diff, is what guarantees a stored row can never become undeclared data; option *labels*
+ * are presentation and change freely.
+ */
+function choiceOptionIssues(
+  committedField: SpecField,
+  returned: SpecField,
+): readonly CandidateValidationIssue[] {
+  if (!isChoiceFieldType(committedField.type)) return [];
+  const committedValues = committedField.values ?? [];
+  const returnedValues = returned.values ?? [];
+
+  for (const [index, option] of committedValues.entries()) {
+    if (returnedValues[index]?.value === option.value) continue;
+    return [
+      {
+        path: `schema.fields.${committedField.name}.values.${index}`,
+        message:
+          `choice value "${option.value}" is stored data and is immutable; ` +
+          "committed option values may only be appended to, never removed, renamed or reordered",
+      },
+    ];
+  }
+  return [];
 }
 
 // The two transitions with frozen label/required. `active → active` and the
@@ -202,7 +235,11 @@ function lifecycleTransitionIssue(
   returned: SpecField,
 ): CandidateValidationIssue | undefined {
   if (returned.lifecycle !== "inactive") return undefined;
-  if (returned.label === committedField.label && returned.required === committedField.required) {
+  if (
+    returned.label === committedField.label &&
+    returned.required === committedField.required &&
+    sameChoiceOptions(committedField, returned)
+  ) {
     return undefined;
   }
   return committedField.lifecycle === "inactive"
@@ -214,6 +251,20 @@ function lifecycleTransitionIssue(
         path: `schema.fields.${committedField.name}`,
         message: `hiding "${committedField.name}" may change only its lifecycle`,
       };
+}
+
+/** Soft-hide preserves a choice's declared options exactly, labels included. */
+function sameChoiceOptions(committedField: SpecField, returned: SpecField): boolean {
+  const committedValues = committedField.values ?? [];
+  const returnedValues = returned.values ?? [];
+  return (
+    committedValues.length === returnedValues.length &&
+    committedValues.every(
+      (option, index) =>
+        returnedValues[index]?.value === option.value &&
+        returnedValues[index]?.label === option.label,
+    )
+  );
 }
 
 // Decision 1: declared dependencies must come from the frozen catalog. The

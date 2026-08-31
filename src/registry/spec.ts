@@ -7,15 +7,16 @@
 //
 // The pantry is deliberately tiny:
 //
-//   - Field types: `string | number | boolean | datetime | date | string[]`, each with
-//     `required`. (`date` is a calendar day, distinct from the `datetime` instant.) No
-//     other list types, no `file`/`file[]`, and no relations — there are no foreign keys.
+//   - Field types: `string | number | boolean | datetime | date | choice | string[]`, each
+//     with `required`. (`date` is a calendar day, distinct from the `datetime` instant.)
+//     `choice` is the one type that carries data of its own: the ordered `values` it admits.
+//     No other list types, no `file`/`file[]`, and no relations — there are no foreign keys.
 //     Every object is strict, so any extra key fails validation.
 //   - `ui_intent` records only capability-specific presentation choices: item direction,
-//     the closed collection layout (`feed | grid`), and one closed
-//     input mode for every active `string[]`. It never stores `views` or how a record
-//     opens — the view swap into the window is the platform's. `tools` is the fixed
-//     five-Action tuple;
+//     the closed collection layout (`feed | grid`), one closed input mode for every active
+//     `string[]`, and one closed presentation for every active `choice`. It never stores
+//     `views` or how a record opens — the view swap into the window is the platform's.
+//     `tools` is the fixed five-Action tuple;
 //     `read_dependencies` carries exactly one array per Action; `behavior` is free text the
 //     behavioral tier generates tests from; `behavioral_errors` is the stable validation
 //     error contract product copy must not stand in for.
@@ -32,8 +33,32 @@
 //     refused by the intent resolver where every other presentation-steering prompt is.
 
 import { z } from "zod";
+import {
+  behavioralErrorCaseSchema,
+  MAX_BEHAVIORAL_ERRORS,
+  validateActionShapePair,
+  validateBehavioralErrors,
+} from "./behavioral-errors.ts";
+import {
+  choiceGroupSchema,
+  choiceInputIntentSchema,
+  choiceOptionSchema,
+  validateChoiceFields,
+  validateChoiceInputs,
+} from "./choice.ts";
+import { incarnationIdSchema } from "./identifiers.ts";
 import { isCapabilityNameLabel } from "./labels.ts";
 import { capabilityLogoStateSchema, logoHueFamilySchema, logoSeedSchema } from "./logo.ts";
+import {
+  allUnique,
+  nonBlankText,
+  SQL_NAME_MESSAGE,
+  SQL_NAME_PATTERN,
+  sameOrderedStrings,
+  singleLinePhrase,
+  sqlNameText,
+} from "./spec-text.ts";
+import { capabilityToolsSchema, readDependenciesSchema } from "./tools.ts";
 
 /**
  * Columns every capability data table gets from the platform, never from the
@@ -43,30 +68,50 @@ import { capabilityLogoStateSchema, logoHueFamilySchema, logoSeedSchema } from "
  */
 export const PLATFORM_COLUMNS = ["id", "created_at", "extra"] as const;
 
-// Capability ids and field names both end up inside SQL identifiers — the data
-// table is `cap_<id>` and each field becomes a column (2.2 mapper) — so both are
-// confined to a shape that needs no quoting and can never smuggle SQL.
-const SQL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
-const SQL_NAME_MESSAGE = "must be lowercase letters/digits/underscores, starting with a letter";
+export {
+  BEHAVIORAL_ERROR_MARKERS,
+  type BehavioralErrorCase,
+  type BehavioralErrorMarkers,
+  behavioralErrorCaseSchema,
+  behavioralErrorMarkersSchema,
+  defaultBehavioralErrorsForSchema,
+  MAX_BEHAVIORAL_ERRORS,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "./behavioral-errors.ts";
+export {
+  admittedChoiceValues,
+  CHOICE_FIELD_TYPE,
+  CHOICE_PRESENTATIONS,
+  type ChoiceFieldType,
+  type ChoiceGroup,
+  type ChoiceInputIntent,
+  type ChoiceOption,
+  type ChoicePresentation,
+  choiceFieldOptions,
+  choiceGroupSchema,
+  choiceInputIntentSchema,
+  choiceOptionSchema,
+  choicePresentationSchema,
+  INVALID_CHOICE_ERROR_CODE,
+  isChoiceFieldType,
+} from "./choice.ts";
+export { incarnationIdSchema } from "./identifiers.ts";
+export {
+  type CapabilityTool,
+  capabilityToolSchema,
+  FULL_CAPABILITY_TOOLS,
+  type ReadDependencies,
+  type ReadDependency,
+  readDependenciesSchema,
+  readDependencySchema,
+} from "./tools.ts";
+
 export const ALUNA_RESERVED_FIELD_PREFIX = "__aluna_";
 
-// Free-text values the platform displays or feeds to the model — blank strings
-// are never meaningful, so they fail rather than propagate.
-const nonBlankText = z
-  .string()
-  .min(1)
-  .refine((text) => text.trim().length > 0, "must not be blank");
-export const incarnationIdSchema = z.string().uuid();
 const capabilityNameText = nonBlankText.refine(
   isCapabilityNameLabel,
   "must be a short capability name, not a sentence",
 );
-
-// The two short authored phrases the logo contract adds. Both are single-line by
-// construction: one fills the request's subject slot and the other lands inside a
-// sentence of desk copy, and a newline in either would break the surface it feeds.
-const singleLinePhrase = (max: number) =>
-  nonBlankText.max(max).refine((text) => !/[\r\n]/.test(text), "must be one line");
 
 export const MAX_LOGO_SUBJECT_LENGTH = 80;
 export const MAX_CAPABILITY_NOUN_LENGTH = 32;
@@ -74,13 +119,20 @@ export const MAX_CAPABILITY_NOUN_LENGTH = 32;
 /** The subject phrase alone — the registry re-validates it when a claim hands it out. */
 export const logoSubjectSchema = singleLinePhrase(MAX_LOGO_SUBJECT_LENGTH);
 
-export const SCALAR_FIELD_TYPES = ["string", "number", "boolean", "datetime", "date"] as const;
+export const SCALAR_FIELD_TYPES = [
+  "string",
+  "number",
+  "boolean",
+  "datetime",
+  "date",
+  "choice",
+] as const;
 export const LIST_FIELD_TYPES = ["string[]"] as const;
 
 /**
- * The closed field pantry. Future list types extend LIST_FIELD_TYPES first, which
- * makes every exhaustive FieldType consumer fail type-check until it handles the
- * new storage, Gate, and presentation behavior.
+ * The closed field pantry. A new scalar type extends SCALAR_FIELD_TYPES and a new list
+ * type extends LIST_FIELD_TYPES first, which makes every exhaustive FieldType consumer
+ * fail type-check until it handles the new storage, Gate, and presentation behavior.
  */
 export const fieldTypeSchema = z.enum([...SCALAR_FIELD_TYPES, ...LIST_FIELD_TYPES]);
 export type FieldType = z.infer<typeof fieldTypeSchema>;
@@ -94,10 +146,17 @@ export const fieldLifecycleSchema = z.enum(["active", "inactive"]);
 export type FieldLifecycle = z.infer<typeof fieldLifecycleSchema>;
 
 /**
- * One user field: name, type, required — nothing else validates. Strictness is
- * what rejects ARCH §6.3's `auto` example key, per the PLAN's recorded deviation.
+ * One user field: name, type, required, plus the two collections only a choice field
+ * carries. Strictness is what rejects ARCH §6.3's `auto` example key, per the PLAN's
+ * recorded deviation.
+ *
+ * `values` and `groups` are absent on every non-choice field and present on every choice
+ * field; `validateChoiceFields` enforces both directions. A provider's strict
+ * structured-output schema cannot express an absent key, so the wire shape
+ * ({@link promptCapabilitySpecSchema}) spells absence `null` and normalizes it away on the
+ * way in — the shape stored, diffed and rendered is this one.
  */
-export const specFieldSchema = z.strictObject({
+const specFieldShape = {
   name: z
     .string()
     .regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE)
@@ -113,8 +172,27 @@ export const specFieldSchema = z.strictObject({
   type: fieldTypeSchema,
   required: z.boolean(),
   lifecycle: fieldLifecycleSchema,
+};
+
+export const specFieldSchema = z.strictObject({
+  ...specFieldShape,
+  values: z.array(choiceOptionSchema).optional(),
+  groups: z.array(choiceGroupSchema).optional(),
 });
 export type SpecField = z.infer<typeof specFieldSchema>;
+
+/** The `schema` key of a spec, over whichever spelling of the field shape is in play. */
+function specSchemaShapeOf(fieldSchema: z.ZodType<SpecField, unknown>) {
+  return z.strictObject({
+    fields: z
+      .array(fieldSchema)
+      .min(1)
+      .refine(
+        (fields) => allUnique(fields.map((field) => field.name)),
+        "field names must be unique",
+      ),
+  });
+}
 
 export const CREATED_AT_DESCRIPTOR = {
   name: "created_at",
@@ -124,7 +202,7 @@ export const CREATED_AT_DESCRIPTOR = {
 } as const;
 
 export type PresentationFieldDescriptor =
-  | Pick<SpecField, "name" | "label" | "type">
+  | Pick<SpecField, "name" | "label" | "type" | "values">
   | typeof CREATED_AT_DESCRIPTOR;
 
 /**
@@ -140,111 +218,31 @@ export const listInputModeSchema = z.enum(LIST_INPUT_MODES);
 export type ListInputMode = z.infer<typeof listInputModeSchema>;
 
 export const listInputIntentSchema = z.strictObject({
-  field: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
+  field: sqlNameText,
   mode: listInputModeSchema,
 });
 export type ListInputIntent = z.infer<typeof listInputIntentSchema>;
 
 export const uiFormIntentSchema = z.strictObject({
   list_inputs: z.array(listInputIntentSchema),
+  choice_inputs: z.array(choiceInputIntentSchema),
 });
 export type UiFormIntent = z.infer<typeof uiFormIntentSchema>;
+
+/** The canonical empty value of every form-intent collection this Module added. */
+const EMPTY_FORM_INTENT_COLLECTIONS = ["choice_inputs"] as const;
 
 export const uiIntentSchema = z.strictObject({
   form: uiFormIntentSchema,
   item: z.strictObject({
     direction: nonBlankText,
-    shows: z
-      .array(z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE))
-      .min(1)
-      .refine(allUnique, "item fields must be unique"),
+    shows: z.array(sqlNameText).min(1).refine(allUnique, "item fields must be unique"),
   }),
   collection: z.strictObject({
     layout: uiCollectionLayoutSchema,
   }),
 });
 export type UiIntent = z.infer<typeof uiIntentSchema>;
-
-/**
- * From the 4.4 steady-state cutover the five Actions are mandatory and fixed
- * every capability is born with the complete ordered inventory and
- * no evolution can drop one. There is no longer any narrower admitted shape.
- */
-export const FULL_CAPABILITY_TOOLS = ["create", "read", "update", "delete", "search"] as const;
-export const capabilityToolSchema = z.enum(FULL_CAPABILITY_TOOLS);
-export type CapabilityTool = z.infer<typeof capabilityToolSchema>;
-
-// Model this as a homogeneous fixed-length array for provider JSON Schema: OpenAI
-// rejects tuple-style positional `items: [...]`. The refinement keeps the authored
-// contract narrow — only the exact ordered five-Action value crosses the local hard
-// gate — while the emitted wire schema uses one item object.
-const capabilityToolsSchema = z
-  .array(capabilityToolSchema)
-  .length(FULL_CAPABILITY_TOOLS.length)
-  .refine(
-    (tools) => sameOrderedStrings(tools, FULL_CAPABILITY_TOOLS),
-    `must be exactly [${FULL_CAPABILITY_TOOLS.join(", ")}] in canonical order`,
-  );
-
-/**
- * One read-dependency identity: which prior capability incarnation an Action reads.
- */
-export const readDependencySchema = z.strictObject({
-  capability_id: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
-  incarnation_id: incarnationIdSchema,
-});
-export type ReadDependency = z.infer<typeof readDependencySchema>;
-
-/**
- * One key per fixed Action — the same complete five-Action inventory as `tools`.
- */
-export const readDependenciesSchema = z.strictObject({
-  create: z.array(readDependencySchema),
-  read: z.array(readDependencySchema),
-  update: z.array(readDependencySchema),
-  delete: z.array(readDependencySchema),
-  search: z.array(readDependencySchema),
-});
-export type ReadDependencies = z.infer<typeof readDependenciesSchema>;
-
-export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
-export const MAX_BEHAVIORAL_ERRORS = 8;
-export const BEHAVIORAL_ERROR_MARKERS = {
-  role_attribute: "data-role",
-  role: "error",
-  code_attribute: "data-error-code",
-  fields_attribute: "data-error-fields",
-  fields_separator: " ",
-} as const;
-
-export const behavioralErrorMarkersSchema = z.strictObject({
-  role_attribute: z.literal(BEHAVIORAL_ERROR_MARKERS.role_attribute),
-  role: z.literal(BEHAVIORAL_ERROR_MARKERS.role),
-  code_attribute: z.literal(BEHAVIORAL_ERROR_MARKERS.code_attribute),
-  fields_attribute: z.literal(BEHAVIORAL_ERROR_MARKERS.fields_attribute),
-  fields_separator: z.literal(BEHAVIORAL_ERROR_MARKERS.fields_separator),
-});
-export type BehavioralErrorMarkers = z.infer<typeof behavioralErrorMarkersSchema>;
-
-const behavioralErrorCaseShape = {
-  trigger: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
-  code: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
-  fields: z
-    .array(z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE))
-    .min(1)
-    .refine(allUnique, "behavioral error fields must be unique"),
-  expected_markers: behavioralErrorMarkersSchema,
-};
-
-export const behavioralErrorCaseSchema = z.strictObject({
-  action: capabilityToolSchema,
-  ...behavioralErrorCaseShape,
-});
-export type BehavioralErrorCase = z.infer<typeof behavioralErrorCaseSchema>;
-
-function allUnique(values: readonly string[]): boolean {
-  return new Set(values).size === values.length;
-}
 
 // The spec proper — everything the AI authors (ARCH §2: schema + ui_intent +
 // behavior, plus the identity and resolver context the registry row carries,
@@ -253,7 +251,7 @@ function allUnique(values: readonly string[]): boolean {
 const commonSpecShape = {
   // Engineering identity — becomes the `cap_<id>` table name and the artifacts
   // directory; never user-facing (CONTEXT.md "Engineering language").
-  id: z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE),
+  id: sqlNameText,
   // The three logo birth facts. They are authored once, at birth, and evolution
   // preserves them byte-for-byte: artwork is made once and never remade (ADR-0007
   // L7), so a spec that drifted from its drawing would be describing a picture
@@ -273,15 +271,7 @@ const commonSpecShape = {
   // ("add your first note above"). A platform-View fact: it may evolve, and it never
   // selects logo generation.
   noun: singleLinePhrase(MAX_CAPABILITY_NOUN_LENGTH),
-  schema: z.strictObject({
-    fields: z
-      .array(specFieldSchema)
-      .min(1)
-      .refine(
-        (fields) => allUnique(fields.map((field) => field.name)),
-        "field names must be unique",
-      ),
-  }),
+  schema: specSchemaShapeOf(specFieldSchema),
   ui_intent: uiIntentSchema,
   // Free text. The behavioral tier generates tests from this — from stated
   // intent, never from handler code.
@@ -307,11 +297,38 @@ export const capabilitySpecSchema = z
 export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 
 /**
- * The prompt Builder and the registry now admit exactly one shape. `capabilitySpecSchema`
- * already pins the complete fixed five-Action inventory, so the prompt-build
- * path validates against that same schema — there is no separate, looser registry shape.
+ * The provider wire shape — the only schema handed to `provider.generate`, and the only
+ * place the spec is written any way but the one `capabilitySpecSchema` defines.
+ *
+ * It is not looser. Every rule is the same one, run by the same `validateSpecSemantics`;
+ * the single difference is how a choice field's absent collections are spelled. A strict
+ * structured-output schema (OpenAI's, and any provider that mirrors it) requires every
+ * declared property to be required, so "this field carries no options" has to arrive as
+ * an explicit `null` rather than a missing key. The transform drops those nulls, so what
+ * comes back out is the domain spec exactly — nothing downstream ever sees the wire
+ * spelling, and a spec already in hand is validated with `capabilitySpecSchema`.
  */
-export const promptCapabilitySpecSchema = capabilitySpecSchema;
+const promptSpecFieldSchema = z
+  .strictObject({
+    ...specFieldShape,
+    values: z.array(choiceOptionSchema).nullable(),
+    groups: z.array(choiceGroupSchema).nullable(),
+  })
+  .transform(
+    ({ values, groups, ...field }): SpecField => ({
+      ...field,
+      ...(values === null ? {} : { values }),
+      ...(groups === null ? {} : { groups }),
+    }),
+  );
+
+export const promptCapabilitySpecSchema = z
+  .strictObject({
+    ...commonSpecShape,
+    label: capabilityNameText,
+    schema: specSchemaShapeOf(promptSpecFieldSchema),
+  })
+  .superRefine(validateSpecSemantics);
 
 // The spec plus the platform-assigned incarnation, version, artifact pointer, and
 // logo seed. The opaque incarnation identifies one complete capability lifetime and
@@ -362,6 +379,41 @@ export const capabilityRowSchema = z
   .superRefine(validateSpecSemantics);
 export type CapabilityRow = z.infer<typeof capabilityRowSchema>;
 
+/**
+ * Fill this Module's newly added form-intent collections on a value read back from durable
+ * storage. A registry row or a published `spec.json` written before the choice cut carries
+ * no `choice_inputs`, and no reset is available this late in the module — logo credits and
+ * user records already exist. Absence is canonically the empty collection, so an older
+ * shape parses without rewriting an immutable historical snapshot or manufacturing a
+ * version, and absence therefore compares equal to explicit empty wherever the Diff and
+ * canonical equality look.
+ *
+ * A pre-choice field needs nothing: `values` and `groups` are absent on a non-choice field
+ * by contract, which is exactly how history already stored it.
+ *
+ * Only the storage read boundaries call this. Anything the model authors goes to the
+ * strict schema unchanged, so a generated spec that omitted a collection still fails.
+ */
+export function canonicalizeStoredCapabilityShape(value: unknown): unknown {
+  if (!isPlainRecord(value)) return value;
+  const canonical: Record<string, unknown> = { ...value };
+
+  const uiIntent = canonical.ui_intent;
+  if (isPlainRecord(uiIntent) && isPlainRecord(uiIntent.form)) {
+    const form: Record<string, unknown> = { ...uiIntent.form };
+    for (const collection of EMPTY_FORM_INTENT_COLLECTIONS) {
+      form[collection] ??= [];
+    }
+    canonical.ui_intent = { ...uiIntent, form };
+  }
+
+  return canonical;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function capabilitySpecFromRow(row: CapabilityRow): CapabilitySpec {
   return capabilitySpecSchema.parse({
     id: row.id,
@@ -379,74 +431,6 @@ export function capabilitySpecFromRow(row: CapabilityRow): CapabilitySpec {
     prompt_context: row.prompt_context,
   });
 }
-
-export function defaultBehavioralErrorsForSchema(
-  schema: CapabilitySpec["schema"],
-): BehavioralErrorCase[] {
-  const fields = schema.fields
-    .filter((field) => field.lifecycle === "active" && field.required)
-    .map((field) => field.name);
-  if (fields.length === 0) return [];
-
-  // The fixed five-Action shape owns a missing_required_fields case on each writing
-  // Action that revalidates required fields: create and update.
-  const actions = ["create", "update"] as const;
-  return actions.map((action) => ({
-    action,
-    trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-    code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-    fields,
-    expected_markers: BEHAVIORAL_ERROR_MARKERS,
-  }));
-}
-
-function validateBehavioralErrors(
-  spec: Pick<CapabilitySpec, "schema" | "behavioral_errors" | "tools">,
-  ctx: z.RefinementCtx,
-): void {
-  const fieldsByName = new Map(spec.schema.fields.map((field) => [field.name, field]));
-  const requiredFieldNames = spec.schema.fields
-    .filter((field) => field.lifecycle === "active" && field.required)
-    .map((field) => field.name);
-
-  const seenOwnership = new Set<string>();
-  for (const [index, errorCase] of spec.behavioral_errors.entries()) {
-    validateBehavioralErrorFields(ctx, fieldsByName, errorCase, index);
-    if (errorCase.trigger === "record_not_found" || errorCase.code === "record_not_found") {
-      ctx.addIssue({
-        code: "custom",
-        message: "record_not_found is platform-owned and must not be authored by a capability",
-        path: ["behavioral_errors", index],
-      });
-    }
-    if (!spec.tools.includes(errorCase.action)) {
-      ctx.addIssue({
-        code: "custom",
-        message: `behavioral error Action "${errorCase.action}" is not present in tools`,
-        path: ["behavioral_errors", index, "action"],
-      });
-    }
-    const ownership = `${errorCase.action}\u0000${errorCase.trigger}\u0000${errorCase.code}`;
-    if (seenOwnership.has(ownership)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "behavioral error Action ownership must be unique per trigger/code",
-        path: ["behavioral_errors", index, "action"],
-      });
-    }
-    seenOwnership.add(ownership);
-  }
-
-  if (!hasExactRequiredFieldsErrors(spec.behavioral_errors, requiredFieldNames)) {
-    ctx.addIssue({
-      code: "custom",
-      message:
-        "behavioral_errors must contain the exact missing_required_fields cases for the admitted Action shape and active required fields",
-      path: ["behavioral_errors"],
-    });
-  }
-}
-
 function validateSpecSemantics(
   spec: Pick<
     CapabilitySpec,
@@ -467,6 +451,8 @@ function validateSpecSemantics(
   validateBehavioralErrors(spec, ctx);
   validatePresentationShows(spec, ctx);
   validateListInputs(spec, ctx);
+  validateChoiceFields(spec, ctx);
+  validateChoiceInputs(spec, ctx);
 }
 
 /**
@@ -593,25 +579,6 @@ function validateItemShows(
     });
   }
 }
-
-function validateBehavioralErrorFields(
-  ctx: z.RefinementCtx,
-  fieldsByName: ReadonlyMap<string, SpecField>,
-  errorCase: BehavioralErrorCase,
-  index: number,
-): void {
-  for (const fieldName of errorCase.fields) {
-    const field = fieldsByName.get(fieldName);
-    if (!field) {
-      addBehavioralErrorFieldIssue(ctx, index, fieldName, "is not in schema.fields");
-      continue;
-    }
-    if (field.lifecycle !== "active") {
-      addBehavioralErrorFieldIssue(ctx, index, fieldName, "must be active");
-    }
-  }
-}
-
 export function activeSpecFields(fields: readonly SpecField[]): readonly SpecField[] {
   return fields.filter((field) => field.lifecycle === "active");
 }
@@ -629,61 +596,14 @@ export function presentationFieldDescriptors(
     if (!field) {
       throw new Error(`Presentation field "${name}" is not active.`);
     }
-    return { name: field.name, label: field.label, type: field.type };
+    // A choice brings its options so the item renderer can present the label a person
+    // reads rather than the wire value the row stores. Without them a status card says
+    // "in_progress", which is the whole point of the value/label split defeated.
+    return {
+      name: field.name,
+      label: field.label,
+      type: field.type,
+      ...(field.values === undefined ? {} : { values: field.values }),
+    };
   });
-}
-
-function addBehavioralErrorFieldIssue(
-  ctx: z.RefinementCtx,
-  index: number,
-  fieldName: string,
-  reason: string,
-): void {
-  ctx.addIssue({
-    code: "custom",
-    message: `behavioral error field "${fieldName}" ${reason}`,
-    path: ["behavioral_errors", index, "fields"],
-  });
-}
-
-function validateActionShapePair(
-  spec: Pick<CapabilitySpec, "tools" | "read_dependencies">,
-  ctx: z.RefinementCtx,
-): void {
-  const dependencyKeys = Object.keys(spec.read_dependencies);
-  if (!sameOrderedStrings(dependencyKeys, FULL_CAPABILITY_TOOLS)) {
-    ctx.addIssue({
-      code: "custom",
-      message: "tools and read_dependencies must be the complete fixed five-Action shape",
-      path: ["read_dependencies"],
-    });
-  }
-}
-
-function hasExactRequiredFieldsErrors(
-  errorCases: readonly BehavioralErrorCase[],
-  requiredFieldNames: readonly string[],
-): boolean {
-  const requiredCases = errorCases.filter(
-    (errorCase) =>
-      errorCase.trigger === MISSING_REQUIRED_FIELDS_ERROR_CODE ||
-      errorCase.code === MISSING_REQUIRED_FIELDS_ERROR_CODE,
-  );
-  if (requiredFieldNames.length === 0) return requiredCases.length === 0;
-  // The writing Actions that revalidate required fields, in canonical order.
-  const expectedActions = ["create", "update"] as const;
-  return (
-    requiredCases.length === expectedActions.length &&
-    requiredCases.every(
-      (errorCase, index) =>
-        errorCase.action === expectedActions[index] &&
-        errorCase.trigger === MISSING_REQUIRED_FIELDS_ERROR_CODE &&
-        errorCase.code === MISSING_REQUIRED_FIELDS_ERROR_CODE &&
-        sameOrderedStrings(errorCase.fields, requiredFieldNames),
-    )
-  );
-}
-
-function sameOrderedStrings(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
 }

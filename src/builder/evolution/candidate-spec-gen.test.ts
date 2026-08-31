@@ -86,6 +86,16 @@ describe("the generation context (decision 1, pinned)", () => {
     expect(prompt).toContain('Return exactly "journal"');
     expect(prompt).toContain("Return every committed field exactly once");
     expect(prompt).toContain('A newly introduced field must start lifecycle "active"');
+    // The append-only option contract, stated where the model authors the candidate.
+    expect(prompt).toContain("option values are stored data and are immutable");
+    expect(prompt).toContain("Never remove, rename or reorder a committed value");
+    expect(prompt).toContain(
+      "keep its label, required and any declared values exactly as committed",
+    );
+    expect(prompt).toContain(
+      "ui_intent.form.choice_inputs contains exactly one { field, presentation } entry",
+    );
+    expect(prompt).toContain("choice presentation is exactly picker");
     expect(prompt).toContain("tools: exactly [create, read, update, delete, search]");
     expect(prompt).toContain("Never return incarnation, version, build id, snapshot metadata");
     expect(prompt).toContain("comma_separated | repeatable");

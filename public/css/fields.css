@@ -141,19 +141,64 @@
 .field__control::placeholder {
   color: var(--ink-3);
 }
-/* Focus: accent border + accent ring, no translate — the control stays put while
-   the user types (mirrors .prompt__field). */
-.field__control:focus {
+
+/*
+ * The one control that is already a shell plus a bare element rather than a bare element
+ * carrying its own boundary: a `<select>` admits only `<option>` and cannot hold one
+ * (`design/design-system.md`, "Forms"). The rest of the fields make that split in 5.10/03;
+ * until then the shell's row layout is restated here on the select variant alone, on the
+ * design system's own numbers, because the block rule above is written for the bare
+ * elements it still applies to.
+ */
+.field__control--select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--control-pad-x);
+  cursor: pointer;
+  text-align: left;
+}
+
+/* The shell owns the boundary, the fill and the ring; this owns the value and the caret. */
+.field__select {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--control-text);
+  line-height: 1.45;
+  color: var(--ink);
+  appearance: none;
+  cursor: pointer;
+}
+
+.field__select:focus {
+  outline: none;
+}
+
+/*
+ * The ring belongs to the shell, so focus inside it lights the shell, not the select.
+ * The outline alone: recolouring the border here would paint a true edge back from a
+ * selector heavier than `.is-ink`, which is the one thing the ink seam forbids.
+ */
+.field__control--select:has(.field__select:focus) {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
-  border-color: var(--focus-ring);
 }
-.field__guidance {
-  margin: 0;
-  font-family: var(--font-body);
-  font-size: var(--type-sm);
-  line-height: 1.4;
-  color: var(--ink-2);
+
+.field__select option {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.field__chevron {
+  display: flex;
+  color: var(--ink);
+  flex-shrink: 0;
 }
 
 .field-list__values {

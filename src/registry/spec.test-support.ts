@@ -28,7 +28,7 @@ export function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
       ],
     },
     ui_intent: {
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
     },
@@ -65,6 +65,9 @@ export function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
               list_inputs: spec.schema.fields
                 .filter((field) => field.lifecycle === "active" && field.type === "string[]")
                 .map((field) => ({ field: field.name, mode: "repeatable" as const })),
+              choice_inputs: spec.schema.fields
+                .filter((field) => field.lifecycle === "active" && field.type === "choice")
+                .map((field) => ({ field: field.name, presentation: "picker" as const })),
             },
             item: {
               ...spec.ui_intent.item,

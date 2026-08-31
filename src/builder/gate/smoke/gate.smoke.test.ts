@@ -10,15 +10,10 @@ import {
   applyCapabilityTableDdl,
   deriveCapabilityTableDdl,
 } from "../../../capability-data/index.ts";
-import {
-  BEHAVIORAL_ERROR_MARKERS,
-  type CapabilitySpec,
-  MISSING_REQUIRED_FIELDS_ERROR_CODE,
-} from "../../../registry/index.ts";
+import type { CapabilitySpec } from "../../../registry/index.ts";
 import {
   createCapabilityDataTool,
   expectGateFailure,
-  fullHandlersFor,
   GOOD_HANDLERS,
   gateInput,
   generatedUnitsFor,
@@ -382,7 +377,7 @@ describe("capability gate — item renderer samples", () => {
         ],
       },
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: { direction: "Show the entry and its age.", shows: ["text", "created_at"] },
         collection: { layout: "feed" },
       },
@@ -424,78 +419,5 @@ describe("capability gate — item renderer samples", () => {
         }),
       ),
     ).rejects.toThrow(/not declared by ui_intent\.item\.shows: created_at/);
-  });
-});
-
-describe("capability gate — string[] ordered-list samples", () => {
-  test("Gate smoke and design samples exercise string[] as an ordered list", async () => {
-    const spec = notesSpec({
-      schema: {
-        fields: [
-          { name: "tags", label: "Tags", type: "string[]", required: true, lifecycle: "active" },
-        ],
-      },
-      ui_intent: {
-        form: { list_inputs: [{ field: "tags", mode: "repeatable" }] },
-        item: { direction: "Show each tag in order.", shows: ["tags"] },
-        collection: { layout: "feed" },
-      },
-      behavior: "At least one tag is required and tag order is preserved.",
-      behavioral_errors: [
-        {
-          action: "create",
-          trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-          fields: ["tags"],
-          expected_markers: BEHAVIORAL_ERROR_MARKERS,
-        },
-        {
-          action: "update",
-          trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-          code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-          fields: ["tags"],
-          expected_markers: BEHAVIORAL_ERROR_MARKERS,
-        },
-      ],
-    });
-    const create = [
-      "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
-      "  const tags = input.values.tags;",
-      '  if (!Array.isArray(tags)) return "<p>missing</p>";',
-      "  return present(mutation.create({ tags: [...tags] }));",
-      "}",
-    ].join("\n");
-    const read = [
-      "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-      "  const rows = query.records({",
-      '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
-      "  });",
-      '  return rows.map(({ record }) => present(record)).join("");',
-      "}",
-    ].join("\n");
-    const renderer = [
-      "export default function renderItem(record: Record<string, unknown>): string {",
-      "  const tags = Array.isArray(record.tags) ? record.tags : [];",
-      '  return `<div class="stack">$' +
-        '{tags.map((tag) => `<span class="text-sm">$' +
-        '{escapeHtml(String(tag))}</span>`).join("")}</div>`;',
-      "}",
-      "function escapeHtml(value: string): string {",
-      '  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");',
-      "}",
-    ].join("\n");
-
-    const result = await runCapabilityGate(
-      gateInput({
-        spec,
-        ddl: deriveCapabilityTableDdl(spec),
-        handlers: fullHandlersFor(spec, { create, read }),
-        itemRenderer: renderer,
-        behavioralTier: { enabled: false },
-      }),
-    );
-
-    expect(result.smoke.rowCount).toBe(1);
-    expect(result.outcomes.every((outcome) => outcome.status !== "failed")).toBe(true);
   });
 });

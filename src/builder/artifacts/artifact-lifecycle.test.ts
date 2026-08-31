@@ -76,7 +76,7 @@ function notesSpec(): CapabilitySpec {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
     },

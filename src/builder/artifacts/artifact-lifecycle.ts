@@ -13,6 +13,7 @@ import { z } from "zod";
 import {
   type CapabilitySpec,
   capabilitySpecSchema,
+  canonicalizeStoredCapabilityShape,
   FULL_CAPABILITY_TOOLS,
   incarnationIdSchema,
 } from "../../registry/index.ts";
@@ -308,7 +309,10 @@ function readCapabilitySpec(directory: string): CapabilitySpec {
       `Invalid spec.json: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  const parsed = capabilitySpecSchema.safeParse(value);
+  // A published snapshot is immutable, so an older `spec.json` is read forward rather than
+  // rewritten: a form-intent collection added after it was written canonicalizes to empty,
+  // which leaves its bytes — and therefore its content digest — untouched.
+  const parsed = capabilitySpecSchema.safeParse(canonicalizeStoredCapabilityShape(value));
   if (!parsed.success) {
     throw new SnapshotVerificationError(`Invalid spec.json: ${parsed.error.message}`);
   }

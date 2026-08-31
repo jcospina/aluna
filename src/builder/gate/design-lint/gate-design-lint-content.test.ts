@@ -50,7 +50,7 @@ describe("design-lint record-content integrity", () => {
   test("requires every declared item field to affect perceivable composition", () => {
     const spec = notesSpec({
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: { direction: "Show note text and pinned state.", shows: ["text", "pinned"] },
         collection: { layout: "feed" },
       },
@@ -94,6 +94,7 @@ function singleFieldSpec(name: string, type: "boolean" | "date" | "string[]"): C
     ui_intent: {
       form: {
         list_inputs: type === "string[]" ? [{ field: name, mode: "comma_separated" }] : [],
+        choice_inputs: [],
       },
       item: { direction: `Present ${name} clearly.`, shows: [name] },
       collection: { layout: "feed" },

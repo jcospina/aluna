@@ -19,6 +19,7 @@ import {
   type CapabilityRow,
   type CapabilitySpec,
   capabilitySpecFromRow,
+  fieldTypeSchema,
 } from "../../registry/index.ts";
 import {
   checkHandlerSourceSafety,
@@ -228,6 +229,15 @@ function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
     .join("\n");
 }
 
+/**
+ * The query-result column types, derived from the registry pantry rather than restated.
+ * A generated Handler is type-checked against this text, so a hand-written mirror missing
+ * a new field type would reject a projection the runtime accepts.
+ */
+const QUERY_RESULT_TYPE_UNION = fieldTypeSchema.options
+  .map((type) => JSON.stringify(type))
+  .join(" | ");
+
 // The shared record shape both contracts speak — the capability data row seen
 // structurally (spec fields plus the platform-populated `id`/`created_at`).
 const RECORD_CONTRACT = `
@@ -268,7 +278,7 @@ interface CapabilityDeleteMutationPort {
 type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
 interface CapabilityQueryResultColumn {
   readonly alias: string;
-  readonly type: "string" | "number" | "boolean" | "date" | "datetime" | "string[]";
+  readonly type: ${QUERY_RESULT_TYPE_UNION};
 }
 interface CapabilityQueryPort {
   all(input: {

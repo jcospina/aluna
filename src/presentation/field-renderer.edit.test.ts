@@ -60,6 +60,7 @@ const CAPABILITY: RenderableCapability = {
       { field: "tags", mode: "comma_separated" },
       { field: "aliases", mode: "repeatable" },
     ],
+    choice_inputs: [],
   },
   actions: ["create", "read", "update", "delete"],
 };

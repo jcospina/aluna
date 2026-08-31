@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { fieldTypeSchema } from "../registry/index.ts";
-import { oneField, SAMPLE, sampleFieldValue } from "./field-renderer.test-support.ts";
+import { oneField, probeField, SAMPLE, sampleFieldValue } from "./field-renderer.test-support.ts";
 import {
   CREATE_CANCELLED_EVENT,
   capabilityCreateErrorId,
@@ -238,7 +238,7 @@ describe("create form — one control per pantry type — labels, lifecycle, and
           },
         ],
       },
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       actions: ["create", "read"],
     };
     const create = renderCreateForm(capability);
@@ -286,21 +286,15 @@ describe("centralization — exhaustive over the admitted pantry", () => {
   // switches handle it — proof that adding a type is a single-location change.
   test("every fieldTypeSchema option renders a create control and an edit control", () => {
     for (const type of fieldTypeSchema.options) {
-      const probe = oneField({
-        name: "value",
-        label: "Value",
-        type,
-        required: true,
-        lifecycle: "active",
-      });
+      const probe = oneField(probeField(type));
       const capability = { ...probe, actions: [...probe.actions, "update"] as const };
 
       const create = renderCreateForm(capability);
-      expect(create).toMatch(/<input[^>]*\btype="[^"]+"/);
+      expect(create).toMatch(/<(?:input|select|textarea)\b/);
       expect(create).toContain('name="value"');
 
       const edit = renderEditForm(capability, { id: "probe-1", value: sampleFieldValue(type) });
-      expect(edit).toMatch(/<input[^>]*\btype="[^"]+"/);
+      expect(edit).toMatch(/<(?:input|select|textarea)\b/);
       expect(edit).toContain('name="value"');
     }
   });

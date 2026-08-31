@@ -8,7 +8,11 @@
 // the user never sees (see the rescue list in `public/app.js`).
 
 import type { Context } from "hono";
-import type { MissingRequiredFieldsError, RecordNotFoundError } from "../capability-data/index.ts";
+import type {
+  InvalidChoiceError,
+  MissingRequiredFieldsError,
+  RecordNotFoundError,
+} from "../capability-data/index.ts";
 import {
   capabilityCreateErrorId,
   capabilityDeleteErrorId,
@@ -116,6 +120,30 @@ export function missingRequiredFieldsFailure(
       : "I still need a little more before I can save this.";
   return c.html(
     `<p class="notice" data-role="error" data-error-code="${error.code}" data-error-fields="${fields}">${copy}</p>`,
+    422,
+  );
+}
+
+/**
+ * An undeclared choice value, refused with the affected field named. The picker only ever
+ * offers admitted options, so reaching this means the submission did not come from the
+ * form the platform drew — the answer stays warm and says nothing about internals.
+ */
+export function invalidChoiceFailure(
+  c: Context,
+  capabilityId: string,
+  error: InvalidChoiceError,
+): Response {
+  const fields = error.fields.join(" ");
+  const errorId =
+    error.action === "create"
+      ? capabilityCreateErrorId(capabilityId)
+      : capabilityEditErrorId(capabilityId);
+  c.header("HX-Retarget", `#${errorId}`);
+  c.header("HX-Reswap", "innerHTML");
+  return c.html(
+    `<p class="notice" data-role="error" data-error-code="${error.code}" data-error-fields="${fields}">` +
+      "That isn't one of the options I can store here. Mind picking one from the list?</p>",
     422,
   );
 }

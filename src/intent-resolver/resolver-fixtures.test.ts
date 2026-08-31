@@ -69,6 +69,7 @@ const recipes = notesCapabilityRow({
         { field: "genres", mode: "comma_separated" },
         { field: "quotes", mode: "repeatable" },
       ],
+      choice_inputs: [],
     },
     item: { direction: "Show each recipe clearly.", shows: ["title", "genres", "quotes"] },
     collection: { layout: "feed" },

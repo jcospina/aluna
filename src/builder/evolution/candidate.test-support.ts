@@ -84,7 +84,7 @@ export function journalCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
       ],
     },
     ui_intent: {
-      form: { list_inputs: [{ field: "tags", mode: "comma_separated" }] },
+      form: { list_inputs: [{ field: "tags", mode: "comma_separated" }], choice_inputs: [] },
       item: {
         direction: "A title-forward card with its tags underneath.",
         shows: ["title", "tags"],
@@ -164,7 +164,7 @@ export function shelvesCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
       ],
     },
     ui_intent: {
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       item: { direction: "A compact shelf name chip.", shows: ["shelf_name"] },
       collection: { layout: "grid" },
     },
@@ -232,10 +232,15 @@ export interface CandidateDraft {
       type: string;
       required: boolean;
       lifecycle: string;
+      values?: Array<{ value: string; label: string }>;
+      groups?: Array<{ id: string; heading: string }>;
     }>;
   };
   ui_intent: {
-    form: { list_inputs: Array<{ field: string; mode: string }> };
+    form: {
+      list_inputs: Array<{ field: string; mode: string }>;
+      choice_inputs: Array<{ field: string; presentation: string }>;
+    };
     item: { direction: string; shows: string[] };
     collection: { layout: string };
   };

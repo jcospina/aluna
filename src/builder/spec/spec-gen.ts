@@ -27,6 +27,8 @@ import type { Provider, TokenUsage } from "../../provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  CHOICE_PRESENTATIONS,
+  capabilitySpecSchema,
   FULL_CAPABILITY_TOOLS,
   fieldTypeSchema,
   LOGO_HUE_FAMILIES,
@@ -72,6 +74,7 @@ export interface SpecGenResult {
 export function buildSpecPrompt(input: GenerateSpecInput): string {
   const fieldTypes = fieldTypeSchema.options.join(" | ");
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
+  const choicePresentations = CHOICE_PRESENTATIONS.join(" | ");
   const tools = FULL_CAPABILITY_TOOLS.join(", ");
   const platformColumns = PLATFORM_COLUMNS.join(", ");
   const hues = LOGO_HUE_FAMILIES.join(" | ");
@@ -86,6 +89,9 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     '- read_dependencies: exactly five keys in canonical order: { "create": [], "read": [], "update": [], "delete": [], "search": [] }. A fresh capability has no declared external dependencies, so every array is empty.',
     '- schema.fields: at least one field; each field has a stable name, a user-facing label, a type, required (a boolean), and lifecycle: "active".',
     `- a field's type is one of: ${fieldTypes}. string[] is the only list type; no files or relations.`,
+    "- a field declares values and groups only when its type is choice. Every other field omits both keys entirely (send null for them in the structured output).",
+    "- a choice field declares values: an ordered array of at least one { value, label } option. value is the stored wire value — short, stable, lowercase — and label is the wording a person reads. Values are unique within the field. Use choice whenever the thing being tracked is one pick from a small closed set the user would recognize (a status, a priority, a category), and never a free string with a rule written about it.",
+    "- a choice field also declares groups: [] — an empty array. Option grouping is not authored yet.",
     "- field names and the capability id are lowercase letters, digits, and underscores, starting with a letter.",
     `- ${platformColumns} are platform-owned columns Aluna adds automatically. Never include them as fields.`,
     '- created_at may appear only in item shows; its platform descriptor is fixed as name "created_at", label "Created", type "datetime", read-only.',
@@ -95,6 +101,8 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "- ui_intent.item.direction is one concise sentence of capability-specific item design direction.",
     "- ui_intent.form.list_inputs contains exactly one { field, mode } entry for every active string[] field, in schema-field order. It contains no scalar, inactive, or unknown fields.",
     "- list input mode is exactly comma_separated | repeatable. Choose comma_separated only for short atomic values whose grammar cannot meaningfully contain commas (tags, genres, categories, skills). Choose repeatable when an element may contain a comma (quotes, addresses, citations, or names as entered). There is no quoting or escaping in comma_separated mode, so never choose it for comma-bearing element semantics.",
+    "- ui_intent.form.choice_inputs contains exactly one { field, presentation } entry for every active choice field, in schema-field order. It contains no non-choice, inactive, or unknown fields.",
+    `- choice presentation is exactly ${choicePresentations}.`,
     "- ui_intent.item.shows is the ordered list of active schema field names the item renderer may receive; it may also include created_at.",
     `- ui_intent.collection.layout is one of: ${collectionLayouts}. Use feed for text-forward lists and grid for visually dominant collections.`,
     "- Do not include ui_intent.views. Do not author how a record opens; opening one swaps the collection for its form inside the window, and that is the platform's, not authored state.",
@@ -125,6 +133,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "- behavioral_errors: structured validation-error cases. Product copy is not the contract.",
     `  - If any schema fields are required, include exactly two cases in this order: action "create", then action "update". Both use trigger/code "${MISSING_REQUIRED_FIELDS_ERROR_CODE}", fields set to every active required field name in schema order, and expected_markers exactly ${JSON.stringify(BEHAVIORAL_ERROR_MARKERS)}.`,
     "  - If no fields are required, use an empty array.",
+    "  - record_not_found and invalid_choice are platform-owned refusals Aluna answers itself; never author a case for either.",
     "- prompt_context: one concise sentence describing what this capability stores, used later to recognise related requests.",
     "",
     "Resolved intent:",
@@ -154,7 +163,7 @@ export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenRes
   // The gate. `await result.object` already rejects on non-conformance (the
   // contract's guarantee); re-parsing makes the refusal this stage's own so a
   // malformed spec can never continue downstream regardless of the provider.
-  const spec = promptCapabilitySpecSchema.parse(await result.object);
+  const spec = capabilitySpecSchema.parse(await result.object);
   const usage = await result.usage;
 
   const durationMs = performance.now() - startedAt;

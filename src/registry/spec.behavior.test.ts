@@ -250,7 +250,7 @@ describe("capability spec shape — behavioral error field identity", () => {
     const valid = validSpec({
       schema,
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: { direction: "Show the entry.", shows: ["text"] },
         collection: { layout: "feed" },
       },

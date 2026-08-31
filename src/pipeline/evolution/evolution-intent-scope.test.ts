@@ -35,7 +35,7 @@ describe("resolved evolution intent scope", () => {
       },
       ui_intent: {
         ...committed.ui_intent,
-        form: { list_inputs: [{ field: "tags", mode: "repeatable" as const }] },
+        form: { list_inputs: [{ field: "tags", mode: "repeatable" as const }], choice_inputs: [] },
         item: {
           direction: "A calm entry card with title and tags in a compact hierarchy.",
           shows: ["title", "tags"],

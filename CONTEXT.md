@@ -421,6 +421,17 @@ The user-facing name for a field. It may evolve without changing the field's
 identity.
 _Avoid_: property label, display name, field name
 
+**Choice field**:
+A field whose type is `choice`: a scalar that carries the ordered options it
+admits. Each option pairs a stable `value` — the string a record actually stores
+— with a `label`, the wording a person reads. Values are the capability's stored
+data: evolution may append an option or reword any label, but never removes,
+renames or reorders a committed value, so a stored row can never become
+undeclared data. The platform refuses an undeclared submission itself, before
+canonical state moves and before generated code runs; a Handler receives only an
+admitted value and never validates the set a second time.
+_Avoid_: enum, dropdown, select, option list
+
 **List input mode**:
 The AI-authored, platform-rendered form choice for one active `string[]` field.
 `comma_separated` is for comma-free atomic values such as tags, genres,

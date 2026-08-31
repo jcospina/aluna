@@ -48,7 +48,7 @@ const CAPABILITY: RenderableCapability = {
       },
     ],
   },
-  form: { list_inputs: [] },
+  form: { list_inputs: [], choice_inputs: [] },
   actions: ["create", "read", "update", "delete", "search"],
   item: { shows: ["title", "author", "created_at"] },
 };
@@ -122,7 +122,7 @@ describe("createPresentationAdapter — composition", () => {
           { name: "handle", label: "Handle", type: "string", required: true, lifecycle: "active" },
         ],
       },
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       actions: ["create", "read", "update", "delete", "search"],
       item: { shows: ["fields", "handle"] },
     };

@@ -335,6 +335,8 @@ export function assertFragment(
 export function fieldValueMatches(type: FieldType, stored: unknown, expected: unknown): boolean {
   if (type === "datetime") return sameInstant(stored, expected);
   if (type === "string[]") return JSON.stringify(stored) === JSON.stringify(expected);
+  // A choice stores the exact declared wire value it was admitted as — no canonicalization
+  // is possible or permitted — so it compares exactly, like a string.
   return stored === expected;
 }
 

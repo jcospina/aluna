@@ -96,7 +96,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
     },
@@ -159,7 +159,7 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
 
     expect(result.spec).toEqual(spec);
     expect(result.spec.ui_intent).toEqual({
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
     });
@@ -254,7 +254,7 @@ describe("spec generation stage — authored prompt", () => {
     expect(prompt).not.toContain("ui_intent.detail");
     expect(prompt).toContain("Do not include ui_intent.views");
     expect(prompt).toContain("Do not author how a record opens");
-    expect(prompt).toContain("string | number | boolean | datetime | date | string[]");
+    expect(prompt).toContain("string | number | boolean | datetime | date | choice | string[]");
     expect(prompt).toContain("string[] is the only list type");
     expect(prompt).toContain("id, created_at, extra are platform-owned");
     // Identity: engineering id vs user-facing label, kept distinct.
@@ -373,6 +373,23 @@ describe("spec generation stage — authored prompt", () => {
   });
 });
 
+describe("spec generation stage — the choice contract in the prompt", () => {
+  test("states what a choice declares, and that no other field declares it", async () => {
+    const provider = makeSpecProvider(notesSpec());
+    const { send } = recordingSend();
+    const intent = notesIntent();
+    const prompt = buildSpecPrompt({ provider, prompt: "track my notes", intent, send });
+
+    expect(prompt).toContain("a field declares values and groups only when its type is choice");
+    expect(prompt).toContain("an ordered array of at least one { value, label } option");
+    expect(prompt).toContain("groups: [] — an empty array");
+    expect(prompt).toContain(
+      "ui_intent.form.choice_inputs contains exactly one { field, presentation } entry",
+    );
+    expect(prompt).toContain("choice presentation is exactly picker");
+  });
+});
+
 describe("spec generation stage — authored modes, narration, and identity", () => {
   test("admits semantically appropriate authored modes from prompt-built list capabilities", async () => {
     for (const [field, mode, prompt] of [
@@ -394,7 +411,7 @@ describe("spec generation stage — authored modes, narration, and identity", ()
           ],
         },
         ui_intent: {
-          form: { list_inputs: [{ field, mode }] },
+          form: { list_inputs: [{ field, mode }], choice_inputs: [] },
           item: { direction: `Show ${field} in their authored order.`, shows: [field] },
           collection: { layout: "feed" },
         },
@@ -481,7 +498,7 @@ describe("spec generation stage — rejects non-conforming specs", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
-            form: { list_inputs: [] },
+            form: { list_inputs: [], choice_inputs: [] },
             item: { direction: "A visual tile.", shows: ["text"] },
             collection: { layout: "masonry" },
           },
@@ -492,7 +509,7 @@ describe("spec generation stage — rejects non-conforming specs", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
-            form: { list_inputs: [] },
+            form: { list_inputs: [], choice_inputs: [] },
             item: { direction: "A visual tile.", shows: ["text"] },
             collection: { layout: "grid" },
             modal: true,
@@ -504,7 +521,7 @@ describe("spec generation stage — rejects non-conforming specs", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
-            form: { list_inputs: [] },
+            form: { list_inputs: [], choice_inputs: [] },
             item: { direction: "A text-forward card.", shows: ["missing"] },
             collection: { layout: "feed" },
           },

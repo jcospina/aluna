@@ -47,7 +47,7 @@ function mutationSpec(): CapabilitySpec {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [{ field: "tags", mode: "comma_separated" }] },
+      form: { list_inputs: [{ field: "tags", mode: "comma_separated" }], choice_inputs: [] },
       item: { direction: "A text-forward note.", shows: ["title", "tags"] },
       collection: { layout: "feed" },
     },

@@ -27,6 +27,7 @@ import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,
   type CapabilitySpec,
+  CHOICE_PRESENTATIONS,
   FULL_CAPABILITY_TOOLS,
   fieldTypeSchema,
   LIST_INPUT_MODES,
@@ -68,6 +69,7 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
   const fieldTypes = fieldTypeSchema.options.join(" | ");
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
   const listInputModes = LIST_INPUT_MODES.join(" | ");
+  const choicePresentations = CHOICE_PRESENTATIONS.join(" | ");
   const tools = FULL_CAPABILITY_TOOLS.join(", ");
   const platformColumns = PLATFORM_COLUMNS.join(", ");
 
@@ -80,8 +82,9 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
     `- id is immutable. Return exactly "${committed.id}".`,
     `- subject, ground and companion are the logo's birth facts and are immutable. Return exactly "${committed.subject}", "${committed.ground}" and "${committed.companion}". The artwork was drawn once from them and is never redrawn, so a changed value is refused.`,
     "- Return every committed field exactly once, active and inactive alike. Never omit a committed field, rename one, duplicate one, or change an existing field's type. Omission is not a hide.",
+    "- A committed choice field's option values are stored data and are immutable. Return every committed value, in the same order, with the same value strings; you may append new options after them and you may reword any label. Never remove, rename or reorder a committed value.",
     '- A field committed with lifecycle "inactive" and returned "inactive" must be returned identically.',
-    '- Hiding a field (lifecycle "active" → "inactive") may change only its lifecycle — keep its label and required exactly as committed.',
+    '- Hiding a field (lifecycle "active" → "inactive") may change only its lifecycle — keep its label, required and any declared values exactly as committed.',
     '- Reactivating a field ("inactive" → "active") may also change its label and required.',
     '- A newly introduced field must start lifecycle "active".',
     `- tools: exactly [${tools}] in that canonical order — evolution never changes the Action set.`,
@@ -89,10 +92,12 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
     "- behavioral_errors: every case names one owning action from tools plus trigger, code, fields (active fields only), and expected_markers.",
     `  - If any active fields are required, include exactly two cases in this order: action "create", then action "update". Both use trigger/code "${MISSING_REQUIRED_FIELDS_ERROR_CODE}", fields set to every active required field name in schema order, and expected_markers exactly ${JSON.stringify(BEHAVIORAL_ERROR_MARKERS)}.`,
     "  - If no active fields are required, include no missing_required_fields cases.",
-    '  - record_not_found is platform-owned; never author it. Behavior-specific cases beyond the required pair may target any action in tools; keep every "action"/"trigger"/"code" combination unique.',
+    '  - record_not_found and invalid_choice are platform-owned; never author either. Behavior-specific cases beyond the required pair may target any action in tools; keep every "action"/"trigger"/"code" combination unique.',
     "",
     "Field pantry:",
     `- a field's type is one of: ${fieldTypes}. string[] is the only list type; no files or relations.`,
+    "- a field declares values and groups only when its type is choice. Every other field omits both keys entirely (send null for them in the structured output).",
+    "- a choice field declares values: an ordered array of at least one { value, label } option, with unique value strings, plus groups: [] — an empty array, since option grouping is not authored yet.",
     "- field names and the capability id are lowercase letters, digits, and underscores, starting with a letter. Never use the __aluna_ prefix.",
     `- ${platformColumns} are platform-owned columns Aluna adds automatically. Never include them as fields.`,
     "",
@@ -100,6 +105,8 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
     "- ui_intent.item.direction is one concise sentence of capability-specific item design direction.",
     "- ui_intent.form.list_inputs contains exactly one { field, mode } entry for every active string[] field, in schema-field order — no scalar, inactive, or unknown fields. A hidden string[] field loses its entry; a new or reactivated active string[] field gains one.",
     `- list input mode is exactly ${listInputModes}. Choose comma_separated only for short atomic values whose grammar cannot meaningfully contain commas (tags, genres, categories, skills). Choose repeatable when an element may contain a comma (quotes, addresses, citations, or names as entered).`,
+    "- ui_intent.form.choice_inputs contains exactly one { field, presentation } entry for every active choice field, in schema-field order — no non-choice, inactive, or unknown fields. A hidden choice field loses its entry; a new or reactivated active choice field gains one.",
+    `- choice presentation is exactly ${choicePresentations}.`,
     "- ui_intent.item.shows is an ordered list of active schema field names; it may also include created_at. Never show an inactive field.",
     `- ui_intent.collection.layout is one of: ${collectionLayouts}.`,
     "- Do not include ui_intent.views. Do not author how a record opens; opening one swaps the collection for its form inside the window, and that is the platform's.",

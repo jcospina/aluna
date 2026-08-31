@@ -69,7 +69,7 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
       ],
     },
     ui_intent: {
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
     },
@@ -240,8 +240,12 @@ export function updateHandlerFor(spec: CapabilitySpec): string {
 }
 
 export function searchHandlerFor(spec: CapabilitySpec): string {
+  // Searchable text, decided the way the platform decides it: a choice stores a string in
+  // a TEXT column, so it matches exactly as a `string` field does.
   const clauses = activeSpecFields(spec.schema.fields)
-    .filter((field) => field.type === "string" || field.type === "string[]")
+    .filter(
+      (field) => field.type === "string" || field.type === "choice" || field.type === "string[]",
+    )
     .map((field) =>
       field.type === "string[]"
         ? `EXISTS (SELECT 1 FROM json_each("target"."${field.name}") AS "${field.name}_element" WHERE coalesce(instr(platform_search_normalize("${field.name}_element"."value"), platform_search_normalize("search_term"."term")), 0) > 0)`
@@ -333,7 +337,7 @@ export function articlesSpec(): CapabilitySpec {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       item: {
         direction: "A text-forward card that emphasizes the article title.",
         shows: ["title", "body"],

@@ -16,7 +16,7 @@ describe("capability spec shape — ui_intent presentation", () => {
   test("ui_intent records form, item, and the closed collection layout only", () => {
     const grid = validSpec({
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: { direction: "A visual tile that foregrounds the primary field.", shows: ["text"] },
         collection: { layout: "grid" },
       },
@@ -29,7 +29,7 @@ describe("capability spec shape — ui_intent presentation", () => {
 
     const unknownLayout = validSpec({
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: { direction: "A visual tile that foregrounds the primary field.", shows: ["text"] },
         // @ts-expect-error — unknown collection layouts must fail closed.
         collection: { layout: "masonry" },
@@ -39,7 +39,7 @@ describe("capability spec shape — ui_intent presentation", () => {
 
     const unknownItemField = validSpec({
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: {
           direction: "A text-forward card that emphasizes the note text.",
           shows: ["missing"],
@@ -51,7 +51,7 @@ describe("capability spec shape — ui_intent presentation", () => {
 
     const duplicateItemField = validSpec({
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: {
           direction: "A text-forward card that emphasizes the note text.",
           shows: ["text", "text"],
@@ -69,7 +69,7 @@ describe("capability spec shape — ui_intent presentation", () => {
 
     const modalFlag = validSpec({
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
         collection: { layout: "feed" },
         // @ts-expect-error — the shared modal is a platform invariant, not stored state.
@@ -97,7 +97,7 @@ describe("capability spec shape — presentation lists & created_at", () => {
     const accepted = validSpec({
       schema,
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: { direction: "Show the entry and its age.", shows: ["text", "created_at"] },
         collection: { layout: "feed" },
       },

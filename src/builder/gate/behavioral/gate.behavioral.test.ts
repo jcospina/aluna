@@ -206,7 +206,7 @@ describe("capability gate — behavioral search coverage", () => {
         ],
       },
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: { direction: "Show the reading.", shows: ["reading"] },
         collection: { layout: "feed" },
       },

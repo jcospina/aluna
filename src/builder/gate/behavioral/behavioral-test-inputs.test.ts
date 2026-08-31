@@ -13,6 +13,7 @@ import { diffCapabilitySpec } from "../../evolution/diff-engine.ts";
 import { notesSpec } from "../gate.test-support.ts";
 import {
   type ActionTestInputs,
+  actionFixtureVocabulary,
   actionTestInputDigest,
   actionTestInputs,
   canonicalTestInputJson,
@@ -49,6 +50,94 @@ function movedActions(before: CapabilitySpec, after: CapabilitySpec): readonly s
   const right = digests(after);
   return FULL_CAPABILITY_TOOLS.filter((action) => left[action] !== right[action]);
 }
+
+const CHOICE_OPTIONS = [
+  { value: "draft", label: "Draft" },
+  { value: "sent", label: "Sent" },
+];
+
+/** The notes spec with one active choice field, for the admitted-value projection. */
+function choiceSpec(values: readonly { value: string; label: string }[]): CapabilitySpec {
+  const base = notesSpec();
+  return notesSpec({
+    schema: {
+      fields: [
+        ...base.schema.fields,
+        {
+          name: "stage",
+          label: "Stage",
+          type: "choice",
+          required: false,
+          lifecycle: "active",
+          values: [...values],
+          groups: [],
+        },
+      ],
+    },
+    ui_intent: {
+      ...base.ui_intent,
+      form: { ...base.ui_intent.form, choice_inputs: [{ field: "stage", presentation: "picker" }] },
+    },
+  });
+}
+
+describe("a choice field's admitted values are create/update validation shape", () => {
+  test("the write projection carries the declared values; the search projection does not", () => {
+    const inputs = specActionTestInputs(choiceSpec(CHOICE_OPTIONS));
+    const create = inputs.find((entry) => entry.action === "create");
+    const stage = (create?.schema as readonly { name: string; values?: readonly string[] }[]).find(
+      (field) => field.name === "stage",
+    );
+    expect(stage?.values).toEqual(["draft", "sent"]);
+
+    const search = inputs.find((entry) => entry.action === "search");
+    const searchable = (search?.schema as { searchable_fields: readonly { name: string }[] })
+      .searchable_fields;
+    expect(searchable.map((field) => field.name)).toContain("stage");
+    expect(searchable.every((field) => !("values" in field))).toBe(true);
+  });
+
+  test("appending an option moves the create and update digests, and only those", () => {
+    expect(
+      movedActions(
+        choiceSpec(CHOICE_OPTIONS),
+        choiceSpec([...CHOICE_OPTIONS, { value: "paid", label: "Paid" }]),
+      ),
+    ).toEqual(["create", "update"]);
+  });
+
+  test("the fixture vocabulary carries the admitted values a synthetic row may hold", () => {
+    const vocabulary = actionFixtureVocabulary(choiceSpec(CHOICE_OPTIONS));
+    const stage = vocabulary.row_fields.find((field) => field.name === "stage");
+    expect(stage?.values).toEqual(["draft", "sent"]);
+    // Every other field carries none: only a choice constrains what a row may hold.
+    expect(vocabulary.row_fields.filter((field) => field.values !== undefined)).toHaveLength(1);
+  });
+
+  test("the fixture vocabulary stays out of the digest — it is scratch context", () => {
+    expect(
+      movedActions(
+        choiceSpec(CHOICE_OPTIONS),
+        choiceSpec([
+          { value: "draft", label: "Renamed" },
+          { value: "sent", label: "Sent" },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  test("relabelling an option moves no digest — a label is presentation", () => {
+    expect(
+      movedActions(
+        choiceSpec(CHOICE_OPTIONS),
+        choiceSpec([
+          { value: "draft", label: "Still a draft" },
+          { value: "sent", label: "Sent" },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+});
 
 describe("per-Action behavioral test inputs — the closed set", () => {
   test("projects exactly the five keys decision 23 admits, and no others", () => {

@@ -39,7 +39,7 @@ const CAPABILITY: RenderableCapability = {
       },
     ],
   },
-  form: { list_inputs: [] },
+  form: { list_inputs: [], choice_inputs: [] },
   actions: ["create", "read", "update", "delete", "search"],
 };
 

@@ -40,7 +40,7 @@ function spec(): CapabilitySpec {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       item: { direction: "A text-forward note.", shows: ["text"] },
       collection: { layout: "feed" },
     },
@@ -78,7 +78,7 @@ function listSpec(
       ],
     },
     ui_intent: {
-      form: { list_inputs: [{ field: "tags", mode }] },
+      form: { list_inputs: [{ field: "tags", mode }], choice_inputs: [] },
       item: { direction: "A tag-forward note.", shows: ["tags"] },
       collection: { layout: "feed" },
     },

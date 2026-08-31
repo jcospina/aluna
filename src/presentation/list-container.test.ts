@@ -35,7 +35,7 @@ const SAMPLE: RenderableCapability = {
       { name: "done", label: "Done", type: "boolean", required: true, lifecycle: "active" },
     ],
   },
-  form: { list_inputs: [] },
+  form: { list_inputs: [], choice_inputs: [] },
   actions: ["create", "read", "update", "delete", "search"],
 };
 

@@ -25,12 +25,17 @@
 import {
   type CapabilitySpec,
   type CapabilityTool,
+  type ChoiceOption,
   type FieldType,
   FULL_CAPABILITY_TOOLS,
+  isChoiceFieldType,
   isListFieldType,
   type SpecField,
 } from "../../registry/index.ts";
 import { canonicalCapabilityLabel } from "../../registry/labels.ts";
+import { assertTotalCoverage } from "./diff-totality.ts";
+
+export { UnmappedChangeFactError } from "./diff-totality.ts";
 
 // ── The typed change facts ──────────────────────────────────────────────────
 // One variant per matrix row that produces a fact. The invalid-candidate row and
@@ -53,6 +58,8 @@ export type ChangeFact =
       readonly transition: "hide" | "reactivate";
     }
   | { readonly kind: "list_input_mode"; readonly field: string }
+  | { readonly kind: "choice_values"; readonly field: string }
+  | { readonly kind: "choice_option_labels"; readonly field: string }
   | { readonly kind: "item_presentation" }
   | { readonly kind: "collection_layout" }
   | { readonly kind: "read_dependencies"; readonly action: CapabilityTool }
@@ -75,6 +82,8 @@ const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
   "field_label",
   "field_lifecycle",
   "list_input_mode",
+  "choice_values",
+  "choice_option_labels",
   "item_presentation",
   "collection_layout",
   "read_dependencies",
@@ -106,6 +115,9 @@ export const PLATFORM_WORK_KINDS = [
   "resulting_record_validation", // required change → resulting-record validation
   "list_input_intent", // hide/reactivate → remove/require active list-input intent
   "list_input_form_normalization", // list input mode → create/edit form + raw-input normalization
+  "choice_admitted_values", // appended option → platform mutation validation + the control
+  "choice_option_presentation", // option label → the control's wording, nothing else
+  "choice_input_intent", // hide/reactivate a choice → remove/require its form intent
   "platform_list_container", // collection feed|grid → platform list container
   "read_catalog", // read_dependencies → read catalog / reverse index
   "behavioral_error_contract", // behavioral_errors → stable semantic contract
@@ -145,24 +157,6 @@ export interface CapabilityDiff {
   readonly workPlan: DiffWorkPlan;
   /** True exactly when `facts` is empty — the canonical no-op. */
   readonly isNoop: boolean;
-}
-
-/**
- * The fail-closed guard: a committed→candidate difference the matrix
- * does not map. It carries the residual JSON of both sides so the shared build-error
- * preview surfaces exactly what could not be explained.
- */
-export class UnmappedChangeFactError extends Error {
-  override readonly name = "UnmappedChangeFactError";
-  readonly diagnostic: { readonly committedResidual: unknown; readonly candidateResidual: unknown };
-
-  constructor(committedResidual: unknown, candidateResidual: unknown) {
-    super(
-      "Unmapped evolution difference: the candidate differs from the committed spec in a " +
-        "region no change-fact row covers; failing closed before publication.",
-    );
-    this.diagnostic = { committedResidual, candidateResidual };
-  }
 }
 
 /**
@@ -212,6 +206,7 @@ function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): read
 
   detectSchemaFacts(committed, candidate, facts);
   detectListInputModeFacts(committed, candidate, facts);
+  detectChoiceFacts(committed, candidate, facts);
   detectPresentationFacts(committed, candidate, facts);
   detectReadDependencyFacts(committed, candidate, facts);
 
@@ -299,6 +294,57 @@ function detectListInputModeFacts(
       facts.push({ kind: "list_input_mode", field });
     }
   }
+}
+
+// A choice fact is only the movement of a field that is a choice in *both* specs; a field
+// that gained or lost that status is already a new_active_field or field_lifecycle fact.
+// The two are separate because they buy different work: an appended value changes what the
+// platform admits and what the writing Handlers are tested against, while a relabelled
+// option is View work alone (ADR-0006). They are also independent — one evolution can
+// append an option *and* reword an existing label, and each half must still select its own
+// column, so this is two `if`s rather than a choice between them.
+//
+// Removing or renaming a committed option value never reaches here: candidate validation
+// refuses it before Diff, so a stored row can never become undeclared data.
+//
+// Which control a choice renders as is not yet a fact: `CHOICE_PRESENTATIONS` admits one
+// value, so no candidate can move it. 5.10/02 opens that enum and adds the row with it.
+function detectChoiceFacts(
+  committed: CapabilitySpec,
+  candidate: CapabilitySpec,
+  facts: ChangeFact[],
+): void {
+  const candidateOptions = choiceOptionsByField(candidate);
+  for (const [field, before] of choiceOptionsByField(committed)) {
+    const after = candidateOptions.get(field);
+    if (after === undefined) continue;
+    if (!sameSequence(before.map(optionValue), after.map(optionValue))) {
+      facts.push({ kind: "choice_values", field });
+    }
+    // Labels compare over the options both specs share — the committed prefix — so an
+    // append never masks a relabel and never manufactures one either.
+    if (!sameSequence(before.map(optionLabel), after.slice(0, before.length).map(optionLabel))) {
+      facts.push({ kind: "choice_option_labels", field });
+    }
+  }
+}
+
+function choiceOptionsByField(spec: CapabilitySpec): Map<string, readonly ChoiceOption[]> {
+  const options = new Map<string, readonly ChoiceOption[]>();
+  for (const field of spec.schema.fields) {
+    if (isChoiceFieldType(field.type) && field.values !== undefined) {
+      options.set(field.name, field.values);
+    }
+  }
+  return options;
+}
+
+function optionValue(option: ChoiceOption): string {
+  return option.value;
+}
+
+function optionLabel(option: ChoiceOption): string {
+  return option.label;
 }
 
 function detectPresentationFacts(
@@ -436,16 +482,28 @@ function contributeFieldFact(
       sink.platform.add("platform_form_detail");
       if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
       return;
-    case "field_lifecycle": {
-      sink.platform.add("platform_form_detail");
-      sink.platform.add("list_input_intent");
-      selectWrites(sink);
-      const field = candidate.schema.fields.find((entry) => entry.name === fact.field);
-      if (field && isSearchableTextType(field.type)) selectSearch(sink);
-      // The item renderer follows the required item.shows change (item_presentation).
+    case "field_lifecycle":
+      contributeLifecycleFact(fact.field, candidate, sink);
       return;
-    }
   }
+}
+
+/**
+ * Hiding or reactivating one field. The Module 4 matrix row names list-input intent for
+ * every lifecycle change; a choice field additionally owns an entry in `choice_inputs`,
+ * which the same hide/reactivate adds or removes. The union only ever grows.
+ *
+ * The item renderer follows the required `item.shows` change (`item_presentation`), never
+ * this fact.
+ */
+function contributeLifecycleFact(name: string, candidate: CapabilitySpec, sink: WorkSink): void {
+  sink.platform.add("platform_form_detail");
+  sink.platform.add("list_input_intent");
+  selectWrites(sink);
+  const field = candidate.schema.fields.find((entry) => entry.name === name);
+  if (!field) return;
+  if (isChoiceFieldType(field.type)) sink.platform.add("choice_input_intent");
+  if (isSearchableTextType(field.type)) selectSearch(sink);
 }
 
 function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
@@ -467,6 +525,17 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
       return;
     case "list_input_mode":
       sink.platform.add("list_input_form_normalization");
+      return;
+    case "choice_values":
+      // The admitted set is create/update validation shape (ADR-0006), so it selects both
+      // writing Handlers and their behavioral suites alongside the platform's own
+      // validation and the control's option list. Storage is untouched — an appended
+      // option is not a column change — and search matches stored text either way.
+      sink.platform.add("choice_admitted_values");
+      selectWrites(sink);
+      return;
+    case "choice_option_labels":
+      sink.platform.add("choice_option_presentation");
       return;
     case "item_presentation":
       sink.units.add("item");
@@ -511,73 +580,10 @@ function selectSearch(sink: WorkSink): void {
 }
 
 function isSearchableTextType(type: FieldType): boolean {
-  return type === "string" || isListFieldType(type);
-}
-
-// ── Totality: fail closed on the unexplained ────────────────────────────────
-
-// A control-character sentinel that stands in for every region a change fact
-// covers. Regions left un-neutralized are the immutable invariants (id, tools,
-// each committed field's name/type) plus anything a future spec adds without a
-// matrix row — those must be identical, or the difference is unmapped.
-const RESIDUAL_SENTINEL = "\u0000diff-covered\u0000";
-
-function assertTotalCoverage(committed: CapabilitySpec, candidate: CapabilitySpec): void {
-  const committedNames = new Set(committed.schema.fields.map((field) => field.name));
-  const committedResidual = residualProjection(committed, committedNames);
-  const candidateResidual = residualProjection(candidate, committedNames);
-  // Both residuals are deeply key-sorted, so stringify is an order-stable deep-equal.
-  if (JSON.stringify(committedResidual) !== JSON.stringify(candidateResidual)) {
-    throw new UnmappedChangeFactError(committedResidual, candidateResidual);
-  }
-}
-
-// Reduce a spec to only what no change fact explains: canonicalize the whole
-// value, then blank every fact-bearing region. What survives — id, the logo birth
-// facts `subject`/`ground`, tools, and the committed fields' name/type — is the
-// equality the diff cannot manufacture and must never silently ignore. A new
-// admitted top-level key survives here too, so an unextended matrix fails closed
-// rather than dropping it.
-function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<string>): unknown {
-  const canonical = canonicalize(spec) as Record<string, unknown>;
-  canonical.label = RESIDUAL_SENTINEL;
-  canonical.noun = RESIDUAL_SENTINEL;
-  canonical.prompt_context = RESIDUAL_SENTINEL;
-  canonical.behavior = RESIDUAL_SENTINEL;
-  canonical.behavioral_errors = RESIDUAL_SENTINEL;
-  canonical.read_dependencies = RESIDUAL_SENTINEL;
-  canonical.ui_intent = RESIDUAL_SENTINEL;
-  canonical.schema = {
-    fields: spec.schema.fields
-      .filter((field) => committedNames.has(field.name))
-      .map(
-        (field): Record<string, unknown> => ({
-          ...(canonicalize(field) as Record<string, unknown>),
-          label: RESIDUAL_SENTINEL,
-          required: RESIDUAL_SENTINEL,
-          lifecycle: RESIDUAL_SENTINEL,
-        }),
-      )
-      .sort((left, right) => compareStrings(String(left.name), String(right.name))),
-  };
-  return canonical;
+  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
 }
 
 // ── Canonicalization + small helpers ────────────────────────────────────────
-
-// Deep clone with object keys sorted; arrays keep their order (an ordered product
-// fact), primitives pass through. This is what makes object-key reordering a no-op
-// while preserving ordered facts.
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value !== null && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-      compareStrings(left, right),
-    );
-    return Object.fromEntries(entries.map(([key, nested]) => [key, canonicalize(nested)]));
-  }
-  return value;
-}
 
 function listInputModesByField(spec: CapabilitySpec): Map<string, string> {
   const active = new Set(

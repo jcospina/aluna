@@ -24,6 +24,7 @@ import {
   type CapabilitySpec,
   type CapabilityTool,
   FULL_CAPABILITY_TOOLS,
+  isChoiceFieldType,
   isListFieldType,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
@@ -347,7 +348,7 @@ function setupRowMatchesSearchQuery(
 }
 
 function isSearchableTextType(type: CapabilitySpec["schema"]["fields"][number]["type"]): boolean {
-  return type === "string" || isListFieldType(type);
+  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
 }
 
 function assertMissingRequiredTrigger(testCase: FullBehavioralTestCase): void {

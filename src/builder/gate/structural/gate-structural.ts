@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
 
-import { capabilitySpecSchema } from "../../../registry/index.ts";
+import { capabilitySpecSchema, fieldTypeSchema } from "../../../registry/index.ts";
 import { checkItemRendererFieldAccess } from "../../units/item-field-access.ts";
 import { checkHandlerSourceContract } from "../../units/unit-checks.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
@@ -359,6 +359,15 @@ type PresentationAdapter = (record: CapabilityActionRecord) => string;
 
 // The handler contract — including ADR-0005 §2's injected `present` adapter (mirrors
 // src/router/contract.ts and src/builder/unit-checks.ts).
+/**
+ * The query-result column types, derived from the registry pantry rather than restated.
+ * A generated Handler is type-checked against this text, so a hand-written mirror missing
+ * a new field type would reject a projection the runtime accepts.
+ */
+const QUERY_RESULT_TYPE_UNION = fieldTypeSchema.options
+  .map((type) => JSON.stringify(type))
+  .join(" | ");
+
 const handlerContractDeclarations = `${recordContractDeclarations}
 type CapabilityInputValue = string | readonly string[];
 interface CapabilityInput {
@@ -377,7 +386,7 @@ interface CapabilityDeleteMutationPort {
 type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
 interface CapabilityQueryResultColumn {
   readonly alias: string;
-  readonly type: "string" | "number" | "boolean" | "date" | "datetime" | "string[]";
+  readonly type: ${QUERY_RESULT_TYPE_UNION};
 }
 interface CapabilityQueryPort {
   all(input: {
