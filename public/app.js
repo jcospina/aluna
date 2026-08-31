@@ -664,6 +664,9 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   if (![404, 409, 422, 500].includes(detail?.xhr?.status) || typeof response !== "string") return;
   const isStructuredFormRefusal = [
     "missing_required_fields",
+    // A submitted choice value the field never declared. Platform-owned, like the
+    // required-field refusal beside it, and dropped by htmx unless the shell claims it.
+    "invalid_choice",
     "mutation_busy",
     "read_unavailable",
     "record_not_found",

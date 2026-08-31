@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { INVALID_CHOICE_ERROR_CODE } from "../registry/index.ts";
 import { NOT_FOUND_FRAGMENT } from "../router/failure-responses.ts";
 import {
   BLANK_PROMPT_NOTICE,
@@ -87,6 +88,9 @@ function deskLogo() {
     "hx-target": `#${WINDOW_REGION_ID}`,
   });
 }
+
+/** The undeclared-choice refusal, exactly as `src/router/failure-responses.ts` writes it. */
+const INVALID_CHOICE_FRAGMENT = `<p class="notice" data-role="error" data-error-code="${INVALID_CHOICE_ERROR_CODE}" data-error-fields="status">That isn’t one of the options I can store here. Mind picking one from the list?</p>`;
 
 /** The read-gate refusal, exactly as `src/router/failure-responses.ts` writes it. */
 const READ_UNAVAILABLE =
@@ -335,6 +339,17 @@ describe("a structured refusal renders on the surface it arrived from", () => {
     expect(spoken(scene)).toBe(NOT_FOUND_NOTICE);
     expect(refused(scene)).toBe(true);
     expect(scene.region.childNodes).toEqual([scene.displaced, scene.subscriber]);
+  });
+
+  test("an undeclared choice value lands in the form it was submitted from", () => {
+    const scene = desk();
+    const field = new El("form", { id: "job_applications-edit" });
+    scene.region.append(field);
+
+    // The router's own fragment. The shell claims a refusal by its code or htmx drops the
+    // 422 entirely, so a new platform code has to arrive on both halves at once.
+    expect(structuredRefusal(scene, field, INVALID_CHOICE_FRAGMENT, 422)).toBe(true);
+    expect(spoken(scene)).toBe("");
   });
 
   test("and an unmarked 4xx is still none of the shell's business", () => {

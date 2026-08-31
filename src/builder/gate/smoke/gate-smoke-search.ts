@@ -11,7 +11,14 @@ import {
   type CapabilityDataRow,
   encodeCapabilityFieldForStorage,
 } from "../../../capability-data/index.ts";
-import { activeSpecFields, type CapabilitySpec, type SpecField } from "../../../registry/index.ts";
+import {
+  activeSpecFields,
+  type CapabilitySpec,
+  choiceFieldOptions,
+  isChoiceFieldType,
+  isListFieldType,
+  type SpecField,
+} from "../../../registry/index.ts";
 import type { CapabilityInput, CapabilityReadHandler } from "../../../router/index.ts";
 import type { ScratchCatalogCapability } from "../gate.ts";
 import { buildGateQueryPort, sqlIdentifier } from "../gate-internal.ts";
@@ -324,8 +331,11 @@ function addExclusionCases(state: FixtureState): void {
   for (const field of inactiveText) {
     excluded.values[field.name] = field.type === "string[]" ? ["inactiveonly"] : "inactiveonly";
   }
+  // "Non-text" here means "content a query can never match", which is what makes an
+  // exclusion assertion honest. A choice is searchable text — it stores a string in a TEXT
+  // column — so it is not one of these, and keeps the ordinary rotating fixture value.
   const nonText = activeSpecFields(state.spec.schema.fields).filter(
-    (field) => field.type !== "string" && field.type !== "string[]",
+    (field) => !isSearchableTextType(field.type),
   );
   for (const field of nonText) excluded.values[field.name] = excludedNonTextValue(field);
   state.rows.push({ ...excluded, extra: '{"hidden":"extraonly"}' });
@@ -341,22 +351,40 @@ function addExclusionCases(state: FixtureState): void {
   if (inactiveText.length > 0) {
     state.cases.push({ label: "inactive text exclusion", q: "inactiveonly", expectedIds: [] });
   }
-  if (nonText.some((field) => field.type === "number")) {
-    state.cases.push({ label: "number exclusion", q: "8675309", expectedIds: [] });
+  addNonTextExclusionCases(state, nonText);
+}
+
+/** One exclusion case per non-searchable type present, each keyed to its fixture value. */
+const NON_TEXT_EXCLUSIONS = [
+  { type: "number", label: "number exclusion", q: "8675309" },
+  { type: "boolean", label: "boolean exclusion", q: "true" },
+  { type: "date", label: "date exclusion", q: "2042-02-03" },
+  { type: "datetime", label: "datetime exclusion", q: "2042-02-03T04:05:06.000Z" },
+] as const;
+
+function addNonTextExclusionCases(state: FixtureState, nonText: readonly SpecField[]): void {
+  const matchable = declaredChoiceValues(state.spec);
+  for (const exclusion of NON_TEXT_EXCLUSIONS) {
+    const present = nonText.some((field) => field.type === exclusion.type);
+    if (!present || matchable.has(exclusion.q)) continue;
+    state.cases.push({ label: exclusion.label, q: exclusion.q, expectedIds: [] });
   }
-  if (nonText.some((field) => field.type === "boolean")) {
-    state.cases.push({ label: "boolean exclusion", q: "true", expectedIds: [] });
+}
+
+/**
+ * Every value an active choice field may hold. An exclusion case asserts an empty result
+ * set for a fixed token, and a choice column is searchable, so a capability that happened
+ * to declare an option equal to one of those tokens would make that assertion false about
+ * a correct Handler. The fixture drops the case rather than freezing a wrong expectation
+ * the repair loop is not allowed to weaken.
+ */
+function declaredChoiceValues(spec: CapabilitySpec): ReadonlySet<string> {
+  const values = new Set<string>();
+  for (const field of activeSpecFields(spec.schema.fields)) {
+    if (!isChoiceFieldType(field.type)) continue;
+    for (const option of choiceFieldOptions(field)) values.add(option.value);
   }
-  if (nonText.some((field) => field.type === "date")) {
-    state.cases.push({ label: "date exclusion", q: "2042-02-03", expectedIds: [] });
-  }
-  if (nonText.some((field) => field.type === "datetime")) {
-    state.cases.push({
-      label: "datetime exclusion",
-      q: "2042-02-03T04:05:06.000Z",
-      expectedIds: [],
-    });
-  }
+  return values;
 }
 
 function addBehaviorNeutralOrderRows(
@@ -382,10 +410,25 @@ function addBehaviorNeutralOrderRows(
   });
 }
 
-export function fixtureFieldValue(field: SpecField, seed: number): unknown {
+/**
+ * One neutral fixture value per pantry type. The return type is deliberately concrete
+ * rather than `unknown`: a `switch` with no `default` and a narrow return is what makes
+ * the compiler refuse a new field type until it has a fixture value of its own.
+ */
+export function fixtureFieldValue(
+  field: SpecField,
+  seed: number,
+): string | number | boolean | readonly string[] | null {
   switch (field.type) {
     case "string":
       return `neutral${seed}`;
+    case "choice": {
+      // A choice can only ever hold a value it declares, so the fixture rotates through
+      // the declared options instead of manufacturing neutral text the way it can for a
+      // free string.
+      const options = choiceFieldOptions(field);
+      return options[seed % options.length]?.value ?? null;
+    }
     case "string[]":
       return [`neutral${seed}a`, `neutral${seed}b`];
     case "number":
@@ -399,7 +442,18 @@ export function fixtureFieldValue(field: SpecField, seed: number): unknown {
   }
 }
 
-function excludedNonTextValue(field: SpecField): unknown {
+/**
+ * The value an excluded row carries: a distinctive one for the types whose content the
+ * fixture controls, and the ordinary rotating value for the text-shaped ones. Total for
+ * the same reason {@link fixtureFieldValue} is — a `default` here would silently swallow
+ * a new field type instead of asking what it should hold.
+ *
+ * A choice is searchable text but its content is a closed declared set, so the fixture
+ * cannot plant a distinctive non-matching value in it and takes the rotating one.
+ */
+function excludedNonTextValue(
+  field: SpecField,
+): string | number | boolean | readonly string[] | null {
   switch (field.type) {
     case "number":
       return 8675309;
@@ -409,7 +463,9 @@ function excludedNonTextValue(field: SpecField): unknown {
       return "2042-02-03";
     case "datetime":
       return "2042-02-03T04:05:06.000Z";
-    default:
+    case "string":
+    case "choice":
+    case "string[]":
       return fixtureFieldValue(field, 44);
   }
 }
@@ -423,6 +479,15 @@ function setText(row: FixtureRow, location: TextLocation, value: string | readon
       : Array.isArray(value)
         ? value.join(" ")
         : value;
+}
+
+/**
+ * Searchable text, decided the way the Diff Engine and the behavioral total inputs decide
+ * it. All of them must move together: a type this calls searchable but the fixture treats
+ * as inert would make an exclusion assertion claim something untrue.
+ */
+function isSearchableTextType(type: SpecField["type"]): boolean {
+  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
 }
 
 function insertFixtureRow(

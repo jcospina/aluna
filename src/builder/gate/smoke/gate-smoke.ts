@@ -14,12 +14,8 @@ import {
   materializeCapabilityActionRecord,
   selectCapabilityRows,
 } from "../../../capability-data/index.ts";
-import { activeSpecFields, type CapabilitySpec, type SpecField } from "../../../registry/index.ts";
-import type {
-  CapabilityDeleteHandler,
-  CapabilityInput,
-  CapabilityInputValue,
-} from "../../../router/index.ts";
+import { activeSpecFields, type CapabilitySpec } from "../../../registry/index.ts";
+import type { CapabilityDeleteHandler, CapabilityInput } from "../../../router/index.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
 import type { CapabilityGateInput, SmokeGateResult } from "../gate.ts";
 import {
@@ -37,6 +33,7 @@ import {
   sqlIdentifier,
 } from "../gate-internal.ts";
 import { runSmokeRepairLoop, SmokeActionFailure, type SmokeRungRun } from "./gate-smoke-repair.ts";
+import { buildSmokeInput, buildUpdateInputs } from "./gate-smoke-samples.ts";
 import {
   fixtureFieldValue,
   type RecordingPresentation,
@@ -305,75 +302,6 @@ function recordingPresentation(spec: CapabilitySpec, itemRenderer: string): Reco
       return [...fragments];
     },
   };
-}
-
-interface SmokeInput {
-  readonly input: CapabilityInput;
-  readonly expectedValues: Readonly<Record<string, CapabilityDataColumnValue>>;
-}
-
-function buildSmokeInput(spec: CapabilitySpec): SmokeInput {
-  const values: Record<string, CapabilityInputValue> = {};
-  const expectedValues: Record<string, CapabilityDataColumnValue> = {};
-  const fields = activeSpecFields(spec.schema.fields);
-  for (const field of fields) {
-    const sample = sampleValue(field, "create");
-    if (sample.input !== undefined) values[field.name] = sample.input;
-    expectedValues[field.name] = sample.expected;
-  }
-  return {
-    input: { values, submittedFields: new Set(fields.map((field) => field.name)) },
-    expectedValues,
-  };
-}
-
-function buildUpdateInputs(spec: CapabilitySpec): readonly {
-  readonly field: SpecField;
-  readonly input: CapabilityInput;
-  readonly expected: CapabilityDataColumnValue;
-}[] {
-  const fields = activeSpecFields(spec.schema.fields);
-  if (fields.length === 0) throw new Error("Smoke update requires at least one active field.");
-  return fields.map((field) => {
-    const sample = sampleValue(field, "update");
-    return {
-      field,
-      input: {
-        values: sample.input === undefined ? {} : { [field.name]: sample.input },
-        submittedFields: new Set([field.name]),
-      },
-      expected: sample.expected,
-    };
-  });
-}
-
-function sampleValue(
-  field: SpecField,
-  phase: "create" | "update",
-): { readonly input?: CapabilityInputValue; readonly expected: CapabilityDataColumnValue } {
-  const prefix = phase === "create" ? "gate smoke" : "gate update";
-  switch (field.type) {
-    case "string":
-      return { input: `${prefix} ${field.name}`, expected: `${prefix} ${field.name}` };
-    case "number":
-      return phase === "create"
-        ? { input: "42.5", expected: 42.5 }
-        : { input: "84.25", expected: 84.25 };
-    case "boolean":
-      return phase === "create" ? { expected: false } : { input: "on", expected: true };
-    case "datetime":
-      return phase === "create"
-        ? { input: "2026-06-23T00:00:00.000Z", expected: "2026-06-23T00:00:00.000Z" }
-        : { input: "2027-07-24T01:02:03.000Z", expected: "2027-07-24T01:02:03.000Z" };
-    case "date":
-      return phase === "create"
-        ? { input: "2026-06-23", expected: "2026-06-23" }
-        : { input: "2027-07-24", expected: "2027-07-24" };
-    case "string[]": {
-      const expected = [`${prefix} first`, "literal,comma", `${prefix} last`];
-      return { input: expected, expected };
-    }
-  }
 }
 
 function assertSmokeRows(

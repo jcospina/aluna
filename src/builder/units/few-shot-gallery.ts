@@ -81,7 +81,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
           ["tag", "string", false],
         ]),
       },
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
     },
     previewSamples: [
       {
@@ -168,7 +168,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
           ["taken_on", "date", false],
         ]),
       },
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
     },
     previewSamples: [
       {
@@ -261,7 +261,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
           ["priority", "string", false],
         ]),
       },
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
     },
     previewSamples: [
       {

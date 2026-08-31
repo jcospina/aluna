@@ -23,6 +23,7 @@ export const SQLITE_TYPE_BY_FIELD_TYPE = {
   boolean: "INTEGER",
   datetime: "TEXT",
   date: "TEXT",
+  choice: "TEXT",
   "string[]": "TEXT",
 } as const satisfies Record<FieldType, "TEXT" | "REAL" | "INTEGER">;
 
@@ -144,6 +145,11 @@ function columnDefinition(name: string, fieldType: FieldType): string {
       `CHECK (${sqlIdentifier(name)} IS NULL OR (json_valid(${sqlIdentifier(name)}) AND json_type(${sqlIdentifier(name)}) = 'array'))`,
     );
   }
+  // A choice gets plain TEXT and deliberately no `IN (…)` CHECK. Option values are
+  // append-only through evolution, and SQLite cannot alter a column constraint, so a
+  // CHECK written at birth would freeze the vocabulary the design says may grow. The
+  // admitted set is enforced by platform mutation validation instead, which reads the
+  // live spec on every write.
   return parts.join(" ");
 }
 

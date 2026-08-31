@@ -50,6 +50,7 @@ export function buildActionBehavioralTestPrompt(
     canonicalTestInputJson(inputs),
     "",
     "Synthetic row vocabulary — the only field names `setupRows` and `expectedRows` may use. These are fixture mechanics, not behavior: they say what a row can be made of, never what the Action should do.",
+    "- A row field that lists `values` admits only those exact strings. Never invent one: the platform refuses an undeclared value before the Handler runs, so a case that seeds one fails the build rather than testing anything.",
     canonicalTestInputJson(fixture),
   ].join("\n");
 }
@@ -67,6 +68,7 @@ function inputGuidance(action: HandlerUnitName): readonly string[] {
   if (action === "create" || action === "update") {
     return [
       "- `input`: parsed form inputs as strings, keyed by the active schema field names in the source material; repeat `string[]` entries to preserve order.",
+      "- A schema field that lists `values` accepts only those exact strings; submit one of them, or an empty string to submit no selection at all.",
     ];
   }
   if (action === "search") {

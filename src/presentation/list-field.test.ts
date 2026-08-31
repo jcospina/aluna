@@ -41,7 +41,7 @@ describe("the rows a list field is typed into", () => {
           { name: "tags", label: "Tags", type: "string[]", required: false, lifecycle: "active" },
         ],
       },
-      form: { list_inputs: [{ field: "tags", mode: "repeatable" }] },
+      form: { list_inputs: [{ field: "tags", mode: "repeatable" }], choice_inputs: [] },
       actions: ["create", "read", "update", "delete", "search"],
     });
 

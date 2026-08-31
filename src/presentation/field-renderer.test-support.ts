@@ -23,14 +23,34 @@ export const SAMPLE: RenderableCapability = {
       { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
     ],
   },
-  form: { list_inputs: [] },
+  form: { list_inputs: [], choice_inputs: [] },
   actions: ["create", "read"],
 };
+
+/** The options every choice probe declares, so a sampled value is always an admitted one. */
+export const PROBE_CHOICE_OPTIONS = [
+  { value: "first", label: "First" },
+  { value: "second", label: "Second" },
+] as const;
+
+/** A well-formed field of any pantry type; a choice arrives carrying its declared options. */
+export function probeField(type: FieldType, overrides: Partial<SpecField> = {}): SpecField {
+  return {
+    name: "value",
+    label: "Value",
+    type,
+    required: true,
+    lifecycle: "active",
+    ...(type === "choice" ? { values: [...PROBE_CHOICE_OPTIONS], groups: [] } : {}),
+    ...overrides,
+  };
+}
 
 export function oneField(
   field: SpecField,
   listMode: "comma_separated" | "repeatable" = "repeatable",
 ): RenderableCapability {
+  const active = field.lifecycle === "active";
   return {
     id: "probe",
     label: "Probe",
@@ -38,9 +58,9 @@ export function oneField(
     schema: { fields: [field] },
     form: {
       list_inputs:
-        field.lifecycle === "active" && field.type === "string[]"
-          ? [{ field: field.name, mode: listMode }]
-          : [],
+        active && field.type === "string[]" ? [{ field: field.name, mode: listMode }] : [],
+      choice_inputs:
+        active && field.type === "choice" ? [{ field: field.name, presentation: "picker" }] : [],
     },
     actions: ["create", "read"],
   };
@@ -58,6 +78,8 @@ export function sampleFieldValue(type: FieldType): string | number | boolean | r
       return "2026-07-05T09:30:00.000Z";
     case "date":
       return "2026-07-05";
+    case "choice":
+      return PROBE_CHOICE_OPTIONS[0].value;
     case "string[]":
       return ["first", "second"];
   }

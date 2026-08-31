@@ -5,8 +5,8 @@
 //
 //   | Action           | Canonical schema test input                                |
 //   | ---------------- | ---------------------------------------------------------- |
-//   | create, update   | active field name/type/required, excluding labels/order     |
-//   | search           | active string/string[] field names/types                    |
+//   | create, update   | active field name/type/required + a choice's admitted values|
+//   | search           | active string/choice/string[] field names/types             |
 //   | read, delete     | none; canonical-row/delete mechanics stay in always-on smoke|
 //
 // Handler source is never an input. Neither is anything presentational — field labels,
@@ -28,6 +28,7 @@ import {
   type CapabilityTool,
   type FieldType,
   FULL_CAPABILITY_TOOLS,
+  isChoiceFieldType,
   isListFieldType,
   type ReadDependency,
 } from "../../../registry/index.ts";
@@ -36,11 +37,18 @@ import { contentDigest } from "../../artifacts/artifact-digests.ts";
 /** The `q`-only search input every capability's search Action receives. */
 const SEARCH_QUERY_INPUT = { name: "q", type: "string" } as const;
 
-/** create/update: the writable contract — name, type, and requiredness, nothing else. */
+/**
+ * create/update: the writable contract — name, type, requiredness, and, for a choice, the
+ * values it admits. The admitted set is part of the *validation shape* these Actions are
+ * tested against (ADR-0006), so appending an option moves the digest and the suite
+ * regenerates; a label or a group is presentation and stays out.
+ */
 export interface ActionSchemaField {
   readonly name: string;
   readonly type: FieldType;
   readonly required: boolean;
+  /** Declared option values, in authored order; absent on every non-choice field. */
+  readonly values?: readonly string[];
 }
 
 /** search: only the text-shaped fields a query can mechanically match. */
@@ -84,16 +92,32 @@ export interface ActionTestInputs {
  * row — leaving the model to either seed an empty row (proving nothing) or invent a
  * field name (failing the build). A capability's rows are the same rows for every
  * Action; only the *contract* differs per Action, and that is what `schema` carries.
+ *
+ * A choice field brings its admitted values here for the same reason it brings its name:
+ * a value is as much a fixture mechanic as a field is, and a row can be made of nothing
+ * else. Without them a `read` case has no legal status to seed and invents one, which the
+ * platform then refuses.
  */
 export interface ActionFixtureVocabulary {
-  readonly row_fields: readonly ActionSearchableField[];
+  readonly row_fields: readonly ActionFixtureField[];
+}
+
+/** One field a synthetic row may carry; a choice also carries the values it admits. */
+export interface ActionFixtureField {
+  readonly name: string;
+  readonly type: FieldType;
+  readonly values?: readonly string[];
 }
 
 export function actionFixtureVocabulary(spec: CapabilitySpec): ActionFixtureVocabulary {
   return {
     row_fields: [...activeSpecFields(spec.schema.fields)]
       .sort(byName)
-      .map(({ name, type }) => ({ name, type })),
+      .map(({ name, type, values }) => ({
+        name,
+        type,
+        ...(values === undefined ? {} : { values: values.map((option) => option.value) }),
+      })),
   };
 }
 
@@ -154,7 +178,12 @@ function canonicalSchemaInput(spec: CapabilitySpec, action: CapabilityTool): Act
         .map(({ name, type }) => ({ name, type })),
     };
   }
-  return active.map(({ name, type, required }) => ({ name, type, required }));
+  return active.map(({ name, type, required, values }) => ({
+    name,
+    type,
+    required,
+    ...(values === undefined ? {} : { values: values.map((option) => option.value) }),
+  }));
 }
 
 function canonicalBehavioralErrors(
@@ -197,10 +226,11 @@ function canonicalReadDependencies(
  * Searchability, decided the same way the Diff Engine decides it (`diff-engine.ts`). Both
  * must move together or a new list type would make the Diff select `search` tests for a
  * field this projection ignores — a stale carried suite, silently. Going through
- * `isListFieldType` is what makes `LIST_FIELD_TYPES` the one place that changes.
+ * `isListFieldType` is what makes `LIST_FIELD_TYPES` the one place that changes. A choice
+ * stores a string in a TEXT column, so it searches exactly as a `string` field does.
  */
 function isSearchableTextType(type: FieldType): boolean {
-  return type === "string" || isListFieldType(type);
+  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
 }
 
 function byName(left: { readonly name: string }, right: { readonly name: string }): number {

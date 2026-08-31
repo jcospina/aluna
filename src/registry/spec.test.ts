@@ -19,11 +19,24 @@ import {
   capabilitySpecSchema,
   defaultBehavioralErrorsForSchema,
   fieldTypeSchema,
+  isChoiceFieldType,
   isListFieldType,
   LIST_FIELD_TYPES,
   LIST_INPUT_MODES,
   PLATFORM_COLUMNS,
 } from "./spec.ts";
+
+/** One well-formed field of any pantry type; a choice arrives carrying its options. */
+function pantryField(type: CapabilitySpec["schema"]["fields"][number]["type"], required: boolean) {
+  return {
+    name: "value",
+    label: "Value",
+    type,
+    required,
+    lifecycle: "active" as const,
+    ...(type === "choice" ? { values: [{ value: "one", label: "One" }], groups: [] } : {}),
+  };
+}
 
 describe("capability spec shape — valid shapes & pantry types", () => {
   test("accepts a valid reshaped spec", () => {
@@ -38,18 +51,19 @@ describe("capability spec shape — valid shapes & pantry types", () => {
       "boolean",
       "datetime",
       "date",
+      "choice",
       "string[]",
     ]);
     expect(LIST_FIELD_TYPES).toEqual(["string[]"]);
     expect(isListFieldType("string[]")).toBe(true);
     expect(isListFieldType("number[]")).toBe(false);
+    expect(isChoiceFieldType("choice")).toBe(true);
+    expect(isChoiceFieldType("string")).toBe(false);
 
     for (const type of fieldTypeSchema.options) {
       for (const required of [true, false]) {
         const spec = validSpec({
-          schema: {
-            fields: [{ name: "value", label: "Value", type, required, lifecycle: "active" }],
-          },
+          schema: { fields: [pantryField(type, required)] },
         });
         expect(capabilitySpecSchema.parse(spec)).toEqual(spec);
       }
@@ -88,6 +102,7 @@ describe("capability spec shape — list-input modes", () => {
             { field: "tags", mode: "comma_separated" },
             { field: "quotes", mode: "repeatable" },
           ],
+          choice_inputs: [],
         },
         item: { direction: "Show the title with its tags.", shows: ["title", "tags"] },
         collection: { layout: "feed" },
@@ -214,7 +229,7 @@ describe("capability spec shape — rejected & reserved field names", () => {
         ],
       },
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: { direction: "A reserved-name probe.", shows: ["__aluna_present"] },
         collection: { layout: "feed" },
       },

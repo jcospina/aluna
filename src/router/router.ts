@@ -30,6 +30,7 @@ import {
   createCapabilityMutationPort,
   createCapabilityQueryPort,
   createCapabilityUpdateMutationPort,
+  InvalidChoiceError,
   MissingRequiredFieldsError,
   RecordNotFoundError,
 } from "../capability-data/index.ts";
@@ -87,6 +88,7 @@ export {
 import {
   assertReadOwnership,
   internalFailure,
+  invalidChoiceFailure,
   missingRequiredFieldsFailure,
   NOT_FOUND_FRAGMENT,
   readUnavailable,
@@ -468,6 +470,9 @@ function capabilityHandlerFailure(
   }
   if (error instanceof MissingRequiredFieldsError) {
     return missingRequiredFieldsFailure(c, id, error);
+  }
+  if (error instanceof InvalidChoiceError) {
+    return invalidChoiceFailure(c, id, error);
   }
   if (error instanceof RecordNotFoundError) {
     return recordNotFoundFailure(c, id, action, error);

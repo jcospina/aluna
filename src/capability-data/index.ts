@@ -41,6 +41,7 @@ export {
   createCapabilityActionRecord,
   createCapabilityQueryPort,
   encodeCapabilityFieldForStorage,
+  InvalidChoiceError,
   isCapabilityActionRecord,
   MissingRequiredFieldsError,
   materializeCapabilityActionRecord,

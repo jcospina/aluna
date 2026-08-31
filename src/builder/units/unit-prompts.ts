@@ -17,6 +17,8 @@ import {
   type BehavioralErrorCase,
   type CapabilityRow,
   type CapabilitySpec,
+  isChoiceFieldType,
+  isListFieldType,
   presentationFieldDescriptors,
   type SpecField,
 } from "../../registry/index.ts";
@@ -145,6 +147,7 @@ function buildHandlerPrompt(
     contextContract(action),
     ...inputValueContract(action),
     "- `input.submittedFields` is a platform-validated `ReadonlySet<string>`; reserved `__aluna_` markers never reach generated code.",
+    "- A choice field's value has already been checked against its declared values by the platform, which answers an undeclared one itself. Never re-validate the option set or emit an error for it.",
     ...queryPortContract(action),
     "- Canonical ids, platform-owned `extra`, and inactive target fields are unavailable and must never be read or written.",
     ...actionPortContract(action),
@@ -340,6 +343,7 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
     "",
     "Declared item fields (the renderer receives exactly these names/types/labels):",
     itemFieldList(spec),
+    "- A choice field's record value is one of its option `value` strings. Present the matching option `label`, never the raw stored value; fall back to the stored value only if no option matches.",
     "",
     "Item generation context JSON:",
     JSON.stringify(itemGenerationContext(spec), null, 2),
@@ -360,7 +364,13 @@ function handlerFieldList(spec: CapabilitySpec, action: HandlerUnitName): string
 
 function itemFieldList(spec: CapabilitySpec): string {
   return presentationFieldDescriptors(spec, spec.ui_intent.item.shows)
-    .map((field) => `- ${field.name}: ${field.type}, label ${JSON.stringify(field.label)}`)
+    .map((field) => {
+      const options =
+        "values" in field && field.values !== undefined
+          ? `, options ${JSON.stringify(field.values)}`
+          : "";
+      return `- ${field.name}: ${field.type}, label ${JSON.stringify(field.label)}${options}`;
+    })
     .join("\n");
 }
 
@@ -401,8 +411,17 @@ function handlerGenerationContext(
   };
 }
 
-type MutationFieldProjection = Pick<SpecField, "name" | "type" | "required">;
+type MutationFieldProjection = Pick<SpecField, "name" | "type" | "required" | "values">;
 type SearchFieldProjection = Pick<SpecField, "name" | "type">;
+
+/**
+ * Searchability, decided the same way the Diff Engine and the behavioral total inputs
+ * decide it. All four must move together, or the Diff would select `search` for a field
+ * this projection never names.
+ */
+function isSearchableProjectionType(type: SpecField["type"]): boolean {
+  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
+}
 
 function handlerFieldProjection(
   spec: CapabilitySpec,
@@ -410,11 +429,19 @@ function handlerFieldProjection(
 ): readonly (MutationFieldProjection | SearchFieldProjection)[] {
   const active = activeSpecFields(spec.schema.fields);
   if (action === "create" || action === "update") {
-    return active.map(({ name, type, required }) => ({ name, type, required }));
+    // A choice carries its declared values so the Handler can read a stored selection and
+    // write behavior around it. It is context, not a validation duty: the platform has
+    // already refused anything undeclared before the Handler runs.
+    return active.map(({ name, type, required, values }) => ({
+      name,
+      type,
+      required,
+      ...(values === undefined ? {} : { values }),
+    }));
   }
   if (action === "search") {
     return active
-      .filter((field) => field.type === "string" || field.type === "string[]")
+      .filter((field) => isSearchableProjectionType(field.type))
       .map(({ name, type }) => ({ name, type }));
   }
   return [];

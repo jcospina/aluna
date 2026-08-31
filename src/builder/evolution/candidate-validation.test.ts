@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { promptCapabilitySpecSchema } from "../../registry/index.ts";
+import { capabilitySpecSchema } from "../../registry/index.ts";
 import {
   type CandidateDraft,
   candidateFrom,
@@ -51,9 +51,7 @@ describe("valid candidates", () => {
   test("an unchanged candidate round-trips to the Diff stage as the validated canonical value", () => {
     const draft = candidateFrom(journalCapabilityRow());
     const validated = validate(draft);
-    expect(validated).toEqual(
-      promptCapabilitySpecSchema.parse(candidateFrom(journalCapabilityRow())),
-    );
+    expect(validated).toEqual(capabilitySpecSchema.parse(candidateFrom(journalCapabilityRow())));
   });
 
   test("an additive new active field validates", () => {

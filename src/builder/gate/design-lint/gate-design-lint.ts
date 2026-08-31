@@ -39,7 +39,11 @@ import {
   tokenList,
 } from "../../../presentation/index.ts";
 import { isProviderAbortError, type Provider, type TokenUsage } from "../../../provider/index.ts";
-import type { CapabilitySpec, SpecField } from "../../../registry/index.ts";
+import {
+  type CapabilitySpec,
+  choiceFieldOptions,
+  type SpecField,
+} from "../../../registry/index.ts";
 import { checkGeneratedUnit } from "../../units/unit-checks.ts";
 import {
   DEFAULT_UNIT_FIX_ATTEMPTS,
@@ -411,9 +415,26 @@ function syntheticValue(field: SpecField): string | number | boolean | readonly 
       return "2026-01-01T12:00:00.000Z";
     case "date":
       return "2026-01-01";
+    case "choice":
+      return firstChoiceValue(field);
     case "string[]":
       return [`Sample ${field.name} first`, `Sample ${field.name} second`];
   }
+}
+
+/** The probe's value for a choice: a declared option, since nothing else is renderable. */
+function firstChoiceValue(field: SpecField): string {
+  const first = choiceFieldOptions(field)[0];
+  if (!first) throw new Error(`Choice field "${field.name}" declares no options.`);
+  return first.value;
+}
+
+/** The contrasting probe's value: a *different* declared option where the field has one. */
+function contrastingChoiceValue(field: SpecField): string {
+  const options = choiceFieldOptions(field);
+  const contrasting = options[1] ?? options[0];
+  if (!contrasting) throw new Error(`Choice field "${field.name}" declares no options.`);
+  return contrasting.value;
 }
 
 /** A second benign value with the same runtime type but different semantic content. The
@@ -430,6 +451,8 @@ function contrastingValue(field: SpecField): string | number | boolean | readonl
       return "2031-06-15T09:30:00.000Z";
     case "date":
       return "2031-06-15";
+    case "choice":
+      return contrastingChoiceValue(field);
     case "string[]":
       return [`Different ${field.name} first`, `Different ${field.name} second`];
   }

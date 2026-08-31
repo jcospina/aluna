@@ -30,6 +30,7 @@ import {
   type CapabilityRegistryWrite,
   type CapabilityRow,
   type CapabilityTool,
+  canonicalizeStoredCapabilityShape,
   capabilityRegistryWriteSchema,
   capabilityRowSchema,
   logoSubjectSchema,
@@ -105,27 +106,32 @@ const ROW_COLUMNS = `${WRITE_COLUMNS}, logo_status, logo_attempts, display_label
 // read site instead of misbehaving three derivations later.
 function parseStoredRow(stored: StoredRow): CapabilityRow {
   const schema = JSON.parse(stored.schema) as CapabilityRow["schema"];
-  return capabilityRowSchema.parse({
-    id: stored.id,
-    label: stored.label,
-    subject: stored.subject,
-    ground: stored.ground,
-    companion: stored.companion,
-    noun: stored.noun,
-    incarnation_id: stored.incarnation_id,
-    version: stored.version,
-    seed: stored.seed,
-    logo: { status: stored.logo_status, attempts: stored.logo_attempts },
-    display_label_override: stored.display_label_override,
-    schema,
-    ui_intent: JSON.parse(stored.ui_intent),
-    behavior: stored.behavior,
-    behavioral_errors: JSON.parse(stored.behavioral_errors),
-    tools: JSON.parse(stored.tools),
-    read_dependencies: JSON.parse(stored.read_dependencies),
-    artifacts_path: stored.artifacts_path,
-    prompt_context: stored.prompt_context,
-  });
+  // Rows written before a form-intent collection existed omit it; absence canonicalizes
+  // to empty here rather than being backfilled into storage, so no historical row is
+  // rewritten and no version is manufactured.
+  return capabilityRowSchema.parse(
+    canonicalizeStoredCapabilityShape({
+      id: stored.id,
+      label: stored.label,
+      subject: stored.subject,
+      ground: stored.ground,
+      companion: stored.companion,
+      noun: stored.noun,
+      incarnation_id: stored.incarnation_id,
+      version: stored.version,
+      seed: stored.seed,
+      logo: { status: stored.logo_status, attempts: stored.logo_attempts },
+      display_label_override: stored.display_label_override,
+      schema,
+      ui_intent: JSON.parse(stored.ui_intent),
+      behavior: stored.behavior,
+      behavioral_errors: JSON.parse(stored.behavioral_errors),
+      tools: JSON.parse(stored.tools),
+      read_dependencies: JSON.parse(stored.read_dependencies),
+      artifacts_path: stored.artifacts_path,
+      prompt_context: stored.prompt_context,
+    }),
+  );
 }
 
 /**

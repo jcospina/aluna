@@ -54,7 +54,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       item: {
         direction: "A text-forward card that emphasizes text and pinned status.",
         shows: ["text", "pinned"],
@@ -151,7 +151,7 @@ function projectedContextFixture(): {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [{ field: "tags", mode: "comma_separated" }] },
+      form: { list_inputs: [{ field: "tags", mode: "comma_separated" }], choice_inputs: [] },
       item: { direction: "Show the note.", shows: ["text", "tags"] },
       collection: { layout: "feed" },
     },
@@ -191,7 +191,7 @@ function projectedContextFixture(): {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [] },
       item: { direction: "Show public text.", shows: ["public_text"] },
       collection: { layout: "feed" },
     },
@@ -913,7 +913,7 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
         ],
       },
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: {
           direction: "Show the entry and when it was created.",
           shows: ["text", "created_at"],

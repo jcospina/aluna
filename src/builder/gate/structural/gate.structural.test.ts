@@ -335,7 +335,7 @@ describe("capability gate — ambient runtime names", () => {
         ],
       },
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: { direction: "Show the process plainly.", shows: ["process"] },
         collection: { layout: "feed" as const },
       },

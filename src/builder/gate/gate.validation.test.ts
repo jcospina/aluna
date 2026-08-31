@@ -121,7 +121,7 @@ describe("capability gate — datetime instant matching", () => {
         ],
       },
       ui_intent: {
-        form: { list_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [] },
         item: {
           direction: "A timeline-style card that emphasizes event title and date.",
           shows: ["title", "happens_at"],
