@@ -52,6 +52,13 @@ export interface ActionSchemaField {
   readonly required: boolean;
   /** Declared option values, in authored order; absent on every non-choice field. */
   readonly values?: readonly string[];
+  /**
+   * The declared length bound, absent on every field that has none. It is validation
+   * shape: the platform refuses a longer write before the Handler runs, exactly as it
+   * refuses an undeclared option, so adding or lowering a limit changes what a submission
+   * earns and has to carry a prior suite's reuse with it (ADR-0006).
+   */
+  readonly max_length?: number;
 }
 
 /** search: only the text-shaped fields a query can mechanically match. */
@@ -184,6 +191,9 @@ function canonicalSchemaInput(spec: CapabilitySpec, action: CapabilityTool): Act
     type: field.type,
     required: field.required,
     ...(field.values === undefined ? {} : choiceSchemaInput(field)),
+    // Absent rather than zero on a field with no bound, so a capability built before any
+    // of this digests exactly as it did.
+    ...(field.max_length === undefined ? {} : { max_length: field.max_length }),
   }));
 }
 

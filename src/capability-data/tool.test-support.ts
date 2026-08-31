@@ -46,7 +46,7 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
       ],
     },
     ui_intent: {
-      form: { list_inputs: [], choice_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
     },
@@ -90,7 +90,7 @@ export function recipesSpec(): CapabilitySpec {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [], choice_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
       item: {
         direction: "A text-forward card that emphasizes the recipe title.",
         shows: ["title"],
@@ -137,7 +137,7 @@ export function requirednessSpec(): CapabilitySpec {
   return notesSpec({
     schema: { fields },
     ui_intent: {
-      form: { list_inputs: [], choice_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
       item: { direction: "Show the entry and its count.", shows: ["title", "count"] },
       collection: { layout: "feed" },
     },
@@ -175,6 +175,8 @@ export function stringListSpec(): CapabilitySpec {
           { field: "aliases", mode: "repeatable" },
         ],
         choice_inputs: [],
+        long_text: [],
+        guidance: [],
       },
       item: { direction: "Show tags in their submitted order.", shows: ["tags"] },
       collection: { layout: "feed" },

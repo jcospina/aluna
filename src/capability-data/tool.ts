@@ -26,12 +26,14 @@ import {
   materializeCapabilityActionRecord,
 } from "./query-runtime.ts";
 import { assertReadOwnership } from "./read-ownership.ts";
+import { assertAdmittedStringLengths } from "./string-lengths.ts";
 
 export { normalizeSearchText } from "../persistence/sqlite-functions.ts";
 export {
   CapabilityDataValidationError,
   ChoiceDisabledError,
   InvalidChoiceError,
+  MaxLengthExceededError,
   MissingRequiredFieldsError,
 } from "./internal.ts";
 export {
@@ -290,6 +292,10 @@ export function normalizeSpecFieldValues(
   // which is why `held` is passed alongside: a value that was legal when the row stored it
   // stays legal for that row (`choice-values.ts`).
   assertAdmittedChoiceValues(capabilityId, fields, values, held, action);
+  // The declared bound, enforced on the same whole-submission footing. It runs after the
+  // choice checks so the refusals stay in one stated order, and before normalization so
+  // nothing over-length is ever encoded for storage.
+  assertAdmittedStringLengths(capabilityId, fields, values, action);
 
   for (const field of fields) {
     const raw = values[field.name];

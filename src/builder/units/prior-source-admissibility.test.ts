@@ -56,7 +56,7 @@ function candidateSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec 
     noun: "note",
     schema,
     ui_intent: {
-      form: { list_inputs: [], choice_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
       item: { direction: "A text-forward card.", shows: ["text"] },
       collection: { layout: "feed" },
     },
@@ -130,7 +130,7 @@ function journalsCatalog(): readonly CapabilityRow[] {
         ],
       },
       ui_intent: {
-        form: { list_inputs: [], choice_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
         item: { direction: "Show public text.", shows: ["public_text"] },
         collection: { layout: "feed" },
       },

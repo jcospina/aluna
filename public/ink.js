@@ -20,9 +20,9 @@ import { drawAlso, redrawInk, startInk } from "../design/scripts/ink.js";
  * the markup. Every one of them declares a `border` its stylesheet still reserves;
  * the drawn line is what you see there instead.
  *
- * One absence is deliberate: the form's `.field__control` is still the bare `<input>`
- * rather than the shell around one, so it cannot hold the two layers — the split that
- * fixes it is 5.10/03.
+ * The form's `.field__control` is absent for the opposite reason it used to be. It was a
+ * bare `<input>`, which cannot hold the two layers at all; since 5.10/03 it is the shell
+ * around one, and the design system already names it in `INK_SELECTOR`. Nothing to add here.
  *
  * The developer panel's readouts are not in this list and no longer need to be. They
  * were ruled rather than drawn because they were hidden by `:empty`, which a drawn
@@ -55,7 +55,8 @@ const SHELL_INK = [
      window it is about, so it is a box rather than a line of prose, and a box in this
      product is drawn (PLAN decision 17). */
   ".build-stream__leaving-panel",
-  /* Form chrome the field renderer owns */
+  /* Form chrome the field renderer owns. The row's control is not here: it is a
+     `.field__control` shell, which the design system draws already. */
   ".field-list__remove",
 ].join(",");
 

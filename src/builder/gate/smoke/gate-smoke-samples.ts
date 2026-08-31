@@ -61,8 +61,10 @@ function sampleValue(
 ): { readonly input?: CapabilityInputValue; readonly expected: CapabilityDataColumnValue } {
   const prefix = phase === "create" ? "gate smoke" : "gate update";
   switch (field.type) {
-    case "string":
-      return { input: `${prefix} ${field.name}`, expected: `${prefix} ${field.name}` };
+    case "string": {
+      const sample = boundedSample(`${prefix} ${field.name}`, field.max_length);
+      return { input: sample, expected: sample };
+    }
     case "number":
       return phase === "create"
         ? { input: "42.5", expected: 42.5 }
@@ -86,6 +88,19 @@ function sampleValue(
       return { input: expected, expected };
     }
   }
+}
+
+/**
+ * The smoke's own free text, kept inside the field's declared limit.
+ *
+ * A field name is unbounded, so the sample built from it can be longer than a limit that
+ * is perfectly reasonable — and the platform refuses an over-length write before the
+ * Handler runs, so the cycle would fail on the fixture rather than on the capability. A
+ * declared limit has a floor of MIN_DECLARED_MAX_LENGTH, so what survives a trim is still
+ * recognisable text.
+ */
+function boundedSample(sample: string, limit: number | undefined): string {
+  return limit === undefined || sample.length <= limit ? sample : sample.slice(0, limit);
 }
 
 /**

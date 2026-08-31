@@ -22,12 +22,20 @@ describe("platform list-input contract", () => {
   test("mode lookup fails loudly when a render projection drops authored form intent", () => {
     expect(
       listInputModeForField(
-        { list_inputs: [{ field: "tags", mode: "comma_separated" }], choice_inputs: [] },
+        {
+          list_inputs: [{ field: "tags", mode: "comma_separated" }],
+          choice_inputs: [],
+          long_text: [],
+          guidance: [],
+        },
         "tags",
       ),
     ).toBe("comma_separated");
-    expect(() => listInputModeForField({ list_inputs: [], choice_inputs: [] }, "tags")).toThrow(
-      'Missing list input mode for active field "tags"',
-    );
+    expect(() =>
+      listInputModeForField(
+        { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
+        "tags",
+      ),
+    ).toThrow('Missing list input mode for active field "tags"');
   });
 });

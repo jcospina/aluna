@@ -58,6 +58,14 @@ export {
   recordCapabilityDeletionCleanupFailure,
   removeCapabilityDeletionTombstone,
 } from "./deletion-tombstones.ts";
+export {
+  type FieldGuidance,
+  fieldGuidanceSchema,
+  fieldGuidanceText,
+  isLongTextField,
+  longTextIntentSchema,
+  MAX_FIELD_GUIDANCE_LENGTH,
+} from "./form-intent.ts";
 export { incarnationIdSchema } from "./identifiers.ts";
 export {
   canonicalCapabilityLabel,
@@ -84,6 +92,13 @@ export {
   MAX_LOGO_SEED,
   resolveLogoShades,
 } from "./logo.ts";
+export {
+  MAX_DECLARED_MAX_LENGTH,
+  MAX_LENGTH_EXCEEDED_ERROR_CODE,
+  MIN_DECLARED_MAX_LENGTH,
+  maxLengthSchema,
+  maxLengthsByField,
+} from "./max-length.ts";
 export {
   activeSpecFields,
   type BehavioralErrorMarkers,
@@ -124,6 +139,7 @@ export {
   uiFormIntentSchema,
   uiIntentSchema,
 } from "./spec.ts";
+export { SQL_NAME_PATTERN } from "./spec-text.ts";
 export {
   abandonMissingCapabilityLogo,
   type CapabilityRegistryExpectation,

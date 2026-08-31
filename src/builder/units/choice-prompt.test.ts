@@ -36,7 +36,12 @@ function stagedSpec(
     },
     ui_intent: {
       ...base.ui_intent,
-      form: { ...base.ui_intent.form, choice_inputs: [{ field: "stage", presentation: "picker" }] },
+      form: {
+        ...base.ui_intent.form,
+        choice_inputs: [{ field: "stage", presentation: "picker" }],
+        long_text: [],
+        guidance: [],
+      },
       item: { ...base.ui_intent.item, shows: ["text", "stage"] },
     },
   });

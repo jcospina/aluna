@@ -44,6 +44,7 @@ export {
   encodeCapabilityFieldForStorage,
   InvalidChoiceError,
   isCapabilityActionRecord,
+  MaxLengthExceededError,
   MissingRequiredFieldsError,
   materializeCapabilityActionRecord,
   normalizeSearchText,

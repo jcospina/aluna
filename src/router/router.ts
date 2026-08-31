@@ -32,6 +32,7 @@ import {
   createCapabilityQueryPort,
   createCapabilityUpdateMutationPort,
   InvalidChoiceError,
+  MaxLengthExceededError,
   MissingRequiredFieldsError,
   RecordNotFoundError,
 } from "../capability-data/index.ts";
@@ -91,6 +92,7 @@ import {
   choiceDisabledFailure,
   internalFailure,
   invalidChoiceFailure,
+  maxLengthExceededFailure,
   missingRequiredFieldsFailure,
   NOT_FOUND_FRAGMENT,
   readUnavailable,
@@ -478,6 +480,9 @@ function capabilityHandlerFailure(
   }
   if (error instanceof ChoiceDisabledError) {
     return choiceDisabledFailure(c, id, error);
+  }
+  if (error instanceof MaxLengthExceededError) {
+    return maxLengthExceededFailure(c, id, error);
   }
   if (error instanceof RecordNotFoundError) {
     return recordNotFoundFailure(c, id, action, error);

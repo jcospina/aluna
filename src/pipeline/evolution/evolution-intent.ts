@@ -14,6 +14,13 @@ const UI_CHANGE_FACTS = new Set([
   "empty_state_noun",
   "field_label",
   "list_input_mode",
+  // Which control a string field's form draws, and the line a field says about itself.
+  // Both are exactly the character `list_input_mode` is — nothing stored moves, nothing
+  // validates differently, and no generated unit is regenerated — so a request to give a
+  // field a bigger box or a hint under it is the same kind of change as a request to
+  // switch a list between its two input modes.
+  "long_text_input",
+  "field_guidance",
   "item_presentation",
   "collection_layout",
 ]);

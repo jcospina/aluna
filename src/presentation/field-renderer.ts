@@ -27,6 +27,7 @@ import {
   type FieldType,
   isChoiceFieldType,
   isListFieldType,
+  isLongTextField,
   type ListFieldType,
   type SpecField,
   type UiFormIntent,
@@ -38,6 +39,13 @@ import {
 } from "../router/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
 import { renderChoiceField } from "./choice-control.ts";
+import {
+  controlShell,
+  type FieldChrome,
+  fieldChrome,
+  growAttributes,
+  lengthAttributes,
+} from "./field-chrome.ts";
 
 /**
  * The slice of a capability the field renderer needs: its engineering `id` (the
@@ -260,7 +268,15 @@ function createInputFor(type: Exclude<FieldType, ListFieldType | ChoiceFieldType
     case "boolean":
       return { inputType: "checkbox", inline: true, extraAttributes: "", canBeEmpty: false };
     case "datetime":
-      return { inputType: "datetime-local", inline: false, extraAttributes: "", canBeEmpty: true };
+      // `step="any"` for the same reason `number` carries it, and the same reason the edit
+      // mirror below hard-codes it: without it the control rounds to the minute and refuses
+      // the seconds canonical datetime storage keeps.
+      return {
+        inputType: "datetime-local",
+        inline: false,
+        extraAttributes: ' step="any"',
+        canBeEmpty: true,
+      };
     case "date":
       // A calendar day, no time — the native date picker, distinct from datetime-local.
       return { inputType: "date", inline: false, extraAttributes: "", canBeEmpty: true };
@@ -274,36 +290,15 @@ function renderCreateField(capabilityId: string, field: SpecField, form: UiFormI
   if (isChoiceFieldType(field.type)) {
     return renderChoiceField(`cap-${capabilityId}-${field.name}`, field, form, undefined);
   }
-
-  const control = createInputFor(field.type);
   // `capabilityId` and `field.name` are both `[a-z][a-z0-9_]*` (spec-validated), so
   // this id is a safe HTML token; the label still escapes its humanized text.
-  const inputId = `cap-${capabilityId}-${field.name}`;
-  const label = escapeHtml(field.label);
-  const nameAttribute = escapeHtml(field.name);
-  // Only emptyable controls carry `required`; a boolean checkbox never does (see
-  // CreateInput.canBeEmpty) — otherwise a required boolean would be forced checked.
-  const required = field.required && control.canBeEmpty ? " required" : "";
-  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
-
-  if (control.inline) {
-    return (
-      `<div class="field field--inline">` +
-      presenceMarker +
-      `<input class="field__checkbox" id="${inputId}" type="${control.inputType}"` +
-      ` name="${nameAttribute}"${required}>` +
-      `<label class="field__label field__label--inline" for="${inputId}">${label}</label>` +
-      `</div>`
-    );
-  }
-
-  return (
-    `<div class="field">` +
-    presenceMarker +
-    `<label class="field__label" for="${inputId}">${label}</label>` +
-    `<input class="field__control" id="${inputId}" type="${control.inputType}"` +
-    ` name="${nameAttribute}"${control.extraAttributes}${required}>` +
-    `</div>`
+  return renderScalarField(
+    `cap-${capabilityId}-${field.name}`,
+    field,
+    field.type,
+    form,
+    undefined,
+    false,
   );
 }
 
@@ -317,37 +312,138 @@ function renderEditField(
   if (isChoiceFieldType(field.type)) {
     return renderChoiceField(`edit-${capabilityId}-${field.name}`, field, form, value);
   }
-  if (field.type === "datetime") return renderEditDatetimeField(capabilityId, field, value);
+  if (field.type === "datetime") return renderEditDatetimeField(capabilityId, field, form, value);
+  return renderScalarField(
+    `edit-${capabilityId}-${field.name}`,
+    field,
+    field.type,
+    form,
+    value,
+    true,
+  );
+}
 
-  const control = createInputFor(field.type);
-  const inputId = `edit-${capabilityId}-${field.name}`;
-  const label = escapeHtml(field.label);
-  const nameAttribute = escapeHtml(field.name);
-  const required = field.required && control.canBeEmpty ? " required" : "";
-  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
-  const checked = control.inputType === "checkbox" && value === true ? " checked" : "";
-  const valueAttribute =
-    control.inputType === "checkbox"
-      ? ""
-      : ` value="${escapeHtml(editScalarValue(field.type, value))}"`;
+/**
+ * One scalar field, in either mode. Create and edit differ only in the id prefix and in
+ * whether the control opens holding something, so they share this one path rather than two
+ * that have to be kept in step.
+ */
+function renderScalarField(
+  inputId: string,
+  field: SpecField,
+  type: Exclude<FieldType, ListFieldType | ChoiceFieldType>,
+  form: UiFormIntent,
+  value: unknown,
+  editing: boolean,
+): string {
+  const control = createInputFor(type);
+  const chrome = fieldChrome(inputId, field, form, {
+    emptyable: control.canBeEmpty,
+    value: editing ? value : undefined,
+  });
+  const parts: ScalarParts = {
+    label: escapeHtml(field.label),
+    nameAttribute: escapeHtml(field.name),
+    // Only emptyable controls carry `required`; a boolean checkbox never does (see
+    // CreateInput.canBeEmpty) — otherwise a required boolean would be forced checked.
+    required: field.required && control.canBeEmpty ? " required" : "",
+    chrome,
+    value: editing ? editScalarValue(type, value) : "",
+  };
 
-  if (control.inline) {
-    return (
-      `<div class="field field--inline">` +
-      presenceMarker +
-      `<input class="field__checkbox" id="${inputId}" type="${control.inputType}"` +
-      ` name="${nameAttribute}"${checked}>` +
-      `<label class="field__label field__label--inline" for="${inputId}">${label}</label>` +
-      `</div>`
-    );
-  }
+  if (control.inline) return renderInlineField(inputId, parts, editing && value === true);
+  if (isLongTextField(form, field.name)) return renderLongTextControl(inputId, field, parts);
+  return renderTextControl(inputId, field, control, parts, editing);
+}
 
+interface ScalarParts {
+  readonly label: string;
+  readonly nameAttribute: string;
+  readonly required: string;
+  readonly chrome: FieldChrome;
+  /** The value the control opens holding, already flattened to its control spelling. */
+  readonly value: string;
+}
+
+function presenceMarkerFor(nameAttribute: string): string {
+  return `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
+}
+
+/**
+ * The boolean's checkbox, which sits before its label rather than under it. It takes no
+ * shell: the shell is the well a value is typed into, and a checkbox is a mark, not a well.
+ */
+function renderInlineField(inputId: string, parts: ScalarParts, checked: boolean): string {
+  const { label, nameAttribute, chrome } = parts;
+  // `parts.required` and `chrome.labelSuffix` are both deliberately unread. A checkbox
+  // always yields a definite value, so a *required* boolean is already satisfied and must
+  // never be forced checked — and for the same reason "optional" says nothing true about
+  // one, which is why `fieldChrome` was asked `emptyable: false` and would have returned an
+  // empty suffix anyway. Stated here rather than left to depend on that.
+  return (
+    `<div class="field field--inline">` +
+    presenceMarkerFor(nameAttribute) +
+    `<input class="field__checkbox" id="${inputId}" type="checkbox"` +
+    ` name="${nameAttribute}"${chrome.describedBy}${checked ? " checked" : ""}>` +
+    `<label class="field__label field__label--inline" for="${inputId}">${label}</label>` +
+    chrome.trailing +
+    `</div>`
+  );
+}
+
+function renderTextControl(
+  inputId: string,
+  field: SpecField,
+  control: CreateInput,
+  parts: ScalarParts,
+  editing: boolean,
+): string {
+  const { label, nameAttribute, required, chrome, value } = parts;
+  const valueAttribute = editing ? ` value="${escapeHtml(value)}"` : "";
   return (
     `<div class="field">` +
-    presenceMarker +
-    `<label class="field__label" for="${inputId}">${label}</label>` +
-    `<input class="field__control" id="${inputId}" type="${control.inputType}"` +
-    ` name="${nameAttribute}"${control.extraAttributes}${valueAttribute}${required}>` +
+    presenceMarkerFor(nameAttribute) +
+    `<label class="field__label" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
+    controlShell(
+      `<input class="field__input" id="${inputId}" type="${control.inputType}"` +
+        ` name="${nameAttribute}"${control.extraAttributes}${valueAttribute}` +
+        `${lengthAttributes(inputId, field)}${chrome.describedBy}${required}>`,
+    ) +
+    chrome.trailing +
+    `</div>`
+  );
+}
+
+/**
+ * The multi-line control, for a string field the form named in `long_text`.
+ *
+ * A field holding three sentences used to get the same single-line input a title does, and
+ * the text scrolled sideways past a caret you could not follow. The type cannot decide
+ * this — a title and three paragraphs are both a `string` — so the form declares it.
+ *
+ * There is no resize grip. A textarea's own grip is drawn by the operating system and
+ * would be the only mark on the surface that is not ours; the field grows to fit what is
+ * typed and then scrolls instead (`public/long-text-field.js`).
+ */
+function renderLongTextControl(inputId: string, field: SpecField, parts: ScalarParts): string {
+  const { label, nameAttribute, required, chrome, value } = parts;
+  return (
+    `<div class="field field--long-text">` +
+    presenceMarkerFor(nameAttribute) +
+    `<label class="field__label" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
+    controlShell(
+      `<textarea class="field__textarea" id="${inputId}" name="${nameAttribute}"` +
+        `${growAttributes()}${lengthAttributes(inputId, field)}${chrome.describedBy}` +
+        // The leading newline is the renderer's, not the value's. HTML drops a single
+        // U+000A immediately after a `<textarea>` start tag, so a stored value that begins
+        // with one would arrive a character short — the counter would disagree with the
+        // sentence the server had just written beside it, and saving any other field would
+        // resubmit the shortened text and quietly rewrite the record. One extra newline is
+        // what the parser eats.
+        `${required}>\n${escapeHtml(value)}</textarea>`,
+      true,
+    ) +
+    chrome.trailing +
     `</div>`
   );
 }
@@ -358,22 +454,32 @@ function renderEditField(
  * hidden control and let the mutation glue update it only when the visible local
  * control actually changes. Saving an unrelated field is therefore lossless.
  */
-function renderEditDatetimeField(capabilityId: string, field: SpecField, value: unknown): string {
+function renderEditDatetimeField(
+  capabilityId: string,
+  field: SpecField,
+  form: UiFormIntent,
+  value: unknown,
+): string {
   const inputId = `edit-${capabilityId}-${field.name}`;
   const label = escapeHtml(field.label);
   const nameAttribute = escapeHtml(field.name);
   const exactValue = value === null || value === undefined ? "" : String(value);
   const localValue = datetimeLocalValue(exactValue);
   const required = field.required ? " required" : "";
+  const chrome = fieldChrome(inputId, field, form, { emptyable: true, value: exactValue });
 
   return (
     `<div class="field">` +
     `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">` +
     `<input type="hidden" name="${nameAttribute}" value="${escapeHtml(exactValue)}"` +
     ` data-edit-datetime-value>` +
-    `<label class="field__label" for="${inputId}">${label}</label>` +
-    `<input class="field__control" id="${inputId}" type="datetime-local" step="any"` +
-    ` value="${escapeHtml(localValue)}" data-edit-datetime-input="${nameAttribute}"${required}>` +
+    `<label class="field__label" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
+    controlShell(
+      `<input class="field__input" id="${inputId}" type="datetime-local" step="any"` +
+        ` value="${escapeHtml(localValue)}" data-edit-datetime-input="${nameAttribute}"` +
+        `${chrome.describedBy}${required}>`,
+    ) +
+    chrome.trailing +
     `</div>`
   );
 }
@@ -382,10 +488,7 @@ function datetimeLocalValue(value: string): string {
   return /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?)/.exec(value)?.[1] ?? value;
 }
 
-function editScalarValue(
-  type: Exclude<FieldType, ListFieldType | ChoiceFieldType>,
-  value: unknown,
-): string {
+function editScalarValue(type: FieldType, value: unknown): string {
   if (value === null || value === undefined) return "";
   const raw = String(value);
   if (type === "date") return /^\d{4}-\d{2}-\d{2}/.exec(raw)?.[0] ?? raw;
@@ -393,15 +496,7 @@ function editScalarValue(
 }
 
 function renderCreateListField(capabilityId: string, field: SpecField, form: UiFormIntent): string {
-  const mode = listInputModeForField(form, field.name);
-  switch (mode) {
-    case "comma_separated":
-      return renderCommaSeparatedListField(capabilityId, field);
-    case "repeatable":
-      return renderRepeatableListField(capabilityId, field);
-    default:
-      return assertNever(mode);
-  }
+  return renderListField(`cap-${capabilityId}-${field.name}`, field, form, undefined);
 }
 
 function renderEditListField(
@@ -410,61 +505,81 @@ function renderEditListField(
   form: UiFormIntent,
   value: unknown,
 ): string {
+  return renderListField(`edit-${capabilityId}-${field.name}`, field, form, value);
+}
+
+function renderListField(
+  inputId: string,
+  field: SpecField,
+  form: UiFormIntent,
+  value: unknown,
+): string {
   const mode = listInputModeForField(form, field.name);
   switch (mode) {
     case "comma_separated":
-      return renderEditCommaSeparatedListField(capabilityId, field, value);
+      return renderCommaSeparatedListField(inputId, field, form, value);
     case "repeatable":
-      return renderEditRepeatableListField(capabilityId, field, value);
+      return renderRepeatableListField(inputId, field, form, value);
     default:
       return assertNever(mode);
   }
 }
 
-function renderEditCommaSeparatedListField(
-  capabilityId: string,
+/**
+ * The platform's own hint about how to type a comma-separated list. It keeps an id of its
+ * own rather than the guidance slot's, because a field may carry both: the declared line
+ * says what the values mean and this one says how to separate them.
+ */
+function listHintId(inputId: string): string {
+  return `${inputId}-list-hint`;
+}
+
+function renderCommaSeparatedListField(
+  inputId: string,
   field: SpecField,
+  form: UiFormIntent,
   value: unknown,
 ): string {
-  const inputId = `edit-${capabilityId}-${field.name}`;
-  const guidanceId = `${inputId}-guidance`;
+  const hintId = listHintId(inputId);
   const label = escapeHtml(field.label);
   const nameAttribute = escapeHtml(field.name);
   const required = field.required ? " required" : "";
-  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
+  const presenceMarker = presenceMarkerFor(nameAttribute);
   const values = Array.isArray(value) ? value.map(String) : [];
+  const valueAttribute = value === undefined ? "" : ` value="${escapeHtml(values.join(", "))}"`;
+  const chrome = fieldChrome(inputId, field, form, {
+    emptyable: true,
+    extraDescribedIds: [hintId],
+  });
 
   return (
     `<div class="field field--list field--list-comma-separated" data-list-input-mode="comma_separated">` +
     presenceMarker +
-    `<label class="field__label" for="${inputId}">${label}</label>` +
-    `<input class="field__control" id="${inputId}" type="text" name="${nameAttribute}"` +
-    ` aria-describedby="${guidanceId}" value="${escapeHtml(values.join(", "))}"${required}>` +
-    `<p class="field__guidance" id="${guidanceId}">Separate values with commas.</p>` +
+    `<label class="field__label" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
+    controlShell(
+      `<input class="field__input" id="${inputId}" type="text" name="${nameAttribute}"` +
+        `${valueAttribute}${chrome.describedBy}${required}>`,
+    ) +
+    `<p class="field__guidance" id="${hintId}">Separate values with commas.</p>` +
+    chrome.trailing +
     `</div>`
   );
 }
 
-function renderEditRepeatableListField(
-  capabilityId: string,
+function renderRepeatableListField(
+  inputId: string,
   field: SpecField,
+  form: UiFormIntent,
   value: unknown,
 ): string {
-  const inputId = `edit-${capabilityId}-${field.name}`;
   const label = escapeHtml(field.label);
   const nameAttribute = escapeHtml(field.name);
-  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
+  const presenceMarker = presenceMarkerFor(nameAttribute);
   const values = Array.isArray(value) && value.length > 0 ? value.map(String) : [""];
+  const chrome = fieldChrome(inputId, field, form, { emptyable: true });
   const rows = values
-    .map(
-      (element, index) =>
-        `<div class="field-list__row" data-list-field-row>` +
-        `<input class="field__control" id="${inputId}-${index + 1}" type="text"` +
-        ` name="${nameAttribute}" value="${escapeHtml(element)}"` +
-        ` aria-label="${label} ${index + 1}">` +
-        `<button class="field-list__remove" type="button" data-list-field-remove` +
-        ` aria-label="Remove ${label} value ${index + 1}">Remove</button>` +
-        `</div>`,
+    .map((element, index) =>
+      repeatableRow(inputId, nameAttribute, label, element, index, chrome.describedBy),
     )
     .join("");
 
@@ -472,54 +587,41 @@ function renderEditRepeatableListField(
     `<div class="field field--list field--list-repeatable" data-list-input-mode="repeatable"` +
     ` data-list-field data-list-field-label="${label}" data-list-input-id="${inputId}">` +
     presenceMarker +
-    `<label class="field__label" for="${inputId}-1">${label}</label>` +
+    `<label class="field__label" for="${inputId}-1">${label}${chrome.labelSuffix}</label>` +
     `<div class="field-list__values" data-list-field-values>${rows}</div>` +
     `<button class="btn btn--secondary field-list__add" type="button" data-list-field-add>` +
     `Add another</button>` +
+    chrome.trailing +
     `</div>`
   );
 }
 
-function renderCommaSeparatedListField(capabilityId: string, field: SpecField): string {
-  const inputId = `cap-${capabilityId}-${field.name}`;
-  const guidanceId = `${inputId}-guidance`;
-  const label = escapeHtml(field.label);
-  const nameAttribute = escapeHtml(field.name);
-  const required = field.required ? " required" : "";
-  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
-
+/**
+ * One row of a repeatable list.
+ *
+ * The field's description rides every row rather than the field, because a repeatable list
+ * has no single control to hang it on — what a screen reader reaches is a row's input, and
+ * a hint referenced by nothing is the visual-only text this module exists not to emit. It
+ * survives an added row for free: `addListFieldRow` clones a row wholesale, and
+ * `syncListFieldRows` restates only the id and the two labels that are positional.
+ */
+function repeatableRow(
+  inputId: string,
+  nameAttribute: string,
+  label: string,
+  element: string,
+  index: number,
+  describedBy: string,
+): string {
   return (
-    `<div class="field field--list field--list-comma-separated" data-list-input-mode="comma_separated">` +
-    presenceMarker +
-    `<label class="field__label" for="${inputId}">${label}</label>` +
-    `<input class="field__control" id="${inputId}" type="text" name="${nameAttribute}"` +
-    ` aria-describedby="${guidanceId}"${required}>` +
-    `<p class="field__guidance" id="${guidanceId}">Separate values with commas.</p>` +
-    `</div>`
-  );
-}
-
-function renderRepeatableListField(capabilityId: string, field: SpecField): string {
-  const inputId = `cap-${capabilityId}-${field.name}`;
-  const label = escapeHtml(field.label);
-  const nameAttribute = escapeHtml(field.name);
-  const presenceMarker = `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">`;
-
-  return (
-    `<div class="field field--list field--list-repeatable" data-list-input-mode="repeatable"` +
-    ` data-list-field data-list-field-label="${label}"` +
-    ` data-list-input-id="${inputId}">` +
-    presenceMarker +
-    `<label class="field__label" for="${inputId}-1">${label}</label>` +
-    `<div class="field-list__values" data-list-field-values>` +
     `<div class="field-list__row" data-list-field-row>` +
-    `<input class="field__control" id="${inputId}-1" type="text" name="${nameAttribute}"` +
-    ` aria-label="${label} 1">` +
+    controlShell(
+      `<input class="field__input" id="${inputId}-${index + 1}" type="text"` +
+        ` name="${nameAttribute}" value="${escapeHtml(element)}"` +
+        ` aria-label="${label} ${index + 1}"${describedBy}>`,
+    ) +
     `<button class="field-list__remove" type="button" data-list-field-remove` +
-    ` aria-label="Remove ${label} value">Remove</button>` +
-    `</div></div>` +
-    `<button class="btn btn--secondary field-list__add" type="button" data-list-field-add>` +
-    `Add another</button>` +
+    ` aria-label="Remove ${label} value ${index + 1}">Remove</button>` +
     `</div>`
   );
 }

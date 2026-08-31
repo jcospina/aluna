@@ -48,9 +48,16 @@ import {
   validateChoiceFields,
   validateChoiceInputs,
 } from "./choice.ts";
+import {
+  fieldGuidanceSchema,
+  longTextIntentSchema,
+  validateFieldGuidance,
+  validateLongTextInputs,
+} from "./form-intent.ts";
 import { incarnationIdSchema } from "./identifiers.ts";
 import { isCapabilityNameLabel } from "./labels.ts";
 import { capabilityLogoStateSchema, logoHueFamilySchema, logoSeedSchema } from "./logo.ts";
+import { maxLengthSchema, validateMaxLength } from "./max-length.ts";
 import {
   allUnique,
   nonBlankText,
@@ -108,7 +115,23 @@ export {
   MAX_CHOICE_OPTIONS,
   selectableChoiceValues,
 } from "./choice.ts";
+export {
+  type FieldGuidance,
+  fieldGuidanceSchema,
+  fieldGuidanceText,
+  isLongTextField,
+  longTextIntentSchema,
+  MAX_FIELD_GUIDANCE_LENGTH,
+} from "./form-intent.ts";
 export { incarnationIdSchema } from "./identifiers.ts";
+export {
+  MAX_DECLARED_MAX_LENGTH,
+  MAX_LENGTH_EXCEEDED_ERROR_CODE,
+  MIN_DECLARED_MAX_LENGTH,
+  maxLengthSchema,
+  maxLengthsByField,
+} from "./max-length.ts";
+export { SQL_NAME_PATTERN } from "./spec-text.ts";
 export {
   type CapabilityTool,
   capabilityToolSchema,
@@ -164,10 +187,12 @@ export type FieldLifecycle = z.infer<typeof fieldLifecycleSchema>;
  * recorded deviation.
  *
  * `values` and `groups` are absent on every non-choice field and present on every choice
- * field; `validateChoiceFields` enforces both directions. A provider's strict
- * structured-output schema cannot express an absent key, so the wire shape
- * ({@link promptCapabilitySpecSchema}) spells absence `null` and normalizes it away on the
- * way in — the shape stored, diffed and rendered is this one.
+ * field; `validateChoiceFields` enforces both directions. `max_length` is the third
+ * optional key, and unlike those two it is optional in both directions: a scalar `string`
+ * may or may not declare a limit, and every other type is refused one
+ * (`validateMaxLength`). A provider's strict structured-output schema cannot express an
+ * absent key, so the wire shape ({@link promptCapabilitySpecSchema}) spells absence `null`
+ * and normalizes it away on the way in — the shape stored, diffed and rendered is this one.
  */
 const specFieldShape = {
   name: z
@@ -191,6 +216,7 @@ export const specFieldSchema = z.strictObject({
   ...specFieldShape,
   values: z.array(choiceOptionSchema).optional(),
   groups: z.array(choiceGroupSchema).optional(),
+  max_length: maxLengthSchema.optional(),
 });
 export type SpecField = z.infer<typeof specFieldSchema>;
 
@@ -251,14 +277,34 @@ export const listInputIntentSchema = z.strictObject({
 });
 export type ListInputIntent = z.infer<typeof listInputIntentSchema>;
 
+/**
+ * The form's declared presentation.
+ *
+ * The four collections split into two kinds. `list_inputs` and `choice_inputs` are
+ * **total** over their field type — every active `string[]` has a mode and every active
+ * choice has a presentation, because neither can be drawn at all without one.
+ * `long_text` and `guidance` are **subsets**: a string field renders perfectly well as a
+ * single-line input and a field is complete without a hint, so naming one is opting it in.
+ * Both kinds are ordered by schema-field order, and both refuse an unknown, inactive,
+ * duplicate or wrong-type entry.
+ *
+ * `long_text` is a bare name list because there is nothing else to say: a field either
+ * gets the multi-line control or it does not. Which of the two a string field wants is not
+ * something its type can decide — a title and three paragraphs of notes are both a
+ * `string` — so it is a presentation choice and belongs here, beside `collection.layout`
+ * and `item.shows`, rather than in the schema (`design/controls.html`, "What decides
+ * between an input and a textarea").
+ */
 export const uiFormIntentSchema = z.strictObject({
   list_inputs: z.array(listInputIntentSchema),
   choice_inputs: z.array(choiceInputIntentSchema),
+  long_text: longTextIntentSchema,
+  guidance: fieldGuidanceSchema.array(),
 });
 export type UiFormIntent = z.infer<typeof uiFormIntentSchema>;
 
 /** The canonical empty value of every form-intent collection this Module added. */
-const EMPTY_FORM_INTENT_COLLECTIONS = ["choice_inputs"] as const;
+const EMPTY_FORM_INTENT_COLLECTIONS = ["choice_inputs", "long_text", "guidance"] as const;
 
 export const uiIntentSchema = z.strictObject({
   form: uiFormIntentSchema,
@@ -341,12 +387,14 @@ const promptSpecFieldSchema = z
     ...specFieldShape,
     values: z.array(promptChoiceOptionSchema).nullable(),
     groups: z.array(choiceGroupSchema).nullable(),
+    max_length: maxLengthSchema.nullable(),
   })
   .transform(
-    ({ values, groups, ...field }): SpecField => ({
+    ({ values, groups, max_length, ...field }): SpecField => ({
       ...field,
       ...(values === null ? {} : { values }),
       ...(groups === null ? {} : { groups }),
+      ...(max_length === null ? {} : { max_length }),
     }),
   );
 
@@ -479,8 +527,11 @@ function validateSpecSemantics(
   validateBehavioralErrors(spec, ctx);
   validatePresentationShows(spec, ctx);
   validateListInputs(spec, ctx);
+  validateLongTextInputs(spec, ctx);
+  validateFieldGuidance(spec, ctx);
   validateChoiceFields(spec, ctx);
   validateChoiceInputs(spec, ctx);
+  validateMaxLength(spec, ctx);
 }
 
 /**

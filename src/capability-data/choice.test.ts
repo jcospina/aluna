@@ -57,7 +57,12 @@ function invoicesSpec(
       ],
     },
     ui_intent: {
-      form: { list_inputs: [], choice_inputs: [{ field: "status", presentation: "picker" }] },
+      form: {
+        list_inputs: [],
+        choice_inputs: [{ field: "status", presentation: "picker" }],
+        long_text: [],
+        guidance: [],
+      },
       item: { direction: "Lead with the title, then the status.", shows: ["title", "status"] },
       collection: { layout: "feed" },
     },

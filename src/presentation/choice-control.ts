@@ -23,6 +23,7 @@ import {
 } from "../registry/index.ts";
 import { ALUNA_PRESENT_MARKER } from "../router/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
+import { type FieldChrome, fieldChrome } from "./field-chrome.ts";
 
 /**
  * The option a control draws as chosen.
@@ -66,7 +67,10 @@ export function renderChoiceField(
 ): string {
   const { presentation } = choiceInputForField(form, field.name);
   const chosen = chosenValue(field, value);
-  const body = controlFor(presentation)(inputId, field, chosen);
+  // A choice is always emptyable — no selection is a stored `null` — and never carries a
+  // length limit, so the chrome here is the optional marker and the declared hint.
+  const chrome = fieldChrome(inputId, field, form, { emptyable: true });
+  const body = controlFor(presentation)(inputId, field, chosen, chrome);
 
   return (
     `<div class="field field--choice${presentation === "picker" ? " listbox" : ""}"` +
@@ -74,11 +78,17 @@ export function renderChoiceField(
     `${initialAttribute(presentation, chosen)}>` +
     `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${escapeHtml(field.name)}">` +
     body +
+    chrome.trailing +
     `</div>`
   );
 }
 
-type ChoiceControl = (inputId: string, field: SpecField, chosen: string) => string;
+type ChoiceControl = (
+  inputId: string,
+  field: SpecField,
+  chosen: string,
+  chrome: FieldChrome,
+) => string;
 
 /** The total dispatch from a declared presentation to its control. */
 function controlFor(presentation: ChoicePresentation): ChoiceControl {
@@ -105,8 +115,11 @@ function assertNever(value: never): never {
  * closed control is a button and the other two are groups, so none of them is a form
  * element a `<label for>` can point at — all three are named by reference instead.
  */
-function fieldLabel(inputId: string, field: SpecField): string {
-  return `<span class="field__label" id="${inputId}-label">${escapeHtml(field.label)}</span>`;
+function fieldLabel(inputId: string, field: SpecField, chrome: FieldChrome): string {
+  return (
+    `<span class="field__label" id="${inputId}-label">` +
+    `${escapeHtml(field.label)}${chrome.labelSuffix}</span>`
+  );
 }
 
 /**
@@ -175,17 +188,22 @@ const CHOICE_CHEVRON =
  * chosen label reads correctly before any script runs; `public/choice-picker.js` takes
  * over the opening, the keyboard and the active-descendant reporting.
  */
-function renderPicker(inputId: string, field: SpecField, chosen: string): string {
+function renderPicker(
+  inputId: string,
+  field: SpecField,
+  chosen: string,
+  chrome: FieldChrome,
+): string {
   const chosenOption = choiceFieldOptions(field).find((option) => option.value === chosen);
   const shown = escapeHtml(chosenOption ? chosenOption.label : placeholderFor(field));
 
   return (
-    fieldLabel(inputId, field) +
+    fieldLabel(inputId, field, chrome) +
     valueCarrier(field, chosen) +
     `<button class="field__control field__control--select listbox__button" type="button"` +
     ` id="${inputId}" role="combobox" aria-haspopup="listbox" aria-expanded="false"` +
     ` aria-controls="${inputId}-panel" aria-labelledby="${inputId}-label"` +
-    `${requiredAttribute(field)}>` +
+    `${chrome.describedBy}${requiredAttribute(field)}>` +
     `<span class="listbox__value${chosenOption ? "" : " is-placeholder"}">${shown}</span>` +
     CHOICE_CHEVRON +
     `</button>` +
@@ -253,7 +271,12 @@ function pickerOption(
  * and an unchecked group posts nothing, which is the same absent selection the picker's
  * empty carrier means.
  */
-function renderRadioGroup(inputId: string, field: SpecField, chosen: string): string {
+function renderRadioGroup(
+  inputId: string,
+  field: SpecField,
+  chosen: string,
+  chrome: FieldChrome,
+): string {
   const runs = choiceOptionRuns(field);
   const grouped = runs.some((run) => run.group !== undefined);
   const body = renderRuns(runs, (run, offset) => {
@@ -272,9 +295,9 @@ function renderRadioGroup(inputId: string, field: SpecField, chosen: string): st
   const role = grouped ? "group" : "radiogroup";
   const required = grouped ? "" : requiredAttribute(field);
   return (
-    fieldLabel(inputId, field) +
+    fieldLabel(inputId, field, chrome) +
     `<div class="choice-set" id="${inputId}" role="${role}"` +
-    ` aria-labelledby="${inputId}-label"${required}>${body}</div>`
+    ` aria-labelledby="${inputId}-label"${chrome.describedBy}${required}>${body}</div>`
   );
 }
 
@@ -342,16 +365,21 @@ function radioOption(
  * (`design/controls.html`, "Segmented"). The spec has already refused a grouped or noted
  * option here, so there is exactly one run to draw.
  */
-function renderSegmented(inputId: string, field: SpecField, chosen: string): string {
+function renderSegmented(
+  inputId: string,
+  field: SpecField,
+  chosen: string,
+  chrome: FieldChrome,
+): string {
   const segments = choiceFieldOptions(field)
     .map((option, index) => segment(inputId, option, chosen, index))
     .join("");
 
   return (
-    fieldLabel(inputId, field) +
+    fieldLabel(inputId, field, chrome) +
     valueCarrier(field, chosen) +
     `<div class="segmented" id="${inputId}" role="group"` +
-    ` aria-labelledby="${inputId}-label">${segments}</div>`
+    ` aria-labelledby="${inputId}-label"${chrome.describedBy}>${segments}</div>`
   );
 }
 

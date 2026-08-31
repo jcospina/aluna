@@ -114,52 +114,62 @@
 }
 
 /*
- * The control, on the design system's own numbers: one row height, the well fill
- * that separates a thing you type into from the surface it sits on, and the
- * horizontal padding every other control on the surface uses.
+ * The control is a shell plus a bare native element, which is what the design system says
+ * it is (`design/styles/components/form-controls.css`): `.field__control` carries the
+ * boundary, the fill, the padding and every state, and `.field__input`, `.field__textarea`
+ * and `.field__select` carry the caret and the text and nothing else. A drawn boundary is
+ * two SVG layers sandwiching real content, and `<input>` is a void element, so the split
+ * is what makes a drawn field possible at all — and it is what gives the design's
+ * `:focus-within`, `:has(:disabled)` and invalid rules something to attach to.
  *
- * Still a bare `<input>` carrying its own ruled border rather than the shell plus
- * bare element the design specifies — a void element cannot hold the two SVG layers
- * a drawn boundary needs, and that split is 5.10/03. What it can do until then is
- * stop being a different size and colour from everything around it.
+ * The product used to put `.field__control` straight on the `<input>` and restate the row
+ * here. It no longer restates anything: every one of those rules already ships from the
+ * design system, which this page loads. What is left below is only the two places the
+ * product's form differs from a control standing in open air.
+ */
+
+/*
+ * The shell fills the field's column. The design's shell is sized by whatever it sits in,
+ * and here that is a stacked form: without this a text control shrinks to its content.
  */
 .field__control {
-  display: block;
   width: 100%;
-  min-height: var(--control-h);
-  padding: 0 var(--control-pad-x);
-  font-family: var(--font-body);
-  font-size: var(--control-text);
-  line-height: 1.5;
-  color: var(--ink);
-  background: var(--surface-2);
-  border: var(--line) solid var(--ink);
-  transition:
-    box-shadow var(--dur-fast) var(--ease-rise),
-    border-color var(--dur-fast) var(--ease-rise);
-}
-.field__control::placeholder {
-  color: var(--ink-3);
 }
 
 /*
- * The one control that is already a shell plus a bare element rather than a bare element
- * carrying its own boundary: the picker's closed control, which is a `<button>` holding
- * its value and its caret (`design/design-system.md`, "Forms"). Because it can hold
- * children it can hold the ink system's two layers, so it is the first field on this
- * surface whose boundary is genuinely drawn; the rest make that split in 5.10/03. The
- * shell's row layout is restated here on the select variant alone, on the design system's
- * own numbers, because the block rule above is written for the bare elements it still
- * applies to.
+ * The multi-line control grows with what is typed and then scrolls. The height is
+ * `public/long-text-field.js`'s to set, and the ceiling is its `data-grow-max` — one
+ * number, written by the renderer from one constant.
+ *
+ * There is deliberately no `max-height` here. A second ceiling in `rem` would agree with
+ * that number only at a 16px root: on a smaller default the script would set a height the
+ * stylesheet then clipped, and set `overflow-y: hidden` for content it believed fitted —
+ * text hidden with no way to scroll to it. Before the script runs the box is `rows="3"`,
+ * which is already a field rather than a page, so there is nothing for a ceiling to do.
  */
-.field__control--select {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: 0 var(--control-pad-x);
-  cursor: pointer;
-  text-align: left;
+
+/*
+ * The counter sits beside the declared hint rather than replacing it. The design's page
+ * has one field with a limit and no hint, so its counter takes the guidance slot outright;
+ * a real capability declares both, and a hint that vanished the moment the field said
+ * something about its own length would be a hint that leaves exactly when it is being
+ * read. Two lines in the same slot, and the count is the one that may turn signal.
+ */
+.field__guidance--count {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A boolean's row is the checkbox and its label; anything the field says about itself goes
+ * under both rather than beside them. Without this the hint is a third item in the row and
+ * reads as part of the label — and any active field may carry one, a boolean included.
+ */
+.field--inline {
+  flex-wrap: wrap;
+}
+
+.field--inline .field__guidance {
+  flex-basis: 100%;
 }
 
 /*

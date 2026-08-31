@@ -59,7 +59,7 @@ describe("spec generation stage — the choice contract in the prompt", () => {
   test("names every platform-owned refusal a capability must never author", () => {
     const prompt = choicePrompt();
     expect(prompt).toContain(
-      "record_not_found, invalid_choice and choice_disabled are platform-owned",
+      "record_not_found, invalid_choice, choice_disabled and max_length_exceeded are platform-owned",
     );
   });
 });

@@ -55,6 +55,7 @@ type Listener = (event: Record<string, unknown>) => void;
 /** The tags each DOM constructor the module tests against stands for. */
 export const ELEMENT_CLASSES = {
   HTMLInputElement: ["input"],
+  HTMLTextAreaElement: ["textarea"],
   HTMLButtonElement: ["button"],
   HTMLFormElement: ["form"],
 } as const;
@@ -72,7 +73,8 @@ export class El {
   readonly children: El[] = [];
   parent: El | null = null;
   ownText = "";
-  private ownValue = "";
+  /** The raw value, and the dirty flag with it: `null` until something writes through. */
+  private ownValue: string | null = null;
 
   /** Reflected, like the real property: `[hidden]` stops matching once it is shown. */
   get hidden(): boolean {
@@ -84,8 +86,15 @@ export class El {
     else this.removeAttribute("hidden");
   }
 
+  /**
+   * A textarea's default value is its *content*, and its `value` shadows that content the
+   * moment anything writes through it — the markup keeps saying what the server rendered
+   * however much has since been typed. A double that answered the content either way would
+   * let a counter read the wrong number and still be green.
+   */
   get value(): string {
-    return this.reflectsValue ? (this.getAttribute("value") ?? "") : this.ownValue;
+    if (this.reflectsValue) return this.getAttribute("value") ?? "";
+    return this.ownValue ?? (this.tag === "textarea" ? this.ownText : "");
   }
 
   set value(next: string) {
@@ -97,9 +106,12 @@ export class El {
     return this.tag === "input" && REFLECTED_VALUE_TYPES.has(this.getAttribute("type") ?? "text");
   }
 
-  /** What `form.reset()` does: every input back to its content attributes. */
+  /** What `form.reset()` does: every control back to the default its markup declared. */
   reset(): void {
     for (const node of this.descendants()) {
+      // A textarea's default is the content, not an attribute, so a reset is the dirty
+      // flag going out rather than a value being copied in.
+      if (node.tag === "textarea") node.ownValue = null;
       if (node.tag !== "input") continue;
       node.value = node.getAttribute("value") ?? "";
       if (node.getAttribute("type") === "radio" || node.getAttribute("type") === "checkbox") {
@@ -133,8 +145,26 @@ export class El {
   }
   /** What `place()` measures. Fixed: what it decides is above-or-below, not a pixel. */
   offsetHeight = 36;
-  scrollHeight = 200;
+  private ownContentHeight = 200;
   scrollWidth = 200;
+
+  /**
+   * The height the content needs, floored at the box the element has been *given* —
+   * which is what a browser reports, since a box taller than its content scrolls
+   * nothing. Modelled rather than fixed because that floor is the entire reason a
+   * growing textarea measures itself at `height: auto`: with a height already written,
+   * a shrinking one would measure the box it is trying to shrink and never come back
+   * down. A constant here would let that line be deleted with every test still green.
+   */
+  get scrollHeight(): number {
+    const given = Number.parseFloat(this.ownStyle.height ?? "");
+    return Math.max(this.ownContentHeight, Number.isFinite(given) ? given : 0);
+  }
+
+  /** A fixture sets the content height; the floor above is the browser's, not its. */
+  set scrollHeight(next: number) {
+    this.ownContentHeight = next;
+  }
   /**
    * The scrollport, which is the border box less its scrollbars — the distinction the
    * reveal turns on, so the double keeps them apart rather than letting one stand for both.
@@ -230,7 +260,10 @@ export class El {
   cloneNode(deep = false): El {
     const copy = new El(this.tag, { ...this.attributes });
     copy.ownText = this.ownText;
-    copy.value = this.value;
+    // The raw value and the dirty flag both travel, which is what the cloning steps for a
+    // value-carrying control say: a clone of an untouched control is untouched too, and so
+    // still resets to what its markup declares.
+    copy.ownValue = this.ownValue;
     copy.checked = this.checked;
     copy.box = { ...this.box };
     copy.computed = { ...this.computed };
@@ -259,6 +292,15 @@ export class El {
   /** Null at the document, exactly as a real element's is. The clipping walk needs it. */
   get parentElement(): El | null {
     return this.parent === null || this.parent instanceof Doc ? null : this.parent;
+  }
+
+  /**
+   * A control's form owner. Every control the shell renders is inside the form it posts
+   * through, so the ancestor walk is the whole of it — there is no `form=""` attribute in
+   * any markup this parses, and answering one that was not there would be an invention.
+   */
+  get form(): El | null {
+    return this.closest("form");
   }
 
   contains(other: El): boolean {
@@ -451,6 +493,18 @@ export class Doc extends El {
     for (const observer of [...this.observers]) observer([{ addedNodes: [...added] }]);
   }
 
+  /** Every live box watch, and the fixture's way of telling one its element has a size. */
+  readonly resizes: { target: El; run: () => void }[] = [];
+
+  /**
+   * Give an element a width and tell every watch on it. Two steps in a browser, one here:
+   * the double has no layout, so the size is written and the notification is the same call.
+   */
+  resize(target: El, width: number): void {
+    target.clientWidth = width;
+    for (const watch of this.resizes) if (watch.target === target) watch.run();
+  }
+
   /** The window half the placement walk reads: the viewport, computed styles, and the watch. */
   get defaultView() {
     const doc = this;
@@ -473,11 +527,38 @@ export class Doc extends El {
           if (options.childList === true && options.subtree === true) doc.observers.push(this.run);
         }
       },
+      /**
+       * A box watch. The browser fires one callback on `observe` and again whenever the
+       * element's box changes — including the change from *no box at all*, which is what a
+       * control inside an unopened panel has and what makes this observer necessary rather
+       * than decorative.
+       *
+       * The double cannot see layout, so a fixture moves a size and calls
+       * {@link Doc.resize}; the initial fire is modelled here because a watcher that only
+       * heard later changes would let a mount-time measurement go unproven.
+       */
+      ResizeObserver: class {
+        constructor(private readonly run: () => void) {}
+        observe(target: El): void {
+          doc.resizes.push({ target, run: this.run });
+          this.run();
+        }
+      },
       getComputedStyle: (node: El) => ({ ...node.computed, filter: "none" }),
       addEventListener: (type: string, run: Listener) => {
         this.addEventListener(type, run);
       },
     };
+  }
+
+  /**
+   * The document's one element child — `<html>` in a browser, and the root a scene parses
+   * into here. A module that boots over the whole page starts from this rather than from
+   * the document, so a scene that parsed its markup straight into the document would hand
+   * one `undefined` and mount nothing.
+   */
+  get documentElement(): El | null {
+    return this.children[0] ?? null;
   }
 
   getElementById(id: string): El | null {
@@ -564,8 +645,10 @@ function openElement(
 ): void {
   const node = new El(tag, parseAttributes(rawAttributes));
   // An input's `value` attribute is what the browser seeds the property from, and the
-  // property is what a form posts and what a carrier is written through.
-  node.value = node.getAttribute("value") ?? "";
+  // property is what a form posts and what a carrier is written through. A textarea is
+  // seeded from its content instead, which is not parsed yet — its `value` falls back to
+  // that content until something writes through it.
+  if (tag !== "textarea") node.value = node.getAttribute("value") ?? "";
   node.checked = node.hasAttribute("checked");
   top.append(node);
   if (!selfClosed && !VOID_TAGS.has(tag)) stack.push(node);
@@ -580,10 +663,21 @@ function parseAttributes(raw: string): Record<string, string> {
   return attributes;
 }
 
-/** Text before a child becomes the element's own text; text after it becomes a text node. */
+/**
+ * Text before a child becomes the element's own text; text after it becomes a text node.
+ *
+ * A `<textarea>`'s *first* text drops one leading U+000A, which is what HTML's tree
+ * construction does ("A start tag whose tag name is textarea… if the next token is a
+ * U+000A LINE FEED, ignore that token"). Modelled rather than skipped because the renderer
+ * writes that newline deliberately, and a double without the rule would let a value
+ * beginning with a newline round-trip in a test while a browser handed the control one
+ * character less.
+ */
 function appendText(parent: El, text: string): void {
-  if (parent.children.length === 0) parent.ownText += text;
-  else parent.append(textNode(text));
+  const first = parent.children.length === 0 && parent.ownText === "";
+  const content = first && parent.tag === "textarea" ? text.replace(/^\n/, "") : text;
+  if (parent.children.length === 0) parent.ownText += content;
+  else parent.append(textNode(content));
 }
 
 /** A document holding one rendered form, with the module started against it. */

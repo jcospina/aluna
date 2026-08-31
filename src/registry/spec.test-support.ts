@@ -28,7 +28,7 @@ export function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
       ],
     },
     ui_intent: {
-      form: { list_inputs: [], choice_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
     },
@@ -68,6 +68,10 @@ export function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
               choice_inputs: spec.schema.fields
                 .filter((field) => field.lifecycle === "active" && field.type === "choice")
                 .map((field) => ({ field: field.name, presentation: "picker" as const })),
+              // Both subset collections stay empty: opting a field into a multi-line
+              // control or giving it a hint is a choice, never something a shape implies.
+              long_text: [],
+              guidance: [],
             },
             item: {
               ...spec.ui_intent.item,

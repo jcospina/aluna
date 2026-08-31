@@ -30,6 +30,12 @@ export function addListFieldRow(button) {
 
   const row = firstRow.cloneNode(true);
   if (!(row instanceof HTMLElement)) return;
+  // A clone carries the drawn layers of the row it came from, and the ink system keys what
+  // it has already mounted on the element itself — so it does not recognise the copy and
+  // draws it a second pair. Two boxes, and the stale ones keep the width the row had when
+  // it was copied. Since 5.10/03 a row's control is a shell, which is a drawn element, so
+  // this is every row rather than only its Remove button.
+  for (const layer of row.querySelectorAll(".ink__ground, .ink__layer")) layer.remove();
   const input = row.querySelector("input");
   if (input instanceof HTMLInputElement) input.value = "";
   values.append(row);

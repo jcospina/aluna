@@ -3,7 +3,7 @@
 // an immutable region validation should have frozen, throws here rather than becoming a
 // silent no-op or an unproven copy.
 
-import type { CapabilitySpec } from "../../registry/index.ts";
+import type { CapabilitySpec, SpecField } from "../../registry/index.ts";
 
 /**
  * The fail-closed guard: a committed→candidate difference the matrix
@@ -59,21 +59,7 @@ function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<st
   canonical.schema = {
     fields: spec.schema.fields
       .filter((field) => committedNames.has(field.name))
-      .map(
-        (field): Record<string, unknown> => ({
-          ...(canonicalize(field) as Record<string, unknown>),
-          label: RESIDUAL_SENTINEL,
-          required: RESIDUAL_SENTINEL,
-          lifecycle: RESIDUAL_SENTINEL,
-          // A choice field's options are explained by the six option facts, and its group
-          // declarations by `choice_option_groups`. Both regions blank wholesale: every
-          // key inside an option — value, label, note, group, disabled — has a row, and a
-          // key added to the option shape without one would still be caught, because the
-          // fact detectors read only the keys they know and a new one would move nothing.
-          ...(field.values === undefined ? {} : { values: RESIDUAL_SENTINEL }),
-          ...(field.groups === undefined ? {} : { groups: RESIDUAL_SENTINEL }),
-        }),
-      )
+      .map((field): Record<string, unknown> => blankedField(field))
       .sort((left, right) => compareStrings(String(left.name), String(right.name))),
   };
   return canonical;
@@ -82,6 +68,35 @@ function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<st
 // Deep clone with object keys sorted; arrays keep their order (an ordered product
 // fact), primitives pass through. This is what makes object-key reordering a no-op
 // while preserving ordered facts.
+/**
+ * One committed field with every fact-bearing key blanked.
+ *
+ * Re-canonicalized *after* the blanking, not before: a key the projection adds to a field
+ * that did not carry it would otherwise land at the end of the object while the same key on
+ * a field that did carry it stays in sorted position, and the two would stringify
+ * differently for no difference at all.
+ */
+function blankedField(field: SpecField): Record<string, unknown> {
+  return canonicalize({
+    ...field,
+    label: RESIDUAL_SENTINEL,
+    required: RESIDUAL_SENTINEL,
+    lifecycle: RESIDUAL_SENTINEL,
+    // Blanked unconditionally, unlike the two choice collections beside it: what the
+    // `max_length` fact explains includes the key *arriving* and *going away*, so a
+    // projection that only blanked a key it found would report adding or removing a limit
+    // as an unmapped difference.
+    max_length: RESIDUAL_SENTINEL,
+    // A choice field's options are explained by the six option facts, and its group
+    // declarations by `choice_option_groups`. Both regions blank wholesale: every key
+    // inside an option — value, label, note, group, disabled — has a row, and a key added
+    // to the option shape without one would still be caught, because the fact detectors
+    // read only the keys they know and a new one would move nothing.
+    ...(field.values === undefined ? {} : { values: RESIDUAL_SENTINEL }),
+    ...(field.groups === undefined ? {} : { groups: RESIDUAL_SENTINEL }),
+  }) as Record<string, unknown>;
+}
+
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value !== null && typeof value === "object") {

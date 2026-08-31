@@ -208,7 +208,12 @@ function taggedSpec(mode: "comma_separated" | "repeatable"): CapabilitySpec {
     },
     ui_intent: {
       ...base.ui_intent,
-      form: { list_inputs: [{ field: "tags", mode }], choice_inputs: [] },
+      form: {
+        list_inputs: [{ field: "tags", mode }],
+        choice_inputs: [],
+        long_text: [],
+        guidance: [],
+      },
     },
   });
 }

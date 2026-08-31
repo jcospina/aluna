@@ -60,7 +60,7 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
 
     expect(result.spec).toEqual(spec);
     expect(result.spec.ui_intent).toEqual({
-      form: { list_inputs: [], choice_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
     });
@@ -295,7 +295,7 @@ describe("spec generation stage — authored modes, narration, and identity", ()
           ],
         },
         ui_intent: {
-          form: { list_inputs: [{ field, mode }], choice_inputs: [] },
+          form: { list_inputs: [{ field, mode }], choice_inputs: [], long_text: [], guidance: [] },
           item: { direction: `Show ${field} in their authored order.`, shows: [field] },
           collection: { layout: "feed" },
         },
@@ -382,7 +382,7 @@ describe("spec generation stage — rejects non-conforming specs", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
-            form: { list_inputs: [], choice_inputs: [] },
+            form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
             item: { direction: "A visual tile.", shows: ["text"] },
             collection: { layout: "masonry" },
           },
@@ -393,7 +393,7 @@ describe("spec generation stage — rejects non-conforming specs", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
-            form: { list_inputs: [], choice_inputs: [] },
+            form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
             item: { direction: "A visual tile.", shows: ["text"] },
             collection: { layout: "grid" },
             modal: true,
@@ -405,7 +405,7 @@ describe("spec generation stage — rejects non-conforming specs", () => {
         raw: {
           ...notesSpec(),
           ui_intent: {
-            form: { list_inputs: [], choice_inputs: [] },
+            form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
             item: { direction: "A text-forward card.", shows: ["missing"] },
             collection: { layout: "feed" },
           },

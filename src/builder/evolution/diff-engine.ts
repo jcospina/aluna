@@ -33,6 +33,7 @@ import {
 } from "../../registry/index.ts";
 import { canonicalCapabilityLabel } from "../../registry/labels.ts";
 import { detectChoiceFacts } from "./diff-choice.ts";
+import { detectFormIntentFacts } from "./diff-form-intent.ts";
 import { assertTotalCoverage } from "./diff-totality.ts";
 
 export { UnmappedChangeFactError } from "./diff-totality.ts";
@@ -51,6 +52,7 @@ export type ChangeFact =
   | { readonly kind: "field_order" }
   | { readonly kind: "new_active_field"; readonly field: string; readonly fieldType: FieldType }
   | { readonly kind: "required_change"; readonly field: string }
+  | { readonly kind: "max_length"; readonly field: string }
   | { readonly kind: "field_label"; readonly field: string }
   | {
       readonly kind: "field_lifecycle";
@@ -58,6 +60,8 @@ export type ChangeFact =
       readonly transition: "hide" | "reactivate";
     }
   | { readonly kind: "list_input_mode"; readonly field: string }
+  | { readonly kind: "long_text_input"; readonly field: string }
+  | { readonly kind: "field_guidance"; readonly field: string }
   | { readonly kind: "choice_values"; readonly field: string }
   | { readonly kind: "choice_option_disabled"; readonly field: string }
   | { readonly kind: "choice_option_labels"; readonly field: string }
@@ -84,9 +88,12 @@ const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
   "field_order",
   "new_active_field",
   "required_change",
+  "max_length",
   "field_label",
   "field_lifecycle",
   "list_input_mode",
+  "long_text_input",
+  "field_guidance",
   "choice_values",
   "choice_option_disabled",
   "choice_option_labels",
@@ -123,8 +130,12 @@ export const PLATFORM_WORK_KINDS = [
   "add_column", // new active field → nullable ADD COLUMN
   "platform_form_detail", // new/label/lifecycle field → platform form + detail View
   "resulting_record_validation", // required change → resulting-record validation
+  "max_length_validation", // max_length → mutation validation + the native limit and counter
   "list_input_intent", // hide/reactivate → remove/require active list-input intent
+  "form_subset_intent", // hide/reactivate → remove/require a long_text or guidance entry
   "list_input_form_normalization", // list input mode → create/edit form + raw-input normalization
+  "long_text_form_control", // long_text → which control a string field's form draws
+  "field_guidance_copy", // guidance → the line under a field, and its describedby wiring
   "choice_admitted_values", // appended option → platform mutation validation + the control
   "choice_option_presentation", // option label/note/order → the control's wording and its order
   "choice_option_grouping", // option groups → the control's headings and the runs under them
@@ -218,6 +229,7 @@ function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): read
 
   detectSchemaFacts(committed, candidate, facts);
   detectListInputModeFacts(committed, candidate, facts);
+  detectFormIntentFacts(committed, candidate, facts);
   detectChoiceFacts(committed, candidate, facts);
   detectPresentationFacts(committed, candidate, facts);
   detectReadDependencyFacts(committed, candidate, facts);
@@ -276,6 +288,11 @@ function fieldFacts(
   const facts: ChangeFact[] = [];
   if (committedField.required !== candidateField.required) {
     facts.push({ kind: "required_change", field: candidateField.name });
+  }
+  // Absence and a number compare alike: adding a limit, removing one and moving one are
+  // the same platform work, and the pre-activation scan reads the direction for itself.
+  if (committedField.max_length !== candidateField.max_length) {
+    facts.push({ kind: "max_length", field: candidateField.name });
   }
   if (committedField.label !== candidateField.label) {
     facts.push({ kind: "field_label", field: candidateField.name });
@@ -484,7 +501,8 @@ function contributeFieldFact(
 /**
  * Hiding or reactivating one field. The Module 4 matrix row names list-input intent for
  * every lifecycle change; a choice field additionally owns an entry in `choice_inputs`,
- * which the same hide/reactivate adds or removes. The union only ever grows.
+ * which the same hide/reactivate adds or removes; and any field may own an entry in the
+ * form's two subset collections, which follow it the same way. The union only ever grows.
  *
  * The item renderer follows the required `item.shows` change (`item_presentation`), never
  * this fact.
@@ -492,6 +510,11 @@ function contributeFieldFact(
 function contributeLifecycleFact(name: string, candidate: CapabilitySpec, sink: WorkSink): void {
   sink.platform.add("platform_form_detail");
   sink.platform.add("list_input_intent");
+  // The two subset collections follow the lifecycle the same way the two total ones do: a
+  // hidden field loses whatever entry it had in `long_text` and `guidance`, and a
+  // reactivated one may take either back. Unconditional, like `list_input_intent` beside
+  // it — the work is "settle this field's form intent", not "this field had a hint".
+  sink.platform.add("form_subset_intent");
   selectWrites(sink);
   const field = candidate.schema.fields.find((entry) => entry.name === name);
   if (!field) return;
@@ -518,6 +541,29 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
       return;
     case "list_input_mode":
       sink.platform.add("list_input_form_normalization");
+      return;
+    case "max_length":
+      // What the platform admits on the way in, which is create/update validation shape
+      // exactly as a required change is — so it moves both writing suites' total-input
+      // digests and they are generated again.
+      //
+      // The Handlers themselves are not. They are given the already-admitted string and
+      // told never to re-implement the bound (`units/unit-prompts.ts`), and the limit is
+      // deliberately absent from their generation context, so the fact provably cannot
+      // have reached either prompt — the positive proof ADR-0006 requires before a unit is
+      // copied rather than rewritten.
+      sink.platform.add("max_length_validation");
+      selectWriteTests(sink);
+      return;
+    case "long_text_input":
+      // Which control a string field's form draws. Nothing is stored differently, nothing
+      // validates differently, and a Handler is never told what drew a value.
+      sink.platform.add("long_text_form_control");
+      return;
+    case "field_guidance":
+      // One line under a field. Platform copy rendered from the row, the way the empty
+      // state's noun is, and no generated unit reads it.
+      sink.platform.add("field_guidance_copy");
       return;
     case "choice_option_disabled":
       // An option that stops being offered narrows what a new selection may name, which is

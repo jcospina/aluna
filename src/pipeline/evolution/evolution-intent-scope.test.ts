@@ -35,7 +35,12 @@ describe("resolved evolution intent scope", () => {
       },
       ui_intent: {
         ...committed.ui_intent,
-        form: { list_inputs: [{ field: "tags", mode: "repeatable" as const }], choice_inputs: [] },
+        form: {
+          list_inputs: [{ field: "tags", mode: "repeatable" as const }],
+          choice_inputs: [],
+          long_text: ["title"],
+          guidance: [{ field: "title", text: "What you look for it by." }],
+        },
         item: {
           direction: "A calm entry card with title and tags in a compact hierarchy.",
           shows: ["title", "tags"],
@@ -50,6 +55,11 @@ describe("resolved evolution intent scope", () => {
       "capability_label",
       "field_label",
       "list_input_mode",
+      // A bigger box to write in and a line of guidance under a field are presentation in
+      // exactly the way a list's input mode is: nothing stored moves, and no generated
+      // unit is regenerated. A request for either is a ui_change, not an extension.
+      "long_text_input",
+      "field_guidance",
       "item_presentation",
       "collection_layout",
     ]);

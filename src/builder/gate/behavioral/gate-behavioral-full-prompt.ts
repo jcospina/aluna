@@ -51,6 +51,7 @@ export function buildActionBehavioralTestPrompt(
     "",
     "Synthetic row vocabulary — the only field names `setupRows` and `expectedRows` may use. These are fixture mechanics, not behavior: they say what a row can be made of, never what the Action should do.",
     "- A row field that lists `values` admits only those exact strings. Never invent one, and never reach for a `retired_values` entry from the source material above: the platform refuses an undeclared or retired value before the Handler runs, so a case that seeds one fails the build rather than testing anything.",
+    "- A row field that lists `max_length` holds at most that many characters. The platform refuses a longer value before the Handler runs, so a case that seeds one fails the build rather than testing anything.",
     canonicalTestInputJson(fixture),
   ].join("\n");
 }
@@ -70,6 +71,7 @@ function inputGuidance(action: HandlerUnitName): readonly string[] {
       "- `input`: parsed form inputs as strings, keyed by the active schema field names in the source material; repeat `string[]` entries to preserve order.",
       "- A schema field that lists `values` accepts only those exact strings; submit one of them, or an empty string to submit no selection at all.",
       "- A schema field may also list `retired_values`. Those are options records already hold but nobody may choose any more: the platform refuses one on a new selection before the Handler runs. Never submit one and never seed one — they are here only so a change to them is visible, never as values to draw from.",
+      "- A schema field that lists `max_length` accepts at most that many characters. The limit is structural and the platform enforces it itself, refusing a longer submission before the Handler runs; write cases inside it rather than testing it.",
     ];
   }
   if (action === "search") {
