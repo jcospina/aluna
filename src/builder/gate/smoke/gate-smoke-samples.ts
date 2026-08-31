@@ -10,8 +10,8 @@ import type { CapabilityDataColumnValue } from "../../../capability-data/index.t
 import {
   activeSpecFields,
   type CapabilitySpec,
-  choiceFieldOptions,
   type SpecField,
+  selectableChoiceValues,
 } from "../../../registry/index.ts";
 import type { CapabilityInput, CapabilityInputValue } from "../../../router/index.ts";
 
@@ -92,10 +92,15 @@ function sampleValue(
  * Both smoke phases must submit a value the field actually declares, so the cycle runs on
  * real admitted options rather than manufactured text. A one-option choice updates to the
  * same value, which still proves the round trip.
+ *
+ * Only the options still on offer: a disabled one is admitted data for a row that already
+ * holds it, but the platform refuses it on a new selection, so a fixture that reached for
+ * it would fail the cycle it is meant to prove. The spec gate keeps at least one option
+ * choosable, so this can never come up empty.
  */
 function sampleChoiceValue(field: SpecField, phase: "create" | "update"): string {
-  const options = choiceFieldOptions(field);
+  const options = [...selectableChoiceValues(field)];
   const first = options[0];
-  if (!first) throw new Error(`Choice field "${field.name}" declares no options.`);
-  return (phase === "create" ? first : (options[1] ?? first)).value;
+  if (!first) throw new Error(`Choice field "${field.name}" offers no choosable option.`);
+  return phase === "create" ? first : (options[1] ?? first);
 }

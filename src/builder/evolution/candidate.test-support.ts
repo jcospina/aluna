@@ -232,7 +232,13 @@ export interface CandidateDraft {
       type: string;
       required: boolean;
       lifecycle: string;
-      values?: Array<{ value: string; label: string }>;
+      values?: Array<{
+        value: string;
+        label: string;
+        group?: string;
+        note?: string;
+        disabled?: true;
+      }>;
       groups?: Array<{ id: string; heading: string }>;
     }>;
   };

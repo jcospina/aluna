@@ -1,93 +1,23 @@
 // Evolving a capability that has a choice field. Option values are stored data: they may
-// be appended to and relabelled, never removed, renamed or reordered — and each of those
-// movements maps to its own row of the change-fact matrix.
+// be appended to, never removed or renamed. Everything else an option carries — its label,
+// its note, the group it stands under, whether it is still offered, the order the options
+// are drawn in, and which control draws them — moves freely, and each of those movements
+// maps to its own row of the change-fact matrix.
 
 import { describe, expect, test } from "bun:test";
 
-import {
-  type CapabilityRow,
-  type CapabilitySpec,
-  capabilitySpecFromRow,
-} from "../../registry/index.ts";
+import { capabilitySpecFromRow } from "../../registry/index.ts";
 import { diffCapabilitySpec } from "../index.ts";
 import {
-  type CandidateDraft,
-  candidateFrom,
+  COMMITTED_OPTIONS,
+  factsFor,
   journalCapabilityRow,
-} from "./candidate.test-support.ts";
-import {
-  CandidateValidationError,
-  type CandidateValidationIssue,
-  validateCandidateSpec,
-} from "./candidate-validation.ts";
-import { buildDependencyGenerationCatalog } from "./dependency-catalog.ts";
-
-const COMMITTED_OPTIONS = [
-  { value: "draft", label: "Draft" },
-  { value: "published", label: "Published" },
-];
-
-/** The journal, plus one committed active choice field and its form intent. */
-function journalWithChoice(lifecycle: "active" | "inactive" = "active"): CapabilityRow {
-  const base = journalCapabilityRow();
-  return journalCapabilityRow({
-    schema: {
-      fields: [
-        ...base.schema.fields,
-        {
-          name: "stage",
-          label: "Stage",
-          type: "choice",
-          required: false,
-          lifecycle,
-          values: [...COMMITTED_OPTIONS],
-          groups: [],
-        },
-      ],
-    },
-    ui_intent: {
-      ...base.ui_intent,
-      form: {
-        ...base.ui_intent.form,
-        choice_inputs: lifecycle === "active" ? [{ field: "stage", presentation: "picker" }] : [],
-      },
-    },
-  });
-}
-
-function stageOf(draft: CandidateDraft) {
-  const field = draft.schema.fields.find((candidate) => candidate.name === "stage");
-  if (!field) throw new Error("the committed choice field is missing from the draft");
-  return field;
-}
-
-function validate(row: CapabilityRow, mutate: (draft: CandidateDraft) => void): CapabilitySpec {
-  const draft = candidateFrom(row);
-  mutate(draft);
-  return validateCandidateSpec({
-    committed: row,
-    candidate: draft,
-    dependencyCatalog: buildDependencyGenerationCatalog([row], row.id),
-  });
-}
-
-function rejection(
-  row: CapabilityRow,
-  mutate: (draft: CandidateDraft) => void,
-): readonly CandidateValidationIssue[] {
-  try {
-    validate(row, mutate);
-  } catch (error) {
-    if (error instanceof CandidateValidationError) return error.issues;
-    throw error;
-  }
-  throw new Error("expected the candidate to be rejected");
-}
-
-function factsFor(row: CapabilityRow, mutate: (draft: CandidateDraft) => void): readonly string[] {
-  const candidate = validate(row, mutate);
-  return diffCapabilitySpec(capabilitySpecFromRow(row), candidate).facts.map((fact) => fact.kind);
-}
+  journalWithChoice,
+  rejection,
+  stageOf,
+  validate,
+  workFor,
+} from "./choice-evolution.test-support.ts";
 
 describe("committed option values are append-only", () => {
   test("appending an option is admitted", () => {
@@ -115,19 +45,20 @@ describe("committed option values are append-only", () => {
         { value: "live", label: "Published" },
       ];
     });
-    expect(
-      issues.some((issue) => issue.message.includes("never removed, renamed or reordered")),
-    ).toBe(true);
+    expect(issues.some((issue) => issue.message.includes("never removed or renamed"))).toBe(true);
   });
 
-  test("reordering committed values is refused", () => {
-    const issues = rejection(journalWithChoice(), (draft) => {
+  test("reordering committed values is admitted — the order is drawn, never stored", () => {
+    const candidate = validate(journalWithChoice(), (draft) => {
       stageOf(draft).values = [
         { value: "published", label: "Published" },
         { value: "draft", label: "Draft" },
       ];
     });
-    expect(issues).not.toHaveLength(0);
+    expect(candidate.schema.fields.at(-1)?.values?.map((option) => option.value)).toEqual([
+      "published",
+      "draft",
+    ]);
   });
 
   test("relabelling an option is admitted; the value it stores does not move", () => {
@@ -278,5 +209,68 @@ describe("the Diff matrix rows a choice adds", () => {
     expect(diff.facts.map((fact) => fact.kind)).toEqual(["new_active_field"]);
     expect([...diff.workPlan.platformWork].sort()).toEqual(["add_column", "platform_form_detail"]);
     expect([...diff.workPlan.regeneratedUnits].sort()).toEqual(["create", "search", "update"]);
+  });
+});
+
+describe("the picker's feature set, one fact at a time", () => {
+  test("retiring an option is validation work, like appending one", () => {
+    const row = journalWithChoice();
+    const diff = workFor(row, (draft) => {
+      const option = stageOf(draft).values?.[1];
+      if (option) option.disabled = true;
+    });
+    expect(diff.facts.map((fact) => fact.kind)).toEqual(["choice_option_disabled"]);
+    // What a new selection may name has narrowed, so the platform's own validation moves
+    // and both writing suites are generated again. Storage does not, because a row already
+    // holding the option keeps it — and neither Handler does, because both are given the
+    // values a choice *admits* and a retired one is still admitted, so the fact cannot
+    // have reached either prompt (`units/choice-prompt.test.ts` pins that).
+    expect(diff.workPlan.platformWork).toEqual(["choice_admitted_values"]);
+    expect(diff.workPlan.regeneratedUnits).toEqual([]);
+    expect([...diff.workPlan.gate.behavioral.actions].sort()).toEqual(["create", "update"]);
+  });
+
+  test("appending an already-disabled option is the append fact, not a second one", () => {
+    expect(
+      factsFor(journalWithChoice(), (draft) => {
+        stageOf(draft).values?.push({ value: "archived", label: "Archived", disabled: true });
+      }),
+    ).toEqual(["choice_values"]);
+  });
+
+  test("a note beside an option is View work only", () => {
+    const row = journalWithChoice();
+    const diff = workFor(row, (draft) => {
+      const option = stageOf(draft).values?.[0];
+      if (option) option.note = "not sent yet";
+    });
+    expect(diff.facts.map((fact) => fact.kind)).toEqual(["choice_option_notes"]);
+    expect(diff.workPlan.platformWork).toEqual(["choice_option_presentation"]);
+    expect(diff.workPlan.regeneratedUnits).toEqual([]);
+  });
+
+  test("reordering the options is View work only — the order is drawn, never stored", () => {
+    const row = journalWithChoice();
+    const diff = workFor(row, (draft) => {
+      stageOf(draft).values = [
+        { value: "published", label: "Published" },
+        { value: "draft", label: "Draft" },
+      ];
+    });
+    expect(diff.facts.map((fact) => fact.kind)).toEqual(["choice_option_order"]);
+    expect(diff.workPlan.platformWork).toEqual(["choice_option_presentation"]);
+    expect(diff.workPlan.regeneratedUnits).toEqual([]);
+  });
+
+  test("an append in the middle is one append, never a reorder as well", () => {
+    expect(
+      factsFor(journalWithChoice(), (draft) => {
+        stageOf(draft).values = [
+          { value: "draft", label: "Draft" },
+          { value: "review", label: "In review" },
+          { value: "published", label: "Published" },
+        ];
+      }),
+    ).toEqual(["choice_values"]);
   });
 });

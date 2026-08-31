@@ -7,11 +7,14 @@ import { describe, expect, test } from "bun:test";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  CHOICE_DISABLED_ERROR_CODE,
+  type ChoiceOption,
   INVALID_CHOICE_ERROR_CODE,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
 import {
   applyCapabilityTableDdl,
+  ChoiceDisabledError,
   createCapabilityMutationPort,
   createCapabilityQueryPort,
   createCapabilityUpdateMutationPort,
@@ -28,7 +31,10 @@ const STATUS_OPTIONS = [
   { value: "sent", label: "Sent" },
 ];
 
-function invoicesSpec(statusRequired = false): CapabilitySpec {
+function invoicesSpec(
+  statusRequired = false,
+  values: readonly ChoiceOption[] = STATUS_OPTIONS,
+): CapabilitySpec {
   return {
     id: "invoices",
     label: "Invoices",
@@ -45,7 +51,7 @@ function invoicesSpec(statusRequired = false): CapabilitySpec {
           type: "choice",
           required: statusRequired,
           lifecycle: "active",
-          values: STATUS_OPTIONS,
+          values: [...values],
           groups: [],
         },
       ],
@@ -179,5 +185,115 @@ describe("an undeclared choice value is refused before canonical state moves", (
       expect(raised).toBeInstanceOf(MissingRequiredFieldsError);
       expect((raised as MissingRequiredFieldsError).fields).toEqual(["status"]);
     }, invoicesSpec(true));
+  });
+});
+
+/** The same invoices capability, with "sent" taken out of use. */
+const RETIRED_STATUS = invoicesSpec(false, [
+  { value: "draft", label: "Draft" },
+  { value: "sent", label: "Sent", disabled: true },
+]);
+
+describe("an option taken out of use", () => {
+  test("a new selection of it is refused as a typed choice_disabled naming the field", () => {
+    withInvoices(({ create, rows }) => {
+      let raised: unknown;
+      try {
+        create({ title: "March", status: "sent" });
+      } catch (error) {
+        raised = error;
+      }
+      expect(raised).toBeInstanceOf(ChoiceDisabledError);
+      expect((raised as ChoiceDisabledError).code).toBe(CHOICE_DISABLED_ERROR_CODE);
+      expect((raised as ChoiceDisabledError).fields).toEqual(["status"]);
+      expect((raised as ChoiceDisabledError).action).toBe("create");
+      expect(rows()).toHaveLength(0);
+    }, RETIRED_STATUS);
+  });
+
+  test("the value is still declared — this is not the undeclared refusal", () => {
+    withInvoices(({ create }) => {
+      expect(() => create({ title: "March", status: "sent" })).not.toThrow(InvalidChoiceError);
+      expect(() => create({ title: "March", status: "paid" })).toThrow(InvalidChoiceError);
+    }, RETIRED_STATUS);
+  });
+
+  test("a row that already held it keeps it when an unrelated field is saved", () => {
+    withFileDatabase((databases) => {
+      const before = invoicesSpec();
+      applyCapabilityTableDdl(before, databases.readwrite);
+      const created = materializeCapabilityActionRecord(
+        createCapabilityMutationPort(before, databases.readwrite).create({
+          title: "March",
+          status: "sent",
+        }),
+      ) as Record<string, unknown>;
+
+      // The option is retired afterwards; the row goes on holding it.
+      createCapabilityUpdateMutationPort(
+        RETIRED_STATUS,
+        String(created.id),
+        new Set(["title"]),
+        databases.readwrite,
+      ).update({ title: "March, revised" });
+
+      const query = createCapabilityQueryPort(databases.readonly, { target: RETIRED_STATUS });
+      const [stored] = selectCapabilityRows(RETIRED_STATUS, query) as Record<string, unknown>[];
+      expect(stored?.title).toBe("March, revised");
+      expect(stored?.status).toBe("sent");
+    });
+  });
+
+  test("a submission wrong in both ways earns the undeclared refusal first", () => {
+    // Two refusals cannot both be the answer. The undeclared one runs first because it is
+    // the stronger statement — that value is not data this capability knows at all — and
+    // the disabled one is asked only of what is left.
+    const twoChoices = invoicesSpec(false, [
+      { value: "draft", label: "Draft" },
+      { value: "sent", label: "Sent", disabled: true },
+    ]);
+    withFileDatabase((databases) => {
+      applyCapabilityTableDdl(twoChoices, databases.readwrite);
+      let raised: unknown;
+      try {
+        createCapabilityMutationPort(twoChoices, databases.readwrite).create({
+          title: "March",
+          status: "paid",
+        });
+      } catch (error) {
+        raised = error;
+      }
+      expect(raised).toBeInstanceOf(InvalidChoiceError);
+      expect((raised as InvalidChoiceError).fields).toEqual(["status"]);
+    });
+  });
+
+  test("resubmitting the value the row already holds is admitted; moving to it is not", () => {
+    withFileDatabase((databases) => {
+      const before = invoicesSpec();
+      applyCapabilityTableDdl(before, databases.readwrite);
+      const mutation = createCapabilityMutationPort(before, databases.readwrite);
+      const onSent = materializeCapabilityActionRecord(
+        mutation.create({ title: "March", status: "sent" }),
+      ) as Record<string, unknown>;
+      const onDraft = materializeCapabilityActionRecord(
+        mutation.create({ title: "April", status: "draft" }),
+      ) as Record<string, unknown>;
+
+      const save = (id: string, values: Record<string, unknown>) =>
+        createCapabilityUpdateMutationPort(
+          RETIRED_STATUS,
+          id,
+          new Set(Object.keys(values)),
+          databases.readwrite,
+        ).update(values);
+
+      // The record standing on the retired option may say so again — that is not a move.
+      expect(() => save(String(onSent.id), { status: "sent" })).not.toThrow();
+      // And it may leave for one still on offer.
+      expect(() => save(String(onSent.id), { status: "draft" })).not.toThrow();
+      // A record that was never on it cannot arrive.
+      expect(() => save(String(onDraft.id), { status: "sent" })).toThrow(ChoiceDisabledError);
+    });
   });
 });

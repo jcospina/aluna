@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import { INVALID_CHOICE_ERROR_CODE } from "./choice.ts";
+import { CHOICE_DISABLED_ERROR_CODE, INVALID_CHOICE_ERROR_CODE } from "./choice.ts";
 import type { CapabilitySpec, SpecField } from "./spec.ts";
 import { allUnique, sameOrderedStrings, sqlNameText } from "./spec-text.ts";
 import { capabilityToolSchema, FULL_CAPABILITY_TOOLS } from "./tools.ts";
@@ -66,7 +66,11 @@ export function defaultBehavioralErrorsForSchema(
  * capability may not author them: the one authored platform sentence is already written,
  * and a second copy in `behavioral_errors` would make the contract two contracts.
  */
-const PLATFORM_OWNED_ERROR_CODES = ["record_not_found", INVALID_CHOICE_ERROR_CODE] as const;
+const PLATFORM_OWNED_ERROR_CODES = [
+  "record_not_found",
+  INVALID_CHOICE_ERROR_CODE,
+  CHOICE_DISABLED_ERROR_CODE,
+] as const;
 
 function validatePlatformOwnedErrorCodes(
   ctx: z.RefinementCtx,

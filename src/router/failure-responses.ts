@@ -9,6 +9,7 @@
 
 import type { Context } from "hono";
 import type {
+  ChoiceDisabledError,
   InvalidChoiceError,
   MissingRequiredFieldsError,
   RecordNotFoundError,
@@ -144,6 +145,30 @@ export function invalidChoiceFailure(
   return c.html(
     `<p class="notice" data-role="error" data-error-code="${error.code}" data-error-fields="${fields}">` +
       "That isn't one of the options I can store here. Mind picking one from the list?</p>",
+    422,
+  );
+}
+
+/**
+ * A newly chosen option the field no longer offers. Distinct from the undeclared-value
+ * refusal beside it: the value is real and a record already holding it is untouched, so
+ * the sentence says the option has closed rather than that the value is wrong.
+ */
+export function choiceDisabledFailure(
+  c: Context,
+  capabilityId: string,
+  error: ChoiceDisabledError,
+): Response {
+  const fields = error.fields.join(" ");
+  const errorId =
+    error.action === "create"
+      ? capabilityCreateErrorId(capabilityId)
+      : capabilityEditErrorId(capabilityId);
+  c.header("HX-Retarget", `#${errorId}`);
+  c.header("HX-Reswap", "innerHTML");
+  return c.html(
+    `<p class="notice" data-role="error" data-error-code="${error.code}" data-error-fields="${fields}">` +
+      "That option isn't open any more. Mind picking a different one?</p>",
     422,
   );
 }

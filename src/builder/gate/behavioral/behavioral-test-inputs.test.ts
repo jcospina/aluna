@@ -6,6 +6,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   type CapabilitySpec,
+  type ChoiceOption,
   FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
@@ -57,7 +58,10 @@ const CHOICE_OPTIONS = [
 ];
 
 /** The notes spec with one active choice field, for the admitted-value projection. */
-function choiceSpec(values: readonly { value: string; label: string }[]): CapabilitySpec {
+function choiceSpec(
+  values: readonly ChoiceOption[],
+  groups: readonly { id: string; heading: string }[] = [],
+): CapabilitySpec {
   const base = notesSpec();
   return notesSpec({
     schema: {
@@ -70,7 +74,7 @@ function choiceSpec(values: readonly { value: string; label: string }[]): Capabi
           required: false,
           lifecycle: "active",
           values: [...values],
-          groups: [],
+          groups: [...groups],
         },
       ],
     },
@@ -134,6 +138,91 @@ describe("a choice field's admitted values are create/update validation shape", 
           { value: "draft", label: "Still a draft" },
           { value: "sent", label: "Sent" },
         ]),
+      ),
+    ).toEqual([]);
+  });
+
+  test("retiring an option moves the create and update digests, like appending one", () => {
+    expect(
+      movedActions(
+        choiceSpec(CHOICE_OPTIONS),
+        choiceSpec([
+          { value: "draft", label: "Draft" },
+          { value: "sent", label: "Sent", disabled: true },
+        ]),
+      ),
+    ).toEqual(["create", "update"]);
+  });
+
+  test("a retired option leaves the projection and the fixture vocabulary alike", () => {
+    const retired = choiceSpec([
+      { value: "draft", label: "Draft" },
+      { value: "sent", label: "Sent", disabled: true },
+    ]);
+    const create = specActionTestInputs(retired).find((entry) => entry.action === "create");
+    const stage = (create?.schema as readonly { name: string; values?: readonly string[] }[]).find(
+      (field) => field.name === "stage",
+    );
+    // A generated test may only write what a person may choose, or it authors a case the
+    // platform refuses.
+    expect(stage?.values).toEqual(["draft"]);
+    expect(
+      actionFixtureVocabulary(retired).row_fields.find((field) => field.name === "stage")?.values,
+    ).toEqual(["draft"]);
+  });
+
+  test("appending an already-retired option moves the digest too", () => {
+    // Nothing new can be written, but what a submission *earns* changed: that value now
+    // earns `choice_disabled` where it earned `invalid_choice` before. Validation shape
+    // moved, so a prior suite may not be carried forward on the strength of the digest.
+    expect(
+      movedActions(
+        choiceSpec(CHOICE_OPTIONS),
+        choiceSpec([...CHOICE_OPTIONS, { value: "paid", label: "Paid", disabled: true }]),
+      ),
+    ).toEqual(["create", "update"]);
+  });
+
+  test("a field that has retired nothing digests exactly as it always did", () => {
+    const create = specActionTestInputs(choiceSpec(CHOICE_OPTIONS)).find(
+      (entry) => entry.action === "create",
+    );
+    const stage = (create?.schema as readonly { name: string }[]).find(
+      (field) => field.name === "stage",
+    );
+    expect(Object.keys(stage ?? {}).sort()).toEqual(["name", "required", "type", "values"]);
+  });
+
+  test("reordering, noting and grouping the options move no digest at all", () => {
+    const committed = choiceSpec(CHOICE_OPTIONS);
+    expect(
+      movedActions(
+        committed,
+        choiceSpec([
+          { value: "sent", label: "Sent" },
+          { value: "draft", label: "Draft" },
+        ]),
+      ),
+    ).toEqual([]);
+    expect(
+      movedActions(
+        committed,
+        choiceSpec([
+          { value: "draft", label: "Draft", note: "not sent yet" },
+          { value: "sent", label: "Sent" },
+        ]),
+      ),
+    ).toEqual([]);
+    expect(
+      movedActions(
+        committed,
+        choiceSpec(
+          [
+            { value: "draft", label: "Draft", group: "open" },
+            { value: "sent", label: "Sent", group: "open" },
+          ],
+          [{ id: "open", heading: "Open" }],
+        ),
       ),
     ).toEqual([]);
   });

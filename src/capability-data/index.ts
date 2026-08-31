@@ -37,6 +37,7 @@ export {
   type CapabilityRecordHandle,
   type CapabilityRecordQueryInput,
   type CapabilityRecordQueryRow,
+  ChoiceDisabledError,
   capabilityQueryScopeTableNames,
   createCapabilityActionRecord,
   createCapabilityQueryPort,

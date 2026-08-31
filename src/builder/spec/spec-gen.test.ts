@@ -10,119 +10,20 @@
 
 import { describe, expect, test } from "bun:test";
 import { zodSchema } from "ai";
-import type { ZodType } from "zod";
-import type { IntentClassification } from "../../intent-resolver/index.ts";
-import type { SendBuildEvent } from "../../pipeline/jobs/build-jobs.ts";
-import type { DeepPartial, GenerateResult, Provider, TokenUsage } from "../../provider/index.ts";
+import type { TokenUsage } from "../../provider/index.ts";
 import {
-  BEHAVIORAL_ERROR_MARKERS,
-  type CapabilitySpec,
   FULL_CAPABILITY_TOOLS,
   LOGO_HUE_FAMILIES,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   promptCapabilitySpecSchema,
 } from "../../registry/index.ts";
 import { buildSpecPrompt, generateSpec } from "../index.ts";
-
-const STUB_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-
-interface RecordedCall {
-  readonly prompt: string;
-  readonly schema: ZodType<unknown>;
-}
-
-interface RecordingProvider extends Provider {
-  readonly calls: RecordedCall[];
-}
-
-// A fake provider: records the call, then resolves `.object` to `raw` exactly as
-// given (no internal parse) so the stage's validation is what gates the output.
-function makeSpecProvider(raw: unknown, usage: TokenUsage = STUB_USAGE): RecordingProvider {
-  const calls: RecordedCall[] = [];
-
-  return {
-    calls,
-    generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
-      calls.push({ prompt, schema: schema as ZodType<unknown> });
-
-      async function* stream(): AsyncGenerator<DeepPartial<T>> {
-        yield raw as DeepPartial<T>;
-      }
-
-      return {
-        partialStream: stream(),
-        object: Promise.resolve(raw as T),
-        usage: Promise.resolve(usage),
-      };
-    },
-  };
-}
-
-// Captures everything narrated over the job's stream, so a test can assert the
-// product voice and that no internals leak.
-function recordingSend(): { events: Array<{ event: string; data: string }>; send: SendBuildEvent } {
-  const events: Array<{ event: string; data: string }> = [];
-  const send: SendBuildEvent = async (event, data) => {
-    events.push({ event: String(event), data });
-  };
-  return { events, send };
-}
-
-function notesIntent(overrides: Partial<IntentClassification> = {}): IntentClassification {
-  return {
-    type: "new_capability",
-    confidence: 0.92,
-    target_capability: null,
-    resolution: "new",
-    proposed_identity: null,
-    proposed_action: "Create a place to keep the user's notes.",
-    user_facing_label: "I'll make a place for your notes.",
-    requires_confirmation: false,
-    ...overrides,
-  };
-}
-
-function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
-  return {
-    id: "notes",
-    label: "Notes",
-    subject: "an open notebook",
-    ground: "grass_green",
-    companion: "coral_orange",
-    noun: "note",
-    schema: {
-      fields: [
-        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
-      ],
-    },
-    ui_intent: {
-      form: { list_inputs: [], choice_inputs: [] },
-      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
-      collection: { layout: "feed" },
-    },
-    behavior: "Text is required. Newest notes appear first.",
-    behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["text"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-      {
-        action: "update",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["text"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-    ],
-    tools: [...FULL_CAPABILITY_TOOLS],
-    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
-    prompt_context: "Stores the user's text notes.",
-    ...overrides,
-  };
-}
+import {
+  makeSpecProvider,
+  notesIntent,
+  notesSpec,
+  recordingSend,
+} from "./spec-gen.test-support.ts";
 
 describe("spec generation stage — schema contract, generation, and prompt", () => {
   test("emits OpenAI-compatible JSON Schema for the fixed five-Action list", async () => {
@@ -370,23 +271,6 @@ describe("spec generation stage — authored prompt", () => {
 
     expect(prompt).toContain("There is no default hue and no safe choice");
     expect(prompt).toContain("never from what a backdrop usually looks like");
-  });
-});
-
-describe("spec generation stage — the choice contract in the prompt", () => {
-  test("states what a choice declares, and that no other field declares it", async () => {
-    const provider = makeSpecProvider(notesSpec());
-    const { send } = recordingSend();
-    const intent = notesIntent();
-    const prompt = buildSpecPrompt({ provider, prompt: "track my notes", intent, send });
-
-    expect(prompt).toContain("a field declares values and groups only when its type is choice");
-    expect(prompt).toContain("an ordered array of at least one { value, label } option");
-    expect(prompt).toContain("groups: [] — an empty array");
-    expect(prompt).toContain(
-      "ui_intent.form.choice_inputs contains exactly one { field, presentation } entry",
-    );
-    expect(prompt).toContain("choice presentation is exactly picker");
   });
 });
 

@@ -13,7 +13,8 @@
  *     hand plus the ordered fills — `surface` in front of the `surface-2` field it
  *     covers. Depth here is bands and hands, never a blur.
  *   - **The panel does not clip**, because the ink paints just outside the box it is
- *     drawn on. A long list scrolls one level in, at `.listbox__scroll`.
+ *     drawn on. A long list scrolls one level in, at `.listbox__scroll` — and that
+ *     scroller is the only thing revealing the active row is allowed to move.
  *
  * Focus stays on the button throughout and the active option is reported through
  * `aria-activedescendant` — moving DOM focus into the panel would mean restoring it
@@ -279,15 +280,45 @@ export class Listbox {
     return null;
   }
 
-  /** @param {HTMLElement | null} option */
-  #setActive(option) {
-    if (!option) return;
+  /**
+   * Move the active row.
+   *
+   * Re-activating the row that is already active is neither free nor harmless:
+   * `pointerover` fires again every time the pointer crosses into a child of the
+   * row it is already on, and again after any scroll moves the list under a still
+   * pointer. Doing the work only when the row actually changes is what keeps a
+   * hover from feeding itself.
+   *
+   * @param {HTMLElement | null} option
+   * @param {boolean} [reveal] whether to bring the row into view — what the
+   *   keyboard wants and the pointer does not, since the pointer is already on it.
+   */
+  #setActive(option, reveal = true) {
+    if (!option || option === this.active) return;
     this.active?.classList.remove("is-active");
     this.active = option;
     option.classList.add("is-active");
     this.button.setAttribute("aria-activedescendant", option.id);
-    /* `nearest` so walking a long list scrolls by one row rather than jumping. */
-    option.scrollIntoView({ block: "nearest" });
+    if (reveal) this.#reveal(option);
+  }
+
+  /**
+   * Bring a row into the list, by one row's worth and scrolling nothing but the list.
+   *
+   * `scrollIntoView({ block: "nearest" })` says the same thing and then keeps going:
+   * it scrolls *every* scrollable ancestor that would help, so revealing a row also
+   * nudges whatever the control is standing in. The list is the only box that owes
+   * the active row anything.
+   *
+   * @param {HTMLElement} option
+   */
+  #reveal(option) {
+    const scroller = this.panel.querySelector(".listbox__scroll");
+    const list = scroller instanceof HTMLElement ? scroller : this.panel;
+    const box = list.getBoundingClientRect();
+    const row = option.getBoundingClientRect();
+    if (row.top < box.top) list.scrollTop -= box.top - row.top;
+    else if (row.bottom > box.bottom) list.scrollTop += row.bottom - box.bottom;
   }
 
   /**
@@ -395,7 +426,7 @@ export class Listbox {
       const { target } = event;
       if (!(target instanceof Element)) return;
       const option = target.closest('[role="option"]');
-      if (option instanceof HTMLElement && !isDisabled(option)) this.#setActive(option);
+      if (option instanceof HTMLElement && !isDisabled(option)) this.#setActive(option, false);
     });
 
     document.addEventListener("pointerdown", (event) => {
