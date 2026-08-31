@@ -13,6 +13,7 @@
 import { deriveCapabilityTableDdl } from "../../capability-data/index.ts";
 import {
   activeSpecFields,
+  admittedChoiceValues,
   BEHAVIORAL_ERROR_MARKERS,
   type BehavioralErrorCase,
   type CapabilityRow,
@@ -411,7 +412,9 @@ function handlerGenerationContext(
   };
 }
 
-type MutationFieldProjection = Pick<SpecField, "name" | "type" | "required" | "values">;
+type MutationFieldProjection = Pick<SpecField, "name" | "type" | "required"> & {
+  readonly values?: readonly string[];
+};
 type SearchFieldProjection = Pick<SpecField, "name" | "type">;
 
 /**
@@ -429,14 +432,21 @@ function handlerFieldProjection(
 ): readonly (MutationFieldProjection | SearchFieldProjection)[] {
   const active = activeSpecFields(spec.schema.fields);
   if (action === "create" || action === "update") {
-    // A choice carries its declared values so the Handler can read a stored selection and
-    // write behavior around it. It is context, not a validation duty: the platform has
-    // already refused anything undeclared before the Handler runs.
+    // A choice carries the value strings it admits, so the Handler can read a stored
+    // selection and write behavior around it. It is context, not a validation duty: the
+    // platform has already refused anything undeclared before the Handler runs.
+    //
+    // The strings alone, in value order. A Handler never draws the control, so a label, a
+    // note, a heading, the authored order and whether an option is still on offer are all
+    // things it must not be able to go stale about — which is what lets the Diff matrix
+    // map those facts to platform work without copying a Handler that knew them.
     return active.map(({ name, type, required, values }) => ({
       name,
       type,
       required,
-      ...(values === undefined ? {} : { values }),
+      ...(values === undefined
+        ? {}
+        : { values: [...admittedChoiceValues({ name, type, values })].sort() }),
     }));
   }
   if (action === "search") {

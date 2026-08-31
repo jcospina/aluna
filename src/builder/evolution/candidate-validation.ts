@@ -200,31 +200,100 @@ function committedFieldIssues(
 
 /**
  * A committed choice value is stored data. Rows already hold it, so it may never be
- * removed, renamed or reordered — the committed values must survive as the prefix of the
- * candidate's, and anything beyond that prefix is an append. Refusing here, before the
- * Diff, is what guarantees a stored row can never become undeclared data; option *labels*
- * are presentation and change freely.
+ * removed or renamed — every committed value must still be there, and anything else is an
+ * append. Refusing here, before the Diff, is what guarantees a stored row can never become
+ * undeclared data.
+ *
+ * Everything an option carries *besides* its value is presentation and moves freely: its
+ * label, its note, the group it stands under, whether it is still offered, and the order
+ * the options are drawn in. Order in particular: it was frozen while a choice had only one
+ * arrangement, and it is a View fact now that groups give a field a second one.
+ *
+ * A group id is stored data of a different kind — not a record's, but the options' own
+ * reference. It may not be renamed, and a group may not be removed while an option still
+ * names it; a heading is wording and changes like a label does.
  */
 function choiceOptionIssues(
   committedField: SpecField,
   returned: SpecField,
 ): readonly CandidateValidationIssue[] {
   if (!isChoiceFieldType(committedField.type)) return [];
-  const committedValues = committedField.values ?? [];
-  const returnedValues = returned.values ?? [];
+  const returnedValues = new Set((returned.values ?? []).map((option) => option.value));
 
-  for (const [index, option] of committedValues.entries()) {
-    if (returnedValues[index]?.value === option.value) continue;
+  for (const option of committedField.values ?? []) {
+    if (returnedValues.has(option.value)) continue;
     return [
       {
-        path: `schema.fields.${committedField.name}.values.${index}`,
+        path: `schema.fields.${committedField.name}.values`,
         message:
           `choice value "${option.value}" is stored data and is immutable; ` +
-          "committed option values may only be appended to, never removed, renamed or reordered",
+          "committed option values may only be appended to, never removed or renamed",
+      },
+    ];
+  }
+  return choiceGroupIssues(committedField, returned);
+}
+
+/**
+ * A group id is fixed once committed. Its two halves are enforced in the two places that
+ * can see them: dropping a group an option still stands under is refused by the spec gate,
+ * which requires every named group to be declared, and *renaming* one is refused here.
+ *
+ * A rename is not a shape a candidate can state — it is a drop and an add — so it is
+ * recognized by what it does: a committed group disappears and every option that stood
+ * under it arrives, together and alone, under one id the committed spec never declared.
+ * Anything else is a real restructure and is admitted. Splitting a group into two new ones
+ * moves its options to more than one id; emptying one moves them to a group that already
+ * existed, or out of grouping; merging two into one leaves that id holding more options
+ * than either group had.
+ *
+ * This binds one evolution, which is the one a model authors. It cannot bind two: a group
+ * id is not stored data — only this field's own options refer to it, and they move in the
+ * same candidate — so any spec-valid arrangement stays reachable in two steps. What the
+ * rule buys is that a heading reworded in place stays the same group, rather than becoming
+ * a new one the Diff cannot tell from a restructure.
+ */
+function choiceGroupIssues(
+  committedField: SpecField,
+  returned: SpecField,
+): readonly CandidateValidationIssue[] {
+  const declared = new Set((returned.groups ?? []).map((group) => group.id));
+  const committedIds = new Set((committedField.groups ?? []).map((group) => group.id));
+
+  for (const group of committedField.groups ?? []) {
+    if (declared.has(group.id)) continue;
+    if (!isRenamedGroup(committedField, returned, group.id, committedIds)) continue;
+    return [
+      {
+        path: `schema.fields.${committedField.name}.groups`,
+        message:
+          `option group "${group.id}" cannot be renamed; a group id is fixed once ` +
+          "committed, while its heading is wording and may change freely",
       },
     ];
   }
   return [];
+}
+
+function isRenamedGroup(
+  committedField: SpecField,
+  returned: SpecField,
+  groupId: string,
+  committedIds: ReadonlySet<string>,
+): boolean {
+  const returnedByValue = new Map((returned.values ?? []).map((option) => [option.value, option]));
+  const members = (committedField.values ?? []).filter((option) => option.group === groupId);
+  const landings = new Set(
+    members.map((option) => returnedByValue.get(option.value)?.group ?? null),
+  );
+  if (landings.size !== 1) return false;
+
+  const [landing] = [...landings];
+  if (landing === null || landing === undefined || committedIds.has(landing)) return false;
+  // Nothing else joined it, or this is a merge into a new group rather than a rename.
+  return (
+    (returned.values ?? []).filter((option) => option.group === landing).length === members.length
+  );
 }
 
 // The two transitions with frozen label/required. `active → active` and the
@@ -253,17 +322,25 @@ function lifecycleTransitionIssue(
       };
 }
 
-/** Soft-hide preserves a choice's declared options exactly, labels included. */
+/**
+ * Soft-hide preserves a choice's declaration exactly — every option's value, label, note,
+ * group and disabled state, in the authored order, and the group headings above them.
+ * Hiding a field changes its lifecycle and nothing else, so reactivating it later brings
+ * back the control that was there rather than a quietly different one.
+ */
 function sameChoiceOptions(committedField: SpecField, returned: SpecField): boolean {
-  const committedValues = committedField.values ?? [];
-  const returnedValues = returned.values ?? [];
   return (
-    committedValues.length === returnedValues.length &&
-    committedValues.every(
-      (option, index) =>
-        returnedValues[index]?.value === option.value &&
-        returnedValues[index]?.label === option.label,
-    )
+    frozenJson(committedField.values) === frozenJson(returned.values) &&
+    frozenJson(committedField.groups) === frozenJson(returned.groups)
+  );
+}
+
+/** One collection as an order-preserving string, for an exactly-as-it-was comparison. */
+function frozenJson(collection: readonly object[] | undefined): string {
+  return JSON.stringify(
+    (collection ?? []).map((entry) =>
+      Object.fromEntries(Object.entries(entry).sort(([left], [right]) => (left < right ? -1 : 1))),
+    ),
   );
 }
 

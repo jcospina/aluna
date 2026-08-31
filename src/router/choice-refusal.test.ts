@@ -2,10 +2,13 @@
 // the platform, before any generated Handler runs and before canonical state moves.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { createApp } from "../app/app.ts";
 import { applyCapabilityTableDdl } from "../capability-data/index.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
+import type { ChoiceOption } from "../registry/index.ts";
 import type { CapabilityCreateContext } from "./index.ts";
 import {
   createCapabilityDataTool,
@@ -22,7 +25,7 @@ const STAGE_OPTIONS = [
 ];
 
 /** The notes fixture with one active choice field beside its text. */
-function stagedNotesSpec() {
+function stagedNotesSpec(values: readonly ChoiceOption[] = STAGE_OPTIONS) {
   const base = notesSpec();
   return notesSpec({
     schema: {
@@ -34,7 +37,7 @@ function stagedNotesSpec() {
           type: "choice",
           required: false,
           lifecycle: "active",
-          values: STAGE_OPTIONS,
+          values: [...values],
           groups: [],
         },
       ],
@@ -71,8 +74,7 @@ describe("an undeclared choice value on the wire", () => {
     teardownRouterTest(dir, conns);
   });
 
-  function appForStagedNotes() {
-    const spec = stagedNotesSpec();
+  function appForStagedNotes(spec = stagedNotesSpec()) {
     install(conns, notesRow(spec));
     applyCapabilityTableDdl(spec, conns.readwrite);
     return createApp({
@@ -119,5 +121,31 @@ describe("an undeclared choice value on the wire", () => {
     expect(handlerRuns).toBe(1);
     const [stored] = createCapabilityDataTool(stagedNotesSpec(), conns).select();
     expect(stored?.stage).toBe("sent");
+  });
+
+  test("a crafted disabled value is its own refusal, and the Handler never judges it", async () => {
+    const retired = stagedNotesSpec([
+      { value: "draft", label: "Draft" },
+      { value: "sent", label: "Sent", disabled: true },
+    ]);
+    const app = appForStagedNotes(retired);
+
+    const response = await app.request("/capability/notes/create", stagedBody("sent"));
+
+    expect(response.status).toBe(422);
+    expect(response.headers.get("HX-Retarget")).toBe("#notes-create-error");
+    const html = await response.text();
+    expect(html).toContain('data-error-code="choice_disabled"');
+    expect(html).toContain('data-error-fields="stage"');
+    // The platform owns the answer: the Handler asked for the write and the platform
+    // refused it, exactly as it refuses an undeclared value. No capability code decides
+    // anything about the option set, and canonical state never moved.
+    expect(createCapabilityDataTool(retired, conns).select()).toEqual([]);
+  });
+
+  test("the shell claims the code, or htmx drops the answer on the floor", () => {
+    expect(readFileSync(join(import.meta.dir, "../../public/app.js"), "utf8")).toContain(
+      '"choice_disabled"',
+    );
   });
 });

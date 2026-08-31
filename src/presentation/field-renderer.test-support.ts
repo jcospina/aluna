@@ -1,7 +1,7 @@
 // Shared fixtures for the field-renderer test files. One capability fixture plus the
 // single-field probe and value sampler drive the create-form and edit-form suites.
 
-import type { FieldType, SpecField } from "../registry/index.ts";
+import type { ChoicePresentation, FieldType, SpecField } from "../registry/index.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
 
 export const SAMPLE: RenderableCapability = {
@@ -49,6 +49,7 @@ export function probeField(type: FieldType, overrides: Partial<SpecField> = {}):
 export function oneField(
   field: SpecField,
   listMode: "comma_separated" | "repeatable" = "repeatable",
+  presentation: ChoicePresentation = "picker",
 ): RenderableCapability {
   const active = field.lifecycle === "active";
   return {
@@ -59,8 +60,7 @@ export function oneField(
     form: {
       list_inputs:
         active && field.type === "string[]" ? [{ field: field.name, mode: listMode }] : [],
-      choice_inputs:
-        active && field.type === "choice" ? [{ field: field.name, presentation: "picker" }] : [],
+      choice_inputs: active && field.type === "choice" ? [{ field: field.name, presentation }] : [],
     },
     actions: ["create", "read"],
   };

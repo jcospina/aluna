@@ -40,9 +40,11 @@ import {
   validateBehavioralErrors,
 } from "./behavioral-errors.ts";
 import {
+  type ChoiceOption,
   choiceGroupSchema,
   choiceInputIntentSchema,
   choiceOptionSchema,
+  promptChoiceOptionSchema,
   validateChoiceFields,
   validateChoiceInputs,
 } from "./choice.ts";
@@ -80,20 +82,31 @@ export {
 } from "./behavioral-errors.ts";
 export {
   admittedChoiceValues,
+  CHOICE_DISABLED_ERROR_CODE,
   CHOICE_FIELD_TYPE,
   CHOICE_PRESENTATIONS,
   type ChoiceFieldType,
   type ChoiceGroup,
   type ChoiceInputIntent,
   type ChoiceOption,
+  type ChoiceOptionRun,
   type ChoicePresentation,
+  choiceFieldGroups,
   choiceFieldOptions,
   choiceGroupSchema,
   choiceInputIntentSchema,
+  choiceOptionRuns,
   choiceOptionSchema,
   choicePresentationSchema,
   INVALID_CHOICE_ERROR_CODE,
   isChoiceFieldType,
+  MAX_CHOICE_GROUP_HEADING_LENGTH,
+  MAX_CHOICE_GROUPS,
+  MAX_CHOICE_OPTION_LABEL_LENGTH,
+  MAX_CHOICE_OPTION_NOTE_LENGTH,
+  MAX_CHOICE_OPTION_VALUE_LENGTH,
+  MAX_CHOICE_OPTIONS,
+  selectableChoiceValues,
 } from "./choice.ts";
 export { incarnationIdSchema } from "./identifiers.ts";
 export {
@@ -201,8 +214,23 @@ export const CREATED_AT_DESCRIPTOR = {
   readOnly: true,
 } as const;
 
+/**
+ * One option as the item renderer needs it, and no more: the value a row stores and the
+ * wording to show for it. The group it stands under, the note beside it and whether it is
+ * still on offer are all form facts — the card presents one record's own value, never the
+ * list it came from — so they stay out of the renderer's generation context. What is not
+ * in the context cannot go stale in a copied unit, which is what lets the Diff matrix map
+ * those three facts to platform work alone.
+ */
+export interface PresentationChoiceOption {
+  readonly value: string;
+  readonly label: string;
+}
+
 export type PresentationFieldDescriptor =
-  | Pick<SpecField, "name" | "label" | "type" | "values">
+  | (Pick<SpecField, "name" | "label" | "type"> & {
+      readonly values?: readonly PresentationChoiceOption[];
+    })
   | typeof CREATED_AT_DESCRIPTOR;
 
 /**
@@ -311,7 +339,7 @@ export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 const promptSpecFieldSchema = z
   .strictObject({
     ...specFieldShape,
-    values: z.array(choiceOptionSchema).nullable(),
+    values: z.array(promptChoiceOptionSchema).nullable(),
     groups: z.array(choiceGroupSchema).nullable(),
   })
   .transform(
@@ -583,6 +611,12 @@ export function activeSpecFields(fields: readonly SpecField[]): readonly SpecFie
   return fields.filter((field) => field.lifecycle === "active");
 }
 
+function itemRendererOptions(values: readonly ChoiceOption[]): readonly PresentationChoiceOption[] {
+  return values
+    .map(({ value, label }) => ({ value, label }))
+    .sort((left, right) => (left.value < right.value ? -1 : 1));
+}
+
 export function presentationFieldDescriptors(
   spec: Pick<CapabilitySpec, "schema">,
   shows: readonly string[],
@@ -598,12 +632,15 @@ export function presentationFieldDescriptors(
     }
     // A choice brings its options so the item renderer can present the label a person
     // reads rather than the wire value the row stores. Without them a status card says
-    // "in_progress", which is the whole point of the value/label split defeated.
+    // "in_progress", which is the whole point of the value/label split defeated. It brings
+    // nothing else, and it brings them in value order rather than authored order, so that
+    // reordering, noting, grouping or retiring an option leaves this byte-identical — see
+    // {@link PresentationChoiceOption}.
     return {
       name: field.name,
       label: field.label,
       type: field.type,
-      ...(field.values === undefined ? {} : { values: field.values }),
+      ...(field.values === undefined ? {} : { values: itemRendererOptions(field.values) }),
     };
   });
 }

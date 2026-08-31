@@ -26,6 +26,7 @@
 import type { Context, Hono } from "hono";
 
 import {
+  ChoiceDisabledError,
   createCapabilityDeleteMutationPort,
   createCapabilityMutationPort,
   createCapabilityQueryPort,
@@ -87,6 +88,7 @@ export {
 
 import {
   assertReadOwnership,
+  choiceDisabledFailure,
   internalFailure,
   invalidChoiceFailure,
   missingRequiredFieldsFailure,
@@ -473,6 +475,9 @@ function capabilityHandlerFailure(
   }
   if (error instanceof InvalidChoiceError) {
     return invalidChoiceFailure(c, id, error);
+  }
+  if (error instanceof ChoiceDisabledError) {
+    return choiceDisabledFailure(c, id, error);
   }
   if (error instanceof RecordNotFoundError) {
     return recordNotFoundFailure(c, id, action, error);

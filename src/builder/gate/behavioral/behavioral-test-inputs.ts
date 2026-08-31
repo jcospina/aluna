@@ -26,11 +26,14 @@ import {
   type BehavioralErrorCase,
   type CapabilitySpec,
   type CapabilityTool,
+  choiceFieldOptions,
   type FieldType,
   FULL_CAPABILITY_TOOLS,
   isChoiceFieldType,
   isListFieldType,
   type ReadDependency,
+  type SpecField,
+  selectableChoiceValues,
 } from "../../../registry/index.ts";
 import { contentDigest } from "../../artifacts/artifact-digests.ts";
 
@@ -102,7 +105,7 @@ export interface ActionFixtureVocabulary {
   readonly row_fields: readonly ActionFixtureField[];
 }
 
-/** One field a synthetic row may carry; a choice also carries the values it admits. */
+/** One field a synthetic row may carry; a choice also carries the values it still offers. */
 export interface ActionFixtureField {
   readonly name: string;
   readonly type: FieldType;
@@ -111,13 +114,11 @@ export interface ActionFixtureField {
 
 export function actionFixtureVocabulary(spec: CapabilitySpec): ActionFixtureVocabulary {
   return {
-    row_fields: [...activeSpecFields(spec.schema.fields)]
-      .sort(byName)
-      .map(({ name, type, values }) => ({
-        name,
-        type,
-        ...(values === undefined ? {} : { values: values.map((option) => option.value) }),
-      })),
+    row_fields: [...activeSpecFields(spec.schema.fields)].sort(byName).map((field) => ({
+      name: field.name,
+      type: field.type,
+      ...(field.values === undefined ? {} : { values: choiceTestValues(field) }),
+    })),
   };
 }
 
@@ -178,12 +179,56 @@ function canonicalSchemaInput(spec: CapabilitySpec, action: CapabilityTool): Act
         .map(({ name, type }) => ({ name, type })),
     };
   }
-  return active.map(({ name, type, required, values }) => ({
-    name,
-    type,
-    required,
-    ...(values === undefined ? {} : { values: values.map((option) => option.value) }),
+  return active.map((field) => ({
+    name: field.name,
+    type: field.type,
+    required: field.required,
+    ...(field.values === undefined ? {} : choiceSchemaInput(field)),
   }));
+}
+
+/**
+ * A choice field's admitted set, split the way create/update validation splits it: the
+ * values a generated test may write, and the ones the platform now refuses on a new
+ * selection.
+ *
+ * Both belong in the digest because both are validation shape — appending an option and
+ * retiring one each change what a submission earns, so each has to carry a prior suite's
+ * reuse with it (ADR-0006). `retired_values` is absent rather than empty on a field that
+ * has retired nothing, so a capability built before any of this digests exactly as it did.
+ *
+ * It is named for what it is because these bytes are also read: the behavioral prompt
+ * hands this object to the model as its closed source material, so a second list of
+ * legal-looking strings beside `values` has to say on its face that it is not one to draw
+ * from. `gate-behavioral-full-prompt.ts` says so in prose as well.
+ *
+ * Sorted, not authored order: which order the options are drawn in is View work and must
+ * never make a suite look stale.
+ */
+function choiceSchemaInput(field: SpecField): {
+  values: readonly string[];
+  retired_values?: readonly string[];
+} {
+  const retired = choiceFieldOptions(field)
+    .filter((option) => option.disabled === true)
+    .map((option) => option.value)
+    .sort();
+  return {
+    values: choiceTestValues(field),
+    ...(retired.length === 0 ? {} : { retired_values: retired }),
+  };
+}
+
+/**
+ * The choice values a generated test may write, sorted.
+ *
+ * Only the *selectable* ones: a disabled option is one the platform refuses on a new
+ * selection, so a fixture that seeded it would author a test the capability can never
+ * pass. Sorted rather than left in authored order, because the order options are drawn in
+ * is View work and must not make a suite look stale.
+ */
+function choiceTestValues(field: SpecField): readonly string[] {
+  return [...selectableChoiceValues(field)].sort();
 }
 
 function canonicalBehavioralErrors(

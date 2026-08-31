@@ -18,6 +18,7 @@ import {
   isChoiceFieldType,
   isListFieldType,
   type SpecField,
+  selectableChoiceValues,
 } from "../../../registry/index.ts";
 import type { CapabilityInput, CapabilityReadHandler } from "../../../router/index.ts";
 import type { ScratchCatalogCapability } from "../gate.ts";
@@ -382,6 +383,9 @@ function declaredChoiceValues(spec: CapabilitySpec): ReadonlySet<string> {
   const values = new Set<string>();
   for (const field of activeSpecFields(spec.schema.fields)) {
     if (!isChoiceFieldType(field.type)) continue;
+    // Every declared value, disabled ones included: what this guards is a search token
+    // colliding with something a stored row might hold, and a retired option is still
+    // exactly that.
     for (const option of choiceFieldOptions(field)) values.add(option.value);
   }
   return values;
@@ -424,10 +428,13 @@ export function fixtureFieldValue(
       return `neutral${seed}`;
     case "choice": {
       // A choice can only ever hold a value it declares, so the fixture rotates through
-      // the declared options instead of manufacturing neutral text the way it can for a
-      // free string.
-      const options = choiceFieldOptions(field);
-      return options[seed % options.length]?.value ?? null;
+      // the options instead of manufacturing neutral text the way it can for a free
+      // string — and only through the ones still on offer. Not because anything stops it:
+      // these rows are inserted directly, and the storage encoder checks the *admitted*
+      // set, which a retired option is still in. Because a corpus is meant to be one a
+      // person could have produced, and nobody can produce a row on a retired option.
+      const options = [...selectableChoiceValues(field)];
+      return options[seed % options.length] ?? null;
     }
     case "string[]":
       return [`neutral${seed}a`, `neutral${seed}b`];

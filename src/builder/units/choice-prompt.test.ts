@@ -4,7 +4,7 @@
 // rather than the wire value the row stores.
 
 import { describe, expect, test } from "bun:test";
-import type { CapabilitySpec } from "../../registry/index.ts";
+import type { CapabilitySpec, ChoiceOption } from "../../registry/index.ts";
 import { notesSpec } from "../gate/gate.test-support.ts";
 import { buildUnitPrompt } from "./unit-prompts.ts";
 
@@ -14,7 +14,10 @@ const STAGE_OPTIONS = [
 ];
 
 /** The notes capability with one active choice field its item card also shows. */
-function stagedSpec(): CapabilitySpec {
+function stagedSpec(
+  values: readonly ChoiceOption[] = STAGE_OPTIONS,
+  groups: readonly { id: string; heading: string }[] = [],
+): CapabilitySpec {
   const base = notesSpec();
   return notesSpec({
     schema: {
@@ -26,8 +29,8 @@ function stagedSpec(): CapabilitySpec {
           type: "choice",
           required: false,
           lifecycle: "active",
-          values: STAGE_OPTIONS,
-          groups: [],
+          values: [...values],
+          groups: [...groups],
         },
       ],
     },
@@ -39,8 +42,10 @@ function stagedSpec(): CapabilitySpec {
   });
 }
 
-function promptFor(name: "create" | "update" | "search" | "item"): string {
-  const spec = stagedSpec();
+function promptFor(
+  name: "create" | "update" | "search" | "item",
+  spec: CapabilitySpec = stagedSpec(),
+): string {
   return name === "item"
     ? buildUnitPrompt(spec, { kind: "item-renderer", name: "item" })
     : buildUnitPrompt(spec, { kind: "handler", name });
@@ -90,5 +95,63 @@ describe("what the item renderer is told about a choice", () => {
     const textLine = itemPrompt.split("\n").find((line) => line.startsWith("- text:"));
     expect(textLine).toBeDefined();
     expect(textLine).not.toContain("options");
+  });
+});
+
+/*
+ * What a generated unit is *not* told, which is what lets the Diff matrix copy it.
+ *
+ * Every one of these is a fact the matrix maps to platform work alone. A unit copied
+ * byte-for-byte across such a change is only sound if the change could not have reached
+ * the prompt the unit was written from — so the projections are pinned here, from the one
+ * side that can prove it: two specs differing only in that fact must produce the same
+ * prompt, byte for byte.
+ */
+describe("the option facts a generated unit never sees", () => {
+  const GROUPED = [
+    { value: "draft", label: "Draft", group: "open" as const, note: "not sent yet" },
+    { value: "sent", label: "Sent", group: "open" as const, disabled: true as const },
+  ];
+
+  test("a note, a group, a retirement and the authored order all leave both prompts identical", () => {
+    const plain = stagedSpec();
+    const decorated = stagedSpec(GROUPED, [{ id: "open", heading: "Open" }]);
+    const reordered = stagedSpec([...STAGE_OPTIONS].reverse());
+
+    for (const unit of ["create", "update", "item"] as const) {
+      expect(promptFor(unit, decorated), unit).toBe(promptFor(unit, plain));
+      expect(promptFor(unit, reordered), unit).toBe(promptFor(unit, plain));
+    }
+  });
+
+  test("a relabel and an append do move both prompts, which is why they select units", () => {
+    const plain = stagedSpec();
+    const relabelled = stagedSpec([
+      { value: "draft", label: "Rough draft" },
+      { value: "sent", label: "Sent" },
+    ]);
+    const appended = stagedSpec([...STAGE_OPTIONS, { value: "paid", label: "Paid" }]);
+
+    // A wording change reaches the card and nothing else; an appended value reaches both.
+    expect(promptFor("item", relabelled)).not.toBe(promptFor("item", plain));
+    expect(promptFor("create", relabelled)).toBe(promptFor("create", plain));
+    expect(promptFor("item", appended)).not.toBe(promptFor("item", plain));
+    expect(promptFor("create", appended)).not.toBe(promptFor("create", plain));
+  });
+
+  test("the Handler gets bare value strings, never the option objects", () => {
+    const prompt = promptFor("create", stagedSpec(GROUPED, [{ id: "open", heading: "Open" }]));
+    expect(prompt).toContain('"values": [\n          "draft",\n          "sent"\n        ]');
+    expect(prompt).not.toContain("not sent yet");
+    expect(prompt).not.toContain('"disabled"');
+    expect(prompt).not.toContain('"group"');
+  });
+
+  test("the card gets value and label pairs, never the rest of the row", () => {
+    const prompt = promptFor("item", stagedSpec(GROUPED, [{ id: "open", heading: "Open" }]));
+    expect(prompt).toContain('{"value":"draft","label":"Draft"}');
+    expect(prompt).not.toContain("not sent yet");
+    expect(prompt).not.toContain("Open");
+    expect(prompt).not.toContain('"disabled"');
   });
 });

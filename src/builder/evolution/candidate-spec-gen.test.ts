@@ -88,7 +88,11 @@ describe("the generation context (decision 1, pinned)", () => {
     expect(prompt).toContain('A newly introduced field must start lifecycle "active"');
     // The append-only option contract, stated where the model authors the candidate.
     expect(prompt).toContain("option values are stored data and are immutable");
-    expect(prompt).toContain("Never remove, rename or reorder a committed value");
+    expect(prompt).toContain("Never remove or rename a committed value");
+    // Order, notes, groups and disabled are presentation and move freely; retiring an
+    // option is how it is taken out of use, because removing it is refused.
+    expect(prompt).toContain("Set an option's disabled to true to retire it");
+    expect(prompt).toContain("A committed option group's id is fixed");
     expect(prompt).toContain(
       "keep its label, required and any declared values exactly as committed",
     );

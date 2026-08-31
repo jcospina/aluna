@@ -36,7 +36,9 @@ const COLLECTION_SELECTOR = ".capability-collection";
 const SURFACE_SELECTOR = "[data-active-capability-id]";
 const RECORDS_REGION_SELECTOR = "[data-content-region='records']";
 const CONTENT_REGION_SELECTOR = "[data-content-region]";
-const FIRST_FIELD_SELECTOR = "input:not([type=hidden]), textarea, select";
+const FIRST_FIELD_SELECTOR =
+  "input:not([type=hidden]), textarea, select," +
+  " .listbox__button, .segmented button:not([disabled])";
 
 /**
  * @typedef {{
@@ -70,6 +72,10 @@ function recordViewFor(item) {
  * The form takes the window, so the first field is where the user now is. Every field is
  * preceded by its own hidden `__aluna_present` marker, which is why the selector excludes
  * hidden inputs: focusing one silently does nothing.
+ *
+ * Two of the drawn choice controls are not form elements at all — a picker's closed control
+ * is a `button` and a segmented row is a set of them — and a record whose fields are all of
+ * that kind matched nothing here, so opening it dropped focus on the floor.
  *
  * @param {HTMLElement} view
  */

@@ -7,18 +7,16 @@
 import type { dbReadonly } from "../persistence/db.ts";
 import { registerPlatformSqlFunctions } from "../persistence/sqlite-functions.ts";
 import {
-  admittedChoiceValues,
   type CapabilitySpec,
   capabilitySpecSchema,
   type FieldType,
   fieldTypeSchema,
-  isChoiceFieldType,
   type SpecField,
 } from "../registry/index.ts";
+import { assertAdmittedChoiceValues, normalizeChoiceValue } from "./choice-values.ts";
 import { deriveCapabilityTableDdl } from "./ddl.ts";
 import {
   CapabilityDataValidationError,
-  InvalidChoiceError,
   MissingRequiredFieldsError,
   sqlIdentifier,
 } from "./internal.ts";
@@ -32,6 +30,7 @@ import { assertReadOwnership } from "./read-ownership.ts";
 export { normalizeSearchText } from "../persistence/sqlite-functions.ts";
 export {
   CapabilityDataValidationError,
+  ChoiceDisabledError,
   InvalidChoiceError,
   MissingRequiredFieldsError,
 } from "./internal.ts";
@@ -273,6 +272,7 @@ export function normalizeSpecFieldValues(
   fields: readonly SpecField[],
   values: Record<string, unknown>,
   action: "create" | "update" = "create",
+  held: Readonly<Record<string, unknown>> = {},
 ): Record<string, SqlValue> {
   const normalized: Record<string, SqlValue> = {};
   const missing = fields
@@ -286,17 +286,10 @@ export function normalizeSpecFieldValues(
   // normalized, so one refusal names every offending field at once — the same shape the
   // missing-required refusal above has.
   //
-  // On update this also sees the merged current values of fields the user did not submit.
-  // Append-only option values make a stored undeclared value unreachable, so this only
-  // ever fires on what was actually submitted; if one ever did exist, refusing the edit is
-  // the fail-closed direction, and it is the same instinct the renderer follows when it
-  // declines to resolve an unrecognized stored value to the first option.
-  const undeclared = fields
-    .filter((field) => isUndeclaredChoiceValue(field, values[field.name]))
-    .map((field) => field.name);
-  if (undeclared.length > 0) {
-    throw new InvalidChoiceError(capabilityId, undeclared, action);
-  }
+  // On update this also sees the merged current values of fields the user did not submit,
+  // which is why `held` is passed alongside: a value that was legal when the row stored it
+  // stays legal for that row (`choice-values.ts`).
+  assertAdmittedChoiceValues(capabilityId, fields, values, held, action);
 
   for (const field of fields) {
     const raw = values[field.name];
@@ -309,22 +302,6 @@ export function normalizeSpecFieldValues(
   }
 
   return normalized;
-}
-
-/**
- * Whether a submitted value names something this choice field never declared. A blank
- * submission is "no selection", not an undeclared value: an optional choice normalizes it
- * to `null`, and a required one has already failed the missing-required check above.
- */
-function isUndeclaredChoiceValue(
-  field: Pick<SpecField, "name" | "type" | "values">,
-  value: unknown,
-): boolean {
-  if (!isChoiceFieldType(field.type)) return false;
-  if (value === undefined || value === null) return false;
-  if (typeof value !== "string") return true;
-  if (value.trim().length === 0) return false;
-  return !admittedChoiceValues(field).has(value);
 }
 
 function isMissingRequiredValue(field: SpecField, value: unknown): boolean {
@@ -364,34 +341,11 @@ function normalizeFieldValue(
     case "boolean":
       return normalizeBoolean(name, value);
     case "choice":
-      return normalizeChoice(field, value);
+      return normalizeChoiceValue(field, value);
     case "string[]":
       return JSON.stringify(normalizeStringList(name, value));
   }
 }
-
-/**
- * A choice stores one declared value or nothing at all: an empty submission is the
- * absence of a selection, which is the same `null` an unfilled text field stores. The
- * admitted-set check has already run over the whole submission, so anything arriving here
- * that is not blank is a value the field declares.
- */
-function normalizeChoice(
-  field: Pick<SpecField, "name" | "type" | "values">,
-  value: unknown,
-): SqlValue {
-  const selected = normalizeString(field.name, value);
-  if (selected.trim().length === 0) return null;
-  if (!admittedChoiceValues(field).has(selected)) {
-    // Reached only through the platform's own fixture encoder, which has no capability id
-    // to name; the live write path refuses the whole submission before it gets here.
-    throw new InvalidChoiceError(UNKNOWN_CAPABILITY, [field.name]);
-  }
-  return selected;
-}
-
-/** Stands in for the capability id on the one path that does not carry one. */
-const UNKNOWN_CAPABILITY = "an unnamed capability";
 
 function normalizeString(name: string, value: unknown): string {
   if (typeof value !== "string") {

@@ -424,13 +424,52 @@ _Avoid_: property label, display name, field name
 **Choice field**:
 A field whose type is `choice`: a scalar that carries the ordered options it
 admits. Each option pairs a stable `value` — the string a record actually stores
-— with a `label`, the wording a person reads. Values are the capability's stored
-data: evolution may append an option or reword any label, but never removes,
-renames or reorders a committed value, so a stored row can never become
-undeclared data. The platform refuses an undeclared submission itself, before
+— with a `label`, the wording a person reads, and may add a group, a note and a
+disabled flag. The value is the capability's stored data: evolution may append an
+option but never removes or renames a committed value, so a stored row can never
+become undeclared data. Everything else an option carries is presentation and
+moves freely, the order the options are drawn in included — that order is drawn,
+never stored. The platform refuses an undeclared submission itself, before
 canonical state moves and before generated code runs; a Handler receives only an
 admitted value and never validates the set a second time.
 _Avoid_: enum, dropdown, select, option list
+
+**Choice presentation**:
+The AI-authored, platform-rendered control one active choice field draws as:
+`picker`, `radio` or `segmented`, declared per field and never inferred from how
+many options it happens to have. All three offer the same declared values and
+store the same string. The picker is the drawn listbox, the only control that
+stays one row tall however long the list is; the radio group stands every option
+in a column; the segmented control is one joined row of buttons for a couple of
+short states, and carries neither a group heading nor an option note, so a field
+declaring either is refused a segmented presentation.
+_Avoid_: widget type, control type, dropdown vs radio
+
+**Option group**:
+A named set of a choice field's options, declared on that field as an ordered
+`{ id, heading }` pair and named by an option's `group`. The heading is wording
+and evolves like a label; the id is fixed once committed and cannot be renamed. A
+group nothing names is refused, and so is an option naming a group its field never
+declared. Groups decide the order a control draws in — ungrouped options first,
+then each group in the order the field declares it — and a group heading is
+announced as an option group rather than drawn as decoration.
+_Avoid_: optgroup, category, section
+
+**Option note**:
+One short phrase beside an option that qualifies it — "closes the record",
+"needs a reason". It belongs to the row and not to the value: it never follows a
+choice onto the closed control, never enters typeahead, and is exposed as the
+option's accessible description rather than as visual-only text.
+_Avoid_: hint, help text, subtitle
+
+**Retired option**:
+An option carrying `disabled`. It is still declared and still stored data, so a
+record already holding it renders it, keeps it through an unrelated edit, and can
+move off it to an option still on offer — but nobody may newly arrive at it. A
+new selection of one is refused as a typed `choice_disabled`, distinct from the
+undeclared refusal because the value is real. Retiring is how an option is taken
+out of use, since removing one is refused; a field may never retire them all.
+_Avoid_: deleted option, removed option, inactive option
 
 **List input mode**:
 The AI-authored, platform-rendered form choice for one active `string[]` field.

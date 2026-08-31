@@ -144,11 +144,13 @@
 
 /*
  * The one control that is already a shell plus a bare element rather than a bare element
- * carrying its own boundary: a `<select>` admits only `<option>` and cannot hold one
- * (`design/design-system.md`, "Forms"). The rest of the fields make that split in 5.10/03;
- * until then the shell's row layout is restated here on the select variant alone, on the
- * design system's own numbers, because the block rule above is written for the bare
- * elements it still applies to.
+ * carrying its own boundary: the picker's closed control, which is a `<button>` holding
+ * its value and its caret (`design/design-system.md`, "Forms"). Because it can hold
+ * children it can hold the ink system's two layers, so it is the first field on this
+ * surface whose boundary is genuinely drawn; the rest make that split in 5.10/03. The
+ * shell's row layout is restated here on the select variant alone, on the design system's
+ * own numbers, because the block rule above is written for the bare elements it still
+ * applies to.
  */
 .field__control--select {
   display: flex;
@@ -160,45 +162,50 @@
   text-align: left;
 }
 
-/* The shell owns the boundary, the fill and the ring; this owns the value and the caret. */
-.field__select {
-  flex: 1;
+/*
+ * The drawn picker's own parts — panel, scroller, rows, group headings, notes — are the
+ * design system's and ship from `design/styles/components/form-controls.css`, which this
+ * page already loads. So is the radio group's `.choice` vocabulary and the segmented row.
+ * Two things are left here.
+ *
+ * The first is where the panel hangs. On the design page a listbox stands in open air, so
+ * it is positioned against the field; in the product it stands inside the form's own
+ * scroller, which clips an absolutely positioned panel flat and leaves one row of the list
+ * visible. Positioned against the viewport it is outside every ancestor's overflow, and
+ * `public/choice-picker.js` measures it off the button and keeps it there while the form
+ * scrolls. Nothing about how it looks changes.
+ */
+.field--choice .listbox__panel {
+  position: fixed;
+  right: auto;
   min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-size: var(--control-text);
-  line-height: 1.45;
-  color: var(--ink);
-  appearance: none;
-  cursor: pointer;
-}
-
-.field__select:focus {
-  outline: none;
 }
 
 /*
- * The ring belongs to the shell, so focus inside it lights the shell, not the select.
- * The outline alone: recolouring the border here would paint a true edge back from a
- * selector heavier than `.is-ink`, which is the one thing the ink seam forbids.
+ * The second is the one part of the radio group the design has no drawing for: a run of
+ * options standing under a heading.
+ *
+ * `.choice-set` is a column at `--space-3`; a group is one item in that column that
+ * carries its own heading and its own column of the same rhythm, so a grouped set and a
+ * flat one read at exactly the same spacing.
  */
-.field__control--select:has(.field__select:focus) {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.field__select option {
-  background: var(--surface);
-  color: var(--ink);
-}
-
-.field__chevron {
+.choice-set__group {
   display: flex;
-  color: var(--ink);
-  flex-shrink: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.choice-set__heading {
+  color: var(--ink-2);
+}
+
+/*
+ * The segmented row hugs its buttons, as the design draws it. `.field` is a column, which
+ * blockifies the design's `inline-flex` and stretches the drawn box the whole width of the
+ * form — a two-word control with half a form of empty paper inside its own line.
+ */
+.field--choice .segmented {
+  align-self: start;
 }
 
 .field-list__values {

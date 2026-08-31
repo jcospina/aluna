@@ -88,6 +88,14 @@
     <script type="module" src="/static/list-field.js"></script>
 
     <!--
+      The drawn choice controls — the picker's panel, keyboard and typeahead, and the
+      segmented row's exclusive press. Mounted after every htmx landing, because the forms
+      they stand in arrive long after page load. The radio group needs nothing here: native
+      radio inputs already are the control.
+    -->
+    <script type="module" src="/static/choice-picker.js"></script>
+
+    <!--
       A capability deletion whose reply never arrived. A destructive action must never
       look like it did nothing, so this asks the server what is actually true and shows
       its answer. It also tells the server what a deletion displaces, so **Keep it** has

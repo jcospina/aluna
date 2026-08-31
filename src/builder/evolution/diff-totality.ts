@@ -43,8 +43,8 @@ export function assertTotalCoverage(committed: CapabilitySpec, candidate: Capabi
 
 // Reduce a spec to only what no change fact explains: canonicalize the whole
 // value, then blank every fact-bearing region. What survives — id, the logo birth
-// facts `subject`/`ground`, tools, the committed fields' name/type, and a choice's
-// `groups` — is the equality the diff cannot manufacture and must never silently ignore.
+// facts `subject`/`ground`, tools, and the committed fields' name/type — is the
+// equality the diff cannot manufacture and must never silently ignore.
 // A new admitted top-level key survives here too, so an unextended matrix fails closed
 // rather than dropping it.
 function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<string>): unknown {
@@ -65,10 +65,13 @@ function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<st
           label: RESIDUAL_SENTINEL,
           required: RESIDUAL_SENTINEL,
           lifecycle: RESIDUAL_SENTINEL,
-          // A choice field's options are explained by the three choice facts. `groups`
-          // deliberately survives: nothing may move it yet, so a group change with no
-          // matrix row fails closed here until 5.10/02 gives it one.
+          // A choice field's options are explained by the six option facts, and its group
+          // declarations by `choice_option_groups`. Both regions blank wholesale: every
+          // key inside an option — value, label, note, group, disabled — has a row, and a
+          // key added to the option shape without one would still be caught, because the
+          // fact detectors read only the keys they know and a new one would move nothing.
           ...(field.values === undefined ? {} : { values: RESIDUAL_SENTINEL }),
+          ...(field.groups === undefined ? {} : { groups: RESIDUAL_SENTINEL }),
         }),
       )
       .sort((left, right) => compareStrings(String(left.name), String(right.name))),

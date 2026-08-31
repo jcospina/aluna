@@ -209,7 +209,14 @@ export function renderCollection(options: CollectionOptions): string {
   // `:not([type=hidden])` is the whole of why this works: every field is preceded by
   // its own hidden `__aluna_present` marker, so the first `input` in the form is one
   // that cannot be focused at all, and focusing it silently does nothing.
-  const firstField = "input:not([type=hidden]), textarea, select";
+  //
+  // The last two are the drawn choice controls, which are not form elements: a picker's
+  // closed control is a `button` and a segmented row is a set of them. A capability whose
+  // fields are all of that kind matched nothing here and opened onto no focus at all.
+  // Kept in step with `FIRST_FIELD_SELECTOR` in `public/record-view.js`, which is the same
+  // question asked of a record view.
+  const firstField =
+    "input:not([type=hidden]), textarea, select, .listbox__button, .segmented button:not([disabled])";
   const openCreate = `createOpen = true; $nextTick(() => $refs.createPanel.querySelector('${firstField}')?.focus())`;
 
   return (

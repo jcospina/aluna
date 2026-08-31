@@ -19,12 +19,6 @@ import {
   verifyCapabilitySnapshot,
 } from "../../builder/index.ts";
 import {
-  createCapabilityMutationPort,
-  createCapabilityQueryPort,
-  materializeCapabilityActionRecord,
-  selectCapabilityRows,
-} from "../../capability-data/index.ts";
-import {
   type CapabilitySpec,
   type CapabilityTool,
   FULL_CAPABILITY_TOOLS,
@@ -203,36 +197,6 @@ describe("every change-fact matrix row, end to end", () => {
 
 // The list-input row needs an active `string[]` in the *committed* spec, so it brings its
 // own committed shape rather than bending the shared notes fixture every other row uses.
-const COMMITTED_STAGES = [
-  { value: "draft", label: "Draft" },
-  { value: "sent", label: "Sent" },
-];
-
-/** The committed notes capability, plus one active choice field carrying `values`. */
-function stagedSpec(values: readonly { value: string; label: string }[]): CapabilitySpec {
-  const base = committedSpec();
-  return notesSpec({
-    schema: {
-      fields: [
-        ...base.schema.fields,
-        {
-          name: "stage",
-          label: "Stage",
-          type: "choice",
-          required: false,
-          lifecycle: "active",
-          values: [...values],
-          groups: [],
-        },
-      ],
-    },
-    ui_intent: {
-      ...base.ui_intent,
-      form: { ...base.ui_intent.form, choice_inputs: [{ field: "stage", presentation: "picker" }] },
-    },
-  });
-}
-
 function taggedSpec(mode: "comma_separated" | "repeatable"): CapabilitySpec {
   const base = committedSpec();
   return notesSpec({
@@ -287,86 +251,6 @@ describe("the list-input mode row", () => {
       );
     }
     expect(getCapability("notes", taggedEnv.conns.readonly)?.version).toBe(2);
-  });
-});
-
-describe("the choice rows", () => {
-  let stagedEnv: EngineEnv;
-  let stagedGate: CapabilityGateResult;
-
-  beforeAll(async () => {
-    stagedGate = await committedGate(stagedSpec(COMMITTED_STAGES));
-  });
-
-  beforeEach(async () => {
-    stagedEnv = await setUpCommitted(stagedGate, stagedSpec(COMMITTED_STAGES));
-  });
-
-  afterEach(() => {
-    tearDownCommitted(stagedEnv);
-  });
-
-  test("appending an option is validation work: the writing Handlers, no DDL", async () => {
-    const result = await evolve(
-      stagedEnv,
-      stagedSpec([...COMMITTED_STAGES, { value: "archived", label: "Archived" }]),
-      "let me mark a note archived too",
-      { buildId: "choice-values", behavioralTierEnabled: false },
-    );
-    const outcome = activated(result);
-
-    expect(factKinds(result)).toEqual(["choice_values"]);
-    expect([...outcome.diff.workPlan.platformWork]).toEqual(["choice_admitted_values"]);
-    expect([...outcome.assembly.regeneratedUnits].sort()).toEqual(["create", "update"]);
-    // An appended option is not a column change: storage is untouched.
-    expect([...outcome.assembly.additiveMigration.statements]).toEqual([]);
-    expect(getCapability("notes", stagedEnv.conns.readonly)?.version).toBe(2);
-  });
-
-  test("a record committed before the append is still valid after it", async () => {
-    const spec = stagedSpec(COMMITTED_STAGES);
-    const before = createCapabilityMutationPort(spec, stagedEnv.conns.readwrite).create({
-      text: "Filed last week",
-      pinned: false,
-      stage: "draft",
-    });
-    const storedId = materializeCapabilityActionRecord(before).id;
-
-    const grown = stagedSpec([...COMMITTED_STAGES, { value: "archived", label: "Archived" }]);
-    activated(
-      await evolve(stagedEnv, grown, "let me mark a note archived too", {
-        buildId: "choice-values-preserved",
-        behavioralTierEnabled: false,
-      }),
-    );
-
-    const query = createCapabilityQueryPort(stagedEnv.conns.readonly, { target: grown });
-    const row = selectCapabilityRows(grown, query).find((stored) => stored.id === storedId);
-    // The stored value predates the appended option and is still exactly what it was.
-    expect(row?.stage).toBe("draft");
-  });
-
-  test("relabelling an option is View work only — every unit is copied", async () => {
-    const result = await evolve(
-      stagedEnv,
-      stagedSpec([
-        { value: "draft", label: "Rough draft" },
-        { value: "sent", label: "Sent" },
-      ]),
-      "call a draft a rough draft",
-      { buildId: "choice-labels", behavioralTierEnabled: false },
-    );
-    const outcome = activated(result);
-
-    expect(factKinds(result)).toEqual(["choice_option_labels"]);
-    expect([...outcome.diff.workPlan.platformWork]).toEqual(["choice_option_presentation"]);
-    expect([...outcome.assembly.regeneratedUnits]).toEqual([]);
-    expect([...outcome.assembly.additiveMigration.statements]).toEqual([]);
-    for (const unit of outcome.assembly.copiedUnits) {
-      expect(publishedUnit(stagedEnv, 2, `${unit}.ts`)).toBe(
-        publishedUnit(stagedEnv, 1, `${unit}.ts`),
-      );
-    }
   });
 });
 

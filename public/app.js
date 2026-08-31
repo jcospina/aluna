@@ -667,6 +667,9 @@ document.addEventListener("htmx:beforeSwap", (event) => {
     // A submitted choice value the field never declared. Platform-owned, like the
     // required-field refusal beside it, and dropped by htmx unless the shell claims it.
     "invalid_choice",
+    // A newly chosen option the field no longer offers. Its own code, because the value
+    // is declared and the record already holding it is untouched.
+    "choice_disabled",
     "mutation_busy",
     "read_unavailable",
     "record_not_found",

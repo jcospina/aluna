@@ -20,12 +20,10 @@
 // way into markup; the form itself is platform chrome rather than generated item markup,
 // so the runtime allow-list enforcer never runs on it.
 
-import { choiceInputForField } from "../choice-input/index.ts";
 import { listInputModeForField } from "../list-input/index.ts";
 import {
   activeSpecFields,
   type ChoiceFieldType,
-  choiceFieldOptions,
   type FieldType,
   isChoiceFieldType,
   isListFieldType,
@@ -39,6 +37,7 @@ import {
   type WireProtocolAction,
 } from "../router/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
+import { renderChoiceField } from "./choice-control.ts";
 
 /**
  * The slice of a capability the field renderer needs: its engineering `id` (the
@@ -392,72 +391,6 @@ function editScalarValue(
   if (type === "date") return /^\d{4}-\d{2}-\d{2}/.exec(raw)?.[0] ?? raw;
   return raw;
 }
-
-/**
- * The choice control, in the one presentation this cut admits. Create and edit share it:
- * the only difference between them is which option arrives already selected, and an
- * absent value selects the empty placeholder exactly as an unfilled text input is empty.
- *
- * A required choice carries `required` on the control, so the browser refuses a submit
- * with nothing chosen before the round trip; the platform's own admitted-set check is
- * what actually holds, since a crafted post never sees the browser at all.
- *
- * The drawn listbox the design specifies — panel, typeahead, active-descendant ARIA —
- * lands in 5.10/02. Until then this is the native element the design keeps beside it as
- * its own side-by-side comparison, in the design's own markup: the `.field__control`
- * shell carries the boundary and the fill, the bare `.field__select` carries the value,
- * and `.field__chevron` carries the caret, because a `<select>` admits only `<option>`
- * and cannot hold a drawn boundary itself (`design/design-system.md`, "Forms").
- */
-function renderChoiceField(
-  inputId: string,
-  field: SpecField,
-  form: UiFormIntent,
-  value: unknown,
-): string {
-  const { presentation } = choiceInputForField(form, field.name);
-  const label = escapeHtml(field.label);
-  const nameAttribute = escapeHtml(field.name);
-  const required = field.required ? " required" : "";
-  const selected = value === null || value === undefined ? "" : String(value);
-  const declared = choiceFieldOptions(field);
-  // The placeholder holds the selection unless a declared option matches. A value the
-  // field does not declare must never resolve to the first option by default, which is
-  // what a select with nothing selected does — it would rewrite the record on the next
-  // save. Append-only values mean a committed row cannot reach this, and it is the
-  // fail-safe for when one somehow does.
-  const chosen = declared.some((option) => option.value === selected) ? selected : "";
-  const placeholder = `<option value=""${chosen === "" ? " selected" : ""}>Choose ${label}…</option>`;
-  const options = declared
-    .map(
-      (option) =>
-        `<option value="${escapeHtml(option.value)}"` +
-        `${option.value === chosen ? " selected" : ""}>${escapeHtml(option.label)}</option>`,
-    )
-    .join("");
-
-  return (
-    `<div class="field field--choice" data-choice-presentation="${presentation}">` +
-    `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">` +
-    `<label class="field__label" for="${inputId}">${label}</label>` +
-    `<span class="field__control field__control--select">` +
-    `<select class="field__select" id="${inputId}" name="${nameAttribute}"${required}>` +
-    placeholder +
-    options +
-    `</select>` +
-    CHOICE_CHEVRON +
-    `</span>` +
-    `</div>`
-  );
-}
-
-/** The design's own caret for the select shell (`design/controls.html`, "Enums"). */
-const CHOICE_CHEVRON =
-  `<span class="field__chevron">` +
-  `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"` +
-  ` stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
-  `<path d="M6 9l6 6 6-6"></path>` +
-  `</svg></span>`;
 
 function renderCreateListField(capabilityId: string, field: SpecField, form: UiFormIntent): string {
   const mode = listInputModeForField(form, field.name);

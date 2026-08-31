@@ -25,7 +25,6 @@
 import {
   type CapabilitySpec,
   type CapabilityTool,
-  type ChoiceOption,
   type FieldType,
   FULL_CAPABILITY_TOOLS,
   isChoiceFieldType,
@@ -33,6 +32,7 @@ import {
   type SpecField,
 } from "../../registry/index.ts";
 import { canonicalCapabilityLabel } from "../../registry/labels.ts";
+import { detectChoiceFacts } from "./diff-choice.ts";
 import { assertTotalCoverage } from "./diff-totality.ts";
 
 export { UnmappedChangeFactError } from "./diff-totality.ts";
@@ -59,7 +59,12 @@ export type ChangeFact =
     }
   | { readonly kind: "list_input_mode"; readonly field: string }
   | { readonly kind: "choice_values"; readonly field: string }
+  | { readonly kind: "choice_option_disabled"; readonly field: string }
   | { readonly kind: "choice_option_labels"; readonly field: string }
+  | { readonly kind: "choice_option_notes"; readonly field: string }
+  | { readonly kind: "choice_option_order"; readonly field: string }
+  | { readonly kind: "choice_option_groups"; readonly field: string }
+  | { readonly kind: "choice_presentation"; readonly field: string }
   | { readonly kind: "item_presentation" }
   | { readonly kind: "collection_layout" }
   | { readonly kind: "read_dependencies"; readonly action: CapabilityTool }
@@ -83,7 +88,12 @@ const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
   "field_lifecycle",
   "list_input_mode",
   "choice_values",
+  "choice_option_disabled",
   "choice_option_labels",
+  "choice_option_notes",
+  "choice_option_order",
+  "choice_option_groups",
+  "choice_presentation",
   "item_presentation",
   "collection_layout",
   "read_dependencies",
@@ -116,7 +126,9 @@ export const PLATFORM_WORK_KINDS = [
   "list_input_intent", // hide/reactivate → remove/require active list-input intent
   "list_input_form_normalization", // list input mode → create/edit form + raw-input normalization
   "choice_admitted_values", // appended option → platform mutation validation + the control
-  "choice_option_presentation", // option label → the control's wording, nothing else
+  "choice_option_presentation", // option label/note/order → the control's wording and its order
+  "choice_option_grouping", // option groups → the control's headings and the runs under them
+  "choice_input_form_control", // choice presentation → which of the three controls is drawn
   "choice_input_intent", // hide/reactivate a choice → remove/require its form intent
   "platform_list_container", // collection feed|grid → platform list container
   "read_catalog", // read_dependencies → read catalog / reverse index
@@ -296,57 +308,6 @@ function detectListInputModeFacts(
   }
 }
 
-// A choice fact is only the movement of a field that is a choice in *both* specs; a field
-// that gained or lost that status is already a new_active_field or field_lifecycle fact.
-// The two are separate because they buy different work: an appended value changes what the
-// platform admits and what the writing Handlers are tested against, while a relabelled
-// option is View work alone (ADR-0006). They are also independent — one evolution can
-// append an option *and* reword an existing label, and each half must still select its own
-// column, so this is two `if`s rather than a choice between them.
-//
-// Removing or renaming a committed option value never reaches here: candidate validation
-// refuses it before Diff, so a stored row can never become undeclared data.
-//
-// Which control a choice renders as is not yet a fact: `CHOICE_PRESENTATIONS` admits one
-// value, so no candidate can move it. 5.10/02 opens that enum and adds the row with it.
-function detectChoiceFacts(
-  committed: CapabilitySpec,
-  candidate: CapabilitySpec,
-  facts: ChangeFact[],
-): void {
-  const candidateOptions = choiceOptionsByField(candidate);
-  for (const [field, before] of choiceOptionsByField(committed)) {
-    const after = candidateOptions.get(field);
-    if (after === undefined) continue;
-    if (!sameSequence(before.map(optionValue), after.map(optionValue))) {
-      facts.push({ kind: "choice_values", field });
-    }
-    // Labels compare over the options both specs share — the committed prefix — so an
-    // append never masks a relabel and never manufactures one either.
-    if (!sameSequence(before.map(optionLabel), after.slice(0, before.length).map(optionLabel))) {
-      facts.push({ kind: "choice_option_labels", field });
-    }
-  }
-}
-
-function choiceOptionsByField(spec: CapabilitySpec): Map<string, readonly ChoiceOption[]> {
-  const options = new Map<string, readonly ChoiceOption[]>();
-  for (const field of spec.schema.fields) {
-    if (isChoiceFieldType(field.type) && field.values !== undefined) {
-      options.set(field.name, field.values);
-    }
-  }
-  return options;
-}
-
-function optionValue(option: ChoiceOption): string {
-  return option.value;
-}
-
-function optionLabel(option: ChoiceOption): string {
-  return option.label;
-}
-
 function detectPresentationFacts(
   committed: CapabilitySpec,
   candidate: CapabilitySpec,
@@ -440,7 +401,15 @@ function projectWorkPlan(facts: readonly ChangeFact[], candidate: CapabilitySpec
 
 type FieldScopedFact = Extract<
   ChangeFact,
-  { kind: "new_active_field" | "required_change" | "field_label" | "field_lifecycle" }
+  {
+    kind:
+      | "new_active_field"
+      | "required_change"
+      | "field_label"
+      | "field_lifecycle"
+      | "choice_values"
+      | "choice_option_labels";
+  }
 >;
 type GlobalScopedFact = Exclude<ChangeFact, FieldScopedFact>;
 
@@ -454,6 +423,8 @@ function contributeFact(fact: ChangeFact, candidate: CapabilitySpec, sink: WorkS
     case "required_change":
     case "field_label":
     case "field_lifecycle":
+    case "choice_values":
+    case "choice_option_labels":
       contributeFieldFact(fact, candidate, sink);
       return;
     default:
@@ -480,6 +451,28 @@ function contributeFieldFact(
       return;
     case "field_label":
       sink.platform.add("platform_form_detail");
+      if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
+      return;
+    case "choice_values":
+      // The admitted set is create/update validation shape (ADR-0006), so it selects both
+      // writing Handlers and their behavioral suites alongside the platform's own
+      // validation and the control's option list. Storage is untouched — an appended
+      // option is not a column change — and search matches stored text either way.
+      //
+      // It also reaches the card, for the same reason a relabel does: the item renderer is
+      // given the value→label pairs and told to present the label (`unit-prompts.ts`), so
+      // a renderer copied across an append has no wording for the new value and would fall
+      // back to showing the raw wire string.
+      sink.platform.add("choice_admitted_values");
+      selectWrites(sink);
+      if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
+      return;
+    case "choice_option_labels":
+      // The control's wording, and — where the field is on the card — the card's too. The
+      // item renderer is told to present the matching option label rather than the stored
+      // value, so it has the old wording written into it and has to be regenerated for
+      // exactly the reason a field label does.
+      sink.platform.add("choice_option_presentation");
       if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
       return;
     case "field_lifecycle":
@@ -526,16 +519,34 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
     case "list_input_mode":
       sink.platform.add("list_input_form_normalization");
       return;
-    case "choice_values":
-      // The admitted set is create/update validation shape (ADR-0006), so it selects both
-      // writing Handlers and their behavioral suites alongside the platform's own
-      // validation and the control's option list. Storage is untouched — an appended
-      // option is not a column change — and search matches stored text either way.
+    case "choice_option_disabled":
+      // An option that stops being offered narrows what a new selection may name, which is
+      // create/update validation shape exactly as an appended option is — and it moves the
+      // same behavioral total-input digests, so both writing suites are generated again.
+      // Storage is untouched: a row already holding the value keeps it.
+      //
+      // The Handlers themselves are not. They are given the values a choice *admits*, and
+      // a retired option is still admitted — a row holding one is valid data a Handler may
+      // read. So the fact provably cannot have reached either prompt, which is the
+      // positive proof ADR-0006 requires before a unit is copied rather than rewritten
+      // (`units/choice-prompt.test.ts` pins it from the other side).
       sink.platform.add("choice_admitted_values");
-      selectWrites(sink);
+      selectWriteTests(sink);
       return;
-    case "choice_option_labels":
+    case "choice_option_notes":
+    case "choice_option_order":
+      // The note beside a row, and the order the rows are drawn in. Neither is stored, and
+      // neither reaches a generated unit: the item renderer is given value→label pairs in
+      // value order and the writing Handlers the admitted strings in value order, so
+      // nothing generated can have either fact written into it
+      // (`registry/spec.ts`, `units/unit-prompts.ts`).
       sink.platform.add("choice_option_presentation");
+      return;
+    case "choice_option_groups":
+      sink.platform.add("choice_option_grouping");
+      return;
+    case "choice_presentation":
+      sink.platform.add("choice_input_form_control");
       return;
     case "item_presentation":
       sink.units.add("item");
@@ -570,6 +581,14 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
 function selectWrites(sink: WorkSink): void {
   sink.units.add("create");
   sink.units.add("update");
+  selectWriteTests(sink);
+}
+
+/**
+ * The writing Actions' suites without their Handlers — for a fact that changes what the
+ * platform admits but provably cannot reach the code that writes it.
+ */
+function selectWriteTests(sink: WorkSink): void {
   sink.tests.add("create");
   sink.tests.add("update");
 }

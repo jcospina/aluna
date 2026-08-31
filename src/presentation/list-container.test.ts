@@ -160,9 +160,12 @@ describe("container scaffolding", () => {
     // keyboard user at the top of the desk.
     expect(feed).toContain("createOpen = true");
     // Every field is preceded by its own hidden `__aluna_present` marker, so the
-    // first `input` in the form is one that cannot take focus at all.
+    // first `input` in the form is one that cannot take focus at all. The last two are
+    // the drawn choice controls, which are not form elements: a capability whose fields
+    // are all picker or segmented matched nothing here and opened onto no focus at all.
     expect(feed).toContain(
-      "$refs.createPanel.querySelector('input:not([type=hidden]), textarea, select')?.focus()",
+      "$refs.createPanel.querySelector('input:not([type=hidden]), textarea, select," +
+        " .listbox__button, .segmented button:not([disabled])')?.focus()",
     );
   });
 
