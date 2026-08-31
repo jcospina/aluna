@@ -5,6 +5,7 @@
 import { z } from "zod";
 
 import { CHOICE_DISABLED_ERROR_CODE, INVALID_CHOICE_ERROR_CODE } from "./choice.ts";
+import { MAX_LENGTH_EXCEEDED_ERROR_CODE } from "./max-length.ts";
 import type { CapabilitySpec, SpecField } from "./spec.ts";
 import { allUnique, sameOrderedStrings, sqlNameText } from "./spec-text.ts";
 import { capabilityToolSchema, FULL_CAPABILITY_TOOLS } from "./tools.ts";
@@ -70,6 +71,7 @@ const PLATFORM_OWNED_ERROR_CODES = [
   "record_not_found",
   INVALID_CHOICE_ERROR_CODE,
   CHOICE_DISABLED_ERROR_CODE,
+  MAX_LENGTH_EXCEEDED_ERROR_CODE,
 ] as const;
 
 function validatePlatformOwnedErrorCodes(

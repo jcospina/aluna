@@ -1,6 +1,7 @@
 import {
   CHOICE_DISABLED_ERROR_CODE,
   INVALID_CHOICE_ERROR_CODE,
+  MAX_LENGTH_EXCEEDED_ERROR_CODE,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
 
@@ -74,6 +75,32 @@ export class InvalidChoiceError extends CapabilityDataValidationError {
     action: "create" | "update" = "create",
   ) {
     super(`Undeclared choice value for capability "${capabilityId}": ${fields.join(", ")}.`);
+    this.action = action;
+    this.fields = [...fields];
+  }
+}
+
+/**
+ * A submitted string longer than its field's declared `max_length`, refused before any
+ * canonical state moves and before a generated Handler runs.
+ *
+ * The native attribute already stops the typing, so reaching this is a crafted request
+ * rather than a filled-in form — which is exactly why the limit cannot live only in the
+ * browser. It carries its fields the way its three siblings do, so the sentence can be
+ * relocated into the control that produced it.
+ */
+export class MaxLengthExceededError extends CapabilityDataValidationError {
+  override readonly name = "MaxLengthExceededError";
+  readonly action: "create" | "update";
+  readonly code = MAX_LENGTH_EXCEEDED_ERROR_CODE;
+  readonly fields: readonly string[];
+
+  constructor(
+    capabilityId: string,
+    fields: readonly string[],
+    action: "create" | "update" = "create",
+  ) {
+    super(`Over-length value for capability "${capabilityId}": ${fields.join(", ")}.`);
     this.action = action;
     this.fields = [...fields];
   }

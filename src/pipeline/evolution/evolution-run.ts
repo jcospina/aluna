@@ -86,6 +86,7 @@ import {
   resolveEvolutionIntent,
   validateEvolutionIntentScope,
 } from "./evolution-intent.ts";
+import { assertStoredValuesFitMaxLengths } from "./length-scan.ts";
 
 export interface RunCapabilityEvolutionInput {
   /** The live committed capability being evolved — re-checked under the lease. */
@@ -267,6 +268,15 @@ async function runEvolutionStages(
   state.stage = "diff";
   const diff = diffCapabilitySpec(committedSpecView(active), generated.candidate);
   validateEvolutionIntentScope(intent, diff);
+  // The one check that reads committed data rather than a spec. It sits here, under the
+  // same held lease, so a candidate whose limits the stored rows cannot fit is refused
+  // before an assembly is spent on it — and no record write can land between here and the
+  // activation below (`length-scan.ts`).
+  assertStoredValuesFitMaxLengths(
+    committedSpecView(active),
+    generated.candidate,
+    input.database.readonly,
+  );
   const base: EvolutionRunBase = {
     candidate: generated.candidate,
     diff,

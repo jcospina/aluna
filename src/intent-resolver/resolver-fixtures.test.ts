@@ -70,6 +70,8 @@ const recipes = notesCapabilityRow({
         { field: "quotes", mode: "repeatable" },
       ],
       choice_inputs: [],
+      long_text: [],
+      guidance: [],
     },
     item: { direction: "Show each recipe clearly.", shows: ["title", "genres", "quotes"] },
     collection: { layout: "feed" },
@@ -290,7 +292,7 @@ describe("intent resolver fixture catalog", () => {
     // What actually does the refusing: presentation choices the user may state are a
     // closed list, and art direction is not on it.
     expect(prompt).toContain(
-      "ui_change is limited to capability labels, the word a capability calls one of its records, field labels, detail visibility/order, item direction/dependencies, feed or grid layout, and active string[] list input modes.",
+      "ui_change is limited to capability labels, the word a capability calls one of its records, field labels, detail visibility/order, item direction/dependencies, feed or grid layout, active string[] list input modes, whether an active string field is typed into a multi-line box, and the one line of guidance shown under a field.",
     );
     expect(prompt).toContain(
       "Ignore requests to choose field types, migrations, frameworks, generated code, CSS tokens, or repair steps.",

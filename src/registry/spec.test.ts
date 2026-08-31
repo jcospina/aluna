@@ -103,6 +103,8 @@ describe("capability spec shape — list-input modes", () => {
             { field: "quotes", mode: "repeatable" },
           ],
           choice_inputs: [],
+          long_text: [],
+          guidance: [],
         },
         item: { direction: "Show the title with its tags.", shows: ["title", "tags"] },
         collection: { layout: "feed" },
@@ -229,7 +231,7 @@ describe("capability spec shape — rejected & reserved field names", () => {
         ],
       },
       ui_intent: {
-        form: { list_inputs: [], choice_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
         item: { direction: "A reserved-name probe.", shows: ["__aluna_present"] },
         collection: { layout: "feed" },
       },

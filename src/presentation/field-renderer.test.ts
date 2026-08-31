@@ -116,7 +116,11 @@ describe("create form — one control per pantry type — scalar and list contro
   const form = renderCreateForm(SAMPLE);
 
   test("string renders a text input named for the field", () => {
-    expect(form).toContain('<input class="field__control" id="cap-tasks-title" type="text"');
+    // The shell carries the boundary and the fill; the input carries the caret and the
+    // text (`design/design-system.md`, "Forms").
+    expect(form).toContain(
+      '<span class="field__control"><input class="field__input" id="cap-tasks-title" type="text"',
+    );
     expect(form).toContain('name="title"');
   });
 
@@ -196,8 +200,10 @@ describe("create form — one control per pantry type — scalar and list contro
       ),
     );
     expect(html).toContain('data-list-input-mode="comma_separated"');
-    expect(html).toContain('name="tags" aria-describedby="cap-probe-tags-guidance" required');
-    expect(html).toContain('id="cap-probe-tags-guidance">Separate values with commas.</p>');
+    // The platform's own separator hint keeps an id of its own, so a field that also
+    // declares `guidance` can carry both lines rather than one overwriting the other.
+    expect(html).toContain('name="tags" aria-describedby="cap-probe-tags-list-hint" required');
+    expect(html).toContain('id="cap-probe-tags-list-hint">Separate values with commas.</p>');
     expect(html).not.toContain("data-list-field-add");
     expect(html).not.toContain("data-list-field-remove");
   });
@@ -238,7 +244,7 @@ describe("create form — one control per pantry type — labels, lifecycle, and
           },
         ],
       },
-      form: { list_inputs: [], choice_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
       actions: ["create", "read"],
     };
     const create = renderCreateForm(capability);

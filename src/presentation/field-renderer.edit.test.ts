@@ -61,6 +61,8 @@ const CAPABILITY: RenderableCapability = {
       { field: "aliases", mode: "repeatable" },
     ],
     choice_inputs: [],
+    long_text: [],
+    guidance: [],
   },
   actions: ["create", "read", "update", "delete"],
 };
@@ -150,7 +152,7 @@ describe("edit form — committed update wiring", () => {
   test("reuses both authored list modes for exact prefill", () => {
     expect(form).toContain('data-list-input-mode="comma_separated"');
     expect(form).toContain(
-      'name="tags" aria-describedby="edit-journal-tags-guidance" value="fantasy, classic"',
+      'name="tags" value="fantasy, classic" aria-describedby="edit-journal-tags-list-hint"',
     );
 
     expect(form).toContain('data-list-input-mode="repeatable"');

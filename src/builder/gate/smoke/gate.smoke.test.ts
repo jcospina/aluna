@@ -377,7 +377,7 @@ describe("capability gate — item renderer samples", () => {
         ],
       },
       ui_intent: {
-        form: { list_inputs: [], choice_inputs: [] },
+        form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
         item: { direction: "Show the entry and its age.", shows: ["text", "created_at"] },
         collection: { layout: "feed" },
       },

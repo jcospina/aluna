@@ -52,7 +52,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [], choice_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
       item: {
         direction: "A text-forward card that emphasizes the note text.",
         shows: ["title", "amount", "done", "logged_at"],
@@ -218,7 +218,12 @@ describe("capability table DDL mapper", () => {
           ],
         },
         ui_intent: {
-          form: { list_inputs: [{ field: "tags", mode: "repeatable" }], choice_inputs: [] },
+          form: {
+            list_inputs: [{ field: "tags", mode: "repeatable" }],
+            choice_inputs: [],
+            long_text: [],
+            guidance: [],
+          },
           item: { direction: "A tag-forward note.", shows: ["tags"] },
           collection: { layout: "feed" },
         },
@@ -339,7 +344,12 @@ describe("additive capability migration", () => {
         ],
       },
       ui_intent: {
-        form: { list_inputs: [{ field: "tags", mode: "repeatable" }], choice_inputs: [] },
+        form: {
+          list_inputs: [{ field: "tags", mode: "repeatable" }],
+          choice_inputs: [],
+          long_text: [],
+          guidance: [],
+        },
         item: { direction: "A title-forward card with tags.", shows: activeNames },
         collection: { layout: "feed" },
       },

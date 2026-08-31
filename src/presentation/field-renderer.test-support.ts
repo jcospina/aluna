@@ -23,7 +23,7 @@ export const SAMPLE: RenderableCapability = {
       { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },
     ],
   },
-  form: { list_inputs: [], choice_inputs: [] },
+  form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
   actions: ["create", "read"],
 };
 
@@ -46,10 +46,17 @@ export function probeField(type: FieldType, overrides: Partial<SpecField> = {}):
   };
 }
 
+/** What the form may declare about the one field, beyond the two total collections. */
+export interface OneFieldIntent {
+  readonly longText?: boolean;
+  readonly guidance?: string;
+}
+
 export function oneField(
   field: SpecField,
   listMode: "comma_separated" | "repeatable" = "repeatable",
   presentation: ChoicePresentation = "picker",
+  intent: OneFieldIntent = {},
 ): RenderableCapability {
   const active = field.lifecycle === "active";
   return {
@@ -61,6 +68,8 @@ export function oneField(
       list_inputs:
         active && field.type === "string[]" ? [{ field: field.name, mode: listMode }] : [],
       choice_inputs: active && field.type === "choice" ? [{ field: field.name, presentation }] : [],
+      long_text: intent.longText === true ? [field.name] : [],
+      guidance: intent.guidance === undefined ? [] : [{ field: field.name, text: intent.guidance }],
     },
     actions: ["create", "read"],
   };

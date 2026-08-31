@@ -22,7 +22,12 @@ describe("capability gate — string[] ordered-list samples", () => {
         ],
       },
       ui_intent: {
-        form: { list_inputs: [{ field: "tags", mode: "repeatable" }], choice_inputs: [] },
+        form: {
+          list_inputs: [{ field: "tags", mode: "repeatable" }],
+          choice_inputs: [],
+          long_text: [],
+          guidance: [],
+        },
         item: { direction: "Show each tag in order.", shows: ["tags"] },
         collection: { layout: "feed" },
       },
@@ -106,7 +111,12 @@ function choiceSpec() {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [], choice_inputs: [{ field: "stage", presentation: "picker" }] },
+      form: {
+        list_inputs: [],
+        choice_inputs: [{ field: "stage", presentation: "picker" }],
+        long_text: [],
+        guidance: [],
+      },
       item: { direction: "Show the stage plainly.", shows: ["stage"] },
       collection: { layout: "feed" },
     },

@@ -11,6 +11,7 @@ import type { Context } from "hono";
 import type {
   ChoiceDisabledError,
   InvalidChoiceError,
+  MaxLengthExceededError,
   MissingRequiredFieldsError,
   RecordNotFoundError,
 } from "../capability-data/index.ts";
@@ -169,6 +170,30 @@ export function choiceDisabledFailure(
   return c.html(
     `<p class="notice" data-role="error" data-error-code="${error.code}" data-error-fields="${fields}">` +
       "That option isn't open any more. Mind picking a different one?</p>",
+    422,
+  );
+}
+
+/**
+ * A string longer than the field said it had room for. The native attribute stops this on
+ * a form that was filled in, so the sentence is written for the case that gets here: a
+ * value that arrived past the control, and a field that says how much it holds.
+ */
+export function maxLengthExceededFailure(
+  c: Context,
+  capabilityId: string,
+  error: MaxLengthExceededError,
+): Response {
+  const fields = error.fields.join(" ");
+  const errorId =
+    error.action === "create"
+      ? capabilityCreateErrorId(capabilityId)
+      : capabilityEditErrorId(capabilityId);
+  c.header("HX-Retarget", `#${errorId}`);
+  c.header("HX-Reswap", "innerHTML");
+  return c.html(
+    `<p class="notice" data-role="error" data-error-code="${error.code}" data-error-fields="${fields}">` +
+      "That's longer than this field holds. Mind trimming it a little?</p>",
     422,
   );
 }

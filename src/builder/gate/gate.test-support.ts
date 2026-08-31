@@ -69,7 +69,7 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
       ],
     },
     ui_intent: {
-      form: { list_inputs: [], choice_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
       item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
       collection: { layout: "feed" },
     },
@@ -337,7 +337,7 @@ export function articlesSpec(): CapabilitySpec {
       ],
     },
     ui_intent: {
-      form: { list_inputs: [], choice_inputs: [] },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
       item: {
         direction: "A text-forward card that emphasizes the article title.",
         shows: ["title", "body"],

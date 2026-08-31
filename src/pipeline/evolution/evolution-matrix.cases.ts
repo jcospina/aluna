@@ -117,6 +117,8 @@ export const MATRIX: readonly MatrixCase[] = [
           form: {
             ...base.ui_intent.form,
             choice_inputs: [{ field: "stage", presentation: "picker" }],
+            long_text: [],
+            guidance: [],
           },
         },
       });
@@ -171,7 +173,7 @@ export const MATRIX: readonly MatrixCase[] = [
         ),
       ),
     facts: ["field_lifecycle"],
-    platformWork: ["platform_form_detail", "list_input_intent"],
+    platformWork: ["platform_form_detail", "list_input_intent", "form_subset_intent"],
     regenerated: ["create", "update"],
     // Soft-hide never drops a column, so there is no DDL at all.
     ddl: [],

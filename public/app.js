@@ -670,6 +670,10 @@ document.addEventListener("htmx:beforeSwap", (event) => {
     // A newly chosen option the field no longer offers. Its own code, because the value
     // is declared and the record already holding it is untouched.
     "choice_disabled",
+    // A string longer than its field's declared max_length. The native attribute stops it
+    // on a filled-in form, so this is the crafted-request path — and one nobody would see
+    // without the claim.
+    "max_length_exceeded",
     "mutation_busy",
     "read_unavailable",
     "record_not_found",

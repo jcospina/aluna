@@ -149,6 +149,7 @@ function buildHandlerPrompt(
     ...inputValueContract(action),
     "- `input.submittedFields` is a platform-validated `ReadonlySet<string>`; reserved `__aluna_` markers never reach generated code.",
     "- A choice field's value has already been checked against its declared values by the platform, which answers an undeclared one itself. Never re-validate the option set or emit an error for it.",
+    "- A string field's length has already been checked against its declared max_length by the platform, which answers an over-length submission itself. Never re-validate string length, truncate a value, or emit an error for it.",
     ...queryPortContract(action),
     "- Canonical ids, platform-owned `extra`, and inactive target fields are unavailable and must never be read or written.",
     ...actionPortContract(action),

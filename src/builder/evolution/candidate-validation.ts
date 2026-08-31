@@ -296,9 +296,8 @@ function isRenamedGroup(
   );
 }
 
-// The two transitions with frozen label/required. `active → active` and the
-// reactivation `inactive → active` may change label/required freely; the Diff
-// effects union.
+// The two transitions with a frozen definition. `active → active` and the reactivation
+// `inactive → active` may change label/required/max_length freely; the Diff effects union.
 function lifecycleTransitionIssue(
   committedField: SpecField,
   returned: SpecField,
@@ -307,6 +306,10 @@ function lifecycleTransitionIssue(
   if (
     returned.label === committedField.label &&
     returned.required === committedField.required &&
+    // A hidden field keeps its column and its values, so it keeps the bound they were
+    // written under. Letting a hide tighten one would put values a reactivation then
+    // reveals outside a limit nothing ever scanned for.
+    returned.max_length === committedField.max_length &&
     sameChoiceOptions(committedField, returned)
   ) {
     return undefined;
