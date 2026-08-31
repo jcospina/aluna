@@ -24,7 +24,7 @@ describe("the shell and the input", () => {
   test("a text control is a shell holding a bare input, never a bare input drawing itself", () => {
     expect(createFieldHtml()).toContain(
       '<span class="field__control"><input class="field__input" id="cap-probe-value"' +
-        ' type="text" name="value" required></span>',
+        ' type="text" name="value" aria-describedby="cap-probe-value-guidance" required></span>',
     );
   });
 
@@ -66,7 +66,8 @@ describe("long text is what the form declared, never what the type implied", () 
     expect(html).toContain(
       '<span class="field__control field__control--area">' +
         '<textarea class="field__textarea" id="cap-probe-value" name="value"' +
-        ' rows="3" data-grow data-grow-max="260" required>\n</textarea>',
+        ' rows="3" data-grow data-grow-max="260"' +
+        ' aria-describedby="cap-probe-value-guidance" required>\n</textarea>',
     );
   });
 
@@ -103,7 +104,8 @@ describe("guidance sits under the field and survives typing", () => {
     const html = createFieldHtml(probeField("string"), { guidance: "Two or three sentences." });
     expect(html).toContain('aria-describedby="cap-probe-value-guidance"');
     expect(html).toContain(
-      '<p class="field__guidance" id="cap-probe-value-guidance">Two or three sentences.</p>',
+      '<p class="field__guidance" id="cap-probe-value-guidance" data-field-guidance>' +
+        "Two or three sentences.</p>",
     );
   });
 
@@ -113,9 +115,16 @@ describe("guidance sits under the field and survives typing", () => {
     );
   });
 
-  test("a field the form said nothing about carries no description at all", () => {
-    expect(createFieldHtml()).not.toContain("aria-describedby");
-    expect(createFieldHtml()).not.toContain("field__guidance");
+  test("a field the form said nothing about still carries the slot, empty and hidden", () => {
+    // The slot is not the hint's; it is where the field says one thing about itself at a
+    // time, and a validation error is the other thing it says (`public/field-errors.js`).
+    // Rendering it always is what lets the client find one element and put one string
+    // back — and an empty one is `hidden`, describes nothing, and occupies no line.
+    const html = createFieldHtml();
+    expect(html).toContain('aria-describedby="cap-probe-value-guidance"');
+    expect(html).toContain(
+      '<p class="field__guidance" id="cap-probe-value-guidance" data-field-guidance hidden></p>',
+    );
   });
 
   test("a choice field carries it too, referenced off whichever control draws it", () => {
@@ -124,7 +133,7 @@ describe("guidance sits under the field and survives typing", () => {
         oneField(probeField("choice"), "repeatable", presentation, { guidance: "Pick one." }),
       );
       expect(html).toContain('aria-describedby="cap-probe-value-guidance"');
-      expect(html).toContain('id="cap-probe-value-guidance">Pick one.</p>');
+      expect(html).toContain('id="cap-probe-value-guidance" data-field-guidance>Pick one.</p>');
     }
   });
 
@@ -138,7 +147,7 @@ describe("guidance sits under the field and survives typing", () => {
       }),
     );
     expect(html).toContain('aria-label="Value 1" aria-describedby="cap-probe-value-guidance"');
-    expect(html).toContain('id="cap-probe-value-guidance">One per row.</p>');
+    expect(html).toContain('id="cap-probe-value-guidance" data-field-guidance>One per row.</p>');
   });
 
   test("every row of a prefilled repeatable list carries it, so an added row inherits it", () => {

@@ -580,6 +580,11 @@ export class Doc extends El {
       type,
       target,
       ...extra,
+      // Readable as well as writable, because a listener may need to know whether an
+      // earlier one in the same phase has already refused what it is looking at.
+      get defaultPrevented() {
+        return prevented;
+      },
       preventDefault: () => {
         prevented = true;
       },

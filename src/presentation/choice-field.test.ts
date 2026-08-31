@@ -128,7 +128,8 @@ describe("the picker draws the design's listbox", () => {
     expect(html).toContain(
       '<button class="field__control field__control--select listbox__button" type="button"' +
         ' id="cap-probe-value" role="combobox" aria-haspopup="listbox" aria-expanded="false"' +
-        ' aria-controls="cap-probe-value-panel" aria-labelledby="cap-probe-value-label">',
+        ' aria-controls="cap-probe-value-panel" aria-labelledby="cap-probe-value-label"' +
+        ' aria-describedby="cap-probe-value-guidance">',
     );
     expect(html).toContain(
       '<div class="listbox__panel" id="cap-probe-value-panel" role="listbox" tabindex="-1"' +
@@ -180,7 +181,8 @@ describe("the radio group draws native inputs", () => {
     const html = renderCreateForm(choiceCapability("radio"));
     expect(html).toContain(
       '<div class="choice-set" id="cap-probe-value" role="radiogroup"' +
-        ' aria-labelledby="cap-probe-value-label">',
+        ' aria-labelledby="cap-probe-value-label"' +
+        ' aria-describedby="cap-probe-value-guidance">',
     );
     expect(html).toContain(
       '<input class="choice__input" type="radio" id="cap-probe-value-option-1"' +
@@ -214,7 +216,8 @@ describe("the segmented control draws one exclusive button set", () => {
     });
     expect(html).toContain(
       '<div class="segmented" id="edit-probe-value" role="group"' +
-        ' aria-labelledby="edit-probe-value-label">',
+        ' aria-labelledby="edit-probe-value-label"' +
+        ' aria-describedby="edit-probe-value-guidance">',
     );
     expect(html).toContain(
       '<button type="button" id="edit-probe-value-option-2" data-value="second"' +
@@ -314,7 +317,11 @@ describe("an option note is a description, not visual-only text", () => {
 
   test("an option with no note names no description", () => {
     const html = renderCreateForm(choiceCapability("picker"));
-    expect(html).not.toContain("aria-describedby");
+    // The control itself is always described — by its guidance slot, which is where an
+    // error is said — so what is checked is that it is the *only* one described, whatever
+    // an option might have called its own description.
+    expect(html.match(/aria-describedby=/g)).toHaveLength(1);
+    expect(html).toContain('aria-describedby="cap-probe-value-guidance"');
     expect(html).not.toContain("listbox__note");
   });
 });

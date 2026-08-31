@@ -130,7 +130,10 @@ describe("edit form — committed update wiring", () => {
   });
 
   test("prefills scalar and unchecked boolean values without exposing inactive or extra state", () => {
-    expect(form).toContain('name="entry" value="A quiet beginning" required');
+    expect(form).toContain(
+      'name="entry" value="A quiet beginning" aria-describedby="edit-journal-entry-guidance"' +
+        " required",
+    );
     expect(form).toContain('name="reflection" value=""');
     expect(form).toContain('name="published"');
     expect(form).not.toContain('name="published" checked');
@@ -152,7 +155,8 @@ describe("edit form — committed update wiring", () => {
   test("reuses both authored list modes for exact prefill", () => {
     expect(form).toContain('data-list-input-mode="comma_separated"');
     expect(form).toContain(
-      'name="tags" value="fantasy, classic" aria-describedby="edit-journal-tags-list-hint"',
+      'name="tags" value="fantasy, classic"' +
+        ' aria-describedby="edit-journal-tags-list-hint edit-journal-tags-guidance"',
     );
 
     expect(form).toContain('data-list-input-mode="repeatable"');
