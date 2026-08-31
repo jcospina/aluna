@@ -21,6 +21,7 @@ import {
   capabilityEditErrorId,
 } from "../presentation/index.ts";
 import { ReadGateClosingError } from "../read-gates/index.ts";
+import { escapeHtml } from "../web/html.ts";
 import { NOT_FOUND_NOTICE } from "../web/index.ts";
 import type { WireProtocolAction } from "./wire-protocol.ts";
 
@@ -108,7 +109,7 @@ export function missingRequiredFieldsFailure(
   capabilityId: string,
   error: MissingRequiredFieldsError,
 ): Response {
-  const fields = error.fields.join(" ");
+  const fields = escapeHtml(error.fields.join(" "));
   if (error.action === "create") {
     c.header("HX-Retarget", `#${capabilityCreateErrorId(capabilityId)}`);
     c.header("HX-Reswap", "innerHTML");
@@ -136,7 +137,7 @@ export function invalidChoiceFailure(
   capabilityId: string,
   error: InvalidChoiceError,
 ): Response {
-  const fields = error.fields.join(" ");
+  const fields = escapeHtml(error.fields.join(" "));
   const errorId =
     error.action === "create"
       ? capabilityCreateErrorId(capabilityId)
@@ -160,7 +161,7 @@ export function choiceDisabledFailure(
   capabilityId: string,
   error: ChoiceDisabledError,
 ): Response {
-  const fields = error.fields.join(" ");
+  const fields = escapeHtml(error.fields.join(" "));
   const errorId =
     error.action === "create"
       ? capabilityCreateErrorId(capabilityId)
@@ -184,7 +185,7 @@ export function maxLengthExceededFailure(
   capabilityId: string,
   error: MaxLengthExceededError,
 ): Response {
-  const fields = error.fields.join(" ");
+  const fields = escapeHtml(error.fields.join(" "));
   const errorId =
     error.action === "create"
       ? capabilityCreateErrorId(capabilityId)

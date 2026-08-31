@@ -202,7 +202,9 @@ describe("create form — one control per pantry type — scalar and list contro
     expect(html).toContain('data-list-input-mode="comma_separated"');
     // The platform's own separator hint keeps an id of its own, so a field that also
     // declares `guidance` can carry both lines rather than one overwriting the other.
-    expect(html).toContain('name="tags" aria-describedby="cap-probe-tags-list-hint" required');
+    expect(html).toContain(
+      'name="tags" aria-describedby="cap-probe-tags-list-hint cap-probe-tags-guidance" required',
+    );
     expect(html).toContain('id="cap-probe-tags-list-hint">Separate values with commas.</p>');
     expect(html).not.toContain("data-list-field-add");
     expect(html).not.toContain("data-list-field-remove");
@@ -253,18 +255,30 @@ describe("create form — one control per pantry type — labels, lifecycle, and
     expect(create).not.toContain("Retired note");
   });
 
+  /**
+   * Everything the form draws, without the `<form>` open tag itself. The tag carries
+   * `data-required-message` — the platform's own sentence for a field left empty — so a
+   * question about whether a *control* says "required" has to be asked past it.
+   */
+  const withoutFormTag = (html: string) => html.slice(html.indexOf(">") + 1);
+
   test("required fields carry the required attribute; optional ones do not", () => {
-    expect(form).toContain('name="title" required>');
-    // The lone optional field renders without a `required` attribute anywhere.
+    expect(form).toContain('name="title" aria-describedby="cap-tasks-title-guidance" required>');
+    // The lone optional field renders without the word anywhere on any control — not
+    // `required`, not `aria-required`, not `data-choice-required`. The form's own open tag
+    // is cut off first, because it now carries `data-required-message`: the sentence a
+    // *missing* field is refused with, which says nothing about this one.
     expect(
-      renderCreateForm(
-        oneField({
-          name: "note",
-          label: "Note",
-          type: "string",
-          required: false,
-          lifecycle: "active",
-        }),
+      withoutFormTag(
+        renderCreateForm(
+          oneField({
+            name: "note",
+            label: "Note",
+            type: "string",
+            required: false,
+            lifecycle: "active",
+          }),
+        ),
       ),
     ).not.toContain("required");
   });
@@ -282,7 +296,7 @@ describe("create form — one control per pantry type — labels, lifecycle, and
       }),
     );
     expect(booleanForm).toContain('type="checkbox"');
-    expect(booleanForm).not.toContain("required");
+    expect(withoutFormTag(booleanForm)).not.toContain("required");
   });
 });
 

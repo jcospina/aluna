@@ -23,6 +23,14 @@
 // spends an asterisk on most of the fields on screen. It is the inversion of a key the
 // spec already has, so it costs nothing but this renderer — and read-only is not a third
 // state, since the form is the only view a record has.
+//
+// **The guidance slot is always there, and is empty far more often than not.** A field
+// says at most one thing wrong with it at a time, and the design says that sentence in the
+// guidance's place (`design/controls.html`, "The states") — the outline says *that*
+// something is wrong and the sentence says *what*. So the slot a hint would occupy is also
+// the slot an error occupies, and rendering it unconditionally is what lets the client
+// write one sentence into one element it can always find, and put the hint back when the
+// error clears. An empty one is `hidden` and describes nothing.
 
 import { fieldGuidanceText, type SpecField, type UiFormIntent } from "../registry/index.ts";
 import { escapeHtml } from "../web/html.ts";
@@ -30,6 +38,17 @@ import { escapeHtml } from "../web/html.ts";
 /** The rows a long-text control opens at, and the height it stops growing past. */
 export const LONG_TEXT_ROWS = 3;
 export const LONG_TEXT_GROW_MAX_PX = 260;
+
+/**
+ * The one sentence the platform has authored for a field left empty, said in the field
+ * itself. The form carries it in `data-required-message` and `public/field-errors.js`
+ * reads it from there, so the client never holds a second copy of copy.
+ *
+ * It is deliberately the field-sized half of the whole-form refusal the server answers a
+ * crafted submission with ("I still need a little more before I can add this"): the same
+ * voice saying the same thing at the scale it is being said at.
+ */
+export const REQUIRED_FIELD_SENTENCE = "I still need this one.";
 
 /**
  * The counter's words, and the one place the platform writes them.
@@ -74,9 +93,13 @@ export function growAttributes(): string {
 export interface FieldChrome {
   /** Appended inside the `<label>`, after the field's own words. */
   readonly labelSuffix: string;
-  /** ` aria-describedby="…"`, or `""` when the field says nothing about itself. */
+  /** ` aria-describedby="…"`. Never empty: every field carries a guidance slot. */
   readonly describedBy: string;
-  /** The guidance and counter elements, in that order, after the control. */
+  /**
+   * The guidance slot and the counter, in that order, after the control. The slot is
+   * always written — empty and `hidden` when nothing is declared — because it is also
+   * where a validation error is said.
+   */
   readonly trailing: string;
 }
 
@@ -102,11 +125,12 @@ export function fieldChrome(
   let trailing = "";
 
   const guidance = fieldGuidanceText(form, field.name);
-  if (guidance !== undefined) {
-    const id = `${inputId}-guidance`;
-    ids.push(id);
-    trailing += `<p class="field__guidance" id="${id}">${escapeHtml(guidance)}</p>`;
-  }
+  const guidanceId = `${inputId}-guidance`;
+  ids.push(guidanceId);
+  trailing +=
+    `<p class="field__guidance" id="${guidanceId}" data-field-guidance` +
+    `${guidance === undefined ? " hidden" : ""}>` +
+    `${guidance === undefined ? "" : escapeHtml(guidance)}</p>`;
 
   if (field.max_length !== undefined) {
     const id = counterId(inputId);

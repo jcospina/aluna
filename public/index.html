@@ -106,6 +106,17 @@
     <script type="module" src="/static/long-text-field.js"></script>
 
     <!--
+      Where a validation error is said, and what stops a submission before it is sent. A
+      refusal the server marked with `data-error-fields` is moved out of the form's error
+      region into each field it names, taking that field's guidance slot; correcting the
+      field puts the guidance back. The browser's own required check keeps its refusal and
+      loses its foreign tooltip, and the drawn picker — whose value rides a hidden input,
+      which no browser validates — gets that refusal back here rather than a round trip
+      later.
+    -->
+    <script type="module" src="/static/field-errors.js"></script>
+
+    <!--
       A capability deletion whose reply never arrived. A destructive action must never
       look like it did nothing, so this asks the server what is actually true and shows
       its answer. It also tells the server what a deletion displaces, so **Keep it** has

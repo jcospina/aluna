@@ -45,6 +45,7 @@ import {
   fieldChrome,
   growAttributes,
   lengthAttributes,
+  REQUIRED_FIELD_SENTENCE,
 } from "./field-chrome.ts";
 
 /**
@@ -120,6 +121,18 @@ export function capabilityDeleteConfirmationId(capabilityId: string): string {
   return `${capabilityId}-delete-confirmation`;
 }
 
+/**
+ * The platform's own required sentence, written once per form for the client that says it.
+ *
+ * Every other sentence a form shows arrives from the server in the response it answers.
+ * This one is said before there is a request at all — a required field is refused in the
+ * browser, so the browser has to be holding the words — and putting them on the form is
+ * what keeps the platform the only author of them (`public/field-errors.js`).
+ */
+function requiredMessageAttribute(): string {
+  return ` data-required-message="${escapeHtml(REQUIRED_FIELD_SENTENCE)}"`;
+}
+
 function searchRefreshAttributes(capability: RenderableCapability): string {
   return capability.actions.includes("search")
     ? ` data-search-url="/capability/${capability.id}/search"`
@@ -151,6 +164,7 @@ export function renderCreateForm(capability: RenderableCapability): string {
     ` data-records-target-id="${regionId}"` +
     ` data-read-url="/capability/${capabilityId}/read"` +
     searchRefreshAttributes(capability) +
+    requiredMessageAttribute() +
     `>` +
     `<div id="${errorId}" class="capability-create-form__error" aria-live="polite"></div>` +
     `<div class="capability-create-form__fields">${fields}</div>` +
@@ -199,7 +213,8 @@ export function renderEditForm(
 
   return (
     `<form class="capability-edit-form" data-record-edit-form aria-label="Edit ${label}"` +
-    ` hx-post="/capability/${capability.id}/update" hx-swap="none">` +
+    ` hx-post="/capability/${capability.id}/update" hx-swap="none"` +
+    `${requiredMessageAttribute()}>` +
     `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapedRecordId}">` +
     `<div id="${errorId}" class="capability-edit-form__error" aria-live="polite"></div>` +
     `<div class="capability-edit-form__fields">${fields}</div>` +

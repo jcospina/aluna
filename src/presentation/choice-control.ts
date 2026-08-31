@@ -128,18 +128,29 @@ function fieldLabel(inputId: string, field: SpecField, chrome: FieldChrome): str
  * control says nothing here rather than saying it invalidly.
  *
  * This is advisory for the picker and the segmented row: neither has a native constraint,
- * which is what 5.10/04 recovers with a client-side check. The radio group keeps its own
- * (see {@link radioOption}) and this rides beside it.
+ * which is why the carrier below carries `data-choice-required` and the client refuses the
+ * submission itself. The radio group keeps its own (see {@link radioOption}) and this rides
+ * beside it.
  */
 function requiredAttribute(field: SpecField): string {
   return field.required ? ' aria-required="true"' : "";
 }
 
-/** The one value the whole control posts, for the two presentations that draw no input. */
+/**
+ * The one value the whole control posts, for the two presentations that draw no input.
+ *
+ * It also says whether the field it carries is required, which is the only place either of
+ * them can say it enforceably. A hidden input is barred from constraint validation, so
+ * `required` here would be a word the browser never reads; `data-choice-required` is what
+ * `public/field-errors.js` checks before the form is allowed to go, which is how a drawn
+ * picker keeps the refusal a native control gets for free. The radio group needs none of
+ * this — it draws real inputs and keeps their `required` — and has no carrier to put it on.
+ */
 function valueCarrier(field: SpecField, chosen: string): string {
   return (
     `<input type="hidden" name="${escapeHtml(field.name)}"` +
-    ` value="${escapeHtml(chosen)}" data-choice-value>`
+    ` value="${escapeHtml(chosen)}" data-choice-value` +
+    `${field.required ? " data-choice-required" : ""}>`
   );
 }
 

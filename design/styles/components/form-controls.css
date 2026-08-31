@@ -127,6 +127,14 @@
   line-height: 1.4;
 }
 
+/* Restated because the rule above outranks the user agent's own `[hidden]` and would
+ * otherwise leave a blank line under every field whose slot is standing empty. A field
+ * carries its guidance slot whether or not it has a hint, because the slot is also where
+ * a validation error is said. */
+.field__guidance[hidden] {
+  display: none;
+}
+
 .field__guidance.is-over {
   color: var(--signal);
   font-weight: 700;
@@ -138,7 +146,13 @@
   background: var(--well-alert);
 }
 
-.field.is-invalid .field__guidance {
+/* Signal goes to the line that *is* the error, not to every line the field is saying.
+ * One field here has one guidance line; a real form's field may carry a declared hint, a
+ * hint about commas and a character count beside it, and only one of them is ever what
+ * went wrong. The count is the exception's exception: past its limit it is already signal
+ * on its own account, and that is the same thing being wrong. */
+.field.is-invalid .field__guidance--error,
+.field.is-invalid .field__guidance.is-over {
   color: var(--signal);
   font-weight: 700;
 }

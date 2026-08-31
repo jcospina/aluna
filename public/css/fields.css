@@ -173,6 +173,20 @@
 }
 
 /*
+ * Three of the controls this form draws have no well for the design's invalid rule to
+ * recolour: a radio group and a segmented row are sets of their own marks, and a checkbox
+ * is a mark rather than a well. Without this the outline half of a refusal — the part that
+ * says *that* something is wrong, before the sentence says what — simply does not happen
+ * on them. So the fill goes behind the field instead, which is the same paper the shell
+ * would have turned, and the marks keep their own.
+ */
+.field--choice[data-choice-presentation="radio"].is-invalid,
+.field--choice[data-choice-presentation="segmented"].is-invalid,
+.field--inline.is-invalid {
+  background: var(--well-alert);
+}
+
+/*
  * The drawn picker's own parts — panel, scroller, rows, group headings, notes — are the
  * design system's and ship from `design/styles/components/form-controls.css`, which this
  * page already loads. So is the radio group's `.choice` vocabulary and the segmented row.
