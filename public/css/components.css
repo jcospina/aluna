@@ -35,18 +35,18 @@
      set does not have (design/design-system.md, Buttons). */
   border: var(--line) solid var(--ink);
   cursor: pointer;
-  transition:
-    transform var(--dur-fast) var(--ease-rise),
-    box-shadow var(--dur-fast) var(--ease-rise);
+  /* Only the press. Depth on this surface is ordered bands rather than shadow, and the
+     `box-shadow` layer that stood here animated a property no rule ever sets. */
+  transition: translate var(--dur-travel) var(--ease-rise);
 }
 /* Gentle press — tactile but quiet, identical to the shell buttons. Both exclude a
    disabled button rather than moving it back afterwards, which is how the manifest states
    its own press and is what lets the disabled rule below be deleted entirely. */
 .btn:hover:not(:disabled) {
-  transform: translate(1px, 1px);
+  translate: var(--travel-nudge) var(--travel-nudge);
 }
 .btn:active:not(:disabled) {
-  transform: translate(2px, 2px);
+  translate: var(--travel-press) var(--travel-press);
 }
 /* No disabled rule. `design/styles/components/form-controls.css` prints the whole object
    at 42% with `cursor: not-allowed`, and greying only the text and refilling the

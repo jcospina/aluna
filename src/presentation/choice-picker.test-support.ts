@@ -226,11 +226,26 @@ export class El {
    */
   box: { top: number; bottom: number; left: number; right: number; width: number; height: number } =
     { top: 100, bottom: 136, left: 0, right: 200, width: 200, height: 36 };
-  computed: { overflowX: string; overflowY: string; position: string; transform: string } = {
+  computed: {
+    overflowX: string;
+    overflowY: string;
+    position: string;
+    transform: string;
+    translate: string;
+    scale: string;
+    rotate: string;
+  } = {
     overflowX: "visible",
     overflowY: "visible",
     position: "static",
+    // The four properties that make a containing block for a fixed panel. A browser
+    // computes each of them to `none` when nothing sets it, and the surface states its
+    // motion in the individual three, so a double that only carried `transform` would
+    // let the panel walk past the element it is really positioned against.
     transform: "none",
+    translate: "none",
+    scale: "none",
+    rotate: "none",
   };
 
   constructor(

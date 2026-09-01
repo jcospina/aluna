@@ -71,11 +71,13 @@
  * The rows slide out of a dragged row's way rather than jumping, which is what makes the
  * gap open somewhere a person can follow. The row in hand is excluded below: it tracks the
  * pointer, and a transition on it would make it lag behind the finger holding it.
+ *
+ * The displacement is written from JavaScript, so the axis reaches this one through the
+ * duration: with Reduce Motion on the gap still opens, in the frame it is asked for,
+ * rather than sliding open.
  */
-@media (prefers-reduced-motion: no-preference) {
-  .field-list__row {
-    transition: transform var(--dur-fast) var(--ease-rise);
-  }
+.field-list__row {
+  transition: translate var(--dur-travel) var(--ease-rise);
 }
 
 /*

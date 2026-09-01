@@ -185,9 +185,11 @@
   color: var(--ink-3);
   text-align: center;
 }
+/* The spinner turns on the spot: it says the search is still running, and it says it
+   under Reduce Motion too, because nothing about it travels. */
 @keyframes capability-search-spin {
   to {
-    transform: rotate(1turn);
+    rotate: 1turn;
   }
 }
 
@@ -307,15 +309,14 @@
 }
 button.capability-item {
   cursor: pointer;
-  transition:
-    transform var(--dur-fast) var(--ease-rise),
-    box-shadow var(--dur-fast) var(--ease-rise);
+  /* Only the press — see `components.css`; the card carries no shadow to animate. */
+  transition: translate var(--dur-travel) var(--ease-rise);
 }
 button.capability-item:hover {
-  transform: translate(1px, 1px);
+  translate: var(--travel-nudge) var(--travel-nudge);
 }
 button.capability-item:active {
-  transform: translate(2px, 2px);
+  translate: var(--travel-press) var(--travel-press);
 }
 /* No ring rule here: the card takes the one global `:focus-visible`
    (design/styles/base.css) unchanged. The ring is the whole signal — recolouring

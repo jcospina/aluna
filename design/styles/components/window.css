@@ -103,18 +103,18 @@
   outline-offset: 0;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .lamp {
-    transition: transform var(--dur-fast) ease;
-  }
+/* The lamp grows where it is and never leaves its place, so this is life rather
+   than travel: it keeps its own duration and keeps running under Reduce Motion. */
+.lamp {
+  transition: scale var(--dur-fast) ease;
 }
 
 .lamp:hover {
-  transform: scale(1.22);
+  scale: 1.22;
 }
 
 .lamp:active {
-  transform: scale(0.94);
+  scale: 0.94;
 }
 
 .lamp--leaf {

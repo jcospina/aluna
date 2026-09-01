@@ -225,6 +225,18 @@ spacing only from the sets in `design/styles/` (design D10, D11;
 M5 plan 9, 10).
 _Avoid_: CSS border, rule, stroke, outline, sketchy, hand-drawn effect
 
+**Travel**:
+Motion that takes something out of where it sits — a press jumping into the paper,
+a row sliding out of a dragged row's way, a window arriving from somewhere else.
+Named as its own thing because it is the half of motion that Reduce Motion turns
+off, on one axis (`--travel` in `design/styles/tokens.css`) that every travelling
+distance and duration is a multiple of. The other half is in-place life — a mark
+growing into its box, a chevron turning over, the pet breathing — which runs for
+everyone, always. Which half a rule is on is the property it uses: `translate`
+travels, `scale` and `rotate` do not, and `transform` only says where a thing sits
+(design D8; M5 plan 44).
+_Avoid_: animation (too broad — it covers both halves), transition, movement
+
 **Developer panel**:
 The second window, and the only exception to there being one. It is read-only,
 opens from its own tile on the desk, and may sit beside the capability being

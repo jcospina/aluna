@@ -79,7 +79,6 @@ export const AUDITED_SHEETS: readonly string[] = [
   "design/styles/components/list-field.css",
   "design/styles/components/logo-contract.css",
   "design/styles/components/window.css",
-  "public/css/a11y.css",
   "public/css/base.css",
   "public/css/collection.css",
   "public/css/components.css",

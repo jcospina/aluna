@@ -51,7 +51,7 @@ const key = (target: Node | null | undefined, name: string) => ({
 
 describe("reordering a row", () => {
   /** Where each row is drawn, relative to where it rests: the whole of what a drag shows. */
-  const drawnAt = (field: Node) => rowsOf(field).map((row) => row.style.transform || "at rest");
+  const drawnAt = (field: Node) => rowsOf(field).map((row) => row.style.translate || "at rest");
 
   test("the dragged row follows the pointer and the others open a gap for it", async () => {
     // The point of a drag is that you can see the thing move. Nothing in the document
@@ -70,22 +70,22 @@ describe("reordering a row", () => {
 
     // Half a row down is not yet past anybody: the row has moved and nothing else has.
     dragListRow(pointer(undefined, middleOf(0) + 10) as never);
-    expect(drawnAt(field)).toEqual(["translateY(10px)", "at rest", "at rest"]);
+    expect(drawnAt(field)).toEqual(["0 10px", "at rest", "at rest"]);
     expect(textOf(field)).toEqual(["one", "two", "three"]);
 
     // Past the second row's centre: it comes up to fill the gap, and the row in hand keeps
     // tracking the pointer rather than snapping into a slot.
     dragListRow(pointer(undefined, middleOf(0) + 24) as never);
-    expect(drawnAt(field)).toEqual(["translateY(24px)", "translateY(-20px)", "at rest"]);
+    expect(drawnAt(field)).toEqual(["0 24px", "0 -20px", "at rest"]);
 
     // Past the third as well, and both come up.
     dragListRow(pointer(undefined, middleOf(0) + 45) as never);
-    expect(drawnAt(field)).toEqual(["translateY(45px)", "translateY(-20px)", "translateY(-20px)"]);
+    expect(drawnAt(field)).toEqual(["0 45px", "0 -20px", "0 -20px"]);
     // Still not moved: the order is the same as it was when the finger went down.
     expect(textOf(field)).toEqual(["one", "two", "three"]);
   });
 
-  test("letting go commits the one move, and takes every transform back off", async () => {
+  test("letting go commits the one move, and takes every displacement back off", async () => {
     const { dragListRow, endListDrag, startListDrag, syncListRows } = await import(
       "#design/list-rows.js"
     );
@@ -121,7 +121,7 @@ describe("reordering a row", () => {
     startListDrag(pointer(gripOf(rowsOf(field)[2]), middleOf(2)) as never);
     dragListRow(pointer(undefined, middleOf(2) - 45) as never);
     // Both rows it has passed move down to make room at the top.
-    expect(drawnAt(field)).toEqual(["translateY(20px)", "translateY(20px)", "translateY(-45px)"]);
+    expect(drawnAt(field)).toEqual(["0 20px", "0 20px", "0 -45px"]);
     endListDrag(pointer(undefined) as never);
 
     expect(textOf(field)).toEqual(["three", "one", "two"]);

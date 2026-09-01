@@ -73,10 +73,12 @@ export class Node {
   box = { top: 0, height: 20 };
 
   /**
-   * What a drag writes and takes back off. Only `transform` is ever set, which is the whole
-   * of how a row is made to follow a finger, so that is all this holds.
+   * What a drag writes and takes back off. Only `translate` is ever set — the property the
+   * surface travels on, which is how the row's transition is on the travel duration and
+   * lands rather than sliding under Reduce Motion. The distance itself is measured from
+   * the list, so it is a raw number here rather than a token.
    */
-  readonly style = { transform: "" };
+  readonly style = { translate: "" };
 
   /** A node taken out of its parent is a node that is nowhere, which is what `remove` does. */
   get isConnected(): boolean {
