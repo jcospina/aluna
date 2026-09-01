@@ -549,6 +549,38 @@ function listHintId(inputId: string): string {
   return `${inputId}-list-hint`;
 }
 
+/**
+ * The instruction a grip is described by. One per field rather than one per row: it is the
+ * same sentence on every row, and repeating it would be read out again for each one.
+ */
+function reorderHelpId(inputId: string): string {
+  return `${inputId}-reorder-help`;
+}
+
+/**
+ * What a grip says it does, said once and pointed at by every row.
+ *
+ * The keys are named because a grab is a mode, and a mode nobody was told about is a row
+ * they cannot put down. The pointer half needs no sentence — the grip's cursor is the
+ * instruction, and it is the half that is already familiar.
+ */
+const REORDER_HELP = "Press space to pick this row up, then the arrow keys to move it.";
+
+/**
+ * Where the order is spoken as it changes.
+ *
+ * In the form from the start rather than written when a drag begins: a live region added and
+ * filled in the same turn is a region a screen reader has not started watching, and the
+ * sentence is lost. `assertive`, because it is answering a key the person just pressed and a
+ * polite queue would report the move after they had made the next one.
+ */
+function reorderLiveRegion(): string {
+  return (
+    `<div class="field-list__live" role="status" aria-live="assertive" aria-atomic="true"` +
+    ` data-list-field-live></div>`
+  );
+}
+
 function renderCommaSeparatedListField(
   inputId: string,
   field: SpecField,
@@ -587,27 +619,98 @@ function renderRepeatableListField(
   form: UiFormIntent,
   value: unknown,
 ): string {
+  const hintId = listHintId(inputId);
   const label = escapeHtml(field.label);
   const nameAttribute = escapeHtml(field.name);
   const presenceMarker = presenceMarkerFor(nameAttribute);
   const values = Array.isArray(value) && value.length > 0 ? value.map(String) : [""];
-  const chrome = fieldChrome(inputId, field, form, { emptyable: true });
+  const chrome = fieldChrome(inputId, field, form, {
+    emptyable: true,
+    extraDescribedIds: [hintId],
+  });
   const rows = values
     .map((element, index) =>
-      repeatableRow(inputId, nameAttribute, label, element, index, chrome.describedBy),
+      repeatableRow(
+        inputId,
+        nameAttribute,
+        label,
+        element,
+        index,
+        chrome.describedBy,
+        values.length,
+      ),
     )
     .join("");
 
   return (
     `<div class="field field--list field--list-repeatable" data-list-input-mode="repeatable"` +
-    ` data-list-field data-list-field-label="${label}" data-list-input-id="${inputId}">` +
+    ` data-list-field data-list-field-label="${label}" data-list-input-id="${inputId}"` +
+    // A required list wants one nonblank row, not a filled one in every row, so no single
+    // control carries the native constraint — the same shape the drawn picker is in, and
+    // it takes the same answer: the field says the word and the submit handler enforces it
+    // (`public/field-errors.js`).
+    `${field.required ? " data-list-required" : ""}>` +
     presenceMarker +
     `<label class="field__label" for="${inputId}-1">${label}${chrome.labelSuffix}</label>` +
     `<div class="field-list__values" data-list-field-values>${rows}</div>` +
     `<button class="btn btn--secondary field-list__add" type="button" data-list-field-add>` +
     `Add another</button>` +
+    `<p class="field__guidance" id="${hintId}">One value to a row. A comma here is data.</p>` +
+    `<p class="field__guidance" id="${reorderHelpId(inputId)}">${REORDER_HELP}</p>` +
+    reorderLiveRegion() +
     chrome.trailing +
     `</div>`
+  );
+}
+
+/**
+ * The two marks a row carries: the grip you take hold of, and the cross that takes the row
+ * away. A word apiece would be two labels wide on a row that has space for none, so the
+ * affordance is drawn and the accessible name says which row it belongs to — which is the
+ * half that has to be spoken rather than seen.
+ *
+ * The grip is the six dots every sortable list is dragged by. It is the one mark here that
+ * is a convention rather than a decision: a person who has moved a row anywhere else already
+ * knows what it is for, and that recognition is the whole reason to draw it.
+ */
+const GRIP_DOTS = [
+  [9, 6],
+  [15, 6],
+  [9, 12],
+  [15, 12],
+  [9, 18],
+  [15, 18],
+] as const;
+
+function gripGlyph(): string {
+  const dots = GRIP_DOTS.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.6"></circle>`).join("");
+  return (
+    `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"` +
+    ` aria-hidden="true">${dots}</svg>`
+  );
+}
+
+function crossGlyph(): string {
+  return (
+    `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"` +
+    ` stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+    `<path d="M6 6l12 12M18 6L6 18"></path></svg>`
+  );
+}
+
+/**
+ * The grip a row is moved by, with a pointer or with the keyboard.
+ *
+ * Disabled in a list of one, because there is nowhere to move the only row there is. It is a
+ * `<button>` rather than a `<div draggable>`: that is what puts it in the tab order, what
+ * gives it a focus ring, and what makes space and the arrow keys reach it at all.
+ */
+function rowGrip(label: string, position: number, total: number, helpId: string): string {
+  return (
+    `<button class="field-list__grip" type="button" data-list-field-grip` +
+    ` aria-label="Reorder ${label} ${position} of ${total}"` +
+    ` aria-describedby="${helpId}"${total < 2 ? " disabled" : ""}>` +
+    `${gripGlyph()}</button>`
   );
 }
 
@@ -615,10 +718,14 @@ function renderRepeatableListField(
  * One row of a repeatable list.
  *
  * The field's description rides every row rather than the field, because a repeatable list
- * has no single control to hang it on — what a screen reader reaches is a row's input, and
- * a hint referenced by nothing is the visual-only text this module exists not to emit. It
- * survives an added row for free: `addListFieldRow` clones a row wholesale, and
- * `syncListFieldRows` restates only the id and the two labels that are positional.
+ * has no single control to hang it on — what a screen reader reaches is a row's input, and a
+ * hint referenced by nothing is the visual-only text this module exists not to emit. It
+ * survives an added row for free: `addListRow` clones a row wholesale, and `syncListRows`
+ * restates only the names that are positional.
+ *
+ * Order is the value here — every row posts under the same name and the wire keeps the order
+ * they arrive in — so a row can be moved, and moving it may not require a drag. It is
+ * dragged by the grip, and the same grip picks it up for the keyboard.
  */
 function repeatableRow(
   inputId: string,
@@ -627,16 +734,20 @@ function repeatableRow(
   element: string,
   index: number,
   describedBy: string,
+  total: number,
 ): string {
+  const position = index + 1;
   return (
     `<div class="field-list__row" data-list-field-row>` +
+    rowGrip(label, position, total, reorderHelpId(inputId)) +
     controlShell(
-      `<input class="field__input" id="${inputId}-${index + 1}" type="text"` +
+      `<input class="field__input" id="${inputId}-${position}" type="text"` +
         ` name="${nameAttribute}" value="${escapeHtml(element)}"` +
-        ` aria-label="${label} ${index + 1}"${describedBy}>`,
+        ` aria-label="${label} ${position}"${describedBy}>`,
     ) +
-    `<button class="field-list__remove" type="button" data-list-field-remove` +
-    ` aria-label="Remove ${label} value ${index + 1}">Remove</button>` +
+    `<button class="btn btn--outline btn--sm field-list__action" type="button"` +
+    ` data-list-field-remove aria-label="Remove ${label} value ${position}">` +
+    `${crossGlyph()}</button>` +
     `</div>`
   );
 }

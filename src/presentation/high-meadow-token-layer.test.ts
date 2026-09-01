@@ -136,6 +136,46 @@ describe("High Meadow token-layer cutover", () => {
     expect(primary).toBeCloseTo(5.18, 1);
     expect(secondary).toBeCloseTo(4.54, 1);
   });
+});
+
+describe("the button set on the window surface", () => {
+  test("every one of the seven reads on the window surface it stands on", () => {
+    // AC of 5.10/05: the set is expressive *and* legible. The pairs are read out of the
+    // manifest rather than restated here, so changing a fill re-measures rather than
+    // silently keeping a number that was true of the colour it replaced.
+    const controls = read("design/styles/components/form-controls.css");
+    const pairs = [...controls.matchAll(/\.btn--([a-z]+)\s*\{([^}]*)\}/g)]
+      .map(([, name, body]) => ({
+        name: name ?? "",
+        fill: /--btn-fill:\s*var\(--([a-z-]+)\)/.exec(body ?? "")?.[1],
+        label: /\bcolor:\s*var\(--([a-z-]+)\)/.exec(body ?? "")?.[1],
+      }))
+      .filter((pair) => pair.label !== undefined);
+
+    expect(pairs.map((pair) => pair.name).sort()).toEqual([
+      "danger",
+      "feature",
+      "info",
+      "outline",
+      "primary",
+      "secondary",
+      "warm",
+    ]);
+
+    for (const pair of pairs) {
+      // Outline carries no fill, so what its label is read against is the window itself.
+      const background = tokenHex(pair.fill ?? "surface");
+      const ratio = contrast(tokenHex(pair.label as string), background);
+      expect(ratio, `.btn--${pair.name} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+    }
+    // And the two the design page records as the tightest are still the tightest, so a
+    // change that quietly loosened the whole palette would not pass as an improvement.
+    expect(
+      Math.min(
+        ...pairs.map((p) => contrast(tokenHex(p.label as string), tokenHex(p.fill ?? "surface"))),
+      ),
+    ).toBeCloseTo(4.54, 1);
+  });
 
   // A button is small caps, and `design/styles/components/controls.css` is where that
   // is said. The shell bridge loads after the manifest, so any size it states for

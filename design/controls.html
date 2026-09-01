@@ -20,6 +20,7 @@
         <a href="#buttons">Buttons</a>
         <a href="#fields">Fields</a>
         <a href="#long">Long text</a>
+        <a href="#list">Lists</a>
         <a href="#enum">Enums</a>
         <a href="#choice">Choice</a>
         <a href="#form">Assembled</a>
@@ -151,8 +152,10 @@
           palette is true of exactly two fills.
         </p>
         <p class="sm">
-          Seven variants and a default. <code>outline</code> is the only unfilled one, for the
-          action you take when you are not taking the action, and it is what
+          Seven variants, and no eighth hiding behind the absence of a modifier.
+          <code>outline</code>
+          is the only unfilled one, for the action you take when you are not taking the action, and
+          it names what a bare <code>btn</code> already is. It is what
           <code>ghost</code>
           was called before the set was settled. There is no
           <code>neutral</code>: it filled with <code>ground-deep</code>, which is the desk's band
@@ -210,9 +213,9 @@
 
         <h3 class="kicker">Sizes</h3>
         <div class="rack">
-          <button class="btn btn--sm" type="button">Small · 28px</button>
-          <button class="btn" type="button">Medium · 36px</button>
-          <button class="btn btn--lg" type="button">Large · 44px</button>
+          <button class="btn btn--outline btn--sm" type="button">Small · 28px</button>
+          <button class="btn btn--outline" type="button">Medium · 36px</button>
+          <button class="btn btn--outline btn--lg" type="button">Large · 44px</button>
         </div>
         <p class="xs" style="margin-top: 12px">
           Three heights and one line weight. The 2px does not scale with the button, because it is
@@ -500,6 +503,278 @@
             list that already picks between a comma-separated and a repeatable list input, which is
             why that is the shape it takes.
           </p>
+        </div>
+      </section>
+
+      <!-- ══ A list of strings ═════════════════════════════════════════ -->
+      <section class="window--section" id="list" data-window data-title="A list of strings">
+        <div class="note note--sky">
+          <p>
+            <strong>New, and settled.</strong>
+            A <code>string[]</code> field is a type Aluna already ships, in two input modes, and
+            this page drew neither of them. Both are drawn here. Which mode a field takes is
+            declared in <code>form.list_inputs</code> — the list <code>long_text</code> is shaped
+            after — and whichever it is, what reaches the capability's own code is the same ordered
+            array of strings.
+          </p>
+        </div>
+
+        <div class="forms">
+          <div>
+            <h3 class="kicker">Comma-separated</h3>
+            <label class="field">
+              <span class="field__label caps">Tags</span>
+              <span class="field__control">
+                <input class="field__input" type="text" value="green, slow, mornings">
+              </span>
+              <span class="field__guidance">Separate values with commas.</span>
+            </label>
+            <p class="xs" style="margin-top: 16px">
+              One control, and nothing new to draw: it is the text field this page already has, and
+              the comma is what separates one value from the next. Each segment is trimmed and an
+              empty one is dropped, so a trailing comma is not a value. It is the right mode for
+              short words in no particular order, and the wrong one the moment a value could contain
+              a comma of its own.
+            </p>
+          </div>
+
+          <div>
+            <h3 class="kicker">Repeatable</h3>
+            <div
+              class="field"
+              data-list-field
+              data-list-field-label="Step"
+              data-list-input-id="recipe-step"
+            >
+              <label class="field__label caps" for="recipe-step-1">Steps</label>
+              <div class="field-list__values" data-list-field-values>
+                <div class="field-list__row" data-list-field-row>
+                  <button
+                    class="field-list__grip"
+                    type="button"
+                    data-list-field-grip
+                    aria-label="Reorder Step 1 of 3"
+                    aria-describedby="recipe-step-reorder-help"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <circle cx="9" cy="6" r="1.6"></circle>
+                      <circle cx="15" cy="6" r="1.6"></circle>
+                      <circle cx="9" cy="12" r="1.6"></circle>
+                      <circle cx="15" cy="12" r="1.6"></circle>
+                      <circle cx="9" cy="18" r="1.6"></circle>
+                      <circle cx="15" cy="18" r="1.6"></circle>
+                    </svg>
+                  </button>
+                  <span class="field__control"
+                    ><input
+                      class="field__input"
+                      id="recipe-step-1"
+                      type="text"
+                      value="Warm the pan"
+                      aria-label="Step 1"
+                    ></span
+                  >
+                  <button
+                    class="btn btn--outline btn--sm field-list__action"
+                    type="button"
+                    data-list-field-remove
+                    aria-label="Remove Step value 1"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 6l12 12M18 6L6 18"></path>
+                    </svg>
+                  </button>
+                </div>
+                <div class="field-list__row" data-list-field-row>
+                  <button
+                    class="field-list__grip"
+                    type="button"
+                    data-list-field-grip
+                    aria-label="Reorder Step 2 of 3"
+                    aria-describedby="recipe-step-reorder-help"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <circle cx="9" cy="6" r="1.6"></circle>
+                      <circle cx="15" cy="6" r="1.6"></circle>
+                      <circle cx="9" cy="12" r="1.6"></circle>
+                      <circle cx="15" cy="12" r="1.6"></circle>
+                      <circle cx="9" cy="18" r="1.6"></circle>
+                      <circle cx="15" cy="18" r="1.6"></circle>
+                    </svg>
+                  </button>
+                  <span class="field__control"
+                    ><input
+                      class="field__input"
+                      id="recipe-step-2"
+                      type="text"
+                      value="Toast the spices, whole"
+                      aria-label="Step 2"
+                    ></span
+                  >
+                  <button
+                    class="btn btn--outline btn--sm field-list__action"
+                    type="button"
+                    data-list-field-remove
+                    aria-label="Remove Step value 2"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 6l12 12M18 6L6 18"></path>
+                    </svg>
+                  </button>
+                </div>
+                <div class="field-list__row" data-list-field-row>
+                  <button
+                    class="field-list__grip"
+                    type="button"
+                    data-list-field-grip
+                    aria-label="Reorder Step 3 of 3"
+                    aria-describedby="recipe-step-reorder-help"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <circle cx="9" cy="6" r="1.6"></circle>
+                      <circle cx="15" cy="6" r="1.6"></circle>
+                      <circle cx="9" cy="12" r="1.6"></circle>
+                      <circle cx="15" cy="12" r="1.6"></circle>
+                      <circle cx="9" cy="18" r="1.6"></circle>
+                      <circle cx="15" cy="18" r="1.6"></circle>
+                    </svg>
+                  </button>
+                  <span class="field__control"
+                    ><input
+                      class="field__input"
+                      id="recipe-step-3"
+                      type="text"
+                      value="Pour, and do not stir"
+                      aria-label="Step 3"
+                    ></span
+                  >
+                  <button
+                    class="btn btn--outline btn--sm field-list__action"
+                    type="button"
+                    data-list-field-remove
+                    aria-label="Remove Step value 3"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 6l12 12M18 6L6 18"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <button class="btn btn--secondary field-list__add" type="button" data-list-field-add>
+                Add another
+              </button>
+              <p class="field__guidance" id="recipe-step-reorder-help">
+                Press space to pick this row up, then the arrow keys to move it.
+              </p>
+              <div
+                class="field-list__live"
+                role="status"
+                aria-live="assertive"
+                aria-atomic="true"
+                data-list-field-live
+              ></div>
+              <span class="field__guidance">One value to a row. A comma here is data.</span>
+            </div>
+            <p class="xs" style="margin-top: 16px">
+              A row is a field of its own — the same shell, drawn the same way — and the three
+              actions beside it are ordinary small outline buttons. Nothing on the row is a new
+              shape; what is new is that there are several of them and the order is the value.
+            </p>
+          </div>
+        </div>
+
+        <div class="cols">
+          <div class="note">
+            <h4>You drag it, and you can also not drag it</h4>
+            <p class="sm">
+              Order is data here, so a person has to be able to change it — and dragging is what
+              people already know how to do. But a drag on its own is unavailable to a keyboard,
+              invisible until you try it, and awkward on a touchscreen, so it cannot be the only way
+              in.
+            </p>
+            <p class="sm">
+              <strong>The grip is a button.</strong>
+              That is what puts it in the tab order and what lets space, the arrow keys and escape
+              reach it. Press space and the row is in your hand; the arrows move it, space puts it
+              down, escape puts it back where it was. Tabbing away or clicking elsewhere drops it
+              too, because the one failure this pattern has is a row nobody can put down.
+            </p>
+            <p class="sm">
+              <strong>Nothing in the list moves while the finger is down.</strong>
+              The row in hand is translated to wherever the pointer is and the rows it passes slide
+              by a whole row to get out of its way, so the whole drag is transforms over a list that
+              has not changed. The one real move happens when you let go, into the slot the row is
+              already drawn in — which is why letting go looks like nothing happening.
+            </p>
+            <p class="sm">
+              Depth is the same here as everywhere: no shadow. The row you are holding takes the
+              paper the field sits on while the rows below keep the well's, and it stacks over them
+              so it passes in front rather than through.
+            </p>
+            <p class="sm">
+              Both halves spend the same movement and say the same sentence into the same live
+              region, so a row moved by a finger and a row moved by a key cannot end up somewhere
+              different.
+            </p>
+          </div>
+
+          <div class="note">
+            <h4>Why the row is not just an input</h4>
+            <p class="sm">
+              The wire has no notion of a list: each row posts under the same name, and the order
+              they arrive in is the order they are in. That is why moving a row moves the row itself
+              and not a label on it, and why the last row is emptied rather than taken away — a
+              field with no row left cannot be typed into, and nothing would put one back.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -1197,6 +1472,20 @@
                   </td>
                   <td class="sm">The invalid field under <a href="#fields">Fields</a></td>
                 </tr>
+                <tr>
+                  <td>C16</td>
+                  <td>
+                    <strong
+                      >A list of strings is drawn in both its modes, and its order is
+                      keyboard-operable.</strong
+                    >
+                    Comma-separated is one drawn text control; repeatable is drawn rows, each with
+                    labelled move and remove actions disabled at the end of their travel. Order is
+                    data, so it may not depend on a drag, and both modes hand over the same ordered
+                    array
+                  </td>
+                  <td class="sm">Both controls under <a href="#list">A list of strings</a></td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1240,15 +1529,12 @@
           </div>
 
           <div class="note note--sun">
-            <h4>A list-of-strings field has no picture here</h4>
+            <h4>A file field is the one absence left, and it is not a gap</h4>
             <p class="sm">
-              It is a type Aluna already ships, in two input modes — comma-separated and repeatable
-              — and this page draws neither. It gets a drawn control like everything else, and what
-              that control looks like is a present gap rather than a future one.
-            </p>
-            <p class="sm">
-              A file field is the other absence, and it is not a gap. Files do not exist yet; the
-              control arrives with the module that gives them somewhere to live.
+              Files do not exist yet; the control arrives with the module that gives them somewhere
+              to live. The list-of-strings field that stood here with it was a gap rather than an
+              absence, and it is drawn now — both modes, under
+              <a href="#list">A list of strings</a>.
             </p>
           </div>
         </div>

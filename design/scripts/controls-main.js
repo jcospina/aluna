@@ -15,6 +15,7 @@
  */
 
 import { mountAllInk, reseedInk, startInk } from "./ink.js";
+import { mountListRows, wireListRows } from "./list-rows.js";
 import { mountListboxes } from "./listbox.js";
 import { wireSectionWindows } from "./sections/section-window.js";
 import { mountWindows } from "./window.js";
@@ -158,6 +159,10 @@ function boot() {
   wireSectionWindows(mountWindows(document));
 
   mountListboxes(document);
+  /* The rows the repeatable list is typed into. Delegated, because a row added by a
+     press has to behave the same as one that shipped in the markup. */
+  mountListRows(document);
+  wireListRows(document);
   mountTextareas(document);
   mountCounters(document);
   mountBenches(document.body);

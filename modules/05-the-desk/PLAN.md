@@ -483,10 +483,21 @@ carried it, the desk puts none anywhere else, and only the name is left.
     naming is being deleted (decision 8). A `string[]` field gets a drawn control
     now: it is a shipped type with no picture in the design, which is a present gap
     rather than a future one. `comma_separated` remains one trim/drop-empty input;
-    `repeatable` uses drawn rows whose labelled move/remove actions are fully
-    keyboard-operable with stable focus, not drag-only. Both normalize to the same
-    ordered array. File fields wait for Files, now Module 7; they do not
-    exist yet.
+    `repeatable` uses drawn rows that are dragged by a grip, and reordering is
+    fully keyboard-operable with stable focus rather than drag-only. Both
+    normalize to the same ordered array. File fields wait for Files, now Module 7;
+    they do not exist yet.
+
+    **Amended 2026-08-31, in 5.10/05.** The constraint stands and the mechanism
+    changed. As written, the decision named per-row move-up/move-down buttons; in
+    review those read as three controls on every row and as nothing anyone had
+    learned elsewhere. A grip is what a reorderable row looks like, so the row is
+    dragged by one — and because the grip is a `<button>` rather than a
+    `draggable` div, it is in the tab order and space picks the row up for the
+    arrow keys, with escape putting it back. What the decision was protecting —
+    order is data, so changing it may not depend on a gesture a keyboard does not
+    have — is unchanged; what it prescribed is not. Both paths spend one movement
+    and one announcement, so they cannot drift.
 
 33. **Field labels stay uppercase.** `.caps` keeps `text-transform: uppercase` on
     a form label. Small caps is one role marker across the whole surface — labels,

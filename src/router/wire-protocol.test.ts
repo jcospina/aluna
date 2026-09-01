@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-
+import { renderEditForm } from "../presentation/field-renderer.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
@@ -195,6 +195,43 @@ describe("reserved capability wire protocol — input parsing", () => {
       listSpec(false, "repeatable"),
     );
     expect(repeatable.input.values.tags).toEqual(["Doe, Jane"]);
+  });
+});
+
+describe("reserved capability wire protocol — the rendered form, round-tripped", () => {
+  test("round-trips a rendered form into the same ordered array, in either mode", async () => {
+    // The claim 5.10/05 makes is a round trip, so it is proved end to end rather than
+    // against the normalizer alone: the renderer writes the form, the form is posted the
+    // way a browser posts it — every control in document order, under its own name — and
+    // the parser is asked what the Handler will be given.
+    const stored = ["one", "two", "three"];
+    const renderable = (mode: "comma_separated" | "repeatable") => {
+      const built = listSpec(false, mode);
+      return {
+        id: built.id,
+        label: built.label,
+        noun: built.noun,
+        schema: built.schema,
+        form: built.ui_intent.form,
+        actions: built.tools,
+      };
+    };
+
+    for (const mode of ["comma_separated", "repeatable"] as const) {
+      const form = renderEditForm(renderable(mode), { id: "record-1", tags: stored });
+      // What a browser submits: every named control, in the order the document holds it.
+      const submitted = [...form.matchAll(/name="([^"]+)"(?: value="([^"]*)")?/g)].map(
+        ([, name, value]) => [name ?? "", value ?? ""] as [string, string],
+      );
+      expect(submitted.filter(([name]) => name === "tags").length).toBe(
+        mode === "repeatable" ? stored.length : 1,
+      );
+
+      // An edit form carries the record it is editing, so the action it posts is update.
+      const parsed = await parseCapabilityRequest(post(submitted), "update", listSpec(false, mode));
+      expect(parsed.recordTarget).toBe("record-1");
+      expect(parsed.input.values.tags, `${mode} did not round-trip`).toEqual(stored);
+    }
   });
 
   test("search admits only one scalar q while read admits no ordinary input", async () => {

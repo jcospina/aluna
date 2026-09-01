@@ -29,26 +29,31 @@
   line-height: 1.5;
   color: var(--ink);
   text-decoration: none;
-  background: var(--surface);
+  /* No fill. The manifest's base sets none either (`--btn-fill: transparent`), and this
+     sheet loads after it — so a `--surface` here was an eighth, filled face standing
+     behind the absence of a modifier, which is the one thing the design system says the
+     set does not have (design/design-system.md, Buttons). */
   border: var(--line) solid var(--ink);
   cursor: pointer;
   transition:
     transform var(--dur-fast) var(--ease-rise),
     box-shadow var(--dur-fast) var(--ease-rise);
 }
-/* Gentle press — tactile but quiet, identical to the shell buttons. */
-.btn:hover {
+/* Gentle press — tactile but quiet, identical to the shell buttons. Both exclude a
+   disabled button rather than moving it back afterwards, which is how the manifest states
+   its own press and is what lets the disabled rule below be deleted entirely. */
+.btn:hover:not(:disabled) {
   transform: translate(1px, 1px);
 }
-.btn:active {
+.btn:active:not(:disabled) {
   transform: translate(2px, 2px);
 }
-.btn:disabled {
-  cursor: default;
-  color: var(--ink-3);
-  background: var(--surface);
-  transform: none;
-}
+/* No disabled rule. `design/styles/components/form-controls.css` prints the whole object
+   at 42% with `cursor: not-allowed`, and greying only the text and refilling the
+   background — which is what stood here — made a disabled outline button opaque and made
+   its label a second ink, the two things the design names as the wrong answer. It matters
+   from 5.10/05 on: a repeatable row's move controls are the first buttons the product
+   disables structurally rather than while something is in flight. */
 
 /* ── Color variants ──────────────────────────────────────────────────────────
    The fill names the role and the text color on each fill is the AA-legible one

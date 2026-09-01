@@ -1,113 +1,68 @@
 // @ts-check
 
 /**
- * Repeated-value controls — the rows a list field is typed into.
+ * Repeated-value controls — the product's half of the seam.
  *
- * Platform presentation with no product logic in it: a field declared as a list renders
- * one row plus **Add another** (`field-renderer.ts`), and this is what makes the rows
- * behave. Event delegation on the document, because the forms these live in are swapped
- * in by htmx long after page load and a per-form script tag would have to be written
- * into every one of them.
+ * `design/scripts/list-rows.js` is the control itself and ships as it stands, the way
+ * `design/styles/` and `design/scripts/ink.js` do: what a row is, how it moves, and what
+ * every row is called once it has. This file is what the product adds around it — the
+ * delegation, and the two ways a create form finishes.
  *
- * A module of its own rather than another item in the shell's leftovers
- * (`public/app.js`): the rows are a subject, they are reached only through events, and
- * nothing about them has to be in place before Alpine starts.
+ * Event delegation on the document, because the forms these live in are swapped in by
+ * htmx long after page load and a per-form script tag would have to be written into every
+ * one of them.
+ *
+ * The import climbs out of `/static/`, which is `public/` (src/app/app.ts), so
+ * `../design/scripts/list-rows.js` is the same path in the browser and on disk.
  */
+
+import {
+  addListRow,
+  pressListRow,
+  removeListRow,
+  syncListRows,
+  wireListRows,
+} from "../design/scripts/list-rows.js";
+
+/* The control's own surface, re-exported so the product has one import for the rows whether
+   it is answering a gesture or driving one directly. `mountListRows` is deliberately not
+   among them: the server writes every row's naming into the form it renders, so the product
+   has nothing to put right on arrival, and a re-export nothing here calls is a seam that
+   looks wired and is not. The design page, whose rows are authored by hand, is where it is
+   called. */
+export { addListRow, pressListRow, removeListRow, syncListRows };
 
 /**
  * The DOM facts this module needs — a root to listen on. Structural on purpose, the way
  * `desk-logos.js`'s root is, so the rules can be exercised without a browser.
  *
- * @typedef {{ addEventListener?: (type: string, listener: (event: Event) => void) => void }} ListFieldRoot
+ * @typedef {import("../design/scripts/list-rows.js").ListRowRoot} ListFieldRoot
  */
 
-/** @param {HTMLButtonElement} button */
-export function addListFieldRow(button) {
-  const field = button.closest("[data-list-field]");
-  const values = field?.querySelector("[data-list-field-values]");
-  const firstRow = values?.querySelector("[data-list-field-row]");
-  if (!(field instanceof HTMLElement) || !(values instanceof HTMLElement) || !firstRow) return;
-
-  const row = firstRow.cloneNode(true);
-  if (!(row instanceof HTMLElement)) return;
-  // A clone carries the drawn layers of the row it came from, and the ink system keys what
-  // it has already mounted on the element itself — so it does not recognise the copy and
-  // draws it a second pair. Two boxes, and the stale ones keep the width the row had when
-  // it was copied. Since 5.10/03 a row's control is a shell, which is a drawn element, so
-  // this is every row rather than only its Remove button.
-  for (const layer of row.querySelectorAll(".ink__ground, .ink__layer")) layer.remove();
-  const input = row.querySelector("input");
-  if (input instanceof HTMLInputElement) input.value = "";
-  values.append(row);
-  syncListFieldRows(field);
-  input?.focus();
-}
-
-/** @param {HTMLButtonElement} button */
-export function removeListFieldRow(button) {
-  const field = button.closest("[data-list-field]");
-  const row = button.closest("[data-list-field-row]");
-  if (!(field instanceof HTMLElement) || !(row instanceof HTMLElement)) return;
-
-  const rows = field.querySelectorAll("[data-list-field-row]");
-  if (rows.length === 1) {
-    const input = row.querySelector("input");
-    if (input instanceof HTMLInputElement) input.value = "";
-    input?.focus();
-    return;
-  }
-  row.remove();
-  syncListFieldRows(field);
-}
-
-/** @param {HTMLFormElement} form */
+/**
+ * A finished create form goes back to the one empty row it was rendered with.
+ * @param {HTMLFormElement} form
+ */
 export function collapseListFieldRows(form) {
   for (const field of Element.prototype.querySelectorAll.call(form, "[data-list-field]")) {
     if (!(field instanceof HTMLElement)) continue;
     const rows = [...field.querySelectorAll("[data-list-field-row]")];
     for (const row of rows.slice(1)) row.remove();
-    syncListFieldRows(field);
+    syncListRows(field);
   }
 }
 
 /**
- * Row identity is positional, so it is restated after every add and remove: the id the
- * label points at, and the two labels a screen reader reads the row by.
- * @param {HTMLElement} field
- */
-export function syncListFieldRows(field) {
-  const label = field.dataset.listFieldLabel ?? "Value";
-  const inputId = field.dataset.listInputId ?? "list-value";
-  const rows = field.querySelectorAll("[data-list-field-row]");
-
-  rows.forEach((row, index) => {
-    const input = row.querySelector("input");
-    const remove = row.querySelector("[data-list-field-remove]");
-    if (input instanceof HTMLInputElement) {
-      input.id = `${inputId}-${index + 1}`;
-      input.setAttribute("aria-label", `${label} ${index + 1}`);
-    }
-    if (remove instanceof HTMLButtonElement) {
-      remove.setAttribute("aria-label", `Remove ${label} value ${index + 1}`);
-    }
-  });
-}
-
-/**
- * Wire the rows' three obligations onto a document: the add/remove presses, and the two
- * ways a create form finishes — committed or cancelled — both of which put the field
- * back to the one empty row it was rendered with.
+ * Wire the rows' three obligations onto a document: the presses, and the two ways a create
+ * form finishes — committed or cancelled — both of which put the field back to the one
+ * empty row it was rendered with.
  * @param {ListFieldRoot} root
  */
 export function startListFields(root) {
-  root.addEventListener?.("click", (event) => {
-    if (!(event.target instanceof Element)) return;
-
-    const button = event.target.closest("[data-list-field-add], [data-list-field-remove]");
-    if (!(button instanceof HTMLButtonElement)) return;
-    if (button.hasAttribute("data-list-field-add")) addListFieldRow(button);
-    else removeListFieldRow(button);
-  });
+  // Every gesture — the presses, the drag and the keyboard's grab — belongs to the control,
+  // and this asks for all of them at once. A second dispatcher here is how the design page
+  // and the product drift into answering the same press differently.
+  wireListRows(root);
 
   root.addEventListener?.("aluna:record-created", (event) => {
     if (event.target instanceof HTMLFormElement) collapseListFieldRows(event.target);

@@ -146,8 +146,13 @@ describe("guidance sits under the field and survives typing", () => {
         guidance: "One per row.",
       }),
     );
-    expect(html).toContain('aria-label="Value 1" aria-describedby="cap-probe-value-guidance"');
+    // Both hints, in the same order the comma mode puts them: the platform's line about
+    // what a comma means here, then the capability's own.
+    expect(html).toContain(
+      'aria-label="Value 1" aria-describedby="cap-probe-value-list-hint cap-probe-value-guidance"',
+    );
     expect(html).toContain('id="cap-probe-value-guidance" data-field-guidance>One per row.</p>');
+    expect(html).toContain("One value to a row. A comma here is data.</p>");
   });
 
   test("every row of a prefilled repeatable list carries it, so an added row inherits it", () => {
@@ -157,7 +162,9 @@ describe("guidance sits under the field and survives typing", () => {
       }),
       { id: "record-1", value: ["a", "b"] },
     );
-    expect([...html.matchAll(/aria-describedby="edit-probe-value-guidance"/g)]).toHaveLength(2);
+    expect([
+      ...html.matchAll(/aria-describedby="edit-probe-value-list-hint edit-probe-value-guidance"/g),
+    ]).toHaveLength(2);
   });
 
   test("the list field's separator hint and a declared hint both survive, each with its id", () => {

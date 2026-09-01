@@ -30,6 +30,10 @@ import { drawAlso, redrawInk, startInk } from "../design/scripts/ink.js";
  * stage is a code block that stands whether a payload has arrived or not, so it asks
  * the ink system for its frame by name (`data-ink`, already in `INK_SELECTOR`) and
  * `design/scripts/devpanel.js` sets the attribute where it builds the block.
+ *
+ * A repeated-value row is absent for the same reason. Its control is a `.field__control`
+ * and its three actions are `.btn`s, both of which the design system already names, so a
+ * row asks for nothing here.
  */
 const SHELL_INK = [
   /* The prompt rail. The button standing in it is a `.btn`, already drawn. */
@@ -55,9 +59,6 @@ const SHELL_INK = [
      window it is about, so it is a box rather than a line of prose, and a box in this
      product is drawn (PLAN decision 17). */
   ".build-stream__leaving-panel",
-  /* Form chrome the field renderer owns. The row's control is not here: it is a
-     `.field__control` shell, which the design system draws already. */
-  ".field-list__remove",
 ].join(",");
 
 drawAlso(SHELL_INK);

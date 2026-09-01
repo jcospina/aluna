@@ -263,7 +263,15 @@ notes, description, review and journal field has been missing. Long text grows t
 fit what is typed, then scrolls. It is never dragged: the resize grip is the
 operating system's mark and the only one on the surface that would not be ours.
 A list-of-strings field takes a drawn control too, in the input mode the form
-declares — comma-separated or repeatable.
+declares. `comma_separated` is one `.field__control` holding one input, with the
+comma as the separator. `repeatable` is `.field-list__values`, a column of
+`.field-list__row`s that are each a shell of their own between a `.field-list__grip`
+and a small outline remove. The grip is dragged — the row follows the pointer
+under `transform` while the rows it passes slide clear, and the list itself is
+reordered once, on release. Because order is part of the value rather than a view of
+it, the grip is also a `<button>`: space picks the row up, the arrow keys move it,
+space drops it and escape puts it back, with each step said in the field's own
+`.field-list__live` region.
 
 Two keys sit on a field. `guidance` is a short hint under the field, and it also
 carries the sentence announcing a default, so a default needs no key of its own.
@@ -290,7 +298,7 @@ words belong to `behavioral_errors`.
 The fill names a button's role, and the text is ink unless the fill is too dark to
 carry it, which is true of `--shade` and `--signal` only — the two fills that take
 a light label, and the reason primary is `--shade` rather than the lighter
-`--leaf` that secondary carries. Seven variants carry a
+`--leaf` that secondary carries. Six of the seven variants carry a
 fill: `.btn--primary`, `.btn--secondary`, `.btn--info`, `.btn--feature`,
 `.btn--warm` and `.btn--danger`.
 

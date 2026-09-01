@@ -1,0 +1,147 @@
+/*
+ * The repeated-value list — the one control that is made of other controls.
+ *
+ * A `string[]` field is drawn in the mode its form declares. `comma_separated` needs
+ * nothing here: it is one `.field__control` holding one input, and commas are the
+ * separator. `repeatable` is a column of rows, each its own shell plus the three
+ * actions that reorder and remove it, and that is what this file draws.
+ *
+ * It lives beside `form-controls.css` rather than inside it because the subject is
+ * different: that file draws one control, and this one arranges several into a field.
+ * Every boundary here already belongs to something the ink system draws — a row's
+ * shell is a `.field__control` and every action is a `.btn` — so nothing in this file
+ * declares an edge of its own.
+ */
+
+.field-list__values {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/*
+ * The grip, the input and the remove. `align-items: center` rather than `stretch`, so a
+ * row's controls keep the small height they declare instead of growing to whatever the
+ * shell beside them happens to be.
+ */
+.field-list__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/*
+ * The grip. Not a button face — no fill, no boundary, nothing for the ink system to draw:
+ * it is a place to take hold of, and a box around it would read as a third action on a row
+ * that has two. What says it is a control is the cursor, the focus ring every control on
+ * this surface takes, and the dots themselves.
+ *
+ * `touch-action: none` is what lets a drag start on a touchscreen at all — without it the
+ * browser claims the gesture for scrolling before the first `pointermove` arrives. The desk
+ * window's own bar says the same three things (`desk.css`).
+ */
+.field-list__grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  min-height: var(--control-h-sm);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+.field-list__grip:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+@media (hover: hover) {
+  .field-list__grip:hover:not(:disabled) {
+    color: var(--ink);
+  }
+}
+
+/*
+ * The rows slide out of a dragged row's way rather than jumping, which is what makes the
+ * gap open somewhere a person can follow. The row in hand is excluded below: it tracks the
+ * pointer, and a transition on it would make it lag behind the finger holding it.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .field-list__row {
+    transition: transform var(--dur-fast) var(--ease-rise);
+  }
+}
+
+/*
+ * The row in hand. Depth on this surface comes from ordered bands rather than shadow, so a
+ * held row is lifted by fill and by order: it takes the paper the field sits on while the
+ * rows it moves through keep the well's, and it stacks over them so it passes in front
+ * rather than through. The grip goes on holding the closed hand for the whole gesture,
+ * wherever the pointer has got to, which is why the cursor is set from the field.
+ */
+.field-list__row.is-grabbed {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  transition: none;
+}
+
+.field.is-dragging,
+.field.is-dragging .field-list__grip {
+  cursor: grabbing;
+}
+
+/* One sentence at a time, said to a screen reader and drawn for nobody. */
+.field-list__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.field-list__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/*
+ * Square, because the glyph is the label and small caps beside it would make three
+ * words where a row has space for none. The accessible name is on the button and
+ * says which row it moves, which is the part that has to be spoken rather than seen.
+ */
+.field-list__action {
+  padding: 0;
+  width: var(--control-h-sm);
+  flex-shrink: 0;
+}
+
+.field-list__action svg {
+  display: block;
+}
+
+/*
+ * The add control starts the next row, so it sits under the column it extends rather
+ * than filling the field's width.
+ *
+ * Both axis properties, because a `.field` is not one kind of box everywhere: the design
+ * page's is a block and the product's is a flex column, and in a flex column a lone
+ * `justify-self` is inert while the default `stretch` takes the button the whole width of
+ * the form. One rule that hugs in either.
+ */
+.field-list__add {
+  align-self: start;
+  justify-self: start;
+  margin-top: var(--space-2);
+}

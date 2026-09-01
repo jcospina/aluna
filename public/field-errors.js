@@ -33,6 +33,11 @@
  * says `data-choice-required` now, and the submit below is where that word is enforced —
  * the same place, the same sentence and the same slot a native control would have used.
  *
+ * **A repeatable list is the second field in that position, and takes the same answer.**
+ * It wants one nonblank row, not a filled one in every row, so there is no single control
+ * to put `required` on: doing it per row would refuse a list that is complete. The field
+ * says `data-list-required` and is enforced beside the picker.
+ *
  * **Every path that marks a field ends by standing on it.** Two things make that
  * load-bearing rather than a nicety. Cancelling `invalid` takes the browser's *focus and
  * scroll* along with its bubble — the UA acts only on the controls whose event survived —
@@ -49,6 +54,9 @@ const INVALID_CLASS = "is-invalid";
 /** Where the declared hint waits while the error is standing in its place. */
 const STASH = "data-field-guidance-text";
 const MISSING_CHOICE = "[data-choice-value][data-choice-required]";
+/** A `string[]` field the spec declares required, in the mode that draws rows. */
+const REQUIRED_LIST = "[data-list-required]";
+const LIST_ROW_INPUT = "[data-list-field-row] input";
 const NOTICE = "[data-error-fields]";
 /** The live slot a refusal is retargeted into, in every form that has one. */
 const ERROR_REGION = '[aria-live="polite"]';
@@ -214,20 +222,39 @@ export function relocateFieldError(form, notice) {
 }
 
 /**
- * Every required choice this form is holding nothing for — the check the browser cannot
- * run, because the value it would be checking rides a hidden input.
+ * Every required field this form is holding nothing for, in document order — the two
+ * checks the browser cannot run, because in neither case is there one native control
+ * carrying the constraint.
+ *
+ * A picker's value rides a hidden input, and no browser validates one. A repeatable list
+ * wants *one* nonblank row rather than a filled one in every row, so `required` on a row
+ * would refuse a list that is complete — which is why the field says the word instead and
+ * this is where it is enforced, exactly as the picker's is.
+ *
+ * Asked of the fields rather than of the carriers, so the answer comes back in the order
+ * the document holds them. The first of them is where the person is put.
  *
  * @param {Element} form
  * @returns {Element[]}
  */
-export function missingRequiredChoices(form) {
+export function missingRequiredValues(form) {
   const missing = [];
-  for (const carrier of form.querySelectorAll(MISSING_CHOICE)) {
-    if (!(carrier instanceof HTMLInputElement) || carrier.value.trim() !== "") continue;
-    const field = carrier.closest(FIELD);
-    if (field) missing.push(field);
+  for (const field of form.querySelectorAll(FIELD)) {
+    if (holdsNothing(field)) missing.push(field);
   }
   return missing;
+}
+
+/**
+ * @param {Element} field
+ * @returns {boolean}
+ */
+function holdsNothing(field) {
+  const carrier = field.querySelector(MISSING_CHOICE);
+  if (carrier) return carrier instanceof HTMLInputElement && carrier.value.trim() === "";
+  if (!field.matches(REQUIRED_LIST)) return false;
+  const rows = [...field.querySelectorAll(LIST_ROW_INPUT)];
+  return rows.every((row) => !(row instanceof HTMLInputElement) || row.value.trim() === "");
 }
 
 /**
@@ -249,15 +276,15 @@ function requiredSentence(form) {
 }
 
 /**
- * Mark every required choice the form is holding nothing for. Used by the `invalid`
+ * Mark every required field the form is holding nothing for. Used by the `invalid`
  * handler alone: the submit handler needs the refusal to land before the words are looked
  * for, so it spells the same three steps out in its own order.
  *
  * @param {HTMLElement} form
  * @returns {Element[]} the fields marked
  */
-function markMissingChoices(form) {
-  const missing = missingRequiredChoices(form);
+function markMissingRequired(form) {
+  const missing = missingRequiredValues(form);
   if (missing.length === 0) return missing;
   const sentence = requiredSentence(form);
   for (const field of missing) markFieldError(field, sentence);
@@ -325,7 +352,7 @@ export function startFieldErrors(root) {
       // the submit below before it fires, so a form missing both a typed field and a
       // picker would otherwise mark the typed one, be fixed, and only then admit that the
       // picker was empty too — two refusals for one filling-in.
-      markMissingChoices(form);
+      markMissingRequired(form);
       endReportingPass(form);
     },
     true,
@@ -343,7 +370,7 @@ export function startFieldErrors(root) {
       // (`public/record-mutations.js`), and while it stands it owns both the screen and
       // the focus — so nothing here may mark a field or take the person off its Cancel.
       if (event.defaultPrevented) return;
-      const missing = missingRequiredChoices(form);
+      const missing = missingRequiredValues(form);
       if (missing.length === 0) return;
       // Refused first, said second — the opposite order to the `invalid` handler above,
       // and for the same reason. There the browser has already refused and cancelling is
