@@ -56,10 +56,6 @@
 .capability-record-view__back:hover {
   color: var(--ink);
 }
-.capability-record-view__back:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-}
 .capability-record-view__back:disabled {
   cursor: default;
   color: var(--ink-3);

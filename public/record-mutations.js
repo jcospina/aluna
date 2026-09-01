@@ -150,8 +150,10 @@ function setDeleteConfirming(view, confirming) {
       cancel: form.querySelector(DELETE_CANCEL_SELECTOR),
       clearError: () => form.querySelector(LIVE_REGION_SELECTOR)?.replaceChildren(),
     },
+    /* Asked for visibly: the move is the product's, not a keystroke of the person's,
+       and a control that is not a text input rings on keyboard focus alone. */
     focus: (control) => {
-      if (control instanceof HTMLElement) control.focus();
+      if (control instanceof HTMLElement) control.focus({ focusVisible: true });
     },
   });
 }

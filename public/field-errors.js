@@ -291,10 +291,17 @@ function markMissingRequired(form) {
   return missing;
 }
 
-/** @param {Element | null} field */
+/**
+ * A refusal moves the person to the field it is about. That move is the product's,
+ * not theirs, so the ring is asked for explicitly: a control that is not a text
+ * input rings on keyboard focus only, and after a mouse-clicked submit the browser
+ * would rightly call this focus non-keyboard and paint nothing.
+ *
+ * @param {Element | null} field
+ */
 function focusField(field) {
   const control = field ? focusTarget(field) : null;
-  if (control) control.focus();
+  if (control) control.focus({ focusVisible: true });
 }
 
 /** True while one validation pass is still running, so it lands the person once. */

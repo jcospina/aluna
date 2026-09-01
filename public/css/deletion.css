@@ -22,9 +22,6 @@
   line-height: 1.2;
   color: var(--ink);
 }
-.capability-deletion h1:focus-visible {
-  outline-color: var(--focus-ring);
-}
 .capability-deletion__body {
   display: flex;
   max-width: 68ch;

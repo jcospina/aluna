@@ -13,7 +13,13 @@
   align-items: center;
   gap: var(--space-6);
   padding: 0.5625rem var(--space-5);
-  background: var(--sky);
+  /*
+   * Surface, not `--sky`. A focus ring on this bar is drawn on its fill, and violet
+   * on sky is 2.14 — under the 3:1 an indicator owes, with nothing in the palette
+   * that clears it there. On surface it is 3.60. The bar keeps its identity from the
+   * ink rule under it, which is what separated it from the desk anyway.
+   */
+  background: var(--surface);
   border-bottom: var(--line) solid var(--ink);
   overflow-x: auto;
   scrollbar-width: none;
@@ -48,13 +54,20 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  opacity: 0.66;
+  /* 0.66 put ink on the bar at 3.67 when it was sky. Kept at the tenth that cleared
+     it there; on surface the same dimming reads at 6.83. */
+  opacity: 0.78;
 }
 
+/*
+ * Full strength and an underline. `--signal` was 2.78 on the sky bar and no
+ * other token clears AA there, so the hover is carried by weight and a rule
+ * rather than by a second colour.
+ */
 .menubar a:hover,
 .menubar a:focus-visible {
   opacity: 1;
-  color: var(--signal);
+  text-decoration: underline;
 }
 
 .page {

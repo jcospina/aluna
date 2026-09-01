@@ -299,12 +299,17 @@ describe("the terminal reading stops where the design settles it", () => {
   test("the five tints are the palette's own anchors, and never the alert colour", () => {
     // `--signal` is the one red and it is reserved for alerts. A payload reporting a
     // failed Gate is still a reading rather than an alarm. The five are picked for a
-    // dark well, which is the one ground in Aluna that is not the meadow.
-    const panel = /\.devpanel__(key|string|number|atom|punct) \{\s*color: (var\(--[a-z0-9-]+\));/g;
+    // dark well, which is the one ground in Aluna that is not the meadow — and the
+    // contrast audit is what picks them: four name an anchor, and punctuation derives
+    // the well's own faint from `--surface`, because `--ink-3` is faint by being
+    // darker and there is nothing darker to be on this ground.
+    const panel = /\.devpanel__(key|string|number|atom|punct) \{\s*color: ([^;]+);/g;
     const used = [...PANEL_CSS.matchAll(panel)].map((match) => match[2]);
     expect(used).toHaveLength(5);
-    expect(used).not.toContain("var(--signal)");
+    expect(used.join(" ")).not.toContain("--signal");
     expect(new Set(used).size).toBe(5);
+    // Ink at a reading strength belongs to the light fills; the well states its own.
+    expect(used.join(" ")).not.toContain("var(--ink-3)");
 
     // The one monospace face in Aluna, and it belongs to this surface alone — and the
     // one well filled with `--ink`, which is lines and type everywhere else.

@@ -112,8 +112,14 @@ p:last-of-type {
   margin-bottom: 0;
 }
 
+/*
+ * A link is ink and an underline. `--signal` was 3.97 on the desk and 3.77 in a
+ * sky note, and nothing in the palette carries a link on all six fills it can
+ * land on — so the underline does the identifying, which is what WCAG asks of a
+ * link anyway. `--signal` keeps its one job.
+ */
 a {
-  color: var(--signal);
+  color: var(--ink);
   text-underline-offset: 0.125rem;
 }
 
@@ -162,7 +168,7 @@ strong {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.21em;
-  color: var(--teal);
+  color: var(--shade);
   margin-bottom: var(--space-3);
 }
 

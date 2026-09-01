@@ -585,6 +585,18 @@
         </div>
 
         <div>
+          <h3 class="kicker">Ink at reading strengths</h3>
+          <div class="swatches" data-palette-strengths></div>
+          <p class="xs" style="margin-top: 12px">
+            Both are set by the contrast audit rather than by eye, and what each may sit on is
+            closed: <strong>ink-2</strong> clears AA on every fill including the darkest note pane,
+            <strong>ink-3</strong>
+            on the two window fills and nowhere else. The audit fails if either appears on a fill it
+            has not been measured against.
+          </p>
+        </div>
+
+        <div>
           <h3 class="kicker">Tint anchors: the defaults Aluna reaches for first</h3>
           <div class="swatches" data-palette-anchors></div>
           <p class="xs" style="margin-top: 12px">
@@ -608,7 +620,7 @@
             The fill names the role, and the label on it is ink unless the fill is too dark to carry
             ink. Only <strong>shade</strong> and <strong>signal</strong> are, so only those two take
             a light label. Ink clears 4.5:1 on every other anchor except <strong>teal</strong> at
-            4.34 and <strong>violet</strong> at 4.38, and that is why neither of those two is a
+            4.34 and <strong>violet</strong> at 3.80, and that is why neither of those two is a
             button: they stay colours a capability wears. Every pairing on a button passes. The one
             that did not was a light label on
             <strong>leaf</strong>
@@ -622,7 +634,11 @@
             <strong>Violet</strong>
             is the focus ring, and it can be precisely because it is the anchor with no other job.
             Carrying no readable text at either end, it was never going to be a button or a fill
-            behind a label, which is what leaves it free to mean one thing.
+            behind a label, which is what leaves it free to mean one thing — and what lets it be set
+            by what the ring needs. A ring is a control mark rather than type, so its threshold is
+            3:1 against what it is drawn on, and the tightest of those is the desk itself: violet
+            was #9A86C4 at 2.64 there and is #8F7BB9 at 3.05 now. The one other job it had, the
+            developer well&rsquo;s atoms, went to <strong>ochre</strong> at 5.01.
           </p>
         </div>
 
@@ -871,7 +887,9 @@
                     landmarks and reduced motion are honoured but are not release gates
                   </td>
                   <td class="sm">
-                    Every pairing's measured ratio is stated under it on the
+                    Every pairing's measured ratio is stated under its swatch in
+                    <a href="#palette">High Meadow</a>, computed from the token rather than typed;
+                    the button spectrum states its own on the
                     <a href="./controls.html#buttons">controls page</a>
                   </td>
                 </tr>
@@ -988,8 +1006,13 @@
             The palette is closed, so every colour pair is measured once and stays measured, and
             every pair a button uses passes — see
             <a href="#palette">High Meadow</a>
-            and <a href="./controls.html#decisions">C12</a>. Everything else under D8 is honoured
-            without being a release gate.
+            and <a href="./controls.html#decisions">C12</a>. Measured once means enumerated once:
+            every foreground the stylesheets declare, every ring, and every
+            <code>opacity</code>
+            that dims one is listed with the fill it is read against, and a declaration nothing has
+            classified fails the audit rather than passing unnoticed. Three tokens are set by that
+            audit rather than by eye. Everything else under D8 is honoured without being a release
+            gate.
           </p>
           <p class="sm">
             <strong>Motion is on by default</strong>

@@ -322,6 +322,20 @@ passes. The one that did not was a light label on `--leaf` at 3.01; the two gree
 changed places, so primary is `--shade` at 5.18 and secondary is `--leaf` at 4.54
 under ink.
 
+The check is an audit rather than a habit. Every foreground the stylesheets
+declare — every `color`, every ring, and every `opacity` that dims one — is
+enumerated with the fill it is read against and the threshold that applies to it,
+measured from the live token values, and a declaration nothing has classified
+fails. Three tokens are set by that audit rather than by eye: `--ink-2` and
+`--ink-3` are as light as AA allows on the darkest fill each is permitted on, and
+`--violet` is as dark as the focus ring needs to read on the desk. What `--ink-3`
+may sit on is closed to the two window fills; the developer well, which is the one
+dark ground in the product, derives its own faint instead. Hover steps a fill away
+from the label it carries, because a step toward ink took the two tightest buttons
+below AA.
+
+The palette page states every measured ratio, computed from the same tokens.
+
 Keyboard navigation, semantic landmarks and reduced motion are honoured, but they
 are not release gates.
 
@@ -338,4 +352,11 @@ Every ring on the surface is that one colour, including the prompt bar, the sear
 rail and the segmented control; none is `--signal`, which has a job of its own.
 A text input shows its ring on any focus, including a mouse click, because the
 ring tells you where typing will land and that is real information. Every other
-control shows it on keyboard focus only.
+control shows it on keyboard focus only — which means a shell that also holds a
+button rings for the control it names, never for anything focused inside it, and
+that a move the product makes rather than the person asks for the ring explicitly.
+
+A ring is a control mark rather than type, so what it owes is 3:1 against what it
+is drawn on. Two are brought in to meet the drawn line enclosing their control
+instead of standing clear of it, because the fill behind them cannot carry the
+ring: the segmented control's pressed segment, and a title-bar lamp on its panes.

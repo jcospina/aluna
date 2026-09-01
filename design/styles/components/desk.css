@@ -473,7 +473,9 @@
   height: 0.5625rem;
   border-right: var(--line) solid var(--ink);
   border-bottom: var(--line) solid var(--ink);
-  opacity: 0.45;
+  /* The resize affordance is a control, so its mark clears the 3:1 non-text
+     threshold on the surface behind it. 0.45 was 2.62. */
+  opacity: 0.55;
 }
 
 .window--desk.is-focused .window__grip::after {
@@ -522,7 +524,13 @@
   outline: none;
 }
 
-.prompt-bar:focus-within {
+/*
+ * The input's focus, not the rail's. `:focus-within` also matches the submit
+ * button standing in the same rail, so clicking Make it painted a text-input
+ * ring around the whole bar — a ring on a clicked button, which is the one
+ * thing the split forbids. The button carries its own on keyboard focus.
+ */
+.prompt-bar:has(.prompt-bar__input:focus) {
   outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
 }
@@ -648,15 +656,16 @@
 
 /* A stage with nothing in it yet is a resting dash, not an absence. */
 .devpanel__block:not(.is-filled) .devpanel__pre {
-  color: var(--ink-3);
+  color: color-mix(in oklab, var(--surface), var(--ink) 40%);
 }
 
 /*
  * The payload's five kinds, in the palette's own anchors — re-picked for a dark
- * well, so each one clears 6:1 against it rather than being the light-ground
- * choice used at half the contrast. `--signal` is not among them and never will
- * be: it is the alert colour, and a payload reporting a failed Gate is still a
- * reading rather than an alarm.
+ * well, so each one clears AA against it rather than being the light-ground
+ * choice used at half the contrast. Atoms are `--ochre` at 5.01 rather than the
+ * violet they were at 4.38: violet has one job now and it is the focus ring.
+ * `--signal` is not among the five and never will be: it is the alert colour,
+ * and a payload reporting a failed Gate is still a reading rather than an alarm.
  */
 .devpanel__key {
   color: var(--sky);
@@ -671,11 +680,17 @@
 }
 
 .devpanel__atom {
-  color: var(--violet);
+  color: var(--ochre);
 }
 
+/*
+ * Punctuation is the well's own faint, derived from the surface rather than
+ * borrowed from `--ink-3`. The two pull opposite ways: `--ink-3` is faint by
+ * being darker, which is what a light fill needs and exactly wrong on a dark
+ * one. Deriving keeps the well the one exception it already is.
+ */
 .devpanel__punct {
-  color: var(--ink-3);
+  color: color-mix(in oklab, var(--surface), var(--ink) 40%);
 }
 
 /* ── A build, in the window ───────────────────────────────────────────── */

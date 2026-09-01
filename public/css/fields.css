@@ -187,6 +187,18 @@
 }
 
 /*
+ * The fill stops at the sentence. `--signal` on `--well-alert` is 4.06, and the
+ * error line is the one thing in the state that has to be read — so it keeps the
+ * paper it would have been read on. The tint says *that* something is wrong; the
+ * sentence says what, and it says it at 4.68.
+ */
+.field--choice[data-choice-presentation="radio"].is-invalid > .field__guidance,
+.field--choice[data-choice-presentation="segmented"].is-invalid > .field__guidance,
+.field--inline.is-invalid > .field__guidance {
+  background: var(--surface);
+}
+
+/*
  * The drawn picker's own parts — panel, scroller, rows, group headings, notes — are the
  * design system's and ship from `design/styles/components/form-controls.css`, which this
  * page already loads. So is the radio group's `.choice` vocabulary and the segmented row.

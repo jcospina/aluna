@@ -81,7 +81,9 @@ function recordViewFor(item) {
  */
 function focusFirstField(view) {
   const control = view.querySelector(FIRST_FIELD_SELECTOR);
-  if (control instanceof HTMLElement) control.focus();
+  /* Visibly: a picker's control and a segmented row are buttons, and a button rings
+     on keyboard focus only — which this, arriving after a click, is not. */
+  if (control instanceof HTMLElement) control.focus({ focusVisible: true });
 }
 
 /**
