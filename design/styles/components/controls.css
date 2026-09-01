@@ -27,10 +27,10 @@
   white-space: nowrap;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .btn {
-    transition: transform var(--dur-fast) ease;
-  }
+/* The press travels, so it takes the travel duration and stops with it. The
+   displacement itself is in `form-controls.css`, beside the rest of the object. */
+.btn {
+  transition: translate var(--dur-travel) ease;
 }
 
 /* ── The select shell's chevron ───────────────────────────────────────── */

@@ -218,14 +218,13 @@
   color: var(--ink);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .listbox__chevron {
-    transition: transform var(--dur-fast) var(--ease-rise);
-  }
+/* The chevron turns over where it sits: life, not travel. */
+.listbox__chevron {
+  transition: rotate var(--dur-fast) var(--ease-rise);
 }
 
 .listbox.is-open .listbox__chevron {
-  transform: rotate(180deg);
+  rotate: 180deg;
 }
 
 .listbox__panel {
@@ -361,18 +360,14 @@
   border-radius: 50%;
 }
 
+/* The mark grows into its own box from nothing: life, so it keeps its own duration. */
 .choice__glyph {
   display: flex;
   opacity: 0;
-  transform: scale(0.7);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .choice__glyph {
-    transition:
-      opacity var(--dur-fast) var(--ease-rise),
-      transform var(--dur-fast) var(--ease-rise);
-  }
+  scale: 0.7;
+  transition:
+    opacity var(--dur-fast) var(--ease-rise),
+    scale var(--dur-fast) var(--ease-rise);
 }
 
 /* Ink on leaf, like every label on it: a light mark was 3.01, C12's pairing again. */
@@ -381,9 +376,10 @@
   color: var(--ink);
 }
 
+/* `none`, not `1`: an identity scale still makes a containing block. */
 .choice__input:checked + .choice__mark .choice__glyph {
   opacity: 1;
-  transform: none;
+  scale: none;
 }
 
 /* A radio's mark is drawn as a fill on a child rather than a second ring: a ring
@@ -541,11 +537,13 @@
 /*
  * Pressing displaces the button 2px into the paper — a hard offset with no blur and
  * no lift, the same physics the rest of the surface uses. This is the only rule in the
- * manifest that transforms a button, so a disabled one needs no counter-rule to sit
- * still: it is excluded here rather than moved back afterwards.
+ * manifest that moves a button, so a disabled one needs no counter-rule to sit still:
+ * it is excluded here rather than moved back afterwards. The 2px is `--travel-press`
+ * rather than a number, which is what stops it jumping for a reader who asked for less
+ * motion.
  */
 .btn:active:not(:disabled) {
-  transform: translate(2px, 2px);
+  translate: var(--travel-press) var(--travel-press);
 }
 
 /* ── Rows of controls ─────────────────────────────────────────────────────── */

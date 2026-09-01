@@ -154,11 +154,15 @@ describe("the two control stylesheets", () => {
     );
   });
 
-  test("transform a button from exactly one rule, which excludes disabled itself", () => {
+  test("move a button from exactly one rule, which excludes disabled itself", () => {
     // Deleting controls.css's `.btn:active` left form-controls.css's `.btn:disabled:active`
-    // with nothing to suppress. One rule owns the press, and it opts disabled out.
+    // with nothing to suppress. One rule owns the press, and it opts disabled out. The
+    // property is `translate` because the press travels, and travel is the axis Reduce
+    // Motion turns off (PLAN decision 44) — `transform` would take the press off it.
     const pressing = [...rules(read(CONTROLS)), ...rules(read(FORM_CONTROLS))].filter(
-      (rule) => rule.selector.startsWith(".btn") && rule.properties.includes("transform"),
+      (rule) =>
+        rule.selector.startsWith(".btn") &&
+        (rule.properties.includes("translate") || rule.properties.includes("transform")),
     );
     expect(pressing.map((rule) => rule.selector)).toEqual([".btn:active:not(:disabled)"]);
   });

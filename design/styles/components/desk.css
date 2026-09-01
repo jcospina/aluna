@@ -229,18 +229,23 @@
   display: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .logo {
-    transition: transform var(--dur-fast) ease;
-  }
+/* The two halves of the gesture are two properties on purpose. Hovering lifts the
+   logo off the ground, which is travel; pressing squeezes it where it stands, which
+   is not. Written as one `transform` they would share a duration, and quieting the
+   lift would have flattened the squeeze with it. */
+.logo {
+  transition:
+    translate var(--dur-travel) ease,
+    scale var(--dur-fast) ease;
 }
 
 .logo:hover {
-  transform: translateY(-2px);
+  translate: 0 var(--travel-lift);
 }
 
 .logo:active {
-  transform: translateY(0) scale(0.96);
+  translate: none;
+  scale: 0.96;
 }
 
 /* ── The tile of something being built ────────────────────────────────── */
@@ -305,10 +310,8 @@
  * build, so it is meant to read as patience rather than as urgency. The number is
  * a decision, not a default, and `desk-logo-layer.test.ts` pins it as one.
  */
-@media (prefers-reduced-motion: no-preference) {
-  .logo-tile--working {
-    animation: tile-working 1500ms linear infinite;
-  }
+.logo-tile--working {
+  animation: tile-working 1500ms linear infinite;
 }
 
 @keyframes tile-working {
@@ -408,7 +411,12 @@
 /*
  * Position, size and stacking arrive as custom properties set by the desk, so
  * the phone layout below can override them by ordinary cascade. Dragging
- * writes only `--win-x` / `--win-y`, which is a transform and nothing else.
+ * writes only `--win-x` / `--win-y`, which is a placement and nothing else.
+ *
+ * The placement is on `translate` rather than inside `transform` so that a scale can
+ * be put on the same element without dragging it towards the corner: the individual
+ * properties compose translate-then-scale, and `transform` would be scaled by it.
+ * That is what lets a window arrive by growing into itself instead of flying in.
  */
 .window--desk {
   position: absolute;
@@ -416,12 +424,12 @@
   left: 0;
   width: var(--win-w);
   height: var(--win-h);
-  transform: translate(var(--win-x, 0), var(--win-y, 0));
+  translate: var(--win-x, 0) var(--win-y, 0);
   z-index: var(--win-z, 1);
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  will-change: transform;
+  will-change: translate;
 }
 
 .window--desk .window__body {
@@ -768,7 +776,7 @@
     inset: 0;
     width: auto;
     height: auto;
-    transform: none;
+    translate: none;
     z-index: 10;
   }
 

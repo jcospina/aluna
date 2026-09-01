@@ -189,8 +189,11 @@ code {
 }
 
 /*
- * Motion is opted into rather than overridden. Every transition in this
- * surface is declared inside `prefers-reduced-motion: no-preference`, so a
- * reader who asked for less motion simply never gets the rule — no blanket
- * `!important` reset, which would also flatten anything added later.
+ * Motion is on for everyone, and Reduce Motion is answered on one axis rather
+ * than by a reset or a per-component opt-in. A rule that travels states its
+ * distance and its duration through `--travel` (`tokens.css`), which the OS
+ * setting takes to zero; a rule that happens in place keeps `--dur-fast` and
+ * keeps running. `transform` is only ever where a thing sits — `translate`
+ * travels, `scale` and `rotate` do not — which is what lets the two be told
+ * apart without a list of selectors, and what `travel-axis.test.ts` holds to.
  */

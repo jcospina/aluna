@@ -275,8 +275,9 @@ export class ChoicePicker {
    * bar with its first rows cut off.
    *
    * The first is where its coordinates start. A fixed box is normally anchored to the
-   * viewport, but any transformed ancestor becomes its containing block instead — and a
-   * desk window is dragged by `transform`, so in the product there always is one. So the
+   * viewport, but an ancestor that is transformed — including by `translate`, `scale` or
+   * `rotate` — becomes its containing block instead, and a desk window is placed by
+   * `translate`, so in the product there always is one. So the
    * panel is parked filling its own containing block and asked where that landed.
    *
    * The second is how far it may reach, which is not the containing block: it is whatever
@@ -652,7 +653,16 @@ function clippingAncestors(panel) {
   for (let node = panel.parentElement; node; node = node.parentElement) {
     const style = view?.getComputedStyle(node);
     if (!style) break;
-    const containing = style.transform !== "none" || style.filter !== "none";
+    // `translate` / `scale` / `rotate` make a containing block exactly as `transform`
+    // does, and the surface states its motion in those (design/styles/tokens.css): a
+    // dragged row carries a `translate`, so a check that only read `transform` would
+    // walk straight past the element the panel is actually positioned against.
+    const containing =
+      style.transform !== "none" ||
+      style.filter !== "none" ||
+      style.translate !== "none" ||
+      style.scale !== "none" ||
+      style.rotate !== "none";
     if (clips(style, containing)) clippers.push(node);
     if (containing) break;
   }

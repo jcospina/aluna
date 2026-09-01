@@ -66,7 +66,7 @@
    (design/styles/components/collection.css, `.detail__arrow`). */
 .capability-record-view__arrow {
   display: inline-flex;
-  translate: 0 0.0625rem;
+  translate: 0 var(--nudge-baseline);
 }
 
 /* ── The record's deletion confirmation ──────────────────────────────────────

@@ -54,8 +54,12 @@ Hard constraints:
 
 ## Reduced motion
 
-Under `prefers-reduced-motion: reduce`, a single calm static pose: eyes open, no
-walk, no float.
+Reduce Motion quiets travel, not life (PLAN decision 44). The pet keeps breathing,
+blinking and reacting where it stands; what stops is everything that takes it
+somewhere — no walk along the prompt bar, no float, and no arrival from off-screen.
+It states its distances and their durations through the travel axis (`--travel` in
+`design/styles/tokens.css`) like the rest of the surface, so it needs no reduced-motion
+branch of its own.
 
 ## Voice
 

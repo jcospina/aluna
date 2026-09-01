@@ -326,12 +326,22 @@ describe("the window's content region scrolls, and only when it should", () => {
     // box: a list that never wanted horizontal scrolling grows a horizontal scrollbar
     // the moment a card is hovered, and the ring is clipped at both edges.
     const collection = rules("public/css/collection.css");
-    const press = /\.capability-item:active\s*\{[^}]*translate\((\d+)px/.exec(collection);
+    // The press states its distance as a travel token rather than a number (PLAN
+    // decision 44), so the gutter is measured from the token the rule names — a press
+    // that gets deeper still sizes this, and one that is quieted for Reduce Motion does
+    // not shrink the gutter, because the scrollbar it prevents is the full-motion case.
+    const token = /\.capability-item:active\s*\{[^}]*translate:\s*var\((--travel-[a-z-]+)\)/.exec(
+      collection,
+    );
+    const press = token
+      ? new RegExp(`${token[1]}:\\s*calc\\((\\d+)px`).exec(rules("design/styles/tokens.css"))
+      : null;
     // The card states no ring of its own — there is one, in the token layer's base
     // stylesheet — so the gutter is sized against that one rather than a copy of it.
     const ring = /:focus-visible\s*\{[^}]*outline:\s*(\d+)px[^}]*outline-offset:\s*(\d+)px/.exec(
       rules("design/styles/base.css"),
     );
+    expect(token?.[1], "the press states a raw distance rather than the travel axis").toBeDefined();
     expect(press?.[1], "no `:active` press travel to size the gutter against").toBeDefined();
     expect(ring?.[1], "no focus ring to size the gutter against").toBeDefined();
     const reach = Math.max(

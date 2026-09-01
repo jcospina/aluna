@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { type Declaration, declarations } from "./contrast.js";
 import { AUDITED_SHEETS } from "./contrast-audit.js";
 
@@ -133,11 +134,14 @@ describe("the focus ring", () => {
   test("no two-file override survives", () => {
     // `public/css/a11y.css` restated the global at 2px. It loads after the manifest, so
     // the app shipped a ring the design does not draw — and the mechanism, not the
-    // number, is what had to go: a second file that wins by loading later.
+    // number, is what had to go: a second file that wins by loading later. The sheet
+    // itself is gone now: its other half was the blanket reduced-motion reset, which
+    // PLAN decision 44 replaced with the travel axis, and a file whose whole purpose
+    // was beating the ones above it had nothing left to hold.
     expect(
-      declarations("public/css/a11y.css", ["outline", "outline-color", "outline-width"]),
-      "the accessibility layer states no ring of its own",
-    ).toEqual([]);
+      existsSync(new URL("../../public/css/a11y.css", import.meta.url)),
+      "the accessibility layer is back, and it wins by loading last again",
+    ).toBe(false);
     for (const fragment of ["outline-color", "outline-width", "outline-style"]) {
       expect(rulesFor([fragment]), `a rule sets ${fragment} on a ring another rule owns`).toEqual(
         [],

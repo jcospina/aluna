@@ -141,10 +141,11 @@ describe("the logo layer", () => {
     expect(DESK).toMatch(/\.logo-tile--pending\s*\{/);
     expect(bodies(DESK, ".logo-tile--pending")[0]).toMatch(/repeating-linear-gradient/);
     expect(DESK).toMatch(/\.logo-tile--working\s*\{/);
-    // The animation is behind the reduced-motion guard, like every other one.
-    const working = DESK.indexOf(".logo-tile--working");
-    const guard = DESK.lastIndexOf("prefers-reduced-motion", working);
-    expect(guard).toBeGreaterThan(-1);
+    // The crawl runs for everyone. It happens inside a tile that does not move, so it is
+    // life rather than travel, and PLAN decision 44 leaves life alone: the guard that
+    // used to stand in front of it flattened the wait for the reader who most needed to
+    // see that something was still coming.
+    expect(DESK).not.toMatch(/prefers-reduced-motion/);
   });
 
   test("the working tile crawls without a joint in it", () => {
@@ -190,8 +191,8 @@ describe("the logo layer", () => {
     // the duration fails, which is the point.
     const pending = bodies(DESK, ".logo-tile--pending")[0] as string;
     const side = Number(/--stripe-tile:\s*([\d.]+)px/.exec(pending)?.[1]);
-    // Read straight out of the sheet: the rule sits inside the reduced-motion
-    // guard, so it has an opening brace before it rather than a closing one.
+    // Read straight out of the sheet, from the rule's own body: the crawl is in-place
+    // life and stands under no guard at all (PLAN decision 44).
     const ms = Number(/\.logo-tile--working\s*\{[^}]*tile-working\s+([\d.]+)ms/.exec(DESK)?.[1]);
     expect(side).toBeGreaterThan(0);
     expect(ms).toBeGreaterThan(0);

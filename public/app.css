@@ -7,7 +7,7 @@
    cascade order. Each @import path is relative to /static/app.css, so it
    resolves under /static/css/* → ./public/css/* (Hono serveStatic, src/app/app.ts).
    The page loads design/styles/index.css first. These imports add only the
-   remaining shell behavior, with accessibility last.
+   remaining shell behavior.
    ========================================================================== */
 
 @import "css/base.css"; /* shell sizing + Alpine x-cloak                      */
@@ -19,7 +19,11 @@
 @import "css/fields.css"; /* capability create + edit field chrome            */
 @import "css/collection.css"; /* list layout + item wrapper chrome (M3 §3.2)   */
 @import "css/record-view.css"; /* the record's own view inside the window       */
-@import "css/a11y.css"; /* focus ring + reduced-motion                        */
+
+/* No accessibility layer. It held two overrides and both are gone: the focus ring is
+   declared once, in design/styles/base.css (PLAN decision 45), and Reduce Motion is one
+   declaration on `--travel` in the token layer (decision 44). A sheet that loads last in
+   order to beat the ones above it is the thing both decisions removed. */
 
 /* The seam, last — as it is in design/styles/index.css, and for the same reason:
    this is where the drawn line takes over from the CSS border every stylesheet

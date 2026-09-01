@@ -74,8 +74,6 @@ function record(box) {
   return { x, y, w, h, max: box.max === true };
 }
 
-const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
 /** @typedef {import("./data/capabilities.js").Capability} Capability */
 
 /** @typedef {import("./desk-geometry.js").Box} Box */
@@ -529,15 +527,24 @@ export class Desk {
 
     el.addEventListener("pointerdown", () => this.#focus(entry));
 
-    if (!prefersReducedMotion()) {
-      el.animate(
-        [
-          { opacity: 0, transform: `translate(${box.x}px, ${box.y}px) scale(0.96)` },
-          { opacity: 1, transform: `translate(${box.x}px, ${box.y}px) scale(1)` },
-        ],
-        { duration: 180, easing: "cubic-bezier(0.2,0.85,0.25,1)" },
-      );
-    }
+    /* A window arrives where it is going to stand: it fades in, and grows the last 4%
+     * into itself. Nothing flies in from anywhere — the box is on `translate` (desk.css),
+     * which composes before the scale, so this touches no position and cannot go stale
+     * against a window that is moved while it is arriving.
+     *
+     * The fade is life and runs for everyone. The growth is not: a window is a large
+     * surface, and 4% of one sweeps its edges further across the desk than any press
+     * travels, so it consumes the same axis the stylesheets do. This reads `--travel`
+     * rather than asking the OS, because the axis is the one answer and a second one
+     * would drift from it (PLAN decision 44). */
+    const travel = getComputedStyle(document.documentElement).getPropertyValue("--travel").trim();
+    el.animate(
+      [
+        { opacity: 0, scale: travel === "0" ? "1" : "0.96" },
+        { opacity: 1, scale: "1" },
+      ],
+      { duration: 180, easing: "cubic-bezier(0.2,0.85,0.25,1)" },
+    );
     return entry;
   }
 

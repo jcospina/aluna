@@ -49,7 +49,7 @@ let held = null;
  *
  * Nothing in the document moves while a finger is down. The row being dragged is translated
  * to follow the pointer and the rows it passes are translated out of its way, so the whole
- * gesture is transforms over a list that has not changed — the DOM is reordered exactly
+ * gesture is displacement over a list that has not changed — the DOM is reordered exactly
  * once, when the row is let go. That is what makes the row look picked up rather than
  * teleported between slots, and it also means the ink system is never asked to redraw a
  * boundary mid-drag.
@@ -281,7 +281,7 @@ function nudge(step) {
  * Measure the list once, at the moment a finger goes down.
  *
  * Every number the drag needs comes from here and nothing re-measures while it runs: the
- * rows are not moving, so a second measurement would only read back the transforms this
+ * rows are not moving, so a second measurement would only read back the displacements this
  * code has already applied.
  *
  * @param {HTMLElement} values
@@ -334,23 +334,23 @@ function paintDrag(state, dy) {
   let seen = 0;
   state.rows.forEach((row, index) => {
     if (index === state.from) {
-      row.style.transform = `translateY(${dy}px)`;
+      row.style.translate = `0 ${dy}px`;
       return;
     }
     // Where this row sits now, and where it would sit once the dragged row lands.
     const amongOthers = seen++;
     const settled = amongOthers < state.target ? amongOthers : amongOthers + 1;
     const slots = settled - index;
-    row.style.transform = slots === 0 ? "" : `translateY(${slots * state.pitch}px)`;
+    row.style.translate = slots === 0 ? "" : `0 ${slots * state.pitch}px`;
   });
 }
 
 /**
- * Take every transform back off, whether the drag ended or was cancelled.
+ * Take every displacement back off, whether the drag ended or was cancelled.
  * @param {Drag} state
  */
 function clearDrag(state) {
-  for (const row of state.rows) row.style.transform = "";
+  for (const row of state.rows) row.style.translate = "";
 }
 
 /* ── Adding and removing ──────────────────────────────────────────────────── */
@@ -512,7 +512,7 @@ export function dragListRow(event) {
 /**
  * Let the row go where it appears to be.
  *
- * The transforms come off and the one DOM move goes in, in that order — the row is already
+ * The displacements come off and the one DOM move goes in, in that order — the row is already
  * drawn in its landing slot, so putting it there for real is the frame nothing moves in.
  *
  * @param {PointerEvent} [event]

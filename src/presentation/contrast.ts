@@ -206,6 +206,24 @@ export interface Declaration {
 }
 
 /**
+ * A stylesheet's own text, comments stripped.
+ *
+ * A page or a served template carries its stylesheet in `<style>` rather than being one.
+ * Those blocks land after everything the manifest ships, so they are the last word on
+ * anything they name, and a check over the shipped surface has to see them.
+ */
+export function styleSource(sheet: string): string {
+  const source = readFileSync(join(ROOT, sheet), "utf8");
+  return (
+    sheet.endsWith(".css")
+      ? source
+      : [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
+          .map(([, block]) => block)
+          .join("\n")
+  ).replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
+/**
  * Every rule in a stylesheet, comments stripped.
  *
  * Flat by construction: an `@media` or `@supports` wrapper is stepped over, but CSS
@@ -213,38 +231,29 @@ export interface Declaration {
  * parent's declarations out of the audit's sight, which is worse than a failure.
  */
 export function declarations(sheet: string, properties: readonly string[]): Declaration[] {
-  const source = readFileSync(join(ROOT, sheet), "utf8");
-  // A page or a served template carries its stylesheet in `<style>` rather than being
-  // one. Those blocks land after everything the manifest ships, so they are the last
-  // word on anything they name, and the audit has to see them.
-  const css = (
-    sheet.endsWith(".css")
-      ? source
-      : [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
-          .map(([, block]) => block)
-          .join("\n")
-  ).replace(/\/\*[\s\S]*?\*\//g, "");
-  return css.split("}").flatMap((chunk) => {
-    if (!chunk.includes("{")) return [];
-    const cut = chunk.lastIndexOf("{");
-    // Split on both braces so an `@media` wrapper does not ride along on the selector.
-    const selector = (chunk.slice(0, cut).split(/[{}]/).pop() as string)
-      .replace(/\s+/g, " ")
-      .trim();
-    const body = chunk.slice(cut + 1);
-    if (body.includes("&") || selector.includes("&")) {
-      throw new Error(
-        `${sheet} nests with \`&\`, and this parser is flat — see the note above \`declarations\`.`,
-      );
-    }
-    return properties.flatMap((property) => {
-      // Last wins, as it does in the browser. Reading only the first left a rule that
-      // restates a property paintable and unaudited at the same time.
-      const matches = [...body.matchAll(new RegExp(`(?:^|[;\\s])${property}:\\s*([^;]+)`, "g"))];
-      const value = matches.at(-1)?.[1]?.trim();
-      return value === undefined ? [] : [{ sheet, selector, property, value }];
+  return styleSource(sheet)
+    .split("}")
+    .flatMap((chunk) => {
+      if (!chunk.includes("{")) return [];
+      const cut = chunk.lastIndexOf("{");
+      // Split on both braces so an `@media` wrapper does not ride along on the selector.
+      const selector = (chunk.slice(0, cut).split(/[{}]/).pop() as string)
+        .replace(/\s+/g, " ")
+        .trim();
+      const body = chunk.slice(cut + 1);
+      if (body.includes("&") || selector.includes("&")) {
+        throw new Error(
+          `${sheet} nests with \`&\`, and this parser is flat — see the note above \`declarations\`.`,
+        );
+      }
+      return properties.flatMap((property) => {
+        // Last wins, as it does in the browser. Reading only the first left a rule that
+        // restates a property paintable and unaudited at the same time.
+        const matches = [...body.matchAll(new RegExp(`(?:^|[;\\s])${property}:\\s*([^;]+)`, "g"))];
+        const value = matches.at(-1)?.[1]?.trim();
+        return value === undefined ? [] : [{ sheet, selector, property, value }];
+      });
     });
-  });
 }
 
 /**

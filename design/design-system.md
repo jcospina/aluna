@@ -267,7 +267,7 @@ declares. `comma_separated` is one `.field__control` holding one input, with the
 comma as the separator. `repeatable` is `.field-list__values`, a column of
 `.field-list__row`s that are each a shell of their own between a `.field-list__grip`
 and a small outline remove. The grip is dragged — the row follows the pointer
-under `transform` while the rows it passes slide clear, and the list itself is
+under `translate` while the rows it passes slide clear, and the list itself is
 reordered once, on release. Because order is part of the value rather than a view of
 it, the grip is also a `<button>`: space picks the row up, the arrow keys move it,
 space drops it and escape puts it back, with each step said in the field's own
@@ -345,6 +345,15 @@ content sliding, press-jumps — because travel is what triggers nausea. In-plac
 character continues: the companion keeps breathing, blinking and reacting. Travel
 is switched off centrally on that one axis, rather than through a blanket reset or
 a hand-maintained selector list.
+
+The axis is `--travel`, in `styles/tokens.css`: a scale of one that Reduce Motion
+takes to zero, with every travelling distance (`--travel-nudge`, `--travel-press`,
+`--travel-lift`) and the travel duration (`--dur-travel`) stated as a multiple of
+it. Which of the two a rule belongs to is the property it uses. `transform` says
+where a thing sits; `translate` is how far it travels and goes on `--dur-travel`;
+`scale` and `rotate` are how it changes without going anywhere and keep
+`--dur-fast`. A new component gets the behaviour by using those primitives, and a
+raw distance fails `travel-axis.test.ts` rather than shipping.
 
 The focus ring is `--focus-ring`, painted on the enclosing shell with the inner
 control's own ring suppressed, so a control never shows a second ring further in.

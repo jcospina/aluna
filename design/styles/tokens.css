@@ -177,6 +177,11 @@
   --space-7: 2.75rem;
   --space-8: 4rem;
 
+  /* The one-pixel drop that sits a glyph on the line of the text beside it. Optical
+   * alignment rather than motion: it is where the glyph is, always, and it is a token so
+   * that a displacement stated as a bare number reads as travel wherever one appears. */
+  --nudge-baseline: 0.0625rem;
+
   /* ── The desk ───────────────────────────────────────────────────────── */
   /*
    * The desk's geometry. The stylesheet owns every number here and
@@ -233,9 +238,45 @@
   --focus-ring: var(--violet);
 
   /* ── Motion ─────────────────────────────────────────────────────────── */
+  /* Two axes, and the difference between them is the whole of Reduce Motion.
+   *
+   * In-place life — a mark scaling in, a chevron turning over, a tile crawling —
+   * happens where the thing already is. It runs for everyone, always, and on a
+   * duration of its own: `--dur-fast` for the transitions, and whatever an
+   * animation states for itself. It is the product's character, and nobody is
+   * made ill by a checkmark appearing.
+   *
+   * Travel is displacement: a press jumping into the paper, a row sliding out of
+   * the way, something arriving from somewhere else. That is what turns a
+   * stomach, so travel is the axis that switches off — see below. */
   --ease-rise: cubic-bezier(0.2, 0.85, 0.25, 1);
   --dur-fast: 140ms;
   --dur-rise: 440ms;
+
+  /* ── Travel ─────────────────────────────────────────────────────────── */
+  /* Every travelling rule states both its distance and its duration through
+   * `--travel`, so the one declaration under the media query below quiets all of
+   * it — including a component written long after that line. A distance times
+   * zero does not move; a duration times zero lands instead of sliding, which is
+   * what a row displaced from JavaScript needs. Nothing here is a list of
+   * components, so nothing here has to grow when one is added. */
+  --travel: 1;
+  --travel-nudge: calc(1px * var(--travel));
+  --travel-press: calc(2px * var(--travel));
+  --travel-lift: calc(-2px * var(--travel));
+  --dur-travel: calc(var(--dur-fast) * var(--travel));
+}
+
+/*
+ * Reduce Motion, entire. It quiets travel and leaves life alone, and it is one
+ * declaration rather than a blanket reset because a reset takes the breathing
+ * with the flying — and because the next component gets this for free instead of
+ * being added to a list somebody has to remember.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --travel: 0;
+  }
 }
 
 /*
