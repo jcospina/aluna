@@ -222,10 +222,10 @@ ${[intact, ...forced].map(renderAnchorRow).join("\n")}
     </p>
 
     <div class="preview-controls">
-      <button type="button" class="btn" data-preview-deliver="commit">Deliver a commit</button>
-      <button type="button" class="btn" data-preview-deliver="fragment">Deliver a fragment</button>
-      <button type="button" class="btn" data-preview-away>Put the region away</button>
-      <button type="button" class="btn" data-preview-back>Bring the region back</button>
+      <button type="button" class="btn btn--outline" data-preview-deliver="commit">Deliver a commit</button>
+      <button type="button" class="btn btn--outline" data-preview-deliver="fragment">Deliver a fragment</button>
+      <button type="button" class="btn btn--outline" data-preview-away>Put the region away</button>
+      <button type="button" class="btn btn--outline" data-preview-back>Bring the region back</button>
     </div>
 
     <div data-preview-host></div>

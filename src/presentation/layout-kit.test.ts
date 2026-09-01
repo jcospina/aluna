@@ -99,6 +99,18 @@ describe("the layout kit ships under design/styles", () => {
     }
   });
 
+  test("every component sheet is reached from the manifest", () => {
+    // A sheet under `components/` that nothing imports is a component with no CSS at all,
+    // and it fails silently: the markup renders, the rules simply are not there. The full
+    // suite stayed green with the repeated-value list's own stylesheet orphaned, which is
+    // exactly the shape of defect this closes.
+    const manifest = read("design/styles/index.css");
+    for (const path of stylesheetsUnder("design/styles/components")) {
+      const name = path.slice(path.lastIndexOf("/") + 1);
+      expect(manifest, `${path} is imported by nothing`).toContain(`./components/${name}`);
+    }
+  });
+
   test("nothing else under design/styles claims `.stack`", () => {
     // `layout.css`'s page column is `.page-column`; leaving both would have given a
     // generated stack a page column's spacing with no error raised anywhere.

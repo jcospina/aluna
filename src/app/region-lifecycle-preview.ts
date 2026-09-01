@@ -277,10 +277,10 @@ export function renderRegionLifecyclePreviewPage(): string {
       <label class="preview-view" for="preview-hold">The read holds for</label>
       <input class="input" id="preview-hold" type="number" min="0" max="${MAX_HOLD_MS}"
         step="500" value="${DEFAULT_HOLD_MS}" data-preview-hold>
-      <button type="button" class="btn" data-preview-show="list">Show the list</button>
-      <button type="button" class="btn" data-preview-show="record">Open a record</button>
-      <button type="button" class="btn" data-preview-away>Put the region away</button>
-      <button type="button" class="btn" data-preview-back>Bring the region back</button>
+      <button type="button" class="btn btn--outline" data-preview-show="list">Show the list</button>
+      <button type="button" class="btn btn--outline" data-preview-show="record">Open a record</button>
+      <button type="button" class="btn btn--outline" data-preview-away>Put the region away</button>
+      <button type="button" class="btn btn--outline" data-preview-back>Bring the region back</button>
     </div>
 
     <div class="preview-window" data-preview-window></div>
