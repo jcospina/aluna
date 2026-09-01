@@ -43,13 +43,13 @@
       margin: 0 0 var(--space-2);
       font-family: var(--font-body);
       font-size: var(--type-sm);
-      color: var(--ink-3);
+      color: var(--ink-2);
     }
     /* Stand-in for the platform item wrapper: a surface, a ruled card and the item type
-                                                       baseline. The shipped wrapper is drawn by the ink system rather than ruled (5.2/02);
-                                                       this page keeps a plain edge on purpose, because its inline styles load after the
-                                                       seam and would paint a true edge beside a drawn one. Item CONTENT inside uses only
-                                                       the vocabulary classes. */
+                                                           baseline. The shipped wrapper is drawn by the ink system rather than ruled (5.2/02);
+                                                           this page keeps a plain edge on purpose, because its inline styles load after the
+                                                           seam and would paint a true edge beside a drawn one. Item CONTENT inside uses only
+                                                           the vocabulary classes. */
     .preview-item {
       padding: var(--space-2);
       font-family: var(--font-body);
@@ -64,9 +64,9 @@
       margin: 0;
     }
     /* Line swatches — the one weight the ink system draws at. Named apart from the
-                                                       design page's own `.swatch`, which the ink system draws: this page's inline
-                                                       styles load after the seam, so sharing the name would paint a true CSS edge
-                                                       beside the drawn one. */
+                                                           design page's own `.swatch`, which the ink system draws: this page's inline
+                                                           styles load after the seam, so sharing the name would paint a true CSS edge
+                                                           beside the drawn one. */
     .preview-swatches {
       display: flex;
       gap: var(--space-2);

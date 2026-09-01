@@ -130,7 +130,9 @@ function shell() {
         this.promptBusy = false;
         requestAnimationFrame(() => {
           const control = document.querySelector(BUILD_DISMISS_SELECTOR);
-          if (control instanceof HTMLElement) control.focus();
+          // Visibly: the build ending moves focus to its own button, and a button
+          // rings on keyboard focus alone.
+          if (control instanceof HTMLElement) control.focus({ focusVisible: true });
         });
       });
       // `htmx:sseError` fires on every transient drop while the transport is still

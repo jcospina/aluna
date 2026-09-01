@@ -88,11 +88,17 @@
  * The ring belongs to the shell, so the control inside it must not draw a
  * second one 2px further in.
  */
-.field__control :is(input, textarea, select):focus-visible {
+/* The shell rings; nothing inside it ever does. */
+.field__control :is(input, textarea, select):focus {
   outline: none;
 }
 
-.field__control:focus-within {
+/* One ring, three ways to earn it: a text control on any focus, because the ring says
+ * where typing will land, and everything else on the keyboard. `.field__control` *is*
+ * the picker's button, so `:focus-within` rang a control you had just clicked. */
+.field__control:has(:is(input:not([type="checkbox"], [type="radio"]), textarea):focus),
+.field__control:focus-visible,
+.field__control:has(select:focus-visible) {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
@@ -147,10 +153,9 @@
 }
 
 /* Signal goes to the line that *is* the error, not to every line the field is saying.
- * One field here has one guidance line; a real form's field may carry a declared hint, a
- * hint about commas and a character count beside it, and only one of them is ever what
- * went wrong. The count is the exception's exception: past its limit it is already signal
- * on its own account, and that is the same thing being wrong. */
+ * A real field may carry a declared hint, a hint about commas and a count beside it, and
+ * only one is ever what went wrong. The count is the exception's exception: past its
+ * limit it is already signal on its own account, and that is the same thing. */
 .field.is-invalid .field__guidance--error,
 .field.is-invalid .field__guidance.is-over {
   color: var(--signal);
@@ -199,6 +204,12 @@
 
 .listbox__value.is-placeholder {
   color: var(--ink-3);
+}
+
+/* The faintest thing on a redder well steps up: ink-3 is 4.24 there, ink-2 5.42. */
+.field.is-invalid :is(.field__input, .field__textarea)::placeholder,
+.field.is-invalid .listbox__value.is-placeholder {
+  color: var(--ink-2);
 }
 
 .listbox__chevron {
@@ -364,9 +375,10 @@
   }
 }
 
+/* Ink on leaf, like every label on it: a light mark was 3.01, C12's pairing again. */
 .choice__input:checked + .choice__mark {
   background: var(--leaf);
-  color: var(--surface);
+  color: var(--ink);
 }
 
 .choice__input:checked + .choice__mark .choice__glyph {
@@ -375,12 +387,12 @@
 }
 
 /* A radio's mark is drawn as a fill on a child rather than a second ring: a ring
- * inside a drawn ring is two lines where the language allows one. */
+ * inside a drawn ring is two lines where the language allows one. Ink, as above. */
 .choice--radio .choice__glyph {
   width: 0.5625rem;
   height: 0.5625rem;
   border-radius: 50%;
-  background: var(--surface);
+  background: var(--ink);
 }
 
 .choice__input:focus-visible + .choice__mark {
@@ -424,11 +436,21 @@
   inherits: false;
 }
 
+/* Registered like the fill beside it: a value must not reach inside the button. */
+@property --btn-hover-toward {
+  syntax: "*";
+  inherits: false;
+}
+
 .btn {
   /* No fill. `--btn-fill` is what a variant sets, and a button without one is the
    * outline button — see `.btn--outline`, which names that state so markup can
    * ask for it rather than relying on the absence of a class. */
   --btn-fill: transparent;
+
+  /* Which way hover steps the fill: away from the label, the one direction that
+   * cannot cost contrast. Toward ink took secondary to 3.74, feature to 3.87. */
+  --btn-hover-toward: var(--surface);
 
   display: inline-flex;
   align-items: center;
@@ -459,6 +481,7 @@
  * to need surface, which is the rule rather than an exception to it: 5.18:1. */
 .btn--primary {
   --btn-fill: var(--shade);
+  --btn-hover-toward: var(--ink);
   color: var(--surface);
 }
 
@@ -498,14 +521,16 @@
  * a capability colour, so a red on screen always means one thing. */
 .btn--danger {
   --btn-fill: var(--signal);
+  --btn-hover-toward: var(--ink);
   color: var(--surface);
 }
 
-/* Hover steps the fill toward ink, derived rather than declared, so there is no
- * second palette of hover colours to keep in step. */
+/* Hover steps the fill away from its label, derived rather than declared, so there
+ * is no second palette of hover colours to keep in step — and no variant whose
+ * hover reads worse than its rest. */
 @media (hover: hover) {
   .btn:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--btn-fill), var(--ink) 13%);
+    background: color-mix(in oklab, var(--btn-fill), var(--btn-hover-toward) 13%);
   }
 
   .btn--outline:hover:not(:disabled) {

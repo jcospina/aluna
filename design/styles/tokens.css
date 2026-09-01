@@ -52,9 +52,17 @@
   --surface-2: #eef8e2; /* inputs, items */
   --ink: #20301c; /* lines and type only */
 
-  /* Ink at reading strengths. Type only — these never draw a line. */
-  --ink-2: #55684e; /* secondary text, field labels */
-  --ink-3: #8b9c82; /* placeholders, guidance, faint detail */
+  /*
+   * Ink at reading strengths. Type only — these never draw a line.
+   *
+   * Both are set by the contrast audit rather than by eye: `--ink-2` is the
+   * darkest thing it has to clear 4.5:1 against, which is `--pane-2` behind a
+   * clay note, and `--ink-3` clears the same threshold on `--surface-2`, the
+   * darkest fill it is allowed to sit on. The audit closes that allowance —
+   * `--ink-3` on the desk itself would not pass and does not appear.
+   */
+  --ink-2: #52644b; /* secondary text, field labels */
+  --ink-3: #64745c; /* placeholders, guidance, faint detail */
 
   /* ── Tint anchors — the defaults Aluna reaches for first ────────────── */
   --leaf: #3fa65b;
@@ -64,7 +72,7 @@
   --sun: #f2b32c;
   --ochre: #c9902f;
   --clay: #e8763c;
-  --violet: #9a86c4;
+  --violet: #8f7bb9; /* the focus ring, and nothing else — see --focus-ring */
 
   /* ── Reserved ───────────────────────────────────────────────────────── */
   --signal: #d6304b; /* alerts and destructive confirmation only */

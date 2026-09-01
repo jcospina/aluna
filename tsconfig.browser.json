@@ -27,6 +27,6 @@
     "rootDir": ".",
     "outDir": ".types"
   },
-  "include": ["public/**/*.js", "design/**/*.js"],
+  "include": ["public/**/*.js", "design/**/*.js", "types/*.d.ts"],
   "exclude": ["public/vendor"]
 }

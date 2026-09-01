@@ -102,7 +102,7 @@ export function renderFewShotGalleryPreviewPage(): string {
         margin: 0 0 var(--space-2);
         font-family: var(--font-body);
         font-size: var(--type-sm);
-        color: var(--ink-3);
+        color: var(--ink-2);
       }
       .gallery-example {
         display: grid;

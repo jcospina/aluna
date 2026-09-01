@@ -79,7 +79,10 @@
   outline: none;
 }
 
-.search:focus-within {
+/* The input's focus, not the shell's — the same scoping the three rails that hold a
+ * button needed. This one holds only a glyph today, and naming the control it rings
+ * for is what keeps that from mattering. */
+.search:has(.search__input:focus) {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
@@ -108,9 +111,11 @@
   white-space: nowrap;
 }
 
+/* Ink, not surface. A light label on leaf is 3.01 — the exact pairing C12 took
+ * off the primary button, and it had outlived the swap here. */
 .pill--ok {
   background: var(--leaf);
-  color: var(--surface);
+  color: var(--ink);
 }
 
 .pill--wait {

@@ -92,6 +92,17 @@
   cursor: pointer;
 }
 
+/*
+ * The one ring drawn at no offset. A lamp stands on the title bar's panes, where
+ * violet is 2.64 to 2.94 — under the 3:1 a focus indicator owes — so the ring is
+ * brought in to meet the lamp's own 2px ink circle and is read against that, at
+ * 3.80, on every side. Same argument as the segmented control's inset ring.
+ */
+.lamp:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .lamp {
     transition: transform var(--dur-fast) ease;

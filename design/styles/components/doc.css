@@ -130,7 +130,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  color: var(--teal);
+  color: var(--shade);
   margin-bottom: var(--space-1);
 }
 
@@ -223,6 +223,18 @@
   color: var(--ink-3);
   line-height: 1.35;
   margin-top: 0.125rem;
+}
+
+/* A measured pairing, in figures that line up down the column. */
+.swatch__ratio {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Under 4.5:1 — a pairing this palette does not make, and the page says so rather
+ * than printing the number as though it were a result. */
+.swatch__ratio[data-under] {
+  color: var(--signal);
+  font-weight: 700;
 }
 
 /* ── Benches — a live specimen on a stage ─────────────────────────────── */
@@ -327,7 +339,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--caps-tracking);
-  color: var(--teal);
+  color: var(--shade);
 }
 
 /* Tabular so a column of measured facts lines up. */
@@ -371,5 +383,5 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--caps-tracking);
-  color: var(--teal);
+  color: var(--shade);
 }

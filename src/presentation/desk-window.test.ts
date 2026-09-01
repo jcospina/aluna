@@ -327,10 +327,11 @@ describe("the window's content region scrolls, and only when it should", () => {
     // the moment a card is hovered, and the ring is clipped at both edges.
     const collection = rules("public/css/collection.css");
     const press = /\.capability-item:active\s*\{[^}]*translate\((\d+)px/.exec(collection);
-    const ring =
-      /\.capability-item:focus-visible\s*\{[^}]*outline:\s*(\d+)px[^}]*outline-offset:\s*(\d+)px/.exec(
-        collection,
-      );
+    // The card states no ring of its own — there is one, in the token layer's base
+    // stylesheet — so the gutter is sized against that one rather than a copy of it.
+    const ring = /:focus-visible\s*\{[^}]*outline:\s*(\d+)px[^}]*outline-offset:\s*(\d+)px/.exec(
+      rules("design/styles/base.css"),
+    );
     expect(press?.[1], "no `:active` press travel to size the gutter against").toBeDefined();
     expect(ring?.[1], "no focus ring to size the gutter against").toBeDefined();
     const reach = Math.max(
