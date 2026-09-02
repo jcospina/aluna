@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ZodType } from "zod";
-import { evolutionIntentFor } from "../../builder/evolution/candidate.test-support.ts";
+import { evolutionIntentFor } from "../../builder/evolution/candidate/candidate.test-support.ts";
 import {
   behavioralResponseFor,
   createHandlerFor,

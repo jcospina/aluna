@@ -24,19 +24,22 @@ import {
   materializeCapabilityActionRecord,
   selectCapabilityRows,
 } from "../../runtime/data/index.ts";
-import type { GeneratedUnit, HandlerUnitName } from "../units/units.ts";
-import { actionTestInputDigest, actionTestInputs } from "./behavioral/behavioral-test-inputs.ts";
-import { ACTION_UNDER_TEST_PREFIX } from "./behavioral/gate-behavioral-full-prompt.ts";
-import type {
-  FrozenBehavioralTests,
-  FullBehavioralTestCase,
-} from "./behavioral/gate-behavioral-full-schema.ts";
+import type { GeneratedUnit, HandlerUnitName } from "../units/generation/units.ts";
 import {
   type BehavioralTierInput,
   CapabilityGateError,
   type FrozenBehavioralTestsInput,
   runCapabilityGate,
 } from "./gate.ts";
+import {
+  actionTestInputDigest,
+  actionTestInputs,
+} from "./rungs/behavioral/freeze/behavioral-test-inputs.ts";
+import { ACTION_UNDER_TEST_PREFIX } from "./rungs/behavioral/generation/gate-behavioral-full-prompt.ts";
+import type {
+  FrozenBehavioralTests,
+  FullBehavioralTestCase,
+} from "./rungs/behavioral/generation/gate-behavioral-full-schema.ts";
 
 /** The whole-capability case list the fixtures author, before the per-Action split. */
 export interface FullBehavioralTestSuite {

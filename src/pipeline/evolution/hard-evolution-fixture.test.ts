@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { notesSpec } from "../../builder/gate/gate.test-support.ts";
-import { checkGeneratedUnit } from "../../builder/units/unit-checks.ts";
+import { checkGeneratedUnit } from "../../builder/units/safety/unit-checks.ts";
 import { defaultBehavioralErrorsForSchema } from "../../registry/index.ts";
 import { hardEvolutionHandlerFixture } from "./hard-evolution-fixture.test-support.ts";
 

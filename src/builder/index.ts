@@ -7,6 +7,15 @@
 // entry point.
 
 export {
+  DERIVED_UNIT_FILES,
+  type DerivedUnitFile,
+  type EvolutionUnitProvenanceInput,
+  evolutionUnitProvenance,
+  type UnitProvenanceManifest,
+  unitProvenanceManifestSchema,
+  type VerifiedDependencySnapshot,
+} from "./artifacts/inventory/artifact-provenance.ts";
+export {
   type ActivatePublishedSnapshotInput,
   ActivationCancelledError,
   type ActivationFaultHooks,
@@ -14,7 +23,7 @@ export {
   expectedAbsentCapability,
   expectedActiveCapability,
   nextCapabilityVersion,
-} from "./artifacts/activation.ts";
+} from "./artifacts/publication/activation.ts";
 export {
   assertVerifiedPublishedSnapshot,
   type PublishCapabilitySnapshotInput,
@@ -28,16 +37,7 @@ export {
   type VerifiedCapabilitySnapshot,
   type VerifiedPublishedSnapshot,
   verifyCapabilitySnapshot,
-} from "./artifacts/artifact-lifecycle.ts";
-export {
-  DERIVED_UNIT_FILES,
-  type DerivedUnitFile,
-  type EvolutionUnitProvenanceInput,
-  evolutionUnitProvenance,
-  type UnitProvenanceManifest,
-  unitProvenanceManifestSchema,
-  type VerifiedDependencySnapshot,
-} from "./artifacts/artifact-provenance.ts";
+} from "./artifacts/publication/artifact-lifecycle.ts";
 export {
   ArtifactReconciliationError,
   type ArtifactReconciliationResult,
@@ -45,7 +45,7 @@ export {
   type ReconcileCapabilityArtifactsInput,
   reconcileCapabilityArtifacts,
   type TombstonedCapabilityIncarnation,
-} from "./artifacts/artifact-reconciliation.ts";
+} from "./artifacts/publication/artifact-reconciliation.ts";
 export {
   type CommitCapabilityInput,
   type CommitCapabilityResult,
@@ -54,18 +54,25 @@ export {
   FIRST_CAPABILITY_VERSION,
 } from "./commit/commit.ts";
 export {
+  type ApplyCapabilityMigrationInput,
+  applyCapabilityMigration,
+  type CapabilityMigrationResult,
+  type CapabilityMigrationTransactionResult,
+  withCapabilityMigrationTransaction,
+} from "./commit/migration.ts";
+export {
   buildCandidateSpecPrompt,
   type CandidateSpecGenResult,
   type GenerateCandidateSpecInput,
   generateCandidateSpec,
-} from "./evolution/candidate-spec-gen.ts";
+} from "./evolution/candidate/candidate-spec-gen.ts";
 export {
   CandidateValidationError,
   type CandidateValidationIssue,
   committedSpecView,
   type ValidateCandidateSpecInput,
   validateCandidateSpec,
-} from "./evolution/candidate-validation.ts";
+} from "./evolution/candidate/candidate-validation.ts";
 export {
   buildDependencyGenerationCatalog,
   type DependencyGenerationCatalogEntry,
@@ -87,7 +94,7 @@ export {
   PLATFORM_WORK_KINDS,
   type PlatformWorkKind,
   UnmappedChangeFactError,
-} from "./evolution/diff-engine.ts";
+} from "./evolution/diff/diff-engine.ts";
 export {
   type ActionTestInputs,
   actionTestInputDigest,
@@ -144,28 +151,14 @@ export {
   StructuralGateError,
   type StructuralGateResult,
   type StructuralUnitOutcome,
-} from "./gate/structural/gate-structural.ts";
+} from "./gate/rungs/structural/gate-structural.ts";
 export { createCapabilityIncarnationId } from "./incarnation.ts";
-export {
-  type ApplyCapabilityMigrationInput,
-  applyCapabilityMigration,
-  type CapabilityMigrationResult,
-  type CapabilityMigrationTransactionResult,
-  withCapabilityMigrationTransaction,
-} from "./migration/migration.ts";
 export {
   buildSpecPrompt,
   type GenerateSpecInput,
   generateSpec,
   type SpecGenResult,
 } from "./spec/spec-gen.ts";
-export {
-  admissiblePriorSource,
-  checkPriorSourceAdmissibility,
-  type PriorSourceAdmissibility,
-  type PriorSourceAdmissibilityInput,
-  type PriorSourceDecision,
-} from "./units/prior-source-admissibility.ts";
 export {
   buildUnitPrompt,
   DEFAULT_UNIT_FIX_ATTEMPTS,
@@ -186,4 +179,11 @@ export {
   type UnitGenerationObserver,
   type UnitGenerationPartialEvent,
   type UnitGenerationStartEvent,
-} from "./units/units.ts";
+} from "./units/generation/units.ts";
+export {
+  admissiblePriorSource,
+  checkPriorSourceAdmissibility,
+  type PriorSourceAdmissibility,
+  type PriorSourceAdmissibilityInput,
+  type PriorSourceDecision,
+} from "./units/safety/prior-source-admissibility.ts";

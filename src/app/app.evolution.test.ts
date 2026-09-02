@@ -16,7 +16,7 @@ import {
   candidateFrom,
   journalCapabilityRow,
   makeCandidateProvider,
-} from "../builder/evolution/candidate.test-support.ts";
+} from "../builder/evolution/candidate/candidate.test-support.ts";
 import {
   createHandlerFor,
   makeSequenceProvider,

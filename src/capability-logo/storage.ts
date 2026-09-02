@@ -28,7 +28,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { createSafeStagingParent } from "../builder/artifacts/artifact-publication.ts";
+import { createSafeStagingParent } from "../builder/artifacts/publication/artifact-publication.ts";
 import {
   CAPABILITY_LOGO_FILENAME,
   CAPABILITY_LOGO_STAGING_PATTERN,

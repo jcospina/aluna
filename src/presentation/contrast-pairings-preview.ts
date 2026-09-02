@@ -80,10 +80,10 @@ export const PREVIEW_PAIRINGS: readonly Pairing[] = [
       "non-text floor; it takes `--surface` now, the way C12's own swap does.",
     alsoCovers: [{ token: "sun" }, { token: "sky" }],
     sites: [
-      "src/builder/units/few-shot-gallery.ts § span.text-bold.truncate[style] [color]",
-      "src/builder/units/few-shot-gallery.ts § span.text-bold[style] [color]",
-      "src/builder/units/few-shot-gallery.ts § span.text-xs.text-bold[style] [color]",
-      "src/builder/units/few-shot-gallery.ts § time.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot-gallery.ts § span.text-bold.truncate[style] [color]",
+      "src/builder/units/generation/few-shot-gallery.ts § span.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot-gallery.ts § span.text-xs.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot-gallery.ts § time.text-bold[style] [color]",
     ],
   },
   {
@@ -92,6 +92,8 @@ export const PREVIEW_PAIRINGS: readonly Pairing[] = [
     background: { token: "shade" },
     threshold: "text",
     note: "The C12 swap, in the exemplars: a light label is what shade can carry.",
-    sites: ["src/builder/units/few-shot-gallery.ts § span.text-sm.text-bold[style] [color]"],
+    sites: [
+      "src/builder/units/generation/few-shot-gallery.ts § span.text-sm.text-bold[style] [color]",
+    ],
   },
 ];

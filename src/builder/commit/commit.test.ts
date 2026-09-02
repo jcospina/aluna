@@ -22,10 +22,10 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
 import { applyCapabilityTableDdl } from "../../runtime/data/index.ts";
-import { publishCapabilitySnapshot } from "../artifacts/artifact-lifecycle.ts";
+import { publishCapabilitySnapshot } from "../artifacts/publication/artifact-lifecycle.ts";
 import { gateInput, generatedUnitsFor } from "../gate/gate.test-support.ts";
 import { type CapabilityGateResult, runCapabilityGate } from "../gate/gate.ts";
-import type { GeneratedUnit } from "../units/units.ts";
+import type { GeneratedUnit } from "../units/generation/units.ts";
 import { commitCapability, FIRST_CAPABILITY_VERSION } from "./commit.ts";
 
 const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";

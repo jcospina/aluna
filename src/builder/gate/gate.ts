@@ -12,26 +12,29 @@ import type { Database } from "bun:sqlite";
 import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../registry/index.ts";
 import type { CapabilityCreateValues, CapabilityTableDdl } from "../../runtime/data/index.ts";
-import type { HandlerUnitName } from "../units/units.ts";
-import type {
-  BehavioralExecutionImpact,
-  BehavioralExecutionPlan,
-} from "./behavioral/behavioral-execution-plan.ts";
-import type {
-  BehavioralFailureAttribution,
-  BehavioralFailureSurface,
-} from "./behavioral/behavioral-failure-attribution.ts";
-import { BehavioralRungFailure, runBehavioralRung } from "./behavioral/gate-behavioral.ts";
-import type { FrozenBehavioralTests } from "./behavioral/gate-behavioral-full-schema.ts";
+import type { HandlerUnitName } from "../units/generation/units.ts";
 import {
   CapabilityGateError,
   type CapabilityGateFailureMeasurement,
 } from "./capability-gate-error.ts";
-import { DesignLintRungError, runDesignLintRung } from "./design-lint/gate-design-lint.ts";
 import { rerunPassedGateRung, runGateRung, skipGateRung } from "./gate-rung-runner.ts";
-import { runSmokeRung } from "./smoke/gate-smoke.ts";
-import { SmokeRungFailure, type SmokeRungRun } from "./smoke/gate-smoke-repair.ts";
-import { runStructuralRung, type StructuralGateResult } from "./structural/gate-structural.ts";
+import type {
+  BehavioralExecutionImpact,
+  BehavioralExecutionPlan,
+} from "./rungs/behavioral/freeze/behavioral-execution-plan.ts";
+import { BehavioralRungFailure, runBehavioralRung } from "./rungs/behavioral/gate-behavioral.ts";
+import type { FrozenBehavioralTests } from "./rungs/behavioral/generation/gate-behavioral-full-schema.ts";
+import type {
+  BehavioralFailureAttribution,
+  BehavioralFailureSurface,
+} from "./rungs/behavioral/repair/behavioral-failure-attribution.ts";
+import { DesignLintRungError, runDesignLintRung } from "./rungs/design-lint/gate-design-lint.ts";
+import { runSmokeRung } from "./rungs/smoke/gate-smoke.ts";
+import { SmokeRungFailure, type SmokeRungRun } from "./rungs/smoke/gate-smoke-repair.ts";
+import {
+  runStructuralRung,
+  type StructuralGateResult,
+} from "./rungs/structural/gate-structural.ts";
 
 export const BEHAVIORAL_TIER_ENV_VAR = "OMNI_BEHAVIORAL_TIER";
 
@@ -347,7 +350,7 @@ export {
   planBehavioralExecution,
   selectedBehavioralCases,
   specActionTestInputs,
-} from "./behavioral/gate-behavioral.ts";
+} from "./rungs/behavioral/gate-behavioral.ts";
 export { CapabilityGateError, type CapabilityGateFailureMeasurement };
 
 /**

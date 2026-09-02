@@ -99,7 +99,7 @@ export const AUDITED_SHEETS: readonly string[] = [
   // inline `style` attribute — and they are not only rendered at `/demo/few-shot-gallery`
   // but fed verbatim into the item-renderer prompt as approved examples. An unaudited
   // failure here is a failure the platform *teaches*.
-  "src/builder/units/few-shot-gallery.ts",
+  "src/builder/units/generation/few-shot-gallery.ts",
 ];
 
 /**

@@ -82,8 +82,8 @@ describe("a record's hand is a function of its id alone", () => {
     const coupling = [INK_SEED_ATTR, "inkSeed", "ink system", "is-ink", "mountInk", "ink.js"];
     for (const path of [
       "src/registry/spec/spec.ts",
-      "src/builder/units/unit-prompts.ts",
-      "src/builder/units/few-shot-gallery.ts",
+      "src/builder/units/generation/unit-prompts.ts",
+      "src/builder/units/generation/few-shot-gallery.ts",
     ]) {
       const source = read(path);
       for (const term of coupling) expect(source, `${path} names ${term}`).not.toContain(term);

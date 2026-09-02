@@ -14,8 +14,8 @@ import {
   evolutionIntentFor,
   journalCapabilityRow,
   makeCandidateProvider,
-} from "../evolution/candidate.test-support.ts";
-import { buildCandidateSpecPrompt } from "../evolution/candidate-spec-gen.ts";
+} from "../evolution/candidate/candidate.test-support.ts";
+import { buildCandidateSpecPrompt } from "../evolution/candidate/candidate-spec-gen.ts";
 import {
   makeSpecProvider,
   notesIntent,

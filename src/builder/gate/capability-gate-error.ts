@@ -1,7 +1,7 @@
 import type { TokenUsage } from "../../platform/provider/index.ts";
-import type { BehavioralRungFailureMeasurement } from "./behavioral/gate-behavioral.ts";
 import type { GateRungName, GateRungOutcome } from "./gate.ts";
 import { diagnosticForError } from "./gate-internal.ts";
+import type { BehavioralRungFailureMeasurement } from "./rungs/behavioral/gate-behavioral.ts";
 
 /** Provider work and execution evidence already completed when a Gate fails. */
 export interface CapabilityGateFailureMeasurement {

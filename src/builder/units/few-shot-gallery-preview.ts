@@ -12,7 +12,7 @@ import {
   buildItemRendererDesignInjection,
   FEW_SHOT_DESIGN_EXAMPLES,
   type FewShotDesignExample,
-} from "./few-shot-gallery.ts";
+} from "./generation/few-shot-gallery.ts";
 
 function renderedExample(example: FewShotDesignExample): string {
   let previewIndex = 0;

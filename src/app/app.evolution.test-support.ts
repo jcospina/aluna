@@ -21,7 +21,7 @@ import {
   makeCandidateProvider,
   SHELVES_INCARNATION_ID,
   shelvesCapabilityRow,
-} from "../builder/evolution/candidate.test-support.ts";
+} from "../builder/evolution/candidate/candidate.test-support.ts";
 import {
   createHandlerFor,
   fullHandlersFor,
@@ -56,7 +56,7 @@ import {
   teardownScratchDbEnv,
 } from "./app.test-support.ts";
 
-export { JOURNAL_INCARNATION_ID } from "../builder/evolution/candidate.test-support.ts";
+export { JOURNAL_INCARNATION_ID } from "../builder/evolution/candidate/candidate.test-support.ts";
 
 /** The classification the resolver would return for a change typed against `journal`. */
 export function journalEvolutionIntent(
