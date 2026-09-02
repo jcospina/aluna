@@ -36,14 +36,14 @@ import {
   INCARNATION_ID,
   setUpCommitted,
   tearDownCommitted,
-} from "../evolution/evolution-run.test-support.ts";
+} from "../evolution/run/evolution-run.test-support.ts";
 import type { BuildPipelineCompletion, SendBuildEvent } from "../jobs/build-jobs.ts";
 import { createMetricsRecorder } from "../metrics-recorder.ts";
-import { type CoreBuilderPresenter, type CoreBuildTerminal, runCoreBuild } from "./core-builder.ts";
 import {
   resolvedExistingCapabilityRequest,
   resolvedNewCapabilityRequest,
-} from "./resolved-request.ts";
+} from "./admission/resolved-request.ts";
+import { type CoreBuilderPresenter, type CoreBuildTerminal, runCoreBuild } from "./core-builder.ts";
 
 const OTHER_INCARNATION_ID = "77777777-7777-4777-8777-777777777777";
 const RESOLVER = {

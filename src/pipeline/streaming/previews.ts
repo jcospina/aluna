@@ -34,7 +34,7 @@ import {
   type LogoStatus,
   resolveLogoShades,
 } from "../../registry/index.ts";
-import type { BehavioralTierTransition } from "../evolution/behavioral-tier-transition.ts";
+import type { BehavioralTierTransition } from "../evolution/tiers/behavioral-tier-transition.ts";
 
 export interface DemoMigrationColumnPreview {
   readonly name: string;

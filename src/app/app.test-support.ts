@@ -15,8 +15,8 @@ import {
   behavioralResponseFor,
   type FullBehavioralTestSuite,
 } from "../builder/gate/gate.test-support.ts";
-import type { IntentClassification } from "../intent-resolver/index.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
+import type { IntentClassification } from "../pipeline/intent/index.ts";
 import { openDatabase, type PlatformDatabase } from "../platform/persistence/db.ts";
 import { runMigrations } from "../platform/persistence/migrations.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";

@@ -30,7 +30,6 @@ import {
   runCapabilityGate,
   type UnitGenerationAttempt,
 } from "../../builder/index.ts";
-import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { GenerateResult, Provider, TokenUsage } from "../../platform/provider/index.ts";
 import {
@@ -43,6 +42,7 @@ import {
 import { deriveCapabilityTableDdl } from "../../runtime/data/index.ts";
 import type { Send } from "../../sse/index.ts";
 import { renderProvisionalLogoName } from "../../web/index.ts";
+import type { IntentClassification } from "../intent/index.ts";
 import {
   type DemoBuildAccumulator,
   recordBehavioralFreezeMetrics,
@@ -61,7 +61,7 @@ import { createUnitPreviewStream } from "../streaming/unit-preview-stream.ts";
 import {
   validateBuiltOverlapIdentity,
   validateProposedOverlapIdentity,
-} from "./overlap-identity.ts";
+} from "./admission/overlap-identity.ts";
 
 /**
  * An aborted stream mid-build, thrown before activation. Distinct from a build

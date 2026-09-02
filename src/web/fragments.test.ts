@@ -94,7 +94,7 @@ async function inspectLogoOob(fragment: string): Promise<OobInspection> {
 describe("prompt notice", () => {
   // This renderer is the *only* place `#prompt-notice` text is escaped, and the text is
   // not always ours: the deflection path puts the provider's `user_facing_label` through
-  // it (`src/pipeline/build/deflection.ts`). Without this case, deleting `escapeHtml`
+  // it (`src/pipeline/build/admission/deflection.ts`). Without this case, deleting `escapeHtml`
   // from the renderer leaves the whole suite green — every other notice assertion only
   // checks for the id and swap mode.
   test("escapes interpolated text, so provider-authored copy cannot inject markup", () => {

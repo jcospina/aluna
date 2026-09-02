@@ -62,7 +62,7 @@ import {
 import {
   type CapabilityEvolutionOutcome,
   runCapabilityEvolution,
-} from "../evolution/evolution-run.ts";
+} from "../evolution/run/evolution-run.ts";
 import type { BuildPipelineCompletion, SendBuildEvent } from "../jobs/build-jobs.ts";
 import {
   classifyBuildFailure,
@@ -74,12 +74,12 @@ import {
   staleAdmissionMeasurement,
   staleAdmissionStages,
 } from "../metrics-recorder.ts";
-import { AbortedBuildError, runSpecBuildStages } from "./build-run.ts";
 import type {
   ResolvedBuildRequest,
   ResolvedExistingCapabilityRequest,
   ResolvedNewCapabilityRequest,
-} from "./resolved-request.ts";
+} from "./admission/resolved-request.ts";
+import { AbortedBuildError, runSpecBuildStages } from "./build-run.ts";
 
 /**
  * Why the lease-head check refused. Every reason is the same refusal with the same

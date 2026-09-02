@@ -21,7 +21,7 @@
 // types, reshaped `ui_intent`, platform-owned columns excluded) and
 // `capabilitySpecSchema` is the hard wall that rejects anything outside it.
 
-import type { IntentClassification } from "../../intent-resolver/index.ts";
+import type { IntentClassification } from "../../pipeline/intent/index.ts";
 import type { SendBuildEvent } from "../../pipeline/jobs/build-jobs.ts";
 import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import {

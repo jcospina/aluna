@@ -19,7 +19,6 @@ import {
   SnapshotVerificationError,
   UnitGenerationError,
 } from "../builder/index.ts";
-import type { IntentClassification } from "../intent-resolver/index.ts";
 import type {
   CarriedResolverMeasurement,
   GenerationBuildMeasurement,
@@ -49,6 +48,7 @@ import {
 } from "../platform/metrics/index.ts";
 import type { TokenUsage } from "../platform/provider/index.ts";
 import { resolveModel } from "../platform/provider/index.ts";
+import type { IntentClassification } from "./intent/index.ts";
 
 /**
  * How the app persists a generation-metrics row. Injected (via `AppDeps.recordMetrics`)

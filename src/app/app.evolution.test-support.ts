@@ -43,7 +43,7 @@ import {
 import {
   INTENT_RESOLVER_PROMPT_PREFIX,
   type IntentClassification,
-} from "../intent-resolver/index.ts";
+} from "../pipeline/intent/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";
 import { type CapabilitySpec, capabilitySpecFromRow } from "../registry/index.ts";
 import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../runtime/data/index.ts";

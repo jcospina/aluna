@@ -7,7 +7,7 @@
 //
 // Unlike the disabled-option refusal it takes no account of what the record already
 // holds, and it needs none. A limit may only be added or lowered after a lease-held scan
-// has proved no committed value exceeds it (`src/pipeline/evolution/length-scan.ts`), so
+// has proved no committed value exceeds it (`src/pipeline/evolution/assembly/length-scan.ts`), so
 // no stored value can ever violate a live limit — an exemption for one would be an
 // exemption for a case the platform refuses to create.
 //

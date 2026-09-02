@@ -24,7 +24,7 @@ import type { Database } from "bun:sqlite";
 import { z } from "zod";
 
 import type { GateRungName, GateRungOutcome } from "../../builder/index.ts";
-import { intentTypeSchema } from "../../intent-resolver/index.ts";
+import { intentTypeSchema } from "../../pipeline/intent/index.ts";
 import { db, dbReadonly } from "../persistence/db.ts";
 import type { TokenUsage } from "../provider/index.ts";
 import {
