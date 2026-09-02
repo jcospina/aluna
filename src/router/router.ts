@@ -37,7 +37,7 @@ import {
   createMutationCoordinator,
   type MutationCoordinator,
 } from "../mutation-coordinator/index.ts";
-import { db, dbReadonly, type PlatformDatabase } from "../persistence/db.ts";
+import { db, dbReadonly, type PlatformDatabase } from "../platform/persistence/db.ts";
 import {
   createReadGateCoordinator,
   ReadGateClosingError,

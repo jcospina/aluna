@@ -28,7 +28,7 @@
 // a later try, or to `abandoned` once the third claimed attempt has failed.
 
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import type { CapabilityIncarnation, ReadGateCoordinator } from "../read-gates/index.ts";
 import {
   type CapabilityRow,

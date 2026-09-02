@@ -1,6 +1,6 @@
-import { intentResolutionMetrics } from "../../metrics/index.ts";
 import type { MutationCoordinator } from "../../mutation-coordinator/index.ts";
-import type { PlatformDatabase } from "../../persistence/db.ts";
+import { intentResolutionMetrics } from "../../platform/metrics/index.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { Send } from "../../sse/index.ts";
 import type { BuildPipelineCompletion } from "../jobs/build-jobs.ts";
 import { type RestorationDescriptor, renderRestorationFragment } from "../jobs/restoration.ts";

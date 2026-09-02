@@ -23,7 +23,7 @@
 // behavior — they are here so that loosening either rule fails loudly instead of quietly
 // letting a repair buy a pass with an unrun suite.
 
-import { isProviderAbortError, type TokenUsage } from "../../../provider/index.ts";
+import { isProviderAbortError, type TokenUsage } from "../../../platform/provider/index.ts";
 import { type CapabilityRow, LOGO_BIRTH_STATUS } from "../../../registry/index.ts";
 import { DEFAULT_UNIT_FIX_ATTEMPTS, type HandlerUnitName } from "../../units/units.ts";
 import type {

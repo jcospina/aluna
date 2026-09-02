@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   reconcileRunningGenerationLifecycles,
   startGenerationLifecycle,
-} from "../metrics/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+} from "../platform/metrics/index.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import { insertCapability } from "../registry/index.ts";
 import {
   createScratchDbEnv,

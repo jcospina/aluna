@@ -8,7 +8,7 @@
 // rather than building a colliding duplicate.
 
 import type { IntentClassification } from "../../intent-resolver/index.ts";
-import type { TokenUsage } from "../../provider/index.ts";
+import type { TokenUsage } from "../../platform/provider/index.ts";
 import { type CapabilityRow, canonicalCapabilityLabel } from "../../registry/index.ts";
 
 /**

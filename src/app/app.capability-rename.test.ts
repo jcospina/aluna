@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { renameCapabilityLabel } from "../capability-rename/index.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import {
   type CapabilityRow,
   canonicalCapabilityLabel,

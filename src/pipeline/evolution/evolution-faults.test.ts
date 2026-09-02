@@ -20,7 +20,7 @@ import { type CapabilityGateResult, publishCapabilitySnapshot } from "../../buil
 import {
   reconcileRunningGenerationLifecycles,
   startGenerationLifecycle,
-} from "../../metrics/index.ts";
+} from "../../platform/metrics/index.ts";
 import { getCapability } from "../../registry/index.ts";
 import {
   activated,

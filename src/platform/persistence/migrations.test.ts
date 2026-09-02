@@ -10,6 +10,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  insertCapabilityDeletionTombstone,
+  listCapabilityDeletionTombstones,
+} from "../../registry/deletion-tombstones.ts";
+import { insertCapability, REGISTRY_TABLE } from "../../registry/store.ts";
+import { notesRow } from "../../router/router.test-support.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
@@ -17,12 +23,6 @@ import {
   startGenerationLifecycle,
 } from "../metrics/lifecycle-store.ts";
 import { GENERATION_METRICS_TABLE } from "../metrics/store.ts";
-import {
-  insertCapabilityDeletionTombstone,
-  listCapabilityDeletionTombstones,
-} from "../registry/deletion-tombstones.ts";
-import { insertCapability, REGISTRY_TABLE } from "../registry/store.ts";
-import { notesRow } from "../router/router.test-support.ts";
 import { openDatabase, type PlatformDatabase } from "./db.ts";
 import { MIGRATIONS, MIGRATIONS_TABLE, runMigrations } from "./migrations.ts";
 
@@ -150,7 +150,7 @@ describe("migrations run on app boot", () => {
   });
 
   test("booting the entrypoint creates the db file with the migrations table", async () => {
-    const entry = join(import.meta.dir, "..", "index.ts");
+    const entry = join(import.meta.dir, "../..", "index.ts");
 
     // Boot the real entrypoint with the temp dir as cwd, so its relative db path
     // (data/omni-crud.db) resolves to an isolated location. PORT=0 binds an
@@ -221,7 +221,7 @@ describe("migrations run on app boot", () => {
     mkdirSync(incarnationDirectory, { recursive: true });
     writeFileSync(join(incarnationDirectory, "orphaned.ts"), "old");
 
-    const entry = join(import.meta.dir, "..", "index.ts");
+    const entry = join(import.meta.dir, "../..", "index.ts");
     const proc = Bun.spawn(["bun", entry], {
       cwd: dir,
       env: { ...process.env, PORT: "0" },

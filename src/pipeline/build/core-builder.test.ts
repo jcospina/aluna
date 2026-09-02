@@ -18,9 +18,9 @@ import { afterEach, beforeAll, beforeEach, expect, test } from "bun:test";
 import type { ZodType } from "zod";
 import { notesSpec } from "../../builder/gate/gate.test-support.ts";
 import type { CapabilityGateResult } from "../../builder/index.ts";
-import { listGenerationLifecycles } from "../../metrics/index.ts";
 import { MutationCoordinator } from "../../mutation-coordinator/index.ts";
-import type { GenerateResult, Provider } from "../../provider/index.ts";
+import { listGenerationLifecycles } from "../../platform/metrics/index.ts";
+import type { GenerateResult, Provider } from "../../platform/provider/index.ts";
 import {
   fingerprintActiveRegistryCatalog,
   getCapability,

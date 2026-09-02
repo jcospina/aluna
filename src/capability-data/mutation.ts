@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { db, type PlatformDatabase } from "../persistence/db.ts";
+import { db, type PlatformDatabase } from "../platform/persistence/db.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,

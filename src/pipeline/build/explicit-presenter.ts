@@ -18,7 +18,7 @@
 // restoration is deliberately re-resolved rather than remembered: after a stale refusal
 // the registry is precisely the thing that moved.
 
-import type { PlatformDatabase } from "../../persistence/db.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../registry/index.ts";
 import { renderCachedCapabilityCommitSwap } from "../../web/index.ts";
 import {

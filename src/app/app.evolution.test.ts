@@ -31,7 +31,7 @@ import {
   FAILED_BUILD_ENDING,
   STALE_BUILD_ENDING,
 } from "../pipeline/streaming/terminal-presentation.ts";
-import type { Provider } from "../provider/index.ts";
+import type { Provider } from "../platform/provider/index.ts";
 import { compareAndSwapCapability, getCapability } from "../registry/index.ts";
 import { renderBuildEnding } from "../web/index.ts";
 import {

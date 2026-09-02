@@ -21,7 +21,7 @@ import {
   isProviderAbortError,
   type Provider,
   type TokenUsage,
-} from "../../provider/index.ts";
+} from "../../platform/provider/index.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,

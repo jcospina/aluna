@@ -5,7 +5,7 @@
 // after activation, or canonical restoration for every non-activating outcome.
 
 import { CandidateValidationError } from "../../builder/index.ts";
-import type { PlatformDatabase } from "../../persistence/db.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../registry/index.ts";
 import { renderCachedCapabilityCommitSwap } from "../../web/index.ts";
 import type { BuildJob, BuildPipelineCompletion, SendBuildEvent } from "../jobs/build-jobs.ts";

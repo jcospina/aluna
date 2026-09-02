@@ -14,7 +14,7 @@
 
 import { z } from "zod";
 
-import { readSecret } from "../secrets/index.ts";
+import { readSecret } from "../platform/secrets.ts";
 import {
   buildLogoGenerationRequest,
   LOGO_GENERATION_PATH,

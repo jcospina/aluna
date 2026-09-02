@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createApp } from "../app/app.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import { insertCapability } from "../registry/index.ts";
 import { NOT_FOUND_NOTICE } from "../web/index.ts";
 import type { CapabilityContext } from "./contract.ts";

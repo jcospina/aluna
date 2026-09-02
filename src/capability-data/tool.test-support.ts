@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
+import { openDatabase, type PlatformDatabase } from "../platform/persistence/db.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,

@@ -5,7 +5,7 @@ import {
   SnapshotVerificationError,
   UnitGenerationError,
 } from "../../builder/index.ts";
-import type { GenerationFailure } from "../../metrics/index.ts";
+import type { GenerationFailure } from "../../platform/metrics/index.ts";
 
 export type EvolutionStage =
   | "spec_gen"

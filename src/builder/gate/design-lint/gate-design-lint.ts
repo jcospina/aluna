@@ -28,6 +28,11 @@
 // the build rolls back with no version bump and no pointer flip.
 
 import {
+  isProviderAbortError,
+  type Provider,
+  type TokenUsage,
+} from "../../../platform/provider/index.ts";
+import {
   createPlatformPresentationAdapter,
   enforceItemMarkup,
   PALETTE_COLOR_TOKENS,
@@ -38,7 +43,6 @@ import {
   TYPE_SIZE_TOKENS,
   tokenList,
 } from "../../../presentation/index.ts";
-import { isProviderAbortError, type Provider, type TokenUsage } from "../../../provider/index.ts";
 import {
   type CapabilitySpec,
   choiceFieldOptions,

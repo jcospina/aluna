@@ -13,7 +13,7 @@
 // enter the registry nor come back out of it unnoticed.
 
 import type { Database } from "bun:sqlite";
-import { db, dbReadonly } from "../persistence/db.ts";
+import { db, dbReadonly } from "../platform/persistence/db.ts";
 import { isCapabilityIdReservedByDeletion } from "./deletion-tombstones.ts";
 import {
   type CapabilityLogoState,

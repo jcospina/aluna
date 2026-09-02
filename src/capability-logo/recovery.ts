@@ -35,7 +35,7 @@
 // tree, so a deletion draining its readers is not raced for the files it is removing.
 
 import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import type { CapabilityIncarnation, ReadGateCoordinator } from "../read-gates/index.ts";
 import {
   abandonMissingCapabilityLogo,

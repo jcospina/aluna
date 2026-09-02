@@ -13,7 +13,7 @@ import { z } from "zod";
 // loaded sharded run cannot masquerade as a hang.
 const HANG_BUDGET_MS = 5_000;
 
-import type { DeepPartial, GenerateResult, Provider } from "../../provider/index.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
 import { previewingProvider } from "./build-run.ts";
 
 const schema = z.object({ id: z.string() });

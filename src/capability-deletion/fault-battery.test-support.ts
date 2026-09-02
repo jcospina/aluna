@@ -3,7 +3,7 @@
 
 import { expect } from "bun:test";
 
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import type { CapabilityIncarnation } from "../read-gates/index.ts";
 import type { CapabilityRow } from "../registry/index.ts";
 import type { FakeOwnedResourceStore } from "./seam-fakes/owned-resources.test-support.ts";

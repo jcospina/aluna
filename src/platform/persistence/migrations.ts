@@ -19,14 +19,14 @@
 //     property is established; keep new migrations additive.
 
 import type { Database } from "bun:sqlite";
+import { LOGO_BIRTH_STATUS, LOGO_STATUSES } from "../../registry/logo.ts";
+import { REGISTRY_TABLE } from "../../registry/store.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
   reconcileRunningGenerationLifecycles,
 } from "../metrics/lifecycle-store.ts";
 import { GENERATION_METRICS_TABLE } from "../metrics/store.ts";
-import { LOGO_BIRTH_STATUS, LOGO_STATUSES } from "../registry/logo.ts";
-import { REGISTRY_TABLE } from "../registry/store.ts";
 import { db } from "./db.ts";
 
 /**

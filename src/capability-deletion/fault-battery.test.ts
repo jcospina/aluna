@@ -21,7 +21,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { applyCapabilityTableDdl } from "../capability-data/ddl.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import { createReadGateCoordinator, type ReadTokenSet } from "../read-gates/index.ts";
 import {
   getCapability,

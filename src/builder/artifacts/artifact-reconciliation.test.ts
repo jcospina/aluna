@@ -15,9 +15,9 @@ import {
   finalizeGenerationLifecycleSuccess,
   reconcileRunningGenerationLifecycles,
   startGenerationLifecycle,
-} from "../../metrics/index.ts";
-import { openDatabase, type PlatformDatabase } from "../../persistence/db.ts";
-import { runMigrations } from "../../persistence/migrations.ts";
+} from "../../platform/metrics/index.ts";
+import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
+import { runMigrations } from "../../platform/persistence/migrations.ts";
 import { insertCapability } from "../../registry/index.ts";
 import { publishCapabilitySnapshot, verifyCapabilitySnapshot } from "./artifact-lifecycle.ts";
 import {

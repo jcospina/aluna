@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import type { ZodType } from "zod";
 import type { IntentClassification } from "../intent-resolver/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
-import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";
 import { insertCapability, listCapabilities } from "../registry/index.ts";
 import {
   buildJobIdFromSubscriber,

@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 import { createApp } from "../app/app.ts";
 import { applyCapabilityTableDdl } from "../capability-data/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import type { CapabilityCreateContext, CapabilityUpdateContext } from "./index.ts";
 import {
   createCapabilityDataTool,

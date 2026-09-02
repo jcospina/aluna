@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join, resolve } from "node:path";
 
 import { createApp } from "../app/app.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import { createReadGateCoordinator, type ReadGateCoordinator } from "../read-gates/index.ts";
 import {
   abandonMissingCapabilityLogo,

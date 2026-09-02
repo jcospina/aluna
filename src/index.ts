@@ -17,10 +17,10 @@ import {
 } from "./app/app.ts";
 import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
 import { recoverCapabilityLogos } from "./capability-logo/index.ts";
-import { db, dbReadonly } from "./persistence/db.ts";
-import { runMigrations } from "./persistence/migrations.ts";
+import { db, dbReadonly } from "./platform/persistence/db.ts";
+import { runMigrations } from "./platform/persistence/migrations.ts";
+import { captureProcessSecrets } from "./platform/secrets.ts";
 import { listCapabilityDeletionTombstones, readActiveRegistryCatalog } from "./registry/index.ts";
-import { captureProcessSecrets } from "./secrets/index.ts";
 
 // Lift the provider credentials out of `process.env` before anything else runs. Generated
 // Handlers execute in this process (ADR-0004: no process sandbox), and the static

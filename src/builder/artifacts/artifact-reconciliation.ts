@@ -8,7 +8,7 @@ import type { Database } from "bun:sqlite";
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-import { getGenerationLifecycle } from "../../metrics/index.ts";
+import { getGenerationLifecycle } from "../../platform/metrics/index.ts";
 import { type CapabilityRow, capabilitySpecFromRow, listCapabilities } from "../../registry/index.ts";
 import {
   CAPABILITY_LOGO_FILENAME,

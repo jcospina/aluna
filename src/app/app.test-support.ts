@@ -16,10 +16,10 @@ import {
   type FullBehavioralTestSuite,
 } from "../builder/gate/gate.test-support.ts";
 import type { IntentClassification } from "../intent-resolver/index.ts";
-import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
-import { runMigrations } from "../persistence/migrations.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
-import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
+import { openDatabase, type PlatformDatabase } from "../platform/persistence/db.ts";
+import { runMigrations } from "../platform/persistence/migrations.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,
@@ -39,7 +39,7 @@ export interface ScratchDbEnv {
   artifactsRoot: string;
 }
 
-export { makeMetricsRecorder } from "../metrics/metrics-test-recorder.ts";
+export { makeMetricsRecorder } from "../platform/metrics/metrics-test-recorder.ts";
 
 /**
  * A fake provider: streams `greeting` one character at a time (like the real

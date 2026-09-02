@@ -7,7 +7,7 @@ import {
   createMutationCoordinator,
   type MutationCoordinator,
 } from "../mutation-coordinator/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import {
   claimLogoGeneration,
   getCapabilityLogoState,
