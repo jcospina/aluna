@@ -14,8 +14,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pendingDeletionCleanups } from "../capability-deletion/cleanup-supervisor.ts";
 import { GENERATION_LIFECYCLE_TABLE, listGenerationLifecycles } from "../platform/metrics/index.ts";
-import type { RenderableCapability } from "../presentation/field-renderer.ts";
-import { type CollectionLayout, renderCollection } from "../presentation/list-container.ts";
+import type { RenderableCapability } from "../presentation/fields/field-renderer.ts";
+import { type CollectionLayout, renderCollection } from "../presentation/records/list-container.ts";
 import {
   type CapabilityRow,
   canonicalCapabilityLabel,

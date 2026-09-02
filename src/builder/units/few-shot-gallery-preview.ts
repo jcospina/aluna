@@ -5,8 +5,8 @@
 // The examples remain builder guidance; this route is a developer preview, not a
 // product shell surface.
 
-import { createPlatformPresentationAdapter } from "../../presentation/adapter.ts";
-import { renderCollection } from "../../presentation/list-container.ts";
+import { createPlatformPresentationAdapter } from "../../presentation/records/adapter.ts";
+import { renderCollection } from "../../presentation/records/list-container.ts";
 import { escapeHtml } from "../../web/html.ts";
 import {
   buildItemRendererDesignInjection,

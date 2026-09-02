@@ -2,7 +2,7 @@
 // ladder the platform resolves inside them, and the lifecycle values the registry stores.
 
 import { describe, expect, test } from "bun:test";
-import { PALETTE_COLOR_TOKENS } from "../presentation/design-tokens.ts";
+import { PALETTE_COLOR_TOKENS } from "../presentation/tokens/design-tokens.ts";
 import {
   capabilityLogoStateSchema,
   createCapabilityLogoSeed,

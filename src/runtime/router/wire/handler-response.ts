@@ -5,7 +5,7 @@
 // **It is scrubbed.** The enforcer runs on the item renderer's output inside `present()`;
 // nothing looked at the wrapper markup a Handler composes around those items, which htmx
 // swaps into a live page with `allowScriptTags` on. `enforceHandlerFragment` is that
-// wrapper's render-time last line (src/presentation/fragment-safety.ts).
+// wrapper's render-time last line (src/presentation/safety/fragment-safety.ts).
 //
 // **A declared refusal is read as one.** A capability authors its validation errors in
 // `behavioral_errors`, and a Handler signals one by returning a fragment carrying the

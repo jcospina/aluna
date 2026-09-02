@@ -249,7 +249,7 @@ describe("the address a deleted capability leaves behind", () => {
     );
     // The desk without the capability that is gone. What the window does with this page is
     // the client's answer and is proved where it lives (`addressAsks`,
-    // `src/presentation/desk-window-address.test.ts`).
+    // `src/presentation/shell/window/desk-window-address.test.ts`).
     expect(page).not.toContain("capability-logo-notes");
     expect(reloaded.status).toBe(404);
   });
