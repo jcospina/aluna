@@ -101,7 +101,7 @@ export function resolveBaseURL(env: NodeJS.ProcessEnv = process.env): string {
  */
 export function requireApiKey(env: NodeJS.ProcessEnv = process.env): string {
   // Read through the vault: the ambient environment no longer holds this key after boot
-  // (src/secrets), so an ambient reference a generated Handler walks its way to finds
+  // (src/platform/secrets.ts), so an ambient reference a generated Handler walks its way to finds
   // nothing. An explicitly supplied `env` is still answered from itself.
   const key = readSecret(API_KEY_ENV_VAR, env);
   if (!key) {

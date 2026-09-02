@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { renameCapabilityLabel } from "../capability-rename/index.ts";
-import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import {
   type CapabilityRow,
@@ -14,12 +13,13 @@ import {
   readActiveRegistryCatalog,
   renameCapability,
 } from "../registry/index.ts";
+import { createMutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
 import {
   install,
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../router/router.test-support.ts";
+} from "../runtime/router/dispatch/router.test-support.ts";
 import { renderCapabilityLogo } from "../web/fragments.ts";
 import { createApp } from "./app.ts";
 

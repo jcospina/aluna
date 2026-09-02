@@ -38,7 +38,7 @@ import {
 } from "./spec.ts";
 
 /**
- * The registry table, created by platform migration 0002 (src/persistence/migrations.ts).
+ * The registry table, created by platform migration 0002 (src/platform/persistence/migrations.ts).
  * A fixed platform constant (never user input), so interpolating it into the
  * SQL below is safe — same convention as the migrations ledger.
  */

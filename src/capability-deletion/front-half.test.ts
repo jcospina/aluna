@@ -1,16 +1,15 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-
-import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import type { CapabilityRow } from "../registry/index.ts";
 import { getCapability, listCapabilityDependents } from "../registry/index.ts";
+import { createMutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
 import {
   boomRow,
   install,
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../router/router.test-support.ts";
+} from "../runtime/router/dispatch/router.test-support.ts";
 import { admitCapabilityDeletion } from "./front-half.ts";
 
 function dependentOnNotes(id = "reading_list", label = "Reading list"): CapabilityRow {

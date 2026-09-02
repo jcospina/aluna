@@ -24,7 +24,6 @@ import {
   updateHandlerFor,
 } from "../builder/gate/gate.test-support.ts";
 import { INTENT_RESOLVER_PROMPT_PREFIX } from "../intent-resolver/index.ts";
-import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import {
   CANDIDATE_NO_CHANGE_ENDING,
   CANDIDATE_REJECTED_ENDING,
@@ -33,6 +32,7 @@ import {
 } from "../pipeline/streaming/terminal-presentation.ts";
 import type { Provider } from "../platform/provider/index.ts";
 import { compareAndSwapCapability, getCapability } from "../registry/index.ts";
+import { createMutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
 import { renderBuildEnding } from "../web/index.ts";
 import {
   buildEvolutionRouteGates,

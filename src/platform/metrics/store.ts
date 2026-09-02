@@ -37,7 +37,7 @@ import {
 } from "./shared-schema.ts";
 
 /**
- * The metrics table, created by platform migration 0004 (src/persistence/migrations.ts). A
+ * The metrics table, created by platform migration 0004 (src/platform/persistence/migrations.ts). A
  * fixed platform constant (never user input), so interpolating it into the SQL
  * below is safe — same convention as the registry and the migrations ledger.
  */

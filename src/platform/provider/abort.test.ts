@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { type ZodType, z } from "zod";
 
-import { createMutationCoordinator } from "../../mutation-coordinator/index.ts";
+import { createMutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import { abortableProvider, ProviderAbortedError } from "./abort.ts";
 import type { GenerateResult, Provider } from "./contract.ts";
 

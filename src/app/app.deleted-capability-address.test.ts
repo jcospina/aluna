@@ -11,17 +11,17 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
-import { createReadGateCoordinator } from "../read-gates/index.ts";
 import type { CapabilityRow } from "../registry/index.ts";
-import type { CapabilityContext, CapabilityHandler } from "../router/contract.ts";
+import { createReadGateCoordinator } from "../runtime/concurrency/read-gates.ts";
+import type { CapabilityContext, CapabilityHandler } from "../runtime/router/contract.ts";
 import {
   formBody,
   install,
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../router/router.test-support.ts";
-import type { HandlerLoader } from "../router/router.ts";
+} from "../runtime/router/dispatch/router.test-support.ts";
+import type { HandlerLoader } from "../runtime/router/dispatch/router.ts";
 import { NOT_FOUND_NOTICE } from "../web/index.ts";
 import { createApp } from "./app.ts";
 

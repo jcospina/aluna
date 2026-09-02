@@ -7,14 +7,6 @@
 
 import { expect } from "bun:test";
 import { type ZodType, z } from "zod";
-
-import {
-  createCapabilityMutationPort,
-  createCapabilityQueryPort,
-  deriveCapabilityTableDdl,
-  materializeCapabilityActionRecord,
-  selectCapabilityRows,
-} from "../../capability-data/index.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
 import {
@@ -25,6 +17,13 @@ import {
   FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
+import {
+  createCapabilityMutationPort,
+  createCapabilityQueryPort,
+  deriveCapabilityTableDdl,
+  materializeCapabilityActionRecord,
+  selectCapabilityRows,
+} from "../../runtime/data/index.ts";
 import type { GeneratedUnit, HandlerUnitName } from "../units/units.ts";
 import { actionTestInputDigest, actionTestInputs } from "./behavioral/behavioral-test-inputs.ts";
 import { ACTION_UNDER_TEST_PREFIX } from "./behavioral/gate-behavioral-full-prompt.ts";

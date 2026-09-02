@@ -564,7 +564,7 @@ describe("the dev-only guard on the remaining /demo/* inspection routes", () => 
   test("epic 4.9's previews are unregistered in every environment", async () => {
     // Both came down. A demo is scaffolding for work in progress: the read
     // gates' atomic token sets and drain/reopen are covered by
-    // src/router/router.read-gates.test.ts, and the cleanup seam by the deletion fault
+    // src/runtime/router/admission/router.read-gates.test.ts, and the cleanup seam by the deletion fault
     // battery and the two seam-fake suites, so neither removal took evidence with it.
     for (const nodeEnv of ["production", "development"]) {
       process.env.NODE_ENV = nodeEnv;

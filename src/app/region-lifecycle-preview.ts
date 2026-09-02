@@ -30,13 +30,13 @@ import {
   ReadGateDrainTimeoutError,
   type ReadGateSnapshotEntry,
   ReadGateUnavailableError,
-} from "../read-gates/index.ts";
+} from "../runtime/concurrency/read-gates.ts";
 import {
   CapabilityReadAbandonedError,
   DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS,
   READ_UNAVAILABLE_FRAGMENT,
   withHandlerDeadline,
-} from "../router/index.ts";
+} from "../runtime/router/index.ts";
 import { escapeHtml } from "../web/html.ts";
 
 export const REGION_LIFECYCLE_PREVIEW_ROUTE = "/demo/region-lifecycle";

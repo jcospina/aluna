@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { deriveCapabilityTableDdl } from "../../../capability-data/index.ts";
+import { deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
 import {
   CREATE_HANDLER,

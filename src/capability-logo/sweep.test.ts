@@ -3,10 +3,6 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { createApp } from "../app/app.ts";
-import {
-  createMutationCoordinator,
-  type MutationCoordinator,
-} from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import {
   claimLogoGeneration,
@@ -14,12 +10,16 @@ import {
   releaseLogoClaim,
 } from "../registry/index.ts";
 import {
+  createMutationCoordinator,
+  type MutationCoordinator,
+} from "../runtime/concurrency/mutation-coordinator.ts";
+import {
   install,
   NOTES_INCARNATION_ID,
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../router/router.test-support.ts";
+} from "../runtime/router/dispatch/router.test-support.ts";
 import { LogoGenerationError, type LogoGenerationProvider } from "./provider.ts";
 import { capabilityLogoPath, installCapabilityLogo } from "./storage.ts";
 

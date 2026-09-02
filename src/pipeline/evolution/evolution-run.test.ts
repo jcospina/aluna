@@ -22,21 +22,21 @@ import {
   verifyCapabilitySnapshot,
 } from "../../builder/index.ts";
 import {
-  createCapabilityQueryPort,
-  materializeCapabilityActionRecord,
-} from "../../capability-data/index.ts";
-import {
   createArtifactCleanupAdapter,
   destroyCapability,
 } from "../../capability-deletion/index.ts";
 import { renderEditForm } from "../../presentation/index.ts";
-import { createReadGateCoordinator } from "../../read-gates/index.ts";
 import {
   type CapabilitySpec,
   getCapability,
   listCapabilityDeletionTombstones,
   MIN_DECLARED_MAX_LENGTH,
 } from "../../registry/index.ts";
+import { createReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
+import {
+  createCapabilityQueryPort,
+  materializeCapabilityActionRecord,
+} from "../../runtime/data/index.ts";
 import {
   activated,
   addCommittedDependency,

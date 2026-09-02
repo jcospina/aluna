@@ -10,7 +10,6 @@
 // model to render every record through the injected `present` adapter instead of
 // emitting its own row markup (ADR-0005 §2 — kills create/read drift by construction).
 
-import { deriveCapabilityTableDdl } from "../../capability-data/index.ts";
 import {
   activeSpecFields,
   admittedChoiceValues,
@@ -23,6 +22,7 @@ import {
   presentationFieldDescriptors,
   type SpecField,
 } from "../../registry/index.ts";
+import { deriveCapabilityTableDdl } from "../../runtime/data/index.ts";
 import { buildItemRendererDesignInjection } from "./few-shot-gallery.ts";
 import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
 

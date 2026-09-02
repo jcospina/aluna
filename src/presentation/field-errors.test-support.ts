@@ -6,13 +6,12 @@
 // gives: a double is a browser small enough to run in Bun, and this is what we put inside it.
 
 import type { Context } from "hono";
-
-import { MaxLengthExceededError, MissingRequiredFieldsError } from "../capability-data/internal.ts";
 import type { SpecField, UiFormIntent } from "../registry/index.ts";
+import { MaxLengthExceededError, MissingRequiredFieldsError } from "../runtime/data/internal.ts";
 import {
   maxLengthExceededFailure,
   missingRequiredFieldsFailure,
-} from "../router/failure-responses.ts";
+} from "../runtime/router/wire/failure-responses.ts";
 import { Doc, El, parseHtml } from "./choice-picker.test-support.ts";
 import { type RenderableCapability, renderCreateForm, renderEditForm } from "./field-renderer.ts";
 

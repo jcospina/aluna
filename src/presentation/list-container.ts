@@ -16,7 +16,7 @@
 // The container is data-free: live records arrive through the `read` action into the
 // region `#<id>-records`, never baked into the chrome.
 
-import { MAX_SEARCH_QUERY_LENGTH } from "../capability-data/index.ts";
+import { MAX_SEARCH_QUERY_LENGTH } from "../runtime/data/index.ts";
 import { escapeHtml } from "../web/html.ts";
 import {
   CREATE_CANCELLED_EVENT,

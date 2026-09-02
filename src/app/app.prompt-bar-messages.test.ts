@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { INVALID_CHOICE_ERROR_CODE } from "../registry/index.ts";
-import { NOT_FOUND_FRAGMENT } from "../router/failure-responses.ts";
+import { NOT_FOUND_FRAGMENT } from "../runtime/router/wire/failure-responses.ts";
 import {
   BLANK_PROMPT_NOTICE,
   NOT_FOUND_NOTICE,
@@ -89,10 +89,10 @@ function deskLogo() {
   });
 }
 
-/** The undeclared-choice refusal, exactly as `src/router/failure-responses.ts` writes it. */
+/** The undeclared-choice refusal, exactly as `src/runtime/router/wire/failure-responses.ts` writes it. */
 const INVALID_CHOICE_FRAGMENT = `<p class="notice" data-role="error" data-error-code="${INVALID_CHOICE_ERROR_CODE}" data-error-fields="status">That isn’t one of the options I can store here. Mind picking one from the list?</p>`;
 
-/** The read-gate refusal, exactly as `src/router/failure-responses.ts` writes it. */
+/** The read-gate refusal, exactly as `src/runtime/router/wire/failure-responses.ts` writes it. */
 const READ_UNAVAILABLE =
   '<p class="notice" data-role="error" data-error-code="read_unavailable">I’m making a careful change here. Give me a moment, then try that again.</p>';
 

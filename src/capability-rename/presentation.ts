@@ -5,7 +5,7 @@ import type { CapabilityRenameOutcome } from "./front-half.ts";
  * The marker every rename refusal wears.
  *
  * htmx will not swap a 4xx unaided, so an unmarked refusal body is one nobody ever sees
- * (`src/router/failure-responses.ts` says the same of its own). The shell's rescue list
+ * (`src/runtime/router/wire/failure-responses.ts` says the same of its own). The shell's rescue list
  * in `public/app.js` recognises this code, reads the sentence out of it, and — because
  * the rename asked from the desk rather than from inside the window — speaks it on the
  * prompt bar and swaps nothing (PLAN decision 26). Swapping nothing is what leaves the

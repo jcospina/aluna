@@ -20,9 +20,8 @@
 // activate — rather than immediately before the pointer moves.
 
 import type { Database } from "bun:sqlite";
-
-import { CAPABILITY_TABLE_PREFIX } from "../../capability-data/index.ts";
 import { type CapabilitySpec, maxLengthsByField, SQL_NAME_PATTERN } from "../../registry/index.ts";
+import { CAPABILITY_TABLE_PREFIX } from "../../runtime/data/index.ts";
 
 /**
  * One field whose declared limit the committed column already breaks, and the worst case

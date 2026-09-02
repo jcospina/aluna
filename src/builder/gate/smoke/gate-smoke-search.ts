@@ -5,12 +5,6 @@
 // biome-ignore-all lint/nursery/noExcessiveLinesPerFile: the schema-adaptive fixture remains one frozen contract.
 
 import type { Database } from "bun:sqlite";
-
-import {
-  type CapabilityActionRecord,
-  type CapabilityDataRow,
-  encodeCapabilityFieldForStorage,
-} from "../../../capability-data/index.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,
@@ -20,7 +14,12 @@ import {
   type SpecField,
   selectableChoiceValues,
 } from "../../../registry/index.ts";
-import type { CapabilityInput, CapabilityReadHandler } from "../../../router/index.ts";
+import {
+  type CapabilityActionRecord,
+  type CapabilityDataRow,
+  encodeCapabilityFieldForStorage,
+} from "../../../runtime/data/index.ts";
+import type { CapabilityInput, CapabilityReadHandler } from "../../../runtime/router/index.ts";
 import type { ScratchCatalogCapability } from "../gate.ts";
 import { buildGateQueryPort, sqlIdentifier } from "../gate-internal.ts";
 import { SmokeActionFailure } from "./gate-smoke-repair.ts";

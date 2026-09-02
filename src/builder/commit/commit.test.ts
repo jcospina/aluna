@@ -7,8 +7,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:te
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-
-import { applyCapabilityTableDdl } from "../../capability-data/index.ts";
 import {
   openDatabase,
   type PlatformDatabase,
@@ -23,6 +21,7 @@ import {
   logoSeedSchema,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
+import { applyCapabilityTableDdl } from "../../runtime/data/index.ts";
 import { publishCapabilitySnapshot } from "../artifacts/artifact-lifecycle.ts";
 import { gateInput, generatedUnitsFor } from "../gate/gate.test-support.ts";
 import { type CapabilityGateResult, runCapabilityGate } from "../gate/gate.ts";

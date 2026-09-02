@@ -6,18 +6,17 @@
 // candidate declares are put to the physical column before anything is published.
 
 import { describe, expect, test } from "bun:test";
-
-import {
-  applyCapabilityTableDdl,
-  encodeCapabilityFieldForStorage,
-} from "../../capability-data/index.ts";
-import { withFileDatabase } from "../../capability-data/tool.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   type SpecField,
 } from "../../registry/index.ts";
+import {
+  applyCapabilityTableDdl,
+  encodeCapabilityFieldForStorage,
+} from "../../runtime/data/index.ts";
+import { withFileDatabase } from "../../runtime/data/tool.test-support.ts";
 import { assertStoredValuesFitMaxLengths, MaxLengthScanError } from "./length-scan.ts";
 
 function notesSpec(fields: readonly SpecField[]): CapabilitySpec {

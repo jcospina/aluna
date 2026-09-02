@@ -13,7 +13,7 @@
 // banned, and `Reflect.get`, `[].flat.constructor` and friends are equivalent. The
 // property-name ban below closes the *reachable spellings* of that family rather than the
 // family itself, which is worth doing and is not worth mistaking for containment. The
-// containment is `src/secrets`: the credentials are not in `process.env` by the time any
+// containment is `src/platform/secrets.ts`: the credentials are not in `process.env` by the time any
 // generated code runs. ADR-0004's "no process sandbox" is unchanged.
 
 import ts from "typescript";

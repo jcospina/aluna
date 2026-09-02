@@ -11,7 +11,7 @@ import {
   type UnitGenerationAttempt,
   UnitGenerationError,
 } from "../../builder/index.ts";
-import { deriveCapabilityTableDdl } from "../../capability-data/index.ts";
+import { deriveCapabilityTableDdl } from "../../runtime/data/index.ts";
 import { buildDemoErrorPreview, buildGatePreview } from "./previews.ts";
 
 describe("build developer error preview", () => {

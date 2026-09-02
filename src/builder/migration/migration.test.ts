@@ -5,13 +5,12 @@
 
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
-
-import { deriveCapabilityTableDdl } from "../../capability-data/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
+import { deriveCapabilityTableDdl } from "../../runtime/data/index.ts";
 import { applyCapabilityMigration, withCapabilityMigrationTransaction } from "./migration.ts";
 
 interface TableColumn {

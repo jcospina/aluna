@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
-
+import type { PresentationAdapter } from "../../../presentation/index.ts";
+import { activeSpecFields, type CapabilitySpec } from "../../../registry/index.ts";
 import {
   createCapabilityDeleteMutationPort,
   createCapabilityMutationPort,
@@ -8,10 +9,8 @@ import {
   materializeCapabilityActionRecord,
   RecordNotFoundError,
   selectCapabilityRows,
-} from "../../../capability-data/index.ts";
-import type { PresentationAdapter } from "../../../presentation/index.ts";
-import { activeSpecFields, type CapabilitySpec } from "../../../registry/index.ts";
-import type { CapabilityInput } from "../../../router/index.ts";
+} from "../../../runtime/data/index.ts";
+import type { CapabilityInput } from "../../../runtime/router/index.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
 import type {
   BehavioralTestCaseOutcome,

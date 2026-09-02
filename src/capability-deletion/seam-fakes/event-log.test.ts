@@ -1,20 +1,20 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import { getCapability } from "../../registry/index.ts";
 import {
   type CapabilityIncarnation,
   createReadGateCoordinator,
   type ReadGateCoordinator,
   type ReadTokenSet,
-} from "../../read-gates/index.ts";
-import { getCapability } from "../../registry/index.ts";
+} from "../../runtime/concurrency/read-gates.ts";
 import {
   boomRow,
   install,
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../../router/router.test-support.ts";
+} from "../../runtime/router/dispatch/router.test-support.ts";
 import { expectDestroyed } from "../fault-battery.test-support.ts";
 import { destroyCapability } from "../two-phase-destruction.ts";
 import {

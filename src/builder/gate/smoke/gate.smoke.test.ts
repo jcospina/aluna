@@ -5,12 +5,8 @@
 
 import { Database } from "bun:sqlite";
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
-
-import {
-  applyCapabilityTableDdl,
-  deriveCapabilityTableDdl,
-} from "../../../capability-data/index.ts";
 import type { CapabilitySpec } from "../../../registry/index.ts";
+import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import {
   createCapabilityDataTool,
   expectGateFailure,

@@ -1,6 +1,6 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 
-import { deriveCapabilityTableDdl } from "../../../capability-data/index.ts";
+import { deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import {
   expectGateFailure,
   gateInput,

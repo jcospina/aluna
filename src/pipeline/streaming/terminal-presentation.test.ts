@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createMutationCoordinator } from "../../mutation-coordinator/index.ts";
+import { createMutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import { renderBuildEnding } from "../../web/index.ts";
 import {
   CANDIDATE_NO_CHANGE_ENDING,

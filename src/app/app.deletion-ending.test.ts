@@ -7,7 +7,7 @@ import {
   renderCapabilityDeletionConfirmation,
   renderCapabilityDeletionPreCommitFailure,
 } from "../capability-deletion/index.ts";
-import { notesRow } from "../router/router.test-support.ts";
+import { notesRow } from "../runtime/router/dispatch/router.test-support.ts";
 import { desk, El } from "./app.shell-double.test-support.ts";
 
 // The deletion that did not happen, run rather than grepped. `public/capability-deletion.js`

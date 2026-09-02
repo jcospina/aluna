@@ -161,7 +161,7 @@ export const LONG_PROMPT_NOTICE =
  * capability that is gone, a tile a second tab is still standing for one, a name Aluna
  * never had (PLAN decision 21). One sentence, so the two carriers cannot drift into two
  * voices on the one surface they both speak on: page assembly seeds it below, and
- * `NOT_FOUND_FRAGMENT` (`src/router/failure-responses.ts`) marks it for the shell to lift
+ * `NOT_FOUND_FRAGMENT` (`src/runtime/router/wire/failure-responses.ts`) marks it for the shell to lift
  * onto the prompt bar or into the window, whichever asked.
  *
  * Brief, and it stops where the truth stops. A deletion that finished takes its registry

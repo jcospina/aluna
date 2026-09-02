@@ -16,7 +16,7 @@
 // The set is per-app rather than a module global, so a test can hold its own and two apps
 // in one process cannot see each other's attempts.
 
-import type { CapabilityIncarnation } from "../read-gates/index.ts";
+import type { CapabilityIncarnation } from "../runtime/concurrency/read-gates.ts";
 
 /** One running attempt, from before its claim is asked for until after it is finalized. */
 export interface LogoClaimTicket {

@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-
-import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import { createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
-import { createReadGateCoordinator } from "../read-gates/index.ts";
 import type { CapabilityRow } from "../registry/index.ts";
+import { createMutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
+import { createReadGateCoordinator } from "../runtime/concurrency/read-gates.ts";
 import {
   boomRow,
   install,
@@ -14,7 +13,7 @@ import {
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../router/router.test-support.ts";
+} from "../runtime/router/dispatch/router.test-support.ts";
 import { NOT_FOUND_NOTICE } from "../web/index.ts";
 import { createApp } from "./app.ts";
 

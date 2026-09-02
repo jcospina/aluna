@@ -53,17 +53,17 @@ import {
   type VerifiedDependencySnapshot,
   verifyCapabilitySnapshot,
 } from "../../builder/index.ts";
-import {
-  type AdditiveCapabilityMigration,
-  deriveAdditiveCapabilityMigration,
-  deriveCapabilityTableDdl,
-} from "../../capability-data/index.ts";
 import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,
   capabilitySpecFromRow,
 } from "../../registry/index.ts";
+import {
+  type AdditiveCapabilityMigration,
+  deriveAdditiveCapabilityMigration,
+  deriveCapabilityTableDdl,
+} from "../../runtime/data/index.ts";
 import {
   applyGateFixes,
   behavioralTierInput,

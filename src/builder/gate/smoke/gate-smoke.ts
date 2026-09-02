@@ -3,7 +3,7 @@
 // SQLite and the same mutation/query/presentation adapters as live routing.
 
 import type { Database } from "bun:sqlite";
-
+import { activeSpecFields, type CapabilitySpec } from "../../../registry/index.ts";
 import {
   type CapabilityDataColumnValue,
   type CapabilityDataRow,
@@ -13,9 +13,8 @@ import {
   encodeCapabilityFieldForStorage,
   materializeCapabilityActionRecord,
   selectCapabilityRows,
-} from "../../../capability-data/index.ts";
-import { activeSpecFields, type CapabilitySpec } from "../../../registry/index.ts";
-import type { CapabilityDeleteHandler, CapabilityInput } from "../../../router/index.ts";
+} from "../../../runtime/data/index.ts";
+import type { CapabilityDeleteHandler, CapabilityInput } from "../../../runtime/router/index.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
 import type { CapabilityGateInput, SmokeGateResult } from "../gate.ts";
 import {

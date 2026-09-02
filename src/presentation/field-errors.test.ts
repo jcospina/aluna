@@ -1,14 +1,14 @@
 // Where a validation error is said: the marker the router has always written, read at last,
 // and moved out of the form's shared error slot into the field it is about.
 //
-// The refusals are taken off the real response builders in `src/router/failure-responses.ts`
+// The refusals are taken off the real response builders in `src/runtime/router/wire/failure-responses.ts`
 // rather than typed out here. The whole point is that the sentence is *relocated*, and a
 // sentence relocated from a fixture is a sentence nobody sent.
 
 import { describe, expect, test } from "bun:test";
 
-import { MissingRequiredFieldsError } from "../capability-data/internal.ts";
-import { missingRequiredFieldsFailure } from "../router/failure-responses.ts";
+import { MissingRequiredFieldsError } from "../runtime/data/internal.ts";
+import { missingRequiredFieldsFailure } from "../runtime/router/wire/failure-responses.ts";
 import { installDomGlobals } from "./choice-picker.fixture.test-support.ts";
 import { type El, parseHtml } from "./choice-picker.test-support.ts";
 import { REQUIRED_FIELD_SENTENCE } from "./field-chrome.ts";

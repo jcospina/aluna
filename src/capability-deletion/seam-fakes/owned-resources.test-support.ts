@@ -27,14 +27,13 @@
 // a resource belonging to another capability or another incarnation of the same one.
 
 import type { Database } from "bun:sqlite";
-
-import { deriveCapabilityTableDdl } from "../../capability-data/ddl.ts";
 import {
   type CapabilityDeletionTombstone,
   type CapabilityRow,
   capabilitySpecFromRow,
   type OwnedResourceEntry,
 } from "../../registry/index.ts";
+import { deriveCapabilityTableDdl } from "../../runtime/data/schema/ddl.ts";
 import {
   OWNED_RESOURCE_ADAPTER,
   type OwnedResourceCleanupAdapter,

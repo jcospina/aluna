@@ -1,0 +1,412 @@
+// View-surface slices of the deterministic capability router: the default
+// loader's incarnation keying, the presentation adapter injected into the toolbox, the
+// spec-rendered data-free list scaffolding, and the logo rehydration/label behavior.
+// Shared setup and fixtures live in router.test-support.ts.
+
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { createApp } from "../../../app/app.ts";
+import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { insertCapability } from "../../../registry/index.ts";
+import { NOT_FOUND_NOTICE } from "../../../web/index.ts";
+import type { CapabilityContext } from "../contract.ts";
+import {
+  boomRow,
+  collectCapabilityLogoText,
+  createCapabilityDataTool,
+  formBody,
+  install,
+  notesRow,
+  notesSpec,
+  setupRouterTest,
+  teardownRouterTest,
+} from "./router.test-support.ts";
+import type { HandlerLoader, ItemRendererLoader } from "./router.ts";
+
+describe("deterministic capability router — loader keying", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = setupRouterTest());
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, conns);
+  });
+
+  test("the default loader keys Bun imports by incarnation path for a recreated semantic id", async () => {
+    const firstIncarnation = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const secondIncarnation = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const artifactsRoot = join(dir, "capabilities", "notes");
+
+    const writeIncarnation = (incarnationId: string, marker: string) => {
+      const versionDir = join(artifactsRoot, incarnationId, "v1");
+      mkdirSync(versionDir, { recursive: true });
+      writeFileSync(
+        join(versionDir, "item.ts"),
+        `export default function renderItem() { return "<span>${marker} item</span>"; }`,
+      );
+      writeFileSync(
+        join(versionDir, "read.ts"),
+        `export default async function read() { return "<p>${marker} handler</p>"; }`,
+      );
+      return `${versionDir}/`;
+    };
+
+    const firstPath = writeIncarnation(firstIncarnation, "first");
+    const secondPath = writeIncarnation(secondIncarnation, "second");
+    install(conns, notesRow({ incarnation_id: firstIncarnation, artifacts_path: firstPath }));
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    expect(await (await app.request("/capability/notes/read")).text()).toContain("first handler");
+
+    // Simulate the registry boundary of delete/recreate. The semantic id is the same,
+    // but its lifetime and therefore the full module URL are different.
+    conns.readwrite.run("DELETE FROM capability_registry WHERE id = ?", ["notes"]);
+    insertCapability(
+      notesRow({ incarnation_id: secondIncarnation, artifacts_path: secondPath }),
+      conns.readwrite,
+    );
+
+    const recreated = await (await app.request("/capability/notes/read")).text();
+    expect(recreated).toContain("second handler");
+    expect(recreated).not.toContain("first handler");
+  });
+});
+
+describe("deterministic capability router — presentation adapter and empty read", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = setupRouterTest());
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, conns);
+  });
+
+  test("read leaves the region truly empty when there are no records, so the platform empty state shows", async () => {
+    // Regression (empty-state bug): a read handler must not author its own empty state.
+    // If it returns empty-state markup for zero rows, that lands in `#notes-records` on
+    // the read `load` swap, which (1) defeats the platform's `:empty` empty state
+    // (ADR-0005 §1 — the list scaffolding owns it) and (2) lingers below the first
+    // record once create prepends it (hx-swap="afterbegin"). With no records, read must
+    // return nothing so the region stays childless and the platform empty state shows.
+    install(conns, notesRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes/read");
+    expect(res.status).toBe(200);
+    // Nothing rendered into the region — no element, no placeholder text — so `:empty`
+    // still matches and `.capability-empty` (rendered by the scaffolding) is the sole
+    // empty state, which the first created record then clears on its own.
+    expect((await res.text()).trim()).toBe("");
+  });
+
+  test("injects the presentation adapter into the toolbox; a handler renders records through it", async () => {
+    install(conns, notesRow());
+    // Seed a record so `read` has something to present.
+    createCapabilityDataTool(notesSpec(), conns).insert({ text: "Buy milk", pinned: true });
+
+    // A hand-written item renderer (the composition input generation produces) and a read
+    // handler shaped like a generated one: it maps records through the injected `present` and emits
+    // no markup of its own — proving the adapter reaches the toolbox and does the wrapping.
+    const renderItem = (rec: Record<string, unknown>) =>
+      `<div class="stack"><span class="text-lg truncate">${rec.text}</span></div>`;
+    const loadItemRenderer: ItemRendererLoader = async () => renderItem;
+    const loadHandler: HandlerLoader =
+      async () =>
+      async ({ query, present }: CapabilityContext) =>
+        query
+          .records({
+            sql: 'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC',
+          })
+          .map(({ record }) => present(record))
+          .join("");
+
+    const app = createApp({
+      capabilityRouter: { databases: conns, loadHandler, loadItemRenderer },
+    });
+
+    const res = await app.request("/capability/notes/read");
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    // The record came back through the adapter: the record button, the escaped payload,
+    // the record-keyed open hook, and the renderer's inner markup — none authored by the
+    // handler itself. The record's own view rides beside it, back control and all.
+    expect(body).toContain('class="capability-item"');
+    expect(body).toContain("data-item=");
+    expect(body).toContain('data-record-view-template="record-notes-');
+    expect(body).toContain('<span class="text-lg truncate">Buy milk</span>');
+    expect(body).toContain("data-record-back");
+    expect(body).toContain("data-record-edit-form");
+    expect(body).toContain("/capability/notes/update");
+  });
+
+  test("a missing required item renderer fails cleanly before the handler loads", async () => {
+    install(conns, notesRow());
+
+    // The M3 shape has no compatibility path for a version directory without `item.ts`.
+    // Loading the renderer fails before handler code is reached, and the router keeps the
+    // exact artifact error developer-only.
+    let handlerLoads = 0;
+    const loadHandler: HandlerLoader = async () => {
+      handlerLoads += 1;
+      return async () => "<p>should never run</p>";
+    };
+    const loadItemRenderer: ItemRendererLoader = async () => {
+      throw new Error("ENOENT item.ts");
+    };
+    const app = createApp({
+      capabilityRouter: { databases: conns, loadHandler, loadItemRenderer },
+    });
+
+    const res = await app.request("/capability/notes/read");
+    expect(res.status).toBe(500);
+    const body = await res.text();
+    expect(body).toMatch(/something went sideways/i);
+    expect(body).not.toMatch(/item renderer|handler|artifacts|ENOENT/i);
+    expect(handlerLoads).toBe(0);
+  });
+});
+
+describe("deterministic capability router — view scaffolding", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = setupRouterTest());
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, conns);
+  });
+
+  test("serves the spec-rendered data-free list scaffolding with its live read region and create form", async () => {
+    install(conns, notesRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    // A logo click serves the platform list scaffolding rendered live from the spec
+    // — no served list.html/create.html — as a bare content fragment.
+    const res = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(body).toContain('class="capability-surface"');
+    expect(body).toContain('data-active-capability-id="notes"');
+    expect(body).toContain('hx-get="/capability/notes/read"');
+    expect(body).toContain('hx-trigger="load"');
+    expect(body).toContain('hx-post="/capability/notes/create"');
+    expect(body).toContain('hx-swap="none"');
+    expect(body).toContain("data-post-mutation-refresh");
+    expect(body).toContain('data-records-target-id="notes-records"');
+    expect(body).toContain('data-read-url="/capability/notes/read"');
+    expect(body).toContain("data-capability-search");
+    expect(body).toContain('data-search-url="/capability/notes/search"');
+    expect(body).not.toContain("<!doctype html>");
+    expect(body).not.toContain("/static/app.css");
+  });
+
+  test("a complete five-Action View renders search chrome wired only to committed routes", async () => {
+    const createRequired = notesRow().behavioral_errors[0];
+    if (!createRequired) throw new Error("notes fixture is missing its required-fields case");
+    const fullRow = notesRow({
+      tools: ["create", "read", "update", "delete", "search"],
+      read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
+      behavioral_errors: [createRequired, { ...createRequired, action: "update" }],
+    });
+    const app = createApp({
+      capabilityRouter: {
+        databases: conns,
+        lookupCapability: () => fullRow,
+        readActiveCatalog: () => ({ capabilities: [fullRow], fingerprint: "test-catalog" }),
+      },
+    });
+
+    const body = await (
+      await app.request("/capability/notes", { headers: { "HX-Request": "true" } })
+    ).text();
+
+    expect(body).toContain("data-capability-search");
+    expect(body).toContain('data-read-url="/capability/notes/read"');
+    expect(body).toContain('data-search-url="/capability/notes/search"');
+    expect(body).not.toContain("/prompt");
+    expect(body).not.toContain("/build/");
+  });
+
+  test("the spec-rendered View is data-free: a committed record never enters the chrome", async () => {
+    install(conns, notesRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    // Persist a record through the real create action, so live user data exists.
+    await app.request(
+      "/capability/notes/create",
+      formBody({ text: "Secret memo", pinned: "true" }),
+    );
+
+    const fragment = await (
+      await app.request("/capability/notes", { headers: { "HX-Request": "true" } })
+    ).text();
+    const desk = await (await app.request("/capability/notes")).text();
+
+    // The fragment renders the read-wired region but bakes in NO record — the data
+    // never enters the platform chrome (ADR-0004's never-stale cache is preserved
+    // because the chrome is deterministic from the spec, not from the data).
+    expect(fragment).toContain('id="notes-records"');
+    expect(fragment).toContain('hx-get="/capability/notes/read"');
+    expect(fragment).toContain('hx-trigger="load"');
+    expect(fragment).not.toContain("Secret memo");
+
+    // The page around it carries no view at all — the window the client opens asks for
+    // the fragment above — so there is nowhere for a record to be baked into either.
+    expect(desk).not.toContain("capability-surface");
+    expect(desk).not.toContain("Secret memo");
+
+    // The record really is there — it just arrives only through the read action.
+    expect(await (await app.request("/capability/notes/read")).text()).toContain("Secret memo");
+  });
+
+  test("direct capability navigation returns the styled desk, and the window asks for the view", async () => {
+    install(conns, notesRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes");
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(body).toContain("<!doctype html>");
+    expect(body).toContain('href="/static/app.css"');
+    expect(body).toContain('src="/static/vendor/htmx.min.js"');
+    expect(body).toContain('class="shell"');
+    expect(body).not.toContain("has-capabilities");
+
+    // The desk, whole: the addressed capability's logo standing on it, the layer its
+    // window opens on, and the module that opens it. Nothing is composed into the page,
+    // because there is no longer a hole to compose into.
+    expect(body).toContain("data-capability-logo");
+    expect(body).toContain('hx-get="/capability/notes"');
+    expect(body).toContain('class="desk__windows"');
+    expect(body).toContain('src="/static/desk-window.js"');
+    expect(body).not.toContain('id="spec-build-output"');
+    expect(body).not.toContain("capability-surface");
+    expect(body).not.toContain("data-active-capability-id");
+    expect(await collectCapabilityLogoText(body)).toEqual(["Notes"]);
+
+    // The view the window then asks for, at the same address the browser is already on.
+    const view = await (
+      await app.request("/capability/notes", { headers: { "HX-Request": "true" } })
+    ).text();
+    expect(view).toContain('class="capability-surface"');
+    expect(view).toContain('data-active-capability-id="notes"');
+    expect(view).toContain('hx-get="/capability/notes/read"');
+    expect(view).toContain('hx-post="/capability/notes/create"');
+    expect(view).toContain('hx-swap="none"');
+    expect(view).toContain("data-post-mutation-refresh");
+    expect(view).toContain('data-records-target-id="notes-records"');
+    expect(view).toContain('data-read-url="/capability/notes/read"');
+  });
+});
+
+describe("deterministic capability router — logo rehydration and labels", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = setupRouterTest());
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, conns);
+  });
+
+  test("direct capability navigation rehydrates the whole desk, not just the opened capability", async () => {
+    // The reported bug: opening or refreshing one capability by URL showed only that
+    // capability on the desk, so every sibling looked lost — even though the registry
+    // still held them (`GET /` proved it by showing them all again). A full-page load of
+    // `/capability/:id` must restore the same complete desk `GET /` does.
+    install(conns, notesRow());
+    install(conns, boomRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const body = await (await app.request("/capability/notes")).text();
+
+    // Both logos present (ordered by id, the registry's stable order). Which one the
+    // window opens over is the address's business, and the client reads it there.
+    expect(await collectCapabilityLogoText(body)).toEqual(["Boom", "Notes"]);
+    expect(body).toContain('id="capability-logo-notes"');
+    expect(body).toContain('id="capability-logo-boom"');
+    expect(body).toContain('hx-get="/capability/notes"');
+    expect(body).toContain('hx-get="/capability/boom"');
+  });
+
+  test("a link to a capability that is not there loads the bare desk and says so", async () => {
+    // The second-tab, bookmark and reload cases after a deletion, and a link that was
+    // never right — one page load, because a finished deletion takes its registry row
+    // with it and the two cannot be told apart (PLAN decision 21).
+    install(conns, boomRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes");
+    const body = await res.text();
+
+    // The whole desk, and the surviving capability still standing on it.
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(body).toContain("<!doctype html>");
+    expect(await collectCapabilityLogoText(body)).toEqual(["Boom"]);
+    expect(body).not.toContain("capability-logo-notes");
+
+    // The sentence, in the prompt bar's own slot — no window, and no second notice
+    // element anywhere on the page.
+    expect(body).toContain(
+      `<div id="prompt-notice" class="prompt__notice" aria-live="polite">${NOT_FOUND_NOTICE}</div>`,
+    );
+    expect(body.match(/id="prompt-notice"/g)).toHaveLength(1);
+
+    // Still a 404: the desk is what the person gets instead, not a claim the address
+    // was good.
+    expect(res.status).toBe(404);
+  });
+
+  test("a press on a tile that has gone is answered with the fragment, never a document", async () => {
+    // An `HX-Request` is a press inside a desk that is already up. Answering it with a
+    // whole page would swap a document into the window.
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
+    const body = await res.text();
+
+    expect(res.status).toBe(404);
+    expect(body).toMatch(/can’t find that/i);
+    expect(body).not.toContain("<!doctype html>");
+    expect(body).not.toContain("prompt-notice");
+  });
+
+  test("an empty registry answers a stale link with a desk that has nothing on it", async () => {
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const body = await (await app.request("/capability/notes")).text();
+
+    expect(await collectCapabilityLogoText(body)).toEqual([]);
+    expect(body).toContain(`aria-live="polite">${NOT_FOUND_NOTICE}</div>`);
+    expect(body).toContain('id="capability-logos"');
+  });
+
+  test("direct capability navigation writes a canonical short name under a legacy sentence label", async () => {
+    const sentenceLabel = "We'll set up a space to capture and organize all your notes.";
+    insertCapability(notesRow({ label: sentenceLabel }), conns.readwrite);
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const res = await app.request("/capability/notes");
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(await collectCapabilityLogoText(body)).toEqual(["Notes"]);
+    expect(body).not.toContain(sentenceLabel);
+  });
+});

@@ -36,7 +36,7 @@ export const DEFAULT_UNIT_FIX_ATTEMPTS = 2;
 
 /**
  * The single generated presentation unit's name — the stem of the version-keyed file
- * the router loads it from (`item.ts`, `ITEM_RENDERER_FILE` in src/router/router.ts).
+ * the router loads it from (`item.ts`, `ITEM_RENDERER_FILE` in src/runtime/router/dispatch/router.ts).
  */
 export const ITEM_RENDERER_UNIT_NAME = "item";
 

@@ -364,7 +364,7 @@ type PresentationAdapter = (record: CapabilityActionRecord) => string;
 `;
 
 // The handler contract — including ADR-0005 §2's injected `present` adapter (mirrors
-// src/router/contract.ts and src/builder/unit-checks.ts).
+// src/runtime/router/contract.ts and src/builder/unit-checks.ts).
 /**
  * The query-result column types, derived from the registry pantry rather than restated.
  * A generated Handler is type-checked against this text, so a hand-written mirror missing

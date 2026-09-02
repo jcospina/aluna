@@ -116,7 +116,7 @@ export const MIGRATIONS: readonly Migration[] = [
   // build column past identity/intent/model is nullable so a deflection (intent only)
   // or a failed build (everything up to the failing rung) writes with partial
   // knowledge; absence is stored as NULL, never a fabricated zero. The metrics
-  // access module (src/metrics/store.ts) owns the (de)serialization and validates
+  // access module (src/platform/metrics/store.ts) owns the (de)serialization and validates
   // rows against the Zod shape in both directions.
   {
     id: "0004_generation_metrics",

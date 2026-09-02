@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-
-import { normalizeListInputValues } from "../list-input/index.ts";
 import { LIST_FIELD_TYPES, SCALAR_FIELD_TYPES } from "../registry/index.ts";
+import { normalizeListInputValues } from "../runtime/field-types/list-input.ts";
 import { renderCreateForm } from "./field-renderer.ts";
 import {
   editFormFor,
@@ -360,7 +359,7 @@ describe("both modes hand over the same ordered array", () => {
     );
 
     // The empty row an Add opens is a placeholder and is dropped. That the two modes then
-    // read a comma differently is `src/list-input/index.test.ts`'s subject, not this one's.
+    // read a comma differently is `src/runtime/field-types/list-input.test.ts`'s subject, not this one's.
     addListRow(add);
     expect(posted(field)).toHaveLength(4);
     expect(normalizeListInputValues("repeatable", posted(field))).toEqual(VALUES);

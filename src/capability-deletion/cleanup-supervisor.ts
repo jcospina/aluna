@@ -23,13 +23,12 @@
 // whole generation and being refused by the activation CAS.
 
 import type { Database } from "bun:sqlite";
-
-import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import {
   type CapabilityDeletionTombstone,
   listCapabilityDeletionTombstones,
   recordCapabilityDeletionCleanupFailure,
 } from "../registry/index.ts";
+import type { MutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
 import {
   type CapabilityDeletionRecoveryResult,
   type OwnedResourceCleanupAdapter,

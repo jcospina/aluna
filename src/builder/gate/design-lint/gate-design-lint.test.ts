@@ -11,8 +11,6 @@
 
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import type { ZodType } from "zod";
-
-import { deriveCapabilityTableDdl } from "../../../capability-data/index.ts";
 import type {
   DeepPartial,
   GenerateResult,
@@ -24,6 +22,7 @@ import {
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
+import { deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
 import {
   DEFAULT_BEHAVIORAL_SUITE,

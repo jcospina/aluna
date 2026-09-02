@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
-
-import { deriveCapabilityTableDdl } from "../../../capability-data/index.ts";
 import type { GenerateResult, Provider } from "../../../platform/provider/index.ts";
+import { deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
 import {
   CREATE_HANDLER,

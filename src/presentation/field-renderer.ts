@@ -20,7 +20,6 @@
 // way into markup; the form itself is platform chrome rather than generated item markup,
 // so the runtime allow-list enforcer never runs on it.
 
-import { listInputModeForField } from "../list-input/index.ts";
 import {
   activeSpecFields,
   type ChoiceFieldType,
@@ -32,11 +31,12 @@ import {
   type SpecField,
   type UiFormIntent,
 } from "../registry/index.ts";
+import { listInputModeForField } from "../runtime/field-types/list-input.ts";
 import {
   ALUNA_PRESENT_MARKER,
   ALUNA_RECORD_ID_MARKER,
   type WireProtocolAction,
-} from "../router/wire-protocol.ts";
+} from "../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
 import { renderChoiceField } from "./choice-control.ts";
 import {
@@ -105,7 +105,7 @@ export function capabilityEditErrorId(capabilityId: string): string {
 
 /**
  * The live region a failed record delete is retargeted to
- * (`src/router/failure-responses.ts`). It rides the confirmation that replaces the record
+ * (`src/runtime/router/wire/failure-responses.ts`). It rides the confirmation that replaces the record
  * form's action row, which is the only place a record delete is ever asked for; the id is
  * the wire contract both ends agree on.
  */

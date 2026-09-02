@@ -32,7 +32,7 @@
 // rendered here, beside the form, and its mechanics ride `public/record-mutations.js`
 // with the other record mutations.
 
-import { ALUNA_RECORD_ID_MARKER } from "../router/wire-protocol.ts";
+import { ALUNA_RECORD_ID_MARKER } from "../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
 import {
   capabilityDeleteConfirmationId,

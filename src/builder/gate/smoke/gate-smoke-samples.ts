@@ -6,14 +6,14 @@
 // choice is the one type whose sample is not free text: it can only ever hold a value it
 // declares, so both phases draw from its declared options.
 
-import type { CapabilityDataColumnValue } from "../../../capability-data/index.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,
   type SpecField,
   selectableChoiceValues,
 } from "../../../registry/index.ts";
-import type { CapabilityInput, CapabilityInputValue } from "../../../router/index.ts";
+import type { CapabilityDataColumnValue } from "../../../runtime/data/index.ts";
+import type { CapabilityInput, CapabilityInputValue } from "../../../runtime/router/index.ts";
 
 export interface SmokeInput {
   readonly input: CapabilityInput;

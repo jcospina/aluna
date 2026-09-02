@@ -1,7 +1,6 @@
 import ts from "typescript";
-
-import { capabilityQueryScopeTableNames } from "../../capability-data/index.ts";
 import type { CapabilitySpec } from "../../registry/index.ts";
+import { capabilityQueryScopeTableNames } from "../../runtime/data/index.ts";
 import { checkSourceIsolation, isRuntimeIdentifierReference } from "./source-isolation.ts";
 import {
   evaluateStaticString,

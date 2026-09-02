@@ -23,13 +23,12 @@
 // process ever creates these tables outside the migrations ledger.
 
 import type { Database } from "bun:sqlite";
-
+import { getCapability } from "../../registry/index.ts";
 import type {
   CapabilityIncarnation,
   ReadGateCoordinator,
   ReadTokenSet,
-} from "../../read-gates/index.ts";
-import { getCapability } from "../../registry/index.ts";
+} from "../../runtime/concurrency/read-gates.ts";
 import {
   EVENT_LOG_OWNERSHIP_TABLE,
   EVENT_LOG_TABLE,
