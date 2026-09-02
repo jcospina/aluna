@@ -46,21 +46,17 @@ function inlineRules(path: string): Rule[] {
   );
 }
 
-/*
- * Not a `public/*.html` page, and the one other place that renders real record wrappers.
- * The few-shot gallery preview is a served developer surface built from a TypeScript
- * template: it loads `/static/app.css` and `/static/ink.js`, emits six `.capability-item`
- * cards through the real adapter, and carries an inline `<style>` of its own that lands
- * after the seam. A guard that reads only `public/` would not see a border declared there.
+/**
+ * The shell bridge, plus every inline stylesheet a page of ours carries.
+ *
+ * The inline half currently contributes nothing: `SHELL_PAGES` globs `public/*.html`, and
+ * since the developer preview pages came down the one page left there carries no `<style>`
+ * block. It stays because the list is a glob rather than a hand-written set — the next page
+ * added under `public/` is measured the day it arrives, inline rules included.
  */
-const EMBEDDED_PAGES = ["src/server/dev-surfaces/few-shot-gallery-preview.ts"];
-
-/** The shell bridge, plus every inline stylesheet a page of ours carries. */
 function shellRules(): Rule[] {
   const sheets = SHELL_SHEETS.map((path) => rules(path, read(path)));
-  const inline = [...SHELL_PAGES.map((page) => `public/${page}`), ...EMBEDDED_PAGES].flatMap(
-    inlineRules,
-  );
+  const inline = SHELL_PAGES.map((page) => `public/${page}`).flatMap(inlineRules);
   return [...sheets, ...inline].flat();
 }
 
@@ -139,11 +135,7 @@ describe("the ink seam holds in the shipped product", () => {
   });
 
   test("every page that loads the shell bridge loads the ink runtime", () => {
-    const surfaces = [
-      ...SHELL_PAGES.map((page) => `public/${page}`),
-      "src/server/dev-surfaces/few-shot-gallery-preview.ts",
-    ];
-    for (const surface of surfaces) {
+    for (const surface of SHELL_PAGES.map((page) => `public/${page}`)) {
       const source = read(surface);
       if (!source.includes("/static/app.css")) continue;
       expect(source, `${surface} draws what the bridge reserves`).toContain(

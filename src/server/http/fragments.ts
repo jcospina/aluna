@@ -800,8 +800,8 @@ export function renderCapabilitySurface(
 
 /**
  * The literal anchors page assembly composes a full page by replacing, each paired
- * with what a shell missing it looks like. Every one of them throws, and this is what
- * lets the developer preview force each case against the *real* shipped shell instead of
+ * with what a shell missing it looks like. Every one of them throws, and naming them here
+ * is what lets a caller force each case against the *real* shipped shell instead of
  * keeping its own copies of the strings, which would then be free to drift from the ones
  * the assembly actually matches. `renderRehydratedShell` exercises all of them.
  *

@@ -23,7 +23,7 @@
 
 import type { Colour } from "./contrast.js";
 import { CONTROL_PAIRINGS } from "./contrast-pairings-controls.js";
-import { PREVIEW_PAIRINGS } from "./contrast-pairings-preview.js";
+import { EXEMPLAR_PAIRINGS } from "./contrast-pairings-exemplars.js";
 import { SURFACE_PAIRINGS } from "./contrast-pairings-surface.js";
 
 /**
@@ -88,17 +88,9 @@ export const AUDITED_SHEETS: readonly string[] = [
   "public/css/prompt.css",
   "public/css/record-view.css",
   "public/css/shell.css",
-  // Served surfaces that carry their stylesheet inline rather than linking one. They
-  // load after everything the manifest ships, so they are the last word on what they
-  // name — and `ink-seam.test.ts` already had to learn the same lesson.
-  "public/primitives-preview.html",
-  "src/server/dev-surfaces/region-lifecycle-preview.ts",
-  "src/server/dev-surfaces/swap-target-preview.ts",
-  "src/server/dev-surfaces/few-shot-gallery-preview.ts",
-  // The gallery's exemplars themselves. They carry no `<style>` block — every colour is an
-  // inline `style` attribute — and they are not only rendered at `/demo/few-shot-gallery`
-  // but fed verbatim into the item-renderer prompt as approved examples. An unaudited
-  // failure here is a failure the platform *teaches*.
+  // The gallery's exemplars. They carry no `<style>` block — every colour is an inline
+  // `style` attribute — and they are fed verbatim into the item-renderer prompt as
+  // approved examples. An unaudited failure here is a failure the platform *teaches*.
   "src/builder/units/generation/few-shot-gallery.ts",
 ];
 
@@ -131,5 +123,5 @@ export const AUDITED_PROPERTIES: readonly string[] = [
 export const PAIRINGS: readonly Pairing[] = [
   ...SURFACE_PAIRINGS,
   ...CONTROL_PAIRINGS,
-  ...PREVIEW_PAIRINGS,
+  ...EXEMPLAR_PAIRINGS,
 ];

@@ -5,7 +5,6 @@
 // Everything here is transport/markup glue with no build logic. (`escapeHtml` is
 // deliberately not re-exported: every caller imports it from `./html.ts` directly.)
 
-export { developerSurfacesEnabled } from "../dev-surfaces/dev-surfaces.ts";
 export {
   renderCachedCapabilityCommitSwap,
   renderCachedCapabilitySurface,

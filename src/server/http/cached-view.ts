@@ -94,9 +94,10 @@ function withLifecycleMetricsPreview(
   database: Database,
   catalog?: readonly CapabilityRow[],
 ): string {
-  // The payload is developer furniture, gated the way `/demo/*` is: it carries model ids,
-  // token counts, stage timings, catalog fingerprints and cleanup-failure strings holding
-  // absolute filesystem paths, and it was embedded in every page a user loads.
+  // The payload is developer furniture, and the last thing the guard holds back now that
+  // nothing is served under `/demo`: it carries model ids, token counts, stage timings,
+  // catalog fingerprints and cleanup-failure strings holding absolute filesystem paths,
+  // and it was embedded in every page a user loads.
   if (!developerSurfacesEnabled()) return shellHtml;
   const lifecycleReady = database
     .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")

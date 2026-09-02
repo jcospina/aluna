@@ -190,7 +190,6 @@
   "src/server/routes/build/app.spec-build.test.ts": 3516,
   "src/server/routes/evolution/app.evolution-streaming.test.ts": 1983,
   "src/server/routes/evolution/app.evolution.test.ts": 1734,
-  "src/server/routes/evolution/app.few-shot-gallery.test.ts": 84,
   "src/server/routes/lifecycle/app.capability-deletion.test.ts": 145,
   "src/server/routes/lifecycle/app.capability-rename.test.ts": 150,
   "src/server/routes/lifecycle/app.deleted-capability-address.test.ts": 98,
