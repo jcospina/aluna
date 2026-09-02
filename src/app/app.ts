@@ -27,15 +27,15 @@ import {
   type OwnedResourceCleanupAdapter,
   renderCapabilityDeletionConfirmation,
   resolveCapabilityDeletionRestoration,
-} from "../capability-deletion/index.ts";
+} from "../lifecycle/deletion/index.ts";
 import {
   createRunningLogoClaims,
   type LogoGenerationProvider,
   type RunningLogoClaims,
   recoverCapabilityLogos,
   registerCapabilityLogoRoutes,
-} from "../capability-logo/index.ts";
-import { handleCapabilityRename } from "../capability-rename/index.ts";
+} from "../lifecycle/logo/index.ts";
+import { handleCapabilityRename } from "../lifecycle/rename/index.ts";
 import {
   createMetricsRecorder,
   createPromptBuildPipeline,

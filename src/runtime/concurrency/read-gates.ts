@@ -30,7 +30,7 @@
  * Longer-lived token scopes exist and are not covered by that ordering: a logo attempt
  * holds one across provider I/O bounded by `DEFAULT_LOGO_GENERATION_TIMEOUT_MS`, six
  * times this deadline. They stay compatible by *observing* the cancellation a close
- * signals, which `src/capability-logo/attempt.test.ts` pins — not by being shorter.
+ * signals, which `src/lifecycle/logo/generation/attempt.test.ts` pins — not by being shorter.
  *
  * The raise has a real cost, taken deliberately: deletion holds the mutation
  * coordinator's non-queued lease across the whole drain, so a drain that runs all the way

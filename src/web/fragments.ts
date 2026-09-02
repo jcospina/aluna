@@ -23,7 +23,7 @@ const SAVING_LABEL = "Saving…";
 
 /**
  * The element id one capability's logo carries. Deletion addresses it to take the logo
- * off the desk (`src/capability-deletion/presentation.ts`), so it is written once rather
+ * off the desk (`src/lifecycle/deletion/presentation.ts`), so it is written once rather
  * than assembled the same way in two places. Capability ids are `[a-z][a-z0-9_]*`
  * (`src/registry/spec/spec.ts`), so this is always a valid CSS identifier.
  */

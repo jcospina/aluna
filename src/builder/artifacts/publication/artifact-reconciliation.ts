@@ -10,7 +10,7 @@ import { dirname, join, resolve } from "node:path";
 import {
   CAPABILITY_LOGO_FILENAME,
   CAPABILITY_LOGO_STAGING_PATTERN,
-} from "../../../capability-logo/artifact-names.ts";
+} from "../../../lifecycle/logo/artifact-names.ts";
 import { getGenerationLifecycle } from "../../../platform/metrics/index.ts";
 import {
   type CapabilityRow,
