@@ -3,7 +3,7 @@ node_modules/
 
 # Build output
 dist/
-artifacts/
+/artifacts/
 
 # Runtime-generated artifacts — keep the directory structure (READMEs) tracked,
 # ignore everything written at runtime. (ARCH §5, §6.3; Epic 1.1)
