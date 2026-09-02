@@ -16,7 +16,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { createCapabilityActionRecord } from "../../runtime/data/index.ts";
-import { escapeHtml } from "../../web/html.ts";
+import { escapeHtml } from "../../server/http/html.ts";
 import type { RenderableCapability } from "../fields/field-renderer.ts";
 import {
   createPlatformPresentationAdapter,

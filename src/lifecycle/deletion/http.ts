@@ -3,7 +3,7 @@ import type { Context } from "hono";
 import { type CapabilityRow, getCapability } from "../../registry/index.ts";
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
-import { renderCachedCapabilitySurface } from "../../web/index.ts";
+import { renderCachedCapabilitySurface } from "../../server/http/index.ts";
 import type { DeletionCleanupSupervisor } from "./destruction/cleanup-supervisor.ts";
 import {
   type CapabilityDestructionFaults,

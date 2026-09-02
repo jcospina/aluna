@@ -1,15 +1,14 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { ZodType } from "zod";
-
-import {
-  createScratchDbEnv,
-  type ScratchDbEnv,
-  teardownScratchDbEnv,
-} from "../../app/app.test-support.ts";
 import { listGenerationLifecycles } from "../../platform/metrics/index.ts";
 import type { GenerateResult, Provider } from "../../platform/provider/index.ts";
 import { readActiveRegistryCatalog } from "../../registry/index.ts";
 import { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../../server/app.test-support.ts";
 import type { BuildPipelineCompletion } from "../jobs/build-jobs.ts";
 import { createMetricsRecorder } from "../metrics-recorder.ts";
 import { resolvedNewCapabilityRequest } from "./admission/resolved-request.ts";

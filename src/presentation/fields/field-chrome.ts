@@ -33,7 +33,7 @@
 // error clears. An empty one is `hidden` and describes nothing.
 
 import { fieldGuidanceText, type SpecField, type UiFormIntent } from "../../registry/index.ts";
-import { escapeHtml } from "../../web/html.ts";
+import { escapeHtml } from "../../server/http/html.ts";
 
 /** The rows a long-text control opens at, and the height it stops growing past. */
 export const LONG_TEXT_ROWS = 3;

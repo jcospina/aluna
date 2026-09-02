@@ -1,0 +1,495 @@
+// Evolution through the prompt bar. Route-level proof that the platform's
+// one entrance works end to end: a change typed into the prompt bar is classified against
+// the live capability, and the terminal presentation is one of exactly three shapes — an
+// activated version behind a complete View swap, the measured no-op, or the warm
+// rejection. The engine's own end-to-end battery lives in
+// `src/pipeline/evolution/run/evolution-run.test.ts`, the streamed liveness in
+// `app.evolution-streaming.test.ts`, and the refusal of a target that moved between
+// resolution and the lease head in `app.stale-refusal.test.ts`; this file owns the
+// submit/activate/reject seam. Driven through fake providers — no spend.
+
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import type { ZodType } from "zod";
+import {
+  candidateFrom,
+  journalCapabilityRow,
+  makeCandidateProvider,
+} from "../../../builder/evolution/candidate/candidate.test-support.ts";
+import {
+  createHandlerFor,
+  makeSequenceProvider,
+  searchHandlerFor,
+  updateHandlerFor,
+} from "../../../builder/gate/gate.test-support.ts";
+import { INTENT_RESOLVER_PROMPT_PREFIX } from "../../../pipeline/intent/index.ts";
+import {
+  CANDIDATE_NO_CHANGE_ENDING,
+  CANDIDATE_REJECTED_ENDING,
+  FAILED_BUILD_ENDING,
+  STALE_BUILD_ENDING,
+} from "../../../pipeline/streaming/terminal-presentation.ts";
+import type { Provider } from "../../../platform/provider/index.ts";
+import { compareAndSwapCapability, getCapability } from "../../../registry/index.ts";
+import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
+import {
+  collectSseEvents,
+  createScratchDbEnv,
+  eventData,
+  lastEventData,
+  makeMetricsRecorder,
+  makeScratchApp,
+  readSse,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../../app.test-support.ts";
+import { createApp } from "../../app.ts";
+import { renderBuildEnding } from "../../http/index.ts";
+import {
+  buildEvolutionRouteGates,
+  type EvolutionRouteFixture,
+  journalEvolutionIntent,
+  moodCandidate,
+  moodEvolutionApp,
+  pinBehavioralTierOff,
+  resolvedBy,
+  scratchApp,
+  setUpEvolutionRouteEnv,
+  submitEvolution,
+  tearDownEvolutionRouteEnv,
+} from "./app.evolution.test-support.ts";
+
+let env: ScratchDbEnv;
+let fixture: EvolutionRouteFixture;
+let restoreTier: () => void;
+
+beforeAll(async () => {
+  restoreTier = pinBehavioralTierOff();
+  fixture = await buildEvolutionRouteGates();
+});
+
+afterAll(() => {
+  restoreTier();
+});
+
+beforeEach(async () => {
+  env = await setUpEvolutionRouteEnv(fixture);
+});
+
+afterEach(() => {
+  tearDownEvolutionRouteEnv(env);
+});
+
+describe("the capability surface", () => {
+  test("a full-page capability load is the desk, and the collection follows into the window", async () => {
+    const { app } = scratchApp(env, candidateFrom(journalCapabilityRow()), "Add a mood field");
+    const res = await app.request("/capability/journal");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    // The second entrance is gone: no form, no hard-path checkbox, no route for
+    // either of them to post to. The prompt bar carries the whole evolution interaction.
+    expect(html).not.toContain("/demo/evolution/");
+    expect(html).not.toContain('name="intent"');
+    expect(html).not.toContain("force_behavioral_failure");
+    expect(html).not.toContain("capability-evolution");
+    expect(html).not.toContain('data-living-demo="evolution"');
+    expect(html).not.toContain("Evolve this capability");
+    expect(html).not.toContain("Show me the guided repair");
+    // What a direct navigation serves is the whole desk and nothing composed into it:
+    // the window is the client's to create, and it asks for the fragment below. The
+    // read-only developer panel is untouched by any of this — and it is a window of
+    // its own now, so what the page carries is its tile rather than its contents.
+    expect(html).toContain('data-capability-id="journal"');
+    expect(html).toContain('class="desk__windows"');
+    expect(html).not.toContain("data-active-capability-id");
+    expect(html).toContain("data-dev-tile");
+    expect(html).toContain('aria-label="Open Developer"');
+    expect(html).not.toContain('class="devbar"');
+
+    // The same address, asked for the way the window asks for it.
+    const fragment = await (
+      await app.request("/capability/journal", { headers: { "HX-Request": "true" } })
+    ).text();
+    expect(fragment).toContain('data-active-capability-id="journal"');
+    expect(fragment).toContain('hx-get="/capability/journal/read"');
+    expect(fragment).not.toContain("capability-evolution");
+  });
+
+  test("an HTMX logo click renders the same scaffolding with no evolution form", async () => {
+    const { app } = scratchApp(env, candidateFrom(journalCapabilityRow()), "Add a mood field");
+    const res = await app.request("/capability/journal", { headers: { "HX-Request": "true" } });
+    expect(res.status).toBe(200);
+    const fragment = await res.text();
+    expect(fragment).toContain('data-active-capability-id="journal"');
+    expect(fragment).toContain('hx-get="/capability/journal/read"');
+    expect(fragment).not.toContain("capability-evolution");
+    expect(fragment).not.toContain("/demo/evolution/");
+  });
+
+  test("the cold-start shell has no capability and therefore no evolution form", async () => {
+    const bare = createScratchDbEnv("aluna-evolution-bare-");
+    try {
+      const { recordMetrics } = makeMetricsRecorder();
+      const { provider } = makeCandidateProvider({});
+      const app = makeScratchApp(bare, provider, recordMetrics);
+      const res = await app.request("/");
+      const html = await res.text();
+      expect(html).not.toContain("capability-evolution");
+      expect(html).not.toContain("/demo/evolution/");
+    } finally {
+      teardownScratchDbEnv(bare);
+    }
+  });
+});
+
+describe("admission", () => {
+  test("the retired demo route is gone from the app entirely", async () => {
+    const { app } = scratchApp(env, {}, "Add a mood field");
+    expect(
+      (
+        await app.request("/demo/evolution/journal", {
+          method: "POST",
+          body: new URLSearchParams({ intent: "Add something" }),
+        })
+      ).status,
+    ).toBe(404);
+    expect((await app.request("/demo/evolution/build/any/stream")).status).toBe(404);
+    expect((await app.request("/demo/evolution/build/any/cancel", { method: "POST" })).status).toBe(
+      404,
+    );
+  });
+
+  test("a submitted evolution returns the build subscriber wired to its own stream", async () => {
+    const { app, submit } = scratchApp(
+      env,
+      candidateFrom(journalCapabilityRow()),
+      "Add a mood field",
+    );
+    const { fragment, jobId } = await submit();
+    expect(fragment).toContain(`/build/${jobId}/stream`);
+    expect(fragment).toContain(`/build/${jobId}/cancel`);
+    expect((await app.request(`/build/${jobId}/cancel`, { method: "POST" })).status).toBe(202);
+  });
+
+  test("cancelling an unknown job is a 404", async () => {
+    const { app } = scratchApp(env, {}, "Add a mood field");
+    const res = await app.request("/build/missing/cancel", { method: "POST" });
+    expect(res.status).toBe(404);
+  });
+
+  test("a classification naming a capability the catalog does not hold builds nothing", async () => {
+    const { recordMetrics } = makeMetricsRecorder();
+    const { provider, prompts } = makeCandidateProvider(candidateFrom(journalCapabilityRow()));
+    const app = makeScratchApp(
+      env,
+      resolvedBy(
+        journalEvolutionIntent("Add a mood field", { target_capability: "ghosts" }),
+        provider,
+      ),
+      recordMetrics,
+    );
+    const { jobId, streamPath } = await submitEvolution(app, "Add a mood field");
+
+    const events = collectSseEvents(await readSse(await app.request(streamPath)));
+
+    // A warm product-voice failure ending the narration, with the person's own View
+    // streamed for the window to hold until it is dismissed — the same terminal shape
+    // any pre-admission failure gets, not a bare error.
+    expect(eventData(events, "narration")).toContain(renderBuildEnding(jobId, FAILED_BUILD_ENDING));
+    expect(eventData(events, "fragment")).toContain("capability-surface");
+    expect(eventData(events, "fragment")).toContain('data-active-capability-id="journal"');
+    expect(eventData(events, "done")).toBe("error");
+    expect(events.map((event) => event.event)).not.toContain("candidate-preview");
+    expect(events.map((event) => event.event)).not.toContain("commit");
+    // The Builder never ran: no candidate was ever authored, and nothing durable moved.
+    expect(prompts).toHaveLength(0);
+    expect(getCapability("journal", env.conns.readonly)?.version).toBe(1);
+  });
+});
+
+/** Real unit loaders that also record which version directory each load came from. */
+function spyingUnitLoaders(loadedPaths: string[]) {
+  return {
+    loadHandler: async (artifactsPath: string, action: string) => {
+      loadedPaths.push(artifactsPath);
+      const module = (await import(pathToFileURL(join(artifactsPath, `${action}.ts`)).href)) as {
+        default: () => Promise<string>;
+      };
+      return module.default;
+    },
+    loadItemRenderer: async (artifactsPath: string) => {
+      loadedPaths.push(artifactsPath);
+      const module = (await import(pathToFileURL(join(artifactsPath, "item.ts")).href)) as {
+        default: (record: Record<string, unknown>) => string;
+      };
+      return module.default;
+    },
+  };
+}
+
+describe("an accepted candidate", () => {
+  test("streams the run and activates the next version behind one complete View swap", async () => {
+    const candidate = moodCandidate();
+    const { app, prompts, lifecycles, submit } = moodEvolutionApp(
+      env,
+      candidate,
+      "Add a mood field",
+    );
+    const { streamPath } = await submit();
+
+    const events = collectSseEvents(await readSse(await app.request(streamPath)));
+
+    // Foreground narration stays in product voice — no internals leak.
+    const narration = eventData(events, "narration");
+    expect(narration).toContain("Let me think through that change.");
+    expect(narration).not.toMatch(/handler|spec|migration|schema|gate/i);
+
+    // The developer receives the accepted candidate and the Diff Engine's facts/work plan.
+    expect(eventData(events, "spec-preview")).toContain('"mood"');
+    const preview = JSON.parse(lastEventData(events, "candidate-preview"));
+    expect(preview.status).toBe("accepted");
+    expect(preview.capabilityId).toBe("journal");
+    expect(preview.committedVersion).toBe(1);
+    expect(preview.candidate).toEqual(JSON.parse(JSON.stringify(candidate)));
+    expect(preview.diff.isNoop).toBe(false);
+    expect(preview.diff.facts).toEqual([
+      { kind: "new_active_field", field: "mood", fieldType: "string" },
+    ]);
+    expect(preview.diff.workPlan.regeneratedUnits).toEqual(["create", "update", "search"]);
+    expect(preview.diff.workPlan.platformWork).toEqual(["add_column", "platform_form_detail"]);
+
+    // The executed-work summary — regenerated vs. byte-copied units, the additive
+    // DDL, and the Gate over the assembled snapshot.
+    expect(preview.assembly.status).toBe("complete");
+    expect(preview.assembly.regeneratedUnits).toEqual(["create", "update", "search"]);
+    expect([...preview.assembly.copiedUnits].sort()).toEqual(["delete", "item", "read"]);
+    expect(preview.assembly.additiveMigration).toEqual([
+      'ALTER TABLE "cap_journal" ADD COLUMN "mood" TEXT;',
+    ]);
+    // Per regenerated unit, whether its prior committed source was admitted
+    // into the regeneration prompt. Adding a field takes nothing away, so all three fit.
+    expect(preview.assembly.priorSource).toEqual([
+      { unit: "create", admitted: true },
+      { unit: "update", admitted: true },
+      { unit: "search", admitted: true },
+    ]);
+    const gate = Object.fromEntries(
+      preview.assembly.gate.map((rung: { rung: string; status: string }) => [
+        rung.rung,
+        rung.status,
+      ]),
+    );
+    expect(gate.structural).toBe("passed");
+    expect(gate.smoke).toBe("passed");
+
+    // The run does not stop at the candidate. It publishes, activates, and swaps
+    // the complete View exactly once — `commit` is reserved for a real pointer activation,
+    // so there is no restoring `fragment` on this path at all.
+    expect(prompts[0]).toContain("Add a mood field");
+    expect(events.filter((event) => event.event === "commit")).toHaveLength(1);
+    expect(eventData(events, "commit")).toContain('data-active-capability-version="2"');
+    // The one `fragment` an evolution sends is the window's name, and it is the name the
+    // window keeps: an evolution's capability already exists, so there is no later moment
+    // when the title becomes truer (M5 plan 1). No restoration — this one activated.
+    expect(eventData(events, "fragment")).toBe('<div data-build-window-title="Journal"></div>');
+    expect(eventData(events, "done")).toBe("ok");
+    const commitPreview = JSON.parse(eventData(events, "commit-preview"));
+    expect(commitPreview.version).toBe(2);
+    // The published-version pane names the transition row this version landed on, so
+    // "why does this version carry (no) frozen tests?" is answerable without opening the
+    // predecessor's manifest. A first build has no predecessor and omits it.
+    expect(commitPreview.behavioralTierTransition).toMatchObject({
+      prior: expect.stringMatching(/^(on|off)$/u),
+      candidate: expect.stringMatching(/^(on|off)$/u),
+      artifacts: expect.stringMatching(/^(present|absent)$/u),
+    });
+    expect(commitPreview.behavioralTierTransition.rows.length).toBeGreaterThan(0);
+
+    // The registry points at v2, and the added column is live on the existing table.
+    const live = getCapability("journal", env.conns.readonly);
+    expect(live?.version).toBe(2);
+    expect(live?.artifacts_path).toContain("/v2/");
+    expect(
+      env.conns.readonly
+        .query('SELECT "name" FROM pragma_table_info(?)')
+        .all("cap_journal")
+        .map((column) => (column as { name: string }).name),
+    ).toContain("mood");
+
+    // …and the durable lifecycle row is the one an activated build writes.
+    expect(lifecycles.at(-1)).toMatchObject({ lifecycleStatus: "success", outcome: "activated" });
+    expect(JSON.parse(eventData(events, "metrics-preview")).outcome).toBe("activated");
+  });
+
+  test("routes the surviving records through the new version's handlers", async () => {
+    const candidate = moodCandidate();
+    const metrics = makeMetricsRecorder();
+    const { provider } = makeSequenceProvider([
+      candidate,
+      { content: createHandlerFor(candidate) },
+      { content: updateHandlerFor(candidate) },
+      { content: searchHandlerFor(candidate) },
+    ]);
+    // A spy loader records which version directory each Action was loaded from — the
+    // proof that the router follows the swapped pointer, not a cached v1.
+    const loadedPaths: string[] = [];
+    const app = createApp({
+      getProvider: () => resolvedBy(journalEvolutionIntent("Add a mood field"), provider),
+      recordMetrics: metrics.recordMetrics,
+      buildDatabases: env.conns,
+      artifactsRoot: env.artifactsRoot,
+      capabilityRouter: { databases: env.conns, ...spyingUnitLoaders(loadedPaths) },
+      mutationCoordinator: createMutationCoordinator(),
+    });
+
+    // One record written under v1, before the new column existed.
+    env.conns.readwrite.run('INSERT INTO "cap_journal" ("id", "title", "tags") VALUES (?, ?, ?)', [
+      "entry-1",
+      "written before mood existed",
+      JSON.stringify([]),
+    ]);
+
+    const { streamPath } = await submitEvolution(app, "Add a mood field");
+    await readSse(await app.request(streamPath));
+    expect(getCapability("journal", env.conns.readonly)?.version).toBe(2);
+
+    const read = await app.request("/capability/journal/read");
+    expect(read.status).toBe(200);
+    // Decision 13 through the router: `read` was byte-copied, so its SQL never mentions
+    // `mood` — yet the record it renders is the rehydrated canonical row, and it is the
+    // record the user already had.
+    expect(await read.text()).toContain("written before mood existed");
+    expect(loadedPaths.every((path) => path.includes("/v2/"))).toBe(true);
+  });
+});
+
+describe("a measured no-op", () => {
+  test("a semantically identical candidate is success/no_change with the View restored", async () => {
+    // The provider re-authors the exact committed spec — a semantic no-op.
+    const identical = candidateFrom(journalCapabilityRow());
+    const { app, rows, lifecycles, submit } = scratchApp(
+      env,
+      identical,
+      "Keep it exactly as it is",
+    );
+    const { jobId, streamPath } = await submit();
+
+    const events = collectSseEvents(await readSse(await app.request(streamPath)));
+
+    // The dev preview reports the zero-fact Diff as the measured no-op.
+    const preview = JSON.parse(eventData(events, "candidate-preview"));
+    expect(preview.status).toBe("no_change");
+    expect(preview.diff.isNoop).toBe(true);
+    expect(preview.diff.facts).toEqual([]);
+    expect(preview.diff.workPlan.regeneratedUnits).toEqual([]);
+
+    // Metrics finalize success/no_change with every downstream stage skipped.
+    const metrics = JSON.parse(eventData(events, "metrics-preview"));
+    expect(metrics.lifecycleStatus).toBe("success");
+    expect(metrics.outcome).toBe("no_change");
+    expect(metrics.stages).toEqual(
+      expect.arrayContaining([{ stage: "activation", state: "skipped" }]),
+    );
+    const finalLifecycle = lifecycles.at(-1);
+    expect(finalLifecycle?.lifecycleStatus).toBe("success");
+    expect(finalLifecycle?.outcome).toBe("no_change");
+
+    // Warm close in product voice ending the narration, committed View held for the
+    // dismissal, no version bump.
+    expect(eventData(events, "narration")).toContain(
+      renderBuildEnding(jobId, CANDIDATE_NO_CHANGE_ENDING),
+    );
+    expect(eventData(events, "fragment")).toContain("capability-surface");
+    expect(eventData(events, "done")).toBe("ok");
+    expect(eventData(events, "commit")).toBe("");
+    expect(getCapability("journal", env.conns.readonly)?.version).toBe(1);
+    // The legacy terminal row and the running→success lifecycle are both recorded.
+    expect(rows).toHaveLength(1);
+    expect(finalLifecycle).toBeDefined();
+  });
+});
+
+describe("a rejected candidate", () => {
+  test("streams the warm rejection with every violation in the developer preview", async () => {
+    const authored = candidateFrom(journalCapabilityRow());
+    authored.schema.fields = authored.schema.fields.filter(
+      (field) => field.name !== "archived_reason",
+    );
+    const { app, lifecycles, submit } = scratchApp(env, authored, "Forget the archive note");
+    const { jobId, streamPath } = await submit();
+
+    const events = collectSseEvents(await readSse(await app.request(streamPath)));
+
+    const narration = eventData(events, "narration");
+    expect(narration).toContain(renderBuildEnding(jobId, CANDIDATE_REJECTED_ENDING));
+
+    const preview = JSON.parse(eventData(events, "candidate-preview"));
+    expect(preview.status).toBe("rejected");
+    expect(preview.candidate).toBeUndefined();
+    expect(
+      preview.issues.some((issue: { message: string }) =>
+        issue.message.includes('committed field "archived_reason" must be returned exactly once'),
+      ),
+    ).toBe(true);
+
+    // Warm rejection, not a crash: the pointer never moves, and the durable row closes
+    // at the stage the candidate failed its own gate ("failure is data", ARCH §9.6).
+    expect(eventData(events, "done")).toBe("error");
+    expect(eventData(events, "fragment")).toContain("capability-surface");
+    expect(eventData(events, "commit")).toBe("");
+    expect(getCapability("journal", env.conns.readonly)?.version).toBe(1);
+    expect(lifecycles.at(-1)).toMatchObject({
+      lifecycleStatus: "failed",
+      outcome: "spec_generation_failed",
+    });
+  });
+});
+
+/** Another writer takes `journal` to v2 — the competing activation this run races. */
+function activateCompetingJournalV2(): void {
+  const journal = journalCapabilityRow();
+  compareAndSwapCapability(
+    journalCapabilityRow({
+      version: 2,
+      artifacts_path: `capabilities/journal/${journal.incarnation_id}/v2/`,
+    }),
+    {
+      state: "active",
+      capabilityId: journal.id,
+      incarnationId: journal.incarnation_id,
+      version: 1,
+    },
+    env.conns.readwrite,
+  );
+}
+
+describe("a stale target", () => {
+  test("a capability that moves during resolution is refused, not evolved", async () => {
+    const { recordMetrics, lifecycles } = makeMetricsRecorder();
+    const { provider, prompts } = makeCandidateProvider(candidateFrom(journalCapabilityRow()));
+    const classified = resolvedBy(journalEvolutionIntent("Add a mood field"), provider);
+    // The registry moves while the classification is still in flight, so the request reaches
+    // the head of its lease holding a target that no longer exists.
+    const racing: Provider = {
+      generate<T>(prompt: string, schema: ZodType<T>) {
+        if (prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)) activateCompetingJournalV2();
+        return classified.generate(prompt, schema);
+      },
+    };
+    const app = makeScratchApp(env, racing, recordMetrics);
+    const { jobId, streamPath } = await submitEvolution(app, "Add a mood field");
+
+    const events = collectSseEvents(await readSse(await app.request(streamPath)));
+
+    expect(eventData(events, "done")).toBe("error");
+    expect(eventData(events, "narration")).toContain(renderBuildEnding(jobId, STALE_BUILD_ENDING));
+    expect(events.map((event) => event.event)).not.toContain("candidate-preview");
+    expect(events.map((event) => event.event)).not.toContain("commit");
+    // Nothing was authored, and the competing version is still the live one: a refusal
+    // changes no product state.
+    expect(prompts).toHaveLength(0);
+    expect(getCapability("journal", env.conns.readonly)?.version).toBe(2);
+    expect(lifecycles.at(-1)).toMatchObject({ lifecycleStatus: "failed", outcome: "stale" });
+  });
+});

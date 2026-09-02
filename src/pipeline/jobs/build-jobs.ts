@@ -1,4 +1,4 @@
-import { renderBuildEnding } from "../../web/fragments.ts";
+import { renderBuildEnding } from "../../server/http/fragments.ts";
 import type { PromptResolutionMemory } from "../build/admission/resolved-request.ts";
 import { FAILED_BUILD_ENDING } from "../streaming/terminal-presentation.ts";
 import type { RestorationDescriptor } from "./restoration.ts";

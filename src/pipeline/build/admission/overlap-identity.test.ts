@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { notesCapabilityRow } from "../../../app/app.test-support.ts";
 import type { CapabilitySpec } from "../../../registry/index.ts";
+import { notesCapabilityRow } from "../../../server/app.test-support.ts";
 import {
   OverlapIdentityValidationError,
   validateBuiltOverlapIdentity,

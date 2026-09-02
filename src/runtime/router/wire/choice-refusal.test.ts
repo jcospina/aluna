@@ -4,10 +4,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-
-import { createApp } from "../../../app/app.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { ChoiceOption } from "../../../registry/index.ts";
+import { createApp } from "../../../server/app.ts";
 import { applyCapabilityTableDdl } from "../../data/index.ts";
 import {
   createCapabilityDataTool,

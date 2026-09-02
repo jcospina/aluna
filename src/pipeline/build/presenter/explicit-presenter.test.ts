@@ -13,6 +13,7 @@
 // attempt, but only while somebody is still listening.
 
 import { afterEach, beforeEach, expect, test } from "bun:test";
+import type { CommitCapabilityResult } from "../../../builder/index.ts";
 import {
   createScratchDbEnv,
   makeMetricsRecorder,
@@ -20,9 +21,8 @@ import {
   notesCapabilityRow,
   type ScratchDbEnv,
   teardownScratchDbEnv,
-} from "../../../app/app.test-support.ts";
-import type { CommitCapabilityResult } from "../../../builder/index.ts";
-import { renderBuildEnding } from "../../../web/index.ts";
+} from "../../../server/app.test-support.ts";
+import { renderBuildEnding } from "../../../server/http/index.ts";
 import type { BuildJob, SendBuildEvent } from "../../jobs/build-jobs.ts";
 import { STALE_BUILD_ENDING } from "../../streaming/terminal-presentation.ts";
 import type { CoreBuildTerminal } from "../core-builder.ts";

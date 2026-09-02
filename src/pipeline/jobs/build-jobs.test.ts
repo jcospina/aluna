@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { renderBuildEnding } from "../../web/fragments.ts";
+import { renderBuildEnding } from "../../server/http/fragments.ts";
 import { FAILED_BUILD_ENDING } from "../streaming/terminal-presentation.ts";
 import { createBuildJobQueue } from "./build-jobs.ts";
 

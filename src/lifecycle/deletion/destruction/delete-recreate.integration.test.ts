@@ -5,6 +5,13 @@
 
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
+import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { getCapability, insertCapabilityDeletionTombstone } from "../../../registry/index.ts";
+import {
+  formBody,
+  install,
+  notesRow,
+} from "../../../runtime/router/dispatch/router.test-support.ts";
 import {
   BEHAVIORAL_SUITE,
   createScratchDbEnv,
@@ -17,14 +24,7 @@ import {
   runPromptBuild,
   type ScratchDbEnv,
   teardownScratchDbEnv,
-} from "../../../app/app.test-support.ts";
-import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { getCapability, insertCapabilityDeletionTombstone } from "../../../registry/index.ts";
-import {
-  formBody,
-  install,
-  notesRow,
-} from "../../../runtime/router/dispatch/router.test-support.ts";
+} from "../../../server/app.test-support.ts";
 
 setDefaultTimeout(30_000);
 

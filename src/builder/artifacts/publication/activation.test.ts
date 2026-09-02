@@ -2,7 +2,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:te
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createApp } from "../../../app/app.ts";
 import { deliverActivatedPresentation } from "../../../pipeline/streaming/terminal-presentation.ts";
 import {
   finalizeGenerationLifecycleFailure,
@@ -15,7 +14,8 @@ import { runMigrations } from "../../../platform/persistence/migrations.ts";
 import { getCapability } from "../../../registry/index.ts";
 import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
 import { applyCapabilityTableDdl } from "../../../runtime/data/index.ts";
-import { renderCachedCapabilityCommitSwap } from "../../../web/index.ts";
+import { createApp } from "../../../server/app.ts";
+import { renderCachedCapabilityCommitSwap } from "../../../server/http/index.ts";
 import { gateInput, generatedUnitsFor, notesSpec } from "../../gate/gate.test-support.ts";
 import { type CapabilityGateResult, runCapabilityGate } from "../../gate/gate.ts";
 import { activatePublishedSnapshot, expectedActiveCapability } from "./activation.ts";
@@ -185,7 +185,7 @@ describe("activatePublishedSnapshot — point of no return", () => {
     // The evolution kept the capability's label, and the slot still comes back — it
     // carries the version a rename is bound to, and a desk left holding the old one
     // refuses every rename of this capability until the page is reloaded (5.9/01).
-    // `src/web/fragments.test.ts` pins the same property on the renderer in isolation;
+    // `src/server/http/fragments.test.ts` pins the same property on the renderer in isolation;
     // proving it here keeps it true downstream of a *real* activation, where
     // `previousLabel` comes off the pointer swap rather than a test argument.
     expect(commit.previousLabel).toBe("Notes");

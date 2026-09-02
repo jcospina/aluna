@@ -214,7 +214,7 @@ describe("the address names the capability, and the desk says what exists", () =
 
   test("the selector the module looks for is the one the server writes", () => {
     expect(CAPABILITY_LOGO_SELECTOR).toBe("[data-capability-logo]");
-    expect(read("src/web/fragments.ts")).toContain("data-capability-logo");
+    expect(read("src/server/http/fragments.ts")).toContain("data-capability-logo");
   });
 });
 

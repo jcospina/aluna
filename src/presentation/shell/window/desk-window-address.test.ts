@@ -18,7 +18,7 @@ import {
   replaceAddress,
   WINDOW_TOOK_CAPABILITY_EVENT,
 } from "#shell/desk-window.js";
-import { renderCapabilityLogo } from "../../../web/fragments.ts";
+import { renderCapabilityLogo } from "../../../server/http/fragments.ts";
 
 // The address, and the whole of what it may say. `/capability/:id` names the capability
 // in the window and nothing below it; a search term, an open record and a half-typed edit
@@ -198,7 +198,7 @@ describe("the address names the capability and nothing else", () => {
     expect(SHELL).toMatch(
       /hx-post="\/prompt"[\s\S]{0,300}hx-target="#spec-build-output"[\s\S]{0,120}hx-swap="beforeend"/,
     );
-    expect(read("src/web/fragments.ts")).toContain(`${ACTIVE_CAPABILITY_ATTRIBUTE}="`);
+    expect(read("src/server/http/fragments.ts")).toContain(`${ACTIVE_CAPABILITY_ATTRIBUTE}="`);
     // The glue reads it back the same way everywhere it reads it — the restoration
     // descriptor names what a build displaces, so it may not find the nested copy either.
     expect(GLUE).not.toContain('document.querySelector("[data-active-capability-id]")');

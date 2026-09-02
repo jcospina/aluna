@@ -7,6 +7,8 @@
 // repairs count as regeneration even though the caller could not have known about them.
 
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
+import type { CapabilitySpec } from "../../../../../registry/index.ts";
+import { deriveCapabilityTableDdl } from "../../../../../runtime/data/index.ts";
 import {
   BEHAVIORAL_SUITE as FULL_BEHAVIORAL_SUITE,
   CREATE_HANDLER as FULL_CREATE_HANDLER,
@@ -16,9 +18,7 @@ import {
   READ_HANDLER as FULL_READ_HANDLER,
   SEARCH_HANDLER as FULL_SEARCH_HANDLER,
   UPDATE_HANDLER as FULL_UPDATE_HANDLER,
-} from "../../../../../app/app.test-support.ts";
-import type { CapabilitySpec } from "../../../../../registry/index.ts";
-import { deriveCapabilityTableDdl } from "../../../../../runtime/data/index.ts";
+} from "../../../../../server/app.test-support.ts";
 import {
   DEFAULT_BEHAVIORAL_SUITE,
   type FullBehavioralTestSuite,

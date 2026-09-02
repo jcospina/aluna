@@ -23,7 +23,7 @@ import {
   RUN_LEAVING_BACK_ATTRIBUTE,
   RUN_LEAVING_GO_ATTRIBUTE,
   renderBuildSubscriber,
-} from "../../web/fragments.ts";
+} from "../../server/http/fragments.ts";
 import { code as stripComments } from "../safety/source.test-support.ts";
 
 // Leaving a live build or evolution warns first, and confirming ends it once (PLAN
@@ -273,7 +273,9 @@ describe("the three navigations that ask", () => {
     // view (`desk-logos.js`); it takes nothing away, so it is owed no question. It
     // carries none of the capability-logo marking the press rule keys off, which is what
     // keeps it out of this by construction (PLAN decision 3).
-    const tile = /function renderProvisionalLogo\([\s\S]*?\n\}/.exec(read("src/web/fragments.ts"));
+    const tile = /function renderProvisionalLogo\([\s\S]*?\n\}/.exec(
+      read("src/server/http/fragments.ts"),
+    );
     expect(tile?.[0], "no `renderProvisionalLogo`").toBeDefined();
     expect(tile?.[0]).not.toContain("data-capability-logo");
     expect(code("public/desk-logos.js")).toContain("revealBuildNarration(root, buildId)");

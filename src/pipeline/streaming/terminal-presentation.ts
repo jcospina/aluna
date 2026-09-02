@@ -1,6 +1,6 @@
 import { CapabilityIdReservedError } from "../../registry/index.ts";
-import type { Send } from "../../sse/index.ts";
-import { renderBuildEnding } from "../../web/fragments.ts";
+import { renderBuildEnding } from "../../server/http/fragments.ts";
+import type { Send } from "../../server/sse/index.ts";
 import { buildDemoErrorPreview } from "./previews.ts";
 
 export const DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS = 2_000;

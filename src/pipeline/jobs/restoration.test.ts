@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-
+import { insertCapability } from "../../registry/index.ts";
 import {
   createScratchDbEnv,
   notesCapabilityRow,
   type ScratchDbEnv,
   teardownScratchDbEnv,
-} from "../../app/app.test-support.ts";
-import { insertCapability } from "../../registry/index.ts";
+} from "../../server/app.test-support.ts";
 import { captureRestorationDescriptor, renderRestorationFragment } from "./restoration.ts";
 
 describe("complete-View restoration descriptor", () => {

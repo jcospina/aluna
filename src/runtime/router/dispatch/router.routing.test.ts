@@ -3,8 +3,8 @@
 // handler kept friendly. Shared setup and fixtures live in router.test-support.ts.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createApp } from "../../../app/app.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { createApp } from "../../../server/app.ts";
 import type { CapabilityContext, CapabilityInput } from "../contract.ts";
 import {
   boomRow,

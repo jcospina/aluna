@@ -5,7 +5,7 @@
  * `bun --watch src/index.ts` cannot be used here. Bun's watcher restarts the
  * process whenever *any* file in the module graph changes, and a capability's
  * generated Handler files under `capabilities/` enter that graph the moment the
- * router dynamically imports them (src/router/router.ts). Generated artifacts are
+ * router dynamically imports them (src/runtime/router/dispatch/router.ts). Generated artifacts are
  * runtime data, not source, and the platform rewrites them while it is serving:
  * a build writes a new incarnation, an evolution replaces one, and permanent
  * deletion removes one outright.

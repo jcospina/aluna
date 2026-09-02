@@ -1,7 +1,7 @@
 import type { CapabilityRow } from "../../registry/index.ts";
 import { canonicalCapabilityLabel, SQL_NAME_PATTERN } from "../../registry/index.ts";
-import { escapeHtml } from "../../web/html.ts";
-import { capabilityLogoElementId, renderPromptNotice } from "../../web/index.ts";
+import { escapeHtml } from "../../server/http/html.ts";
+import { capabilityLogoElementId, renderPromptNotice } from "../../server/http/index.ts";
 
 function deletionUrl(capabilityId: string): string {
   return `/capability-deletion/${encodeURIComponent(capabilityId)}`;

@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-
-import { createApp } from "../../../app/app.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { createApp } from "../../../server/app.ts";
 import { createReadGateCoordinator } from "../../concurrency/read-gates.ts";
 import type { CapabilityContext, CapabilityHandler } from "../contract.ts";
 import {

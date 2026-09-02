@@ -16,7 +16,7 @@ import type {
   UnitGenerationAttempt,
   UnitGenerationObserver,
 } from "../../builder/index.ts";
-import type { Send } from "../../sse/index.ts";
+import type { Send } from "../../server/sse/index.ts";
 import {
   buildUnitsPreview,
   type DemoUnitPreview,

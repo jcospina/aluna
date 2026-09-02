@@ -7,7 +7,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { startPromptBar } from "#shell/prompt-bar.js";
-import { NOT_FOUND_NOTICE } from "../../../web/index.ts";
+import { NOT_FOUND_NOTICE } from "../../../server/http/index.ts";
 
 /**
  * As much of a document as this rule reaches for, over one recording slot. Every write to

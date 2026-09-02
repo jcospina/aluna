@@ -11,7 +11,7 @@ import {
   startDeskLogos,
 } from "#shell/desk-logos.js";
 import { WINDOW_CONTENT_ID } from "#shell/desk-window.js";
-import { renderBuildSubscriber, renderProvisionalLogo } from "../../../web/fragments.ts";
+import { renderBuildSubscriber, renderProvisionalLogo } from "../../../server/http/fragments.ts";
 
 /**
  * A document small enough to run the tile's rules in Bun. They need four DOM facts and no

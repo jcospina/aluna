@@ -6,7 +6,7 @@
 // would spend money on every `bun test` run. The real streamed, structured
 // round-trip is proven by *running the app*: type a prompt into the shell's prompt
 // bar and watch the spec stream in (`POST /prompt` → `GET /build/:id/stream`,
-// src/app/app.ts). That path's own wiring is covered without spend in the
+// src/server/app.ts). That path's own wiring is covered without spend in the
 // src/app/app.*.test.ts files, which drive it through a fake `Provider` — the same
 // fakeability the contract was built for (contract.test.ts). Non-conforming output
 // surfacing on `.object` is the contract's guarantee (contract.test.ts), inherited here

@@ -53,7 +53,7 @@ function inlineRules(path: string): Rule[] {
  * cards through the real adapter, and carries an inline `<style>` of its own that lands
  * after the seam. A guard that reads only `public/` would not see a border declared there.
  */
-const EMBEDDED_PAGES = ["src/builder/units/few-shot-gallery-preview.ts"];
+const EMBEDDED_PAGES = ["src/server/dev-surfaces/few-shot-gallery-preview.ts"];
 
 /** The shell bridge, plus every inline stylesheet a page of ours carries. */
 function shellRules(): Rule[] {
@@ -141,7 +141,7 @@ describe("the ink seam holds in the shipped product", () => {
   test("every page that loads the shell bridge loads the ink runtime", () => {
     const surfaces = [
       ...SHELL_PAGES.map((page) => `public/${page}`),
-      "src/builder/units/few-shot-gallery-preview.ts",
+      "src/server/dev-surfaces/few-shot-gallery-preview.ts",
     ];
     for (const surface of surfaces) {
       const source = read(surface);

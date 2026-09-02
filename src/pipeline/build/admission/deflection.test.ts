@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { notesCapabilityRow } from "../../../app/app.test-support.ts";
+import { notesCapabilityRow } from "../../../server/app.test-support.ts";
 import { duplicateIntentForPrompt } from "./deflection.ts";
 
 const contacts = notesCapabilityRow({

@@ -151,7 +151,7 @@ async function buildPresentationAdapter(
 //
 // The label is the effective one — what the user renamed this to, or what the model
 // authored. The place a person goes back to should be called what it is called on the
-// desk, and the same canonical reading serves the collection (`src/web/cached-view.ts`).
+// desk, and the same canonical reading serves the collection (`src/server/http/cached-view.ts`).
 function renderableFromRow(row: CapabilityRow): RenderableCapability {
   return {
     id: row.id,

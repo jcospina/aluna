@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
-import {
-  createScratchDbEnv,
-  notesCapabilityRow,
-  teardownScratchDbEnv,
-} from "../../app/app.test-support.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
 import {
@@ -12,6 +7,11 @@ import {
   insertCapability,
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
+import {
+  createScratchDbEnv,
+  notesCapabilityRow,
+  teardownScratchDbEnv,
+} from "../../server/app.test-support.ts";
 import { classifyIntentWithUsage } from "./resolver.ts";
 
 describe("intent resolver active catalog", () => {

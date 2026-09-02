@@ -24,7 +24,7 @@ import {
   BUILDING_WINDOW_TITLE,
   renderBuildWindowTitle,
   renderProvisionalLogo,
-} from "../../web/index.ts";
+} from "../../server/http/index.ts";
 import { classifyIntentWithUsage, type IntentClassification } from "../intent/index.ts";
 import type {
   BuildPipeline,

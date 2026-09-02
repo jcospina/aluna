@@ -45,7 +45,7 @@ describe("the desk ground", () => {
       ...under("public", "*.html"),
       ...under("public/css", "*.css"),
       "public/app.css",
-      "src/web/fragments.ts",
+      "src/server/http/fragments.ts",
     ];
     for (const page of surfaces) {
       const source = read(page).replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\//g, "");
@@ -120,7 +120,8 @@ describe("the clearance is one number", () => {
     ...under("public/css", "*.css"),
     ...under("design/scripts", "**/*.js"),
     ...under("public", "*.js"),
-    ...under("src/web", "*.ts"),
+    ...under("src/server/http", "*.ts"),
+    ...under("src/server/dev-surfaces", "*.ts"),
     "public/app.css",
     "public/index.html",
   ];

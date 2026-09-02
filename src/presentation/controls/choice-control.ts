@@ -22,7 +22,7 @@ import {
 } from "../../registry/index.ts";
 import { choiceInputForField } from "../../runtime/field-types/choice-input.ts";
 import { ALUNA_PRESENT_MARKER } from "../../runtime/router/wire/wire-protocol.ts";
-import { escapeHtml } from "../../web/html.ts";
+import { escapeHtml } from "../../server/http/html.ts";
 import { type FieldChrome, fieldChrome } from "../fields/field-chrome.ts";
 
 /**

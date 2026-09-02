@@ -13,8 +13,8 @@ import {
   capabilityDeleteErrorId,
   capabilityEditErrorId,
 } from "../../../presentation/index.ts";
-import { escapeHtml } from "../../../web/html.ts";
-import { NOT_FOUND_NOTICE } from "../../../web/index.ts";
+import { escapeHtml } from "../../../server/http/html.ts";
+import { NOT_FOUND_NOTICE } from "../../../server/http/index.ts";
 import { ReadGateClosingError } from "../../concurrency/read-gates.ts";
 import type {
   ChoiceDisabledError,

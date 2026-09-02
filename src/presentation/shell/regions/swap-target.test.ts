@@ -9,7 +9,7 @@ import {
   type SwapTargetResolver,
   startSwapTargetGuard,
 } from "#shell/swap-target.js";
-import { renderBuildSubscriber } from "../../../web/fragments.ts";
+import { renderBuildSubscriber } from "../../../server/http/fragments.ts";
 
 /**
  * A node small enough to run the rule in Bun. The guard needs three DOM facts and no more

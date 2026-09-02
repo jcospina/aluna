@@ -33,7 +33,7 @@
 // with the other record mutations.
 
 import { ALUNA_RECORD_ID_MARKER } from "../../runtime/router/wire/wire-protocol.ts";
-import { escapeHtml } from "../../web/html.ts";
+import { escapeHtml } from "../../server/http/html.ts";
 import {
   capabilityDeleteConfirmationId,
   capabilityDeleteErrorId,

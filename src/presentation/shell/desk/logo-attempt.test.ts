@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { disarmLogoAttempt, startLogoAttemptDisarm } from "#shell/logo-attempt.js";
-import { DESK_LOGO_LAYER_ELEMENT_ID, renderCapabilityLogo } from "../../../web/fragments.ts";
+import {
+  DESK_LOGO_LAYER_ELEMENT_ID,
+  renderCapabilityLogo,
+} from "../../../server/http/fragments.ts";
 
 // The rule under test is "only a fresh desk render or a newly activated tile may arm one
 // attempt" (ADR-0007). The server holds most of it; this holds the one arming source the

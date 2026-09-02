@@ -320,7 +320,7 @@ describe("the desk breaks at 720px and forms at 620px", () => {
     // `layout.css` and `doc.css` ship with the token layer and carry 900px and 760px.
     // They are the handbook's own document furniture, and the shell renders none of it —
     // so those numbers are the handbook's page, not a third breakpoint on the desk.
-    const shell = read("public/index.html") + read("src/web/fragments.ts");
+    const shell = read("public/index.html") + read("src/server/http/fragments.ts");
     for (const selector of ["cols", "numbers", "gallery"]) {
       expect(shell, `the shell renders \`.${selector}\``).not.toMatch(
         new RegExp(`class="[^"]*\\b${selector}\\b`),
