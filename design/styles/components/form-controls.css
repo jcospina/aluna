@@ -84,10 +84,6 @@
   color: var(--ink-3);
 }
 
-/*
- * The ring belongs to the shell, so the control inside it must not draw a
- * second one 2px further in.
- */
 /* The shell rings; nothing inside it ever does. */
 .field__control :is(input, textarea, select):focus {
   outline: none;
@@ -315,12 +311,13 @@
 /* ── Choice controls ──────────────────────────────────────────────────────── */
 
 /*
- * The real input is hidden and stays the thing focused, checked and submitted; the
- * mark beside it is what gets drawn. `appearance: none` on the input itself is a
- * dead end for the same reason `<select>` is — an input cannot hold the SVG layers.
- */
+ * The real input is hidden and stays the thing focused, checked and submitted; the mark
+ * beside it is drawn instead — `appearance: none` is a dead end, an input holds no layers.
+ * The option is positioned so that box anchors to its own label, not to some ancestor
+ * outside the form's scroller, which the escaped box would then grow. */
 
 .choice {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
@@ -417,6 +414,13 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+/* Radios wrap along a row: the options are short, and a column of them spends the form's
+ * whole width one word at a time. The wider gap runs along a line, so neighbours stay apart. */
+.choice-set[role="radiogroup"] {
+  flex-flow: row wrap;
+  gap: var(--space-3) var(--space-5);
 }
 
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
@@ -535,12 +539,10 @@
 }
 
 /*
- * Pressing displaces the button 2px into the paper — a hard offset with no blur and
- * no lift, the same physics the rest of the surface uses. This is the only rule in the
- * manifest that moves a button, so a disabled one needs no counter-rule to sit still:
- * it is excluded here rather than moved back afterwards. The 2px is `--travel-press`
- * rather than a number, which is what stops it jumping for a reader who asked for less
- * motion.
+ * Pressing displaces the button 2px into the paper — a hard offset with no blur or lift,
+ * the same physics the rest of the surface uses. The only rule in the manifest that moves
+ * a button, so a disabled one is excluded here rather than moved back afterwards; and the
+ * 2px is `--travel-press`, which stops it jumping for a reader who asked for less motion.
  */
 .btn:active:not(:disabled) {
   translate: var(--travel-press) var(--travel-press);

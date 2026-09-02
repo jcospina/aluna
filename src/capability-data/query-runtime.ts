@@ -125,6 +125,20 @@ function actionRecord(
   });
 }
 
+/**
+ * How many ids one rehydration statement binds.
+ *
+ * The rehydration used to emit one bind parameter per matched row, so the whole of a
+ * capability's collection arrived as a single `IN (?, ?, …)` — and SQLite bounds how many
+ * parameters a statement may carry. Past that bound the read does not slow down, it stops:
+ * a capability that reached the limit became permanently unreadable, and there is no route
+ * back from that except deleting records the read cannot show you.
+ *
+ * Well under every version's limit (999 on the oldest builds still in the wild, 32,766 on
+ * current ones), and large enough that an ordinary collection is one statement.
+ */
+const REHYDRATION_BATCH = 500;
+
 function rehydrateCanonicalRows(
   spec: CapabilitySpec,
   ids: readonly string[],
@@ -133,9 +147,18 @@ function rehydrateCanonicalRows(
   if (ids.length === 0) return new Map();
   const { tableName } = deriveCapabilityTableDdl(spec);
   const columns = ["id", "created_at", "extra", ...spec.schema.fields.map(({ name }) => name)];
-  const sql = `SELECT ${columns.map(sqlIdentifier).join(", ")} FROM ${sqlIdentifier(tableName)} WHERE "id" IN (${ids.map(() => "?").join(", ")})`;
-  const rows = database.query(sql).all(...ids) as StoredCapabilityRow[];
-  return new Map(rows.map((row) => [String(row.id), row]));
+  const select = `SELECT ${columns.map(sqlIdentifier).join(", ")} FROM ${sqlIdentifier(tableName)} WHERE "id" IN (`;
+  const rehydrated = new Map<string, StoredCapabilityRow>();
+  // One statement per batch, and every batch inside the caller's read snapshot, so the set
+  // of rows is still the one selection saw.
+  for (let from = 0; from < ids.length; from += REHYDRATION_BATCH) {
+    const batch = ids.slice(from, from + REHYDRATION_BATCH);
+    const sql = `${select}${batch.map(() => "?").join(", ")})`;
+    for (const row of database.query(sql).all(...batch) as StoredCapabilityRow[]) {
+      rehydrated.set(String(row.id), row);
+    }
+  }
+  return rehydrated;
 }
 
 function withReadSnapshot<T>(database: Database, operation: () => T): T {

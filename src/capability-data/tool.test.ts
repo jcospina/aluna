@@ -68,6 +68,39 @@ describe("split capability data ports", () => {
     });
   });
 
+  // The rehydration used to bind one parameter per matched row, so the whole collection
+  // arrived as a single `IN (?, ?, …)` — and SQLite bounds how many parameters a statement
+  // may carry. Past that bound the read does not slow down, it stops, and there is no route
+  // back except deleting records the read cannot show you.
+  test("a collection larger than one statement can bind still reads, whole and in order", () => {
+    withFileDatabase((databases) => {
+      const notes = notesSpec();
+      applyCapabilityTableDdl(notes, databases.readwrite);
+      const mutation = createCapabilityMutationPort(notes, databases.readwrite);
+      // Comfortably past the batch, and past SQLite's oldest 999-parameter limit.
+      const created = Array.from({ length: 1200 }, (_, index) =>
+        materializeCapabilityActionRecord(
+          mutation.create({ text: `Note ${index}`, pinned: false }),
+        ),
+      );
+      const query = createCapabilityQueryPort(databases.readonly, { target: notes });
+
+      const rows = query.records({
+        sql: 'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "rowid"',
+      });
+
+      expect(rows).toHaveLength(created.length);
+      expect(rows.map(({ record }) => record.fields.text).slice(0, 3)).toEqual([
+        "Note 0",
+        "Note 1",
+        "Note 2",
+      ]);
+      // The selection's own order survives the batching, and every row is a real one.
+      expect(rows.at(-1)?.record.fields.text).toBe(`Note ${created.length - 1}`);
+      expect(new Set(rows.map(({ record }) => record.fields.text)).size).toBe(created.length);
+    });
+  });
+
   test("Action scope admits only the target and declared dependency tables", () => {
     withFileDatabase((databases) => {
       const notes = notesSpec();

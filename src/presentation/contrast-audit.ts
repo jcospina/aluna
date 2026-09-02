@@ -95,6 +95,11 @@ export const AUDITED_SHEETS: readonly string[] = [
   "src/app/region-lifecycle-preview.ts",
   "src/app/swap-target-preview.ts",
   "src/builder/units/few-shot-gallery-preview.ts",
+  // The gallery's exemplars themselves. They carry no `<style>` block — every colour is an
+  // inline `style` attribute — and they are not only rendered at `/demo/few-shot-gallery`
+  // but fed verbatim into the item-renderer prompt as approved examples. An unaudited
+  // failure here is a failure the platform *teaches*.
+  "src/builder/units/few-shot-gallery.ts",
 ];
 
 /**

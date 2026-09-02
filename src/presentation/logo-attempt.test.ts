@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { disarmLogoAttempt, startLogoAttemptDisarm } from "#shell/logo-attempt.js";
-import { renderCapabilityLogo } from "../web/fragments.ts";
+import { DESK_LOGO_LAYER_ELEMENT_ID, renderCapabilityLogo } from "../web/fragments.ts";
 
 // The rule under test is "only a fresh desk render or a newly activated tile may arm one
 // attempt" (ADR-0007). The server holds most of it; this holds the one arming source the
@@ -124,5 +124,13 @@ describe("the module and the markup agree", () => {
     const shell = readFileSync(resolve(import.meta.dir, "../../public/index.html"), "utf8");
 
     expect(shell).toContain('src="/static/logo-attempt.js"');
+  });
+
+  // The element the attempts queue against has to actually be in the shell, or `hx-sync`
+  // names nothing and every tile fires at once again.
+  test("the layer an attempt queues against is the one the shell ships", () => {
+    const shell = readFileSync(resolve(import.meta.dir, "../../public/index.html"), "utf8");
+
+    expect(shell).toContain(`id="${DESK_LOGO_LAYER_ELEMENT_ID}"`);
   });
 });

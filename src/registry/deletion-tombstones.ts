@@ -86,6 +86,25 @@ export function listCapabilityDeletionTombstones(
   return stored.map(parseStoredTombstone);
 }
 
+/**
+ * A build that reached a capability id a tombstone still reserves.
+ *
+ * Raised as early as the id is known rather than at the activation CAS. The lease-head
+ * check can only test an id the *resolver* named, which it does not for an ordinary "build
+ * me a notes app" — so a rebuild of a capability whose deletion cleanup is wedged used to
+ * generate its spec, its six units, run the whole Gate and publish its artifacts, and only
+ * then be refused by the CAS. Every time, for as long as the tombstone stood.
+ */
+export class CapabilityIdReservedError extends Error {
+  override readonly name = "CapabilityIdReservedError";
+  readonly capabilityId: string;
+
+  constructor(capabilityId: string) {
+    super(`Capability id "${capabilityId}" is reserved by a deletion whose cleanup is owed.`);
+    this.capabilityId = capabilityId;
+  }
+}
+
 export function isCapabilityIdReservedByDeletion(
   capabilityId: string,
   database: Database,

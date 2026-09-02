@@ -58,7 +58,21 @@ function windowDouble(overrides: { narrating?: boolean; logo?: object | null } =
   };
 }
 
-const deleteItem = { getAttribute: () => "coffee_tasting_diary" };
+/**
+ * The pressed control, with the three DOM facts the release scope reads off it. It is
+ * connected while it is on the desk and reports itself gone once the swap that answers the
+ * press has taken the logo slot it sits in.
+ */
+function doorwayItem() {
+  return {
+    getAttribute: () => "coffee_tasting_diary",
+    isConnected: true,
+    closest: () => null,
+    contains: () => false,
+  };
+}
+
+const deleteItem = doorwayItem();
 
 describe("a press on desk furniture that is about to fill the window", () => {
   test("is the mark the server writes on Delete", () => {
@@ -134,11 +148,31 @@ describe("a press on desk furniture that is about to fill the window", () => {
   test("is one rule, shared with the other press that stands a window up first", () => {
     const root = documentDouble();
     const stood: string[] = [];
-    const asking = { id: "logo" };
+    const asking = doorwayItem();
 
     whenTheRequestFails(root.root as never, asking as never, () => stood.push("put away"));
     root.settle(asking, false);
 
     expect(stood).toEqual(["put away"]);
+    expect(root.listening).toBe(0);
+  });
+
+  // htmx fires `htmx:afterRequest` *after* the swap, so a swap that detached the pressed
+  // control left the event bubbling from a node no longer in the document — it never
+  // reached the listener, which stayed on the document for the life of the page holding the
+  // detached subtree with it.
+  test("the listener goes when the control that made the request leaves the document", async () => {
+    const { releaseRegionContent } = await import("#shell/region-scope.js");
+    const root = documentDouble();
+    const asking = doorwayItem();
+
+    whenTheRequestFails(root.root as never, asking as never, () => {});
+    expect(root.listening).toBe(1);
+
+    // The deletion's out-of-band `delete:` takes the whole logo slot, and the doorway is
+    // inside it.
+    releaseRegionContent(asking as never);
+
+    expect(root.listening).toBe(0);
   });
 });

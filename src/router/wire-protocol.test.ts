@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "../capability-data/index.ts";
 import { renderEditForm } from "../presentation/field-renderer.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -257,6 +258,39 @@ describe("reserved capability wire protocol — the rendered form, round-tripped
     await expect(
       parseCapabilityRequest(get("read", [["q", "value"]]), "read", spec()),
     ).rejects.toThrow(/not accepted for read/i);
+  });
+});
+
+// The generated search shape runs the FFI normalizer once per (row × term × field), and
+// `bun:sqlite` runs it synchronously — so the 10s handler deadline cannot fire, its timer
+// callback being unable to run while the query is on the stack. The key of a search
+// parameter was validated and the value never was.
+describe("reserved capability wire protocol — the search value is bounded", () => {
+  test("refuses a query longer than the admitted length", async () => {
+    const long = "a".repeat(MAX_SEARCH_QUERY_LENGTH + 1);
+
+    await expect(
+      parseCapabilityRequest(get("search", [["q", long]]), "search", spec()),
+    ).rejects.toThrow(WireProtocolError);
+    // The boundary itself is admitted, so the bound is a bound and not an off-by-one.
+    const atLimit = "a".repeat(MAX_SEARCH_QUERY_LENGTH);
+    expect(
+      (await parseCapabilityRequest(get("search", [["q", atLimit]]), "search", spec())).input.values
+        .q,
+    ).toBe(atLimit);
+  });
+
+  test("refuses more terms than the admitted count, counted the way the SQL splits them", async () => {
+    const tooMany = Array.from({ length: MAX_SEARCH_TERMS + 1 }, (_, i) => `t${i}`).join(" ");
+    const atLimit = Array.from({ length: MAX_SEARCH_TERMS }, (_, i) => `t${i}`).join("  ");
+
+    await expect(
+      parseCapabilityRequest(get("search", [["q", tooMany]]), "search", spec()),
+    ).rejects.toThrow(/at most 16 terms/);
+    expect(
+      (await parseCapabilityRequest(get("search", [["q", atLimit]]), "search", spec())).input.values
+        .q,
+    ).toBe(atLimit);
   });
 });
 

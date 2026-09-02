@@ -42,9 +42,9 @@ export function assertTotalCoverage(committed: CapabilitySpec, candidate: Capabi
 }
 
 // Reduce a spec to only what no change fact explains: canonicalize the whole
-// value, then blank every fact-bearing region. What survives — id, the logo birth
-// facts `subject`/`ground`, tools, and the committed fields' name/type — is the
-// equality the diff cannot manufacture and must never silently ignore.
+// value, then blank every fact-bearing region. What survives — id, all three logo birth
+// facts (`subject`, `ground`, `companion`), tools, and the committed fields' name/type —
+// is the equality the diff cannot manufacture and must never silently ignore.
 // A new admitted top-level key survives here too, so an unextended matrix fails closed
 // rather than dropping it.
 function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<string>): unknown {

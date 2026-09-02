@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { createRecordsRegionRequestCoordinator } from "#shell/records-region-requests.js";
 import {
+  abortTransportUnder,
   CONTENT_REGION_SELECTOR,
   createRegionReleaseRegistry,
   RELEASE_REGION_EVENT,
@@ -254,5 +255,67 @@ describe("the shell's classic-script glue speaks the release vocabulary", () => 
 
     // The marker the module looks for and the marker the window writes are the same one.
     expect(CONTENT_REGION_SELECTOR).toBe("[data-content-region]");
+  });
+});
+
+/*
+ * The half the release rule's own suite could not reach. `abortTransportIn` used to sit
+ * behind an `instanceof Element` guard, and every node here is a double — so the branch was
+ * structurally excluded from every test, on the acquisition path that runs on every
+ * capability open. It is a rule over two DOM facts now, and this exercises it.
+ */
+describe("the transport half: what an htmx request in flight is asked", () => {
+  function aborting() {
+    const aborted: string[] = [];
+    return {
+      aborted,
+      trigger: (node: Node, eventName: string) => aborted.push(`${node.name}:${eventName}`),
+    };
+  }
+
+  test("every request under the released node is aborted, and nothing else is", () => {
+    const region = new Node("content", "content area");
+    const reading = new Node("canonical read");
+    const idle = new Node("form");
+    const searching = new Node("search");
+    reading.requesting = true;
+    searching.requesting = true;
+    region.append(reading, idle);
+    idle.append(searching);
+
+    const { aborted, trigger } = aborting();
+    expect(abortTransportUnder(region, trigger).map((node) => node.name)).toEqual([
+      "canonical read",
+      "search",
+    ]);
+    expect(aborted).toEqual(["canonical read:htmx:abort", "search:htmx:abort"]);
+  });
+
+  // The canonical read is the region's own content, and when the *region* is what carries
+  // the request there is no descendant to find — a walk that only looked downwards let the
+  // most ordinary abort of all through.
+  test("the released node's own request is aborted first", () => {
+    const region = new Node("content", "content area");
+    const child = new Node("child");
+    region.requesting = true;
+    child.requesting = true;
+    region.append(child);
+
+    const { aborted, trigger } = aborting();
+
+    expect(abortTransportUnder(region, trigger).map((node) => node.name)).toEqual([
+      "content",
+      "child",
+    ]);
+    expect(aborted[0]).toBe("content:htmx:abort");
+  });
+
+  test("a region with nothing in flight asks nothing", () => {
+    const region = new Node("content", "content area");
+    region.append(new Node("list"));
+    const { aborted, trigger } = aborting();
+
+    expect(abortTransportUnder(region, trigger)).toEqual([]);
+    expect(aborted).toEqual([]);
   });
 });

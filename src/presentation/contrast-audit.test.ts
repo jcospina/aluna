@@ -9,6 +9,7 @@ import {
   paletteTokens,
   siteKey,
   statesNoColour,
+  styleSource,
   tokensNamedIn,
   worstContrast,
 } from "./contrast.js";
@@ -104,9 +105,19 @@ function importedSheets(): string[] {
   ];
 }
 
+/**
+ * Whether a source carries style the audit would have to read.
+ *
+ * Asked of the audit's own reader rather than of a substring, which is the whole point:
+ * this check used to look for a literal `<style` and so agreed with the parser only by
+ * coincidence. A file painting entirely through inline `style` attributes — the few-shot
+ * gallery — was invisible to both, and a live AA failure sat in it while being taught to
+ * the model as an approved exemplar. Now a file the parser can read is a file this
+ * requires to be audited, by construction.
+ */
 function carriesAStylesheet(path: string, name: string): boolean {
   if (!/\.(?:html|ts)$/.test(name) || name.endsWith(".test.ts")) return false;
-  return readFileSync(join(ROOT, path), "utf8").includes("<style");
+  return styleSource(path).trim().length > 0;
 }
 
 /** Every source that carries its stylesheet inline instead of linking one. */

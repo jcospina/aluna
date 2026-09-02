@@ -13,8 +13,10 @@
 // because `generate` maps straight onto `streamObject`.
 
 import { describe, expect, test } from "bun:test";
+import type { streamObject as aiStreamObject } from "ai";
+import { z } from "zod";
 
-import { API_KEY_ENV_VAR } from "./config.ts";
+import { API_KEY_ENV_VAR, BASE_URL_ENV_VAR, MODEL_ENV_VAR } from "./config.ts";
 import { createProvider, providerFault, pumpStream, selectWire } from "./spine.ts";
 
 describe("selectWire (the registry, keyed by baseURL)", () => {
@@ -70,6 +72,95 @@ describe("createProvider (failure modes surface clearly)", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+describe("createProvider (stage deadlines)", () => {
+  test("gives every SDK call a deadline signal that settles hung handles", async () => {
+    type StreamObject = typeof aiStreamObject;
+    type StreamObjectInput = Parameters<StreamObject>[0];
+    const never = new Promise<never>(() => undefined);
+    let callSignal: AbortSignal | undefined;
+    let sourceReturned = false;
+    let result:
+      | {
+          readonly object: Promise<unknown>;
+          readonly usage: Promise<unknown>;
+          readonly partialStream: AsyncIterable<unknown>;
+        }
+      | undefined;
+    const callAborted = new Promise<void>((resolve) => {
+      const stalledStreamObject = ((input: StreamObjectInput) => {
+        callSignal = input.abortSignal;
+        input.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+        return {
+          partialObjectStream: {
+            [Symbol.asyncIterator]() {
+              return {
+                next: () => never,
+                return: () => {
+                  sourceReturned = true;
+                  return Promise.resolve({ done: true as const, value: undefined });
+                },
+              };
+            },
+          },
+          object: never,
+          usage: never,
+        };
+      }) as unknown as StreamObject;
+      const provider = createProvider(
+        {
+          [API_KEY_ENV_VAR]: "sk-test-not-used",
+          [BASE_URL_ENV_VAR]: "https://example.test/v1",
+          [MODEL_ENV_VAR]: "test-model",
+        },
+        { generationTimeoutMs: 20, streamObject: stalledStreamObject },
+      );
+      result = provider.generate("wait forever", z.object({ answer: z.string() }));
+    });
+
+    if (!result) throw new Error("The test provider did not expose its result handles.");
+    const streamRead = result.partialStream[Symbol.asyncIterator]().next();
+    await callAborted;
+    await expect(result.object).rejects.toHaveProperty("name", "ProviderStageTimeoutError");
+    await expect(result.usage).rejects.toHaveProperty("name", "ProviderStageTimeoutError");
+    await expect(streamRead).rejects.toHaveProperty("name", "ProviderStageTimeoutError");
+    expect(callSignal?.aborted).toBe(true);
+    await Bun.sleep(0);
+    expect(sourceReturned).toBe(true);
+  });
+
+  test("disposes a successful call's deadline before it can abort later", async () => {
+    type StreamObject = typeof aiStreamObject;
+    type StreamObjectInput = Parameters<StreamObject>[0];
+    let callSignal: AbortSignal | undefined;
+    const cleanStreamObject = ((input: StreamObjectInput) => {
+      callSignal = input.abortSignal;
+      return {
+        partialObjectStream: {
+          [Symbol.asyncIterator]: () => ({
+            next: () => Promise.resolve({ done: true as const, value: undefined }),
+          }),
+        },
+        object: Promise.resolve({ answer: "ready" }),
+        usage: Promise.resolve({ inputTokens: 1, outputTokens: 1, totalTokens: 2 }),
+      };
+    }) as unknown as StreamObject;
+    const provider = createProvider(
+      {
+        [API_KEY_ENV_VAR]: "sk-test-not-used",
+        [BASE_URL_ENV_VAR]: "https://example.test/v1",
+        [MODEL_ENV_VAR]: "test-model",
+      },
+      { generationTimeoutMs: 20, streamObject: cleanStreamObject },
+    );
+    const result = provider.generate("finish", z.object({ answer: z.string() }));
+
+    expect(await result.object).toEqual({ answer: "ready" });
+    expect(await result.usage).toMatchObject({ totalTokens: 2 });
+    await Bun.sleep(30);
+    expect(callSignal?.aborted).toBe(false);
   });
 });
 

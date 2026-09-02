@@ -30,11 +30,18 @@ type ChoiceField = Pick<SpecField, "name" | "type" | "values">;
  * edit; the controls draw the same line from the other side by never marking a record's
  * own value unchoosable.
  */
-export function assertAdmittedChoiceValues(
+/**
+ * The half of the choice contract that depends on the submission alone.
+ *
+ * Split out because it can be answered *before* a generated Handler runs: whether a value
+ * is one the field declares is a fact about the spec and the wire, with nothing held about
+ * the record. The other half — whether a declared option is still open — has to know what
+ * the row is already standing on, so it stays with the mutation port.
+ */
+export function assertDeclaredChoiceValues(
   capabilityId: string,
   fields: readonly ChoiceField[],
   values: Readonly<Record<string, unknown>>,
-  held: Readonly<Record<string, unknown>>,
   action: "create" | "update",
 ): void {
   const undeclared = fields
@@ -43,6 +50,16 @@ export function assertAdmittedChoiceValues(
   if (undeclared.length > 0) {
     throw new InvalidChoiceError(capabilityId, undeclared, action);
   }
+}
+
+export function assertAdmittedChoiceValues(
+  capabilityId: string,
+  fields: readonly ChoiceField[],
+  values: Readonly<Record<string, unknown>>,
+  held: Readonly<Record<string, unknown>>,
+  action: "create" | "update",
+): void {
+  assertDeclaredChoiceValues(capabilityId, fields, values, action);
 
   const retired = fields
     .filter((field) => isRefusedDisabledValue(field, values[field.name], held[field.name]))

@@ -18,6 +18,12 @@ export interface CapabilityRenameExpectation {
   readonly capabilityId: string;
   readonly incarnationId: string;
   readonly version: number;
+  /**
+   * The override the menu opened on — the empty string when the capability had never been
+   * renamed. A rename does not bump the version, so without this two menus opened on the
+   * same version both matched and the second silently overwrote the first.
+   */
+  readonly previousLabel: string;
 }
 
 export interface CapabilityRenameDeps {
@@ -65,7 +71,7 @@ export async function renameCapabilityLabel(
 
   const write = deps.rename ?? renameCapability;
   const row = await deps.mutationCoordinator.withPlatformWrite(
-    () => write(expectation, name, deps.database),
+    () => write({ ...expectation, previousOverride: overrideOf(expectation) }, name, deps.database),
     { signal: deps.signal },
   );
   return row ? { status: "renamed", row } : { status: "stale" };
@@ -95,6 +101,12 @@ function looksRenameable(
   return (
     row !== null &&
     row.incarnation_id === expectation.incarnationId &&
-    row.version === expectation.version
+    row.version === expectation.version &&
+    row.display_label_override === overrideOf(expectation)
   );
+}
+
+/** The stored form of the name the menu opened on: never renamed is `null`, not `""`. */
+function overrideOf(expectation: CapabilityRenameExpectation): string | null {
+  return expectation.previousLabel.length > 0 ? expectation.previousLabel : null;
 }

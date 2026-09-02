@@ -57,7 +57,7 @@ describe("resolver duplicate guard", () => {
     insertCapability(
       notesCapabilityRow({
         id: "personal_notes",
-        label: '<img src=x onerror="alert(1)">',
+        label: "Tom & Jerry",
         incarnation_id: "22222222-2222-4222-8222-222222222222",
         artifacts_path: "capabilities/personal_notes/22222222-2222-4222-8222-222222222222/v1/",
         seed: 184206,
@@ -85,8 +85,11 @@ describe("resolver duplicate guard", () => {
     const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
 
     expect(events.map((event) => event.event)).toEqual(["metrics-preview", "fragment", "done"]);
-    expect(eventData(events, "fragment")).toContain("&lt;img");
-    expect(eventData(events, "fragment")).not.toContain("<img");
+    // The name reaches the sentence escaped. It is a name a person could really choose;
+    // one shaped like markup is refused as a name outright now (`registry/labels.ts`) and
+    // falls back to the capability's own id, so it could not prove the escape.
+    expect(eventData(events, "fragment")).toContain("Tom &amp; Jerry");
+    expect(eventData(events, "fragment")).not.toMatch(/Tom & Jerry/);
     expect(prompts).toEqual([]);
     expect(metrics.rows).toEqual([]);
     expect(metrics.resolutionRows[0]?.resolver.intent).toMatchObject({

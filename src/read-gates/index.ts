@@ -368,6 +368,37 @@ export class ReadGateCoordinator {
   }
 
   /**
+   * Retire a gate whose capability has already gone, whatever state the cell is in.
+   *
+   * {@link finalizeClose} is the ordinary ending and it is conditional — it refuses unless
+   * the gate is the one this lease drained and is still at zero readers, which is what stops
+   * it being a way to retire a live capability. After the deletion's commit those conditions
+   * protect nothing: the registry row is a tombstone and the table is dropped, so a reader
+   * still holding a token is holding one for a lifetime that has ended.
+   *
+   * Refusing there left the cell in `closing` for the life of the process — harmless in
+   * itself, and a state machine with a square nothing can leave. This is the square's exit:
+   * any straggler is told the gate is closing, and the gate is retired the way a normal
+   * finalize retires it, so a stale catalog can never bring it back.
+   */
+  retireAfterCommit(lease: ReadGateCloseLease): boolean {
+    const key = this.closeLeases.get(lease);
+    if (!key) return false;
+    const gate = this.gates.get(key);
+    for (const tokens of gate?.readers ?? []) {
+      this.activeTokenSets
+        .get(tokens)
+        ?.controller.abort(
+          new ReadGateClosingError("Capability incarnation was deleted while it was read."),
+        );
+    }
+    this.closeLeases.delete(lease);
+    this.gates.delete(key);
+    this.retired.add(key);
+    return true;
+  }
+
+  /**
    * Boot-only recovery. Process-local readers died with the crashed process, so
    * rebuild exactly the active registry catalog as reopened zero-reader gates.
    */

@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { lstatSync, realpathSync, rmSync } from "node:fs";
+import { lstatSync, readdirSync, realpathSync, rmdirSync, rmSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
@@ -242,7 +242,15 @@ export async function destroyCapability(
     input.faults?.afterManifestCollected?.();
     payloads = commitDeletionTombstone(input, manifest);
     committed = true;
-    if (!input.readGates.finalizeClose(closeLease)) {
+    // Past the point of no return, so the gate has to go whatever state it is in. The
+    // ordinary finalize refuses unless the gate is still the drained one at zero readers —
+    // right before the commit, and protecting nothing after it, since the row is a
+    // tombstone and the table is dropped. Refusing there left the cell in `closing` for the
+    // life of the process. Only a lease this coordinator has never heard of is still a bug.
+    if (
+      !input.readGates.finalizeClose(closeLease) &&
+      !input.readGates.retireAfterCommit(closeLease)
+    ) {
       throw new Error("Committed capability deletion could not retire its drained read gate.");
     }
     await input.faults?.afterCommit?.();
@@ -297,6 +305,7 @@ export function createArtifactCleanupAdapter(
         tombstone.incarnationId,
       );
       rmSync(directory, { force: true, recursive: true });
+      removeEmptyCapabilityDirectory(artifactsRoot, tombstone.capabilityId);
     },
   };
 }
@@ -314,6 +323,28 @@ export function createProductionCapabilityDeletionAdapters(
   artifactsRoot = DEFAULT_ARTIFACTS_ROOT,
 ): readonly OwnedResourceCleanupAdapter[] {
   return [createArtifactCleanupAdapter(artifactsRoot)];
+}
+
+/**
+ * Take the capability's own directory with the last incarnation inside it.
+ *
+ * The adapter removes `capabilities/<id>/<incarnation>/` and used to stop there, so every
+ * capability built once and deleted left `capabilities/<id>/` behind, empty, for ever —
+ * nothing else on the deletion path or in artifact reconciliation removes an id-level
+ * directory. Only when it is empty: an evolution keeps earlier incarnations beside the live
+ * one, and a deletion of one of them must not take the others with it.
+ *
+ * Failure is not an error. The directory is not owned state — the incarnation inside it was,
+ * and it is gone — so a permission or a race here must not turn a completed deletion into
+ * an owed cleanup that retries for ever.
+ */
+function removeEmptyCapabilityDirectory(artifactsRoot: string, capabilityId: string): void {
+  const directory = assertSafeArtifactPath(artifactsRoot, [capabilityId]);
+  try {
+    if (readdirSync(directory).length === 0) rmdirSync(directory);
+  } catch {
+    // Gone already, never there, or not empty: all three are the state this wanted.
+  }
 }
 
 function assertSafeArtifactDirectory(

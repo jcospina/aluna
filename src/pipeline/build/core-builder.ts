@@ -51,7 +51,7 @@ import {
   MutationReservationCancelledError,
 } from "../../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
-import type { Provider } from "../../provider/index.ts";
+import { abortableProvider, type Provider } from "../../provider/index.ts";
 import {
   type CapabilityRow,
   getCapability,
@@ -165,6 +165,68 @@ export interface CoreBuildInput {
   readonly signal?: AbortSignal;
 }
 
+/**
+ * How long one mid-build write may take before the reader is treated as gone.
+ *
+ * The terminal presentation has always been bounded, with a written rationale about not
+ * letting a stalled reader hold mutation ownership; every mid-build `await send(…)` had no
+ * bound at all, so a client that opened the stream and never drained it held the exclusive
+ * build lease behind it — every other build queued, indefinitely, on one unread socket.
+ *
+ * Longer than the terminal's two seconds on purpose. A terminal write happens once, when
+ * everything durable is already done; these happen throughout, some of them carrying whole
+ * developer-preview payloads, and cutting a slow-but-real reader off mid-build would end a
+ * build that was going to succeed. Ten seconds is far past any live connection's write and
+ * far short of "for ever".
+ */
+export const DEFAULT_BUILD_EVENT_TIMEOUT_MS = 10_000;
+
+/**
+ * The build's own `send`: bounded by the lease's signal *and* by a per-write deadline.
+ *
+ * A rejection here is read by the stages as "the build was cancelled", which is what a
+ * reader who has stopped reading is.
+ */
+function sendBeforeAbort(
+  send: SendBuildEvent,
+  signal: AbortSignal,
+  timeoutMs = DEFAULT_BUILD_EVENT_TIMEOUT_MS,
+): SendBuildEvent {
+  return (event, data) => {
+    if (signal.aborted) return Promise.reject(signal.reason);
+    const pending = Promise.resolve(send(event, data));
+    if (signal.aborted) {
+      void pending.catch(() => undefined);
+      return Promise.reject(signal.reason);
+    }
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Build event "${event}" was not read within ${timeoutMs}ms.`));
+      }, timeoutMs);
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", onAbort);
+      };
+      const onAbort = () => {
+        cleanup();
+        reject(signal.reason);
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      pending.then(
+        () => {
+          cleanup();
+          resolve();
+        },
+        (error) => {
+          cleanup();
+          reject(error);
+        },
+      );
+    });
+  };
+}
+
 /** What the lease-head check concluded: refuse, or proceed against this exact target. */
 export type ResolvedRequestRevalidation =
   | { readonly kind: "stale"; readonly refusal: StaleBuildRefusal }
@@ -250,7 +312,20 @@ export async function runCoreBuild(input: CoreBuildInput): Promise<BuildPipeline
   try {
     return await input.mutationCoordinator.withBuildLease(
       reservation,
-      () => runUnderBuildLease(guarded),
+      (lease) => {
+        const signal = input.signal ? AbortSignal.any([input.signal, lease.signal]) : lease.signal;
+        const ownedPresenter: CoreBuilderPresenter = {
+          ...guarded.presenter,
+          send: sendBeforeAbort(guarded.presenter.send, lease.signal),
+          isAborted: () => guarded.presenter.isAborted() || signal.aborted,
+        };
+        return runUnderBuildLease({
+          ...guarded,
+          presenter: ownedPresenter,
+          provider: abortableProvider(guarded.provider, signal),
+          signal,
+        });
+      },
       input.signal ? { signal: input.signal } : {},
     );
   } catch (error) {

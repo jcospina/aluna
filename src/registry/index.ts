@@ -49,6 +49,7 @@ export {
 } from "./choice.ts";
 export {
   type CapabilityDeletionTombstone,
+  CapabilityIdReservedError,
   DELETION_TOMBSTONE_STATE,
   getCapabilityDeletionTombstone,
   insertCapabilityDeletionTombstone,
@@ -125,6 +126,7 @@ export {
   listInputModeSchema,
   MAX_CAPABILITY_NOUN_LENGTH,
   MAX_LOGO_SUBJECT_LENGTH,
+  MAX_SPEC_FIELDS,
   PLATFORM_COLUMNS,
   type PresentationFieldDescriptor,
   presentationFieldDescriptors,
@@ -139,7 +141,7 @@ export {
   uiFormIntentSchema,
   uiIntentSchema,
 } from "./spec.ts";
-export { SQL_NAME_PATTERN } from "./spec-text.ts";
+export { MAX_SQL_NAME_LENGTH, SQL_NAME_PATTERN } from "./spec-text.ts";
 export {
   abandonMissingCapabilityLogo,
   type CapabilityRegistryExpectation,

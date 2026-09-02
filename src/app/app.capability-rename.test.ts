@@ -20,6 +20,7 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../router/router.test-support.ts";
+import { renderCapabilityLogo } from "../web/fragments.ts";
 import { createApp } from "./app.ts";
 
 const NOTES_INCARNATION = "11111111-1111-4111-8111-111111111111";
@@ -94,13 +95,41 @@ describe("renaming a capability from its logo", () => {
     expect(html).not.toContain("logo-attempt");
   });
 
-  test("a name is escaped as text on the way back out", async () => {
-    const html = await (
-      await app().request("/capability-rename/notes", renameNotes('Not <b>bold</b> "x"'))
-    ).text();
+  // Every label sink escapes, and that is what makes this safe — but a copy rule that
+  // admits `<img src=x onerror=alert(1)>` (three words, twenty-eight characters, no
+  // sentence punctuation) is a copy rule not looking at what it admits.
+  test("a markup-shaped name is not a name, and nothing is written", async () => {
+    const response = await app().request(
+      "/capability-rename/notes",
+      renameNotes('Not <b>bold</b> "x"'),
+    );
 
+    expect(response.status).toBe(422);
+    expect(await response.text()).toContain('data-error-code="rename_refused"');
+    expect(row()?.display_label_override).toBeNull();
+  });
+
+  test("a stored name that is not a name is not shown either", () => {
+    // No rename can put one there any more, which is exactly why this is worth pinning:
+    // a row edited by hand still has to come out as something a desk can write under a tile.
+    const stored = row() as CapabilityRow;
+    const html = renderCapabilityLogo({
+      ...stored,
+      display_label_override: 'Not <b>bold</b> "x"',
+      logo: { status: "absent", attempts: 0 },
+    });
+
+    // Nothing a person reads shows it: not the label under the tile, not the accessible
+    // name, not the value the rename editor opens with.
     expect(html).not.toContain("<b>bold</b>");
-    expect(html).toContain("&lt;b&gt;bold&lt;/b&gt;");
+    expect(html).toContain('<span class="logo-label" data-logo-label>Notes</span>');
+    expect(html).toContain('aria-label="Open Notes"');
+    expect(html).toContain('value="Notes"');
+    // The compare-and-swap field is the one place the stored bytes belong — it is what the
+    // next rename is checked against, not a name — and it is escaped like everything else.
+    expect(html).toContain(
+      'name="previous_label" value="Not &lt;b&gt;bold&lt;/b&gt; &quot;x&quot;"',
+    );
   });
 
   test("a name the registry will not take is refused, and nothing is written", async () => {
@@ -181,7 +210,12 @@ describe("what a rename costs the rest of the platform", () => {
 
   test("the name goes with the capability, and a rebuilt one is born without it", () => {
     const renamed = renameCapability(
-      { capabilityId: "notes", incarnationId: NOTES_INCARNATION, version: 1 },
+      {
+        capabilityId: "notes",
+        incarnationId: NOTES_INCARNATION,
+        version: 1,
+        previousOverride: null,
+      },
       "Journal",
       conns.readwrite,
     );
@@ -209,6 +243,31 @@ describe("what a rename costs the rest of the platform", () => {
     expect(row()?.display_label_override).toBe(longest);
   });
 
+  // A rename does not bump the version, so the version alone cannot tell two submissions
+  // made against the same one apart: both matched, and the second overwrote the first with
+  // no conflict signal anywhere. The name each submission *replaces* is what distinguishes
+  // them, and it is a fact the menu already holds.
+  test("a second rename made against a name that has since changed is refused, not applied", async () => {
+    expect((await app().request("/capability-rename/notes", renameNotes("Journal"))).status).toBe(
+      200,
+    );
+
+    // A second menu, opened before the first rename landed: same id, same incarnation, same
+    // version, and the name it saw was the original one.
+    const stale = await app().request("/capability-rename/notes", renameNotes("Diary"));
+
+    expect(stale.status).toBe(409);
+    expect(row()?.display_label_override).toBe("Journal");
+
+    // And a submission that names what is actually there goes through.
+    const fresh = await app().request(
+      "/capability-rename/notes",
+      renameNotes("Diary", { previous_label: "Journal" }),
+    );
+    expect(fresh.status).toBe(200);
+    expect(row()?.display_label_override).toBe("Diary");
+  });
+
   test("the rename advances the resolver catalog binding", async () => {
     const before = readActiveRegistryCatalog(conns.readonly).fingerprint;
 
@@ -229,7 +288,7 @@ describe("what a rename costs the rest of the platform", () => {
     const reservation = mutationCoordinator.reserveBuild();
 
     const rename = renameCapabilityLabel(
-      { capabilityId: "notes", incarnationId: NOTES_INCARNATION, version: 1 },
+      { capabilityId: "notes", incarnationId: NOTES_INCARNATION, version: 1, previousLabel: "" },
       "Journal",
       { database: conns.readwrite, mutationCoordinator },
     ).then((outcome) => {
@@ -261,7 +320,7 @@ describe("what a rename costs the rest of the platform", () => {
     let admitted = 0;
 
     const outcome = await renameCapabilityLabel(
-      { capabilityId: "notes", incarnationId: NOTES_INCARNATION, version: 1 },
+      { capabilityId: "notes", incarnationId: NOTES_INCARNATION, version: 1, previousLabel: "" },
       "Got it — I'll set that up for you.",
       {
         database: conns.readwrite,

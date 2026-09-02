@@ -400,7 +400,7 @@ function renderInlineField(inputId: string, parts: ScalarParts, checked: boolean
     presenceMarkerFor(nameAttribute) +
     `<input class="field__checkbox" id="${inputId}" type="checkbox"` +
     ` name="${nameAttribute}"${chrome.describedBy}${checked ? " checked" : ""}>` +
-    `<label class="field__label field__label--inline" for="${inputId}">${label}</label>` +
+    `<label class="field__label field__label--inline caps" for="${inputId}">${label}</label>` +
     chrome.trailing +
     `</div>`
   );
@@ -418,7 +418,7 @@ function renderTextControl(
   return (
     `<div class="field">` +
     presenceMarkerFor(nameAttribute) +
-    `<label class="field__label" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
+    `<label class="field__label caps" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
     controlShell(
       `<input class="field__input" id="${inputId}" type="${control.inputType}"` +
         ` name="${nameAttribute}"${control.extraAttributes}${valueAttribute}` +
@@ -445,7 +445,7 @@ function renderLongTextControl(inputId: string, field: SpecField, parts: ScalarP
   return (
     `<div class="field field--long-text">` +
     presenceMarkerFor(nameAttribute) +
-    `<label class="field__label" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
+    `<label class="field__label caps" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
     controlShell(
       `<textarea class="field__textarea" id="${inputId}" name="${nameAttribute}"` +
         `${growAttributes()}${lengthAttributes(inputId, field)}${chrome.describedBy}` +
@@ -488,7 +488,7 @@ function renderEditDatetimeField(
     `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${nameAttribute}">` +
     `<input type="hidden" name="${nameAttribute}" value="${escapeHtml(exactValue)}"` +
     ` data-edit-datetime-value>` +
-    `<label class="field__label" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
+    `<label class="field__label caps" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
     controlShell(
       `<input class="field__input" id="${inputId}" type="datetime-local" step="any"` +
         ` value="${escapeHtml(localValue)}" data-edit-datetime-input="${nameAttribute}"` +
@@ -602,7 +602,7 @@ function renderCommaSeparatedListField(
   return (
     `<div class="field field--list field--list-comma-separated" data-list-input-mode="comma_separated">` +
     presenceMarker +
-    `<label class="field__label" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
+    `<label class="field__label caps" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
     controlShell(
       `<input class="field__input" id="${inputId}" type="text" name="${nameAttribute}"` +
         `${valueAttribute}${chrome.describedBy}${required}>`,
@@ -651,7 +651,7 @@ function renderRepeatableListField(
     // (`public/field-errors.js`).
     `${field.required ? " data-list-required" : ""}>` +
     presenceMarker +
-    `<label class="field__label" for="${inputId}-1">${label}${chrome.labelSuffix}</label>` +
+    `<label class="field__label caps" for="${inputId}-1">${label}${chrome.labelSuffix}</label>` +
     `<div class="field-list__values" data-list-field-values>${rows}</div>` +
     `<button class="btn btn--secondary field-list__add" type="button" data-list-field-add>` +
     `Add another</button>` +

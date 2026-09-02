@@ -16,6 +16,7 @@
 // The container is data-free: live records arrive through the `read` action into the
 // region `#<id>-records`, never baked into the chrome.
 
+import { MAX_SEARCH_QUERY_LENGTH } from "../capability-data/index.ts";
 import { escapeHtml } from "../web/html.ts";
 import {
   CREATE_CANCELLED_EVENT,
@@ -136,6 +137,11 @@ function renderSearchChrome(capability: RenderableCapability, regionId: string):
     ` stroke-linejoin="round" aria-hidden="true">` +
     `<circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>` +
     `<input class="capability-search__input" id="${inputId}" type="search" name="q"` +
+    // The browser stops the typing at the same length the wire protocol admits, so an
+    // over-long search is refused where the person can see why rather than as a failed
+    // request. The server's bound is the real one — it is what stands between a pasted
+    // wall of text and a synchronous FFI scan that stops the event loop.
+    ` maxlength="${MAX_SEARCH_QUERY_LENGTH}"` +
     ` placeholder="Search ${label}" autocomplete="off" spellcheck="false"` +
     ` aria-label="Search ${label}" aria-controls="${regionId}" data-capability-search-input>` +
     `<button class="capability-search__clear" type="button" data-capability-search-clear` +

@@ -15,6 +15,12 @@
 // and leave the reason on the tombstone where `GET /` can show it. Every attempt runs
 // under a platform write lease — cleanup deletes the tombstone row, so it is a write on
 // the shared connection and must queue with every other one.
+//
+// "Stop guessing" is not "give up": `forceRetry` is how a person asks again, and a desk
+// load presses it. That matters because the tombstone reserving the id is what stops the
+// capability being rebuilt, and the build path now says so as soon as it knows the id
+// (`registry/deletion-tombstones.ts`, `CapabilityIdReservedError`) instead of paying for a
+// whole generation and being refused by the activation CAS.
 
 import type { Database } from "bun:sqlite";
 
@@ -70,6 +76,8 @@ export class DeletionCleanupSupervisor {
   private running = false;
   private scheduled = false;
   private stopped = false;
+  /** A retry asked for while a pass was in flight, to be honoured when that pass ends. */
+  private retryOwed = false;
 
   constructor(options: DeletionCleanupSupervisorOptions) {
     this.options = options;
@@ -114,17 +122,50 @@ export class DeletionCleanupSupervisor {
       });
     } finally {
       this.running = false;
+      // Someone asked while this pass was in flight and was told to wait for it. This is
+      // the moment it ended, so honour that ask now rather than leaving it dropped.
+      if (this.retryOwed) {
+        this.retryOwed = false;
+        this.requestRetry();
+      }
     }
   }
 
   /**
    * Ask for another pass. The delay comes from the most patient outstanding tombstone,
    * so one wedged deletion cannot starve a younger one of its early quick retries.
+   *
+   * A pass already in flight is not a reason to schedule a second one. It used to be: while
+   * a build held the coordinator, `runOnce` short-circuited on `running`, the chained
+   * `requestRetry` scheduled again, and — because no attempt had been counted — it scheduled
+   * at the *first* rung, so the supervisor spun at one pass a second for as long as the build
+   * ran. The ask is remembered instead and honoured when the running pass ends.
    */
   requestRetry(): void {
+    this.scheduleRetry(this.pending().filter((entry) => !entry.exhausted));
+  }
+
+  /**
+   * Ask for a pass over *everything* still owed, exhausted tombstones included.
+   *
+   * The backoff deliberately gives up: a cause that reproduces will reproduce again, and
+   * attempts past it are a person's call rather than a timer's. This is how a person makes
+   * that call. A desk load presses it, so refreshing the page is the recovery gesture — which
+   * matters because a tombstone reserves its capability id, and until it is discharged the
+   * capability can be neither used nor rebuilt. Before this, only a process restart tried
+   * again and nothing a user could do reached it.
+   */
+  forceRetry(): void {
+    this.scheduleRetry(this.pending());
+  }
+
+  private scheduleRetry(outstanding: readonly PendingDeletionCleanup[]): void {
     if (this.stopped || this.scheduled) return;
-    const outstanding = this.pending().filter((entry) => !entry.exhausted);
     if (outstanding.length === 0) return;
+    if (this.running) {
+      this.retryOwed = true;
+      return;
+    }
     const attempts = Math.min(...outstanding.map((entry) => entry.attempts));
     const delayMs = this.retryDelaysMs[Math.min(attempts, this.retryDelaysMs.length - 1)] ?? 0;
 

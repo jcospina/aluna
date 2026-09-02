@@ -211,16 +211,48 @@ export interface Declaration {
  * A page or a served template carries its stylesheet in `<style>` rather than being one.
  * Those blocks land after everything the manifest ships, so they are the last word on
  * anything they name, and a check over the shipped surface has to see them.
+ *
+ * So does markup that carries no `<style>` block at all and paints entirely through the
+ * inline `style` attribute — which is what the few-shot gallery does, and how a live AA
+ * failure sat in a file being taught to the model as an approved exemplar. Each attribute
+ * is lifted into a synthetic rule keyed by the element it sits on, so a site key stays
+ * stable when the file is reordered and two identical chips collapse to one row.
  */
 export function styleSource(sheet: string): string {
   const source = readFileSync(join(ROOT, sheet), "utf8");
-  return (
-    sheet.endsWith(".css")
-      ? source
-      : [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
-          .map(([, block]) => block)
-          .join("\n")
-  ).replace(/\/\*[\s\S]*?\*\//g, "");
+  if (sheet.endsWith(".css")) return stripComments(source);
+  const blocks = [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(([, block]) => block);
+  return stripComments([...blocks, ...inlineStyleRules(source)].join("\n"));
+}
+
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
+/**
+ * Every inline `style` attribute in a source file, as a synthetic CSS rule.
+ *
+ * The selector names the element and its classes rather than a line number: the file this
+ * exists for is a table of exemplars that is reordered and added to, and a site key that
+ * moved with every edit would be an inventory nobody could keep.
+ */
+function inlineStyleRules(source: string): string[] {
+  const rules = new Set<string>();
+  for (const [, tag, attributes, style] of source.matchAll(
+    /<([a-z][a-z0-9]*)\b([^>]*?)\sstyle="([^"]*)"/g,
+  )) {
+    const classes = /class="([^"]*)"/.exec(attributes ?? "")?.[1] ?? "";
+    const selector =
+      tag +
+      classes
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((token) => `.${token}`)
+        .join("");
+    rules.add(`${selector}[style] { ${style} }`);
+  }
+  return [...rules];
 }
 
 /**

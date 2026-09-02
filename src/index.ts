@@ -20,6 +20,13 @@ import { recoverCapabilityLogos } from "./capability-logo/index.ts";
 import { db, dbReadonly } from "./persistence/db.ts";
 import { runMigrations } from "./persistence/migrations.ts";
 import { listCapabilityDeletionTombstones, readActiveRegistryCatalog } from "./registry/index.ts";
+import { captureProcessSecrets } from "./secrets/index.ts";
+
+// Lift the provider credentials out of `process.env` before anything else runs. Generated
+// Handlers execute in this process (ADR-0004: no process sandbox), and the static
+// isolation checks cannot see a property access, so an ambient `process.env` reference is
+// reachable in principle. After this call it holds no key worth reaching.
+captureProcessSecrets();
 
 // Apply platform migrations before accepting traffic. Idempotent: a no-op once the
 // ledger is up to date, so steady-state restarts pay nothing.
@@ -110,9 +117,23 @@ const port = Number.isInteger(requestedPort) && requestedPort >= 0 ? requestedPo
 // bounds how long a genuinely *stalled* stream lingers before Bun reclaims it.
 const STREAM_IDLE_TIMEOUT_SECONDS = 120;
 
+/**
+ * The largest request body the platform accepts. Bun's default is 128MB, and every entry
+ * point here materializes the whole body before validating any of it — a record submission
+ * through `formData()`, a deletion or rename form, a prompt read as text and then trimmed
+ * (a second copy) and scanned with a Unicode regex. None of that is bounded by anything
+ * else, so a single request could make the process hold and walk hundreds of megabytes.
+ *
+ * 1MB is far above what this platform legitimately sends. The largest honest body is a
+ * create carrying every field at its `max_length` ceiling (10,000 characters each) plus a
+ * repeated list field; the largest honest prompt is a paragraph a person typed.
+ */
+const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
+
 const server = Bun.serve({
   port,
   idleTimeout: STREAM_IDLE_TIMEOUT_SECONDS,
+  maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
   fetch: app.fetch,
 });
 

@@ -47,6 +47,30 @@ export class Node {
     return name === "data-content-region" ? (this.region ?? null) : null;
   }
 
+  /**
+   * The two facts the transport abort reads off a node: whether this one is mid-request,
+   * and which of its descendants are. `htmx-request` is the class htmx puts on an element
+   * while its request is in flight, and the abort's rule is written against exactly these.
+   */
+  requesting = false;
+
+  get classList(): { contains(name: string): boolean } {
+    return { contains: (name: string) => name === "htmx-request" && this.requesting };
+  }
+
+  querySelectorAll(selector: string): Node[] {
+    if (selector !== ".htmx-request") throw new Error(`Unsupported: ${selector}`);
+    const found: Node[] = [];
+    const walk = (node: Node) => {
+      for (const child of node.children) {
+        if (child.requesting) found.push(child);
+        walk(child);
+      }
+    };
+    walk(this);
+    return found;
+  }
+
   /** Appending moves, the way the DOM's does: a node has one parent. */
   append(...nodes: Node[]): void {
     for (const node of nodes) {

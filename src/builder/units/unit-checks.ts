@@ -26,6 +26,7 @@ import {
   type HandlerDependencyCatalogEntry,
 } from "./handler-source-safety.ts";
 import { checkItemRendererFieldAccess } from "./item-field-access.ts";
+import { checkSourceIsolation } from "./source-isolation.ts";
 import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
 
 /**
@@ -101,8 +102,17 @@ export function checkItemRendererSourceContract(
   if (source.statements.some((statement) => ts.isImportDeclaration(statement))) {
     return "The item renderer must not import anything — it composes one record into markup and nothing else.";
   }
+  // The same ambient ban the handlers take. The renderer is executed by the platform on
+  // every rendered record *and* in-process by the design-lint rung, so leaving it free to
+  // reach `process`/`globalThis` made the Gate itself a place a generated unit could call
+  // out from.
+  const isolationMessage = checkSourceIsolation(ITEM_RENDERER_ISOLATION_SUBJECT, source);
+  if (isolationMessage) return isolationMessage;
   return checkItemRendererFieldAccess(spec, content);
 }
+
+/** How the shared isolation refusal names the renderer. */
+const ITEM_RENDERER_ISOLATION_SUBJECT = "The item renderer must use only the record it is handed";
 
 interface ExportShapeRules {
   /** Whether the default function must be `async` (handlers) or must not be (item renderer). */

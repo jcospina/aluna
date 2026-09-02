@@ -28,8 +28,10 @@
  */
 
 import { leavingIsBeingAsked } from "./leaving-a-run.js";
+import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
 import { leaveRecordView } from "./record-view.js";
 import { refreshCommittedRecordsForMutation } from "./records-refresh.js";
+import { registerRegionRelease } from "./region-scope.js";
 
 const EDIT_FORM_SELECTOR = "[data-record-edit-form]";
 const CREATE_FORM_SELECTOR = '[data-post-mutation-refresh][data-mutation-kind="create"]';
@@ -168,15 +170,100 @@ function standingDeleteConfirmation(view) {
   return form instanceof HTMLFormElement && !form.hidden ? form : null;
 }
 
-/** @param {HTMLFormElement} form @param {string} message */
-function showMutationNotice(form, message) {
+/**
+ * What a mutation's surface owes while its request is in flight.
+ *
+ * A record mutation aborted by the region rule — the window put away, another capability
+ * opened, a build taking the window — resolves with status 0, which is the one outcome the
+ * browser cannot tell from a commit it never heard about. The sentence for that was written
+ * into the form's own live region: *inside the subtree being destroyed in the same tick*.
+ * It was written and immediately thrown away, and the server may have committed the write.
+ * For a delete that contradicts this file's own opening rule — a destructive action must
+ * never look like it did nothing.
+ *
+ * So each in-flight mutation registers with the region's scope, and the release runs before
+ * the abort does (`releaseRegionContent`, `public/region-scope.js`). A form whose surface is
+ * gone says its piece on the prompt bar instead, which is the rescue `capability-deletion.js`
+ * already proves. The claim lives exactly as long as the request, so nothing is left armed.
+ *
+ * @type {WeakMap<HTMLFormElement, { surfaceGone: boolean, deregister: () => void }>}
+ */
+const mutationSurfaceClaims = new WeakMap();
+
+/** @param {HTMLFormElement} form */
+function claimMutationSurface(form) {
+  releaseMutationSurface(form);
+  const claim = { surfaceGone: false, deregister: /** @type {() => void} */ (() => {}) };
+  claim.deregister = registerRegionRelease(form, "record mutation", () => {
+    claim.surfaceGone = true;
+  });
+  mutationSurfaceClaims.set(form, claim);
+}
+
+/**
+ * End the claim and say whether the surface went while the request was out.
+ * @param {HTMLFormElement} form
+ * @returns {boolean}
+ */
+function releaseMutationSurface(form) {
+  const claim = mutationSurfaceClaims.get(form);
+  if (!claim) return false;
+  claim.deregister();
+  mutationSurfaceClaims.delete(form);
+  return claim.surfaceGone;
+}
+
+/**
+ * The prompt bar's standing slot, reached the way `capability-deletion.js` reaches it.
+ * @param {string} sentence
+ */
+function tellThePromptBar(sentence) {
+  document.dispatchEvent(
+    new CustomEvent(PROMPT_BAR_MESSAGE_EVENT, { detail: { sentence, refused: false } }),
+  );
+}
+
+/**
+ * What an unconfirmed outcome says when the form it belongs to is not there to say it.
+ * "Go back and check" names a control the person no longer has.
+ */
+export const UNCONFIRMED_ON_THE_DESK =
+  "I couldn’t confirm that change. Open it again to see where it landed.";
+
+/**
+ * Where an unconfirmed outcome is said, as a value rather than an effect, so the rule can
+ * be executed instead of read — the way `deleteOutcomeDisposition` beside it is.
+ *
+ * A surface that is going away cannot hold a sentence: writing one into it is writing it
+ * and throwing it away in the same tick, which is how a delete the server may have
+ * committed came to look like it did nothing at all.
+ *
+ * @param {{ surfaceGone: boolean, hasField: boolean, inField: string }} outcome
+ * @returns {{ where: "field" | "prompt-bar", sentence: string }}
+ */
+export function unconfirmedMutationAnswer({ surfaceGone, hasField, inField }) {
+  return surfaceGone || !hasField
+    ? { where: "prompt-bar", sentence: UNCONFIRMED_ON_THE_DESK }
+    : { where: "field", sentence: inField };
+}
+
+/** @param {HTMLFormElement} form @param {string} message @param {boolean} [surfaceGone] */
+function showMutationNotice(form, message, surfaceGone = false) {
   const target = form.querySelector(LIVE_REGION_SELECTOR);
-  if (!(target instanceof HTMLElement)) return;
+  const answer = unconfirmedMutationAnswer({
+    surfaceGone,
+    hasField: target instanceof HTMLElement,
+    inField: message,
+  });
+  if (answer.where === "prompt-bar" || !(target instanceof HTMLElement)) {
+    tellThePromptBar(answer.sentence);
+    return;
+  }
   const notice = document.createElement("p");
   notice.className = "notice";
   notice.dataset.role = "error";
   notice.dataset.errorCode = "mutation_outcome_unknown";
-  notice.textContent = message;
+  notice.textContent = answer.sentence;
   target.replaceChildren(notice);
 }
 
@@ -224,10 +311,19 @@ async function finishCommittedCreate(form) {
   );
 }
 
-/** @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown */
-async function handleCreateOutcome(form, successful, outcomeUnknown) {
+/**
+ * @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown
+ * @param {boolean} surfaceGone
+ */
+async function handleCreateOutcome(form, successful, outcomeUnknown, surfaceGone) {
   if (successful) {
     await finishCommittedCreate(form);
+    return;
+  }
+  // A surface that has gone cannot be refreshed, and re-reading it would only race the
+  // thing that replaced it. Say what happened where it can be read, and stop.
+  if (surfaceGone) {
+    if (outcomeUnknown) showMutationNotice(form, "", true);
     return;
   }
   if (outcomeUnknown && !(await reconcileUnknownCreate(form))) return;
@@ -240,8 +336,11 @@ async function handleCreateOutcome(form, successful, outcomeUnknown) {
   }
 }
 
-/** @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown */
-function handleEditOutcome(form, successful, outcomeUnknown) {
+/**
+ * @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown
+ * @param {boolean} surfaceGone
+ */
+function handleEditOutcome(form, successful, outcomeUnknown, surfaceGone) {
   setEditPending(form, false);
   if (successful) {
     const view = form.closest(RECORD_VIEW_SELECTOR);
@@ -252,6 +351,7 @@ function handleEditOutcome(form, successful, outcomeUnknown) {
     showMutationNotice(
       form,
       "I couldn’t confirm that change. Go back and check before trying again.",
+      surfaceGone,
     );
   }
   const fields = form.querySelector(".capability-edit-form__fields");
@@ -277,8 +377,11 @@ export function deleteOutcomeDisposition({ successful, outcomeUnknown }) {
   return outcomeUnknown ? "stand-and-say" : "stand";
 }
 
-/** @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown */
-function handleDeleteOutcome(form, successful, outcomeUnknown) {
+/**
+ * @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown
+ * @param {boolean} surfaceGone
+ */
+function handleDeleteOutcome(form, successful, outcomeUnknown, surfaceGone) {
   setDeletePending(form, false);
   const disposition = deleteOutcomeDisposition({ successful, outcomeUnknown });
   if (disposition === "leave") {
@@ -290,6 +393,7 @@ function handleDeleteOutcome(form, successful, outcomeUnknown) {
     showMutationNotice(
       form,
       "I couldn’t confirm that change. Go back and check before trying again.",
+      surfaceGone,
     );
   }
 }
@@ -350,16 +454,21 @@ function installRecordMutations() {
   document.addEventListener("htmx:beforeRequest", (event) => {
     const editForm = requestForm(event, EDIT_FORM_SELECTOR);
     if (editForm) {
+      claimMutationSurface(editForm);
       setEditPending(editForm, true);
       return;
     }
     const deleteForm = requestForm(event, DELETE_FORM_SELECTOR);
     if (deleteForm) {
+      claimMutationSurface(deleteForm);
       setDeletePending(deleteForm, true);
       return;
     }
     const createForm = requestForm(event, CREATE_FORM_SELECTOR);
-    if (createForm) setCreatePending(createForm, true);
+    if (createForm) {
+      claimMutationSurface(createForm);
+      setCreatePending(createForm, true);
+    }
   });
 
   document.addEventListener("htmx:afterRequest", (event) => {
@@ -373,16 +482,28 @@ function installRecordMutations() {
 
     const editForm = requestForm(event, EDIT_FORM_SELECTOR);
     if (editForm) {
-      handleEditOutcome(editForm, successful, outcomeUnknown);
+      handleEditOutcome(editForm, successful, outcomeUnknown, releaseMutationSurface(editForm));
       return;
     }
     const deleteForm = requestForm(event, DELETE_FORM_SELECTOR);
     if (deleteForm) {
-      handleDeleteOutcome(deleteForm, successful, outcomeUnknown);
+      handleDeleteOutcome(
+        deleteForm,
+        successful,
+        outcomeUnknown,
+        releaseMutationSurface(deleteForm),
+      );
       return;
     }
     const createForm = requestForm(event, CREATE_FORM_SELECTOR);
-    if (createForm) void handleCreateOutcome(createForm, successful, outcomeUnknown);
+    if (createForm) {
+      void handleCreateOutcome(
+        createForm,
+        successful,
+        outcomeUnknown,
+        releaseMutationSurface(createForm),
+      );
+    }
   });
 
   // The datetime control the user types into is a local-time `datetime-local`; the exact

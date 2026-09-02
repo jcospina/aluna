@@ -197,6 +197,74 @@ describe("sanitizeStyle — off-token declarations on the closed axes are droppe
   });
 });
 
+describe("sanitizeStyle — the ways around a closed axis", () => {
+  // The boundary ban is a prefix test, not a list, so these spellings are covered by
+  // construction — pinned here because construction is exactly what a refactor changes.
+  test("the boundary ban survives its untested spellings", () => {
+    for (const declaration of [
+      "BORDER: 1px solid red",
+      "border-block: var(--line) solid var(--ink)",
+      "border-image: url(x)",
+      "border-image-slice: 4",
+      "border-block-start-color: var(--ink)",
+      "outline-style: solid",
+      "column-rule-style: solid",
+      "-webkit-border-before: 1px solid red",
+      "border: 0",
+    ]) {
+      expect(sanitizeStyle(declaration), declaration).toBe("");
+      expect(describeStyleViolation(declaration), declaration).toBeDefined();
+    }
+  });
+
+  // Colour is closed by reading the colour a declaration *names*. These reach a colour
+  // without naming one: a filter chain derives any hue from an on-token value, a blend
+  // mode derives one from whatever sits behind, and the bare `caret` shorthand carries a
+  // colour the way `background` does.
+  test("a colour reached without naming one", () => {
+    for (const declaration of [
+      "caret: red",
+      "filter: invert(1)",
+      "filter: invert(1) sepia(1) saturate(9999%) hue-rotate(90deg)",
+      "backdrop-filter: blur(20px)",
+      "mix-blend-mode: difference",
+      "background-blend-mode: multiply",
+    ]) {
+      expect(sanitizeStyle(declaration), declaration).toBe("");
+      expect(describeStyleViolation(declaration), declaration).toBeDefined();
+    }
+  });
+
+  // The radius ban keys on the `-radius` suffix, and a basic shape rounds a corner under
+  // a property name that never says radius. `inset()` without `round` is the one shape
+  // that mitres, so it is the one that stays.
+  test("a basic shape may not round or reshape a record", () => {
+    for (const declaration of [
+      "clip-path: circle(50%)",
+      "clip-path: ellipse(50% 40%)",
+      "clip-path: polygon(0 0, 100% 0, 50% 100%)",
+      "clip-path: inset(0 round 12px)",
+      "shape-outside: circle(50%)",
+    ]) {
+      expect(sanitizeStyle(declaration), declaration).toBe("");
+      expect(describeStyleViolation(declaration), declaration).toContain("round its corners");
+    }
+
+    expect(sanitizeStyle("clip-path: inset(0)")).toBe("clip-path: inset(0)");
+    expect(sanitizeStyle("clip-path: none")).toBe("clip-path: none");
+  });
+
+  // Margin and padding on the scroll axis are still margin and padding, and a stroke is
+  // still a thickness with no token left to name it.
+  test("the spacing axis reaches its scroll-side spellings", () => {
+    expect(sanitizeStyle("scroll-margin: 40px")).toBe("");
+    expect(sanitizeStyle("scroll-padding: 40px")).toBe("");
+    expect(sanitizeStyle("scroll-margin-top: 40px")).toBe("");
+    expect(sanitizeStyle("scroll-margin: var(--space-2)")).toBe("scroll-margin: var(--space-2)");
+    expect(sanitizeStyle("stroke-width: 8px")).toBe("");
+  });
+});
+
 describe("sanitizeStyle — the three never-declared properties", () => {
   test("font family, in every form", () => {
     expect(sanitizeStyle("font-family: Comic Sans")).toBe("");
@@ -388,13 +456,22 @@ describe("sanitizeStyle — legal CSS spellings of an on-token value", () => {
     expect(describeStyleViolation("color: var( --ink )")).toBeUndefined();
   });
 
-  test("!important decides who wins, not what value is named", () => {
-    expect(sanitizeStyle("color: var(--ink) !important")).toBe("color: var(--ink) !important");
-    expect(sanitizeStyle("padding: var(--space-2)!important")).toBe(
+  // It changes who wins, not what value is named — which is exactly the problem. An inline
+  // `style` already outranks every stylesheet; `!important` on top of one outranks the
+  // platform's own `!important` too, so a record could win a specificity fight with the
+  // chrome that holds it inside its box.
+  test("`!important` is refused even on a value that is entirely on token", () => {
+    for (const declaration of [
+      "color: var(--ink) !important",
       "padding: var(--space-2)!important",
-    );
-    // It is not a way to smuggle an off-token value either.
-    expect(sanitizeStyle("color: red !important")).toBe("");
+      "color: var(--ink) ! IMPORTANT",
+      "color: red !important",
+    ]) {
+      expect(sanitizeStyle(declaration), declaration).toBe("");
+      expect(describeStyleViolation(declaration), declaration).toContain("`!important`");
+    }
+    // And the same value without it still passes, byte-identical.
+    expect(sanitizeStyle("color: var(--ink)")).toBe("color: var(--ink)");
   });
 });
 

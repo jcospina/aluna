@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { applyDeleteConfirmation, deleteOutcomeDisposition } from "#shell/record-mutations.js";
+import {
+  applyDeleteConfirmation,
+  deleteOutcomeDisposition,
+  UNCONFIRMED_ON_THE_DESK,
+  unconfirmedMutationAnswer,
+} from "#shell/record-mutations.js";
 import { claimRecordExit, releaseRecordExit, swapInRecordView } from "#shell/record-view.js";
 import { createRegionReleaseRegistry } from "#shell/region-scope.js";
 import {
@@ -326,6 +331,35 @@ describe("the record's deletion — where a finished delete leaves the user", ()
   });
 });
 
+// The sentence used to be written into the form's own live region unconditionally — inside
+// the subtree being destroyed in the same tick when the region rule was what aborted the
+// request. It was written and thrown away, and the server may have committed the write.
+describe("the record's deletion — where an unconfirmed outcome is said", () => {
+  const inField = "I couldn’t confirm that change. Go back and check before trying again.";
+
+  test("a surface that is still standing says it in the field", () => {
+    expect(unconfirmedMutationAnswer({ surfaceGone: false, hasField: true, inField })).toEqual({
+      where: "field",
+      sentence: inField,
+    });
+  });
+
+  test("a surface that is going says it on the desk, in words that fit the desk", () => {
+    const answer = unconfirmedMutationAnswer({ surfaceGone: true, hasField: true, inField });
+
+    expect(answer.where).toBe("prompt-bar");
+    expect(answer.sentence).toBe(UNCONFIRMED_ON_THE_DESK);
+    // "Go back" names a control the person no longer has.
+    expect(answer.sentence).not.toContain("Go back");
+  });
+
+  test("a form with nowhere to put it says it on the desk too", () => {
+    expect(unconfirmedMutationAnswer({ surfaceGone: false, hasField: false, inField }).where).toBe(
+      "prompt-bar",
+    );
+  });
+});
+
 // The wiring those rules hang off cannot be evaluated without a browser, so it is read.
 // Each assertion names a call site rather than a declaration: deleting the listener or the
 // outcome branch fails these, which is exactly what a declaration-only grep would not.
@@ -341,7 +375,11 @@ describe("the record's deletion — the wiring (server ⇄ client)", () => {
   });
 
   test("the delete's outcome is handled, and its request says what it is doing", () => {
-    expect(mutations).toContain("handleDeleteOutcome(deleteForm, successful, outcomeUnknown)");
+    // The fourth argument is whether the surface went while the request was out: a delete
+    // aborted by the region rule must not write its sentence into a subtree that is being
+    // destroyed in the same tick.
+    expect(mutations).toContain("handleDeleteOutcome(");
+    expect(mutations).toContain("releaseMutationSurface(deleteForm)");
     expect(mutations).toContain("setDeletePending(deleteForm, true)");
     expect(mutations).toContain('setPending(form, pending, "I’m deleting…", "Delete record"');
   });

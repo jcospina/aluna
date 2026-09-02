@@ -1,3 +1,4 @@
+import { CapabilityIdReservedError } from "../../registry/index.ts";
 import type { Send } from "../../sse/index.ts";
 import { renderBuildEnding } from "../../web/fragments.ts";
 import { buildDemoErrorPreview } from "./previews.ts";
@@ -6,6 +7,24 @@ export const DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS = 2_000;
 
 /** The product-voice failure line: the last thing the narration says. */
 export const FAILED_BUILD_ENDING = "Hmm, that didn't work. Mind trying again?";
+
+/**
+ * The one failure with a truer sentence than the generic one.
+ *
+ * A capability id a deletion tombstone still reserves cannot be rebuilt until that
+ * deletion's cleanup is discharged, and "that didn't work, mind trying again?" invites
+ * exactly the retry that cannot succeed. This says what is actually true, in the same voice
+ * the deletion's own "I still have a little tidying up to do" uses.
+ */
+export const RESERVED_ID_BUILD_ENDING =
+  "I'm still tidying up after the last one of those. Give me a moment, then ask me again.";
+
+/** Which ending a failure gets. Everything but the reserved id shares the generic one. */
+export function buildEndingFor(error: unknown): string {
+  return error instanceof CapabilityIdReservedError
+    ? RESERVED_ID_BUILD_ENDING
+    : FAILED_BUILD_ENDING;
+}
 
 export async function runBoundedTerminalPresentation(
   send: Send,
@@ -89,7 +108,7 @@ export async function deliverFailedPresentation(
     async (sendWhileActive) => {
       if (metricsPreview !== undefined) await sendWhileActive("metrics-preview", metricsPreview);
       await sendWhileActive("build-error-preview", JSON.stringify(buildDemoErrorPreview(error)));
-      await sendWhileActive("narration", renderBuildEnding(buildId, FAILED_BUILD_ENDING));
+      await sendWhileActive("narration", renderBuildEnding(buildId, buildEndingFor(error)));
       await sendWhileActive("fragment", restorationFragment);
       await sendWhileActive("done", "error");
     },

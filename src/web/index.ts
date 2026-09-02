@@ -10,12 +10,15 @@ export {
   renderCachedCapabilitySurface,
   renderRehydratedShellPage,
 } from "./cached-view.ts";
+export { developerSurfacesEnabled } from "./dev-surfaces.ts";
 export {
   BLANK_PROMPT_NOTICE,
   BUILD_WINDOW_TITLE_ATTRIBUTE,
   BUILDING_WINDOW_TITLE,
   capabilityLogoElementId,
   capabilityLogoFaceElementId,
+  LONG_PROMPT_NOTICE,
+  MAX_PROMPT_LENGTH,
   NOT_FOUND_NOTICE,
   PAGE_ASSEMBLY_ANCHORS,
   PROMPT_REFUSAL_ATTRIBUTE,

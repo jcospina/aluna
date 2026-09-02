@@ -221,11 +221,26 @@ export const specFieldSchema = z.strictObject({
 export type SpecField = z.infer<typeof specFieldSchema>;
 
 /** The `schema` key of a spec, over whichever spelling of the field shape is in play. */
+/**
+ * The most fields one capability may declare.
+ *
+ * Nothing bounded this, and everything downstream is linear or worse in it: the DDL, the
+ * form the platform draws, every probe the design-lint rung renders, the behavioral suite,
+ * and the per-(row × term × field) work a search does. A model that authored a hundred
+ * fields would author a build nobody could afford and a form nobody could fill.
+ *
+ * Well above anything a real capability needs — the largest the gallery, the fixtures and
+ * the live builds have produced is a handful — and well below where the cost stops being
+ * linear in anything that matters.
+ */
+export const MAX_SPEC_FIELDS = 40;
+
 function specSchemaShapeOf(fieldSchema: z.ZodType<SpecField, unknown>) {
   return z.strictObject({
     fields: z
       .array(fieldSchema)
       .min(1)
+      .max(MAX_SPEC_FIELDS)
       .refine(
         (fields) => allUnique(fields.map((field) => field.name)),
         "field names must be unique",

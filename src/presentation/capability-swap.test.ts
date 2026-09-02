@@ -86,9 +86,10 @@ describe("opening a second capability swaps the contents, not the frame", () => 
       return frame("Tasks");
     };
     const logo = { name: "the Tasks logo" };
+    const journalLogo = { name: "the Journal logo" };
 
     const first = windowForOpening(null, mount, "Tasks", logo);
-    const second = windowForOpening(first, mount, "Journal", { name: "the Journal logo" });
+    const second = windowForOpening(first, mount, "Journal", journalLogo);
 
     // One frame, not two, and the same one — its position, its size, the region inside it
     // and the hand it was drawn with are the ones it already had, and the rule would have
@@ -99,9 +100,14 @@ describe("opening a second capability swaps the contents, not the frame", () => 
     // What does change: the title, because the window now frames something else.
     expect(second.win.title).toBe("Journal");
 
-    // What does not: the first opener owns the way back, so putting the window away
-    // still returns focus to the logo that stood it up.
-    expect(second.openedBy).toBe(logo);
+    // And the way back, which is the *last* thing that filled the window rather than the
+    // first. Where focus goes is a fact about what you were doing, and after A → B → C
+    // that is C — returning to A dropped a keyboard user three moves back with nothing on
+    // screen to say why.
+    expect(second.openedBy).toBe(journalLogo);
+
+    // A press that names no opener leaves whatever the window already had.
+    expect(windowForOpening(second, mount, "Journal", null).openedBy).toBe(journalLogo);
   });
 
   test("the opener uses the rule rather than restating it", () => {

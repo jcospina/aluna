@@ -16,7 +16,7 @@
     "build": "bun build src/index.ts --target=bun --outdir=dist --define process.env.NODE_ENV='\"production\"'",
     "reset": "bun scripts/reset-runtime.ts",
     "start": "bun ./dist/index.js",
-    "typecheck": "tsc -p tsconfig.browser.json && tsc --noEmit",
+    "typecheck": "rm -rf .types && tsc -p tsconfig.browser.json && tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
     "prepare": "husky"

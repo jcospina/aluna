@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 
+import { readSecret } from "../secrets/index.ts";
 import {
   buildLogoGenerationRequest,
   LOGO_GENERATION_PATH,
@@ -91,7 +92,9 @@ const generationEnvelopeSchema = z.object({
 });
 
 export function requireRecraftApiKey(env: NodeJS.ProcessEnv = process.env): string {
-  const key = env[RECRAFT_API_KEY_ENV_VAR]?.trim();
+  // Through the vault, for the reason `requireApiKey` is: after boot this key is not in
+  // the ambient environment at all (src/secrets).
+  const key = readSecret(RECRAFT_API_KEY_ENV_VAR, env);
   if (!key) {
     throw new LogoGenerationError(
       "unconfigured",
@@ -281,7 +284,7 @@ export function createRecraftLogoProvider(
 
   return {
     isConfigured(): boolean {
-      return Boolean((options.env ?? process.env)[RECRAFT_API_KEY_ENV_VAR]?.trim());
+      return Boolean(readSecret(RECRAFT_API_KEY_ENV_VAR, options.env ?? process.env));
     },
 
     async generate(request: LogoGenerationRequest, signal: AbortSignal): Promise<Uint8Array> {

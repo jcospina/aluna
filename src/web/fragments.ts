@@ -60,6 +60,21 @@ export function capabilityRenameErrorElementId(capabilityId: string): string {
 /** The attribute the shell's `desk-logos.js` keys a provisional tile by. */
 const PROVISIONAL_LOGO_ATTRIBUTE = "data-provisional-logo";
 
+/**
+ * The layer every capability logo stands in (`public/index.html`). Named here because it is
+ * what an armed attempt queues against, so the two cannot drift; `fragments.test.ts` pins
+ * that the shell still carries it.
+ */
+export const DESK_LOGO_LAYER_ELEMENT_ID = "capability-logos";
+
+/**
+ * The window's one content region — the target every desk control that opens something
+ * swaps into (`WINDOW_CONTENT_ID`, `public/desk-window.js`). It is also what those controls
+ * *synchronise* against: the region holds one thing at a time, so two requests aimed at it
+ * are two answers for one slot, and the later press must win.
+ */
+export const WINDOW_CONTENT_ELEMENT_ID = "spec-build-output";
+
 // The shell's logo-layer placeholder comment (public/index.html) — where the on-load
 // rehydration and direct `/capability/:id` navigation inject one logo per capability.
 const SHELL_LOGO_PLACEHOLDER = "          <!-- Capability logos render here. -->";
@@ -126,6 +141,20 @@ const CLEAR_ON_ACCEPT_TARGETS = [["div", "prompt-notice"]] as const;
  * while ignoring the second — so the bar says the same true thing for both instead.
  */
 export const BLANK_PROMPT_NOTICE = "What would you like me to make?";
+
+/**
+ * The other end of the same admission: a submission far longer than anything a person
+ * types at the bar.
+ *
+ * The prompt is read as one string, trimmed into a second copy and scanned with a Unicode
+ * regex before anything looks at it, and the resolver is then paid to classify it. The
+ * server-wide body cap (`src/index.ts`) bounds the bytes; this bounds the *prompt*, so a
+ * body that is within the cap and still absurd is turned down at the desk in the desk's own
+ * voice rather than spending a provider call.
+ */
+export const MAX_PROMPT_LENGTH = 4000;
+export const LONG_PROMPT_NOTICE =
+  "That’s a lot to take in at once. Give me the short version and I’ll make a start.";
 
 /**
  * What every address and every press that names nothing is answered with — a link to a
@@ -443,7 +472,14 @@ export function renderCapabilityLogo(
     "    data-capability-logo",
     `    data-capability-id="${id}"`,
     `    hx-get="${url}"`,
-    '    hx-target="#spec-build-output"',
+    `    hx-target="#${WINDOW_CONTENT_ELEMENT_ID}"`,
+    // The later press owns the region. Two presses in one tick left two requests running
+    // against the same slot with no ownership between them: if the first answered last, the
+    // window showed A while the bar said B, and the swap's own `HX-Replace-Url` then
+    // *replaced* the address with A — silently discarding the entry the person pushed for B.
+    // `replace` abandons the earlier request instead, which is also what frees its read
+    // token on the server.
+    `    hx-sync="#${WINDOW_CONTENT_ELEMENT_ID}:replace"`,
     '    hx-swap="innerHTML"',
     `    aria-label="Open ${escapeHtml(label)}"`,
     // A menu opens on this button, and a reader that is only told "Open Notes, button"
@@ -522,7 +558,9 @@ function renderCapabilityLogoMenu(row: RenderableCapabilityLogo, label: string):
     "    data-window-doorway",
     `    data-capability-id="${id}"`,
     `    hx-get="${deletionUrl}"`,
-    '    hx-target="#spec-build-output"',
+    `    hx-target="#${WINDOW_CONTENT_ELEMENT_ID}"`,
+    // The same ownership a logo press takes: the doorway swaps into the same one slot.
+    `    hx-sync="#${WINDOW_CONTENT_ELEMENT_ID}:replace"`,
     '    hx-swap="innerHTML"',
     "  >",
     "    Delete",
@@ -576,6 +614,10 @@ function renderCapabilityRenameEditor(row: RenderableCapabilityLogo, label: stri
     "  </span>",
     `  <input type="hidden" name="incarnation_id" value="${escapeHtml(row.incarnation_id)}">`,
     `  <input type="hidden" name="version" value="${row.version}">`,
+    // The name this editor opened on, so the write is a compare-and-swap on it. A rename
+    // does not bump the version, so the version alone cannot tell two menus opened on the
+    // same one apart, and the second used to overwrite the first in silence.
+    `  <input type="hidden" name="previous_label" value="${escapeHtml(row.display_label_override ?? "")}">`,
     '  <div class="logo-rename__actions">',
     '    <button type="submit" class="btn btn--primary btn--sm" data-logo-rename-save',
     `      data-busy-label="${escapeHtml(SAVING_LABEL)}"`,
@@ -614,6 +656,14 @@ function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): 
     '<span class="logo-tile logo-tile--pending logo-tile--working"',
     `  hx-post="${escapeHtml(capabilityLogoAttemptUrl(row))}"`,
     '  hx-trigger="load"',
+    // One attempt at a time across the whole desk. Every faceless tile arms on `load`, so a
+    // desk with N of them fired N simultaneous claims and N concurrent 90-second provider
+    // calls — and a provider-side 429 caused by the platform's own burst releases the claim
+    // with the attempt already spent. Three rounds of that and a capability wears the
+    // permanent placeholder having produced no artwork at all: the 3-attempt cap is never
+    // exceeded, the budget is simply destroyed inside it. Queued against the layer they all
+    // stand in, so they take their turns instead of racing.
+    `  hx-sync="${escapeHtml(`#${DESK_LOGO_LAYER_ELEMENT_ID}:queue all`)}"`,
     `  hx-target="${escapeHtml(`#${capabilityLogoFaceElementId(row.id)}`)}"`,
     '  hx-swap="outerHTML"',
     "></span>",

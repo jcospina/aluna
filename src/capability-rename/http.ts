@@ -32,6 +32,10 @@ export async function handleCapabilityRename(
     capabilityId: c.req.param("id") ?? "",
     incarnationId: singleFormValue(form, "incarnation_id"),
     version,
+    // The name the menu opened on. A rename does not bump the version, so this is the only
+    // thing that tells two submissions made against the same version apart: without it the
+    // second silently overwrote the first, and neither person was told.
+    previousLabel: singleFormValue(form, "previous_label"),
   };
 
   // A version that is not one refuses as stale rather than as a bad name: nothing about

@@ -227,10 +227,16 @@ rest of the old shell, and a capability's standing entry on the desk is its logo
 (ADR-0007). The `commit` sidecar keeps its shape and its out-of-band delivery and
 changes only what it targets: a newly committed capability appends a logo, and an
 evolution that changed the label replaces the name written under one. Page
-assembly collapses to that single anchor, because the window is created
-client-side and the shell holds no placeholder for it; the one anchor swap that
-fails silently today (`class="shell"`, `src/web/fragments.ts`) throws like the
-others.
+assembly collapses to the logo layer and the prompt bar's notice slot, because the
+window is created client-side and the shell holds no placeholder for it; the one
+anchor swap that fails silently today (`class="shell"`, `src/web/fragments.ts`)
+throws like the others.
+
+*Corrected 2026-09-02.* This said page assembly collapses "to that single anchor".
+It was written before the notice slot became an anchor of its own — a load that
+arrives already having something to say seeds its sentence there (module 5, PLAN
+decision 21) — so `PAGE_ASSEMBLY_ANCHORS` has held two since, and its own comment
+says so.
 
 Before activation, an admitted new-capability job may own a provisional
 build-id-keyed tile. It is presentation state, not a registry entry: `commit`

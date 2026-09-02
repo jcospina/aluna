@@ -128,9 +128,11 @@ describe("an over-length string on the wire", () => {
   test("the platform answers it, not the Handler: no capability code judges a length", async () => {
     const app = appForBoundedNotes();
     await app.request("/capability/notes/create", body("x".repeat(LIMIT + 1)));
-    // The Handler asked for the write — that is all it does — and the platform refused it
-    // before canonical state moved. The Handler emitted no error of its own.
-    expect(handlerRuns).toBe(1);
+    // Not "the Handler asked and was refused" — the Handler is never loaded. The length is
+    // a fact about the submission, so the router settles it before any generated code runs,
+    // which is what makes the 422, the retarget and the sentence the platform's rather than
+    // whatever the Handler chose to do with a caught error.
+    expect(handlerRuns).toBe(0);
     expect(createCapabilityDataTool(boundedNotesSpec(), conns).select()).toEqual([]);
   });
 

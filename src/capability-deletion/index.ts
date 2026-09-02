@@ -28,10 +28,12 @@ export {
   REDACTED_EVENT_PAYLOAD,
 } from "./installed-payloads.ts";
 export {
+  type CapabilityDeletionAbsence,
   type CapabilityDeletionRefusal,
   type CapabilityDeletionRestorationEvidence,
   DELETION_ENDING_ATTRIBUTE,
   DELETION_EXIT_ATTRIBUTE,
+  DELETION_RECHECK_PARAM,
   DELETION_SENTENCE_ATTRIBUTE,
   dependentCapabilityNames,
   renderCapabilityDeletionAlreadyGone,

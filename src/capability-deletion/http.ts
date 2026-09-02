@@ -8,6 +8,7 @@ import { renderCachedCapabilitySurface } from "../web/index.ts";
 import type { DeletionCleanupSupervisor } from "./cleanup-supervisor.ts";
 import { admitCapabilityDeletion } from "./front-half.ts";
 import {
+  type CapabilityDeletionAbsence,
   type CapabilityDeletionRefusal,
   type CapabilityDeletionRestorationEvidence,
   renderCapabilityDeletionAlreadyGone,
@@ -100,12 +101,14 @@ export function alreadyGoneResponse(
   capabilityId: string,
   restoration: CapabilityDeletionRestoration,
   database: Database,
+  after: CapabilityDeletionAbsence = "never-asked",
 ): Response {
   const restored = resolveCurrentCapabilityDeletionRestoration(restoration, database);
   return c.html(
     renderCapabilityDeletionAlreadyGone(
       capabilityId,
       restored ? renderCachedCapabilitySurface(restored) : "",
+      after,
     ),
     200,
     {

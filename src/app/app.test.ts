@@ -10,6 +10,55 @@ import { resolve } from "node:path";
 import { responseText } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
 
+describe("platform security headers", () => {
+  test("every app response carries the policy, on a page and on a fragment", async () => {
+    const app = createApp();
+
+    for (const path of ["/", "/capability/does-not-exist", "/nope"]) {
+      const res = await app.request(path);
+      const csp = res.headers.get("content-security-policy") ?? "";
+
+      // The one that matters: an injected inline `<script>` is refused, because
+      // `'unsafe-inline'` is never granted to scripts.
+      expect(csp, path).toContain("script-src 'self' 'unsafe-eval'");
+      expect(csp, path).not.toContain("script-src 'self' 'unsafe-inline'");
+      expect(csp, path).toContain("frame-ancestors 'none'");
+      expect(csp, path).toContain("base-uri 'none'");
+      expect(csp, path).toContain("object-src 'none'");
+      // The browser-side half of the record exfiltration ban: a remote pixel cannot load.
+      expect(csp, path).toContain("img-src 'self' data:");
+      expect(res.headers.get("x-content-type-options"), path).toBe("nosniff");
+      expect(res.headers.get("x-frame-options"), path).toBe("DENY");
+      expect(res.headers.get("referrer-policy"), path).toBe("no-referrer");
+    }
+  });
+});
+
+describe("developer surfaces", () => {
+  // The payload is not a page anyone opens: it is embedded in `GET /` and in every direct
+  // capability address, and it carries model ids, token counts, stage timings, catalog
+  // fingerprints and cleanup-failure strings holding absolute filesystem paths. It is
+  // escaped, so this is disclosure rather than XSS — and it is gated the way `/demo/*` is.
+  test("a production bundle carries neither the demo routes nor the lifecycle payload", async () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const app = createApp();
+      const html = await responseText(await app.request("/"));
+
+      // The slot the shell ships is still there and still empty: nothing is seeded into it.
+      expect(html).toContain('<div id="dev-stage-seed" data-dev-stage-seed="metrics" hidden>');
+      expect(html).not.toContain("lifecycles");
+      expect(html).not.toContain("committedVersions");
+      expect((await app.request("/demo/few-shot-gallery")).status).toBe(404);
+      expect(html).toContain("data-dev-tile");
+    } finally {
+      if (previous === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previous;
+    }
+  });
+});
+
 describe("GET / (shell)", () => {
   test("uses the prompt bar for the build-job flow and removes the old greeting button", async () => {
     const app = createApp();

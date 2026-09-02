@@ -20,6 +20,8 @@
  * than importing it, so the direction of the dependency stays what it is.
  */
 
+import { registerRegionRelease } from "./region-scope.js";
+
 /** A control on the ground whose answer needs a window to land in. */
 export const WINDOW_DOORWAY_SELECTOR = "[data-window-doorway]";
 
@@ -69,16 +71,32 @@ export function answerDoorway(root, doorway, window_) {
  * Shared by the two presses that stand a window up before htmx has decided to fetch
  * anything, so neither can leave an empty one behind.
  *
+ * **It has two ways to end, and it needs both.** The listener took itself off only when it
+ * saw its own element's `htmx:afterRequest` — and htmx fires that *after* the swap, so a
+ * swap that detached `asking` (a deletion's out-of-band `delete:` takes the whole logo
+ * slot, and the doorway is inside it) left the event bubbling from a node that is no longer
+ * in the document. It never reached `root`, so the listener stayed on the document for the
+ * life of the page, holding the detached subtree with it. The element leaving the document
+ * is therefore the other ending: the release scope runs on exactly that fact, by whichever
+ * route the node left.
+ *
  * @param {Document} root @param {Element} asking @param {() => void} stand
  */
 export function whenTheRequestFails(root, asking, stand) {
+  const stop = () => {
+    root.removeEventListener("htmx:afterRequest", settle);
+    release();
+  };
   /** @param {Event} done */
   const settle = (done) => {
     const detail = /** @type {CustomEvent<{ elt?: unknown, successful?: boolean }>} */ (done)
       .detail;
     if (detail?.elt !== asking) return;
-    root.removeEventListener("htmx:afterRequest", settle);
+    stop();
     if (detail.successful === false) stand();
   };
   root.addEventListener("htmx:afterRequest", settle);
+  const release = registerRegionRelease(asking, "doorway settle", () =>
+    root.removeEventListener("htmx:afterRequest", settle),
+  );
 }

@@ -15,8 +15,10 @@ import { join } from "node:path";
 import ts from "typescript";
 
 import { capabilitySpecSchema, fieldTypeSchema } from "../../../registry/index.ts";
-import { checkItemRendererFieldAccess } from "../../units/item-field-access.ts";
-import { checkHandlerSourceContract } from "../../units/unit-checks.ts";
+import {
+  checkHandlerSourceContract,
+  checkItemRendererSourceContract,
+} from "../../units/unit-checks.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
 import type { CapabilityGateInput } from "../gate.ts";
 import { errorMessage, formatDiagnostics } from "../gate-internal.ts";
@@ -104,8 +106,12 @@ function structuralSpecOutcome(
 function structuralItemOutcome(input: CapabilityGateInput): StructuralUnitOutcome {
   try {
     assertItemRendererExportShape(input.itemRenderer);
-    const fieldAccessFailure = checkItemRendererFieldAccess(input.spec, input.itemRenderer);
-    if (fieldAccessFailure) throw new Error(fieldAccessFailure);
+    // The renderer's *whole* source contract, not a subset of it. This rung used to run
+    // the field-access half alone, so the import ban and the ambient-runtime ban held
+    // during unit generation and were silently dropped for the snapshot the Gate admits —
+    // and a copied or hand-supplied renderer never passes through unit generation at all.
+    const contractFailure = checkItemRendererSourceContract(input.spec, input.itemRenderer);
+    if (contractFailure) throw new Error(contractFailure);
     const rendererFailure = typeCheckItemRenderer(input.itemRenderer);
     if (rendererFailure) throw new Error(rendererFailure);
     return passedUnit("item-renderer", "item", "item.ts");

@@ -81,6 +81,18 @@ describe("the axis itself", () => {
     ).toBe(false);
   });
 
+  // The exclusion that makes the list a rule rather than an enumeration: a background is
+  // a fill, not content, so nothing a reader is following moves when it moves. That is
+  // exactly what the working tile's crawl is, and why it stays on for everybody.
+  test("a crawling fill is not travel, because nothing a reader follows moves with it", () => {
+    expect(
+      probe(`
+        .p { animation: p-crawl 2s linear infinite; }
+        @keyframes p-crawl { to { background-position: 40px 0; } }
+      `),
+    ).toEqual([]);
+  });
+
   test("leaves the one animation the surface runs today crawling", () => {
     // The tile that says a capability is still being built. It crawls in place, so it
     // crawls for everybody — the reader who asked for less motion included, who is the one
@@ -177,6 +189,18 @@ const BYPASSES: Readonly<Record<string, string>> = {
     }`,
   "a second answer to the preference": `
     @media (prefers-reduced-motion: reduce) { .p { transition: none; } }`,
+  "content slid by moving the clip that shows it": `
+    .p { transition: clip-path 400ms ease; }
+    .p:hover { clip-path: inset(0 0 0 40px); }`,
+  "a thing carried along an offset path": `
+    .p { transition: offset-distance 1s ease; }
+    .p:hover { offset-distance: 60%; }`,
+  "an image slid inside the frame that holds it": `
+    .p { transition: object-position var(--dur-rise) ease; }
+    .p:hover { object-position: 40px 0; }`,
+  "a drawn line's own end, moved": `
+    .p { animation: p-stretch 1s infinite; }
+    @keyframes p-stretch { from { x2: 0; } to { x2: 300; } }`,
 };
 
 describe("a rule written to get around the axis", () => {

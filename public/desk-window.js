@@ -571,9 +571,15 @@ export function windowForOpening(standing, mountWindow, title, openedBy) {
   entry.win.setTitle(title);
   /* Whatever opened it named it, so it is no longer holding a name for a run. */
   entry.displacedTitle = null;
-  /* The first opener owns the way back. A capability swapped into a window that is
-   * already up did not open it, and must not move where putting it away returns. */
-  entry.openedBy ??= openedBy;
+  /* The way back is the *last* thing that filled the window, not the first.
+   *
+   * It used to be the first, on the reasoning that a capability swapped into a window
+   * that is already up did not open it. True of the window and wrong for the person:
+   * after A → B → C, putting the window away dropped a keyboard user back on A's logo,
+   * three moves from the one they had been looking at, with nothing on screen to say why.
+   * Where focus goes back to is a fact about what you were doing, and what you were doing
+   * is C. A press that names nothing (`null`) leaves whatever the window already had. */
+  if (openedBy !== null) entry.openedBy = openedBy;
   return entry;
 }
 

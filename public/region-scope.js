@@ -185,21 +185,56 @@ export function regionScopeReport() {
 }
 
 /**
+ * Which nodes under `node` have an htmx request in flight, `node` itself included, and the
+ * abort each of them is owed.
+ *
+ * Stated as a rule over the DOM facts it needs rather than inside the browser call, and
+ * that is not tidiness. The transport half used to be reached only past an
+ * `instanceof Element` guard, and the release rule's whole test suite runs on a DOM-free
+ * double that is never an `Element` — so this branch was structurally excluded from every
+ * test, on the most-exercised acquisition path there is: it runs on every capability open.
+ *
+ * @template {{ classList: { contains(name: string): boolean }, querySelectorAll(selector: string): Iterable<T> }} T
+ * @param {T} node
+ * @param {(element: T, eventName: string) => void} trigger
+ * @returns {T[]} everything that was aborted, in the order it was
+ */
+export function abortTransportUnder(node, trigger) {
+  const inFlight = [...node.querySelectorAll(`.${HTMX_REQUEST_CLASS}`)];
+  if (node.classList.contains(HTMX_REQUEST_CLASS)) inFlight.unshift(node);
+  for (const element of inFlight) trigger(element, "htmx:abort");
+  return inFlight;
+}
+
+/**
  * Abort every htmx request in flight under `node`. htmx's abort listener is on `body`
  * and reads the event as it bubbles, so this only works while `node` is still connected —
  * which is exactly what `htmx:beforeCleanupElement` and an explicit pre-replacement
  * release provide.
  *
- * @param {Element} node
+ * The guard is structural rather than `instanceof Element`: what the abort needs is a
+ * class list and a descendant query, and asking for those is both the true precondition
+ * and the thing a test can satisfy. Where there is no htmx there is no transport to abort,
+ * which is what keeps this inert outside a browser.
+ *
+ * @param {ScopeAnchor} node
  */
 function abortTransportIn(node) {
   const htmx =
-    /** @type {Window & { htmx?: { trigger(node: Element, eventName: string): void } }} */ (window)
-      .htmx;
-  if (!htmx) return;
-  const inFlight = [...node.querySelectorAll(`.${HTMX_REQUEST_CLASS}`)];
-  if (node.classList.contains(HTMX_REQUEST_CLASS)) inFlight.unshift(node);
-  for (const element of inFlight) htmx.trigger(element, "htmx:abort");
+    /** @type {{ htmx?: { trigger(node: never, eventName: string): void } } | undefined} */ (
+      globalThis.window
+    )?.htmx;
+  const target = /** @type {never} */ (node);
+  if (!htmx || !canBeAborted(target)) return;
+  abortTransportUnder(target, (element, eventName) => htmx.trigger(element, eventName));
+}
+
+/**
+ * Whether a node carries the two DOM facts the abort reads off it.
+ * @param {{ classList?: unknown, querySelectorAll?: unknown }} node
+ */
+function canBeAborted(node) {
+  return typeof node.querySelectorAll === "function" && typeof node.classList === "object";
 }
 
 /** @returns {string} */
@@ -214,14 +249,15 @@ function htmxDisableSelector() {
  * abort whatever transport that content still has open. Call it *before* replacing the
  * content or removing the region; the observer below catches anything that skipped it.
  *
- * The transport half only exists where a browser does, which is what lets the rule itself
- * be exercised in Bun against nodes that are not `Element`s.
+ * The transport half only runs where there is an htmx to run it, which is what keeps this
+ * inert outside a browser — and `abortTransportUnder` states that half as a rule, so it is
+ * exercised rather than merely stepped over.
  *
  * @param {ScopeAnchor} node
  */
 export function releaseRegionContent(node) {
   registry.releaseUnder(node);
-  if (typeof Element !== "undefined" && node instanceof Element) abortTransportIn(node);
+  abortTransportIn(node);
 }
 
 /**

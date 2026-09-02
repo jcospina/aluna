@@ -82,6 +82,7 @@ design/
       collection.css      the collection, and the record view it swaps to
       desk.css            desk, logos, prompt bar, mobile layout
       doc.css             styles for these pages only, not the product
+      list-field.css      the repeatable rows a string[] field is typed into
       logo-contract.css   the logo tile and label, as the contract defines them
       ink.css             must load last; wires up the drawn borders
     layout-kit.css        the classes generated capability markup speaks;
@@ -96,8 +97,12 @@ design/
     ink.js                finds elements needing a drawn border, mounts them
     window-frame.js       generates the window path: frame plus title rule
     window.js             the window component
+    window-gestures.js    drag, resize and maximise, and the pointer that owns one
     desk.js               the window manager: one window, plus the panel
     desk-geometry.js      where a window is allowed to be, and the phone breakpoint
+    desk-logo.js          one logo tile: the artwork, the corner, the label
+    devpanel.js           the developer panel's eight readouts
+    list-rows.js          the repeatable rows a string[] field is typed into
     patterns.js           the collection and the record form it swaps to
     prompt-bar.js         the floating prompt bar
     wallpaper.js          the desk background

@@ -73,11 +73,11 @@ describe("the three presentations are three drawings of one field", () => {
       // The optional marker rides inside the label, because the exception is what is
       // marked: marking required would spend an asterisk on most of a form.
       expect(html).toContain(
-        '<span class="field__label" id="cap-probe-value-label">' +
+        '<span class="field__label caps" id="cap-probe-value-label">' +
           'Value <span class="field__optional">optional</span></span>',
       );
       expect(html).toContain('aria-labelledby="cap-probe-value-label"');
-      expect(html).not.toContain('<label class="field__label"');
+      expect(html).not.toContain('<label class="field__label caps"');
     }
   });
 
