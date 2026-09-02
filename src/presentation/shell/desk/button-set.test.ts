@@ -95,7 +95,7 @@ describe("the button set", () => {
 });
 
 describe("every button the product renders", () => {
-  /** Every `class="btn …"` in shipped markup, preview surfaces included. */
+  /** Every `class="btn …"` in shipped markup. */
   function renderedButtons(): string[] {
     const under = (root: string, pattern: string): string[] =>
       [...new Bun.Glob(pattern).scanSync({ cwd: root })].map((name: string) => `${root}/${name}`);

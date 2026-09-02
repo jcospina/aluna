@@ -29,12 +29,12 @@ export const codeOf = (path: string): string => code(readSource(path));
 export const flat = (source: string): string => source.replace(/\s+/g, " ").trim();
 
 /**
- * Every shell script as shipped. The `*-preview.js` developer pages are not the desk,
- * so they are not asked what the desk builds.
+ * Every shell script as shipped. All of them: the developer preview pages that used to be
+ * excluded here came down with module 5, and an exclusion that matches nothing is a hole
+ * waiting for the next file to fall through it.
  */
 export const shellScripts = (): ReadonlyArray<readonly [string, string]> =>
   [...new Bun.Glob("*.js").scanSync({ cwd: join(ROOT, "public") })]
-    .filter((name: string) => !name.endsWith("-preview.js"))
     .sort()
     .map((name: string) => [name, codeOf(join("public", name))] as const);
 

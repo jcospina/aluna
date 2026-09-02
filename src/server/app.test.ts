@@ -35,11 +35,13 @@ describe("platform security headers", () => {
 });
 
 describe("developer surfaces", () => {
-  // The payload is not a page anyone opens: it is embedded in `GET /` and in every direct
-  // capability address, and it carries model ids, token counts, stage timings, catalog
-  // fingerprints and cleanup-failure strings holding absolute filesystem paths. It is
-  // escaped, so this is disclosure rather than XSS — and it is gated the way `/demo/*` is.
-  test("a production bundle carries neither the demo routes nor the lifecycle payload", async () => {
+  // The lifecycle payload is the last thing the guard holds back, now that the `/demo/*`
+  // pages are gone. It is not a page anyone opens: it is embedded in `GET /` and in every
+  // direct capability address, and it carries model ids, token counts, stage timings,
+  // catalog fingerprints and cleanup-failure strings holding absolute filesystem paths. It
+  // is escaped, so this is disclosure rather than XSS — and none of it is a user's
+  // business.
+  test("a production bundle carries the shell without the lifecycle payload", async () => {
     const previous = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     try {
@@ -50,7 +52,6 @@ describe("developer surfaces", () => {
       expect(html).toContain('<div id="dev-stage-seed" data-dev-stage-seed="metrics" hidden>');
       expect(html).not.toContain("lifecycles");
       expect(html).not.toContain("committedVersions");
-      expect((await app.request("/demo/few-shot-gallery")).status).toBe(404);
       expect(html).toContain("data-dev-tile");
     } finally {
       if (previous === undefined) delete process.env.NODE_ENV;
@@ -537,28 +538,43 @@ describe("GET / (shell) — stream close glue", () => {
   });
 });
 
-// The dev-only guard over the surviving `/demo/*` inspection routes. A
-// production bundle must not answer them, and that must be provable here rather than
-// resting on someone remembering to run `bun run build` — hence the guard reads the
-// environment per `createApp` call instead of freezing at import.
-describe("the dev-only guard on the remaining /demo/* inspection routes", () => {
+// Nothing lives under `/demo` any more. Module 5's last three inspection surfaces came
+// down with it, so the namespace ADR-0002 reserved for throwaway scaffolding is empty in
+// every environment — and the guard that used to gate it now holds back only the
+// developer panel's lifecycle payload, proved above.
+describe("the /demo namespace is empty", () => {
   const previous = process.env.NODE_ENV;
   afterEach(() => {
     if (previous === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = previous;
   });
 
-  test("a production run serves the shell but not the developer inspection routes", async () => {
-    process.env.NODE_ENV = "production";
-    const app = createApp();
-
-    expect((await app.request("/demo/few-shot-gallery")).status).toBe(404);
-    expect((await app.request("/demo/region-lifecycle")).status).toBe(404);
-    expect((await app.request("/demo/region-lifecycle/readers")).status).toBe(404);
-    expect((await app.request("/demo/swap-targets")).status).toBe(404);
-    expect((await app.request("/demo/read-gates")).status).toBe(404);
-    // The product surface is untouched by the guard.
-    expect((await app.request("/")).status).toBe(200);
+  test("module 5's inspection surfaces are unregistered in every environment", async () => {
+    // All three came down, and none took evidence with it. The gallery's injected prompt
+    // section is asserted against `buildItemRendererDesignInjection` in
+    // gate-design-lint-high-meadow.test.ts; the release rule the region preview slowed
+    // down is covered by router.read-gates.test.ts and router.read-abandonment.test.ts,
+    // with the raised drain deadline measured directly in read-gates.test.ts; the swap
+    // target's two halves are covered by fragments.test.ts (every page-assembly anchor)
+    // and swap-target.test.ts (a delivery to a region that has gone).
+    for (const nodeEnv of ["production", "development"]) {
+      process.env.NODE_ENV = nodeEnv;
+      const app = createApp();
+      for (const path of [
+        "/demo/few-shot-gallery",
+        "/demo/region-lifecycle",
+        "/demo/region-lifecycle/read",
+        "/demo/region-lifecycle/readers",
+        "/demo/swap-targets",
+      ]) {
+        expect((await app.request(path)).status).toBe(404);
+      }
+      expect((await app.request("/demo/region-lifecycle/drain", { method: "POST" })).status).toBe(
+        404,
+      );
+      // The product surface is untouched.
+      expect((await app.request("/")).status).toBe(200);
+    }
   });
 
   test("epic 4.9's previews are unregistered in every environment", async () => {

@@ -5,10 +5,8 @@
 //
 // It serves the fixed shell page at `/`, static assets under /static/*, and the
 // production `/prompt` → `/build/:id/stream` build-job flow — the one admission path
-// for every build. Three `/demo/*` surfaces — the few-shot design gallery, the content
-// region's release rule and the swap-target guard — sit behind a single dev-only guard,
-// so a production bundle does not answer them. All three are scaffolding for work the
-// window has not absorbed yet, and come down with it.
+// for every build. Nothing here is a preview: the developer surfaces this file used to
+// register came down with module 5, and every route below is one the product answers.
 
 import type { Context } from "hono";
 import { Hono } from "hono";
@@ -54,12 +52,8 @@ import {
   type ReadGateCoordinator,
 } from "../runtime/concurrency/read-gates.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../runtime/router/index.ts";
-import { renderFewShotGalleryPreviewPage } from "./dev-surfaces/few-shot-gallery-preview.ts";
-import { registerRegionLifecyclePreviewRoutes } from "./dev-surfaces/region-lifecycle-preview.ts";
-import { registerSwapTargetPreviewRoutes } from "./dev-surfaces/swap-target-preview.ts";
 import {
   BLANK_PROMPT_NOTICE,
-  developerSurfacesEnabled,
   hasMeaningfulPromptContent,
   LONG_PROMPT_NOTICE,
   MAX_PROMPT_LENGTH,
@@ -400,47 +394,6 @@ function createPlatformLogoRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
 }
 
 /**
- * The deterministic preview surfaces — no provider and no db. A demo is scaffolding: once
- * the behavior it showed is built and covered by tests, it comes down. The gallery stays
- * because it is the only place the *injected* item-renderer prompt section can be read;
- * production shows the generated output, never the input.
- *
- * The other two stay for a reason that outlived the epics they were written against. This
- * said they "come down with the surfaces that replace them (5.7 and 5.8)"; both landed and
- * both previews are still here, because what they show is not a surface that was replaced —
- * it is a *timing* production does not have. The window really does exercise the release
- * rule on a real capability, and a real read answers too fast for the release to be
- * watched; the loud swap target forces each page-assembly anchor, which nothing else does
- * on purpose anywhere. They are HITL instruments, and they come down when there is another
- * way to watch those two things happen — not on an epic number.
- *
- * They are also entangled with the contrast audit: `contrast-audit.ts` inventories their
- * pairings and `contrast-pairings-preview.ts` measures them, so removing either means
- * re-homing those rows rather than deleting them.
- */
-function registerPreviewDemoRoutes(app: Hono): void {
-  // Dev preview for the few-shot design gallery + item-renderer prompt injection
-  // — the HITL surface for inspecting the repo-only exemplars and the exact
-  // "vary, don't copy" prompt section. Deterministic, no provider, no db.
-  app.get(
-    "/demo/few-shot-gallery",
-    () =>
-      new Response(renderFewShotGalleryPreviewPage(), {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }),
-  );
-
-  // The content region's release rule, slowed down enough to watch: the region's live
-  // scope beside the server's tracked reader count, both emptying on the same act.
-  registerRegionLifecyclePreviewRoutes(app);
-
-  // Every swap target failing loudly: the three page-assembly anchors forced one at a
-  // time against the real shell, and a `commit`/`fragment` delivered to a region that
-  // has been put away. Neither is reachable on purpose anywhere else.
-  registerSwapTargetPreviewRoutes(app);
-}
-
-/**
  * The production build-job lifecycle: prompt submission and the per-build ephemeral
  * stream it hands back.
  */
@@ -633,10 +586,6 @@ export function createApp(deps: AppDeps = {}): Hono {
     logoClaims: ctx.logoClaims,
     logoClaimObservationMs: ctx.logoClaimObservationMs,
   });
-
-  if (developerSurfacesEnabled()) {
-    registerPreviewDemoRoutes(app);
-  }
 
   // The deterministic capability router: the fixed
   // `/capability/:id/:action` convention the generated UI targets. It validates the

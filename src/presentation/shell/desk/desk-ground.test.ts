@@ -121,7 +121,6 @@ describe("the clearance is one number", () => {
     ...under("design/scripts", "**/*.js"),
     ...under("public", "*.js"),
     ...under("src/server/http", "*.ts"),
-    ...under("src/server/dev-surfaces", "*.ts"),
     "public/app.css",
     "public/index.html",
   ];

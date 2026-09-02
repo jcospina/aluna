@@ -357,9 +357,10 @@ describe("on-load logo rehydration", () => {
   });
 
   // Every page-assembly anchor, removed one at a time from a shell that is otherwise
-  // whole, so each case isolates the anchor it names. The removals come from the same
-  // `PAGE_ASSEMBLY_ANCHORS` the developer preview forces, so a test and a preview cannot
-  // disagree about what "missing" means for an anchor.
+  // whole, so each case isolates the anchor it names. The removals come from
+  // `PAGE_ASSEMBLY_ANCHORS` itself rather than from copies of the strings, so this cannot
+  // drift from what the assembly actually matches. Since the developer preview came down
+  // this is the only place every anchor is forced.
   const anchorRaises: Record<string, RegExp> = {
     "the logo-layer placeholder": /logo-layer placeholder/i,
     "the prompt bar's notice slot": /notice slot/i,

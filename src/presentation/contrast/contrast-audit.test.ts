@@ -181,7 +181,9 @@ describe("the contrast audit", () => {
     const required = [
       ...importedSheets().filter((sheet) => !manifests.has(sheet)),
       ...sheetsOnDisk(),
-      ...["public", "src/server/dev-surfaces", "src/builder/units"].flatMap(embeddedSheets),
+      // `public` holds no page with a `<style>` block today; it is scanned because the next
+      // one added there has to be audited on arrival.
+      ...["public", "src/builder/units"].flatMap(embeddedSheets),
     ];
     for (const sheet of required) {
       expect(audited, `${sheet} styles a shipped surface and nothing audits it`).toContain(sheet);

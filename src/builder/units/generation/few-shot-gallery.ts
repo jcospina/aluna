@@ -3,8 +3,10 @@
 //
 // These examples are generation guidance, not user-facing product UI. The builder
 // injects them into the item-renderer prompt alongside the closed design contract and
-// the capability's chosen collection layout. The preview route renders sample output
-// from this same data as a developer sign-off surface.
+// the capability's chosen collection layout. Nothing renders them to a reader: the
+// developer preview route that once did came down with module 5, and what stands over
+// them now is `gate-design-lint-high-meadow.test.ts`, which composes each sample through
+// the real presentation adapter rather than serving it.
 
 import { ALLOWED_CLASSES } from "../../../presentation/safety/vocabulary.ts";
 import {

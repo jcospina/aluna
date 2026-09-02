@@ -473,6 +473,14 @@ a Unicode regex over all of it.
   are complete. Note they are entangled: `contrast-audit.ts:95` and
   `contrast-pairings-preview.ts` inventory their pairings, so removing them means
   re-homing those assertions.
+  **Closed after the module.** Both came down, along with `/demo/few-shot-gallery` and
+  `public/primitives-preview.html`, so the `/demo` namespace ADR-0002 reserved for
+  throwaway scaffolding is now empty in every environment. Both file references above are
+  historical: the entangled rows were re-homed rather than dropped, and
+  `contrast-pairings-preview.ts` became `contrast-pairings-exemplars.ts`, holding only the
+  few-shot exemplars — audited because the prompt teaches them, not because a page renders
+  them. The audited-sheet list in `contrast-audit.ts` lost the four deleted sources and
+  nothing else.
 - The module's own claim that it "removes more code than it adds" (decision 1) did not
   hold: net +10,731 lines in non-test `src/`, +7,525 in `public/`, +27,077 in tests.
   The *shell surface* claim is defensible; the module as a whole is strongly additive.

@@ -9,10 +9,15 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { enforceItemMarkup } from "../../../../presentation/index.ts";
+import {
+  createPlatformPresentationAdapter,
+  enforceItemMarkup,
+  renderCollection,
+} from "../../../../presentation/index.ts";
 import {
   buildItemRendererDesignInjection,
   FEW_SHOT_DESIGN_EXAMPLES,
+  type FewShotDesignExample,
 } from "../../../units/generation/few-shot-gallery.ts";
 import { notesSpec } from "../../gate.test-support.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";
@@ -271,6 +276,30 @@ describe("design-lint — the three never-declared properties", () => {
 });
 
 describe("the few-shot exemplars the generator is shown", () => {
+  // What the deleted `/demo/few-shot-gallery` preview did, minus the page: each exemplar's
+  // samples composed through the real platform adapter and the real collection container.
+  // The exemplars declare create + read only, so no record opens here — there is no read
+  // view to fall back on, and nothing to open one in.
+  function renderedExample(example: FewShotDesignExample): string {
+    const capability = { ...example.capability, actions: ["create", "read"] as const };
+    let sampleIndex = 0;
+    const present = createPlatformPresentationAdapter({
+      capability,
+      renderItem: () => {
+        const inner = example.previewSamples[sampleIndex]?.previewInnerHtml;
+        if (inner === undefined) throw new Error(`Missing sample ${sampleIndex} for ${example.id}`);
+        sampleIndex += 1;
+        return inner;
+      },
+    });
+
+    return renderCollection({
+      capability,
+      layout: example.layout,
+      items: example.previewSamples.map((sample) => present(sample.record)).join(""),
+    });
+  }
+
   test("every exemplar's rendered record clears the re-derived rung", () => {
     // The gallery is what the model varies from. An exemplar the rung would refuse teaches
     // the failure it then has to be fixed out of, so the two are pinned together here.
@@ -310,5 +339,40 @@ describe("the few-shot exemplars the generator is shown", () => {
     expect(injection).not.toContain("var(--color-");
     expect(injection).not.toContain("var(--border-");
     expect(injection).not.toContain("var(--radius-");
+  });
+
+  // Re-homed from the deleted `/demo/few-shot-gallery` preview, which was the only place
+  // these two read. They are what stops the exemplars being received as a template: the
+  // framing that asks for variation, and the one layout this capability was given.
+  test("the exemplars arrive framed as variation, under the layout that was chosen", () => {
+    for (const layout of ["feed", "grid"] as const) {
+      const injection = buildItemRendererDesignInjection(layout);
+
+      expect(injection).toContain("Few-shot gallery. Vary, don't copy");
+      expect(injection).toContain(`Chosen collection layout for this capability: "${layout}"`);
+    }
+
+    // Every exemplar's renderer source travels whole, whichever layout was chosen — a
+    // grid exemplar's column template reaches the generator even on a feed.
+    expect(buildItemRendererDesignInjection("feed")).toContain('style="grid-template-columns');
+  });
+
+  // Re-homed from the deleted preview, which was the only thing composing the exemplars
+  // through the platform's own presentation path. It is also what keeps each example's
+  // `capability` and each sample's `record` honest: the samples are authored as a pair
+  // with their `previewInnerHtml`, and nothing else reads either half.
+  test("every exemplar composes through the real adapter and container", () => {
+    const rendered = FEW_SHOT_DESIGN_EXAMPLES.map(renderedExample);
+    const all = rendered.join("");
+
+    expect(rendered).toHaveLength(3);
+    expect(all.match(/class="capability-item"/g)).toHaveLength(6);
+    expect(all).toContain('class="capability-records capability-records--feed"');
+    expect(all).toContain('class="capability-records capability-records--grid"');
+
+    // Create + read only: a frame with nothing behind it is a card, so no record surface
+    // is emitted and no swap is armed that the exemplar could not serve.
+    expect(all).not.toContain("data-record-view-template=");
+    expect(all).not.toContain("<dialog");
   });
 });
