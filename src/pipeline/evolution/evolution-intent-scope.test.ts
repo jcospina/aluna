@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { journalCapabilityRow } from "../../builder/evolution/candidate.test-support.ts";
+import { journalCapabilityRow } from "../../builder/evolution/candidate/candidate.test-support.ts";
 import {
   CandidateValidationError,
   committedSpecView,

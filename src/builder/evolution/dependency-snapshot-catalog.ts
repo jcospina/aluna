@@ -8,12 +8,12 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { type CapabilityRow, capabilitySpecFromRow } from "../../registry/index.ts";
+import type { VerifiedDependencySnapshot } from "../artifacts/inventory/artifact-provenance.ts";
+import { SnapshotVerificationError } from "../artifacts/inventory/snapshot-error.ts";
 import {
   type VerifiedCapabilitySnapshot,
   verifyCapabilitySnapshot,
-} from "../artifacts/artifact-lifecycle.ts";
-import type { VerifiedDependencySnapshot } from "../artifacts/artifact-provenance.ts";
-import { SnapshotVerificationError } from "../artifacts/snapshot-error.ts";
+} from "../artifacts/publication/artifact-lifecycle.ts";
 
 export function buildVerifiedDependencySnapshotCatalog(
   rows: readonly CapabilityRow[],

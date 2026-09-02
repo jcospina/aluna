@@ -11,7 +11,7 @@ import { DEV_STAGES } from "#design/devpanel.js";
 import {
   candidateFrom,
   journalCapabilityRow,
-} from "../builder/evolution/candidate.test-support.ts";
+} from "../builder/evolution/candidate/candidate.test-support.ts";
 import {
   createHandlerFor,
   itemRendererFor,

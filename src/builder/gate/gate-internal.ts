@@ -37,7 +37,7 @@ import type {
   CapabilityReadHandler,
   CapabilityUpdateHandler,
 } from "../../runtime/router/index.ts";
-import type { HandlerUnitName } from "../units/units.ts";
+import type { HandlerUnitName } from "../units/generation/units.ts";
 import type { ScratchCatalogCapability } from "./gate.ts";
 
 /** The complete steady-state Handler inventory exercised by the full smoke cycle. */

@@ -1,0 +1,491 @@
+// Unit generation (ARCH §6.2
+// "Capability Builder" step 3, ADR-0003 bounded tool-loop, ADR-0004 generated
+// artifact contract as amended by ADR-0005 §2).
+//
+// Module 4.4 extends Module 3's one item renderer + Handler model to the complete
+// fixed Action inventory. The item renderer turns one record into the capability-specific inner
+// markup, generated **knowing** the chosen `collection.layout`; the Handlers receive
+// the presentation adapter through their injected toolbox and call it instead
+// of emitting their own row markup — so create and read render identical item markup by
+// construction, and the list/create Views are gone (the platform renders them
+// deterministically from the spec). Generation is agentic only inside one unit at a
+// time: write -> check -> feed back the failure -> fix, capped by a small config knob.
+// Across units the order and scope are fixed.
+//
+// This file owns the public contract and the orchestration; the per-unit prompts live
+// in `unit-prompts.ts` and the static checks in `unit-checks.ts`.
+
+import { z } from "zod";
+import {
+  type DeepPartial,
+  isProviderAbortError,
+  type Provider,
+  type TokenUsage,
+} from "../../../platform/provider/index.ts";
+import {
+  type CapabilityRow,
+  type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
+} from "../../../registry/index.ts";
+
+import { admissiblePriorSource } from "../safety/prior-source-admissibility.ts";
+import { checkGeneratedUnit } from "../safety/unit-checks.ts";
+import { buildUnitPrompt } from "./unit-prompts.ts";
+
+export const DEFAULT_UNIT_FIX_ATTEMPTS = 2;
+
+/**
+ * The single generated presentation unit's name — the stem of the version-keyed file
+ * the router loads it from (`item.ts`, `ITEM_RENDERER_FILE` in src/runtime/router/dispatch/router.ts).
+ */
+export const ITEM_RENDERER_UNIT_NAME = "item";
+
+const generatedUnitSchema = z.strictObject({ content: z.string().min(1) });
+type GeneratedUnitObject = z.infer<typeof generatedUnitSchema>;
+
+export type HandlerUnitName = (typeof FULL_CAPABILITY_TOOLS)[number];
+export type ItemRendererUnitName = typeof ITEM_RENDERER_UNIT_NAME;
+
+export type GeneratedUnit =
+  | {
+      readonly kind: "handler";
+      readonly name: HandlerUnitName;
+      readonly filename: `${HandlerUnitName}.ts`;
+      readonly content: string;
+      readonly attempts: readonly UnitGenerationAttempt[];
+      readonly durationMs: number;
+      readonly usage: TokenUsage;
+    }
+  | {
+      readonly kind: "item-renderer";
+      readonly name: ItemRendererUnitName;
+      readonly filename: `${ItemRendererUnitName}.ts`;
+      readonly content: string;
+      readonly attempts: readonly UnitGenerationAttempt[];
+      readonly durationMs: number;
+      readonly usage: TokenUsage;
+    };
+
+export interface UnitGenerationAttempt {
+  readonly attempt: number;
+  readonly durationMs: number;
+  readonly usage: TokenUsage;
+  readonly error?: string;
+}
+
+export interface GenerateCapabilityUnitsInput {
+  readonly provider: Provider;
+  readonly spec: CapabilitySpec;
+  readonly dependencyCatalog?: readonly CapabilityRow[];
+  // Config knob from PLAN decision 5. Defaults to two attempts: the initial write
+  // plus one fix pass. Reused (not new) for the item renderer.
+  readonly maxAttempts?: number;
+  readonly observer?: UnitGenerationObserver;
+}
+
+export interface GenerateCapabilityUnitsResult {
+  readonly units: readonly GeneratedUnit[];
+  readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
+  // The one generated presentation surface — the composition input the router binds
+  // into each Handler's presentation adapter, and the content the commit
+  // stage writes to `item.ts`.
+  readonly itemRenderer: string;
+}
+
+export type UnitDescriptor =
+  | { readonly kind: "handler"; readonly name: HandlerUnitName }
+  | { readonly kind: "item-renderer"; readonly name: ItemRendererUnitName };
+
+/** A failed unit check: the unit being generated, plus the message fed back to fix it. */
+export type UnitGenerationFailure = UnitDescriptor & { readonly message: string };
+
+export interface UnitGenerationStartEvent {
+  readonly unit: UnitDescriptor;
+  readonly attempt: number;
+}
+
+export interface UnitGenerationPartialEvent {
+  readonly unit: UnitDescriptor;
+  readonly attempt: number;
+  readonly content: string;
+}
+
+export interface UnitGenerationAttemptEvent {
+  readonly unit: UnitDescriptor;
+  readonly attempt: UnitGenerationAttempt;
+}
+
+export interface UnitGenerationObserver {
+  readonly onUnitStart?: (event: UnitGenerationStartEvent) => void | Promise<void>;
+  readonly onUnitPartial?: (event: UnitGenerationPartialEvent) => void | Promise<void>;
+  readonly onUnitAttempt?: (event: UnitGenerationAttemptEvent) => void | Promise<void>;
+  readonly onUnitGenerated?: (unit: GeneratedUnit) => void | Promise<void>;
+}
+
+/** Terminal evidence for a unit whose bounded write-check-fix loop exhausted. */
+export interface UnitGenerationDiagnostic {
+  readonly unit: UnitDescriptor;
+  readonly attempts: readonly UnitGenerationAttempt[];
+}
+
+export class UnitGenerationError extends Error {
+  override readonly name = "UnitGenerationError";
+  readonly unit: UnitDescriptor;
+  readonly attempts: readonly UnitGenerationAttempt[];
+  readonly diagnostic: UnitGenerationDiagnostic;
+
+  constructor(unit: UnitDescriptor, attempts: readonly UnitGenerationAttempt[]) {
+    const lastFailure = attempts.at(-1)?.error;
+    super(
+      [
+        `Generated ${unit.kind} "${unit.name}" did not pass after ${attempts.length} attempt(s).`,
+        ...(lastFailure ? ["Last failure:", lastFailure] : []),
+      ].join("\n"),
+    );
+    this.unit = unit;
+    this.attempts = attempts;
+    this.diagnostic = { unit, attempts };
+  }
+}
+
+// Re-exported so the public builder surface (src/builder/index.ts) and callers can
+// reach the prompt builder without depending on the prompts file directly.
+export { buildUnitPrompt } from "./unit-prompts.ts";
+
+/**
+ * Generate the complete unit inventory declared by `spec`, in fixed order — the item
+ * renderer first (the creative surface, generated knowing `collection.layout`), then
+ * each canonical Action Handler through its bounded write→check→fix loop. Every spec
+ * declares the fixed five Actions, so this always generates item.ts plus
+ * all five Handlers. Returns the generated units plus the handler map and item-renderer
+ * content the gate and commit consume. Throws {@link UnitGenerationError} if any unit
+ * never passes its checks.
+ */
+export async function generateCapabilityUnits(
+  input: GenerateCapabilityUnitsInput,
+): Promise<GenerateCapabilityUnitsResult> {
+  assertHandlerSpec(input.spec);
+  const maxAttempts = normalizeMaxAttempts(input.maxAttempts);
+  const units: GeneratedUnit[] = [];
+
+  const shared = {
+    provider: input.provider,
+    spec: input.spec,
+    maxAttempts,
+    observer: input.observer,
+    dependencyCatalog: input.dependencyCatalog,
+  };
+
+  units.push(
+    await generateUnit({
+      ...shared,
+      unit: { kind: "item-renderer", name: ITEM_RENDERER_UNIT_NAME },
+    }),
+  );
+
+  for (const action of input.spec.tools) {
+    units.push(await generateUnit({ ...shared, unit: { kind: "handler", name: action } }));
+  }
+
+  return {
+    units,
+    handlers: Object.fromEntries(
+      input.spec.tools.map((action) => [action, contentFor(units, "handler", action)]),
+    ),
+    itemRenderer: itemRendererContent(units),
+  };
+}
+
+export interface GenerateCapabilityUnitInput {
+  readonly provider: Provider;
+  readonly spec: CapabilitySpec;
+  readonly unit: UnitDescriptor;
+  readonly maxAttempts?: number;
+  readonly observer?: UnitGenerationObserver;
+  readonly dependencyCatalog?: readonly CapabilityRow[];
+  /**
+   * An evolution's prior committed source for this unit. Optional regeneration
+   * context, never an entitlement: it is re-proven against `spec` here and dropped unless
+   * it references nothing outside this unit's current generation contract.
+   */
+  readonly priorSource?: string;
+}
+
+/**
+ * Generate exactly one unit through the same bounded write→check→fix loop
+ * {@link generateCapabilityUnits} drives, in isolation. Evolution regenerates only
+ * the units the Diff work plan selects (copying the rest byte-for-byte), so it needs
+ * per-unit generation rather than the whole fixed inventory. The projected `spec` and
+ * `dependencyCatalog` are the unit's generation context — the caller passes the
+ * candidate spec so the regenerated unit sees only the candidate's active projection.
+ * Throws {@link UnitGenerationError} if the unit never passes its checks.
+ */
+export function generateCapabilityUnit(input: GenerateCapabilityUnitInput): Promise<GeneratedUnit> {
+  if (input.unit.kind === "handler") assertHandlerSpec(input.spec);
+  // Decision 21's proof, re-run at the prompt boundary. The assembler decides and records
+  // the same verdict from the same pure function, so this never disagrees with what a
+  // developer is shown — it is here so that no caller, present or future, can hand stale
+  // source into a prompt by forgetting to ask.
+  const priorSource =
+    input.priorSource === undefined
+      ? undefined
+      : admissiblePriorSource({
+          spec: input.spec,
+          unit: input.unit,
+          source: input.priorSource,
+          ...(input.dependencyCatalog ? { dependencyCatalog: input.dependencyCatalog } : {}),
+        });
+
+  return generateUnit({
+    provider: input.provider,
+    spec: input.spec,
+    unit: input.unit,
+    maxAttempts: normalizeMaxAttempts(input.maxAttempts),
+    observer: input.observer,
+    dependencyCatalog: input.dependencyCatalog,
+    priorSource,
+  });
+}
+
+interface UnitGenerationRun {
+  readonly provider: Provider;
+  readonly spec: CapabilitySpec;
+  readonly unit: UnitDescriptor;
+  readonly maxAttempts: number;
+  readonly observer: UnitGenerationObserver | undefined;
+  readonly dependencyCatalog: readonly CapabilityRow[] | undefined;
+  readonly priorSource?: string | undefined;
+}
+
+async function generateUnit(run: UnitGenerationRun): Promise<GeneratedUnit> {
+  const { provider, spec, unit, maxAttempts, observer, dependencyCatalog, priorSource } = run;
+  const attempts: UnitGenerationAttempt[] = [];
+  let previousFailure: UnitGenerationFailure | undefined;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await observer?.onUnitStart?.({ unit, attempt });
+    const startedAt = performance.now();
+    const result = provider.generate(
+      buildUnitPrompt(spec, unit, previousFailure, dependencyCatalog, priorSource),
+      generatedUnitSchema,
+    );
+    // Previews are observational: `result.object` is the authoritative outcome and
+    // reports the same failure. Handle the stream's rejection the moment the promise
+    // exists — on abort, `await result.object` below throws and would otherwise leave
+    // this one unobserved, surfacing as an unhandled rejection at the `abort` call.
+    const partialsSettled = observeUnitPartials(
+      unit,
+      attempt,
+      result.partialStream,
+      observer,
+    ).catch(() => undefined);
+    const generated = generatedUnitSchema.parse(await result.object);
+    await partialsSettled;
+    const usage = await result.usage;
+    const durationMs = performance.now() - startedAt;
+    const failure = checkGeneratedUnit(spec, unit, generated.content, dependencyCatalog);
+    const attemptRecord = {
+      attempt,
+      durationMs,
+      usage,
+      ...(failure ? { error: failure.message } : {}),
+    };
+    attempts.push(attemptRecord);
+    await observer?.onUnitAttempt?.({ unit, attempt: attemptRecord });
+
+    if (!failure) {
+      const generatedUnit = toGeneratedUnit(unit, generated.content, attempts);
+      await observer?.onUnitGenerated?.(generatedUnit);
+      return generatedUnit;
+    }
+
+    previousFailure = failure;
+  }
+
+  throw new UnitGenerationError(unit, attempts);
+}
+
+/** One unit's worth: the parsed content of a single generation pass, plus its cost. */
+export interface UnitGenerationPass {
+  readonly content: string;
+  readonly usage: TokenUsage;
+  readonly durationMs: number;
+}
+
+/**
+ * A provider generation that failed after returning a result handle. Usage may already be
+ * available even when the structured object rejects; carrying it keeps failed Gate work
+ * measurable without parsing provider error text.
+ */
+export class UnitGenerationPassError extends Error {
+  override readonly name = "UnitGenerationPassError";
+
+  constructor(
+    message: string,
+    readonly durationMs: number,
+    readonly usage: TokenUsage | undefined,
+    override readonly cause?: unknown,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Run one generation pass for a unit — build its prompt (feeding a prior failure back
+ * when present, exactly as {@link generateUnit} does), stream a structured object, and
+ * return the parsed `content` with its usage and wall time. This is the write step of the
+ * bounded fix loop factored out for callers that drive their own loop rather than the
+ * observer-driven `generateUnit`: the design-lint gate rung (3.6) reuses it to regenerate
+ * the item renderer when it rejects the composition, so a design violation re-enters the
+ * *same* mechanism the type-check rung uses. Awaits `object` (and `usage`) without draining
+ * the partial stream — the spine self-drives, the established pattern for the non-preview
+ * call sites (`generateBehavioralTests`).
+ */
+export async function generateUnitContent(
+  provider: Provider,
+  spec: CapabilitySpec,
+  unit: UnitDescriptor,
+  previousFailure?: UnitGenerationFailure,
+  dependencyCatalog?: readonly CapabilityRow[],
+): Promise<UnitGenerationPass> {
+  const startedAt = performance.now();
+  const result = provider.generate(
+    buildUnitPrompt(spec, unit, previousFailure, dependencyCatalog),
+    generatedUnitSchema,
+  );
+  const [objectResult, usageResult] = await Promise.allSettled([result.object, result.usage]);
+  if (objectResult.status === "rejected") {
+    if (isProviderAbortError(objectResult.reason)) throw objectResult.reason;
+    const usage = usageResult.status === "fulfilled" ? usageResult.value : undefined;
+    throw new UnitGenerationPassError(
+      generationFailureMessage(objectResult.reason),
+      performance.now() - startedAt,
+      usage,
+      objectResult.reason,
+    );
+  }
+  if (usageResult.status === "rejected") {
+    if (isProviderAbortError(usageResult.reason)) throw usageResult.reason;
+    throw new UnitGenerationPassError(
+      generationFailureMessage(usageResult.reason),
+      performance.now() - startedAt,
+      undefined,
+      usageResult.reason,
+    );
+  }
+  let content: string;
+  try {
+    ({ content } = generatedUnitSchema.parse(objectResult.value));
+  } catch (error) {
+    throw new UnitGenerationPassError(
+      generationFailureMessage(error),
+      performance.now() - startedAt,
+      usageResult.value,
+      error,
+    );
+  }
+  const usage = usageResult.value;
+  return { content, usage, durationMs: performance.now() - startedAt };
+}
+
+function generationFailureMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function observeUnitPartials(
+  unit: UnitDescriptor,
+  attempt: number,
+  partialStream: AsyncIterable<DeepPartial<GeneratedUnitObject>>,
+  observer: UnitGenerationObserver | undefined,
+): Promise<void> {
+  if (!observer?.onUnitPartial) return;
+
+  for await (const partial of partialStream) {
+    if (typeof partial.content === "string") {
+      await observer.onUnitPartial({ unit, attempt, content: partial.content });
+    }
+  }
+}
+
+function toGeneratedUnit(
+  unit: UnitDescriptor,
+  content: string,
+  attempts: readonly UnitGenerationAttempt[],
+): GeneratedUnit {
+  const base = {
+    content,
+    attempts,
+    durationMs: attempts.reduce((sum, attempt) => sum + attempt.durationMs, 0),
+    usage: sumUsage(attempts.map((attempt) => attempt.usage)),
+  };
+
+  if (unit.kind === "handler") {
+    const name = unit.name;
+    return {
+      kind: "handler",
+      name,
+      filename: `${name}.ts`,
+      ...base,
+    };
+  }
+
+  return {
+    kind: "item-renderer",
+    name: ITEM_RENDERER_UNIT_NAME,
+    filename: `${ITEM_RENDERER_UNIT_NAME}.ts`,
+    ...base,
+  };
+}
+
+function contentFor(
+  units: readonly GeneratedUnit[],
+  kind: "handler",
+  name: HandlerUnitName,
+): string {
+  const unit = units.find((candidate) => candidate.kind === kind && candidate.name === name);
+  if (!unit) throw new Error(`missing generated ${kind} ${name}`);
+  return unit.content;
+}
+
+function itemRendererContent(units: readonly GeneratedUnit[]): string {
+  const unit = units.find((candidate) => candidate.kind === "item-renderer");
+  if (!unit) throw new Error("missing generated item renderer");
+  return unit.content;
+}
+
+function assertHandlerSpec(spec: CapabilitySpec): void {
+  if (
+    spec.tools.length !== FULL_CAPABILITY_TOOLS.length ||
+    !spec.tools.every((action, index) => action === FULL_CAPABILITY_TOOLS[index])
+  ) {
+    throw new Error("Unit generation requires the complete fixed five-Action shape.");
+  }
+}
+
+function normalizeMaxAttempts(maxAttempts: number | undefined): number {
+  if (maxAttempts === undefined) return DEFAULT_UNIT_FIX_ATTEMPTS;
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+    throw new RangeError("maxAttempts must be a positive integer.");
+  }
+  return maxAttempts;
+}
+
+function sumUsage(usages: readonly TokenUsage[]): TokenUsage {
+  return {
+    inputTokens: sumOptional(usages.map((usage) => usage.inputTokens)),
+    outputTokens: sumOptional(usages.map((usage) => usage.outputTokens)),
+    totalTokens: sumOptional(usages.map((usage) => usage.totalTokens)),
+  };
+}
+
+function sumOptional(values: readonly (number | undefined)[]): number | undefined {
+  let seen = false;
+  let sum = 0;
+  for (const value of values) {
+    if (value !== undefined) {
+      seen = true;
+      sum += value;
+    }
+  }
+  return seen ? sum : undefined;
+}

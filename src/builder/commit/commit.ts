@@ -35,7 +35,7 @@ import {
   DEFAULT_ARTIFACTS_ROOT,
   type SnapshotManifest,
   type VerifiedPublishedSnapshot,
-} from "../artifacts/artifact-lifecycle.ts";
+} from "../artifacts/publication/artifact-lifecycle.ts";
 
 /**
  * Every committed capability starts at version 1. Later regenerations bump it (the

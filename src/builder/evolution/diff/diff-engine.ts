@@ -1,0 +1,714 @@
+// The Diff Engine: one total, monotone change-fact contract. Given the committed spec and
+// the already-validated candidate, it converts every admitted committed→candidate
+// difference into a typed change fact and projects the union of those facts onto the four
+// kinds of downstream work — schema/platform work, generated-unit selection,
+// behavioral-test effect, and Gate work. Admitting a new spec fact requires extending both
+// the normative change-fact matrix and this module.
+//
+// Three invariants hold this contract together:
+//
+//   - **Monotone union.** Multiple facts union every column; one fact can never subtract
+//     work another fact requires. A unit is copied only when *no* fact selects it — the
+//     matrix positively proving it unaffected.
+//   - **Fails closed on the unknown.** After accounting for every region a change fact
+//     covers, the residual of the two canonical specs must be identical. Any leftover
+//     difference — a future admitted fact without a matrix row, or an immutable region
+//     validation should have frozen — throws {@link UnmappedChangeFactError} before any
+//     publication, never a silent no-op or an unproven copy.
+//   - **Canonical, not raw.** Equality is over the validated semantic value: object-key
+//     order is ignored and set-like facts (dependency arrays, error cases, error-field
+//     sets) use a defined canonical order, while ordered product facts (`schema.fields`,
+//     item `shows` and `direction`) preserve order and therefore diff. A
+//     zero-fact candidate is the canonical no-op: the caller performs no work and
+//     finalizes `success/no_change`.
+
+import {
+  type CapabilitySpec,
+  type CapabilityTool,
+  type FieldType,
+  FULL_CAPABILITY_TOOLS,
+  isChoiceFieldType,
+  isListFieldType,
+  type SpecField,
+} from "../../../registry/index.ts";
+import { canonicalCapabilityLabel } from "../../../registry/labels.ts";
+import { detectChoiceFacts } from "./diff-choice.ts";
+import { detectFormIntentFacts } from "./diff-form-intent.ts";
+import { assertTotalCoverage } from "./diff-totality.ts";
+
+export { UnmappedChangeFactError } from "./diff-totality.ts";
+
+// ── The typed change facts ──────────────────────────────────────────────────
+// One variant per matrix row that produces a fact. The invalid-candidate row and
+// the two terminal rows (no-op, unmapped) are not facts: invalidity is rejected
+// upstream, the no-op is the empty fact set, and the unmapped case
+// throws. Field- and Action-scoped facts carry their subject so the union and the
+// dev preview can name exactly what changed.
+
+export type ChangeFact =
+  | { readonly kind: "capability_label" }
+  | { readonly kind: "empty_state_noun" }
+  | { readonly kind: "prompt_context" }
+  | { readonly kind: "field_order" }
+  | { readonly kind: "new_active_field"; readonly field: string; readonly fieldType: FieldType }
+  | { readonly kind: "required_change"; readonly field: string }
+  | { readonly kind: "max_length"; readonly field: string }
+  | { readonly kind: "field_label"; readonly field: string }
+  | {
+      readonly kind: "field_lifecycle";
+      readonly field: string;
+      readonly transition: "hide" | "reactivate";
+    }
+  | { readonly kind: "list_input_mode"; readonly field: string }
+  | { readonly kind: "long_text_input"; readonly field: string }
+  | { readonly kind: "field_guidance"; readonly field: string }
+  | { readonly kind: "choice_values"; readonly field: string }
+  | { readonly kind: "choice_option_disabled"; readonly field: string }
+  | { readonly kind: "choice_option_labels"; readonly field: string }
+  | { readonly kind: "choice_option_notes"; readonly field: string }
+  | { readonly kind: "choice_option_order"; readonly field: string }
+  | { readonly kind: "choice_option_groups"; readonly field: string }
+  | { readonly kind: "choice_presentation"; readonly field: string }
+  | { readonly kind: "item_presentation" }
+  | { readonly kind: "collection_layout" }
+  | { readonly kind: "read_dependencies"; readonly action: CapabilityTool }
+  | { readonly kind: "behavior" }
+  | { readonly kind: "behavioral_errors"; readonly actions: readonly CapabilityTool[] };
+
+export type ChangeFactKind = ChangeFact["kind"];
+
+// The canonical fact order the result and the dev preview present — schema
+// identity first, then platform presentation, then behavior. Deterministic so two
+// runs over the same difference emit byte-identical facts (and metrics stay
+// comparable in M8).
+const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
+  "capability_label",
+  "empty_state_noun",
+  "prompt_context",
+  "field_order",
+  "new_active_field",
+  "required_change",
+  "max_length",
+  "field_label",
+  "field_lifecycle",
+  "list_input_mode",
+  "long_text_input",
+  "field_guidance",
+  "choice_values",
+  "choice_option_disabled",
+  "choice_option_labels",
+  "choice_option_notes",
+  "choice_option_order",
+  "choice_option_groups",
+  "choice_presentation",
+  "item_presentation",
+  "collection_layout",
+  "read_dependencies",
+  "behavior",
+  "behavioral_errors",
+];
+
+// ── The work plan the matrix projects ───────────────────────────────────────
+
+/**
+ * The six generated units the diff selects between: the five Action handlers and
+ * the item renderer. Every unit not selected is copied byte-for-byte.
+ */
+export const GENERATED_UNITS = ["create", "read", "update", "delete", "search", "item"] as const;
+export type GeneratedUnitName = (typeof GENERATED_UNITS)[number];
+
+/**
+ * The closed vocabulary of platform/schema work the matrix's first column names.
+ * Each tag is one cell's worth of platform-owned work — no generated units, no
+ * model context. Extending the matrix extends this list.
+ */
+export const PLATFORM_WORK_KINDS = [
+  "registry_and_view_copy", // capability label → registry row + logo/View copy
+  "platform_empty_state_copy", // empty-state noun → the platform collection's empty state
+  "resolver_catalog", // prompt_context → intent-resolver catalog
+  "platform_field_order", // field order → platform form order + list-input entry order
+  "add_column", // new active field → nullable ADD COLUMN
+  "platform_form_detail", // new/label/lifecycle field → platform form + detail View
+  "resulting_record_validation", // required change → resulting-record validation
+  "max_length_validation", // max_length → mutation validation + the native limit and counter
+  "list_input_intent", // hide/reactivate → remove/require active list-input intent
+  "form_subset_intent", // hide/reactivate → remove/require a long_text or guidance entry
+  "list_input_form_normalization", // list input mode → create/edit form + raw-input normalization
+  "long_text_form_control", // long_text → which control a string field's form draws
+  "field_guidance_copy", // guidance → the line under a field, and its describedby wiring
+  "choice_admitted_values", // appended option → platform mutation validation + the control
+  "choice_option_presentation", // option label/note/order → the control's wording and its order
+  "choice_option_grouping", // option groups → the control's headings and the runs under them
+  "choice_input_form_control", // choice presentation → which of the three controls is drawn
+  "choice_input_intent", // hide/reactivate a choice → remove/require its form intent
+  "platform_list_container", // collection feed|grid → platform list container
+  "read_catalog", // read_dependencies → read catalog / reverse index
+  "behavioral_error_contract", // behavioral_errors → stable semantic contract
+] as const;
+export type PlatformWorkKind = (typeof PLATFORM_WORK_KINDS)[number];
+
+/** The behavioral-tier effect the diff projects; meaningful only when the tier is on. */
+export interface BehavioralTestPlan {
+  /** The Action test suites to generate/run (decision 23 narrows execution later). */
+  readonly actions: readonly CapabilityTool[];
+  /** Free-text `behavior` selects the complete candidate suite, not named Actions. */
+  readonly fullSuite: boolean;
+}
+
+/** Gate work the matrix footer fixes for any real build (an empty-fact no-op runs no Gate). */
+export interface DiffGatePlan {
+  /** Structural/interface validation runs against every candidate snapshot. */
+  readonly structural: boolean;
+  /** The full-CRUD/search smoke runs against every candidate snapshot. */
+  readonly smoke: boolean;
+  /** Design lint runs whenever the item renderer regenerates. */
+  readonly designLint: boolean;
+  /** The behavioral tier follows the projected test plan. */
+  readonly behavioral: BehavioralTestPlan;
+}
+
+/** The unioned downstream work a set of change facts requires. */
+export interface DiffWorkPlan {
+  readonly platformWork: readonly PlatformWorkKind[];
+  readonly regeneratedUnits: readonly GeneratedUnitName[];
+  readonly gate: DiffGatePlan;
+}
+
+/** The Diff Engine's output: the typed facts, their unioned work, and the no-op flag. */
+export interface CapabilityDiff {
+  readonly facts: readonly ChangeFact[];
+  readonly workPlan: DiffWorkPlan;
+  /** True exactly when `facts` is empty — the canonical no-op. */
+  readonly isNoop: boolean;
+}
+
+/**
+ * Diff one committed spec against one validated candidate. Returns the typed
+ * facts, the unioned work plan, and the no-op flag; throws
+ * {@link UnmappedChangeFactError} if any difference is left unexplained.
+ *
+ * Both inputs are the validated canonical value (the committed row's authored view
+ * and the validated candidate), so this never re-checks the invalid-candidate
+ * row — it only classifies admitted differences and proves totality.
+ */
+export function diffCapabilitySpec(
+  committed: CapabilitySpec,
+  candidate: CapabilitySpec,
+): CapabilityDiff {
+  const facts = detectFacts(committed, candidate);
+  assertTotalCoverage(committed, candidate);
+  const workPlan = projectWorkPlan(facts, candidate);
+  return { facts, workPlan, isNoop: facts.length === 0 };
+}
+
+// ── Fact detection ──────────────────────────────────────────────────────────
+
+function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): readonly ChangeFact[] {
+  const facts: ChangeFact[] = [];
+
+  // Authored labels, canonicalized. The override a rename writes is deliberately not in
+  // this comparison: a diff is over what the model wrote, and renaming desk furniture is
+  // not a change to a spec — it makes no version and it reaches no candidate.
+  const authored = (spec: CapabilitySpec) => ({ ...spec, display_label_override: null });
+  if (
+    canonicalCapabilityLabel(authored(committed)) !== canonicalCapabilityLabel(authored(candidate))
+  ) {
+    facts.push({ kind: "capability_label" });
+  }
+  // `noun` is a platform-View fact: it moves one sentence of platform copy and
+  // nothing else. `subject`, `ground` and `companion` are deliberately absent from this function —
+  // they are birth facts, so they never become change facts, and a candidate that
+  // moved one is rejected upstream by validation and caught here by the residual
+  // totality check if it somehow were not.
+  if (committed.noun !== candidate.noun) {
+    facts.push({ kind: "empty_state_noun" });
+  }
+  if (committed.prompt_context !== candidate.prompt_context) {
+    facts.push({ kind: "prompt_context" });
+  }
+
+  detectSchemaFacts(committed, candidate, facts);
+  detectListInputModeFacts(committed, candidate, facts);
+  detectFormIntentFacts(committed, candidate, facts);
+  detectChoiceFacts(committed, candidate, facts);
+  detectPresentationFacts(committed, candidate, facts);
+  detectReadDependencyFacts(committed, candidate, facts);
+
+  if (committed.behavior !== candidate.behavior) {
+    facts.push({ kind: "behavior" });
+  }
+  const behavioralErrorActions = changedBehavioralErrorActions(committed, candidate);
+  if (behavioralErrorActions.length > 0) {
+    facts.push({ kind: "behavioral_errors", actions: behavioralErrorActions });
+  }
+
+  return sortFacts(facts);
+}
+
+// schema.fields is the busiest region: order is an ordered product fact, new
+// fields, label/required/lifecycle each map to their own fact. Name and type are
+// immutable (validated upstream), so they never diff here — they anchor the
+// residual totality check instead.
+function detectSchemaFacts(
+  committed: CapabilitySpec,
+  candidate: CapabilitySpec,
+  facts: ChangeFact[],
+): void {
+  const committedNames = new Set(committed.schema.fields.map((field) => field.name));
+  const committedByName = new Map(committed.schema.fields.map((field) => [field.name, field]));
+
+  // Field order only: the relative order of the fields present in both. A new
+  // field inserted between existing fields is a new_active_field fact, not a reorder.
+  const committedOrder = committed.schema.fields.map((field) => field.name);
+  const candidateCommittedOrder = candidate.schema.fields
+    .filter((field) => committedNames.has(field.name))
+    .map((field) => field.name);
+  if (!sameSequence(committedOrder, candidateCommittedOrder)) {
+    facts.push({ kind: "field_order" });
+  }
+
+  for (const candidateField of candidate.schema.fields) {
+    facts.push(...fieldFacts(committedByName.get(candidateField.name), candidateField));
+  }
+}
+
+// The per-field facts of one candidate field: a new field, or the union of the
+// attribute changes over a returned committed field. Name and type never diff
+// (validation), so they are absent from this set by construction.
+function fieldFacts(
+  committedField: SpecField | undefined,
+  candidateField: SpecField,
+): readonly ChangeFact[] {
+  if (!committedField) {
+    // Validation already proved a new field is born active.
+    return [
+      { kind: "new_active_field", field: candidateField.name, fieldType: candidateField.type },
+    ];
+  }
+  const facts: ChangeFact[] = [];
+  if (committedField.required !== candidateField.required) {
+    facts.push({ kind: "required_change", field: candidateField.name });
+  }
+  // Absence and a number compare alike: adding a limit, removing one and moving one are
+  // the same platform work, and the pre-activation scan reads the direction for itself.
+  if (committedField.max_length !== candidateField.max_length) {
+    facts.push({ kind: "max_length", field: candidateField.name });
+  }
+  if (committedField.label !== candidateField.label) {
+    facts.push({ kind: "field_label", field: candidateField.name });
+  }
+  if (committedField.lifecycle !== candidateField.lifecycle) {
+    facts.push({
+      kind: "field_lifecycle",
+      field: candidateField.name,
+      transition: committedField.lifecycle === "active" ? "hide" : "reactivate",
+    });
+  }
+  return facts;
+}
+
+// A list-input mode fact is only the mode change of a field that is an active
+// string[] in *both* specs; a field that gained or lost that status is already a
+// new_active_field or field_lifecycle fact.
+function detectListInputModeFacts(
+  committed: CapabilitySpec,
+  candidate: CapabilitySpec,
+  facts: ChangeFact[],
+): void {
+  const committedModes = listInputModesByField(committed);
+  const candidateModes = listInputModesByField(candidate);
+  for (const [field, committedMode] of committedModes) {
+    const candidateMode = candidateModes.get(field);
+    if (candidateMode !== undefined && candidateMode !== committedMode) {
+      facts.push({ kind: "list_input_mode", field });
+    }
+  }
+}
+
+function detectPresentationFacts(
+  committed: CapabilitySpec,
+  candidate: CapabilitySpec,
+  facts: ChangeFact[],
+): void {
+  const committedItem = committed.ui_intent.item;
+  const candidateItem = candidate.ui_intent.item;
+  if (
+    committedItem.direction !== candidateItem.direction ||
+    !sameSequence(committedItem.shows, candidateItem.shows)
+  ) {
+    facts.push({ kind: "item_presentation" });
+  }
+  if (committed.ui_intent.collection.layout !== candidate.ui_intent.collection.layout) {
+    facts.push({ kind: "collection_layout" });
+  }
+}
+
+// read_dependencies is one fact per Action whose declared dependency identities
+// changed. The arrays are validated canonical-ordered, but compare as sets so a
+// serialization reorder could never manufacture a fact.
+function detectReadDependencyFacts(
+  committed: CapabilitySpec,
+  candidate: CapabilitySpec,
+  facts: ChangeFact[],
+): void {
+  for (const action of FULL_CAPABILITY_TOOLS) {
+    const before = canonicalDependencyKeys(committed.read_dependencies[action]);
+    const after = canonicalDependencyKeys(candidate.read_dependencies[action]);
+    if (!sameSequence(before, after)) {
+      facts.push({ kind: "read_dependencies", action });
+    }
+  }
+}
+
+// The behavioral_errors fact names every Action whose error contract changed —
+// the union of the Actions owning each added or removed canonical case. Cases are
+// compared as a set with canonical-ordered fields, so reordering the array or an
+// error's fields is not a change.
+function changedBehavioralErrorActions(
+  committed: CapabilitySpec,
+  candidate: CapabilitySpec,
+): readonly CapabilityTool[] {
+  const before = behavioralErrorCasesByKey(committed);
+  const after = behavioralErrorCasesByKey(candidate);
+  const actions = new Set<CapabilityTool>();
+  for (const [key, action] of before) {
+    if (!after.has(key)) actions.add(action);
+  }
+  for (const [key, action] of after) {
+    if (!before.has(key)) actions.add(action);
+  }
+  return FULL_CAPABILITY_TOOLS.filter((action) => actions.has(action));
+}
+
+// ── Work-plan projection ────────────────────────────────────────────────────
+
+interface WorkSink {
+  readonly platform: Set<PlatformWorkKind>;
+  readonly units: Set<GeneratedUnitName>;
+  readonly tests: Set<CapabilityTool>;
+  fullSuite: boolean;
+}
+
+function projectWorkPlan(facts: readonly ChangeFact[], candidate: CapabilitySpec): DiffWorkPlan {
+  const sink: WorkSink = {
+    platform: new Set(),
+    units: new Set(),
+    tests: new Set(),
+    fullSuite: false,
+  };
+  for (const fact of facts) contributeFact(fact, candidate, sink);
+
+  const regeneratedUnits = orderBy(sink.units, GENERATED_UNITS);
+  const building = facts.length > 0;
+  const behavioral: BehavioralTestPlan = sink.fullSuite
+    ? { actions: [...FULL_CAPABILITY_TOOLS], fullSuite: true }
+    : { actions: orderBy(sink.tests, FULL_CAPABILITY_TOOLS), fullSuite: false };
+
+  return {
+    platformWork: orderBy(sink.platform, PLATFORM_WORK_KINDS),
+    regeneratedUnits,
+    gate: {
+      structural: building,
+      smoke: building,
+      designLint: sink.units.has("item"),
+      behavioral,
+    },
+  };
+}
+
+type FieldScopedFact = Extract<
+  ChangeFact,
+  {
+    kind:
+      | "new_active_field"
+      | "required_change"
+      | "field_label"
+      | "field_lifecycle"
+      | "choice_values"
+      | "choice_option_labels";
+  }
+>;
+type GlobalScopedFact = Exclude<ChangeFact, FieldScopedFact>;
+
+// Each fact contributes only additions to the sink — the union is monotone by
+// construction, so no fact can ever remove work another fact required.
+// Field-scoped facts split out because their work depends on the field's type and
+// its place in the candidate's item.shows.
+function contributeFact(fact: ChangeFact, candidate: CapabilitySpec, sink: WorkSink): void {
+  switch (fact.kind) {
+    case "new_active_field":
+    case "required_change":
+    case "field_label":
+    case "field_lifecycle":
+    case "choice_values":
+    case "choice_option_labels":
+      contributeFieldFact(fact, candidate, sink);
+      return;
+    default:
+      contributeGlobalFact(fact, sink);
+  }
+}
+
+function contributeFieldFact(
+  fact: FieldScopedFact,
+  candidate: CapabilitySpec,
+  sink: WorkSink,
+): void {
+  switch (fact.kind) {
+    case "new_active_field":
+      sink.platform.add("add_column");
+      sink.platform.add("platform_form_detail");
+      selectWrites(sink);
+      if (isSearchableTextType(fact.fieldType)) selectSearch(sink);
+      // The item renderer follows the separate item.shows fact, never this one.
+      return;
+    case "required_change":
+      sink.platform.add("resulting_record_validation");
+      selectWrites(sink);
+      return;
+    case "field_label":
+      sink.platform.add("platform_form_detail");
+      if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
+      return;
+    case "choice_values":
+      // The admitted set is create/update validation shape (ADR-0006), so it selects both
+      // writing Handlers and their behavioral suites alongside the platform's own
+      // validation and the control's option list. Storage is untouched — an appended
+      // option is not a column change — and search matches stored text either way.
+      //
+      // It also reaches the card, for the same reason a relabel does: the item renderer is
+      // given the value→label pairs and told to present the label (`unit-prompts.ts`), so
+      // a renderer copied across an append has no wording for the new value and would fall
+      // back to showing the raw wire string.
+      sink.platform.add("choice_admitted_values");
+      selectWrites(sink);
+      if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
+      return;
+    case "choice_option_labels":
+      // The control's wording, and — where the field is on the card — the card's too. The
+      // item renderer is told to present the matching option label rather than the stored
+      // value, so it has the old wording written into it and has to be regenerated for
+      // exactly the reason a field label does.
+      sink.platform.add("choice_option_presentation");
+      if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
+      return;
+    case "field_lifecycle":
+      contributeLifecycleFact(fact.field, candidate, sink);
+      return;
+  }
+}
+
+/**
+ * Hiding or reactivating one field. The Module 4 matrix row names list-input intent for
+ * every lifecycle change; a choice field additionally owns an entry in `choice_inputs`,
+ * which the same hide/reactivate adds or removes; and any field may own an entry in the
+ * form's two subset collections, which follow it the same way. The union only ever grows.
+ *
+ * The item renderer follows the required `item.shows` change (`item_presentation`), never
+ * this fact.
+ */
+function contributeLifecycleFact(name: string, candidate: CapabilitySpec, sink: WorkSink): void {
+  sink.platform.add("platform_form_detail");
+  sink.platform.add("list_input_intent");
+  // The two subset collections follow the lifecycle the same way the two total ones do: a
+  // hidden field loses whatever entry it had in `long_text` and `guidance`, and a
+  // reactivated one may take either back. Unconditional, like `list_input_intent` beside
+  // it — the work is "settle this field's form intent", not "this field had a hint".
+  sink.platform.add("form_subset_intent");
+  selectWrites(sink);
+  const field = candidate.schema.fields.find((entry) => entry.name === name);
+  if (!field) return;
+  if (isChoiceFieldType(field.type)) sink.platform.add("choice_input_intent");
+  if (isSearchableTextType(field.type)) selectSearch(sink);
+}
+
+function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
+  switch (fact.kind) {
+    case "capability_label":
+      sink.platform.add("registry_and_view_copy");
+      return;
+    case "empty_state_noun":
+      // The empty state is platform copy rendered from the row. No generated unit
+      // reads the noun — a handler never emits its own empty state — so nothing
+      // regenerates and every unit is copied.
+      sink.platform.add("platform_empty_state_copy");
+      return;
+    case "prompt_context":
+      sink.platform.add("resolver_catalog");
+      return;
+    case "field_order":
+      sink.platform.add("platform_field_order");
+      return;
+    case "list_input_mode":
+      sink.platform.add("list_input_form_normalization");
+      return;
+    case "max_length":
+      // What the platform admits on the way in, which is create/update validation shape
+      // exactly as a required change is — so it moves both writing suites' total-input
+      // digests and they are generated again.
+      //
+      // The Handlers themselves are not. They are given the already-admitted string and
+      // told never to re-implement the bound (`units/unit-prompts.ts`), and the limit is
+      // deliberately absent from their generation context, so the fact provably cannot
+      // have reached either prompt — the positive proof ADR-0006 requires before a unit is
+      // copied rather than rewritten.
+      sink.platform.add("max_length_validation");
+      selectWriteTests(sink);
+      return;
+    case "long_text_input":
+      // Which control a string field's form draws. Nothing is stored differently, nothing
+      // validates differently, and a Handler is never told what drew a value.
+      sink.platform.add("long_text_form_control");
+      return;
+    case "field_guidance":
+      // One line under a field. Platform copy rendered from the row, the way the empty
+      // state's noun is, and no generated unit reads it.
+      sink.platform.add("field_guidance_copy");
+      return;
+    case "choice_option_disabled":
+      // An option that stops being offered narrows what a new selection may name, which is
+      // create/update validation shape exactly as an appended option is — and it moves the
+      // same behavioral total-input digests, so both writing suites are generated again.
+      // Storage is untouched: a row already holding the value keeps it.
+      //
+      // The Handlers themselves are not. They are given the values a choice *admits*, and
+      // a retired option is still admitted — a row holding one is valid data a Handler may
+      // read. So the fact provably cannot have reached either prompt, which is the
+      // positive proof ADR-0006 requires before a unit is copied rather than rewritten
+      // (`units/choice-prompt.test.ts` pins it from the other side).
+      sink.platform.add("choice_admitted_values");
+      selectWriteTests(sink);
+      return;
+    case "choice_option_notes":
+    case "choice_option_order":
+      // The note beside a row, and the order the rows are drawn in. Neither is stored, and
+      // neither reaches a generated unit: the item renderer is given value→label pairs in
+      // value order and the writing Handlers the admitted strings in value order, so
+      // nothing generated can have either fact written into it
+      // (`registry/spec.ts`, `units/unit-prompts.ts`).
+      sink.platform.add("choice_option_presentation");
+      return;
+    case "choice_option_groups":
+      sink.platform.add("choice_option_grouping");
+      return;
+    case "choice_presentation":
+      sink.platform.add("choice_input_form_control");
+      return;
+    case "item_presentation":
+      sink.units.add("item");
+      return;
+    case "collection_layout":
+      sink.platform.add("platform_list_container");
+      sink.units.add("item");
+      return;
+    case "read_dependencies":
+      sink.platform.add("read_catalog");
+      sink.units.add(fact.action);
+      sink.tests.add(fact.action);
+      return;
+    case "behavior":
+      // Free text cannot identify one Action: regenerate all five Handlers and run
+      // the complete candidate suite.
+      for (const action of FULL_CAPABILITY_TOOLS) sink.units.add(action);
+      sink.fullSuite = true;
+      return;
+    case "behavioral_errors":
+      sink.platform.add("behavioral_error_contract");
+      for (const action of fact.actions) {
+        sink.units.add(action);
+        sink.tests.add(action);
+      }
+      return;
+  }
+}
+
+// A schema write change (new field, required change, hide/reactivate) regenerates
+// the two writing Handlers and their tests; text/list-text fields also touch search.
+function selectWrites(sink: WorkSink): void {
+  sink.units.add("create");
+  sink.units.add("update");
+  selectWriteTests(sink);
+}
+
+/**
+ * The writing Actions' suites without their Handlers — for a fact that changes what the
+ * platform admits but provably cannot reach the code that writes it.
+ */
+function selectWriteTests(sink: WorkSink): void {
+  sink.tests.add("create");
+  sink.tests.add("update");
+}
+
+function selectSearch(sink: WorkSink): void {
+  sink.units.add("search");
+  sink.tests.add("search");
+}
+
+function isSearchableTextType(type: FieldType): boolean {
+  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
+}
+
+// ── Canonicalization + small helpers ────────────────────────────────────────
+
+function listInputModesByField(spec: CapabilitySpec): Map<string, string> {
+  const active = new Set(
+    spec.schema.fields
+      .filter((field) => field.lifecycle === "active" && isListFieldType(field.type))
+      .map((field) => field.name),
+  );
+  const modes = new Map<string, string>();
+  for (const entry of spec.ui_intent.form.list_inputs) {
+    if (active.has(entry.field)) modes.set(entry.field, entry.mode);
+  }
+  return modes;
+}
+
+function canonicalDependencyKeys(
+  dependencies: CapabilitySpec["read_dependencies"][CapabilityTool],
+): readonly string[] {
+  return dependencies
+    .map((dependency) => `${dependency.capability_id}\u0000${dependency.incarnation_id}`)
+    .sort(compareStrings);
+}
+
+function behavioralErrorCasesByKey(spec: CapabilitySpec): Map<string, CapabilityTool> {
+  const byKey = new Map<string, CapabilityTool>();
+  for (const errorCase of spec.behavioral_errors) {
+    const key = JSON.stringify({
+      action: errorCase.action,
+      trigger: errorCase.trigger,
+      code: errorCase.code,
+      fields: [...errorCase.fields].sort(compareStrings),
+    });
+    byKey.set(key, errorCase.action);
+  }
+  return byKey;
+}
+
+function sortFacts(facts: readonly ChangeFact[]): readonly ChangeFact[] {
+  return [...facts].sort((left, right) => {
+    const byKind = FACT_KIND_ORDER.indexOf(left.kind) - FACT_KIND_ORDER.indexOf(right.kind);
+    if (byKind !== 0) return byKind;
+    return compareStrings(factSubject(left), factSubject(right));
+  });
+}
+
+// The within-kind tiebreaker: field name, Action name, or "" for the whole-spec facts.
+function factSubject(fact: ChangeFact): string {
+  if ("field" in fact) return fact.field;
+  if ("action" in fact) return fact.action;
+  if (fact.kind === "behavioral_errors") return fact.actions.join(",");
+  return "";
+}
+
+function orderBy<T>(values: ReadonlySet<T>, order: readonly T[]): readonly T[] {
+  return order.filter((value) => values.has(value));
+}
+
+function sameSequence(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function compareStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
