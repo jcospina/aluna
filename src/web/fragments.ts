@@ -296,7 +296,7 @@ function buildStreamLeavingElementId(buildId: string): string {
  * The question that asks before a navigation takes the live run away (PLAN decision 17).
  *
  * It ships with the run and stands hidden, exactly the way the record form's deletion
- * confirmation does (`src/presentation/record-view.ts`): a surface that has to appear
+ * confirmation does (`src/presentation/records/record-view.ts`): a surface that has to appear
  * *without* the region changing hands cannot be fetched or swapped in, because the swap
  * that delivered it would be the very teardown it exists to ask about. So the answer is
  * already in the page, and the desk only stops hiding it.

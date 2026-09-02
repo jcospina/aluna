@@ -11,24 +11,6 @@
 // than re-list it.
 
 export {
-  createPlatformPresentationAdapter,
-  createPresentationAdapter,
-  type ItemRenderer,
-  type PlatformPresentationAdapter,
-  type PresentableRecord,
-  type PresentationAdapter,
-  type PresentationAdapterOptions,
-  RECORD_TEMPLATE_ID_PREFIX,
-} from "./adapter.ts";
-export {
-  isTokenFrom,
-  PALETTE_COLOR_TOKENS,
-  SPACING_TOKENS,
-  TYPE_SIZE_TOKENS,
-  tokenList,
-} from "./design-tokens.ts";
-export { enforceItemMarkup } from "./enforcer.ts";
-export {
   capabilityCreateErrorId,
   capabilityDeleteErrorId,
   capabilityEditErrorId,
@@ -37,8 +19,17 @@ export {
   type RenderableCapability,
   renderCreateForm,
   renderEditForm,
-} from "./field-renderer.ts";
-export { enforceHandlerFragment, type SafeFragment } from "./fragment-safety.ts";
+} from "./fields/field-renderer.ts";
+export {
+  createPlatformPresentationAdapter,
+  createPresentationAdapter,
+  type ItemRenderer,
+  type PlatformPresentationAdapter,
+  type PresentableRecord,
+  type PresentationAdapter,
+  type PresentationAdapterOptions,
+  RECORD_TEMPLATE_ID_PREFIX,
+} from "./records/adapter.ts";
 export {
   COLLECTION_LAYOUTS,
   type CollectionLayout,
@@ -53,16 +44,25 @@ export {
   renderCollection,
   renderItemWrapper,
   serializeItemPayload,
-} from "./list-container.ts";
+} from "./records/list-container.ts";
 export {
   RECORD_BACK_ATTR,
   RECORD_VIEW_ATTR,
   renderRecordView,
   renderRecordViewTemplate,
-} from "./record-view.ts";
-export { describeStyleViolation, sanitizeStyle } from "./style-discipline.ts";
+} from "./records/record-view.ts";
+export { enforceItemMarkup } from "./safety/enforcer.ts";
+export { enforceHandlerFragment, type SafeFragment } from "./safety/fragment-safety.ts";
+export { describeStyleViolation, sanitizeStyle } from "./safety/style-discipline.ts";
 export {
   ALLOWED_CLASSES,
   ALLOWED_ELEMENTS,
   REMOVED_ELEMENTS,
-} from "./vocabulary.ts";
+} from "./safety/vocabulary.ts";
+export {
+  isTokenFrom,
+  PALETTE_COLOR_TOKENS,
+  SPACING_TOKENS,
+  TYPE_SIZE_TOKENS,
+  tokenList,
+} from "./tokens/design-tokens.ts";

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { renderEditForm } from "../../../presentation/field-renderer.ts";
+import { renderEditForm } from "../../../presentation/fields/field-renderer.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,

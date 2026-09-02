@@ -345,7 +345,7 @@ function handlerContractType(action: HandlerUnitName): string {
 }
 
 // The item-renderer contract: one record → its inner markup string (the composition
-// input the presentation adapter binds, src/presentation/adapter.ts `ItemRenderer`).
+// input the presentation adapter binds, src/presentation/records/adapter.ts `ItemRenderer`).
 const itemRendererContractDeclarations = `${RECORD_CONTRACT}
 type ItemRenderer = (record: PresentableRecord) => string;
 `;

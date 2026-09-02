@@ -6,13 +6,13 @@
 // the capability's chosen collection layout. The preview route renders sample output
 // from this same data as a developer sign-off surface.
 
+import { ALLOWED_CLASSES } from "../../../presentation/safety/vocabulary.ts";
 import {
   PALETTE_COLOR_TOKENS,
   SPACING_TOKENS,
   TYPE_SIZE_TOKENS,
   tokenList,
-} from "../../../presentation/design-tokens.ts";
-import { ALLOWED_CLASSES } from "../../../presentation/vocabulary.ts";
+} from "../../../presentation/tokens/design-tokens.ts";
 import type {
   FieldType,
   SpecField,
