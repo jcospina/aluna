@@ -13,8 +13,8 @@ import {
   maxLengthsByField,
   promptCapabilitySpecSchema,
   type SpecField,
-} from "./index.ts";
-import { validSpec } from "./spec.test-support.ts";
+} from "../index.ts";
+import { validSpec } from "../spec/spec.test-support.ts";
 
 const NOTES: SpecField = {
   name: "notes",

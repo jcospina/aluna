@@ -3,12 +3,11 @@
 // schema runs `validateBehavioralErrors` as one clause of its own semantics.
 
 import { z } from "zod";
-
+import type { CapabilitySpec, SpecField } from "../spec/spec.ts";
+import { allUnique, sameOrderedStrings, sqlNameText } from "../spec/spec-text.ts";
+import { capabilityToolSchema, FULL_CAPABILITY_TOOLS } from "../tools.ts";
 import { CHOICE_DISABLED_ERROR_CODE, INVALID_CHOICE_ERROR_CODE } from "./choice.ts";
 import { MAX_LENGTH_EXCEEDED_ERROR_CODE } from "./max-length.ts";
-import type { CapabilitySpec, SpecField } from "./spec.ts";
-import { allUnique, sameOrderedStrings, sqlNameText } from "./spec-text.ts";
-import { capabilityToolSchema, FULL_CAPABILITY_TOOLS } from "./tools.ts";
 
 export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
 export const MAX_BEHAVIORAL_ERRORS = 8;

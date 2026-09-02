@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { canonicalizeStoredCapabilityShape, capabilitySpecSchema } from "./index.ts";
+import { canonicalizeStoredCapabilityShape, capabilitySpecSchema } from "../index.ts";
 import { validSpec } from "./spec.test-support.ts";
 
 /** One spec exactly as it was persisted before a given form collection was a key. */

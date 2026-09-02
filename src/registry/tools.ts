@@ -6,7 +6,7 @@
 import { z } from "zod";
 
 import { incarnationIdSchema } from "./identifiers.ts";
-import { sameOrderedStrings, sqlNameText } from "./spec-text.ts";
+import { sameOrderedStrings, sqlNameText } from "./spec/spec-text.ts";
 
 /**
  * From the 4.4 steady-state cutover the five Actions are mandatory and fixed

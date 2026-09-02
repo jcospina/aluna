@@ -20,7 +20,7 @@
 
 import type { Database } from "bun:sqlite";
 import { LOGO_BIRTH_STATUS, LOGO_STATUSES } from "../../registry/logo.ts";
-import { REGISTRY_TABLE } from "../../registry/store.ts";
+import { REGISTRY_TABLE } from "../../registry/store/store.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
@@ -74,7 +74,7 @@ export const MIGRATIONS: readonly Migration[] = [
   // for everything Aluna has become. One row per capability, kept
   // lean (spec + version + artifacts pointer) because the intent resolver scans
   // every row on every classification. `schema`, `ui_intent`, and `tools` hold
-  // JSON text; the access module (src/registry/store.ts) owns the (de)serialization
+  // JSON text; the access module (src/registry/store/store.ts) owns the (de)serialization
   // and validates rows against the Zod spec shape in both directions.
   {
     id: "0002_capability_registry",

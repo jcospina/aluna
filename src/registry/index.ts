@@ -6,11 +6,6 @@
 // epics import from here and depend on nothing inside.
 
 export {
-  type ActiveRegistryCatalog,
-  fingerprintActiveRegistryCatalog,
-  readActiveRegistryCatalog,
-} from "./active-catalog.ts";
-export {
   BEHAVIORAL_ERROR_MARKERS,
   type BehavioralErrorCase,
   behavioralErrorCaseSchema,
@@ -18,7 +13,7 @@ export {
   defaultBehavioralErrorsForSchema,
   MAX_BEHAVIORAL_ERRORS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
-} from "./behavioral-errors.ts";
+} from "./fields/behavioral-errors.ts";
 export {
   admittedChoiceValues,
   CHOICE_DISABLED_ERROR_CODE,
@@ -46,19 +41,7 @@ export {
   MAX_CHOICE_OPTION_VALUE_LENGTH,
   MAX_CHOICE_OPTIONS,
   selectableChoiceValues,
-} from "./choice.ts";
-export {
-  type CapabilityDeletionTombstone,
-  CapabilityIdReservedError,
-  DELETION_TOMBSTONE_STATE,
-  getCapabilityDeletionTombstone,
-  insertCapabilityDeletionTombstone,
-  isCapabilityIdReservedByDeletion,
-  listCapabilityDeletionTombstones,
-  type OwnedResourceEntry,
-  recordCapabilityDeletionCleanupFailure,
-  removeCapabilityDeletionTombstone,
-} from "./deletion-tombstones.ts";
+} from "./fields/choice.ts";
 export {
   type FieldGuidance,
   fieldGuidanceSchema,
@@ -66,7 +49,14 @@ export {
   isLongTextField,
   longTextIntentSchema,
   MAX_FIELD_GUIDANCE_LENGTH,
-} from "./form-intent.ts";
+} from "./fields/form-intent.ts";
+export {
+  MAX_DECLARED_MAX_LENGTH,
+  MAX_LENGTH_EXCEEDED_ERROR_CODE,
+  MIN_DECLARED_MAX_LENGTH,
+  maxLengthSchema,
+  maxLengthsByField,
+} from "./fields/max-length.ts";
 export { incarnationIdSchema } from "./identifiers.ts";
 export {
   canonicalCapabilityLabel,
@@ -93,13 +83,6 @@ export {
   MAX_LOGO_SEED,
   resolveLogoShades,
 } from "./logo.ts";
-export {
-  MAX_DECLARED_MAX_LENGTH,
-  MAX_LENGTH_EXCEEDED_ERROR_CODE,
-  MIN_DECLARED_MAX_LENGTH,
-  maxLengthSchema,
-  maxLengthsByField,
-} from "./max-length.ts";
 export {
   activeSpecFields,
   type BehavioralErrorMarkers,
@@ -140,8 +123,25 @@ export {
   uiCollectionLayoutSchema,
   uiFormIntentSchema,
   uiIntentSchema,
-} from "./spec.ts";
-export { MAX_SQL_NAME_LENGTH, SQL_NAME_PATTERN } from "./spec-text.ts";
+} from "./spec/spec.ts";
+export { MAX_SQL_NAME_LENGTH, SQL_NAME_PATTERN } from "./spec/spec-text.ts";
+export {
+  type ActiveRegistryCatalog,
+  fingerprintActiveRegistryCatalog,
+  readActiveRegistryCatalog,
+} from "./store/active-catalog.ts";
+export {
+  type CapabilityDeletionTombstone,
+  CapabilityIdReservedError,
+  DELETION_TOMBSTONE_STATE,
+  getCapabilityDeletionTombstone,
+  insertCapabilityDeletionTombstone,
+  isCapabilityIdReservedByDeletion,
+  listCapabilityDeletionTombstones,
+  type OwnedResourceEntry,
+  recordCapabilityDeletionCleanupFailure,
+  removeCapabilityDeletionTombstone,
+} from "./store/deletion-tombstones.ts";
 export {
   abandonMissingCapabilityLogo,
   type CapabilityRegistryExpectation,
@@ -162,7 +162,7 @@ export {
   resolveActionReadDependencies,
   StaleCapabilityRegistryError,
   settleLogoGeneration,
-} from "./store.ts";
+} from "./store/store.ts";
 export {
   type CapabilityTool,
   capabilityToolSchema,
