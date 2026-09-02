@@ -11,8 +11,8 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../../runtime/router/dispatch/router.test-support.ts";
+import { resolvedNewCapabilityRequest } from "./admission/resolved-request.ts";
 import { revalidateResolvedRequest } from "./core-builder.ts";
-import { resolvedNewCapabilityRequest } from "./resolved-request.ts";
 
 test("a proposed id reserved by pending deletion cleanup is refused at the provider boundary", () => {
   let dir: string;

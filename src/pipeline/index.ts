@@ -21,6 +21,15 @@
 //                 and an evolution alike
 
 export {
+  type PromptResolutionMemory,
+  type PromptResolutionOutcome,
+  type ResolvedBuildRequest,
+  type ResolvedExistingCapabilityRequest,
+  type ResolvedNewCapabilityRequest,
+  resolvedExistingCapabilityRequest,
+  resolvedNewCapabilityRequest,
+} from "./build/admission/resolved-request.ts";
+export {
   type CoreBuilderPresenter,
   type CoreBuildInput,
   type CoreBuildTerminal,
@@ -33,20 +42,11 @@ export {
   createExplicitEvolutionPresenter,
   createExplicitPresenter,
   type ExplicitPresenterInput,
-} from "./build/explicit-presenter.ts";
+} from "./build/presenter/explicit-presenter.ts";
 export {
   createPromptBuildPipeline,
   type PromptBuildPipelineDeps,
 } from "./build/prompt-pipeline.ts";
-export {
-  type PromptResolutionMemory,
-  type PromptResolutionOutcome,
-  type ResolvedBuildRequest,
-  type ResolvedExistingCapabilityRequest,
-  type ResolvedNewCapabilityRequest,
-  resolvedExistingCapabilityRequest,
-  resolvedNewCapabilityRequest,
-} from "./build/resolved-request.ts";
 export {
   createMetricsRecorder,
   finalizeMeasuredNoChange,

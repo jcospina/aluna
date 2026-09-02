@@ -5,8 +5,8 @@
 // response, which is the same pipeline the route wires.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { INTENT_RESOLVER_PROMPT_PREFIX } from "../intent-resolver/index.ts";
 import { createMetricsRecorder, createPromptBuildPipeline } from "../pipeline/index.ts";
+import { INTENT_RESOLVER_PROMPT_PREFIX } from "../pipeline/intent/index.ts";
 import { createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import { getGenerationLifecycle } from "../platform/metrics/index.ts";
 import type { Provider } from "../platform/provider/index.ts";

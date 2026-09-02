@@ -12,7 +12,6 @@
 // `reject` and `data_query` never reach the Builder — they deflect with a warm line and a
 // best-effort resolver-only metrics row.
 
-import { classifyIntentWithUsage, type IntentClassification } from "../../intent-resolver/index.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
 import {
@@ -26,6 +25,7 @@ import {
   renderBuildWindowTitle,
   renderProvisionalLogo,
 } from "../../web/index.ts";
+import { classifyIntentWithUsage, type IntentClassification } from "../intent/index.ts";
 import type {
   BuildPipeline,
   BuildPipelineCompletion,
@@ -38,21 +38,24 @@ import {
   deliverFailedPresentation,
   deliverRestoredPresentation,
 } from "../streaming/terminal-presentation.ts";
-import { runCoreBuild } from "./core-builder.ts";
 import {
   deflectDuplicateNewCapability,
   duplicateIntentForPrompt,
   existingCapabilityNarration,
   NO_TOKEN_USAGE,
-} from "./deflection.ts";
-import { streamDeflection } from "./deflection-pipeline.ts";
-import { createExplicitEvolutionPresenter, createExplicitPresenter } from "./explicit-presenter.ts";
-import { validateProposedOverlapIdentity } from "./overlap-identity.ts";
+} from "./admission/deflection.ts";
+import { streamDeflection } from "./admission/deflection-pipeline.ts";
+import { validateProposedOverlapIdentity } from "./admission/overlap-identity.ts";
 import {
   type PromptResolutionMemory,
   resolvedExistingCapabilityRequest,
   resolvedNewCapabilityRequest,
-} from "./resolved-request.ts";
+} from "./admission/resolved-request.ts";
+import { runCoreBuild } from "./core-builder.ts";
+import {
+  createExplicitEvolutionPresenter,
+  createExplicitPresenter,
+} from "./presenter/explicit-presenter.ts";
 
 /** What {@link createPromptBuildPipeline} needs to run a build against the real db/disk. */
 export interface PromptBuildPipelineDeps {

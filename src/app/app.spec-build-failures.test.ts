@@ -12,8 +12,8 @@ import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ZodType } from "zod";
-import type { IntentClassification } from "../intent-resolver/index.ts";
 import { createMetricsRecorder, type RecordMetrics } from "../pipeline/index.ts";
+import type { IntentClassification } from "../pipeline/intent/index.ts";
 import { listGenerationLifecycles } from "../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";

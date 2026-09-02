@@ -12,8 +12,8 @@ import { readActiveRegistryCatalog } from "../../registry/index.ts";
 import { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import type { BuildPipelineCompletion } from "../jobs/build-jobs.ts";
 import { createMetricsRecorder } from "../metrics-recorder.ts";
+import { resolvedNewCapabilityRequest } from "./admission/resolved-request.ts";
 import { type CoreBuildTerminal, runCoreBuild } from "./core-builder.ts";
-import { resolvedNewCapabilityRequest } from "./resolved-request.ts";
 
 let env: ScratchDbEnv;
 

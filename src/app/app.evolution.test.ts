@@ -3,7 +3,7 @@
 // the live capability, and the terminal presentation is one of exactly three shapes — an
 // activated version behind a complete View swap, the measured no-op, or the warm
 // rejection. The engine's own end-to-end battery lives in
-// `src/pipeline/evolution/evolution-run.test.ts`, the streamed liveness in
+// `src/pipeline/evolution/run/evolution-run.test.ts`, the streamed liveness in
 // `app.evolution-streaming.test.ts`, and the refusal of a target that moved between
 // resolution and the lease head in `app.stale-refusal.test.ts`; this file owns the
 // submit/activate/reject seam. Driven through fake providers — no spend.
@@ -23,7 +23,7 @@ import {
   searchHandlerFor,
   updateHandlerFor,
 } from "../builder/gate/gate.test-support.ts";
-import { INTENT_RESOLVER_PROMPT_PREFIX } from "../intent-resolver/index.ts";
+import { INTENT_RESOLVER_PROMPT_PREFIX } from "../pipeline/intent/index.ts";
 import {
   CANDIDATE_NO_CHANGE_ENDING,
   CANDIDATE_REJECTED_ENDING,

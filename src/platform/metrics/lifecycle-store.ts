@@ -15,7 +15,7 @@
 
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
-import { intentTypeSchema, overlapResolutionSchema } from "../../intent-resolver/index.ts";
+import { intentTypeSchema, overlapResolutionSchema } from "../../pipeline/intent/index.ts";
 import { db, dbReadonly } from "../persistence/db.ts";
 import {
   gateRungOutcomeSchema,

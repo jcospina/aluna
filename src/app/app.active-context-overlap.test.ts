@@ -15,7 +15,7 @@ import {
   publishCapabilitySnapshot,
   runCapabilityGate,
 } from "../builder/index.ts";
-import type { IntentClassification } from "../intent-resolver/index.ts";
+import type { IntentClassification } from "../pipeline/intent/index.ts";
 import { type CapabilitySpec, getCapability } from "../registry/index.ts";
 import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../runtime/data/index.ts";
 import { pinBehavioralTierOff } from "./app.evolution.test-support.ts";

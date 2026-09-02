@@ -13,8 +13,8 @@
 
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { ZodType } from "zod";
-import type { IntentClassification } from "../intent-resolver/index.ts";
 import { createMetricsRecorder } from "../pipeline/index.ts";
+import type { IntentClassification } from "../pipeline/intent/index.ts";
 import { STALE_BUILD_ENDING } from "../pipeline/streaming/terminal-presentation.ts";
 import { listGenerationLifecycles } from "../platform/metrics/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";

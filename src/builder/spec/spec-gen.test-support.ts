@@ -7,7 +7,7 @@
 
 import type { ZodType } from "zod";
 
-import type { IntentClassification } from "../../intent-resolver/index.ts";
+import type { IntentClassification } from "../../pipeline/intent/index.ts";
 import type { SendBuildEvent } from "../../pipeline/jobs/build-jobs.ts";
 import type {
   DeepPartial,

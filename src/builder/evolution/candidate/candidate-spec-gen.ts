@@ -20,7 +20,7 @@
 // enforces the cross-spec field-lifecycle contract and frozen-catalog
 // resolution before anything downstream sees the candidate.
 
-import type { IntentClassification } from "../../../intent-resolver/index.ts";
+import type { IntentClassification } from "../../../pipeline/intent/index.ts";
 import type { SendBuildEvent } from "../../../pipeline/jobs/build-jobs.ts";
 import type { Provider, TokenUsage } from "../../../platform/provider/index.ts";
 import {
