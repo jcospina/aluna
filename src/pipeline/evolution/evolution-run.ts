@@ -43,7 +43,6 @@ import {
   type VerifiedDependencySnapshot,
   type VerifiedPublishedSnapshot,
 } from "../../builder/index.ts";
-import { applyAdditiveCapabilityMigration } from "../../capability-data/index.ts";
 import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { CarriedResolverMeasurement } from "../../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
@@ -54,6 +53,7 @@ import {
   listCapabilities,
   listCapabilityDeletionTombstones,
 } from "../../registry/index.ts";
+import { applyAdditiveCapabilityMigration } from "../../runtime/data/index.ts";
 import { previewingProvider } from "../build/build-run.ts";
 import type { SendBuildEvent } from "../jobs/build-jobs.ts";
 import {

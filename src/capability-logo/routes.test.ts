@@ -4,19 +4,22 @@ import { join, resolve } from "node:path";
 
 import { createApp } from "../app/app.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
-import { createReadGateCoordinator, type ReadGateCoordinator } from "../read-gates/index.ts";
 import {
   abandonMissingCapabilityLogo,
   claimLogoGeneration,
   getCapabilityLogoState,
 } from "../registry/index.ts";
 import {
+  createReadGateCoordinator,
+  type ReadGateCoordinator,
+} from "../runtime/concurrency/read-gates.ts";
+import {
   install,
   NOTES_INCARNATION_ID,
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../router/router.test-support.ts";
+} from "../runtime/router/dispatch/router.test-support.ts";
 import { LogoGenerationError, type LogoGenerationProvider } from "./provider.ts";
 import { installCapabilityLogo } from "./storage.ts";
 

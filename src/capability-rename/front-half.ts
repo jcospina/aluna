@@ -1,12 +1,11 @@
 import type { Database } from "bun:sqlite";
-
-import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import {
   type CapabilityRow,
   getCapability,
   isCapabilityNameLabel,
   renameCapability,
 } from "../registry/index.ts";
+import type { MutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
 
 /**
  * The exact capability the menu opened on. Both halves are load-bearing: the incarnation

@@ -27,9 +27,7 @@
 // and a desk load is only a page render — so the attempt returns the row to `absent` for
 // a later try, or to `abandoned` once the third claimed attempt has failed.
 
-import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
-import type { CapabilityIncarnation, ReadGateCoordinator } from "../read-gates/index.ts";
 import {
   type CapabilityRow,
   claimLogoGeneration,
@@ -41,6 +39,11 @@ import {
   releaseLogoClaim,
   settleLogoGeneration,
 } from "../registry/index.ts";
+import type { MutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
+import type {
+  CapabilityIncarnation,
+  ReadGateCoordinator,
+} from "../runtime/concurrency/read-gates.ts";
 import type { RunningLogoClaims } from "./claims.ts";
 import {
   generateCapabilityLogo,

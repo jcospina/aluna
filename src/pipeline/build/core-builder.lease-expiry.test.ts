@@ -6,10 +6,10 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../app/app.test-support.ts";
-import { MutationCoordinator } from "../../mutation-coordinator/index.ts";
 import { listGenerationLifecycles } from "../../platform/metrics/index.ts";
 import type { GenerateResult, Provider } from "../../platform/provider/index.ts";
 import { readActiveRegistryCatalog } from "../../registry/index.ts";
+import { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import type { BuildPipelineCompletion } from "../jobs/build-jobs.ts";
 import { createMetricsRecorder } from "../metrics-recorder.ts";
 import { type CoreBuildTerminal, runCoreBuild } from "./core-builder.ts";

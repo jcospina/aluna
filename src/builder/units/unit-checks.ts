@@ -268,7 +268,7 @@ type PresentationAdapter = (record: CapabilityActionRecord) => string;
 `;
 
 // The handler contract, including ADR-0005 §2's injected `present` adapter — the same
-// shape src/router/contract.ts declares (CapabilityContext) and the gate's structural
+// shape src/runtime/router/contract.ts declares (CapabilityContext) and the gate's structural
 // rung re-checks against.
 const handlerContractDeclarations = `${RECORD_CONTRACT}
 type CapabilityInputValue = string | readonly string[];

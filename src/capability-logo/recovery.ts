@@ -34,9 +34,7 @@
 // (`claims.ts`). Recovery also holds the incarnation's read token while it looks at the
 // tree, so a deletion draining its readers is not raced for the files it is removing.
 
-import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
-import type { CapabilityIncarnation, ReadGateCoordinator } from "../read-gates/index.ts";
 import {
   abandonMissingCapabilityLogo,
   type CapabilityLogoState,
@@ -48,6 +46,11 @@ import {
   releaseLogoClaim,
   settleLogoGeneration,
 } from "../registry/index.ts";
+import type { MutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
+import type {
+  CapabilityIncarnation,
+  ReadGateCoordinator,
+} from "../runtime/concurrency/read-gates.ts";
 import type { RunningLogoClaims } from "./claims.ts";
 import {
   capabilityIncarnationTreeExists,

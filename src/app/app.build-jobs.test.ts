@@ -5,13 +5,13 @@
 // in app.test-support.ts; the id-sequence and deferred helpers are local to these tests.
 
 import { describe, expect, test } from "bun:test";
-import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import {
   type BuildJob,
   type BuildPipeline,
   createBuildJobQueue,
 } from "../pipeline/jobs/build-jobs.ts";
 import { insertCapability } from "../registry/index.ts";
+import { createMutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
 import {
   collectSseEvents,
   createScratchDbEnv,

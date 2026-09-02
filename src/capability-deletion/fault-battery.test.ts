@@ -19,16 +19,15 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-
-import { applyCapabilityTableDdl } from "../capability-data/ddl.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
-import { createReadGateCoordinator, type ReadTokenSet } from "../read-gates/index.ts";
 import {
   getCapability,
   insertCapability,
   listCapabilityDeletionTombstones,
   readActiveRegistryCatalog,
 } from "../registry/index.ts";
+import { createReadGateCoordinator, type ReadTokenSet } from "../runtime/concurrency/read-gates.ts";
+import { applyCapabilityTableDdl } from "../runtime/data/schema/ddl.ts";
 import {
   boomRow,
   install,
@@ -36,7 +35,7 @@ import {
   rowSpec,
   setupRouterTest,
   teardownRouterTest,
-} from "../router/router.test-support.ts";
+} from "../runtime/router/dispatch/router.test-support.ts";
 import {
   expectDestroyed,
   expectGenerationMetricSurvives,

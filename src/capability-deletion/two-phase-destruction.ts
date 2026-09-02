@@ -3,12 +3,6 @@ import { lstatSync, readdirSync, realpathSync, rmdirSync, rmSync } from "node:fs
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
-import { deriveCapabilityTableDdl } from "../capability-data/ddl.ts";
-import {
-  type ReadGateCloseLease,
-  type ReadGateCoordinator,
-  ReadGateDrainTimeoutError,
-} from "../read-gates/index.ts";
 import {
   type CapabilityDeletionTombstone,
   type CapabilityRow,
@@ -19,6 +13,12 @@ import {
   type OwnedResourceEntry,
   removeCapabilityDeletionTombstone,
 } from "../registry/index.ts";
+import {
+  type ReadGateCloseLease,
+  type ReadGateCoordinator,
+  ReadGateDrainTimeoutError,
+} from "../runtime/concurrency/read-gates.ts";
+import { deriveCapabilityTableDdl } from "../runtime/data/schema/ddl.ts";
 import {
   type InstalledPayloadPurgeResult,
   NO_INSTALLED_PAYLOADS,

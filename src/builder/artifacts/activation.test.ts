@@ -3,23 +3,23 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../../app/app.ts";
-import { applyCapabilityTableDdl } from "../../capability-data/index.ts";
+import { deliverActivatedPresentation } from "../../pipeline/streaming/terminal-presentation.ts";
 import {
   finalizeGenerationLifecycleFailure,
   finalizeGenerationLifecycleSuccess,
   getGenerationLifecycle,
   startGenerationLifecycle,
 } from "../../platform/metrics/index.ts";
-import { createMutationCoordinator } from "../../mutation-coordinator/index.ts";
 import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
 import { runMigrations } from "../../platform/persistence/migrations.ts";
-import { deliverActivatedPresentation } from "../../pipeline/streaming/terminal-presentation.ts";
 import { getCapability } from "../../registry/index.ts";
+import { createMutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
+import { applyCapabilityTableDdl } from "../../runtime/data/index.ts";
 import { renderCachedCapabilityCommitSwap } from "../../web/index.ts";
-import { activatePublishedSnapshot, expectedActiveCapability } from "./activation.ts";
-import { publishCapabilitySnapshot } from "./artifact-lifecycle.ts";
 import { gateInput, generatedUnitsFor, notesSpec } from "../gate/gate.test-support.ts";
 import { type CapabilityGateResult, runCapabilityGate } from "../gate/gate.ts";
+import { activatePublishedSnapshot, expectedActiveCapability } from "./activation.ts";
+import { publishCapabilitySnapshot } from "./artifact-lifecycle.ts";
 
 const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_INCARNATION_ID = "22222222-2222-4222-8222-222222222222";

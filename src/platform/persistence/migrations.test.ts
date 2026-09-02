@@ -15,7 +15,7 @@ import {
   listCapabilityDeletionTombstones,
 } from "../../registry/deletion-tombstones.ts";
 import { insertCapability, REGISTRY_TABLE } from "../../registry/store.ts";
-import { notesRow } from "../../router/router.test-support.ts";
+import { notesRow } from "../../runtime/router/dispatch/router.test-support.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,

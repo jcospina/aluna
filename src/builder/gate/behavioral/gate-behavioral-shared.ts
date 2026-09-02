@@ -1,8 +1,8 @@
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
-import type { selectCapabilityRows } from "../../../capability-data/index.ts";
 import type { BehavioralErrorCase, SpecField } from "../../../registry/index.ts";
 import { behavioralErrorMarkersSchema } from "../../../registry/index.ts";
+import type { selectCapabilityRows } from "../../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../../units/units.ts";
 import { fieldValueMatches } from "../gate-internal.ts";
 import type { BehavioralScalar } from "./gate-behavioral-input.ts";

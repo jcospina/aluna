@@ -1,26 +1,25 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-
-import {
-  createMutationCoordinator,
-  type MutationCoordinator,
-  type MutationLease,
-} from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
-import { createReadGateCoordinator } from "../read-gates/index.ts";
 import {
   getCapabilityLogoState,
   LOGO_MAX_CLAIMED_ATTEMPTS,
   settleLogoGeneration,
 } from "../registry/index.ts";
 import {
+  createMutationCoordinator,
+  type MutationCoordinator,
+  type MutationLease,
+} from "../runtime/concurrency/mutation-coordinator.ts";
+import { createReadGateCoordinator } from "../runtime/concurrency/read-gates.ts";
+import {
   install,
   NOTES_INCARNATION_ID,
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../router/router.test-support.ts";
+} from "../runtime/router/dispatch/router.test-support.ts";
 import { type CapabilityLogoAttemptDeps, runCapabilityLogoAttempt } from "./attempt.ts";
 import { createRunningLogoClaims } from "./claims.ts";
 import {

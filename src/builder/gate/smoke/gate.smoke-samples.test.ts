@@ -3,12 +3,11 @@
 // declares. Both drive one complete CRUD cycle plus the design probes.
 
 import { describe, expect, test } from "bun:test";
-
-import { deriveCapabilityTableDdl } from "../../../capability-data/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
+import { deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import { isSearchSchemaInput, specActionTestInputs } from "../behavioral/behavioral-test-inputs.ts";
 import { fullHandlersFor, gateInput, notesSpec } from "../gate.test-support.ts";
 import { runCapabilityGate } from "../gate.ts";

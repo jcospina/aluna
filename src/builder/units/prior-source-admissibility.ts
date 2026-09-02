@@ -32,14 +32,13 @@
 //     safety remains the Gate's, the router's and the toolbox's job.
 
 import ts from "typescript";
-
-import { capabilityQueryScopeTableNames } from "../../capability-data/index.ts";
 import {
   activeSpecFields,
   type CapabilityRow,
   type CapabilitySpec,
   capabilitySpecFromRow,
 } from "../../registry/index.ts";
+import { capabilityQueryScopeTableNames } from "../../runtime/data/index.ts";
 import type { GeneratedUnitName } from "../evolution/diff-engine.ts";
 import { evaluateStaticString, expressionBindings } from "./static-string-analysis.ts";
 import { checkHandlerSourceContract, checkItemRendererSourceContract } from "./unit-checks.ts";

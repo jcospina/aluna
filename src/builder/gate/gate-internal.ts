@@ -10,16 +10,6 @@
 import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import ts from "typescript";
-
-import type { CapabilityCreateValues, CapabilityTableDdl } from "../../capability-data/index.ts";
-import {
-  type CapabilityQueryPort,
-  createCapabilityMutationPort,
-  createCapabilityQueryPort,
-  deriveCapabilityTableDdl,
-  encodeCapabilityFieldForStorage,
-  materializeCapabilityActionRecord,
-} from "../../capability-data/index.ts";
 import {
   createPresentationAdapter,
   type ItemRenderer,
@@ -32,12 +22,21 @@ import type {
   FieldType,
   ReadDependency,
 } from "../../registry/index.ts";
+import type { CapabilityCreateValues, CapabilityTableDdl } from "../../runtime/data/index.ts";
+import {
+  type CapabilityQueryPort,
+  createCapabilityMutationPort,
+  createCapabilityQueryPort,
+  deriveCapabilityTableDdl,
+  encodeCapabilityFieldForStorage,
+  materializeCapabilityActionRecord,
+} from "../../runtime/data/index.ts";
 import type {
   CapabilityCreateHandler,
   CapabilityDeleteHandler,
   CapabilityReadHandler,
   CapabilityUpdateHandler,
-} from "../../router/index.ts";
+} from "../../runtime/router/index.ts";
 import type { HandlerUnitName } from "../units/units.ts";
 import type { ScratchCatalogCapability } from "./gate.ts";
 

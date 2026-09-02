@@ -15,7 +15,7 @@ import { buildLogoGenerationRequest } from "./request.ts";
 
 // **No test here calls the live service.** A generation costs real money, so every case
 // runs against an injected `fetch` and the four specimens `design/logo.html` was settled
-// on. That is the same rule `src/provider/spine.test.ts` states for the text spine, and
+// on. That is the same rule `src/platform/provider/spine.test.ts` states for the text spine, and
 // it is why the client's only seam is a function you can hand it.
 
 const SPECIMEN = readFileSync(

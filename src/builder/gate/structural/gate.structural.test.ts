@@ -4,13 +4,12 @@
 // final verdict over generated strings, and must catch broken units independently.
 
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
-
-import { deriveCapabilityTableDdl } from "../../../capability-data/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
+import { deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import {
   expectGateFailure,
   fullHandlersFor,

@@ -20,7 +20,7 @@ import {
 } from "../app/app.test-support.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import { getCapability, insertCapabilityDeletionTombstone } from "../registry/index.ts";
-import { formBody, install, notesRow } from "../router/router.test-support.ts";
+import { formBody, install, notesRow } from "../runtime/router/dispatch/router.test-support.ts";
 
 setDefaultTimeout(30_000);
 

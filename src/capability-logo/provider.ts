@@ -3,7 +3,7 @@
 // A logo call costs real money ([ADR-0007](../../docs/adr/0007-capability-logo-contract.md)
 // L1: roughly $0.08), so the seam matters more than the client: every test in this repo
 // injects a {@link LogoGenerationProvider} and no automated test ever reaches the
-// network. That mirrors `src/provider/spine.ts`, which carries the same rule for the
+// network. That mirrors `src/platform/provider/spine.ts`, which carries the same rule for the
 // text spine.
 //
 // The client's job ends at *accepted bytes*. It bounds the call, validates the envelope,
@@ -93,7 +93,7 @@ const generationEnvelopeSchema = z.object({
 
 export function requireRecraftApiKey(env: NodeJS.ProcessEnv = process.env): string {
   // Through the vault, for the reason `requireApiKey` is: after boot this key is not in
-  // the ambient environment at all (src/secrets).
+  // the ambient environment at all (src/platform/secrets.ts).
   const key = readSecret(RECRAFT_API_KEY_ENV_VAR, env);
   if (!key) {
     throw new LogoGenerationError(

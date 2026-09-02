@@ -1,18 +1,18 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
-import { createReadGateCoordinator } from "../../read-gates/index.ts";
 import type { CapabilityDeletionTombstone } from "../../registry/index.ts";
 import {
   insertCapabilityDeletionTombstone,
   listCapabilityDeletionTombstones,
 } from "../../registry/index.ts";
+import { createReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
 import {
   install,
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../../router/router.test-support.ts";
+} from "../../runtime/router/dispatch/router.test-support.ts";
 import {
   destroyCapability,
   recoverCapabilityDeletionTombstones,

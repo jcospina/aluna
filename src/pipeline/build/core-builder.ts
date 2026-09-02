@@ -46,10 +46,6 @@ import {
   createCapabilityIncarnationId,
   reconcileCapabilityArtifacts,
 } from "../../builder/index.ts";
-import {
-  type MutationCoordinator,
-  MutationReservationCancelledError,
-} from "../../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
 import {
@@ -59,6 +55,10 @@ import {
   listCapabilityDeletionTombstones,
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
+import {
+  type MutationCoordinator,
+  MutationReservationCancelledError,
+} from "../../runtime/concurrency/mutation-coordinator.ts";
 import {
   type CapabilityEvolutionOutcome,
   runCapabilityEvolution,

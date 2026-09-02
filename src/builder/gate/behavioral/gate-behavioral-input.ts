@@ -1,5 +1,5 @@
 import { activeSpecFields, type CapabilitySpec, type SpecField } from "../../../registry/index.ts";
-import type { CapabilityInput } from "../../../router/index.ts";
+import type { CapabilityInput } from "../../../runtime/router/index.ts";
 
 export type BehavioralScalar = string | number | boolean | readonly string[] | null;
 

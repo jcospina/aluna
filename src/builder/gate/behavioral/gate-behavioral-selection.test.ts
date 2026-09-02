@@ -17,8 +17,8 @@ import {
   SEARCH_HANDLER as FULL_SEARCH_HANDLER,
   UPDATE_HANDLER as FULL_UPDATE_HANDLER,
 } from "../../../app/app.test-support.ts";
-import { deriveCapabilityTableDdl } from "../../../capability-data/index.ts";
 import type { CapabilitySpec } from "../../../registry/index.ts";
+import { deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import {
   DEFAULT_BEHAVIORAL_SUITE,
   type FullBehavioralTestSuite,

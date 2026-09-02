@@ -9,10 +9,9 @@
 // in `gate-internal.ts`.
 
 import type { Database } from "bun:sqlite";
-
-import type { CapabilityCreateValues, CapabilityTableDdl } from "../../capability-data/index.ts";
 import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../registry/index.ts";
+import type { CapabilityCreateValues, CapabilityTableDdl } from "../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../units/units.ts";
 import type {
   BehavioralExecutionImpact,

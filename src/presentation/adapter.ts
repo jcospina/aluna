@@ -25,7 +25,7 @@
 import {
   type CapabilityActionRecord,
   materializeCapabilityActionRecord,
-} from "../capability-data/index.ts";
+} from "../runtime/data/index.ts";
 import { enforceItemMarkup } from "./enforcer.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
 import { type ItemRecordViewRef, renderItemWrapper } from "./list-container.ts";

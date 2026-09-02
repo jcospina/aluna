@@ -31,14 +31,14 @@ import {
   runCapabilityGate,
   verifyCapabilitySnapshot,
 } from "../../builder/index.ts";
+import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
+import { runMigrations } from "../../platform/persistence/migrations.ts";
+import { type CapabilitySpec, getCapability } from "../../registry/index.ts";
 import {
   applyAdditiveCapabilityMigration,
   applyCapabilityTableDdl,
   deriveCapabilityTableDdl,
-} from "../../capability-data/index.ts";
-import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
-import { runMigrations } from "../../platform/persistence/migrations.ts";
-import { type CapabilitySpec, getCapability } from "../../registry/index.ts";
+} from "../../runtime/data/index.ts";
 import { AbortedBuildError } from "../build/build-run.ts";
 import { assembleEvolutionCandidate } from "./evolution-assembly.ts";
 

@@ -14,19 +14,19 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:te
 import { notesSpec } from "../../builder/gate/gate.test-support.ts";
 import type { CapabilityGateResult } from "../../builder/index.ts";
 import {
-  ChoiceDisabledError,
-  createCapabilityMutationPort,
-  createCapabilityQueryPort,
-  materializeCapabilityActionRecord,
-  selectCapabilityRows,
-} from "../../capability-data/index.ts";
-import {
   type CapabilitySpec,
   type ChoiceGroup,
   type ChoiceOption,
   type ChoicePresentation,
   getCapability,
 } from "../../registry/index.ts";
+import {
+  ChoiceDisabledError,
+  createCapabilityMutationPort,
+  createCapabilityQueryPort,
+  materializeCapabilityActionRecord,
+  selectCapabilityRows,
+} from "../../runtime/data/index.ts";
 import {
   activated,
   committedGate,

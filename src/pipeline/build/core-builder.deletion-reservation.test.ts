@@ -10,7 +10,7 @@ import {
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../../router/router.test-support.ts";
+} from "../../runtime/router/dispatch/router.test-support.ts";
 import { revalidateResolvedRequest } from "./core-builder.ts";
 import { resolvedNewCapabilityRequest } from "./resolved-request.ts";
 

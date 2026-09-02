@@ -1,7 +1,10 @@
 import type { Database } from "bun:sqlite";
 import type { Context } from "hono";
 
-import { MutationAdmissionError, type MutationCoordinator } from "../mutation-coordinator/index.ts";
+import {
+  MutationAdmissionError,
+  type MutationCoordinator,
+} from "../runtime/concurrency/mutation-coordinator.ts";
 import { type CapabilityRenameOutcome, renameCapabilityLabel } from "./front-half.ts";
 import { renderCapabilityRenameRefusal, renderRenamedCapabilityLogo } from "./presentation.ts";
 

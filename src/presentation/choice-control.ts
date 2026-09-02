@@ -11,7 +11,6 @@
 // Create and edit share every path here: the only difference between them is which
 // option arrives already chosen.
 
-import { choiceInputForField } from "../choice-input/index.ts";
 import {
   type ChoiceOption,
   type ChoiceOptionRun,
@@ -21,7 +20,8 @@ import {
   type SpecField,
   type UiFormIntent,
 } from "../registry/index.ts";
-import { ALUNA_PRESENT_MARKER } from "../router/wire-protocol.ts";
+import { choiceInputForField } from "../runtime/field-types/choice-input.ts";
+import { ALUNA_PRESENT_MARKER } from "../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../web/html.ts";
 import { type FieldChrome, fieldChrome } from "./field-chrome.ts";
 

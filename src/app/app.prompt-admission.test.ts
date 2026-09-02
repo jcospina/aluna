@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ZodType } from "zod";
-import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import { createPromptBuildPipeline, type RecordMetrics } from "../pipeline/index.ts";
 import { createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";
 import { insertCapability } from "../registry/index.ts";
+import { createMutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
 import { BLANK_PROMPT_NOTICE, renderPromptNotice } from "../web/index.ts";
 import {
   buildJobIdFromSubscriber,

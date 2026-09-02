@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { CapabilityRow } from "../registry/index.ts";
-import { boomRow, notesRow } from "../router/router.test-support.ts";
+import { boomRow, notesRow } from "../runtime/router/dispatch/router.test-support.ts";
 import {
   type CapabilityDeletionRestorationEvidence,
   DELETION_RECHECK_PARAM,

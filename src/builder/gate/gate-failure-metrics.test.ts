@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
-
-import { deriveCapabilityTableDdl } from "../../capability-data/index.ts";
 import { lifecycleMeasurement, recordGateFailureMetrics } from "../../pipeline/metrics-recorder.ts";
 import type { GenerateResult, Provider } from "../../platform/provider/index.ts";
+import { deriveCapabilityTableDdl } from "../../runtime/data/index.ts";
 import { GOOD_HANDLERS, itemRendererFor, notesSpec } from "./gate.test-support.ts";
 import { CapabilityGateError, runCapabilityGate } from "./gate.ts";
 

@@ -37,10 +37,6 @@ import {
 } from "../capability-logo/index.ts";
 import { handleCapabilityRename } from "../capability-rename/index.ts";
 import {
-  createMutationCoordinator,
-  type MutationCoordinator,
-} from "../mutation-coordinator/index.ts";
-import {
   createMetricsRecorder,
   createPromptBuildPipeline,
   type RecordMetrics,
@@ -49,9 +45,16 @@ import { type BuildJobQueue, createBuildJobQueue } from "../pipeline/jobs/build-
 import { captureRestorationDescriptor } from "../pipeline/jobs/restoration.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../platform/persistence/db.ts";
 import { createProvider, type Provider } from "../platform/provider/index.ts";
-import { createReadGateCoordinator, type ReadGateCoordinator } from "../read-gates/index.ts";
 import { getCapability, listCapabilityDependents } from "../registry/index.ts";
-import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../router/index.ts";
+import {
+  createMutationCoordinator,
+  type MutationCoordinator,
+} from "../runtime/concurrency/mutation-coordinator.ts";
+import {
+  createReadGateCoordinator,
+  type ReadGateCoordinator,
+} from "../runtime/concurrency/read-gates.ts";
+import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../runtime/router/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "../sse/index.ts";
 import {
   BLANK_PROMPT_NOTICE,

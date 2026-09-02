@@ -27,5 +27,5 @@
   // type annotations on purpose — the platform's tsc never checks them; the gate
   // type-checks generated handlers in isolation. The router's
   // fixtures mirror that, so they are excluded here too.
-  "exclude": ["src/router/__fixtures__"]
+  "exclude": ["src/runtime/router/__fixtures__"]
 }

@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { ALUNA_PRESENT_MARKER, ALUNA_RECORD_ID_MARKER } from "../router/wire-protocol.ts";
+import {
+  ALUNA_PRESENT_MARKER,
+  ALUNA_RECORD_ID_MARKER,
+} from "../runtime/router/wire/wire-protocol.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
 import { capabilityEditErrorId, renderEditForm } from "./field-renderer.ts";
 

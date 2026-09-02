@@ -13,7 +13,6 @@
 // best-effort resolver-only metrics row.
 
 import { classifyIntentWithUsage, type IntentClassification } from "../../intent-resolver/index.ts";
-import type { MutationCoordinator } from "../../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
 import {
@@ -21,6 +20,7 @@ import {
   canonicalCapabilityLabel,
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
+import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import {
   BUILDING_WINDOW_TITLE,
   renderBuildWindowTitle,

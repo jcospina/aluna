@@ -1,9 +1,8 @@
 import type { Database } from "bun:sqlite";
 import type { Context } from "hono";
-
-import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
-import type { ReadGateCoordinator } from "../read-gates/index.ts";
 import { type CapabilityRow, getCapability } from "../registry/index.ts";
+import type { MutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
+import type { ReadGateCoordinator } from "../runtime/concurrency/read-gates.ts";
 import { renderCachedCapabilitySurface } from "../web/index.ts";
 import type { DeletionCleanupSupervisor } from "./cleanup-supervisor.ts";
 import { admitCapabilityDeletion } from "./front-half.ts";

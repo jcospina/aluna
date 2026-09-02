@@ -16,9 +16,12 @@
 // Responses are compressed and picture-only; the stored bytes are never touched (L8).
 
 import type { Context, Hono } from "hono";
-import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
-import type { CapabilityIncarnation, ReadGateCoordinator } from "../read-gates/index.ts";
+import type { MutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
+import type {
+  CapabilityIncarnation,
+  ReadGateCoordinator,
+} from "../runtime/concurrency/read-gates.ts";
 import { renderCapabilityLogoFace } from "../web/index.ts";
 import {
   type CapabilityLogoAttemptOutcome,

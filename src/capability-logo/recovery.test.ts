@@ -9,10 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-
-import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
-import { createReadGateCoordinator, type ReadGateCoordinator } from "../read-gates/index.ts";
 import {
   claimLogoGeneration,
   getCapabilityLogoState,
@@ -20,13 +17,18 @@ import {
   releaseLogoClaim,
   settleLogoGeneration,
 } from "../registry/index.ts";
+import { createMutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
+import {
+  createReadGateCoordinator,
+  type ReadGateCoordinator,
+} from "../runtime/concurrency/read-gates.ts";
 import {
   install,
   NOTES_INCARNATION_ID,
   notesRow,
   setupRouterTest,
   teardownRouterTest,
-} from "../router/router.test-support.ts";
+} from "../runtime/router/dispatch/router.test-support.ts";
 import { createRunningLogoClaims, type RunningLogoClaims } from "./claims.ts";
 import { recoverCapabilityLogos } from "./recovery.ts";
 import { capabilityLogoPath, installCapabilityLogo } from "./storage.ts";

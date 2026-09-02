@@ -1,7 +1,6 @@
 import type { Database } from "bun:sqlite";
-
-import type { MutationCoordinator } from "../mutation-coordinator/index.ts";
 import { type CapabilityRow, getCapability, listCapabilityDependents } from "../registry/index.ts";
+import type { MutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
 
 export interface CapabilityDeletionExpectation {
   readonly capabilityId: string;

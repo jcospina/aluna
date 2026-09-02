@@ -7,10 +7,9 @@
 // builder work finishes, so a later gate or commit failure leaves no cap_* table.
 
 import type { Database } from "bun:sqlite";
-
-import { applyCapabilityTableDdl, type CapabilityTableDdl } from "../../capability-data/index.ts";
 import { withWriteTransaction } from "../../platform/persistence/db.ts";
 import type { CapabilitySpec } from "../../registry/index.ts";
+import { applyCapabilityTableDdl, type CapabilityTableDdl } from "../../runtime/data/index.ts";
 
 export interface ApplyCapabilityMigrationInput {
   readonly database: Database;

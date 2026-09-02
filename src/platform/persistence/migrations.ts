@@ -107,7 +107,7 @@ export const MIGRATIONS: readonly Migration[] = [
   },
   // 0004 creates the generation-metrics store — the experiment's
   // measurements, one row per generation, recording what the *system* did to build
-  // itself (ARCH §6.3, distinct from the event log of what the *user* did). The
+  // itself (ARCH §6.3, distinct from the event log of what the *user* did). Its
   // fields: identity + intent classification, model + token counts, the
   // timing breakdown (spec-gen, migration, code-gen, HTML-gen, test-gen, test-run,
   // total wall-clock), the per-rung gate outcomes and per-unit fix-loop attempts as
@@ -115,7 +115,7 @@ export const MIGRATIONS: readonly Migration[] = [
   // build column past identity/intent/model is nullable so a deflection (intent only)
   // or a failed build (everything up to the failing rung) writes with partial
   // knowledge; absence is stored as NULL, never a fabricated zero. The metrics
-  // access module (src/metrics/store.ts) owns the (de)serialization and validates
+  // access module (src/platform/metrics/store.ts) owns the (de)serialization and validates
   // rows against the Zod shape in both directions.
   {
     id: "0004_generation_metrics",

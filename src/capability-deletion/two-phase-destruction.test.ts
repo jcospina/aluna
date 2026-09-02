@@ -1,23 +1,22 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-
-import { applyCapabilityTableDdl } from "../capability-data/ddl.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
-import { createReadGateCoordinator } from "../read-gates/index.ts";
 import {
   compareAndSwapCapability,
   getCapability,
   insertCapability,
   listCapabilityDeletionTombstones,
 } from "../registry/index.ts";
+import { createReadGateCoordinator } from "../runtime/concurrency/read-gates.ts";
+import { applyCapabilityTableDdl } from "../runtime/data/schema/ddl.ts";
 import {
   install,
   notesRow,
   rowSpec,
   setupRouterTest,
   teardownRouterTest,
-} from "../router/router.test-support.ts";
+} from "../runtime/router/dispatch/router.test-support.ts";
 import {
   createArtifactCleanupAdapter,
   destroyCapability,
@@ -140,7 +139,7 @@ describe("two-phase capability destruction", () => {
     // What this pins is the behaviour, not the numbers: a reader that has not yet reached
     // a point where it could notice the close is waited for rather than refused. The
     // production ordering the behaviour depends on — the drain deadline sitting above the
-    // longest a single Handler may run — is asserted in `src/read-gates/index.test.ts`.
+    // longest a single Handler may run — is asserted in `src/runtime/concurrency/read-gates.test.ts`.
     // The deadline here is far above the hold so the assertion can never turn into a race.
     const HELD_MS = 100;
     const DRAIN_MS = 5_000;

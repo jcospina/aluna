@@ -1,7 +1,6 @@
 import { z } from "zod";
-
-import { RECORD_NOT_FOUND_ERROR_CODE } from "../../../capability-data/index.ts";
 import { capabilityToolSchema, MAX_BEHAVIORAL_ERRORS } from "../../../registry/index.ts";
+import { RECORD_NOT_FOUND_ERROR_CODE } from "../../../runtime/data/index.ts";
 import {
   behavioralExpectedErrorBaseSchema,
   behavioralInputValueSchema,
