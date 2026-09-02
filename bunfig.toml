@@ -1,4 +1,4 @@
 [test]
 # Pin the SQLite runtime before any test file opens a connection. See
-# src/persistence/test-preload.ts for why this cannot be left to import order.
-preload = ["./src/persistence/test-preload.ts"]
+# src/platform/persistence/test-preload.ts for why this cannot be left to import order.
+preload = ["./src/platform/persistence/test-preload.ts"]

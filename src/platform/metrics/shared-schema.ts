@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import type { GateRungName, GateRungStatus } from "../builder/index.ts";
+import type { GateRungName, GateRungStatus } from "../../builder/index.ts";
 
 export const FAILURE_STAGES = [
   "spec_gen",

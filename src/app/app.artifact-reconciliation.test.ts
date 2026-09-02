@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { finalizeGenerationLifecycleFailure, startGenerationLifecycle } from "../metrics/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import {
+  finalizeGenerationLifecycleFailure,
+  startGenerationLifecycle,
+} from "../platform/metrics/index.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import {
   createScratchDbEnv,
   makeMetricsRecorder,

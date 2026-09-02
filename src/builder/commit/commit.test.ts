@@ -9,8 +9,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { applyCapabilityTableDdl } from "../../capability-data/index.ts";
-import { openDatabase, type PlatformDatabase, withWriteTransaction } from "../../persistence/db.ts";
-import { runMigrations } from "../../persistence/migrations.ts";
+import {
+  openDatabase,
+  type PlatformDatabase,
+  withWriteTransaction,
+} from "../../platform/persistence/db.ts";
+import { runMigrations } from "../../platform/persistence/migrations.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,

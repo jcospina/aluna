@@ -22,7 +22,7 @@
 
 import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { SendBuildEvent } from "../../pipeline/jobs/build-jobs.ts";
-import type { Provider, TokenUsage } from "../../provider/index.ts";
+import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,

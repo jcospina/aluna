@@ -10,7 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import { createReadGateCoordinator } from "../read-gates/index.ts";
 import type { CapabilityRow } from "../registry/index.ts";
 import type { CapabilityContext, CapabilityHandler } from "../router/contract.ts";

@@ -29,7 +29,7 @@ import type { CapabilityGateResult } from "../../builder/index.ts";
 import {
   reconcileRunningGenerationLifecycles,
   startGenerationLifecycle,
-} from "../../metrics/index.ts";
+} from "../../platform/metrics/index.ts";
 import { type CapabilitySpec, getCapability } from "../../registry/index.ts";
 import {
   activated,

@@ -2,7 +2,7 @@
 // callback is immutable; only the Action attributed by a failed execution may be
 // regenerated, statically rechecked, and tried again from fresh scratch state.
 
-import { isProviderAbortError, type TokenUsage } from "../../../provider/index.ts";
+import { isProviderAbortError, type TokenUsage } from "../../../platform/provider/index.ts";
 import { type CapabilityRow, LOGO_BIRTH_STATUS } from "../../../registry/index.ts";
 import { checkGeneratedUnit } from "../../units/unit-checks.ts";
 import {

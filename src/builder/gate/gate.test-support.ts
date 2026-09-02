@@ -15,8 +15,8 @@ import {
   materializeCapabilityActionRecord,
   selectCapabilityRows,
 } from "../../capability-data/index.ts";
-import type { PlatformDatabase } from "../../persistence/db.ts";
-import type { DeepPartial, GenerateResult, Provider } from "../../provider/index.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
 import {
   activeSpecFields,
   BEHAVIORAL_ERROR_MARKERS,

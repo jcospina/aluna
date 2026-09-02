@@ -32,8 +32,8 @@ import {
 } from "../../builder/index.ts";
 import { deriveCapabilityTableDdl } from "../../capability-data/index.ts";
 import type { IntentClassification } from "../../intent-resolver/index.ts";
-import type { PlatformDatabase } from "../../persistence/db.ts";
-import type { GenerateResult, Provider, TokenUsage } from "../../provider/index.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import type { GenerateResult, Provider, TokenUsage } from "../../platform/provider/index.ts";
 import {
   CapabilityIdReservedError,
   type CapabilityRegistryExpectation,

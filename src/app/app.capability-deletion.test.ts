@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
 import { createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import { createReadGateCoordinator } from "../read-gates/index.ts";
 import type { CapabilityRow } from "../registry/index.ts";
 import {

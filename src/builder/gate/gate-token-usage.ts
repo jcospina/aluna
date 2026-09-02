@@ -1,4 +1,4 @@
-import type { TokenUsage } from "../../provider/index.ts";
+import type { TokenUsage } from "../../platform/provider/index.ts";
 
 export class TokenUsageAccumulator {
   private input: number | undefined;

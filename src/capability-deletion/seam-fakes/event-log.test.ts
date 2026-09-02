@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
-import type { PlatformDatabase } from "../../persistence/db.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import {
   type CapabilityIncarnation,
   createReadGateCoordinator,

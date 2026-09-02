@@ -7,8 +7,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { requireRecraftApiKey } from "../capability-logo/provider.ts";
-import { API_KEY_ENV_VAR, requireApiKey } from "../provider/config.ts";
-import { captureProcessSecrets, clearProcessSecrets, VAULTED_SECRET_ENV_VARS } from "./index.ts";
+import { API_KEY_ENV_VAR, requireApiKey } from "./provider/config.ts";
+import { captureProcessSecrets, clearProcessSecrets, VAULTED_SECRET_ENV_VARS } from "./secrets.ts";
 
 const RECRAFT_ENV_VAR = "RECRAFT_API_KEY";
 

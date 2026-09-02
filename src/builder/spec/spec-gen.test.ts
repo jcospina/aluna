@@ -10,7 +10,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { zodSchema } from "ai";
-import type { TokenUsage } from "../../provider/index.ts";
+import type { TokenUsage } from "../../platform/provider/index.ts";
 import {
   FULL_CAPABILITY_TOOLS,
   LOGO_HUE_FAMILIES,

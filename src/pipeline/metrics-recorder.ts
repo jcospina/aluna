@@ -35,7 +35,7 @@ import type {
   StoredGenerationLifecycle,
   UnitAttemptSummary,
   WriteStaleGenerationAdmissionInput,
-} from "../metrics/index.ts";
+} from "../platform/metrics/index.ts";
 import {
   finalizeGenerationLifecycleFailure,
   finalizeGenerationLifecycleSuccess,
@@ -46,9 +46,9 @@ import {
   writeGenerationMetrics,
   writeIntentResolutionMetrics,
   writeStaleGenerationAdmission,
-} from "../metrics/index.ts";
-import type { TokenUsage } from "../provider/index.ts";
-import { resolveModel } from "../provider/index.ts";
+} from "../platform/metrics/index.ts";
+import type { TokenUsage } from "../platform/provider/index.ts";
+import { resolveModel } from "../platform/provider/index.ts";
 
 /**
  * How the app persists a generation-metrics row. Injected (via `AppDeps.recordMetrics`)

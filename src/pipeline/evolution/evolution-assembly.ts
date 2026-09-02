@@ -58,7 +58,7 @@ import {
   deriveAdditiveCapabilityMigration,
   deriveCapabilityTableDdl,
 } from "../../capability-data/index.ts";
-import type { Provider, TokenUsage } from "../../provider/index.ts";
+import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,

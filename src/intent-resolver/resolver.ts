@@ -6,7 +6,7 @@
 // path into the build job.
 
 import type { Database } from "bun:sqlite";
-import type { Provider, TokenUsage } from "../provider/index.ts";
+import type { Provider, TokenUsage } from "../platform/provider/index.ts";
 import {
   type ActiveRegistryCatalog,
   type CapabilityRow,

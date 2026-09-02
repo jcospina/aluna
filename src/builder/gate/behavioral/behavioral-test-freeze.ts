@@ -14,7 +14,7 @@
 // Which frozen suites then *execute*, the impact-driven run/skip selection and its
 // full-suite fallback, is deliberately not decided here.
 
-import type { Provider, TokenUsage } from "../../../provider/index.ts";
+import type { Provider, TokenUsage } from "../../../platform/provider/index.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../../registry/index.ts";
 import {
   type ActionTestInputs,

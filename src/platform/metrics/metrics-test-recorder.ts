@@ -1,4 +1,4 @@
-import type { RecordMetrics } from "../pipeline/index.ts";
+import type { RecordMetrics } from "../../pipeline/index.ts";
 import type {
   GenerationLifecycle,
   GenerationMetrics,

@@ -45,9 +45,9 @@ import {
 } from "../../builder/index.ts";
 import { applyAdditiveCapabilityMigration } from "../../capability-data/index.ts";
 import type { IntentClassification } from "../../intent-resolver/index.ts";
-import type { CarriedResolverMeasurement } from "../../metrics/index.ts";
-import type { PlatformDatabase } from "../../persistence/db.ts";
-import type { Provider, TokenUsage } from "../../provider/index.ts";
+import type { CarriedResolverMeasurement } from "../../platform/metrics/index.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,

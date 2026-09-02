@@ -9,7 +9,7 @@
 import type { Database } from "bun:sqlite";
 
 import { applyCapabilityTableDdl, type CapabilityTableDdl } from "../../capability-data/index.ts";
-import { withWriteTransaction } from "../../persistence/db.ts";
+import { withWriteTransaction } from "../../platform/persistence/db.ts";
 import type { CapabilitySpec } from "../../registry/index.ts";
 
 export interface ApplyCapabilityMigrationInput {

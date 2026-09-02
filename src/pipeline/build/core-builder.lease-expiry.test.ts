@@ -6,9 +6,9 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../app/app.test-support.ts";
-import { listGenerationLifecycles } from "../../metrics/index.ts";
 import { MutationCoordinator } from "../../mutation-coordinator/index.ts";
-import type { GenerateResult, Provider } from "../../provider/index.ts";
+import { listGenerationLifecycles } from "../../platform/metrics/index.ts";
+import type { GenerateResult, Provider } from "../../platform/provider/index.ts";
 import { readActiveRegistryCatalog } from "../../registry/index.ts";
 import type { BuildPipelineCompletion } from "../jobs/build-jobs.ts";
 import { createMetricsRecorder } from "../metrics-recorder.ts";

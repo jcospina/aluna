@@ -11,7 +11,7 @@ import {
 import { join } from "node:path";
 
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import { createReadGateCoordinator, type ReadGateCoordinator } from "../read-gates/index.ts";
 import {
   claimLogoGeneration,

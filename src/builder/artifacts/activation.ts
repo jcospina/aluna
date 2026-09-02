@@ -6,7 +6,7 @@
 
 import type { Database } from "bun:sqlite";
 
-import { withWriteTransaction } from "../../persistence/db.ts";
+import { withWriteTransaction } from "../../platform/persistence/db.ts";
 import type { CapabilityRegistryExpectation, CapabilitySpec } from "../../registry/index.ts";
 import {
   assertVerifiedPublishedSnapshot,

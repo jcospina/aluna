@@ -3,7 +3,7 @@ import type { ZodType } from "zod";
 import { behavioralResponseFor } from "../builder/gate/gate.test-support.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
-import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";
 import { getCapability, insertCapability } from "../registry/index.ts";
 import {
   BEHAVIORAL_SUITE,

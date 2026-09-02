@@ -1,4 +1,4 @@
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import type { CapabilityIncarnation } from "../read-gates/index.ts";
 import type { ActiveRegistryCatalog, CapabilityRow } from "../registry/index.ts";
 import type { WireProtocolAction } from "./wire-protocol.ts";

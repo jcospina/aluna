@@ -6,11 +6,11 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { INTENT_RESOLVER_PROMPT_PREFIX } from "../intent-resolver/index.ts";
-import { getGenerationLifecycle } from "../metrics/index.ts";
 import { createMutationCoordinator } from "../mutation-coordinator/index.ts";
 import { createMetricsRecorder, createPromptBuildPipeline } from "../pipeline/index.ts";
 import { createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
-import type { Provider } from "../provider/index.ts";
+import { getGenerationLifecycle } from "../platform/metrics/index.ts";
+import type { Provider } from "../platform/provider/index.ts";
 import {
   createScratchDbEnv,
   makeMetricsRecorder,

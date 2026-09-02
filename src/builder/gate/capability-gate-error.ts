@@ -1,4 +1,4 @@
-import type { TokenUsage } from "../../provider/index.ts";
+import type { TokenUsage } from "../../platform/provider/index.ts";
 import type { BehavioralRungFailureMeasurement } from "./behavioral/gate-behavioral.ts";
 import type { GateRungName, GateRungOutcome } from "./gate.ts";
 import { diagnosticForError } from "./gate-internal.ts";

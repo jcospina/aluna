@@ -11,9 +11,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ZodType } from "zod";
 
-import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
-import { runMigrations } from "../persistence/migrations.ts";
-import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
+import { openDatabase, type PlatformDatabase } from "../platform/persistence/db.ts";
+import { runMigrations } from "../platform/persistence/migrations.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,

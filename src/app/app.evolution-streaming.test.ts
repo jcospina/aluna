@@ -19,7 +19,7 @@ import {
   searchHandlerFor,
   updateHandlerFor,
 } from "../builder/gate/gate.test-support.ts";
-import type { Provider } from "../provider/index.ts";
+import type { Provider } from "../platform/provider/index.ts";
 import { getCapability } from "../registry/index.ts";
 import {
   buildEvolutionRouteGates,

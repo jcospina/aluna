@@ -17,10 +17,10 @@
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import type { GenerationMetrics } from "../metrics/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
-import type { Provider } from "../provider/index.ts";
+import type { GenerationMetrics } from "../platform/metrics/index.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
+import type { Provider } from "../platform/provider/index.ts";
 import {
   getCapability,
   LOGO_HUE_FAMILIES,

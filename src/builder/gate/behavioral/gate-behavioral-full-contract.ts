@@ -18,7 +18,7 @@
 // Checks run per Action at generation time (before a single Handler byte exists) and again
 // over the assembled frozen artifact before the Gate executes it.
 
-import { normalizeSearchText } from "../../../persistence/sqlite-functions.ts";
+import { normalizeSearchText } from "../../../platform/persistence/sqlite-functions.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,

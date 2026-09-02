@@ -18,7 +18,7 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../app/app.test-support.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import { getCapability, insertCapabilityDeletionTombstone } from "../registry/index.ts";
 import { formBody, install, notesRow } from "../router/router.test-support.ts";
 

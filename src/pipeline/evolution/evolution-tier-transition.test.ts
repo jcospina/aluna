@@ -13,7 +13,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:te
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { type CapabilityGateResult, verifyCapabilitySnapshot } from "../../builder/index.ts";
-import type { StoredGenerationLifecycle } from "../../metrics/index.ts";
+import type { StoredGenerationLifecycle } from "../../platform/metrics/index.ts";
 import type { CapabilitySpec } from "../../registry/index.ts";
 import { getCapability } from "../../registry/index.ts";
 import type { BehavioralTierTransitionRow } from "./behavioral-tier-transition.ts";

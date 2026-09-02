@@ -5,8 +5,8 @@ import {
   notesCapabilityRow,
   teardownScratchDbEnv,
 } from "../app/app.test-support.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
-import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";
 import {
   fingerprintActiveRegistryCatalog,
   insertCapability,

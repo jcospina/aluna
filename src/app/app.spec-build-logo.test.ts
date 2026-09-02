@@ -18,8 +18,8 @@ import { join } from "node:path";
 
 import { reconcileCapabilityArtifacts } from "../builder/artifacts/artifact-reconciliation.ts";
 import { LogoGenerationError, type LogoGenerationProvider } from "../capability-logo/index.ts";
-import type { GenerationMetrics } from "../metrics/index.ts";
-import type { PlatformDatabase } from "../persistence/db.ts";
+import type { GenerationMetrics } from "../platform/metrics/index.ts";
+import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import { getCapability } from "../registry/index.ts";
 import {
   createScratchDbEnv,

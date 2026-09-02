@@ -32,11 +32,11 @@ import {
   verifyCapabilitySnapshot,
 } from "../../builder/index.ts";
 import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../../capability-data/index.ts";
-import type { StoredGenerationLifecycle } from "../../metrics/index.ts";
-import { makeMetricsRecorder } from "../../metrics/metrics-test-recorder.ts";
-import { openDatabase, type PlatformDatabase } from "../../persistence/db.ts";
-import { runMigrations } from "../../persistence/migrations.ts";
-import type { DeepPartial, GenerateResult, Provider } from "../../provider/index.ts";
+import type { StoredGenerationLifecycle } from "../../platform/metrics/index.ts";
+import { makeMetricsRecorder } from "../../platform/metrics/metrics-test-recorder.ts";
+import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
+import { runMigrations } from "../../platform/persistence/migrations.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
 import { type CapabilitySpec, getCapability } from "../../registry/index.ts";
 import type { SendBuildEvent } from "../jobs/build-jobs.ts";
 import { createMetricsRecorder } from "../metrics-recorder.ts";

@@ -9,10 +9,10 @@ import {
   finalizeGenerationLifecycleSuccess,
   getGenerationLifecycle,
   startGenerationLifecycle,
-} from "../../metrics/index.ts";
+} from "../../platform/metrics/index.ts";
 import { createMutationCoordinator } from "../../mutation-coordinator/index.ts";
-import { openDatabase, type PlatformDatabase } from "../../persistence/db.ts";
-import { runMigrations } from "../../persistence/migrations.ts";
+import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
+import { runMigrations } from "../../platform/persistence/migrations.ts";
 import { deliverActivatedPresentation } from "../../pipeline/streaming/terminal-presentation.ts";
 import { getCapability } from "../../registry/index.ts";
 import { renderCachedCapabilityCommitSwap } from "../../web/index.ts";

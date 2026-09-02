@@ -14,10 +14,10 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { ZodType } from "zod";
 import type { IntentClassification } from "../intent-resolver/index.ts";
-import { listGenerationLifecycles } from "../metrics/index.ts";
 import { createMetricsRecorder } from "../pipeline/index.ts";
 import { STALE_BUILD_ENDING } from "../pipeline/streaming/terminal-presentation.ts";
-import type { DeepPartial, GenerateResult, Provider } from "../provider/index.ts";
+import { listGenerationLifecycles } from "../platform/metrics/index.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";
 import { getCapability, insertCapability } from "../registry/index.ts";
 import { renderBuildEnding } from "../web/index.ts";
 import {

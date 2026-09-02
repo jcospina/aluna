@@ -14,8 +14,8 @@
 
 import { classifyIntentWithUsage, type IntentClassification } from "../../intent-resolver/index.ts";
 import type { MutationCoordinator } from "../../mutation-coordinator/index.ts";
-import type { PlatformDatabase } from "../../persistence/db.ts";
-import { abortableProvider, type Provider } from "../../provider/index.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
 import {
   type ActiveRegistryCatalog,
   canonicalCapabilityLabel,

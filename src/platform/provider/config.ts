@@ -10,7 +10,7 @@
 // The functions take `env` as a parameter (defaulting to the real process env) so
 // they are pure and testable without mutating global state.
 
-import { readSecret } from "../secrets/index.ts";
+import { readSecret } from "../secrets.ts";
 
 /**
  * The configured global model, in exactly one place. The demo ships against a

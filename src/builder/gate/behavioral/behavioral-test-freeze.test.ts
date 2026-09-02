@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import type { DeepPartial, GenerateResult, Provider } from "../../../provider/index.ts";
+import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
 import type { CapabilitySpec } from "../../../registry/index.ts";
 import {
   behavioralResponseFor,

@@ -18,8 +18,8 @@
 // classification about a world that is gone.
 
 import type { IntentClassification } from "../../intent-resolver/index.ts";
-import type { CarriedResolverMeasurement } from "../../metrics/index.ts";
-import type { TokenUsage } from "../../provider/index.ts";
+import type { CarriedResolverMeasurement } from "../../platform/metrics/index.ts";
+import type { TokenUsage } from "../../platform/provider/index.ts";
 import type { CapabilityRegistryExpectation } from "../../registry/index.ts";
 
 interface ResolvedBuildRequestBase {

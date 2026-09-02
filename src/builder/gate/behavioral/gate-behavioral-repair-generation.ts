@@ -1,4 +1,8 @@
-import { isProviderAbortError, type Provider, type TokenUsage } from "../../../provider/index.ts";
+import {
+  isProviderAbortError,
+  type Provider,
+  type TokenUsage,
+} from "../../../platform/provider/index.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
 import { checkGeneratedUnit } from "../../units/unit-checks.ts";
 import {
