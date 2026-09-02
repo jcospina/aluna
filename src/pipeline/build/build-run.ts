@@ -40,8 +40,8 @@ import {
   listCapabilities,
 } from "../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../runtime/data/index.ts";
-import type { Send } from "../../sse/index.ts";
-import { renderProvisionalLogoName } from "../../web/index.ts";
+import { renderProvisionalLogoName } from "../../server/http/index.ts";
+import type { Send } from "../../server/sse/index.ts";
 import type { IntentClassification } from "../intent/index.ts";
 import {
   type DemoBuildAccumulator,

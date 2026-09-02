@@ -287,7 +287,7 @@ describe("every open is a fresh read", () => {
       /\.ajax\("GET", `\/capability\/\$\{capabilityId}`/,
     );
     expect(readSource("public/desk-window.js")).toMatch(/\.ajax\?\.\("GET", pathname/);
-    expect(readSource("src/web/fragments.ts")).toMatch(/hx-get="\$\{url}"/);
+    expect(readSource("src/server/http/fragments.ts")).toMatch(/hx-get="\$\{url}"/);
   });
 });
 

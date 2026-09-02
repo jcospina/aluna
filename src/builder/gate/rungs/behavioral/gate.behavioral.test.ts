@@ -1,5 +1,10 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import {
+  type CapabilitySpec,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+} from "../../../../registry/index.ts";
+import { deriveCapabilityTableDdl } from "../../../../runtime/data/index.ts";
+import {
   BEHAVIORAL_SUITE as FULL_BEHAVIORAL_SUITE,
   CREATE_HANDLER as FULL_CREATE_HANDLER,
   DELETE_HANDLER as FULL_DELETE_HANDLER,
@@ -8,12 +13,7 @@ import {
   READ_HANDLER as FULL_READ_HANDLER,
   SEARCH_HANDLER as FULL_SEARCH_HANDLER,
   UPDATE_HANDLER as FULL_UPDATE_HANDLER,
-} from "../../../../app/app.test-support.ts";
-import {
-  type CapabilitySpec,
-  MISSING_REQUIRED_FIELDS_ERROR_CODE,
-} from "../../../../registry/index.ts";
-import { deriveCapabilityTableDdl } from "../../../../runtime/data/index.ts";
+} from "../../../../server/app.test-support.ts";
 import {
   expectGateFailure,
   type FullBehavioralTestSuite,

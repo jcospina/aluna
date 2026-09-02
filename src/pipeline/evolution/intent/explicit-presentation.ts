@@ -7,7 +7,7 @@
 import { CandidateValidationError } from "../../../builder/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
-import { renderCachedCapabilityCommitSwap } from "../../../web/index.ts";
+import { renderCachedCapabilityCommitSwap } from "../../../server/http/index.ts";
 import type { BuildJob, BuildPipelineCompletion, SendBuildEvent } from "../../jobs/build-jobs.ts";
 import { renderRestorationFragment } from "../../jobs/restoration.ts";
 import type { RecordMetrics } from "../../metrics-recorder.ts";

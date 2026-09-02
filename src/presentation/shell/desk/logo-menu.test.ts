@@ -11,7 +11,7 @@ import {
   labelNotice,
 } from "#shell/logo-menu.js";
 import { isCapabilityNameLabel, MAX_CAPABILITY_LABEL_CHARS } from "../../../registry/index.ts";
-import { renderCapabilityLogo } from "../../../web/fragments.ts";
+import { renderCapabilityLogo } from "../../../server/http/fragments.ts";
 import { desk, type Node, pressAndHold, slotFor } from "./logo-menu.test-support.ts";
 
 describe("the three ways into a logo's menu", () => {

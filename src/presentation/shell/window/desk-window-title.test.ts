@@ -19,7 +19,7 @@ import {
 // The rules themselves read module state (`mounted`), so what is asserted here is the
 // contract across the seam: the words, the event both sides spell, and the branch each
 // side takes. What the shell *does* with a name is run against a DOM double in
-// `src/app/app.build-ending.test.ts`.
+// `src/server/routes/build/app.build-ending.test.ts`.
 
 const ROOT = resolve(import.meta.dir, "../../../..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -56,7 +56,7 @@ describe("what the window is called while a run has it", () => {
     expect(read("public/app.js")).toContain(
       'BUILD_WINDOW_TITLE_ATTRIBUTE = "data-build-window-title"',
     );
-    expect(read("src/web/fragments.ts")).toContain(
+    expect(read("src/server/http/fragments.ts")).toContain(
       'BUILD_WINDOW_TITLE_ATTRIBUTE = "data-build-window-title"',
     );
     expect(source).toMatch(

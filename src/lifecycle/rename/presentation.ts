@@ -1,4 +1,4 @@
-import { renderCapabilityLogo } from "../../web/index.ts";
+import { renderCapabilityLogo } from "../../server/http/index.ts";
 import type { CapabilityRenameOutcome } from "./front-half.ts";
 
 /**

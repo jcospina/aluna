@@ -34,7 +34,7 @@ const WINDOW_STORE = code("public/desk-window-store.js");
 const STACK = code("public/desk-stack.js");
 const GLUE = code("public/app.js");
 const SHELL = read("public/index.html");
-const FRAGMENTS = read("src/web/fragments.ts");
+const FRAGMENTS = read("src/server/http/fragments.ts");
 const DESK_CSS = read("design/styles/components/desk.css");
 
 /** The desk, as the geometry module measures one. */
@@ -385,7 +385,7 @@ describe("the seam a classic script reaches the panel across", () => {
     // panel starts, which is what makes the version history survive a refresh.
     expect(DEV_SEED_SELECTOR).toBe("[data-dev-stage-seed]");
     expect(SHELL).toContain('data-dev-stage-seed="metrics"');
-    expect(read("src/web/cached-view.ts")).toContain('data-dev-stage-seed="metrics"');
+    expect(read("src/server/http/cached-view.ts")).toContain('data-dev-stage-seed="metrics"');
     // An empty seed is a resting stage, not an empty payload dressed as one.
     expect(PANEL).toMatch(/if \(stage && payload\) recordStage\(stage, payload\)/);
   });

@@ -20,7 +20,7 @@
 
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
-import { renderCachedCapabilityCommitSwap } from "../../../web/index.ts";
+import { renderCachedCapabilityCommitSwap } from "../../../server/http/index.ts";
 import {
   type ExplicitEvolutionPresentation,
   presentEvolutionFailure,

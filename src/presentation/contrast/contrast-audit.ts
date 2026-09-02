@@ -92,9 +92,9 @@ export const AUDITED_SHEETS: readonly string[] = [
   // load after everything the manifest ships, so they are the last word on what they
   // name — and `ink-seam.test.ts` already had to learn the same lesson.
   "public/primitives-preview.html",
-  "src/app/region-lifecycle-preview.ts",
-  "src/app/swap-target-preview.ts",
-  "src/builder/units/few-shot-gallery-preview.ts",
+  "src/server/dev-surfaces/region-lifecycle-preview.ts",
+  "src/server/dev-surfaces/swap-target-preview.ts",
+  "src/server/dev-surfaces/few-shot-gallery-preview.ts",
   // The gallery's exemplars themselves. They carry no `<style>` block — every colour is an
   // inline `style` attribute — and they are not only rendered at `/demo/few-shot-gallery`
   // but fed verbatim into the item-renderer prompt as approved examples. An unaudited

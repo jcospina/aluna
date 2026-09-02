@@ -219,7 +219,7 @@ describe("an empty desk needs no gate", () => {
       ...under("public", "*.js"),
       ...under("public/css", "*.css"),
       "public/app.css",
-      "src/web/fragments.ts",
+      "src/server/http/fragments.ts",
     ];
     for (const page of surfaces) {
       const source = read(page).replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");

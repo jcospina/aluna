@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
-import { notesCapabilityRow } from "../../app/app.test-support.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
 import { type CapabilityRow, fingerprintActiveRegistryCatalog } from "../../registry/index.ts";
+import { notesCapabilityRow } from "../../server/app.test-support.ts";
 import { buildIntentPrompt, classifyIntent } from "./resolver.ts";
 import type { IntentClassification } from "./schema.ts";
 

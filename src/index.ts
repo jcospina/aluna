@@ -1,6 +1,6 @@
 // Platform entrypoint: boot the Hono server on Bun.
 //
-// Starts Bun's built-in HTTP server with the Hono app (src/app/app.ts) and logs the
+// Starts Bun's built-in HTTP server with the Hono app (src/server/app.ts) and logs the
 // URL it is listening on. The port is configurable via the PORT environment
 // variable, defaulting to 3030. Started by `bun run dev` (bun --watch).
 //
@@ -8,19 +8,19 @@
 // migrations runner against the read-write connection — synchronously,
 // before serving, so the db is ready the moment the first request arrives.
 
-import {
-  app,
-  platformDeletionCleanup,
-  platformLogoClaims,
-  platformMutationCoordinator,
-  platformReadGates,
-} from "./app/app.ts";
 import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
 import { recoverCapabilityLogos } from "./lifecycle/logo/index.ts";
 import { db, dbReadonly } from "./platform/persistence/db.ts";
 import { runMigrations } from "./platform/persistence/migrations.ts";
 import { captureProcessSecrets } from "./platform/secrets.ts";
 import { listCapabilityDeletionTombstones, readActiveRegistryCatalog } from "./registry/index.ts";
+import {
+  app,
+  platformDeletionCleanup,
+  platformLogoClaims,
+  platformMutationCoordinator,
+  platformReadGates,
+} from "./server/app.ts";
 
 // Lift the provider credentials out of `process.env` before anything else runs. Generated
 // Handlers execute in this process (ADR-0004: no process sandbox), and the static

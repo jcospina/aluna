@@ -22,7 +22,7 @@ import type {
   CapabilityIncarnation,
   ReadGateCoordinator,
 } from "../../runtime/concurrency/read-gates.ts";
-import { renderCapabilityLogoFace } from "../../web/index.ts";
+import { renderCapabilityLogoFace } from "../../server/http/index.ts";
 import {
   type CapabilityLogoAttemptOutcome,
   readActiveIncarnationCatalog,

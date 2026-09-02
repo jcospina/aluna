@@ -1,10 +1,9 @@
 import { describe, expect, test } from "bun:test";
-
+import type { CapabilitySpec } from "../../../../../registry/index.ts";
 import {
   BEHAVIORAL_SUITE as FULL_BEHAVIORAL_SUITE,
   NOTES_SPEC as FULL_NOTES_SPEC,
-} from "../../../../../app/app.test-support.ts";
-import type { CapabilitySpec } from "../../../../../registry/index.ts";
+} from "../../../../../server/app.test-support.ts";
 import type { FullBehavioralTestSuite } from "../../../gate.test-support.ts";
 import { assertFragmentIncludesInOrder } from "../gate-behavioral-shared.ts";
 import { assertActionSuiteContract } from "./gate-behavioral-full-contract.ts";

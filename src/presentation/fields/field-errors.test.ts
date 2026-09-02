@@ -204,7 +204,7 @@ describe("a refusal this form has nowhere to put", () => {
   });
 
   test("a control the form posts but does not draw a field around is left alone", async () => {
-    // The rename editor is one (`src/web/fragments.ts`): a real form, a `.field__input`
+    // The rename editor is one (`src/server/http/fragments.ts`): a real form, a `.field__input`
     // inside a `.field__control`, and no `.field` anywhere to say anything in.
     const one = await scene(capabilityOf([probeField("string")]));
     parseHtml('<input name="label" value="x">', one.form);

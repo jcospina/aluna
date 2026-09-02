@@ -36,7 +36,7 @@ import {
   NOT_FOUND_NOTICE,
   renderCachedCapabilitySurface,
   renderRehydratedShellPage,
-} from "../../../web/index.ts";
+} from "../../../server/http/index.ts";
 import {
   createMutationCoordinator,
   type MutationCoordinator,

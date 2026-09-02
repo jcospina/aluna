@@ -37,7 +37,7 @@ import {
   ALUNA_RECORD_ID_MARKER,
   type WireProtocolAction,
 } from "../../runtime/router/wire/wire-protocol.ts";
-import { escapeHtml } from "../../web/html.ts";
+import { escapeHtml } from "../../server/http/html.ts";
 import { renderChoiceField } from "../controls/choice-control.ts";
 import {
   controlShell,

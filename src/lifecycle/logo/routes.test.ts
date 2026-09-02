@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-
-import { createApp } from "../../app/app.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import {
   abandonMissingCapabilityLogo,
@@ -20,6 +18,7 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../../runtime/router/dispatch/router.test-support.ts";
+import { createApp } from "../../server/app.ts";
 import { LogoGenerationError, type LogoGenerationProvider } from "./generation/provider.ts";
 import { installCapabilityLogo } from "./storage/storage.ts";
 
