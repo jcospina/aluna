@@ -24,7 +24,7 @@ import {
 import {
   createArtifactCleanupAdapter,
   destroyCapability,
-} from "../../../capability-deletion/index.ts";
+} from "../../../lifecycle/deletion/index.ts";
 import { renderEditForm } from "../../../presentation/index.ts";
 import {
   type CapabilitySpec,

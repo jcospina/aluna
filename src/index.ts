@@ -16,7 +16,7 @@ import {
   platformReadGates,
 } from "./app/app.ts";
 import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
-import { recoverCapabilityLogos } from "./capability-logo/index.ts";
+import { recoverCapabilityLogos } from "./lifecycle/logo/index.ts";
 import { db, dbReadonly } from "./platform/persistence/db.ts";
 import { runMigrations } from "./platform/persistence/migrations.ts";
 import { captureProcessSecrets } from "./platform/secrets.ts";

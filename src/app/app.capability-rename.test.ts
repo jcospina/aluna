@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
-import { renameCapabilityLabel } from "../capability-rename/index.ts";
+import { renameCapabilityLabel } from "../lifecycle/rename/index.ts";
 import type { PlatformDatabase } from "../platform/persistence/db.ts";
 import {
   type CapabilityRow,

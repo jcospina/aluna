@@ -12,7 +12,7 @@
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { pendingDeletionCleanups } from "../capability-deletion/cleanup-supervisor.ts";
+import { pendingDeletionCleanups } from "../lifecycle/deletion/destruction/cleanup-supervisor.ts";
 import { GENERATION_LIFECYCLE_TABLE, listGenerationLifecycles } from "../platform/metrics/index.ts";
 import type { RenderableCapability } from "../presentation/fields/field-renderer.ts";
 import { type CollectionLayout, renderCollection } from "../presentation/records/list-container.ts";

@@ -6,7 +6,7 @@ import {
   DELETION_SENTENCE_ATTRIBUTE,
   renderCapabilityDeletionConfirmation,
   renderCapabilityDeletionPreCommitFailure,
-} from "../capability-deletion/index.ts";
+} from "../lifecycle/deletion/index.ts";
 import { notesRow } from "../runtime/router/dispatch/router.test-support.ts";
 import { desk, El } from "./app.shell-double.test-support.ts";
 
