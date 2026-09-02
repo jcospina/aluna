@@ -99,6 +99,15 @@ function checkDeclaration(declaration: string): string | undefined {
 
   if (written.startsWith("--")) return "inline custom-property definitions are not allowed";
 
+  // `!important` cannot introduce an off-token value — every check below still runs on the
+  // value it carries — but it changes *who wins*, and a record is the one thing on this
+  // surface that may never win a specificity fight with the chrome around it. An inline
+  // `style` already outranks every stylesheet; `!important` on top of one outranks the
+  // platform's own `!important` too, which is the last thing holding a record inside its box.
+  if (IMPORTANT.test(value)) {
+    return "`!important` is never declared — an inline `style` already outranks every sheet, and a record may not outrank the platform's own rules on top of that";
+  }
+
   // One canonical property name for every check below. A CSS property is an ident token, so
   // `\66 ont-family` *is* `font-family` to a browser while reading nothing like it as a
   // string — and a vendor prefix names the same axis the bare property does. Deprefix, then
@@ -124,6 +133,10 @@ function checkProperty(prop: string, value: string): string | undefined {
   if (hasForbiddenConstruct(value)) {
     return "the value uses a forbidden construct — `url(...)`, a gradient or colour function, a legacy script vector, a raw hex colour, or a character reference hiding one of them";
   }
+  if (isRecolouringProp(prop)) {
+    return "a record may not re-colour the surface it sits on — `invert()`, `hue-rotate()` and a blend mode reach any colour at all without naming one, which is the closed colour axis walked around rather than obeyed";
+  }
+
   const declared = withoutImportant(value);
   if (prop === "position") {
     return isSafePosition(declared)
@@ -143,7 +156,9 @@ function checkProperty(prop: string, value: string): string | undefined {
  *  mitred, under a property name that never says "radius". */
 function roundedShapeReason(prop: string, value: string): string | undefined {
   if (prop !== "clip-path" && prop !== "shape-outside") return undefined;
-  if (!/(?<![\w-])round(?![\w-])/i.test(value)) return undefined;
+  const shape = withoutImportant(value).trim().toLowerCase();
+  if (shape === "" || shape === "none" || isGlobal(shape)) return undefined;
+  if (/^inset\([^)]*\)$/.test(shape) && !/(?<![\w-])round(?![\w-])/.test(shape)) return undefined;
   return "a basic shape may not round its corners — High Meadow has no radius tokens and every corner is mitred, the same reason `border-radius` is never declared";
 }
 
@@ -154,8 +169,17 @@ function deprefix(prop: string): string {
 
 const PLAIN_IDENT = /^[a-z][a-z0-9-]*$/;
 
-/** `!important` changes who wins, not what value is named, so it is dropped before the axis
- *  check rather than read as an off-token token. */
+/** `! important`, in every spacing and casing a browser honours. */
+const IMPORTANT = /!\s*important\b/i;
+
+/**
+ * Strip a trailing `!important` before the axis check reads the value's tokens.
+ *
+ * A declaration carrying one is already refused above, so nothing reaching here has one —
+ * this is what keeps the axis check reading a value rather than a value plus a keyword, and
+ * it is the reason removing the refusal above would not silently turn `!important` into an
+ * off-token token instead of the thing it actually is.
+ */
 function withoutImportant(value: string): string {
   return value.replace(/\s*!\s*important$/i, "").trim();
 }
@@ -204,6 +228,26 @@ const NEVER_DECLARED: readonly {
       "a record may not move or scale out of its own bounds — the platform owns where a record sits, the same reason `position: fixed` is refused",
   },
 ];
+
+/**
+ * The colour axis holds a record to the palette by reading the colour a declaration
+ * *names*. These change the colour that lands on the screen without naming one: a filter
+ * chain (`invert(1) sepia(1) saturate(9999%) hue-rotate(90deg)`) reaches an arbitrary hue
+ * from an on-token value, and a blend mode derives one from whatever sits behind. Written
+ * around the effect, the way the shadow ban is.
+ *
+ * Checked after the construct scan rather than beside the other never-declared rows, so
+ * `filter: drop-shadow(…)` keeps the shadow answer it already had — the repair hint a
+ * generator gets back is the reason it should read, and "this casts" is the apter one.
+ */
+function isRecolouringProp(prop: string): boolean {
+  return (
+    prop === "filter" ||
+    prop === "backdrop-filter" ||
+    prop === "mix-blend-mode" ||
+    prop === "background-blend-mode"
+  );
+}
 
 function neverDeclaredReason(prop: string): string | undefined {
   return NEVER_DECLARED.find((ban) => ban.owns(prop))?.reason;
@@ -347,7 +391,7 @@ interface ClosedAxis {
  *  relative` is legal, so the offsets that move a record out of its own bounds are held to
  *  the spacing set rather than left free. */
 function isSpacingProp(prop: string): boolean {
-  if (/^(?:margin|padding)(?:-|$)/.test(prop)) return true;
+  if (/^(?:scroll-)?(?:margin|padding)(?:-|$)/.test(prop)) return true;
   if (prop === "gap" || prop.endsWith("-gap")) return true;
   if (/^(?:top|right|bottom|left)$/.test(prop)) return true;
   if (prop === "inset" || prop.startsWith("inset-")) return true;
@@ -373,6 +417,9 @@ const COLOR_VALUED_PROPS: ReadonlySet<string> = new Set([
    * name, which is what this set is for; the colour half is held to the palette here and
    * the width half has nothing left to name, which `isUnweighable` settles. */
   "text-stroke",
+  /* The `-color` suffix carries `caret-color`; the bare shorthand says colour without
+   * saying it, the same way `background` does. */
+  "caret",
 ]);
 
 /**
@@ -421,6 +468,7 @@ function inkFillReason(prop: string, tokens: readonly string[]): string | undefi
 function isUnweighable(prop: string): boolean {
   return (
     prop === "text-stroke-width" ||
+    prop === "stroke-width" ||
     prop === "text-decoration-thickness" ||
     prop === "text-underline-offset"
   );

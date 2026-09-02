@@ -320,12 +320,22 @@ describe("runtime prior-source name assembly", () => {
   });
 
   test("withholds hidden names assembled for reflective property access", () => {
+    // Assembled through a computed member write rather than through `Reflect`, which the
+    // shared isolation ban now refuses outright as an ambient runtime root — the point
+    // here is that the *assembled name* is seen, whatever expression carries it.
     const source = CLEAN_CREATE.replace(
       "  return present",
-      '  Reflect.set(values, ["leg", "acy_note"].join(""), true);\n  return present',
+      '  const key = ["leg", "acy_note"].join("");\n  values[key] = true;\n  return present',
     );
 
     expect(reasonFor(CREATE, source)).toContain("legacy_note");
+  });
+
+  test("withholds prior source reaching an ambient runtime root", () => {
+    for (const reach of ['Reflect.set(values, "text", true);', "void ({}).constructor;"]) {
+      const source = CLEAN_CREATE.replace("  return present", `  ${reach}\n  return present`);
+      expect(reasonFor(CREATE, source)).toContain("ambient runtime access");
+    }
   });
 });
 

@@ -168,6 +168,24 @@ describe("the box grows to fit what is typed, and then scrolls", () => {
     expect(one.area.style.overflowY).toBe("hidden");
   });
 
+  // One observer per `textarea[data-grow]`, minted again on every record view and every
+  // collection swap, and nothing ever disconnected them — a plain decision-13 violation.
+  test("the box watch is released with the control that started it", async () => {
+    const { releaseRegionContent } = await import("#shell/region-scope.js");
+    const one = await scene(longTextForm());
+    one.doc.resize(one.area, 600);
+    one.area.scrollHeight = 64;
+    one.type("one long line");
+    expect(one.area.style.height).toBe("64px");
+
+    releaseRegionContent(one.area as never);
+
+    // The watch is gone, so a later box change reaches nothing.
+    one.area.scrollHeight = 200;
+    one.doc.resize(one.area, 300);
+    expect(one.area.style.height).toBe("64px");
+  });
+
   test("a narrower box re-wraps the text, so the height it needs is measured again", async () => {
     const one = await scene(longTextForm());
     one.doc.resize(one.area, 600);

@@ -35,6 +35,7 @@ import {
   type CapabilitySpec,
   getCapability,
   listCapabilityDeletionTombstones,
+  MIN_DECLARED_MAX_LENGTH,
 } from "../../registry/index.ts";
 import {
   activated,
@@ -55,6 +56,7 @@ import {
   tearDownCommitted,
   versionDirectory,
 } from "./evolution-run.test-support.ts";
+import { MaxLengthScanError } from "./length-scan.ts";
 
 let gate: CapabilityGateResult;
 let env: EngineEnv;
@@ -389,6 +391,40 @@ describe("an unmapped difference fails closed", () => {
     expect(existsSync(versionDirectory(env, 2))).toBe(false);
     expect(tableColumns(env, "cap_notes")).not.toContain("due_date");
     expect(existsSync(join(env.artifactsRoot, "notes", INCARNATION_ID, "v1"))).toBe(true);
+  });
+});
+
+// The one check in the engine that reads committed *data* rather than a spec: a candidate
+// may only add or lower a `max_length` once the stored rows have been proved to fit it. The
+// unit test proves the scan; this proves it is wired — that a real `runCapabilityEvolution`
+// reaches it, refuses there, and leaves everything as it was.
+describe("a limit the stored rows cannot fit fails closed", () => {
+  test("the engine refuses before publishing, and nothing about v1 moves", async () => {
+    const base = committedSpec();
+    const bounded: CapabilitySpec = {
+      ...base,
+      schema: {
+        fields: base.schema.fields.map((field) =>
+          field.name === "text" ? { ...field, max_length: MIN_DECLARED_MAX_LENGTH } : field,
+        ),
+      },
+    };
+    // The row written under v1 is longer than the candidate says the field holds.
+    env.conns.readwrite.run('UPDATE "cap_notes" SET "text" = ? WHERE "id" = ?', [
+      "x".repeat(MIN_DECLARED_MAX_LENGTH + 1),
+      "note-1",
+    ]);
+
+    await expect(
+      evolve(env, bounded, "keep the note short", { buildId: "over-length" }),
+    ).rejects.toThrow(MaxLengthScanError);
+
+    expect(getCapability("notes", env.conns.readonly)?.version).toBe(1);
+    expect(existsSync(versionDirectory(env, 2))).toBe(false);
+    // And the value the scan refused on is still there, untouched.
+    expect(
+      env.conns.readonly.query('SELECT "text" FROM "cap_notes" WHERE "id" = ?').get("note-1"),
+    ).toEqual({ text: "x".repeat(MIN_DECLARED_MAX_LENGTH + 1) });
   });
 });
 

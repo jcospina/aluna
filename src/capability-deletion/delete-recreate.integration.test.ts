@@ -19,8 +19,8 @@ import {
   teardownScratchDbEnv,
 } from "../app/app.test-support.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
-import { getCapability } from "../registry/index.ts";
-import { formBody } from "../router/router.test-support.ts";
+import { getCapability, insertCapabilityDeletionTombstone } from "../registry/index.ts";
+import { formBody, install, notesRow } from "../router/router.test-support.ts";
 
 setDefaultTimeout(30_000);
 
@@ -124,5 +124,33 @@ describe("permanent capability deletion followed by same-id recreation", () => {
 
     expect(oldMetrics.rows.at(-1)?.incarnationId).toBe(oldRow.incarnation_id);
     expect(freshMetrics.rows.at(-1)?.incarnationId).toBe(freshRow.incarnation_id);
+  });
+
+  // A tombstone whose cleanup is owed keeps reserving the id, and the rebuild path used to
+  // discover that only at the activation CAS — after the spec, six units, the whole Gate and
+  // the published artifacts had been generated and paid for, every time, for as long as the
+  // tombstone stood. The lease-head check cannot catch it, because an ordinary "track my
+  // notes" names no id for it to test.
+  test("refuses a rebuild of a reserved id as soon as the id is known, before any unit is generated", async () => {
+    const target = notesRow();
+    install(conns, target);
+    insertCapabilityDeletionTombstone(
+      { capabilityId: target.id, incarnationId: target.incarnation_id, manifest: [] },
+      conns.readwrite,
+    );
+
+    const fake = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC, BEHAVIORAL_SUITE);
+    const build = await runPromptBuild(
+      makeScratchApp(env, fake.provider, makeMetricsRecorder().recordMetrics),
+      "Track my notes",
+    );
+
+    expect(build.events.at(-1)).toMatchObject({ event: "done", data: "error" });
+    // The ending says what is true rather than inviting a retry that cannot succeed.
+    expect(build.events.map((event) => event.data).join("\n")).toContain("still tidying up");
+    // Two provider calls: classify the request, author the spec. Nothing after that — no
+    // behavioral freeze, no units, no Gate.
+    expect(fake.prompts).toHaveLength(2);
+    expect(getCapability("notes", conns.readonly)).toBeNull();
   });
 });

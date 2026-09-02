@@ -215,7 +215,9 @@ describe("create form — one control per pantry type — labels, lifecycle, and
   const form = renderCreateForm(SAMPLE);
 
   test("uses the authored field label and ties it to the stable field-name control", () => {
-    expect(form).toContain('<label class="field__label" for="cap-tasks-due_date">Due date</label>');
+    expect(form).toContain(
+      '<label class="field__label caps" for="cap-tasks-due_date">Due date</label>',
+    );
     const custom = renderCreateForm(
       oneField({
         name: "due_date",

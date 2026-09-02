@@ -14,6 +14,18 @@ import {
 // A run that ends with something to tell you holds the window there, and the press is
 // what gives back what it displaced (PLAN decisions 23 and 25; ARCH §6.2).
 
+// htmx executes a `<script>` it finds in a swapped fragment, and evaluates `js:`/`hx-on`
+// expressions, because both default to on. Nothing this desk serves needs either, and a
+// generated Handler's fragment is markup the platform did not author.
+describe("the shell turns off htmx's executable defaults", () => {
+  test("script tags and expression evaluation are both off once the shell has run", () => {
+    const scene = desk();
+
+    expect(scene.windowStub.htmx.config.allowScriptTags).toBe(false);
+    expect(scene.windowStub.htmx.config.allowEval).toBe(false);
+  });
+});
+
 describe("a run that ends with something to tell you", () => {
   test("parks the restoration instead of letting it read records nobody can see", () => {
     const scene = desk();

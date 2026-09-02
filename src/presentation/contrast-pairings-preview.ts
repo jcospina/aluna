@@ -67,4 +67,31 @@ export const PREVIEW_PAIRINGS: readonly Pairing[] = [
       "src/builder/units/few-shot-gallery-preview.ts § .gallery-example__layout [color]",
     ],
   },
+  {
+    what: "a gallery exemplar's tinted chip",
+    foreground: { token: "ink" },
+    background: { token: "clay" },
+    threshold: "text",
+    note:
+      "The exemplars themselves, which are not only rendered at `/demo/few-shot-gallery` " +
+      "but fed verbatim into the item-renderer prompt as approved examples — so a failure " +
+      "here is one the platform teaches. Clay is the tightest of the three tints these " +
+      "chips use. `--shade` was a fourth and carried `--ink` at 2.644, under even the " +
+      "non-text floor; it takes `--surface` now, the way C12's own swap does.",
+    alsoCovers: [{ token: "sun" }, { token: "sky" }],
+    sites: [
+      "src/builder/units/few-shot-gallery.ts § span.text-bold.truncate[style] [color]",
+      "src/builder/units/few-shot-gallery.ts § span.text-bold[style] [color]",
+      "src/builder/units/few-shot-gallery.ts § span.text-xs.text-bold[style] [color]",
+      "src/builder/units/few-shot-gallery.ts § time.text-bold[style] [color]",
+    ],
+  },
+  {
+    what: "a gallery exemplar's chip on shade",
+    foreground: { token: "surface" },
+    background: { token: "shade" },
+    threshold: "text",
+    note: "The C12 swap, in the exemplars: a light label is what shade can carry.",
+    sites: ["src/builder/units/few-shot-gallery.ts § span.text-sm.text-bold[style] [color]"],
+  },
 ];

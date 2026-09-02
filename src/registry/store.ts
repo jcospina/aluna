@@ -257,15 +257,26 @@ export function renameCapability(
     readonly capabilityId: string;
     readonly incarnationId: string;
     readonly version: number;
+    /**
+     * The override the menu opened on — `null` when the capability had never been renamed.
+     * A rename does not bump the version (it is not a build), so the version alone cannot
+     * tell two renames apart: two menus opened on the same version both matched, and the
+     * second overwrote the first with no conflict signal anywhere. The name a submission
+     * *replaces* is what distinguishes them, and it is a fact the menu already holds.
+     */
+    readonly previousOverride: string | null;
   },
   override: string | null,
   database: Database = db,
 ): CapabilityRow | null {
+  // `IS` rather than `=`, because the expected previous override is `null` for a
+  // capability that has never been renamed and SQL equality is never true of null.
   const stored = database
     .query(
       `UPDATE ${REGISTRY_TABLE}
        SET display_label_override = ?
        WHERE id = ? AND incarnation_id = ? AND version = ?
+         AND display_label_override IS ?
          AND lifecycle_state = 'active'
        RETURNING ${ROW_COLUMNS}`,
     )
@@ -274,6 +285,7 @@ export function renameCapability(
       expectation.capabilityId,
       expectation.incarnationId,
       expectation.version,
+      expectation.previousOverride,
     ) as StoredRow | null;
 
   return stored ? parseStoredRow(stored) : null;

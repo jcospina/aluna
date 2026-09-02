@@ -46,6 +46,17 @@ export const AXIS_RULE = ":root { --travel: 0; }";
  * The properties that move a box or push the content around it. A transition on one of
  * these travels, whatever it is attached to, so it answers to the travel duration.
  * `scale` and `rotate` are deliberately absent: they change a thing where it stands.
+ *
+ * The rule this list tries to be is *does this carry content across the surface* — so it
+ * covers the ways that is done without touching a box's own metrics: the clip that decides
+ * which part of a thing is visible, the offset path a thing is carried along, an image
+ * moving inside its frame, and SVG's own geometry, which is where a drawn line's ends live.
+ * Each of those was a way to slide real content past a check keyed on `left` and `margin`.
+ *
+ * `background-position` is deliberately *not* here, and the exclusion is the rule rather
+ * than an oversight: a background is a fill, not content — nothing a reader is following
+ * moves with it. That is what makes the one animation this surface runs today, the working
+ * tile's crawling pattern, life rather than travel (`travel-axis.test.ts` pins it).
  */
 const GEOMETRY = [
   "translate",
@@ -62,6 +73,17 @@ const GEOMETRY = [
   "row-gap",
   "column-gap",
   "flex-basis",
+  "clip-path",
+  "offset",
+  "object-position",
+  "x",
+  "y",
+  "cx",
+  "cy",
+  "x1",
+  "y1",
+  "x2",
+  "y2",
 ];
 
 /** The two properties whose whole job is to displace. Their distances must be on the axis. */
@@ -107,7 +129,9 @@ interface Declaration {
 /** Every declaration in a sheet. Comments are expected to be stripped already. */
 function declarationsIn({ name, css }: Sheet): Declaration[] {
   return bodies(css).flatMap(({ selector, body }) =>
-    [...body.matchAll(/(?:^|[;\s])(--[\w-]+|[a-z][a-z-]*)\s*:\s*([^;]+)/gi)].map(
+    // Digits are part of a property name: SVG's own geometry is `x1`/`y2`, and a pattern
+    // that stopped at `[a-z-]` could not see the properties a drawn line's ends live in.
+    [...body.matchAll(/(?:^|[;\s])(--[\w-]+|[a-z][a-z0-9-]*)\s*:\s*([^;]+)/gi)].map(
       ([, property, value]) => ({
         sheet: name,
         selector,

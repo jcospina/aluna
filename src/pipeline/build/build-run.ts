@@ -35,8 +35,10 @@ import type { IntentClassification } from "../../intent-resolver/index.ts";
 import type { PlatformDatabase } from "../../persistence/db.ts";
 import type { GenerateResult, Provider, TokenUsage } from "../../provider/index.ts";
 import {
+  CapabilityIdReservedError,
   type CapabilityRegistryExpectation,
   type CapabilitySpec,
+  isCapabilityIdReservedByDeletion,
   listCapabilities,
 } from "../../registry/index.ts";
 import type { Send } from "../../sse/index.ts";
@@ -208,6 +210,13 @@ export async function runSpecBuildStages(
   // Admission assigns the incarnation before Builder provider work. Once the
   // validated authored spec supplies the semantic id, enrich the same durable row.
   onCapabilityIdentified(spec.id);
+  // And the moment the id exists is the moment a tombstone reserving it can be seen. The
+  // lease-head check can only test an id the *resolver* named, which it does not for an
+  // ordinary "build me a notes app" — so this used to be discovered by the activation CAS,
+  // after the units, the Gate and the artifacts had all been generated and paid for.
+  if (isCapabilityIdReservedByDeletion(spec.id, buildDatabases.readonly)) {
+    throw new CapabilityIdReservedError(spec.id);
+  }
   if (isAborted()) return;
   // And the same moment supplies the name. The tile admission stood on the desk has been
   // blank until now — there was no name to write on it — so this is the first point at

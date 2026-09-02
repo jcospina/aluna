@@ -99,6 +99,18 @@
   cursor: grabbing;
 }
 
+/*
+ * The field is the box that sentence is absolute against. Left to find its own, the 1px
+ * box resolves against whatever ancestor happens to be positioned — which, in a form,
+ * is something outside the scroller the fields sit in — and lays out at its static
+ * position there, handing that scroller its offset. A form long enough to scroll then
+ * grows a second scrollbar around the one it already has. Nothing moves: no offsets are
+ * set, and the row keeps the place flow gave it.
+ */
+[data-list-field] {
+  position: relative;
+}
+
 /* One sentence at a time, said to a screen reader and drawn for nobody. */
 .field-list__live {
   position: absolute;

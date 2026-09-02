@@ -197,6 +197,28 @@ describe("ReadGateCoordinator ownership and recovery", () => {
     expect(coordinator.tryAcquire(input([A], [A, C]))).toBeDefined();
   });
 
+  // The ordinary finalize is conditional, which is right before the commit and protects
+  // nothing after it: the row is a tombstone and the table is dropped. Refusing there left
+  // the cell in `closing` for the life of the process — a square nothing could leave.
+  test("a gate whose capability is already gone can always be retired", async () => {
+    const coordinator = createReadGateCoordinator();
+    coordinator.synchronizeCatalog([A, B]);
+    const lease = await coordinator.closeAndDrain(A);
+    // Nothing can join a closing gate, which is why `finalizeClose`'s own preconditions are
+    // not reachable through this API — and why refusing on them left a square with no exit
+    // rather than a state anybody could get out of.
+    expect(coordinator.tryAcquire(input([A], [A]))).toBeUndefined();
+
+    expect(coordinator.retireAfterCommit(lease)).toBe(true);
+    expect(coordinator.snapshot().map((entry) => entry.capabilityId)).toEqual(["b"]);
+    // Retired rather than merely removed: a catalog captured before the commit cannot bring
+    // it back as active, exactly as `finalizeClose` guarantees.
+    coordinator.synchronizeCatalog([A, B]);
+    expect(coordinator.tryAcquire(input([A], [A]))).toBeUndefined();
+    // A lease this coordinator never issued is still a bug, and still says so.
+    expect(coordinator.retireAfterCommit(lease)).toBe(false);
+  });
+
   test("withTokens refuses before the operation begins when any member is unavailable", async () => {
     const coordinator = createReadGateCoordinator();
     coordinator.synchronizeCatalog([A, B]);

@@ -150,6 +150,44 @@ describe("capability gate — structural rung", () => {
       expect(error.outcomes[0]?.error).toContain("injected toolbox");
     }
   });
+
+  // The renderer is executed by the platform on every rendered record, and in-process by
+  // the design-lint rung during the Gate itself — so an ambient reach here fires *while the
+  // build is being judged*. This rung used to check only field access and export shape,
+  // which let a renderer reading `process.env` and calling `fetch` through `globalThis`
+  // through all three checks with its calls already made.
+  test("structural checks reject an item renderer reaching the ambient runtime", async () => {
+    for (const bypass of [
+      "void globalThis;",
+      "void process.env;",
+      "void ({}).constructor;",
+      'const fs = require("node:fs"); void fs;',
+    ]) {
+      const itemRenderer = [
+        "export default function renderItem(record: Record<string, unknown>): string {",
+        `  ${bypass}`,
+        '  return \'<div class="stack">\' + String(record.title) + "</div>";',
+        "}",
+      ].join("\n");
+      const error = await expectGateFailure(gateInput({ itemRenderer }));
+      expect(error.failedRung, bypass).toBe("structural");
+      expect(error.outcomes[0]?.error, bypass).toContain("ambient runtime access");
+    }
+  });
+
+  test("structural checks reject an item renderer that imports", async () => {
+    const itemRenderer = [
+      'import { readFileSync } from "node:fs";',
+      "export default function renderItem(record: Record<string, unknown>): string {",
+      "  void readFileSync;",
+      '  return \'<div class="stack">\' + String(record.title) + "</div>";',
+      "}",
+    ].join("\n");
+
+    const error = await expectGateFailure(gateInput({ itemRenderer }));
+    expect(error.failedRung).toBe("structural");
+    expect(error.outcomes[0]?.error).toContain("must not import anything");
+  });
 });
 
 describe("capability gate — complete Handler static contract", () => {

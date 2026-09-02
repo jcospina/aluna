@@ -11,8 +11,25 @@ export const SQL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
 export const SQL_NAME_MESSAGE =
   "must be lowercase letters/digits/underscores, starting with a letter";
 
+/**
+ * The longest a SQL name may be.
+ *
+ * The pattern says what characters an id may use and said nothing about how many. SQLite
+ * takes an identifier of any length, so a five-thousand-character id produced valid DDL —
+ * and then a `capabilities/<id>/<incarnation>/` path whose first component is past every
+ * filesystem's 255-byte limit for one. The two validators disagreed about what an id is,
+ * and the disagreement surfaced only at publication, after the whole build was paid for.
+ *
+ * Sixty-four is well past every id the resolver has ever authored (`coffee_tasting_diary`
+ * is twenty) and well inside the limit the path has to keep.
+ */
+export const MAX_SQL_NAME_LENGTH = 64;
+
 /** A field name, capability id, or any other value that becomes a SQL identifier. */
-export const sqlNameText = z.string().regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE);
+export const sqlNameText = z
+  .string()
+  .regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE)
+  .max(MAX_SQL_NAME_LENGTH, `must be at most ${MAX_SQL_NAME_LENGTH} characters`);
 
 // Free-text values the platform displays or feeds to the model — blank strings
 // are never meaningful, so they fail rather than propagate.

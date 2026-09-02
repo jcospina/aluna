@@ -245,3 +245,190 @@ describe("deterministic capability router — mutation transaction integrity", (
     ]);
   });
 });
+
+describe("deterministic capability router — the Handler's returned fragment", () => {
+  let dir: string;
+  let databases: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns: databases } = setupRouterTest());
+    install(databases, fiveActionRow());
+    seed(databases.readwrite);
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, databases);
+  });
+
+  function appReturning(fragment: string) {
+    const loadHandler: HandlerLoader = async () => async () => fragment;
+    return createApp({
+      capabilityRouter: {
+        databases,
+        loadHandler,
+        loadItemRenderer: async () => () => "<p>item</p>",
+      },
+    });
+  }
+
+  function createRequest(): RequestInit {
+    return {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams([
+        ["text", "Third"],
+        ["__aluna_present", "text"],
+        ["__aluna_present", "pinned"],
+      ]).toString(),
+    };
+  }
+
+  // The wrapper markup a Handler composes around its items is served as written, and htmx
+  // swaps it into a live page with `allowScriptTags` on. The enforcer never saw it.
+  test("strips executable markup from the wrapper a Handler composes", async () => {
+    const app = appReturning(
+      '<div><script>window.stolen = 1;</script><p onclick="alert(1)">hi</p>' +
+        '<a href="javascript:alert(1)">l</a></div>',
+    );
+
+    const response = await app.request("/capability/notes/read");
+
+    const body = await response.text();
+    expect(response.status).toBe(200);
+    expect(body).not.toContain("<script");
+    expect(body).not.toContain("onclick");
+    expect(body).not.toContain("javascript:");
+    expect(body).toContain("<p>hi</p>");
+  });
+
+  test("leaves a conforming fragment byte-identical", async () => {
+    const fragment =
+      '<form hx-post="/capability/notes/create" hx-swap="none">' +
+      '<input name="text" value="a &amp; b"><button type="submit">Add</button></form>';
+
+    expect(await (await appReturning(fragment).request("/capability/notes/read")).text()).toBe(
+      fragment,
+    );
+  });
+
+  // AC5 of 5.10/04. A capability-declared refusal used to be a bare 200 against a form
+  // declaring `hx-swap="none"` — swapped nowhere, and read by the client as a commit.
+  test("delivers a declared behavioral-error fragment as a refusal, not a commit", async () => {
+    const refusal =
+      '<p class="notice" data-role="error" data-error-code="missing_required_fields" ' +
+      'data-error-fields="text">I still need a little more before I can add this.</p>';
+    const app = appReturning(refusal);
+
+    const response = await app.request("/capability/notes/create", createRequest());
+
+    expect(response.status).toBe(422);
+    expect(response.headers.get("HX-Retarget")).toBe("#notes-create-error");
+    expect(response.headers.get("HX-Reswap")).toBe("innerHTML");
+    // The Handler wrote the sentence; the platform did not rewrite it.
+    expect(await response.text()).toBe(refusal);
+  });
+
+  test("a code the spec never declared is not a refusal", async () => {
+    const app = appReturning(
+      '<p data-role="error" data-error-code="not_in_the_spec">Something</p>',
+    );
+
+    const response = await app.request("/capability/notes/create", createRequest());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("HX-Retarget")).toBeNull();
+  });
+
+  test("a declared refusal on a read is answered as content, not as a form refusal", async () => {
+    const app = appReturning(
+      '<p data-role="error" data-error-code="missing_required_fields">n/a</p>',
+    );
+
+    // Only a mutation has a form error region to retarget into.
+    expect((await app.request("/capability/notes/read")).status).toBe(200);
+  });
+});
+
+describe("deterministic capability router — nothing is held while the body arrives", () => {
+  let dir: string;
+  let databases: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns: databases } = setupRouterTest());
+    install(databases, fiveActionRow());
+    seed(databases.readwrite);
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, databases);
+  });
+
+  /**
+   * A create whose body is still being written. The request is real — Bun streams it — so
+   * the route is genuinely parked inside `formData()`.
+   */
+  function slowCreate(): { request: Request; finish: () => void } {
+    let release!: () => void;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode("text=Third&__aluna_present=text"));
+        release = () => {
+          controller.enqueue(encoder.encode("&__aluna_present=pinned"));
+          controller.close();
+        };
+      },
+    });
+    // `duplex` is required for a streaming request body and is not in the DOM lib's
+    // `RequestInit`, so the init is widened rather than the property suppressed.
+    const request = new Request("http://localhost/capability/notes/create", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body,
+      duplex: "half",
+    } as RequestInit);
+    return { request, finish: () => release() };
+  }
+
+  // The route used to take read tokens, then the record-write lease, then
+  // `BEGIN IMMEDIATE`, and only then read the body. One socket held open that way refused
+  // every record write on every capability, queued every build, and made the capability
+  // undeletable, because the deletion drain waits for a reader that is waiting for a socket.
+  test("a request whose body is still arriving holds no write lease", async () => {
+    const app = createApp({
+      capabilityRouter: {
+        databases,
+        loadHandler: (async () => async () => "<p>ok</p>") as HandlerLoader,
+        loadItemRenderer: async () => () => "<p>item</p>",
+      },
+    });
+
+    const { request, finish } = slowCreate();
+    let settled = false;
+    const pending = Promise.resolve(app.request(request)).then((response) => {
+      settled = true;
+      return response;
+    });
+    // Give the route every chance to reach the point where it used to take the lease.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Without this the test proves nothing: the whole point is that the first route is
+    // parked mid-body while the second one runs.
+    expect(settled).toBe(false);
+
+    const concurrent = await app.request("/capability/notes/create", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams([
+        ["text", "Second writer"],
+        ["__aluna_present", "text"],
+        ["__aluna_present", "pinned"],
+      ]).toString(),
+    });
+
+    expect(concurrent.status).toBe(200);
+    expect(await concurrent.text()).not.toContain("mutation_busy");
+
+    finish();
+    expect((await pending).status).toBe(200);
+  });
+});

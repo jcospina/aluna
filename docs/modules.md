@@ -57,7 +57,7 @@ parallel rebuild.
 |---|--------|----------------------------|------|--------|
 | 1 | **Platform Scaffold & Runtime Spine** | Boot an empty platform: shell loads, server streams, AI answers, DB opens | Bun · Hono · HTMX · Alpine · SSE · dual SQLite connections · AI provider interface | — |
 | 2 | **Explicit Loop I — Build Your First Capability** | Type a prompt → watch a working capability build itself → add & see records | Registry · data tool · router · builder · build queue · metrics writing · SSE swap | M1 |
-| 3 | **Opinionated Capability UI** | The capabilities the app builds look and feel like a coherent product — styled lists, a shared modal, a prefilled detail view — not a 1990s form dump | Platform UI modules · single generated item renderer · closed-value primitive vocabulary · few-shot design gallery · design-lint gate rung · `ui_intent` (item/collection/detail) · new artifact shape (reset, no cutover) | M1–M2 |
+| 3 | **Opinionated Capability UI** | The capabilities the app builds look and feel like a coherent product — styled lists, a shared modal, a prefilled detail view — not a 1990s form dump *(Module 5 replaced the modal with the one window; see §Module 3)* | Platform UI modules · single generated item renderer · closed-value primitive vocabulary · few-shot design gallery · design-lint gate rung · `ui_intent` (item/collection/detail) · new artifact shape (reset, no cutover) | M1–M2 |
 | 4 | **Explicit Loop II — Full CRUD & Evolution** | Edit/delete/search records; extend or permanently delete a capability without breaking data/readers | `string[]` + model-authored list input modes · split data ports · mutation coordinator · total diff engine · immutable incarnated snapshots · recoverable activation/deletion · full resolver | M1–M3 |
 | 5 | **The Desk** | Open a capability from its logo into the one window, put it away, rename or delete it from the desk; every capability carries a picture of its own | Wallpaper · logo layer · one window · drawn line everywhere · High Meadow tokens · capability logos · choice + long-text fields | M1–M4 |
 | 6 | **Reads Set Free — Ad-hoc Data Queries** | Ask questions across your data; get answers in a table; nothing is built | Whole-catalog NL→SQL `data_query` · generic auto-table · reject classifier | M4's physically read-only query seam |
@@ -132,6 +132,14 @@ is evolved rather than bypassed from here on.
 - **3.1 — Closed-value design contract + primitive vocabulary.** Promote the token layer into a closed contract: generated item markup may use only allow-listed semantic/primitive classes (truncation, media frame, intra-item stack/grid for arranging *one record's own* fields — distinct from the collection layout, which the platform container owns — and Tailwind-style layout utilities: flex, grid, alignment, gap), whose CSS consumes the design tokens. The token layer owns the design values — theme colors, the default Outfit font, the t-shirt type scale, the base spacing unit, the thin/regular/thick border weights (retired in epic 5.2, which hands every boundary to the ink system and never declares one) — and generated markup never redeclares them raw. When the class vocabulary doesn't suffice, inline `style` is allowed as a token-disciplined escape hatch, free in any property outside the token-owned axes. The vocabulary is sensible defaults, not an all-purpose CSS framework; the escape hatch absorbs the long tail. Fabricated classes and executable markup stay forbidden absolutely. (CONTEXT.md voice; [design-system.md](../design/design-system.md))
 - **3.2 — Platform presentation modules (the thick shell).** Build the shared, platform-owned presentational modules every capability uses: modal (open/close/prefill/focus), list scaffolding (container with its closed `feed | grid` layout modes, empty state, "New X"), accessible item wrapper, safe composition of generated item output, and create/detail field rendering from the spec. Keep field-type dispatch exhaustive and centralized so M4 list types, M5 choice and long-text types, and M7 file types extend one place. Presentation only, no business logic — the same line ARCH §7 draws for `data_query`. So `list.html` and `create.html` stop being generated artifacts. (ARCH §6.1, §7; [ADR-0005](adr/0005-opinionated-capability-ui-design-contract-and-gate.md))
 - **3.3 — Presentation intent + detail modal (read-only).** Replace M2's generated-view list in `ui_intent` with the capability-specific choices that remain: item design direction, the collection layout (a closed `feed | grid` value the platform container reads), and detail fields/order. The modal itself is a fixed platform invariant, so `modal: true` is not model-authored state. Clicking the standardized item wrapper opens it **prefilled** from the escaped record payload. Read-only in M3; M4 adds editing to the same module. (ARCH §6.3 "Capability Registry")
+
+  > **Superseded by Module 5 (5.7).** There is no modal anywhere in Aluna any more.
+  > A record opens as an ordinary view swap *inside the one window* — the collection
+  > goes, the record's form takes its place, and Back brings the collection back as a
+  > fresh read. `showModal()`, the focus trap, the inert template clone
+  > and the page-wide inertness were deleted rather than ported. Everything else in
+  > this epic stands: `ui_intent` still carries the item direction, the closed
+  > `feed | grid` layout, and the fields a record shows.
 - **3.4 — One item renderer, shared by every action.** Re-cut the artifact contract: each capability gets one generated item-renderer unit. The router extends the injected toolbox with a capability-scoped presentation adapter that supplies it to `create.ts`, `read.ts`, and later `search.ts`; handlers never import it or duplicate markup. The platform wrapper owns the escaped `data-item` payload, accessible trigger, and click-to-open behavior. Amends [ADR-0004](adr/0004-capability-artifact-contract-and-validation-isolation.md); see [ADR-0005](adr/0005-opinionated-capability-ui-design-contract-and-gate.md).
 - **3.5 — Few-shot design gallery.** A curated, repo-only set of 2–3 deliberately different item-renderer exemplars, each pairing an item composition with the collection layout it suits (text-forward cards in a `feed`, media tiles in a `grid`, compact metadata rows in a `feed`) and obeying the same contract while composing differently. They enter the unit prompt alongside the capability's chosen `collection.layout` with explicit *"vary, don't copy"* framing. LLM-facing only, never rendered to the user. (ADR-0005)
 - **3.6 — Design-lint gate rung.** A new fail-closed rung in the existing layered gate: render hostile synthetic field values and reject off-token styling (raw values on the token-owned color/font/type/spacing/border axes, forbidden style constructs), fabricated/unknown classes, executable markup, and unsafe field interpolation — fed back through the same bounded fix loop as the type-check rung. Item payload, accessibility and modal invariants are platform-owned and covered by deterministic platform tests, never delegated to the model. (ARCH §6.2 gate; ADR-0005)
@@ -139,6 +147,14 @@ is evolved rather than bypassed from here on.
 
 ### Verify by running it
 Run `bun run reset`, then build *"I want to keep track of my notes"* fresh → the styled list truncates long text and exposes a *New note* button → the shared modal opens with an on-brand form → a created note appears through the same item renderer used by the read path → clicking its platform-owned wrapper opens the same modal prefilled and read-only. Build *"save links with a title and a url"* and confirm its item composition differs from Notes while reusing the same modal and primitives; build something visual (e.g. *"a place for my photos"*) and confirm it comes out as a `grid` collection while Notes stays a `feed`. Finally, make an item renderer emit an unknown class or unsafe field value and confirm the design gate fails with friendly narration and no pointer flip.
+
+> **No longer runnable as written (records Module 3's exit state).** Module 5 (5.6, 5.7)
+> replaced the shared modal with the one window and an in-window view swap, so every step
+> above that says "modal" now happens inside the window: open a capability from its logo,
+> press *New note* in the collection, and press a record to swap the collection out for
+> that record's form. Everything the steps actually check — the truncation, the differing
+> item compositions, the `feed`/`grid` choice, and the design gate's fail-closed refusal —
+> is unchanged and still worth running.
 
 ### Exit criteria
 All capabilities present through platform-owned modal/list/form/item-wrapper modules. One generated item renderer is the builder's creative surface and is shared by every action through the presentation adapter. The closed-value contract is fail-closed; the collection layout is a closed `feed | grid` choice the platform container honors; clicking an item opens a prefilled read-only modal; future field types extend one centralized renderer. The M2 `list.html`/`create.html` artifact shape is fully retired; the platform produces and serves only the M3 shape.
@@ -187,6 +203,14 @@ M4 contract. This is bounded development sequencing, not persisted dual-serving.
   not adversarial code. Exercise it through the complete hand-written reference capability.
   (ARCH §3, §7, §8; ADR-0004)
 - **4.3 — Full CRUD platform presentation.** Keep item activation read-only; add an explicit edit mode to the shared detail modal whose Save invokes `update`. Put record Delete only in the read modal, with inline Confirm/Cancel platform chrome and no second dialog. Add the platform-owned debounced search field above the collection, including clear/loading/no-matches behavior; create/update/delete success reruns the current search/read and refreshes the collection through the shared item renderer. (ADR-0005; ARCH §6.1, §9.3)
+
+  > **Superseded in placement by Module 5 (5.7).** Every rule here still holds and the
+  > surface it holds on is the window, not a modal: a record opens as an in-window view
+  > swap, the modal's action row became the form's action row, and Delete's inline
+  > Confirm/Cancel is where it always was — inside the record, with no second dialog.
+  > Aluna has no read view of a record any more either: the form *is* where a record is
+  > read as well as changed. The search field, its states and the post-mutation refresh
+  > are unchanged.
 - **4.4 — Final M4 cutover; generate & Gate full-CRUD v1 capabilities.** Reset,
   remove the transition/reference fixture, then generate five Handlers plus
   `item.ts` from Action-projected contexts. Whole-snapshot structural validation
@@ -255,6 +279,14 @@ atomic metrics+pointer activation, preserved records, and one View commit. Exerc
 partial update preservation and the complete adversarial search baseline. Prove a
 declared dependent blocks Notes deletion; remove it, fault/recover cleanup, then
 recreate Notes with a new incarnation and new v1 code (no stale import cache).
+
+> **Still runnable, on a different surface (records Module 4's exit state).** Module 5
+> replaced the shell's three regions with the desk, so "open Notes" is now "press the
+> Notes logo", the View arrives inside the one window, and a record opens by swapping the
+> collection out rather than by opening a modal. Deletion moved with it: it is on the
+> logo's own context menu (5.9), and its confirmation fills the window. Everything this
+> step actually checks — the diff, the frozen tests, the snapshot, the atomic activation,
+> the preserved records, the dependent block and the clean recreation — is unchanged.
 
 ### Exit criteria
 Full CRUD uses scoped mutations plus declared free reads; update/search contracts

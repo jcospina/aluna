@@ -117,6 +117,71 @@ describe("deletion cleanup supervisor", () => {
     });
     exhausted.requestRetry();
     expect(scheduled).toBe(0);
+
+    // …and `forceRetry` is how that person asks. A desk load presses it, so refreshing the
+    // page is the recovery gesture — the tombstone is still reserving the capability id.
+    exhausted.forceRetry();
+    expect(scheduled).toBe(1);
+  });
+});
+
+describe("deletion cleanup supervisor — scheduling", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = setupRouterTest());
+  });
+  afterEach(() => {
+    teardownRouterTest(dir, conns);
+  });
+
+  async function commitWithPendingCleanup(state: { fails: boolean; cleaned: number }) {
+    const target = notesRow();
+    install(conns, target);
+    const result = await destroyCapability({
+      target,
+      database: conns.readwrite,
+      readonlyDatabase: conns.readonly,
+      readGates: createReadGateCoordinator(),
+      adapters: [flakyAdapter(state)],
+    });
+    expect(result.status).toBe("cleanup_pending");
+    return target;
+  }
+
+  // The busy loop this replaced: while a build held the coordinator, `runOnce`
+  // short-circuited on `running`, the chained `requestRetry` scheduled again, and — no
+  // attempt having been counted — it scheduled at the *first* rung. One pass a second, for
+  // as long as the build ran.
+  test("a pass already in flight is not scheduled around, it is waited for", async () => {
+    const state = { fails: true, cleaned: 0 };
+    await commitWithPendingCleanup(state);
+    const mutationCoordinator = createMutationCoordinator();
+    const scheduledDelays: number[] = [];
+    const supervisor = createDeletionCleanupSupervisor({
+      database: conns.readwrite,
+      adapters: [flakyAdapter(state)],
+      mutationCoordinator,
+      retryDelaysMs: [1, 5, 30],
+      schedule: (_run, delayMs) => {
+        scheduledDelays.push(delayMs);
+      },
+    });
+
+    // A build holds the coordinator, so the pass parks inside `withPlatformWrite`.
+    const build = mutationCoordinator.reserveBuild();
+    const buildLease = await mutationCoordinator.acquireBuild(build);
+    const parked = supervisor.runOnce();
+
+    for (let i = 0; i < 5; i += 1) supervisor.requestRetry();
+    expect(scheduledDelays).toEqual([]);
+
+    mutationCoordinator.release(buildLease);
+    await parked;
+
+    // Exactly one retry, and at the rung the recorded attempt actually earned.
+    expect(scheduledDelays).toEqual([5]);
   });
 
   test("cleanup runs under a platform write lease, never on a free connection", async () => {

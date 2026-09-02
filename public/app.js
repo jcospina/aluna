@@ -66,6 +66,24 @@ function tellThePromptBar(sentence, refused = false, aboutTheRun = false) {
 }
 
 /**
+ * htmx executes `<script>` tags it finds in a swapped fragment, and evaluates `js:`/`hx-on`
+ * expressions, because both default to on. Nothing this desk serves needs either: every
+ * script the shell runs is a `<script src>` in the page itself, and no attribute anywhere
+ * carries an expression. A generated Handler's fragment is scrubbed server-side
+ * (`src/presentation/fragment-safety.ts`), and this is the same statement made on the other
+ * side of the wire — so markup that reached the browser some other way still cannot run.
+ *
+ * Set here rather than in the page because this file is the first thing to execute after
+ * the vendored htmx build, and htmx reads its config at swap time.
+ */
+const htmxConfig = /** @type {Window & { htmx?: { config?: Record<string, unknown> } }} */ (window)
+  .htmx?.config;
+if (htmxConfig) {
+  htmxConfig.allowScriptTags = false;
+  htmxConfig.allowEval = false;
+}
+
+/**
  * The shell's presentation state.
  * @typedef {Object} ShellState
  * @property {boolean} promptBusy - Courtesy presentation state while a build stream is open.

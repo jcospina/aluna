@@ -251,11 +251,15 @@ describe("design-lint — the three never-declared properties", () => {
     ).toBeUndefined();
   });
 
-  test("rejects a named CSS colour inside a shorthand no axis owns (the 3.1/02 residual)", () => {
-    // The residual scan backstops the shorthands no axis was written for: `caret` takes a
-    // colour without saying so in its name, and the declaration scan leaves it free.
+  test("catches `caret: red` on the colour axis rather than as a residual", () => {
+    // `caret` takes a colour without saying so in its name, which is what the residual scan
+    // was backstopping. The `-color` suffix already carried `caret-color`; the bare
+    // shorthand now sits on the axis beside it, so the refusal names the palette instead of
+    // reporting a raw colour after the fact.
     const bad = renderer('`<div style="caret: red;">${text}</div>`');
-    expect(findDesignViolation(spec, bad)).toContain('raw colour "red"');
+    expect(findDesignViolation(spec, bad)).toContain(
+      "colour is picked from the High Meadow set and never written as a value",
+    );
   });
 
   test("catches `background: white` on the colour axis rather than as a residual", () => {

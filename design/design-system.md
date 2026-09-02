@@ -228,6 +228,16 @@ narration of a build. Opening another capability swaps the contents and the fram
 does not move. There is no modal anywhere in Aluna, so opening a record replaces
 the collection inside the window and Back returns to it.
 
+One confirmation is read *over* the window rather than inside it: the question a
+navigation asks before it takes a live build or evolution away dims that window's
+own body and centres the question on it. It is still not a modal, and the
+distinction is the whole of what makes it allowed — the markup is already in the
+run's surface and is unhidden rather than swapped in, it reaches no further than
+that window's body, nothing outside the window is covered or made inert, focus is
+not trapped, and the frame's two lamps stay pressable. Nothing else on this
+surface may be read over anything (module 5, PLAN decision 17, amended
+2026-09-02).
+
 A record is a `<button>`. Opening one is the only thing you can do with it, and a
 button is what the keyboard already reaches, so a record carries no `role`, no
 `tabindex` and no key handling of its own. What opens is the form, in edit mode.

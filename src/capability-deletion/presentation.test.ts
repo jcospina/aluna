@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import type { CapabilityRow } from "../registry/index.ts";
 import { boomRow, notesRow } from "../router/router.test-support.ts";
 import {
   type CapabilityDeletionRestorationEvidence,
+  DELETION_RECHECK_PARAM,
   dependentCapabilityNames,
   renderCapabilityDeletionAlreadyGone,
   renderCapabilityDeletionCommitted,
@@ -64,15 +67,31 @@ describe("capability-deletion presentation", () => {
     expect(html).not.toContain("Aluna will");
   });
 
-  test("escapes target and dependent labels in copy, controls, and accessible names", () => {
+  // Two rules, and the outer one is why this reads as it does. A stored label that is not
+  // a name is not shown at all — the name validator refuses markup shapes now, and
+  // `canonicalCapabilityLabel` falls back rather than printing one. Escaping is still what
+  // makes the sink safe, and is checked below on a name that *is* one.
+  test("a label that is not a name is not rendered, escaped or otherwise", () => {
     const target = notesRow({ label: '<img src=x onerror="alert(1)">' });
     const dependent = { ...boomRow(), label: "<script>alert(2)</script>" };
     const html = renderCapabilityDeletionConfirmation(target, [dependent]);
 
     expect(html).not.toContain("<img");
     expect(html).not.toContain("<script>");
-    expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
-    expect(html).toContain("&lt;script&gt;alert(2)&lt;/script&gt;");
+    expect(html).not.toContain("&lt;img");
+    expect(html).not.toContain("&lt;script&gt;");
+    // What is written instead is the capability's own id, title-cased.
+    expect(html).toContain("Notes");
+  });
+
+  test("every label it renders goes through the escape on the way out", () => {
+    const target = notesRow({ label: "Tom & Jerry" });
+    const dependent = { ...boomRow(), label: "Salt & Pepper" };
+    const html = renderCapabilityDeletionConfirmation(target, [dependent]);
+
+    expect(html).toContain("Tom &amp; Jerry");
+    expect(html).toContain("Salt &amp; Pepper");
+    expect(html).not.toMatch(/Tom & Jerry/);
   });
 
   test("leaves the primary output truly empty after a neutral committed deletion", () => {
@@ -87,6 +106,22 @@ describe("capability-deletion presentation", () => {
     const html = renderCapabilityDeletionConfirmation(notesRow(), []);
 
     expect(html).toContain('data-capability-deletion-confirm="/capability-deletion/notes"');
+  });
+
+  // The client marks its recheck so the answer can tell "you never deleted this" from
+  // "your Confirm may be exactly why it is gone". Saying the first when the second is true
+  // tells somebody their destructive action did nothing when it may have done everything.
+  test("the recheck's own answer says what is true of a Confirm that may have landed", () => {
+    const recovered = renderCapabilityDeletionAlreadyGone("notes", "", "after-confirm");
+    const pressed = renderCapabilityDeletionAlreadyGone("notes", "", "never-asked");
+
+    expect(recovered).toContain("It’s gone.");
+    expect(recovered).not.toContain("I didn’t delete anything");
+    expect(pressed).toContain("I didn’t delete anything");
+    // And the shell and the server agree on the mark that tells them apart.
+    expect(
+      readFileSync(resolve(import.meta.dir, "../../public/capability-deletion.js"), "utf8"),
+    ).toContain(`const DELETION_RECHECK_PARAM = "${DELETION_RECHECK_PARAM}";`);
   });
 
   test("Confirm names the act while it runs and locks both controls", () => {
@@ -108,6 +143,20 @@ describe("capability-deletion presentation", () => {
       '<div data-capability-deletion-logo-removal hx-swap-oob="delete:#capability-logo-notes"></div><div id="prompt-notice" hx-swap-oob="innerHTML">That’s already gone, so I didn’t delete anything.</div>',
     );
     expect(html).not.toContain("capability-deletion__actions");
+  });
+
+  // The already-gone branch is reached with a raw URL segment: no registry row proved it,
+  // because there is no row. `escapeHtml` stops an attribute breakout and says nothing
+  // about selector *shape* — `notes, body` is a well-formed attribute value and a
+  // two-element selector, and htmx would delete `<body>` along with the tile.
+  test("an id that is not a capability id names no element to delete", () => {
+    for (const hostile of ["notes, body", "notes\\, body", "Notes", "", "*", "notes:not(x)"]) {
+      const html = renderCapabilityDeletionAlreadyGone(hostile);
+
+      expect(html, hostile).not.toContain("delete:#");
+      // The person is still told what happened.
+      expect(html, hostile).toContain("That’s already gone");
+    }
   });
 });
 
@@ -177,12 +226,25 @@ describe("the ending a deletion that did not happen leaves in the window", () =>
   });
 
   test("an ending escapes every label it renders", () => {
-    const target = notesRow({ label: '<img src=x onerror="alert(1)">' });
-    const ending = renderCapabilityDeletionRefusal(target, { kind: "stale" }, NEUTRAL);
+    const ending = renderCapabilityDeletionRefusal(
+      notesRow({ label: "Tom & Jerry" }),
+      { kind: "stale" },
+      NEUTRAL,
+    );
+
+    expect(ending).toContain("Tom &amp; Jerry changed after you opened this page");
+    expect(ending).not.toMatch(/Tom & Jerry/);
+  });
+
+  test("and an ending for a label that is not a name shows the fallback instead", () => {
+    const ending = renderCapabilityDeletionRefusal(
+      notesRow({ label: '<img src=x onerror="alert(1)">' }),
+      { kind: "stale" },
+      NEUTRAL,
+    );
 
     expect(ending).not.toContain("<img");
-    expect(ending).toContain(
-      "&lt;img src=x onerror=&quot;alert(1)&quot;&gt; changed after you opened this page",
-    );
+    expect(ending).not.toContain("&lt;img");
+    expect(ending).toContain("Notes changed after you opened this page");
   });
 });

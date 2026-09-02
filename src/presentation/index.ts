@@ -38,6 +38,7 @@ export {
   renderCreateForm,
   renderEditForm,
 } from "./field-renderer.ts";
+export { enforceHandlerFragment, type SafeFragment } from "./fragment-safety.ts";
 export {
   COLLECTION_LAYOUTS,
   type CollectionLayout,

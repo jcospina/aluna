@@ -1,5 +1,5 @@
 import type { CapabilityRow } from "../registry/index.ts";
-import { canonicalCapabilityLabel } from "../registry/index.ts";
+import { canonicalCapabilityLabel, SQL_NAME_PATTERN } from "../registry/index.ts";
 import { escapeHtml } from "../web/html.ts";
 import { capabilityLogoElementId, renderPromptNotice } from "../web/index.ts";
 
@@ -135,7 +135,16 @@ export function renderCapabilityDeletionConfirmation(
 
 // The logo goes with the capability. It is the whole of what a deleted capability leaves
 // on the desk, so removing it is what makes the deletion visible there.
+//
+// The id has to be a *capability id* before it may become a selector. On the already-gone
+// branch this string is a raw URL segment — no registry row proved it, because there is no
+// row — and `escapeHtml` stops an attribute breakout while doing nothing about selector
+// shape: `capability-logo-x, body` is a perfectly well-formed attribute value and a
+// two-element selector, and htmx would delete the second element too. So an id that is not
+// one is answered with no removal at all, which is right on its own terms: there is no tile
+// on the desk for a name no capability ever had.
 function renderLogoRemoval(capabilityId: string): string {
+  if (!SQL_NAME_PATTERN.test(capabilityId)) return "";
   // Escaped once, at the attribute boundary. Escaping the *input* of the id builder was
   // the wrong place: the result is an htmx selector, which the HTML parser decodes back
   // before htmx reads it.
@@ -270,12 +279,36 @@ export function renderCapabilityDeletionRefusal(
 export function renderCapabilityDeletionAlreadyGone(
   capabilityId: string,
   restoredSurface = "",
+  after: CapabilityDeletionAbsence = "never-asked",
 ): string {
   return joinRestorationWithNotice(
     restoredSurface,
-    [
-      renderLogoRemoval(capabilityId),
-      renderPromptNotice("That’s already gone, so I didn’t delete anything."),
-    ].join(""),
+    [renderLogoRemoval(capabilityId), renderPromptNotice(ABSENCE_NOTICE[after])].join(""),
   );
 }
+
+/**
+ * Why the capability is not there — which decides what is true to say about it.
+ *
+ * `never-asked` is a press on a tile a second tab already deleted: nothing this person did
+ * removed it, and "I didn't delete anything" is exactly right. `after-confirm` is the
+ * recovery for a Confirm whose reply never arrived, and there the same sentence is a lie in
+ * the one direction that matters — the deletion may well have been *this* confirm crossing
+ * its point of no return, and telling somebody their destructive action did nothing when it
+ * may have done everything is the failure the whole recovery exists to prevent.
+ */
+export type CapabilityDeletionAbsence = "never-asked" | "after-confirm";
+
+/**
+ * The query flag the client's recovery marks its preflight with
+ * (`public/capability-deletion.js`), so the answer can tell "you never deleted this" from
+ * "your Confirm may be exactly why it is gone". Restated there the way this shell restates
+ * every constant it cannot import; a platform test pins the two copies against each other.
+ */
+export const DELETION_RECHECK_PARAM = "after_confirm";
+
+const ABSENCE_NOTICE: Readonly<Record<CapabilityDeletionAbsence, string>> = {
+  "never-asked": "That’s already gone, so I didn’t delete anything.",
+  "after-confirm":
+    "It’s gone. I couldn’t tell you at the time, but there’s nothing left there now.",
+};

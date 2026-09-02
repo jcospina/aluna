@@ -712,8 +712,16 @@ describe("the floor is the token's, not this module's", () => {
       /if \(fitBox\(entry, entry\.layer\.getBoundingClientRect\(\), phone\)\) \{\s*placeWindow\(entry\.el, entry\.box\);/,
     );
     // The gestures reach the same clamps rather than a second copy of them.
-    expect(code("design/scripts/window-gestures.js")).toContain(
+    const gestures = code("design/scripts/window-gestures.js");
+    expect(gestures).toContain(
       'import { clampPosition, clampSize, placeWindow } from "./desk-geometry.js"',
     );
+    // And they clamp against the screen as it is *now*. Reading `host.bounds()` once at
+    // pointer-down left a gesture clamping against a viewport that no longer existed —
+    // a soft keyboard, a rotation, devtools opening mid-drag — and the window could be
+    // parked inside the prompt bar's clearance until something else forced a refit.
+    expect(gestures).toContain("clampPosition(host.bounds(), box)");
+    expect(gestures).toContain("clampSize(host.bounds(), box)");
+    expect(gestures).not.toMatch(/const bounds = host\.bounds\(\);/);
   });
 });

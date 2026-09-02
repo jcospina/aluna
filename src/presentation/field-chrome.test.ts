@@ -6,6 +6,8 @@
 // counter exists only where a limit does.
 
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { characterCountSentence } from "./field-chrome.ts";
 import { oneField, probeField, SAMPLE } from "./field-renderer.test-support.ts";
 import { renderCreateForm, renderEditForm } from "./field-renderer.ts";
@@ -239,17 +241,55 @@ describe("the counter's words", () => {
   });
 });
 
+// Small caps is a role the design system owns, and the sheet used to copy all five of its
+// declarations out under `.field__label` — the same "restate instead of reuse" duplication
+// this epic removed for `.field__control`, and the one `choice-control.ts` had already
+// avoided by applying the class.
+describe("a field label takes the shared caps role rather than restating it", () => {
+  test("every label carries it, whatever shape the control is", () => {
+    for (const type of ["string", "number", "boolean", "date", "choice"] as const) {
+      const html = renderCreateForm(oneField(probeField(type, { required: true })));
+      const labels = [...html.matchAll(/class="field__label[^"]*"/g)].map(([match]) => match);
+
+      expect(labels.length, type).toBeGreaterThan(0);
+      for (const label of labels) expect(label, type).toContain(" caps");
+    }
+  });
+
+  test("and the sheet states only what the role does not", () => {
+    const rule =
+      /\.field__label \{([\s\S]*?)\}/.exec(
+        readFileSync(resolve(import.meta.dir, "../../public/css/fields.css"), "utf8"),
+      )?.[1] ?? "";
+
+    expect(rule).toContain("font-family");
+    expect(rule).toContain("line-height");
+    for (const restated of [
+      "font-size",
+      "font-weight",
+      "text-transform",
+      "letter-spacing",
+      "color",
+    ]) {
+      expect(
+        rule,
+        `.field__label restates \`${restated}\`, which \`.caps\` already says`,
+      ).not.toContain(restated);
+    }
+  });
+});
+
 describe("optional is marked and required is not", () => {
   test("an optional field says so inside its own label", () => {
     expect(createFieldHtml(probeField("string", { required: false }))).toContain(
-      '<label class="field__label" for="cap-probe-value">' +
+      '<label class="field__label caps" for="cap-probe-value">' +
         'Value <span class="field__optional">optional</span></label>',
     );
   });
 
   test("a required field says nothing, so the marker stays the exception", () => {
     expect(createFieldHtml()).toContain(
-      '<label class="field__label" for="cap-probe-value">Value</label>',
+      '<label class="field__label caps" for="cap-probe-value">Value</label>',
     );
   });
 

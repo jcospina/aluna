@@ -15,6 +15,8 @@
 // counts down from) and into its own mutation validation (which refuses anything longer
 // however it arrived). This script only says what is left.
 
+import { registerRegionRelease } from "./region-scope.js";
+
 const GROW_SELECTOR = "textarea[data-grow]";
 const COUNT_SELECTOR = "[data-length-limit][data-length-counter]";
 const MOUNT_SELECTOR = `${GROW_SELECTOR}, ${COUNT_SELECTOR}`;
@@ -56,6 +58,13 @@ function grow(area) {
  * Width, not height: the height is what `grow` itself writes, and reacting to that is the
  * loop this avoids by comparing.
  *
+ * **It is released with the control.** One observer per `textarea[data-grow]`, minted on
+ * every record view and every collection swap, and nothing ever disconnected them: the
+ * handle was dropped on the floor and there is no unmount path in this module. That is a
+ * plain decision-13 violation — whatever a region's content starts, the region releases —
+ * so the disconnect is registered against the control itself and runs the moment the
+ * control leaves the document, by whichever route it leaves.
+ *
  * @param {HTMLTextAreaElement} area
  * @param {() => void} refresh
  */
@@ -63,11 +72,13 @@ function watchLayout(area, refresh) {
   const Observer = area.ownerDocument.defaultView?.ResizeObserver;
   if (!Observer) return;
   let lastWidth = -1;
-  new Observer(() => {
+  const observer = new Observer(() => {
     if (area.clientWidth === lastWidth) return;
     lastWidth = area.clientWidth;
     refresh();
-  }).observe(area);
+  });
+  observer.observe(area);
+  registerRegionRelease(area, "long-text layout watch", () => observer.disconnect());
 }
 
 /**

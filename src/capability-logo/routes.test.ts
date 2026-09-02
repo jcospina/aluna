@@ -204,6 +204,11 @@ describe("the logo route", () => {
   // Opening the address as a document has to render a picture and run nothing. The stored
   // bytes are never touched (L8), so the whole of that guarantee is these three headers:
   // no scripting of any kind, no guessing at another type, and no download prompt.
+  //
+  // This is also where the app-wide policy is held off: `createApp` sets a blanket
+  // `content-security-policy` on every response that does not already carry one, and this
+  // route's own is stricter, so an equality assertion here is what proves the blanket one
+  // cannot relax it.
   test("is inert when its address is opened directly as a document", async () => {
     install(conns, notesRow());
     await appWith(drawing).request(ATTEMPT_PATH, ATTEMPT);

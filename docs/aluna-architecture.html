@@ -1695,10 +1695,10 @@
               <button
                 class="map-node map-node--fixed"
                 type="button"
-                data-map-key="toolbar"
+                data-map-key="logos"
                 aria-pressed="false"
               >
-                Capability toolbar
+                Logo layer
               </button>
               <button
                 class="map-node map-node--fixed"
@@ -2098,7 +2098,7 @@
             </div>
             <p class="loop-note">
               Where the proposal appears, when it appears, and what the screen does after
-              confirmation are still open Module 7 design work. One rule is already fixed: nothing
+              confirmation are still open Module 8 design work. One rule is already fixed: nothing
               builds without confirmation.
             </p>
           </div>
@@ -2289,7 +2289,7 @@
           <article class="ownership__side">
             <h3>The platform owns</h3>
             <ul>
-              <li>Shell, navigation, forms, list layout, modal, and accessible item frame</li>
+              <li>Desk, window, forms, list layout, and accessible item frame</li>
               <li>Routing, record targeting, mutation coordination, and additive DDL</li>
               <li>Gate mechanics, publication, activation, recovery, and deletion choreography</li>
               <li>Read-only query and file-storage infrastructure</li>
@@ -2312,7 +2312,7 @@
         <div class="section-heading reveal">
           <div>
             <span class="eyebrow">How it comes together</span>
-            <h2>Eight runnable slices.</h2>
+            <h2>Nine runnable slices.</h2>
           </div>
           <p>
             The roadmap is vertical, not layered. Every module leaves a behavior a person can run
@@ -2350,23 +2350,29 @@
             <button class="roadmap-step" type="button" data-module="4" aria-selected="false">
               <span class="roadmap-step__number">5</span
               ><span class="roadmap-step__label"
-                ><strong>Ad hoc questions</strong><span>Use the free-read seam</span></span
+                ><strong>The desk</strong><span>One window on a wallpaper</span></span
               >
             </button>
             <button class="roadmap-step" type="button" data-module="5" aria-selected="false">
               <span class="roadmap-step__number">6</span
               ><span class="roadmap-step__label"
-                ><strong>Files</strong><span>Complete the explicit loop</span></span
+                ><strong>Ad hoc questions</strong><span>Use the free-read seam</span></span
               >
             </button>
             <button class="roadmap-step" type="button" data-module="6" aria-selected="false">
               <span class="roadmap-step__number">7</span
               ><span class="roadmap-step__label"
-                ><strong>Implicit loop</strong><span>Behavior becomes a proposal</span></span
+                ><strong>Files</strong><span>Complete the explicit loop</span></span
               >
             </button>
             <button class="roadmap-step" type="button" data-module="7" aria-selected="false">
               <span class="roadmap-step__number">8</span
+              ><span class="roadmap-step__label"
+                ><strong>Implicit loop</strong><span>Behavior becomes a proposal</span></span
+              >
+            </button>
+            <button class="roadmap-step" type="button" data-module="8" aria-selected="false">
+              <span class="roadmap-step__number">9</span
               ><span class="roadmap-step__label"
                 ><strong>Experiment harness</strong><span>Make conclusions legible</span></span
               >
@@ -2432,16 +2438,16 @@
         copy: "The always-visible place where a person states intent. It knows which capability is active, so a short request still carries the right context.",
         rule: "It sends intent. It does not decide what the intent means.",
       },
-      toolbar: {
-        title: "Capability toolbar",
+      logos: {
+        title: "Logo layer",
         kind: "Platform-owned",
-        copy: "The only navigation. It starts empty, grows as capabilities are activated, and rehydrates from the registry when Aluna opens.",
+        copy: "Every capability standing on the desk, each with a picture of its own. It is the whole standing list of what exists and the only way back to a window that was put away; it starts empty, grows as capabilities are activated, and rehydrates from the registry when Aluna opens.",
         rule: "A capability appears here only after its pointer is committed.",
       },
       presentation: {
         title: "Platform presentation",
         kind: "Platform-owned",
-        copy: "Shared forms, fields, list layouts, modal behavior, and accessible record frames. It reads structural spec facts but never invents capability behavior.",
+        copy: "Shared forms, fields, list layouts, the one window everything happens inside, and accessible record frames. It reads structural spec facts but never invents capability behavior.",
         rule: "The platform keeps the mechanics consistent. Generated code composes one capability's record from them.",
       },
       tracker: {
@@ -2552,7 +2558,7 @@
       {
         label: "Presenter",
         title: "Show only committed reality.",
-        copy: "The explicit presenter swaps one complete View after activation and refreshes the toolbar only when needed. A no-change, stale, cancelled, or failed build restores the current canonical View instead.",
+        copy: "The explicit presenter swaps one complete View after activation and stands the capability's logo on the desk only when needed. A no-change, stale, cancelled, or failed build restores the current canonical View instead.",
         why: "The screen follows the registry. It never pretends an unactivated candidate became real.",
       },
     ];
@@ -2567,13 +2573,13 @@
       {
         module: "Module 2",
         title: "Build the first capability end to end.",
-        copy: "Introduce the registry, initial data seam, router, Builder, queue, metrics, streamed narration, and toolbar through one runnable create-and-read slice.",
+        copy: "Introduce the registry, initial data seam, router, Builder, queue, metrics, and streamed narration through one runnable create-and-read slice.",
         milestone: "Milestone: a prompt becomes a validated, persisted, usable capability.",
       },
       {
         module: "Module 3",
         title: "Give every capability coherent presentation.",
-        copy: "Move stable forms, fields, collection layouts, item frames, and the shared detail modal into platform presentation. Keep one generated item renderer inside a closed design-value contract.",
+        copy: "Move stable forms, fields, collection layouts, item frames, and the shared record view into platform presentation. Keep one generated item renderer inside a closed design-value contract.",
         milestone:
           "Milestone: capabilities can look distinct without breaking Aluna's shared interaction language.",
       },
@@ -2586,25 +2592,32 @@
       },
       {
         module: "Module 5",
+        title: "Give the platform a desk.",
+        copy: "Replace the shell's three regions with a wallpaper, a layer of capability logos and a floating prompt bar. Everything a capability shows happens inside one window you open from a logo, put away, drag and resize; every capability gets a picture of its own, and the form gains choice and long-text fields.",
+        milestone:
+          "Milestone: the surface a person uses is the product's own, not a scaffold around it.",
+      },
+      {
+        module: "Module 6",
         title: "Answer without building.",
         copy: "Reuse the physically read-only seam for bounded whole-catalog questions. Render the answer in a generic table and leave no registry row, version, artifact, or dependency behind.",
         milestone:
           "Milestone: free reads can cross the catalog without becoming permanent capability state.",
       },
       {
-        module: "Module 6",
+        module: "Module 7",
         title: "Bring files into the same safety model.",
         copy: "Add the S3-shaped object store, file field types, constrained upload, free serving, durable ownership, and cleanup across failures, replacement, record deletion, and capability deletion.",
         milestone: "Milestone: the explicit loop is complete, including bytes.",
       },
       {
-        module: "Module 7",
+        module: "Module 8",
         title: "Turn behavior into a confirmed proposal.",
         copy: "Capture the full interaction context, wait for a deterministic server-side gate, resolve patterns asynchronously, and hand an accepted proposal to the existing Builder without reclassification.",
         milestone: "Milestone: both intent loops are live, and implicit change always asks first.",
       },
       {
-        module: "Module 8",
+        module: "Module 9",
         title: "Make the experiment answerable.",
         copy: "Query generation outcomes, latency, models, retries, overlap choices, and implicit-loop behavior. Tune the gate against the real dataset in a clearly separate experimenter surface.",
         milestone: "Milestone: conclusions come from the accumulated evidence, not guesses.",

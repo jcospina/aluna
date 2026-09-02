@@ -404,6 +404,10 @@ export function desk() {
     location: { pathname: "/capability/tasks", search: "" },
     history: { state: null, replaceState() {} },
     htmx: {
+      // The real bundle's mutable config object. The shell turns two of its defaults off
+      // (`public/app.js`), so a double without one would let that statement be deleted
+      // under a green suite.
+      config: {} as Record<string, unknown>,
       process(node: El) {
         processed.push(node);
       },
@@ -456,6 +460,8 @@ export function desk() {
   return {
     /** The document the shell was started on, for a module started on it beside them. */
     root: documentStub,
+    /** The window stub, for the two htmx defaults the shell turns off on it. */
+    windowStub,
     region,
     displaced,
     subscriber,

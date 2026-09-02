@@ -264,7 +264,6 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/layout-kit.css § .text-muted [color]",
       "public/css/deletion.css § .capability-deletion__body [color]",
       "public/css/fields.css § .choice-set__heading [color]",
-      "public/css/fields.css § .field__label [color]",
       "public/css/record-view.css § .capability-record-delete__copy [color]",
       "public/css/record-view.css § .capability-record-view__back [color]",
     ],

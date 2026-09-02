@@ -157,8 +157,14 @@ Every finding from the adversarial pass, including the INFO ones:
 - Hiding a choice field named no choice work. Added `choice_input_intent`; the Module 4
   row for `list_input_intent` is left exactly as its matrix documents it.
 - A `choice_presentation` fact was unreachable (the enum has one member). Removed — it
-  arrives with 5.10/02's enum expansion, and a choice row now lives in the shared MATRIX
-  table so the whole-matrix property test covers it.
+  arrives with 5.10/02's enum expansion.
+
+  *Corrected 2026-09-02.* This line went on to say "a choice row now lives in the shared
+  MATRIX table so the whole-matrix property test covers it". The coverage is real and the
+  location was wrong: the choice rows are their own battery,
+  `src/pipeline/evolution/evolution-matrix.choice.test.ts`, which runs the same per-row
+  assertions the shared table's rows get. They are not in the shared `MATRIX` array, so a
+  reader looking there for them would not find them.
 - Neither generator prompt said `invalid_choice` is platform-owned, though the schema now
   rejects it. Both say so.
 - The item renderer received no option labels, so a card showed `in_progress` rather than

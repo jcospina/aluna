@@ -66,9 +66,13 @@ describe("design-lint record-content integrity", () => {
   });
 
   test("does not mistake record-dependent ARIA state for perceivable record content", () => {
+    // `aria-busy` rather than `aria-hidden`: the enforcer removes `aria-hidden` outright
+    // (a record may not hide its own content from a screen reader), and that refusal would
+    // answer first — which would leave this case pinning the enforcer rather than the
+    // content rule it is about.
     const stateOnlyComposition = [
       "export default function renderItem(record: Record<string, unknown>): string {",
-      '  return `<span aria-hidden="${Boolean(record.text)}"></span>`;',
+      '  return `<span aria-busy="${Boolean(record.text)}"></span>`;',
       "}",
     ].join("\n");
 

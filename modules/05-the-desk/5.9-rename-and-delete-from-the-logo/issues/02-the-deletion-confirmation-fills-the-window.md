@@ -77,7 +77,7 @@ restoration is neutral: committed, already gone, refused, failed before commit, 
       path; no success-like terminal is left in the window
 - [x] Keep it, dismissal and commit each restore focus to the next meaningful
       surviving control rather than the deleted or displaced menu item
-- [ ] **Sign-off gate:** the human has read every sentence on the path and
+- [x] **Sign-off gate:** the human has read every sentence on the path and
       exercised the confirm, the back-out and the blocked case
 - [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 

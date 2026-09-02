@@ -22,6 +22,8 @@ export {
   RECORD_NOT_FOUND_ERROR_CODE,
   RecordNotFoundError,
 } from "./mutation.ts";
+export { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "./search-bounds.ts";
+export { assertSubmittedFieldValues } from "./submitted-values.ts";
 export {
   type CapabilityActionRecord,
   type CapabilityDataColumnValue,

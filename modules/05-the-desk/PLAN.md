@@ -44,14 +44,27 @@ carried it, the desk puts none anywhere else, and only the name is left.
    composes every full page today by replacing four literal strings in
    `public/index.html` — the toolbar-entries comment, the exact `intro__output`
    snippet, the modal mount and the literal `class="shell"` — and the desk page
-   leaves one anchor, the logo layer; the window is created client-side. The modal
+   leaves two, the logo layer and the prompt bar's notice slot
+   (`PAGE_ASSEMBLY_ANCHORS` — corrected 2026-09-02: this said "one anchor, the logo
+   layer", written before decision 21 gave a load its own sentence to seed); the
+   window is created client-side. The modal
    mount has nothing left to mount, because a record now opens through an ordinary
    view swap inside the window. `public/detail-modal.js`,
    `public/detail-modal-refresh.js` and `src/presentation/detail-modal.ts` are
    deletions rather than ports, and `showModal()`, the focus trap, the inert
    template clone, the page-wide inertness and the `mutationBusy` gate that
    silently swallowed a record click go with them. The toolbar and the sidebar go
-   the same way. This module removes more code than it adds.
+   the same way.
+
+   *Measured 2026-09-02, and it did not hold.* This ended "This module removes more
+   code than it adds". The **shell surface** claim is true — the toolbar, the sidebar,
+   the header row, the detail modal and its focus trap, `mutationBusy` and
+   `hasCapabilities` are all gone with no live survivors — but the module as a whole is
+   strongly additive: net +10,731 lines in non-test `src/`, +7,525 in `public/`, and
+   +27,077 in tests. The window, the logo, the drawn line, the form vocabulary and the
+   address scheme are all new surface, and they cost more than the old shell did. Kept
+   as a decision rather than edited away, because the number is the honest record of
+   what a "collapse" turned out to be.
 
 2. **The shell may remember how things look to the user; it never decides what is
    true.** Architecture §6.1's blockquote is restated in exactly that form. Window
@@ -270,9 +283,22 @@ carried it, the desk puts none anywhere else, and only the name is left.
     Put-away, another capability logo and Back/Forward all remove the live run, so
     they proceed only on confirmation, and the
     confirmation routes through the existing cancel path rather than a second
-    teardown. The warning is an inline row inside the still-mounted run surface,
-    not a content swap or modal, so merely showing it cannot fire the cleanup that
-    cancels the run. That one cancel teardown then performs the captured
+    teardown. The warning is markup the still-mounted run surface already carries,
+    unhidden in place — never a content swap — so merely showing it cannot fire the
+    cleanup that cancels the run.
+
+    *Amended 2026-09-02, after 5.8 shipped.* This was written as "an inline row …
+    not a content swap or modal". What the product owner asked for during 5.8, and
+    what ships, is the question read **over the window it is about**: a dimming of
+    the run's own window body with the question centred on it. That is a change to
+    the treatment and not to the rule the treatment exists for — the whole of it is
+    markup the run already carries, it is unhidden rather than swapped in, and it
+    reaches no further than the window's own body: nothing opens over the desk,
+    nothing outside the window is covered or made inert, focus is not trapped, and
+    the two window lamps stay pressable. Aluna still has no modal (design D2, and
+    design-system.md's "There is no modal anywhere in Aluna", which carries the same
+    amendment). `src/presentation/leaving-a-run.test.ts` pins each half of that
+    distinction. That one cancel teardown then performs the captured
     put-away/logo/history continuation without flashing restoration or duplicating
     history; ordinary Cancel still restores. This is an amendment to D3: close still means put away and
     still changes nothing in storage, but it is no longer silent when there is

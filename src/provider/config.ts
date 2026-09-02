@@ -10,6 +10,8 @@
 // The functions take `env` as a parameter (defaulting to the real process env) so
 // they are pure and testable without mutating global state.
 
+import { readSecret } from "../secrets/index.ts";
+
 /**
  * The configured global model, in exactly one place. The demo ships against a
  * single model by default; the default is `gpt-5.6-terra` (OpenAI) at medium
@@ -98,7 +100,10 @@ export function resolveBaseURL(env: NodeJS.ProcessEnv = process.env): string {
  * never as a confusing downstream failure (issue 02 acceptance).
  */
 export function requireApiKey(env: NodeJS.ProcessEnv = process.env): string {
-  const key = env[API_KEY_ENV_VAR]?.trim();
+  // Read through the vault: the ambient environment no longer holds this key after boot
+  // (src/secrets), so an ambient reference a generated Handler walks its way to finds
+  // nothing. An explicitly supplied `env` is still answered from itself.
+  const key = readSecret(API_KEY_ENV_VAR, env);
   if (!key) {
     throw new Error(
       `Missing ${API_KEY_ENV_VAR}. The AI provider is bring-your-own-key: set ` +

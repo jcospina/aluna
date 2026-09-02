@@ -36,6 +36,39 @@ import type { DeepPartial, GenerateResult, Provider } from "./contract.ts";
 // this file.
 type StreamObjectInput = Parameters<typeof streamObject>[0];
 
+export const DEFAULT_PROVIDER_GENERATION_TIMEOUT_MS = 5 * 60_000;
+
+export interface ProviderSpineOptions {
+  /** Test seam; production gives every structured-generation stage five minutes. */
+  readonly generationTimeoutMs?: number;
+  /** Test seam for proving the SDK call receives the deadline without network I/O. */
+  readonly streamObject?: typeof streamObject;
+}
+
+export class ProviderStageTimeoutError extends Error {
+  override readonly name = "ProviderStageTimeoutError";
+}
+
+interface StageDeadline {
+  readonly signal: AbortSignal;
+  dispose(): void;
+}
+
+function openStageDeadline(
+  timeoutMs: number,
+  onTimeout: (error: ProviderStageTimeoutError) => void,
+): StageDeadline {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    const error = new ProviderStageTimeoutError(
+      `Provider generation exceeded its ${timeoutMs}ms stage deadline.`,
+    );
+    onTimeout(error);
+    controller.abort(error);
+  }, timeoutMs);
+  return { signal: controller.signal, dispose: () => clearTimeout(timer) };
+}
+
 /**
  * The wire shapes the de-facto coding-model ecosystem has converged on.
  * Every provider the registry targets — GPT, Claude, Gemini, and the open Chinese
@@ -112,7 +145,36 @@ export function selectWire(baseURL: string): Wire {
  * Exported for a network-free unit test (spine.test.ts), like `selectWire`. Single
  * consumer by construction — the contract's `partialStream` is read at most once.
  */
-export function pumpStream<U>(source: AsyncIterable<U>): AsyncIterable<U> {
+function nextBeforeAbort<U>(
+  next: Promise<IteratorResult<U>>,
+  signal?: AbortSignal,
+): Promise<IteratorResult<U>> {
+  if (!signal) return next;
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener("abort", onAbort);
+    const onAbort = () => {
+      cleanup();
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    next.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error) => {
+        cleanup();
+        reject(error);
+      },
+    );
+  });
+}
+
+export function pumpStream<U>(
+  source: AsyncIterable<U>,
+  abortSignal?: AbortSignal,
+): AsyncIterable<U> {
   const buffer: U[] = [];
   let finished = false;
   let failure: unknown;
@@ -124,15 +186,19 @@ export function pumpStream<U>(source: AsyncIterable<U>): AsyncIterable<U> {
   };
 
   void (async () => {
+    const iterator = source[Symbol.asyncIterator]();
     try {
-      for await (const item of source) {
-        buffer.push(item);
+      for (;;) {
+        const next = await nextBeforeAbort(iterator.next(), abortSignal);
+        if (next.done) break;
+        buffer.push(next.value);
         signal();
       }
     } catch (err) {
       failure = err;
       hasFailure = true;
     } finally {
+      void Promise.resolve(iterator.return?.()).catch(() => undefined);
       finished = true;
       signal();
     }
@@ -203,8 +269,17 @@ export function providerFault() {
      * nothing at all.
      */
     async *surface<U>(source: AsyncIterable<U>): AsyncGenerator<U> {
-      yield* source;
-      if (faulted) throw fault;
+      const iterator = source[Symbol.asyncIterator]();
+      try {
+        for (;;) {
+          const next = await Promise.race([iterator.next(), raised]);
+          if (next.done) break;
+          yield next.value;
+        }
+        if (faulted) throw fault;
+      } finally {
+        void Promise.resolve(iterator.return?.()).catch(() => undefined);
+      }
     },
   };
 }
@@ -216,10 +291,15 @@ export function providerFault() {
  * (issue 02: "missing key surfaces clearly"). The returned `Provider` is reusable
  * across calls; the network round-trip happens lazily inside each `generate`.
  */
-export function createProvider(env: NodeJS.ProcessEnv = process.env): Provider {
+export function createProvider(
+  env: NodeJS.ProcessEnv = process.env,
+  options: ProviderSpineOptions = {},
+): Provider {
   const config = resolveProviderConfig(env);
   const adapter = REGISTRY[selectWire(config.baseURL)];
   const model = adapter.model(config);
+  const generationTimeoutMs = options.generationTimeoutMs ?? DEFAULT_PROVIDER_GENERATION_TIMEOUT_MS;
+  const runStreamObject = options.streamObject ?? streamObject;
 
   return {
     generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
@@ -246,14 +326,22 @@ export function createProvider(env: NodeJS.ProcessEnv = process.env): Provider {
       // same way a malformed object already does, as a rejection the caller can
       // present. Nothing else in the codebase learns a new failure mode.
       const fault = providerFault();
+      const deadline = openStageDeadline(generationTimeoutMs, (error) => fault.onError({ error }));
 
-      const result = streamObject({
-        model,
-        schema,
-        prompt,
-        providerOptions: adapter.providerOptions,
-        onError: fault.onError,
-      });
+      let result: ReturnType<typeof streamObject>;
+      try {
+        result = runStreamObject({
+          model,
+          schema,
+          prompt,
+          providerOptions: adapter.providerOptions,
+          abortSignal: deadline.signal,
+          onError: fault.onError,
+        });
+      } catch (error) {
+        deadline.dispose();
+        throw error;
+      }
 
       // The SDK's partial-object stream, final-object promise, and usage promise *are*
       // the contract's three handles. `partialStream` goes through `pumpStream` so the
@@ -262,18 +350,21 @@ export function createProvider(env: NodeJS.ProcessEnv = process.env): Provider {
       // where the SDK's structurally identical `DeepPartial`/object types meet ours;
       // nothing else in the codebase sees them. `usage` is narrowed to our three-count
       // `TokenUsage`, dropping SDK-only figures (reasoning/cached tokens) M2 omits.
+      const object = fault.settle(result.object as Promise<T>);
+      const usage = fault.settle(
+        result.usage.then(({ inputTokens, outputTokens, totalTokens }) => ({
+          inputTokens,
+          outputTokens,
+          totalTokens,
+        })),
+      );
+      void Promise.allSettled([object, usage]).then(() => deadline.dispose());
       return {
         partialStream: fault.surface(
-          pumpStream(result.partialObjectStream) as AsyncIterable<DeepPartial<T>>,
+          pumpStream(result.partialObjectStream, deadline.signal) as AsyncIterable<DeepPartial<T>>,
         ),
-        object: fault.settle(result.object as Promise<T>),
-        usage: fault.settle(
-          result.usage.then(({ inputTokens, outputTokens, totalTokens }) => ({
-            inputTokens,
-            outputTokens,
-            totalTokens,
-          })),
-        ),
+        object,
+        usage,
       };
     },
   };

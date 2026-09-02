@@ -59,6 +59,24 @@ test("an aborted provider wait exits the active build body and releases its leas
   expect(coordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
 });
 
+test("lease expiry aborts a hung provider and leaves later writes available", async () => {
+  const coordinator = createMutationCoordinator({ buildLeaseTtlMs: 20 });
+  const reservation = coordinator.reserveBuild();
+  const build = coordinator.withBuildLease(reservation, async (lease) => {
+    const result = abortableProvider(neverSettlingProvider(), lease.signal).generate(
+      "wait forever",
+      z.string(),
+    );
+    await result.object;
+  });
+
+  await expect(build).rejects.toBeInstanceOf(ProviderAbortedError);
+  expect(coordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
+  const recordLease = coordinator.tryAcquireRecordWrite();
+  expect(recordLease).toBeDefined();
+  expect(recordLease && coordinator.release(recordLease)).toBe(true);
+});
+
 test("abort also stops a usage wait after the provider object has resolved", async () => {
   const controller = new AbortController();
   const provider = neverSettlingProvider(Promise.resolve("ready"));

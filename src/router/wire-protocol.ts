@@ -1,3 +1,4 @@
+import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "../capability-data/index.ts";
 import { listInputModeForField, normalizeListInputValues } from "../list-input/index.ts";
 import { activeSpecFields, type CapabilitySpec, isListFieldType } from "../registry/index.ts";
 import type { CapabilityInput, CapabilityInputValue } from "./contract.ts";
@@ -192,9 +193,26 @@ function normalizeSearchValues(
     if (key !== "q") {
       throw new WireProtocolError(`Search input "${key}" is not accepted.`);
     }
-    values.q = normalizeScalarValue(key, repeated);
+    values.q = boundedSearchQuery(normalizeScalarValue(key, repeated));
   }
   return values;
+}
+
+function boundedSearchQuery(value: CapabilityInputValue): CapabilityInputValue {
+  if (typeof value !== "string") return value;
+  if (value.length > MAX_SEARCH_QUERY_LENGTH) {
+    throw new WireProtocolError(
+      `A search may be at most ${MAX_SEARCH_QUERY_LENGTH} characters; this one is ${value.length}.`,
+    );
+  }
+  // Counted the way the generated SQL splits it, so the bound is the bound on the work.
+  const terms = value.split(/\s+/).filter((term) => term.length > 0);
+  if (terms.length > MAX_SEARCH_TERMS) {
+    throw new WireProtocolError(
+      `A search may carry at most ${MAX_SEARCH_TERMS} terms; this one carries ${terms.length}.`,
+    );
+  }
+  return value;
 }
 
 function normalizeMutationValues(

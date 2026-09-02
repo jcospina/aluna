@@ -78,6 +78,25 @@ function isMutationAction(action: WireProtocolAction): action is MutationAction 
 }
 
 /**
+ * A capability's *own* declared validation refusal, delivered exactly as the platform's
+ * typed ones are: 422, retargeted into the form's error region, and swapped there.
+ *
+ * The Handler wrote the sentence and the fragment is passed through unchanged — the
+ * capability owns the copy, the platform owns the status and the placement. Without this
+ * the fragment was a bare 200 against a form declaring `hx-swap="none"`, so a declared
+ * refusal was swapped nowhere and read by the client as a committed write.
+ */
+export function declaredRefusal(
+  c: Context,
+  capabilityId: string,
+  action: MutationAction,
+  fragment: string,
+): Response {
+  retargetMutationError(c, capabilityId, action);
+  return c.html(fragment, 422);
+}
+
+/**
  * Product-voice failures (CONTEXT.md). The not-found copy is deliberately the same
  * for an unknown capability and an undeclared action — the user need not, and must
  * not, learn which internal check failed. Neither names an internal (no "handler",

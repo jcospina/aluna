@@ -18,6 +18,9 @@ export interface MutationLease {
   readonly leaseId: string;
   readonly kind: MutationLeaseKind;
   readonly acquiredAt: number;
+  readonly expiresAt: number | null;
+  /** Build ownership aborts if it outlives its bounded lease. */
+  readonly signal: AbortSignal;
 }
 
 export interface MutationCoordinatorSnapshot {
@@ -30,11 +33,13 @@ export interface MutationCoordinatorSnapshot {
     readonly leaseId: string;
     readonly kind: MutationLeaseKind;
     readonly acquiredAt: number;
+    readonly expiresAt: number | null;
   } | null;
 }
 
 export interface MutationCoordinatorOptions {
   readonly buildReservationTtlMs?: number;
+  readonly buildLeaseTtlMs?: number;
   readonly createId?: () => string;
   readonly now?: () => number;
 }
@@ -55,6 +60,10 @@ export class MutationReservationCancelledError extends MutationAdmissionError {
   override readonly name = "MutationReservationCancelledError";
 }
 
+export class MutationLeaseExpiredError extends MutationAdmissionError {
+  override readonly name = "MutationLeaseExpiredError";
+}
+
 export class MutationOwnershipError extends MutationAdmissionError {
   override readonly name = "MutationOwnershipError";
 }
@@ -63,7 +72,8 @@ interface QueueEntry {
   readonly ticketId: string;
   readonly kind: "build" | "platform";
   readonly reservation?: BuildReservation;
-  readonly expiresAt: number | null;
+  /** Cleared the moment an owner starts waiting; see {@link MutationCoordinator.acquireBuild}. */
+  expiresAt: number | null;
   readonly deferred: DeferredLease;
   acquireWaiting: boolean;
   expiryTimer?: ReturnType<typeof setTimeout>;
@@ -76,7 +86,29 @@ interface DeferredLease {
   readonly reject: (error: Error) => void;
 }
 
+/**
+ * How long a reservation may sit with *no owner waiting on it*.
+ *
+ * It bounds abandonment, not queueing. A ticket is reserved and then acquired a moment
+ * later on the same call path, so the only thing this window covers is a caller that
+ * reserved and then went away — and a build reservation blocks the head of the queue until
+ * its owner asks for the lease, so an abandoned one has to time out or nothing behind it
+ * ever runs.
+ *
+ * It deliberately does **not** bound how long a queued build waits for the lease. It used
+ * to: the clock started at `reserveBuild()` and kept running, so a second build queued
+ * behind a real one — which takes minutes — always died at 30 seconds with
+ * `MutationReservationExpiredError`, rendered to the person as "Hmm, that didn't work.
+ * Mind trying again?" after they had waited and paid for a resolver call. The documented
+ * bounded FIFO queue could not hold anyone at depth ≥ 2. What bounds a genuinely stuck
+ * queue is the holder's own whole-build lease expiry below.
+ */
 const DEFAULT_BUILD_RESERVATION_TTL_MS = 30_000;
+// A build may legally spend the five-minute provider budget across spec generation,
+// behavioral freezing, twelve sequential unit attempts, and bounded Gate repairs. The
+// whole-owner failsafe therefore sits well above that roughly two-hour maximum path; it is
+// independent of the short per-call deadline, not a competing normal build budget.
+export const DEFAULT_BUILD_LEASE_TTL_MS = 4 * 60 * 60_000;
 
 function deferredLease(): DeferredLease {
   let resolve!: (lease: MutationLease) => void;
@@ -95,7 +127,10 @@ function defaultId(): string {
 /** One process-local coordinator instance. Its state transitions are synchronous. */
 export class MutationCoordinator {
   private activeLease: MutationLease | undefined;
+  private activeLeaseController: AbortController | undefined;
+  private activeLeaseExpiryTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly buildReservationTtlMs: number;
+  private readonly buildLeaseTtlMs: number;
   private readonly createId: () => string;
   private readonly now: () => number;
   private readonly queue: QueueEntry[] = [];
@@ -103,6 +138,7 @@ export class MutationCoordinator {
 
   constructor(options: MutationCoordinatorOptions = {}) {
     this.buildReservationTtlMs = options.buildReservationTtlMs ?? DEFAULT_BUILD_RESERVATION_TTL_MS;
+    this.buildLeaseTtlMs = options.buildLeaseTtlMs ?? DEFAULT_BUILD_LEASE_TTL_MS;
     this.createId = options.createId ?? defaultId;
     this.now = options.now ?? Date.now;
   }
@@ -154,6 +190,12 @@ export class MutationCoordinator {
         ),
       );
     }
+    // From here the ticket has an owner waiting on it, so the abandonment clock stops —
+    // both the timer and the deadline `pruneExpiredReservations` reads. Waiting in the
+    // queue is what a queue is for.
+    if (entry.expiryTimer) clearTimeout(entry.expiryTimer);
+    entry.expiryTimer = undefined;
+    entry.expiresAt = null;
     this.attachAbort(entry, options.signal, () => this.cancelBuild(reservation));
     this.pump();
     return entry.deferred.promise;
@@ -222,7 +264,10 @@ export class MutationCoordinator {
   /** Release succeeds only for the exact active lease object. */
   release(lease: MutationLease): boolean {
     if (this.activeLease !== lease) return false;
+    if (this.activeLeaseExpiryTimer) clearTimeout(this.activeLeaseExpiryTimer);
     this.activeLease = undefined;
+    this.activeLeaseController = undefined;
+    this.activeLeaseExpiryTimer = undefined;
     this.pump();
     return true;
   }
@@ -239,6 +284,7 @@ export class MutationCoordinator {
             leaseId: this.activeLease.leaseId,
             kind: this.activeLease.kind,
             acquiredAt: this.activeLease.acquiredAt,
+            expiresAt: this.activeLease.expiresAt,
           }
         : null,
     };
@@ -269,9 +315,7 @@ export class MutationCoordinator {
   private tryAcquireShort(kind: "record" | "deletion"): MutationLease | undefined {
     this.pruneExpiredReservations();
     if (this.activeLease || this.queue.length > 0) return undefined;
-    const lease = this.makeLease(kind);
-    this.activeLease = lease;
-    return lease;
+    return this.activateLease(kind);
   }
 
   private pump(): void {
@@ -287,8 +331,7 @@ export class MutationCoordinator {
     this.queue.shift();
     this.finishQueuedEntry(next);
     if (next.reservation) this.reservations.delete(next.reservation);
-    const lease = this.makeLease(next.kind);
-    this.activeLease = lease;
+    const lease = this.activateLease(next.kind);
     next.deferred.resolve(lease);
   }
 
@@ -343,12 +386,37 @@ export class MutationCoordinator {
     entry.removeAbortListener?.();
   }
 
-  private makeLease(kind: MutationLeaseKind): MutationLease {
-    return Object.freeze({
+  private activateLease(kind: MutationLeaseKind): MutationLease {
+    const acquiredAt = this.now();
+    const controller = new AbortController();
+    const expiresAt = kind === "build" ? acquiredAt + this.buildLeaseTtlMs : null;
+    const lease = Object.freeze({
       leaseId: `${kind}-lease-${this.createId()}`,
       kind,
-      acquiredAt: this.now(),
+      acquiredAt,
+      expiresAt,
+      signal: controller.signal,
     });
+    this.activeLease = lease;
+    this.activeLeaseController = controller;
+    if (expiresAt !== null) {
+      this.activeLeaseExpiryTimer = setTimeout(
+        () => this.expireActiveLease(lease),
+        this.buildLeaseTtlMs,
+      );
+    }
+    return lease;
+  }
+
+  private expireActiveLease(lease: MutationLease): void {
+    if (this.activeLease !== lease) return;
+    const controller = this.activeLeaseController;
+    this.activeLeaseExpiryTimer = undefined;
+    controller?.abort(
+      new MutationLeaseExpiredError(
+        `${lease.kind} mutation lease ${lease.leaseId} expired before its owner released it.`,
+      ),
+    );
   }
 }
 

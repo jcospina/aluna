@@ -74,12 +74,25 @@ export const DRAG_ENDINGS = ["pointerup", "pointercancel", "lostpointercapture"]
  */
 export function trackPointer(handle, event, onMove, onEnd) {
   handle.setPointerCapture(event.pointerId);
-  const finish = () => {
-    handle.removeEventListener("pointermove", onMove);
-    for (const ending of DRAG_ENDINGS) handle.removeEventListener(ending, finish);
+  /* One gesture, one pointer. A device that reports both touch and mouse — a laptop with
+   * a touchscreen, a stylus resting on a trackpad — delivers two `pointerdown`s with
+   * different ids, and every listener here answered both: two drags over one box, each
+   * writing the box the other had just written, and the window jumping between them.
+   * Everything below answers only the pointer that started this gesture. */
+  const own = (/** @type {{ pointerId?: number } | undefined} */ move) =>
+    move?.pointerId === undefined || move.pointerId === event.pointerId;
+  /** @param {PointerEvent} move */
+  const track = (move) => {
+    if (own(move)) onMove(move);
+  };
+  /** @param {PointerEvent} ending */
+  const finish = (ending) => {
+    if (!own(ending)) return;
+    handle.removeEventListener("pointermove", track);
+    for (const name of DRAG_ENDINGS) handle.removeEventListener(name, finish);
     onEnd?.();
   };
-  handle.addEventListener("pointermove", onMove);
+  handle.addEventListener("pointermove", track);
   for (const ending of DRAG_ENDINGS) handle.addEventListener(ending, finish);
 }
 
@@ -99,7 +112,6 @@ export function addWindowDrag(bar, host) {
     if (host.standDown?.()) return;
 
     const { box } = host;
-    const bounds = host.bounds();
     const grabX = event.clientX - box.x;
     const grabY = event.clientY - box.y;
     host.el.classList.add("is-dragging");
@@ -111,7 +123,11 @@ export function addWindowDrag(bar, host) {
       (move) => {
         box.x = move.clientX - grabX;
         box.y = move.clientY - grabY;
-        clampPosition(bounds, box);
+        // Asked again per move rather than once at pointer-down. A viewport that changes
+        // mid-gesture — a soft keyboard, a rotation, devtools opening — left the drag
+        // clamping against a screen that no longer exists, and the window could be parked
+        // inside the prompt bar's clearance until something else forced a refit.
+        clampPosition(host.bounds(), box);
         placeWindow(host.el, box);
       },
       () => {
@@ -138,16 +154,20 @@ export function addWindowGrip(host) {
   host.el.append(grip);
 
   grip.addEventListener("pointerdown", (event) => {
+    /* The grip is inside the window, so the press that starts a resize also reaches the
+     * window's own raise listener — and stopping it there stopped the raise too, leaving
+     * the one window you are actively resizing behind the one you are not. `onStart` is the
+     * raise; it is called before the stand-down check for the same reason the drag calls
+     * it: touching a window brings it forward whether or not the gesture goes anywhere. */
     event.stopPropagation();
+    host.onStart?.();
     if (host.standDown?.()) return;
 
     const { box } = host;
-    const bounds = host.bounds();
     const fromX = event.clientX;
     const fromY = event.clientY;
     const fromW = box.w;
     const fromH = box.h;
-    host.onStart?.();
 
     trackPointer(
       grip,
@@ -155,7 +175,9 @@ export function addWindowGrip(host) {
       (move) => {
         box.w = fromW + (move.clientX - fromX);
         box.h = fromH + (move.clientY - fromY);
-        clampSize(bounds, box);
+        // Per move, for the reason the drag's clamp is: the bounds are a fact about the
+        // screen right now, not about the screen the gesture started on.
+        clampSize(host.bounds(), box);
         placeWindow(host.el, box);
       },
       () => host.onEnd?.(),

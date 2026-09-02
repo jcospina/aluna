@@ -14,6 +14,13 @@
   // every project, so a hand-written one beside the source silently becomes what the
   // module's own browser callers are checked against. Emitting here keeps the check
   // and the published types the same compile — they cannot skew.
+  //
+  // `bun run typecheck` clears `.types/` before this runs, and that is load-bearing rather
+  // than tidiness: `tsc` writes declarations and never prunes them, so a deleted browser
+  // module left its `.d.ts` behind on every machine that had type-checked before the
+  // deletion. A bare side-effect import of a module that no longer exists then type-checked
+  // clean against that leftover and crashed at runtime — the one failure this mirror
+  // directory exists to prevent, arriving through the mirror itself.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],

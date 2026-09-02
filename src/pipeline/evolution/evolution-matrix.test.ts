@@ -104,9 +104,10 @@ describe("every change-fact matrix row, end to end", () => {
       // — evolution is additive, so no row here may cost the user data.
       expect(getCapability("notes", env.conns.readonly)?.version).toBe(2);
       // No matrix row moves a birth fact, the seed that drew the artwork, or the
-      // logo's own state: evolution never reads or writes the logo.
-      const { subject, ground, seed, logo } = born;
-      expect(committedRow()).toMatchObject({ subject, ground, seed, logo });
+      // logo's own state: evolution never reads or writes the logo. `companion` is one of
+      // the birth facts and was the one this claimed and never read.
+      const { subject, ground, companion, seed, logo } = born;
+      expect(committedRow()).toMatchObject({ subject, ground, companion, seed, logo });
       expect(tableColumns(env, "cap_notes")).toContain("pinned");
       expect(
         env.conns.readonly.query('SELECT "text" FROM "cap_notes" WHERE "id" = ?').get("note-1"),

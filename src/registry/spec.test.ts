@@ -25,6 +25,7 @@ import {
   LIST_INPUT_MODES,
   PLATFORM_COLUMNS,
 } from "./spec.ts";
+import { MAX_SQL_NAME_LENGTH } from "./spec-text.ts";
 
 /** One well-formed field of any pantry type; a choice arrives carrying its options. */
 function pantryField(type: CapabilitySpec["schema"]["fields"][number]["type"], required: boolean) {
@@ -203,6 +204,32 @@ describe("capability spec shape — rejected types & relations", () => {
 });
 
 describe("capability spec shape — rejected & reserved field names", () => {
+  // The pattern said what characters an id may use and nothing about how many. SQLite takes
+  // an identifier of any length, so an enormous id produced valid DDL and then a
+  // `capabilities/<id>/…` path whose first component is past every filesystem's limit — the
+  // two validators disagreeing about what an id is, discovered at publication.
+  test("rejects an id or a field name longer than a path component may be", () => {
+    const longest = `a${"b".repeat(MAX_SQL_NAME_LENGTH - 1)}`;
+    expect(capabilitySpecSchema.safeParse(validSpec({ id: longest })).success).toBe(true);
+    expect(capabilitySpecSchema.safeParse(validSpec({ id: `${longest}c` })).success).toBe(false);
+
+    const overlong = `${longest}c`;
+    const spec = validSpec({
+      schema: {
+        fields: [
+          { name: overlong, label: "Long", type: "string", required: true, lifecycle: "active" },
+        ],
+      },
+      ui_intent: {
+        form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
+        item: { direction: "A length probe.", shows: [overlong] },
+        collection: { layout: "feed" },
+      },
+      behavioral_errors: [],
+    });
+    expect(capabilitySpecSchema.safeParse(spec).success).toBe(false);
+  });
+
   test("rejects platform-owned column names as spec fields", () => {
     for (const name of PLATFORM_COLUMNS) {
       const spec = validSpec({

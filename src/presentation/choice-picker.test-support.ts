@@ -558,6 +558,12 @@ export class Doc extends El {
           doc.resizes.push({ target, run: this.run });
           this.run();
         }
+        /** The half a watcher that is never released would never call. */
+        disconnect(): void {
+          for (let index = doc.resizes.length - 1; index >= 0; index -= 1) {
+            if (doc.resizes[index]?.run === this.run) doc.resizes.splice(index, 1);
+          }
+        }
       },
       getComputedStyle: (node: El) => ({ ...node.computed, filter: "none" }),
       addEventListener: (type: string, run: Listener) => {

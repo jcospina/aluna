@@ -12,6 +12,28 @@ import { AUDITED_SHEETS } from "./contrast-audit.js";
  * just do. Both halves are declared in CSS, so both are checked there — and so is
  * the thing that made the shipped ring wrong in the first place, which was not a
  * selector at all but a second file restating the global two pixels thinner.
+ *
+ * **What this file proves, and what it cannot.** Every rule here is read out of the
+ * shipped stylesheets: which selectors paint a ring, that no second file overrides
+ * one, that nothing draws a ring as a shadow instead, and that only the named
+ * text-input shells ask for a bare `:focus`. That is what catches the regressions
+ * this ring has actually had. What it is *not* is the browser: the cascade, and
+ * `:focus-visible`'s own modality heuristic, are the user agent's, and there is no
+ * DOM environment in this repo to run them in. Adding one is a dependency decision
+ * this file may not take on its own.
+ *
+ * So the behavioural half is a **stated procedure**, run against the live desk, and
+ * repeatable by anyone in a minute:
+ *
+ *   1. Click into the prompt field. `.prompt__composer` computes
+ *      `outline: 3px solid var(--focus-ring)` at offset `3px`, and the field itself
+ *      computes `outline-style: none` — the shell carries the ring.
+ *   2. Click a logo. It is `document.activeElement`, `:focus` matches,
+ *      `:focus-visible` does not, and it computes `outline-style: none`.
+ *   3. Press Tab. The next control — a window lamp — matches `:focus-visible` and
+ *      computes `outline: 3px solid` at offset `0`.
+ *
+ * Confirmed on 2026-09-02 against the running dev server, exactly as written.
  */
 
 const RING = "3px solid var(--focus-ring)";

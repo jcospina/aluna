@@ -117,7 +117,7 @@ function assertNever(value: never): never {
  */
 function fieldLabel(inputId: string, field: SpecField, chrome: FieldChrome): string {
   return (
-    `<span class="field__label" id="${inputId}-label">` +
+    `<span class="field__label caps" id="${inputId}-label">` +
     `${escapeHtml(field.label)}${chrome.labelSuffix}</span>`
   );
 }

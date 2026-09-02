@@ -26,11 +26,8 @@
 import type { Context, Hono } from "hono";
 
 import {
+  assertSubmittedFieldValues,
   ChoiceDisabledError,
-  createCapabilityDeleteMutationPort,
-  createCapabilityMutationPort,
-  createCapabilityQueryPort,
-  createCapabilityUpdateMutationPort,
   InvalidChoiceError,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
@@ -42,19 +39,14 @@ import {
 } from "../mutation-coordinator/index.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../persistence/db.ts";
 import {
-  createPresentationAdapter,
-  type PresentationAdapter,
-  type RenderableCapability,
-} from "../presentation/index.ts";
-import {
   createReadGateCoordinator,
   ReadGateClosingError,
   type ReadGateCoordinator,
 } from "../read-gates/index.ts";
 import {
+  activeSpecFields,
   type CapabilityRow,
   type CapabilitySpec,
-  canonicalCapabilityLabel,
   capabilitySpecFromRow,
   readActiveRegistryCatalog,
 } from "../registry/index.ts";
@@ -63,12 +55,6 @@ import {
   renderCachedCapabilitySurface,
   renderRehydratedShellPage,
 } from "../web/index.ts";
-import type {
-  CapabilityCreateHandler,
-  CapabilityDeleteHandler,
-  CapabilityReadHandler,
-  CapabilityUpdateHandler,
-} from "./contract.ts";
 import {
   CapabilityReadAbandonedError,
   DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS,
@@ -100,6 +86,8 @@ import {
   recordNotFoundFailure,
   WIRE_PROTOCOL_ERROR_FRAGMENT,
 } from "./failure-responses.ts";
+import { invokeCapabilityHandler } from "./handler-invocation.ts";
+import { answerWithHandlerFragment } from "./handler-response.ts";
 import {
   type ActiveCatalogReader,
   type CapturedCapabilityRead,
@@ -323,6 +311,33 @@ async function handleCapabilityRequest(
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
 
+  // The whole request body is read here — before a read token, before the write lease, and
+  // before `BEGIN IMMEDIATE`. It used to be read from inside the handler scope, which meant
+  // a client that opened a POST and dribbled its body held the record-write lease, an open
+  // immediate transaction and a read token for as long as it cared to: every record write on
+  // every capability refused, every build queued, and the capability undeletable, because the
+  // drain waits for a reader that is waiting for a socket. Nothing is held while this awaits.
+  const spec = capabilitySpecFromRow(row);
+  let parsedRequest: ParsedCapabilityRequest;
+  try {
+    parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
+    // The two structural refusals the platform owns the answer to — an undeclared choice
+    // value and an over-long string — are settled here, before any generated code loads.
+    // They used to be reachable only through the mutation port, so a Handler that caught
+    // one could have answered 200 where the platform authored a 422; three documents said
+    // this ran before the Handler and none of it did.
+    if (action === "create" || action === "update") {
+      assertSubmittedFieldValues(
+        row.id,
+        activeSpecFields(spec.schema.fields),
+        parsedRequest.input.values,
+        action,
+      );
+    }
+  } catch (error) {
+    return capabilityHandlerFailure(c, row.id, action, error);
+  }
+
   const tokens = readGates.tryAcquire({
     catalog: catalog.map(capabilityIncarnation),
     incarnations: captured.incarnations,
@@ -338,9 +353,12 @@ async function handleCapabilityRequest(
         loadItemRenderer,
         mutationCoordinator,
         row,
+        spec,
+        parsedRequest,
         dependencies,
         action,
         tokens.signal,
+        () => readGates.release(tokens),
         handlerTimeoutMs,
       );
     }
@@ -353,6 +371,8 @@ async function handleCapabilityRequest(
       loadHandler,
       loadItemRenderer,
       row,
+      spec,
+      parsedRequest,
       dependencies,
       action,
       tokens.signal,
@@ -371,9 +391,12 @@ async function handleRecordMutation(
   loadItemRenderer: ItemRendererLoader,
   mutationCoordinator: MutationCoordinator,
   row: CapabilityRow,
+  spec: CapabilitySpec,
+  parsedRequest: ParsedCapabilityRequest,
   dependencies: readonly CapabilityRow[],
   action: MutationAction,
   signal: AbortSignal,
+  releaseOwnership: () => void,
   handlerTimeoutMs: number,
 ): Promise<Response> {
   const mutationLease = mutationCoordinator.tryAcquireRecordWrite();
@@ -389,6 +412,8 @@ async function handleRecordMutation(
       loadHandler,
       loadItemRenderer,
       row,
+      spec,
+      parsedRequest,
       dependencies,
       action,
       signal,
@@ -402,6 +427,13 @@ async function handleRecordMutation(
     if (transactionOpen) databases.readwrite.exec("ROLLBACK");
     throw error;
   } finally {
+    // Ownership first, then the lease — and in that order for a reason. A Handler the
+    // deadline abandoned is still running, and its mutation port only refuses once this
+    // route's read ownership is revoked. Handing the lease back first opened a window in
+    // which the next request's `BEGIN IMMEDIATE` was live and the abandoned write, seeing
+    // `database.inTransaction`, joined *that* transaction instead of being refused. The
+    // outer scope releases the same tokens again; release is by identity and idempotent.
+    releaseOwnership();
     mutationCoordinator.release(mutationLease);
   }
 }
@@ -412,6 +444,8 @@ async function executeCapabilityHandler(
   loadHandler: HandlerLoader,
   loadItemRenderer: ItemRendererLoader,
   row: CapabilityRow,
+  spec: CapabilitySpec,
+  parsedRequest: ParsedCapabilityRequest,
   dependencies: readonly CapabilityRow[],
   action: WireProtocolAction,
   signal: AbortSignal,
@@ -420,12 +454,9 @@ async function executeCapabilityHandler(
 ): Promise<Response> {
   const { id } = row;
   // Everything past validation is the build-and-run path: a throw anywhere in it —
-  // input parsing, handler loading, handler execution, or a contract violation —
-  // becomes one warm, internals-free failure.
+  // handler loading, handler execution, or a contract violation — becomes one warm,
+  // internals-free failure. The request itself was already parsed, before anything was held.
   try {
-    assertReadOwnership(signal);
-    const spec = capabilitySpecFromRow(row);
-    const parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
     assertReadOwnership(signal);
     // Bounded: a Handler that never settles must not pin this route's read tokens,
     // because that would make the capability permanently undeletable.
@@ -451,7 +482,7 @@ async function executeCapabilityHandler(
         `Handler ${id}/${action} returned ${typeof fragment}; the contract requires an HTML string.`,
       );
     }
-    return c.html(fragment);
+    return answerWithHandlerFragment(c, id, spec, action, fragment);
   } catch (error) {
     return capabilityHandlerFailure(c, id, action, error);
   }
@@ -499,97 +530,6 @@ function capabilityHandlerFailure(
   return internalFailure(c, id, action, error);
 }
 
-async function invokeCapabilityHandler(
-  databases: PlatformDatabase,
-  loadHandler: HandlerLoader,
-  loadItemRenderer: ItemRendererLoader,
-  row: CapabilityRow,
-  spec: CapabilitySpec,
-  dependencies: readonly CapabilityRow[],
-  action: WireProtocolAction,
-  parsedRequest: ParsedCapabilityRequest,
-  signal: AbortSignal,
-): Promise<string> {
-  const { input } = parsedRequest;
-  const query = createCapabilityQueryPort(databases.readonly, {
-    target: spec,
-    dependencies: dependencies.map(capabilitySpecFromRow),
-    signal,
-  });
-
-  if (action === "create") {
-    assertReadOwnership(signal);
-    const mutation = createCapabilityMutationPort(spec, databases.readwrite, signal);
-    const present = await buildPresentationAdapter(row, loadItemRenderer);
-    assertReadOwnership(signal);
-    const handler = await loadHandler(row.artifacts_path, action);
-    assertReadOwnership(signal);
-    const fragment = await (handler as CapabilityCreateHandler)({
-      input,
-      mutation,
-      query,
-      present,
-    });
-    assertReadOwnership(signal);
-    return fragment;
-  }
-  if (action === "update") {
-    assertReadOwnership(signal);
-    const mutation = createCapabilityUpdateMutationPort(
-      spec,
-      requireRecordTarget(parsedRequest.recordTarget, action),
-      new Set(input.submittedFields),
-      databases.readwrite,
-      signal,
-    );
-    const present = await buildPresentationAdapter(row, loadItemRenderer);
-    assertReadOwnership(signal);
-    const handler = await loadHandler(row.artifacts_path, action);
-    assertReadOwnership(signal);
-    const fragment = await (handler as CapabilityUpdateHandler)({
-      input,
-      mutation,
-      query,
-      present,
-    });
-    assertReadOwnership(signal);
-    return fragment;
-  }
-  if (action === "delete") {
-    assertReadOwnership(signal);
-    const mutation = createCapabilityDeleteMutationPort(
-      spec,
-      requireRecordTarget(parsedRequest.recordTarget, action),
-      databases.readwrite,
-      signal,
-    );
-    const handler = await loadHandler(row.artifacts_path, action);
-    assertReadOwnership(signal);
-    const fragment = await (handler as CapabilityDeleteHandler)({ input, mutation, query });
-    assertReadOwnership(signal);
-    return fragment;
-  }
-
-  assertReadOwnership(signal);
-  const present = await buildPresentationAdapter(row, loadItemRenderer);
-  assertReadOwnership(signal);
-  const handler = await loadHandler(row.artifacts_path, action);
-  assertReadOwnership(signal);
-  const fragment = await (handler as CapabilityReadHandler)({ input, query, present });
-  assertReadOwnership(signal);
-  return fragment;
-}
-
-function requireRecordTarget(
-  recordTarget: string | undefined,
-  action: "update" | "delete",
-): string {
-  if (recordTarget === undefined) {
-    throw new WireProtocolError(`${action} requires a validated record target.`);
-  }
-  return recordTarget;
-}
-
 // Whether the action is one the capability actually declares it can do. `tools` is
 // the validated allow-list (registry spec); a request for anything outside it is
 // refused the same as a request for a capability that doesn't exist.
@@ -616,39 +556,4 @@ function routableTarget(
   // one contract, so reject a miss or wrong pair before any registry/code access.
   if (!id || !action || !hasExpectedMethod(action, c.req.method)) return undefined;
   return { id, action };
-}
-
-// Build the capability's presentation adapter for the injected toolbox:
-// load its item renderer, then bind it with the capability so `present` turns one record
-// into safe wrapped item HTML. `present` stays synchronous (record → string) because the
-// renderer is resolved here, once, before the handler runs.
-//
-// The M3 artifact shape is mandatory: every committed capability has one item renderer
-// beside its handlers. A missing or malformed renderer fails the request through the
-// router's normal product-voice error boundary; there is no M2 compatibility adapter or
-// dual-serving path.
-async function buildPresentationAdapter(
-  row: CapabilityRow,
-  loadItemRenderer: ItemRendererLoader,
-): Promise<PresentationAdapter> {
-  const renderItem = await loadItemRenderer(row.artifacts_path);
-  return createPresentationAdapter({ capability: renderableFromRow(row), renderItem });
-}
-
-// The slice of a row the presentation adapter needs: the id (namespaces the record-view
-// templates), the user-facing label (what back goes back to), and the fields (the form).
-//
-// The label is the effective one — what the user renamed this to, or what the model
-// authored. The place a person goes back to should be called what it is called on the
-// desk, and the same canonical reading serves the collection (`src/web/cached-view.ts`).
-function renderableFromRow(row: CapabilityRow): RenderableCapability {
-  return {
-    id: row.id,
-    label: canonicalCapabilityLabel(row),
-    noun: row.noun,
-    schema: row.schema,
-    form: row.ui_intent.form,
-    actions: row.tools,
-    item: row.ui_intent.item,
-  };
 }

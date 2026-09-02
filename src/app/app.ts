@@ -21,6 +21,7 @@ import {
   type CapabilityDestructionFaults,
   createDeletionCleanupSupervisor,
   createProductionCapabilityDeletionAdapters,
+  DELETION_RECHECK_PARAM,
   type DeletionCleanupSupervisor,
   handleCapabilityDeletionConfirmation,
   type OwnedResourceCleanupAdapter,
@@ -54,7 +55,10 @@ import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../router/i
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "../sse/index.ts";
 import {
   BLANK_PROMPT_NOTICE,
+  developerSurfacesEnabled,
   hasMeaningfulPromptContent,
+  LONG_PROMPT_NOTICE,
+  MAX_PROMPT_LENGTH,
   readPromptSubmission,
   renderBuildSubscriber,
   renderCachedCapabilitySurface,
@@ -63,19 +67,6 @@ import {
 } from "../web/index.ts";
 import { registerRegionLifecyclePreviewRoutes } from "./region-lifecycle-preview.ts";
 import { registerSwapTargetPreviewRoutes } from "./swap-target-preview.ts";
-
-/**
- * Whether the developer-only `/demo/*` surfaces are registered. See {@link createApp}
- * for why this is one check rather than per-route configuration.
- *
- * Read per `createApp` call, not once at import: a module-level constant would be
- * frozen before any test could set `NODE_ENV`, leaving the guard permanently unprovable
- * and free to be deleted under a green suite. `bun run build` defines NODE_ENV as
- * "production", so this still folds to `false` in the bundle.
- */
-function demoSurfacesEnabled(): boolean {
-  return process.env.NODE_ENV !== "production";
-}
 
 /**
  * Dependencies the app is built with. Everything is injected (defaulting to the real
@@ -228,6 +219,61 @@ function resolveReadGates(deps: AppDeps): ReadGateCoordinator {
 }
 
 /**
+ * The response headers every app page and fragment carries.
+ *
+ * The desk had none. The logo route sets its own strict policy because it hands out bytes
+ * the platform did not author; the pages that *run* the product carried nothing at all, so
+ * a script that reached the DOM by any route had the whole origin, and the desk was
+ * framable by anyone.
+ *
+ * The policy is as tight as the shipped surface allows:
+ *   - `script-src 'self' 'unsafe-eval'` — every script is a `<script src>` from this origin,
+ *     so injected inline script is refused. `'unsafe-eval'` is Alpine's: the vendored build
+ *     compiles `x-data`/`x-text` expressions with `new Function`. Dropping it means dropping
+ *     Alpine, which is a bigger change than this fix; what matters here is that
+ *     `'unsafe-inline'` is *not* granted, which is what makes an injected `<script>` inert.
+ *   - `style-src 'self' 'unsafe-inline'` — the design contract's escape hatch is the inline
+ *     `style` attribute, sanitized to token discipline rather than forbidden.
+ *   - `img-src`/`media-src 'self' data:` — a capability's picture is served from this origin
+ *     and an inline `data:image/*` is a legitimate record value. A remote host is not, which
+ *     is the browser-side half of the exfiltration ban in `presentation/vocabulary.ts`.
+ *   - `frame-ancestors 'none'` with `X-Frame-Options` beside it for browsers that predate it.
+ *   - `base-uri 'none'` so injected markup cannot re-root every relative URL on the page.
+ */
+const APP_SECURITY_HEADERS: Readonly<Record<string, string>> = {
+  "content-security-policy": [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "media-src 'self' data:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "form-action 'self'",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+  ].join("; "),
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+  "referrer-policy": "no-referrer",
+};
+
+/**
+ * Apply them to everything, without overwriting a route that states its own. The logo
+ * route's `default-src 'none'; … ; sandbox` is stricter than this and must survive.
+ */
+function registerSecurityHeaders(app: Hono): void {
+  app.use("*", async (c, next) => {
+    await next();
+    for (const [name, value] of Object.entries(APP_SECURITY_HEADERS)) {
+      if (!c.res.headers.has(name)) c.res.headers.set(name, value);
+    }
+  });
+}
+
+/**
  * The fixed shell at `/` — rendered from the registry alone, so the provider is
  * never called on page load. The logo lifecycle is reconciled against the artifact tree
  * one step before the markup, which is also provider-free: it moves rows, never draws.
@@ -305,6 +351,25 @@ function registerCapabilityPageRecovery(app: Hono, recoverLogos: () => Promise<v
  * — every transition is conditional, so joining is as correct as repeating and costs a
  * fraction of it.
  */
+/**
+ * Everything a desk load discharges before the tiles are drawn.
+ *
+ * The logo sweep is the half that has always been here. The other is the deletion-cleanup
+ * supervisor's bounded backoff, which deliberately gives up after its last rung — and a
+ * tombstone left standing reserves its capability id, so until it is discharged that
+ * capability can be neither used nor rebuilt. Nothing a person could do reached that state;
+ * only a process restart did. Now a desk load does, which makes refreshing the page the
+ * recovery gesture. It costs nothing when nothing is owed: the supervisor schedules only
+ * when a tombstone is actually outstanding, and never a second pass while one is running.
+ */
+function createDeskLoadRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
+  const recoverLogos = createPlatformLogoRecovery(ctx);
+  return () => {
+    ctx.deletionCleanup.forceRetry();
+    return recoverLogos();
+  };
+}
+
 function createPlatformLogoRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
   let running: Promise<void> | null = null;
   const pass = async (): Promise<void> => {
@@ -335,12 +400,20 @@ function createPlatformLogoRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
  * The deterministic preview surfaces — no provider and no db. A demo is scaffolding: once
  * the behavior it showed is built and covered by tests, it comes down. The gallery stays
  * because it is the only place the *injected* item-renderer prompt section can be read;
- * production shows the generated output, never the input. The window now exercises the
- * same release rule on a real capability — putting it away releases what its content
- * started — but a real read answers too fast for that release to be watched, so both
- * remaining previews keep showing what production cannot: the loud swap target forces
- * each page-assembly anchor, and the region-lifecycle preview slows the read down. They
- * come down with the surfaces that replace them (5.7 and 5.8).
+ * production shows the generated output, never the input.
+ *
+ * The other two stay for a reason that outlived the epics they were written against. This
+ * said they "come down with the surfaces that replace them (5.7 and 5.8)"; both landed and
+ * both previews are still here, because what they show is not a surface that was replaced —
+ * it is a *timing* production does not have. The window really does exercise the release
+ * rule on a real capability, and a real read answers too fast for the release to be
+ * watched; the loud swap target forces each page-assembly anchor, which nothing else does
+ * on purpose anywhere. They are HITL instruments, and they come down when there is another
+ * way to watch those two things happen — not on an epic number.
+ *
+ * They are also entangled with the contrast audit: `contrast-audit.ts` inventories their
+ * pairings and `contrast-pairings-preview.ts` measures them, so removing either means
+ * re-homing those rows rather than deleting them.
  */
 function registerPreviewDemoRoutes(app: Hono): void {
   // Dev preview for the few-shot design gallery + item-renderer prompt injection
@@ -389,6 +462,15 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
     // subscriber fragment means no stream opens, so the prompt bar stays live.
     if (!hasMeaningfulPromptContent(submission.prompt)) {
       return c.html(renderPromptNotice(BLANK_PROMPT_NOTICE, "refusal"), 200, {
+        "cache-control": "no-store",
+      });
+    }
+
+    // The other end of the same admission. Nothing bounded the length of a prompt, so a
+    // body within the server's cap still reached the resolver and was paid for. Answered
+    // the same way and for the same reason: on the bar, with no stream opened.
+    if (submission.prompt.length > MAX_PROMPT_LENGTH) {
+      return c.html(renderPromptNotice(LONG_PROMPT_NOTICE, "refusal"), 200, {
         "cache-control": "no-store",
       });
     }
@@ -464,8 +546,19 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
     const target = getCapability(capabilityId, ctx.registryReadonly);
     // Even a target that has gone in the meantime owes back the capability the doorway
     // displaced; a deletion may never close a capability it was not about.
+    //
+    // *Why* it is gone decides what is true to say about it. An ordinary press on a tile a
+    // second tab already deleted removed nothing, and says so. The client's recovery for a
+    // Confirm whose reply never arrived marks itself, because there the same sentence would
+    // tell somebody their destructive action did nothing when it may have done everything.
     if (!target) {
-      return alreadyGoneResponse(c, capabilityId, restoration, ctx.registryReadonly);
+      return alreadyGoneResponse(
+        c,
+        capabilityId,
+        restoration,
+        ctx.registryReadonly,
+        query.get(DELETION_RECHECK_PARAM) === "1" ? "after-confirm" : "never-asked",
+      );
     }
     const dependents = listCapabilityDependents(target, ctx.registryReadonly);
     return c.html(
@@ -515,9 +608,11 @@ export function createApp(deps: AppDeps = {}): Hono {
     return c.text("Internal Server Error", 500, { "cache-control": "no-store" });
   });
 
-  const recoverLogos = createPlatformLogoRecovery(ctx);
-  registerShellRoute(app, ctx, recoverLogos);
-  registerCapabilityPageRecovery(app, recoverLogos);
+  registerSecurityHeaders(app);
+
+  const recoverOnDeskLoad = createDeskLoadRecovery(ctx);
+  registerShellRoute(app, ctx, recoverOnDeskLoad);
+  registerCapabilityPageRecovery(app, recoverOnDeskLoad);
   registerBuildJobRoutes(app, ctx);
   registerCapabilityDeletionRoutes(app, ctx);
   registerCapabilityRenameRoutes(app, ctx);
@@ -536,7 +631,7 @@ export function createApp(deps: AppDeps = {}): Hono {
     logoClaimObservationMs: ctx.logoClaimObservationMs,
   });
 
-  if (demoSurfacesEnabled()) {
+  if (developerSurfacesEnabled()) {
     registerPreviewDemoRoutes(app);
   }
 

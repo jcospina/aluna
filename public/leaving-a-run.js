@@ -42,7 +42,30 @@
  * of this run in Bun without a browser.
  */
 
+import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
 import { releaseRegionContent } from "./region-scope.js";
+
+/**
+ * What the desk says when a confirmed leave could not be carried out.
+ *
+ * The one path that reaches it is a run whose story cannot be detached — no htmx yet, a
+ * subscriber already off the page. Nothing was cancelled and nothing moved, so the
+ * sentence says exactly that and asks for the one thing that would clear it.
+ */
+export const LEAVING_A_RUN_UNAVAILABLE =
+  "I couldn’t stop that just yet. It’s still going — give it a moment and try again.";
+
+/**
+ * The prompt bar's standing slot, reached the way every other desk module reaches it —
+ * and injectable, the way every other effect in this module is, so the rule can be
+ * exercised in Bun without a document.
+ * @param {string} sentence
+ */
+function tellThePromptBar(sentence) {
+  globalThis.document?.dispatchEvent(
+    new CustomEvent(PROMPT_BAR_MESSAGE_EVENT, { detail: { sentence, refused: true } }),
+  );
+}
 
 /** One run's subscriber — the node the run's id is written on. */
 const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
@@ -393,7 +416,12 @@ export function backOutOfLeaving() {
  * happens — with nothing of the run's own left to arrive in between.
  *
  * @param {{ activeElement?: unknown, body?: unknown, getElementById?: (id: string) => Answerable | null }} root
- * @param {{ api?: Htmx | undefined, post?: (url: string) => void, release?: (run: never) => void }} [how]
+ * @param {{
+ *   api?: Htmx | undefined,
+ *   post?: (url: string) => void,
+ *   release?: (run: never) => void,
+ *   say?: (sentence: string) => void,
+ * }} [how]
  * @returns {boolean} whether there was a question to answer
  */
 export function goAheadAndLeave(root, how) {
@@ -404,8 +432,19 @@ export function goAheadAndLeave(root, how) {
    * — no htmx yet, a subscriber already off the page — leaves the run standing with its
    * job id intact, and continuing would re-enter the question with the same continuation:
    * one more cancel posted and one more question asked, for as long as the person kept
-   * saying yes. */
-  if (!endRunIn(held.el, how)) return false;
+   * saying yes.
+   *
+   * So the answer is refused, and refusing it has to leave the desk in a state a person
+   * can act on. Clearing `asking` and returning was not that: the question stayed on
+   * screen with nothing behind it, so **Keep making it** and **Stop and leave** both did
+   * nothing, and the navigation the person confirmed neither happened nor was reported.
+   * The question comes down — there is nothing being asked any more — the run is left
+   * exactly as it was, and the desk says so. */
+  if (!endRunIn(held.el, how)) {
+    setQuestion(held.run, false);
+    (how?.say ?? tellThePromptBar)(LEAVING_A_RUN_UNAVAILABLE);
+    return false;
+  }
   held.go();
   settleFocus(root);
   return true;

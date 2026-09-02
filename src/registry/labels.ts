@@ -7,10 +7,25 @@ export const MAX_CAPABILITY_LABEL_CHARS = 48;
 const MAX_CAPABILITY_LABEL_WORDS = 5;
 const PRODUCT_VOICE_LABEL_START = /^(?:got it|i.?ll|i will|i.?m|we.?ll|we will|let.?s)\b/i;
 
+/**
+ * The two characters a name has no use for and a tag cannot do without.
+ *
+ * Every sink escapes this label, so this is not what makes it safe — the escaping is, and
+ * it stays. What this refuses is a *name* that is not one: `<img src=x onerror=alert(1)>`
+ * is three words, twenty-eight characters and carries no sentence punctuation, so every
+ * rule above admitted it and the desk would have written it under a tile.
+ *
+ * Angle brackets only. `&`, an apostrophe and a quote all belong to real names — *Tom &
+ * Jerry*, *Mum's recipes* — and refusing them would be this rule deciding what a name may
+ * be rather than noticing when it is not one.
+ */
+const MARKUP_SHAPED = /[<>]/;
+
 export function isCapabilityNameLabel(value: string): boolean {
   const label = value.trim();
   if (label.length === 0 || label.length > MAX_CAPABILITY_LABEL_CHARS) return false;
   if (/[.!?]/.test(label)) return false;
+  if (MARKUP_SHAPED.test(label)) return false;
   if (PRODUCT_VOICE_LABEL_START.test(label)) return false;
   return label.split(/\s+/).length <= MAX_CAPABILITY_LABEL_WORDS;
 }

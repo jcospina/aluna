@@ -102,15 +102,17 @@
 }
 /* The label is set in caps, the way `design/styles/components/form-controls.css`
    sets it: quiet, small and above the well rather than competing with the value
-   inside it. */
+   inside it.
+
+   It *takes* `.caps` rather than restating it. Small caps is a role the design system
+   owns (`design/styles/base.css`), and this rule used to copy all five of its
+   declarations out — the same "restate instead of reuse" duplication this epic removed
+   for `.field__control`, and the one `choice-control.ts` had already avoided by applying
+   the class. What is left here is only what the role does not say: the body face, and a
+   line height for a label that may wrap. */
 .field__label {
   font-family: var(--font-body);
-  font-size: var(--caps-size);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: var(--caps-tracking);
   line-height: 1.4;
-  color: var(--ink-2);
 }
 
 /*
@@ -221,17 +223,19 @@
  * The second is the one part of the radio group the design has no drawing for: a run of
  * options standing under a heading.
  *
- * `.choice-set` is a column at `--space-3`; a group is one item in that column that
- * carries its own heading and its own column of the same rhythm, so a grouped set and a
- * flat one read at exactly the same spacing.
+ * A grouped set is a column of runs at `--space-3`, and each run is the wrapping row the
+ * design gives a flat set — same flow, same two gaps, so a grouped set and a flat one read
+ * at exactly the same spacing. The heading takes a line of its own: sized by its own words
+ * it would be one more item on the first row, standing beside the options it is over.
  */
 .choice-set__group {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  flex-flow: row wrap;
+  gap: var(--space-3) var(--space-5);
 }
 
 .choice-set__heading {
+  flex: 0 0 100%;
   color: var(--ink-2);
 }
 

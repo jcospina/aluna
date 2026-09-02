@@ -22,6 +22,7 @@
  */
 
 import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
+import { registerRegionRelease } from "./region-scope.js";
 
 /**
  * The surface of the capability standing in the window: a direct child of the region,
@@ -38,6 +39,13 @@ const WINDOW_REGION_ID = "spec-build-output";
  * copy; a platform test pins that all of them match.
  */
 const RELEASE_REGION_EVENT = "aluna:release-region";
+
+/**
+ * What marks a preflight as a recheck rather than an ordinary press. Restated here the way
+ * this module restates every constant it cannot import
+ * (`src/capability-deletion/presentation.ts`); a platform test pins the two copies.
+ */
+const DELETION_RECHECK_PARAM = "after_confirm";
 
 /** @param {Element} region */
 function releaseRegionContent(region) {
@@ -107,8 +115,14 @@ export function capabilityDeletionPreflightUrl(form) {
     )?.value;
     if (value) query.set(name, value);
   }
-  const suffix = query.toString();
-  return suffix ? `${base}?${suffix}` : base;
+  // This is a recheck after a Confirm, not an ordinary press. It changes what the server
+  // may say about a capability that is not there: "already gone, so I didn't delete
+  // anything" is the truth for a tile another tab removed, and the one thing that must
+  // never be said here — the deletion may have been *this* confirm crossing its point of
+  // no return, and telling somebody their destructive action did nothing when it may have
+  // done everything is the failure this whole recovery exists to prevent.
+  query.set(DELETION_RECHECK_PARAM, "1");
+  return `${base}?${query.toString()}`;
 }
 
 /**
@@ -124,13 +138,48 @@ function writeCapabilityDeletionRecheckNotice(copy, refused = false, root = glob
 }
 
 /**
+ * The recovery's claim on the window's content region.
+ *
+ * The recheck is a delayed chain, and by the time it answers the region may be holding
+ * something else entirely. Its only staleness check used to be "was the window put away?",
+ * which is true of the window and says nothing about what is *in* it: delete A → confirm →
+ * press B's logo (which aborts the confirm and arms this recovery), and two hundred
+ * milliseconds later B's freshly loaded collection was released and replaced by A's
+ * deletion answer, with `HX-Replace-Url` rewriting the bar to match.
+ *
+ * So the recovery joins the region's own scope, anchored to the confirmation form it was
+ * started for. Whatever replaces that form — another capability, a build, the window going
+ * away — drops the claim, and a recovery without a claim may write neither the region nor
+ * the address. It still asks and still answers: the person is owed the truth about a
+ * destructive action either way, so the sentence goes to the prompt bar instead.
+ *
+ * @param {DeletionNode | undefined} form
+ * @returns {{ owned: () => boolean, deregister: () => void }}
+ */
+function claimDeletionRegion(form) {
+  let owned = true;
+  const anchor = /** @type {Parameters<typeof registerRegionRelease>[0] | null} */ (
+    /** @type {unknown} */ (form ?? null)
+  );
+  if (anchor === null || typeof anchor.closest !== "function") {
+    return { owned: () => false, deregister: () => {} };
+  }
+  const deregister = registerRegionRelease(anchor, "deletion recheck", () => {
+    owned = false;
+  });
+  return { owned: () => owned, deregister };
+}
+
+/**
  * @param {string} preflightUrl
  * @param {number} attempt
+ * @param {{ owned: () => boolean, deregister: () => void }} claim
  * @returns {Promise<void>}
  */
-async function recheckCapabilityDeletion(preflightUrl, attempt) {
+async function recheckCapabilityDeletion(preflightUrl, attempt, claim) {
   const delay = CAPABILITY_DELETION_RECHECK_DELAYS_MS[attempt];
   if (delay === undefined) {
+    claim.deregister();
     writeCapabilityDeletionRecheckNotice(
       "I still can’t tell what happened. Reload the page to see the latest.",
       true,
@@ -143,22 +192,26 @@ async function recheckCapabilityDeletion(preflightUrl, attempt) {
     () => null,
   );
   if (response === null || !response.ok) {
-    await recheckCapabilityDeletion(preflightUrl, attempt + 1);
+    await recheckCapabilityDeletion(preflightUrl, attempt + 1, claim);
     return;
   }
 
   const html = await response.text();
 
-  // The window may have been put away while this was in flight. That is the *good*
-  // ending — the danger this recovery exists for is a stale confirmation panel left
-  // standing, and there is no panel left to be stale. What is still owed is the
-  // answer, so it is read out of the reply and left at the prompt bar rather than
-  // reported as "I can't tell", which would be untrue: we just found out.
+  // The window may have been put away while this was in flight, or something else may be
+  // standing in it now. Either way this recovery no longer owns the slot. That is the
+  // *good* ending — the danger it exists for is a stale confirmation panel left standing,
+  // and there is no panel left to be stale. What is still owed is the answer, so it is read
+  // out of the reply and left at the prompt bar rather than reported as "I can't tell",
+  // which would be untrue: we just found out. The address is left exactly where whoever
+  // owns the region put it.
   const output = document.getElementById(WINDOW_REGION_ID);
-  if (!(output instanceof HTMLElement)) {
+  const owned = claim.owned();
+  claim.deregister();
+  if (!owned || !(output instanceof HTMLElement)) {
     const answer = answerIn(html, document);
     writeCapabilityDeletionRecheckNotice(answer.sentence, answer.refused);
-    applyReplaceUrl(response);
+    if (output === null) applyReplaceUrl(response);
     return;
   }
   const htmx =
@@ -268,7 +321,7 @@ export function recoverSeveredCapabilityDeletion(event, root = globalThis.docume
     false,
     root,
   );
-  void recheckCapabilityDeletion(preflightUrl, 0);
+  void recheckCapabilityDeletion(preflightUrl, 0, claimDeletionRegion(form));
 }
 
 /**

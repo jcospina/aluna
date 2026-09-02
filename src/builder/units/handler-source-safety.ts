@@ -2,12 +2,16 @@ import ts from "typescript";
 
 import { capabilityQueryScopeTableNames } from "../../capability-data/index.ts";
 import type { CapabilitySpec } from "../../registry/index.ts";
+import { checkSourceIsolation, isRuntimeIdentifierReference } from "./source-isolation.ts";
 import {
   evaluateStaticString,
   expressionBindings,
   unwrapExpression,
 } from "./static-string-analysis.ts";
 import type { HandlerUnitName } from "./units.ts";
+
+/** How the shared isolation refusal names a handler. */
+const HANDLER_ISOLATION_SUBJECT = "Generated handlers must use only the injected toolbox";
 
 export interface HandlerDependencyCatalogEntry {
   readonly spec: CapabilitySpec;
@@ -21,7 +25,7 @@ export function checkHandlerSourceSafety(
   source: ts.SourceFile,
   dependencyCatalog: readonly HandlerDependencyCatalogEntry[],
 ): string | undefined {
-  const isolationMessage = checkHandlerSourceIsolation(source);
+  const isolationMessage = checkSourceIsolation(HANDLER_ISOLATION_SUBJECT, source);
   if (isolationMessage) return isolationMessage;
   const connectionMessage = checkConnectionAccess(source);
   if (connectionMessage) return connectionMessage;
@@ -368,56 +372,4 @@ function containsRawHttp(source: ts.SourceFile): boolean {
   };
   visit(source);
   return found;
-}
-
-function checkHandlerSourceIsolation(source: ts.SourceFile): string | undefined {
-  let bypass = false;
-  const visit = (node: ts.Node): void => {
-    if (
-      ts.isImportDeclaration(node) ||
-      ts.isImportEqualsDeclaration(node) ||
-      (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) ||
-      (ts.isIdentifier(node) &&
-        ["Bun", "Deno", "Function", "eval", "globalThis", "process", "require"].includes(
-          node.text,
-        ) &&
-        isRuntimeIdentifierReference(node))
-    ) {
-      bypass = true;
-      return;
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(source);
-  if (bypass) {
-    return "Generated handlers must use only the injected toolbox; imports, ambient runtime access, dynamic code loading, and evaluation are not allowed.";
-  }
-  return undefined;
-}
-
-function isRuntimeIdentifierReference(node: ts.Identifier): boolean {
-  const parent = node.parent;
-  if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false;
-  if (
-    (ts.isPropertyAssignment(parent) ||
-      ts.isMethodDeclaration(parent) ||
-      ts.isPropertyDeclaration(parent) ||
-      ts.isPropertySignature(parent) ||
-      ts.isMethodSignature(parent)) &&
-    parent.name === node
-  ) {
-    return false;
-  }
-  if (
-    (ts.isVariableDeclaration(parent) ||
-      ts.isParameter(parent) ||
-      ts.isFunctionDeclaration(parent) ||
-      ts.isClassDeclaration(parent) ||
-      ts.isInterfaceDeclaration(parent) ||
-      ts.isTypeAliasDeclaration(parent)) &&
-    parent.name === node
-  ) {
-    return false;
-  }
-  return true;
 }

@@ -19,6 +19,8 @@
 //   • on the elements it keeps, drops every attribute outside the per-element allow-list
 //     (this is what kills `on*=` handlers, `href`, `id`/`name`, `data-*`, …),
 //   • filters `class` to the closed vocabulary and sanitizes `style` to token discipline,
+//   • drops a URL attribute naming a dangerous scheme *or any remote address* — a record
+//     never reaches off this origin, which is the same rule the `url(...)` style ban states,
 //   • and strips comments.
 // Conforming markup passes through unchanged.
 
@@ -26,7 +28,7 @@ import { sanitizeStyle } from "./style-discipline.ts";
 import {
   ALLOWED_CLASSES,
   ALLOWED_ELEMENTS,
-  isDangerousUrl,
+  isOffOriginUrl,
   isSafeAttr,
   REMOVED_ELEMENTS,
   URL_ATTRS,
@@ -60,7 +62,7 @@ function cleanAttributes(element: HTMLRewriterTypes.Element, tag: string): void 
     if (lower === "class") filterClass(element, value);
     else if (lower === "style") filterStyle(element, value);
     else if (!isSafeAttr(tag, lower)) element.removeAttribute(lower);
-    else if (URL_ATTRS.has(lower) && isDangerousUrl(value)) element.removeAttribute(lower);
+    else if (URL_ATTRS.has(lower) && isOffOriginUrl(value)) element.removeAttribute(lower);
   }
 }
 
