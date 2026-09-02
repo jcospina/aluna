@@ -10,13 +10,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { openDatabase, type PlatformDatabase } from "../platform/persistence/db.ts";
-import { runMigrations } from "../platform/persistence/migrations.ts";
+import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
+import { runMigrations } from "../../platform/persistence/migrations.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
-} from "./spec.ts";
+} from "../spec/spec.ts";
 import {
   getCapability,
   insertCapability,

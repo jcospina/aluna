@@ -81,7 +81,7 @@ describe("a record's hand is a function of its id alone", () => {
     // to reach for even if it tried.
     const coupling = [INK_SEED_ATTR, "inkSeed", "ink system", "is-ink", "mountInk", "ink.js"];
     for (const path of [
-      "src/registry/spec.ts",
+      "src/registry/spec/spec.ts",
       "src/builder/units/unit-prompts.ts",
       "src/builder/units/few-shot-gallery.ts",
     ]) {

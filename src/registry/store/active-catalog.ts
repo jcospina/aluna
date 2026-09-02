@@ -13,8 +13,8 @@
 
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
-import { dbReadonly } from "../platform/persistence/db.ts";
-import type { CapabilityRow } from "./spec.ts";
+import { dbReadonly } from "../../platform/persistence/db.ts";
+import type { CapabilityRow } from "../spec/spec.ts";
 import { listCapabilities } from "./store.ts";
 
 export interface ActiveRegistryCatalog {

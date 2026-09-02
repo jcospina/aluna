@@ -13,8 +13,8 @@
 
 import { z } from "zod";
 
-import type { CapabilitySpec, SpecField } from "./spec.ts";
-import { singleLinePhrase, sqlNameText } from "./spec-text.ts";
+import type { CapabilitySpec, SpecField } from "../spec/spec.ts";
+import { singleLinePhrase, sqlNameText } from "../spec/spec-text.ts";
 
 /**
  * One line of hint under one field.

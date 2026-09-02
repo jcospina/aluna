@@ -3,7 +3,7 @@
 // `spec.behavior.test.ts`; the vocabulary itself is pinned in `logo.test.ts`.
 
 import { describe, expect, test } from "bun:test";
-import { LOGO_HUE_FAMILIES } from "./logo.ts";
+import { LOGO_HUE_FAMILIES } from "../logo.ts";
 import { validSpec } from "./spec.test-support.ts";
 import {
   capabilityRegistryWriteSchema,

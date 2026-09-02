@@ -13,8 +13,7 @@
 // enter the registry nor come back out of it unnoticed.
 
 import type { Database } from "bun:sqlite";
-import { db, dbReadonly } from "../platform/persistence/db.ts";
-import { isCapabilityIdReservedByDeletion } from "./deletion-tombstones.ts";
+import { db, dbReadonly } from "../../platform/persistence/db.ts";
 import {
   type CapabilityLogoState,
   capabilityLogoStateSchema,
@@ -25,7 +24,7 @@ import {
   logoHueFamilySchema,
   logoSeedSchema,
   resolveLogoShades,
-} from "./logo.ts";
+} from "../logo.ts";
 import {
   type CapabilityRegistryWrite,
   type CapabilityRow,
@@ -35,7 +34,8 @@ import {
   capabilityRowSchema,
   logoSubjectSchema,
   type ReadDependency,
-} from "./spec.ts";
+} from "../spec/spec.ts";
+import { isCapabilityIdReservedByDeletion } from "./deletion-tombstones.ts";
 
 /**
  * The registry table, created by platform migration 0002 (src/platform/persistence/migrations.ts).

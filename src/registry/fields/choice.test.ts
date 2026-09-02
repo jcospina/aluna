@@ -14,8 +14,8 @@ import {
   INVALID_CHOICE_ERROR_CODE,
   isChoiceFieldType,
   selectableChoiceValues,
-} from "./index.ts";
-import { validSpec } from "./spec.test-support.ts";
+} from "../index.ts";
+import { validSpec } from "../spec/spec.test-support.ts";
 
 const STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },

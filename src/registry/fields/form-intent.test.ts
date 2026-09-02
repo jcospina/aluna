@@ -13,8 +13,8 @@ import {
   MAX_FIELD_GUIDANCE_LENGTH,
   type SpecField,
   type UiFormIntent,
-} from "./index.ts";
-import { validSpec } from "./spec.test-support.ts";
+} from "../index.ts";
+import { validSpec } from "../spec/spec.test-support.ts";
 
 const TEXT_FIELDS: readonly SpecField[] = [
   { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },

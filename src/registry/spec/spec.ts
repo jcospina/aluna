@@ -38,7 +38,7 @@ import {
   MAX_BEHAVIORAL_ERRORS,
   validateActionShapePair,
   validateBehavioralErrors,
-} from "./behavioral-errors.ts";
+} from "../fields/behavioral-errors.ts";
 import {
   type ChoiceOption,
   choiceGroupSchema,
@@ -47,17 +47,18 @@ import {
   promptChoiceOptionSchema,
   validateChoiceFields,
   validateChoiceInputs,
-} from "./choice.ts";
+} from "../fields/choice.ts";
 import {
   fieldGuidanceSchema,
   longTextIntentSchema,
   validateFieldGuidance,
   validateLongTextInputs,
-} from "./form-intent.ts";
-import { incarnationIdSchema } from "./identifiers.ts";
-import { isCapabilityNameLabel } from "./labels.ts";
-import { capabilityLogoStateSchema, logoHueFamilySchema, logoSeedSchema } from "./logo.ts";
-import { maxLengthSchema, validateMaxLength } from "./max-length.ts";
+} from "../fields/form-intent.ts";
+import { maxLengthSchema, validateMaxLength } from "../fields/max-length.ts";
+import { incarnationIdSchema } from "../identifiers.ts";
+import { isCapabilityNameLabel } from "../labels.ts";
+import { capabilityLogoStateSchema, logoHueFamilySchema, logoSeedSchema } from "../logo.ts";
+import { capabilityToolsSchema, readDependenciesSchema } from "../tools.ts";
 import {
   allUnique,
   nonBlankText,
@@ -67,7 +68,6 @@ import {
   singleLinePhrase,
   sqlNameText,
 } from "./spec-text.ts";
-import { capabilityToolsSchema, readDependenciesSchema } from "./tools.ts";
 
 /**
  * Columns every capability data table gets from the platform, never from the
@@ -86,7 +86,7 @@ export {
   defaultBehavioralErrorsForSchema,
   MAX_BEHAVIORAL_ERRORS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
-} from "./behavioral-errors.ts";
+} from "../fields/behavioral-errors.ts";
 export {
   admittedChoiceValues,
   CHOICE_DISABLED_ERROR_CODE,
@@ -114,7 +114,7 @@ export {
   MAX_CHOICE_OPTION_VALUE_LENGTH,
   MAX_CHOICE_OPTIONS,
   selectableChoiceValues,
-} from "./choice.ts";
+} from "../fields/choice.ts";
 export {
   type FieldGuidance,
   fieldGuidanceSchema,
@@ -122,16 +122,15 @@ export {
   isLongTextField,
   longTextIntentSchema,
   MAX_FIELD_GUIDANCE_LENGTH,
-} from "./form-intent.ts";
-export { incarnationIdSchema } from "./identifiers.ts";
+} from "../fields/form-intent.ts";
 export {
   MAX_DECLARED_MAX_LENGTH,
   MAX_LENGTH_EXCEEDED_ERROR_CODE,
   MIN_DECLARED_MAX_LENGTH,
   maxLengthSchema,
   maxLengthsByField,
-} from "./max-length.ts";
-export { SQL_NAME_PATTERN } from "./spec-text.ts";
+} from "../fields/max-length.ts";
+export { incarnationIdSchema } from "../identifiers.ts";
 export {
   type CapabilityTool,
   capabilityToolSchema,
@@ -140,7 +139,8 @@ export {
   type ReadDependency,
   readDependenciesSchema,
   readDependencySchema,
-} from "./tools.ts";
+} from "../tools.ts";
+export { SQL_NAME_PATTERN } from "./spec-text.ts";
 
 export const ALUNA_RESERVED_FIELD_PREFIX = "__aluna_";
 

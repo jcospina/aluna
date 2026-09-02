@@ -6,10 +6,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { openDatabase, type PlatformDatabase } from "../platform/persistence/db.ts";
-import { runMigrations } from "../platform/persistence/migrations.ts";
-import { LOGO_MAX_CLAIMED_ATTEMPTS, resolveLogoShades } from "./logo.ts";
-import { validSpec } from "./spec.test-support.ts";
+import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
+import { runMigrations } from "../../platform/persistence/migrations.ts";
+import { LOGO_MAX_CLAIMED_ATTEMPTS, resolveLogoShades } from "../logo.ts";
+import { validSpec } from "../spec/spec.test-support.ts";
 import {
   abandonMissingCapabilityLogo,
   claimLogoGeneration,

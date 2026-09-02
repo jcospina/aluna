@@ -14,7 +14,7 @@
 
 import { z } from "zod";
 
-import type { CapabilitySpec } from "./spec.ts";
+import type { CapabilitySpec } from "../spec/spec.ts";
 
 /**
  * The structural refusal an over-limit submission earns. Platform-owned, like

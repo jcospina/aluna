@@ -12,8 +12,8 @@
 
 import { z } from "zod";
 
-import type { CapabilitySpec, SpecField } from "./spec.ts";
-import { sameOrderedStrings, singleLinePhrase, sqlNameText } from "./spec-text.ts";
+import type { CapabilitySpec, SpecField } from "../spec/spec.ts";
+import { sameOrderedStrings, singleLinePhrase, sqlNameText } from "../spec/spec-text.ts";
 
 export const CHOICE_FIELD_TYPE = "choice" as const;
 export type ChoiceFieldType = typeof CHOICE_FIELD_TYPE;
