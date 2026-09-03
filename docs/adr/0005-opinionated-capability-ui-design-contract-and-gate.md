@@ -7,6 +7,15 @@ Settled in the Module 3 grilling session (2026-06-26). Exact class names, token
 names, module interfaces, and the exemplar set remain implementation detail, decided
 inside Module 3.
 
+**Amended 2026-09-03 (ADR-0008).** The `data_query` auto-table is gone: Aluna speaks
+her answers. Two sentences below rest on it and are restated rather than retired. The
+precedent that *presentational platform code is allowed* stands and is now carried by
+the platform-owned collection scaffolding, the record count, and the answer window —
+none of which hold business logic. And `table`/`masonry` stay out of the collection
+layout set on their own merits: a true table dissolves the per-record creative surface
+by rendering aligned cells from fields and bypassing the item renderer. The overlap
+argument no longer applies, because there is nothing left to overlap with.
+
 **Amended 2026-06-30.** Two changes: (a) collection layout is added as a
 closed `ui_intent.collection.layout` value (`feed | grid`) the platform list
 container reads (§2, §6). (b) §7's preservation cutover is deferred. The

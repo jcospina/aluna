@@ -65,7 +65,9 @@ _Avoid_: retire, archive, remove, hide, deactivate
 
 **Desk**:
 The whole surface Aluna occupies: a wallpaper, the logo of every capability the
-user has, the prompt bar floating clear of all four edges, and one window. Logos
+user has, the prompt bar floating clear of all four edges, and the capability window.
+Two further windows may stand beside it — the developer panel and the answer window —
+and neither displaces it. Logos
 fill down a column and wrap to the next, taking as many columns as the desk
 holds. There is no taskbar, so the logos are the only standing list of what
 exists, and a fresh user sees a wallpaper and a prompt bar with nothing withheld
@@ -238,7 +240,8 @@ travels, `scale` and `rotate` do not, and `transform` only says where a thing si
 _Avoid_: animation (too broad — it covers both halves), transition, movement
 
 **Developer panel**:
-The second window, and the only exception to there being one. It is read-only,
+The second window, and one of the two exceptions to there being one — the other is the
+*answer window*. It is read-only,
 opens from its own tile on the desk, and may sit beside the capability being
 watched, because reading what a build did while it does it is one activity. It
 holds the build's raw generation internals — each stage's JSON (spec, migration,
@@ -253,12 +256,24 @@ _Avoid_: console, debug drawer, inspector, right sidebar
 An anthropomorphic *spark of Aluna* — a small luminous companion with a face that
 lives on the prompt bar, walks along it, and talks from there. A first-class
 delight feature carrying no business logic. Defined now, deferred to a later issue
-(full spec: [docs/pet.md](docs/pet.md)); its name is a TBD authentic Kogi word (do
-not fabricate one). It is related to Aluna, but it is **not Aluna herself**. Two
-surfaces wait on its design: where a disposable query answer appears (Module 6)
-and where a behavioural proposal appears (Module 8). The pet is expected to carry
-Aluna's narration once it lands (M5 plan).
+([docs/pet.md](docs/pet.md) is guidance of its vintage, not a contract); its name is
+a TBD authentic Kogi word (do not fabricate one). It is related to Aluna, but it is
+**not Aluna herself**. Its form, anatomy, hue and technique are the user's to decide
+and are not anticipated anywhere. **Nothing depends on it.** Module 6's answer window
+settled the query-answer surface without it (ADR-0008), and Module 8 may settle the
+proposal surface the same way; the pet is a delight feature that may never be built,
+and no plan should be written that waits on it.
 _Avoid_: orb (the superseded concept), mascot, avatar, assistant, bot, spinner
+
+**Answer window**:
+The third window, and the second exception to there being one. It opens when a question
+is classified `data_query`, carries the loop's narration and then Aluna's spoken answer,
+and displaces nothing — a capability stays open while it is asked about. One of them: a
+new question replaces its content in place, never closing and reopening the frame. It
+carries **no logo, tile or address**, so it is *dismissed* rather than *put away* —
+closing it destroys the answer and nothing survives a reload (ADR-0008). A refusal never
+opens it and speaks on the prompt bar instead.
+_Avoid_: results panel, query window, output pane, the auto-table (deleted)
 
 **Product voice**:
 The single voice all of Aluna's UI copy speaks in — warm, encouraging, gently

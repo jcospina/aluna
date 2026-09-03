@@ -33,6 +33,14 @@ pet, expected to carry the product's narration once it lands (§13). That is why
 the surfaces for a disposable query answer and for a behavioural proposal wait on
 it rather than being drawn now.
 
+*Amended 2026-09-03 (ADR-0008).* Only the behavioural proposal still waits, and it need
+not. Module 6 settled where a query answer appears **without the pet**: the answer opens
+in a window of its own, a third beside the capability window and the developer panel,
+built on machinery that already existed. The prompt bar's notice slot is untouched and
+still carries what it carried. The pet is a delight feature that may never be built, and
+no plan should be written that waits on it — Module 8 should settle its proposal surface
+the same way rather than inherit this deferral.
+
 *Retired.* "A dark theme stays a purely additive future override" no longer
 holds. High Meadow is daylight and does not invert, and no dark theme is planned
 (§12f). The semantic-token insurance below bought a future that has since been

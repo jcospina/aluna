@@ -13,7 +13,7 @@ It does not specify implementation — types, classes, function signatures, file
 
 Two things are left undefined on purpose:
 
-- **The two surfaces that belong to the pet.** Where a disposable query answer appears (Module 6) and where a behavioural proposal appears (Module 8) are deferred, not decided. Both belong to the pet — a talking companion that will carry Aluna's narration and is not designed yet ([Module 5's plan](../modules/05-the-desk/PLAN.md)) — and Module 5 deliberately defines no surface for either. Everything around them is fixed: the auto-table itself, and the implicit loop's backstage of event capture, the gate, async inference, confirmation and hand-off to the build pipeline. One commitment holds regardless: nothing is built without an explicit confirmation.
+- **Where a behavioural proposal appears (Module 8).** Deferred, not decided. It belongs to the pet — a talking companion that will carry Aluna's narration and is not designed yet ([Module 5's plan](../modules/05-the-desk/PLAN.md)). Everything around it is fixed: event capture, the gate, async inference, confirmation and hand-off to the build pipeline. One commitment holds regardless: nothing is built without an explicit confirmation. *(Module 6's answer surface was the other half of this and is now settled without the pet — the answer opens in its own window; see ADR-0008. Module 8 is free to settle its own surface the same way rather than waiting.)*
 - **Every piece's internals.** Each module's implementation is its own to decide. The "verify by running it" demos describe observable behavior, not the code that produces it.
 
 ## How this plan is sliced
@@ -60,7 +60,7 @@ parallel rebuild.
 | 3 | **Opinionated Capability UI** | The capabilities the app builds look and feel like a coherent product — styled lists, a shared modal, a prefilled detail view — not a 1990s form dump *(Module 5 replaced the modal with the one window; see §Module 3)* | Platform UI modules · single generated item renderer · closed-value primitive vocabulary · few-shot design gallery · design-lint gate rung · `ui_intent` (item/collection/detail) · new artifact shape (reset, no cutover) | M1–M2 |
 | 4 | **Explicit Loop II — Full CRUD & Evolution** | Edit/delete/search records; extend or permanently delete a capability without breaking data/readers | `string[]` + model-authored list input modes · split data ports · mutation coordinator · total diff engine · immutable incarnated snapshots · recoverable activation/deletion · full resolver | M1–M3 |
 | 5 | **The Desk** | Open a capability from its logo into the one window, put it away, rename or delete it from the desk; every capability carries a picture of its own | Wallpaper · logo layer · one window · drawn line everywhere · High Meadow tokens · capability logos · choice + long-text fields | M1–M4 |
-| 6 | **Reads Set Free — Ad-hoc Data Queries** | Ask questions across your data; get answers in a table; nothing is built | Whole-catalog NL→SQL `data_query` · generic auto-table · reject classifier | M4's physically read-only query seam |
+| 6 | **Reads Set Free — Ad-hoc Data Queries** | Ask questions across your data; Aluna answers out loud; nothing is built | Bounded read-only query loop in a worker · spoken answers · a third window for answers · record counts | M4's physically read-only query seam |
 | 7 | **Files — Upload, Store & Serve** | Create capabilities that hold files; upload, view, and delete them | S3-shaped object store · `file` field type · upload (write) · serve (read) · lifecycle | M1–M6 |
 | 8 | **Implicit Loop — Behavior → Proposal → Build** | The app notices a pattern in how you work and offers to build for you | Event tracker · event log · server-side gate · async resolution · proposals | M1–M7 |
 | 9 | **Experiment Harness — Metrics, Latency & Tuning** | Read the PoC's conclusions; tune the implicit gate against real data | Metrics querying · outcome/overlap analysis · experimenter surface · gate tuning | M1–M8 |
@@ -125,7 +125,7 @@ is evolved rather than bypassed from here on.
 
 **Goal:** make the capabilities the app builds look and feel like a coherent product, without a developer hand-crafting each one. Today a freshly built capability is born usable but ugly: the builder gets no design guidance, so it reproduces the same bare *[title][empty state][form]* scaffold every time. This module moves the structural mechanics into the platform — a shared modal, list scaffolding, accessible item wrapper, and spec-rendered fields — and hands the builder one generated item renderer, governed by a closed-value design contract, a few-shot exemplar gallery, and a design-lint gate rung. Every capability comes out consistent and on-brand while item composition still varies to fit the data.
 
-**Why third:** Module 2 proves a capability can be born; it is born ugly. We fix how capabilities present before making them fully evolvable (M4), because every later surface — edit forms, search results, file thumbnails, the auto-table — inherits this presentation contract. Doing it now means Full CRUD builds on the contract instead of retrofitting it later. It reuses the M2 backbone (builder, gate, registry, SSE swap) and adds no new loop.
+**Why third:** Module 2 proves a capability can be born; it is born ugly. We fix how capabilities present before making them fully evolvable (M4), because every later surface — edit forms, search results, file thumbnails — inherits this presentation contract. Doing it now means Full CRUD builds on the contract instead of retrofitting it later. It reuses the M2 backbone (builder, gate, registry, SSE swap) and adds no new loop.
 
 ### Epics
 
@@ -615,45 +615,93 @@ layer left.
 ## Module 6 — Reads Set Free: Ad-hoc Data Queries
 
 **Goal:** add the ephemeral whole-catalog form of free reads. Let the user ask
-questions across their data and get answers without building or persisting a
+questions across their data and get a spoken answer without building or persisting a
 capability. This is the one exception to "everything is cached."
 
 **Why sixth:** Module 4 already establishes physically read-only SQL for persistent
-generated Actions and declared lifecycle dependencies. Module 6 reuses that
-safety seam but removes the persisted Handler/spec/dependency: one
-natural-language question receives temporary whole-catalog access and a generic
-answer. It needs populated capabilities, which now exist, and it needs somewhere
-to put an answer, which Module 5 supplies for everything except this one case.
+generated Actions and declared lifecycle dependencies. Module 6 reuses that safety seam
+but removes the persisted Handler/spec/dependency: one natural-language question
+receives temporary whole-catalog access and a spoken answer. It needs populated
+capabilities, which now exist, and it needs somewhere to put an answer — which it
+supplies itself, as a third window beside the capability window and the developer
+panel.
 
-> **Open in this module: where a disposable answer appears.** The auto-table is
-> settled; the surface it lands in is not. A query answer has no logo, no window
-> to put away and no registry row, and Module 5 deliberately defines no surface
-> for it. That surface belongs to the pet, which will carry Aluna's narration and
-> is not designed yet, so this module either settles it with the pet's design or
-> waits for it ([Module 5's plan](../modules/05-the-desk/PLAN.md)).
+> **Settled since this section was first written.** The auto-table is gone: Aluna speaks
+> her answers, because a grid headed by SQL aliases is the engineering tool §9.7 forbids.
+> Resolution is a bounded loop of read-only steps rather than a single translation, it
+> runs in a worker so it cannot block the desk, and it carries no timeout. The answer
+> surface — the open question this section used to carry — is a window of its own, opened
+> for a question beside whatever else is standing, so a capability can stay open while it
+> is asked about and nothing waits on the pet.
+> [ADR-0008](adr/0008-ephemeral-query-loop-and-spoken-answer.md)
+> and [Module 6's plan](../modules/06-reads-set-free/PLAN.md) are the contract.
 
 ### Epics
 
-- **6.1 — Ephemeral whole-catalog query adapter.** Reuse M4's physically read-only
-  connection/authorizer and expose a bounded whole-active-catalog adapter to this
-  request only. Acquire the complete per-incarnation read-token set atomically for
-  the catalog snapshot so capability deletion cannot race the query. Mutation
-  through the supplied adapter fails at the SQLite seam; in-process generated
-  execution remains contract/static-check protection rather than hostile-code
-  containment. (ARCH §3, §7 "Reads")
-- **6.2 — `data_query` path.** Classify intent as `data_query`; translate NL → read-only `SELECT` (including cross-capability joins); apply a defensive `LIMIT` + timeout; run it. Never persisted: no registry entry, no logo on the desk, no version, no cache. (ARCH §7 "`data_query`")
-- **6.3 — Generic auto-table renderer.** A platform-owned, presentational-only table for arbitrary result sets, so it introduces no platform business logic. Its boundary is drawn like every other boundary on the surface; where the table lands is the open question above. (ARCH §7 "`data_query`")
-- **6.4 — Cheap reject/route classifier.** A friendly refusal for obvious non-queries ("delete everything"). It routes and rejects early; the write restriction itself lives in the supplied read-only adapter and static contract from 6.1, never here. (ARCH §7 "Reads")
-- **6.5 — Context-aware scoping.** The prompt bar scopes a query to the capability in the window when relevant. (ARCH §6.1, §7)
+Numbered in build order.
+
+- **6.1 — What every collection holds.** Every collection states how many records it has,
+  and says so when that number is filtered, so a filtered count is never presented as the
+  whole truth. Platform-owned scaffolding against the read connection; generated code is
+  untouched. It answers the module's most common question before it is asked, and it
+  depends on nothing else here. (PLAN decision 32)
+- **6.2 — Ephemeral whole-catalog read, in a worker.** Reuse M4's physically read-only
+  connection/authorizer and expose a bounded whole-active-catalog adapter to this request
+  only. Acquire the complete per-incarnation read-token set atomically for the catalog
+  snapshot so capability deletion cannot race the query; ownership stays on the main
+  thread. Execution moves into a worker with its own read-only connection, which is what
+  makes a closing read gate able to cancel a running query at all. Mutation through the
+  supplied adapter fails at the SQLite seam, inside the worker as outside it; in-process
+  generated execution remains contract/static-check protection rather than hostile-code
+  containment. (ARCH §3, §7 "Reads"; PLAN decisions 2, 6, 7, 10, 11, 13)
+- **6.3 — The query loop.** Classify intent as `data_query`, then resolve it through a
+  bounded loop: one tool, a closed vocabulary of step labels the platform owns the copy
+  for, ten steps, and a payload cap that refuses over-size steps rather than truncating
+  them. No timeout. Never persisted: no registry entry, no logo on the desk, no version,
+  no cache. (ARCH §7 "`data_query`"; PLAN decisions 5, 8, 9, 12, 14)
+- **6.4 — What Aluna says.** SQL carries the whole computation; the model only finds the
+  words. She states what she looked at before what she found, never phrases zero matched
+  rows as a fact about the user's data, is given the vocabulary of that data rather than
+  an index of it, and names the gap without offering to fill it when nothing can answer.
+  (PLAN decisions 4, 16, 17, 18, 19, 20)
+- **6.5 — The answer window.** A third window, opened when the resolver classifies
+  `data_query`, carrying the loop's narration and then the answer over the existing
+  per-job stream. It displaces nothing: the capability window and the developer panel
+  stand as they were, so a capability stays open while it is asked about. One of them: a
+  new question replaces its content in place rather than closing and reopening the frame.
+  It carries no logo, tile or address and is dismissed rather than put away — closing it
+  destroys the answer, nothing survives a reload, and future persistence is out of scope.
+  A refusal opens no window and still speaks on the prompt bar.
+  A query never locks the prompt bar. First point the module can be seen.
+  (PLAN decisions 1, 3, 15, 21, 22, 24, 25, 26, 27)
+- **6.6 — Context and refusal.** The prompt bar scopes a query to the capability in the
+  window when relevant — context, never a filter — and scope is stated in the answer
+  rather than shown as a control. A friendly refusal for obvious non-queries ("delete
+  everything") reuses the resolver's existing `reject` bucket rather than adding a second
+  classifier; the write restriction itself lives in the supplied read-only adapter from
+  6.2, never here. (ARCH §6.1, §7; PLAN decisions 28, 29, 30, 31, 33)
 
 ### Verify by running it
-With Notes and one other capability built, type *"how many notes did I add last week?"* → an auto-table answer appears, and no logo is added to the desk. Type a cross-capability question → a joined table. Type *"delete everything"* → a friendly refusal. Confirm no registry row, version, or cache was created for any of these.
+With Notes and one other capability built and populated, open a collection and confirm it
+states how many records it holds, and that a search says how many matched *and* how many
+there are. Then ask *"how many notes did I add last week?"* → Aluna narrates while she
+works and answers in a sentence, and no logo is added to the desk. Ask about a category
+whose stored values do not use the word you typed → she looks at what things are called
+before totalling, and says which values she counted. Ask a cross-capability question → one
+spoken answer. Ask about something you do not track → she names the gap and mentions you
+can ask her to build one, with no button. Type *"delete everything"* → a friendly refusal.
+Start a long question and immediately ask another → the first is abandoned. Confirm the
+desk stayed responsive throughout, and that no registry row, version, or cache was created
+for any of it.
 
 ### Exit criteria
 Free-form reads work across all capabilities, use the physically read-only supplied
-adapter and its static contract, render in the generic auto-table, and create no
-registry/version/artifact/cache/read-dependency state. M8 may later record the
-ordinary user action in the Event Log without turning the query into a capability.
+adapter and its static contract, execute in a worker that cannot block the desk and can be
+cancelled, are spoken by Aluna in a window of their own that displaces neither the
+capability window nor the developer panel, and create no
+registry/version/artifact/cache/read-dependency state. Every collection states how many
+records it holds. M8 may later record the ordinary user action in the Event Log without
+turning the query into a capability.
 
 ## Module 7 — Files: Upload, Store & Serve
 
@@ -826,7 +874,8 @@ M5 The Desk                                   │
    │   modal deleted)                          │
    ▼                                          │
 M6 Reads free                                 │
-   │  (whole-catalog data_query · auto-table) │
+   │  (query loop in a worker · spoken       │
+   │   answers · record counts)               │
    ▼                                          │
 M7 Files  ── explicit loop COMPLETE ──────────┘
    │  (object store · file fields · serve)
