@@ -34,8 +34,11 @@ the user states capability-level outcomes for their personal app, and Aluna choo
 the implementation. The prompt bar takes free-form text, but that does not make
 choosing a framework, editing a schema or a type, controlling a migration, tuning
 CSS tokens, or iterating on code a supported workflow. There is no roaming agent
-loop and no preview-adjust-approve coding loop. The developer panel is a read-only
-observation surface for curious people; it never steers the build.
+loop that builds, and no preview-adjust-approve coding loop. The developer panel is
+a read-only observation surface for curious people; it never steers the build.
+ADR-0008 narrows that sentence to what it was written about: `data_query` resolves
+through a bounded loop of read-only steps, and it supervises nothing, approves
+nothing and shows the user no code.
 
 The design applies the [SelfEvolve](https://arxiv.org/abs/2604.16314) pipeline
 shape — test generator + code synthesizer + isolated execution + context memory,
@@ -277,9 +280,13 @@ catalog binding. The
 doorway is the capability's own face rather than the window chrome, so no window
 control ever means destruction.
 
-**The window** — one window, and it is the content area. A collection, one record,
-a confirmation and the narration of a build all land in the same frame. Nothing
-opens over anything else, which is why Aluna has no modal. The user drags the
+**The window** — one *capability* window, and it is the content area. A collection,
+one record, a confirmation and the narration of a build all land in the same frame.
+No capability content opens over other capability content, which is why Aluna has no
+modal. Two other windows stand beside it and never displace it: the developer panel,
+and Module 6's answer window (ADR-0008), which opens for a question so a capability
+can stay open while it is asked. Three singular windows, each opened from its own
+place; there is no window manager and no fourth. The user drags the
 window, resizes it, maximises it and dismisses it; dismissing it leaves the logo
 where it was and drops the window's presentation record, so the next window opens
 centred rather than wherever the last one was left. The record is what lets a
@@ -1026,15 +1033,37 @@ swappable to R2, S3, or Garage by config.
 ### `data_query` — the ephemeral exception
 
 `data_query` ("how many photos tagged sunset?", "notes from last week") builds
-nothing. The AI translates NL → read-only SQL and a platform-owned generic
-auto-table renders a bounded result. The query creates no registry row, no logo on
-the ground, and no version, artifact, cache, or persisted read dependency. Once M8
+nothing. It resolves through a bounded loop of read-only steps: the model receives
+one tool — a parameterized query against the physically read-only connection — and
+uses its turns to find where the subject lives, read what the user's values are
+actually called, and compute. SQL carries the whole computation; the model never
+does arithmetic by reading rows. The loop's queries execute in a worker holding its
+own read-only connection, so a clumsy query cannot block the desk and a closing read
+gate can actually cancel one. The query creates no registry row, no logo on the
+ground, and no version, artifact, cache, or persisted read dependency. Once M8
 exists the Event Log may still record the ordinary user action, which does not turn
-the query into a built capability. Scope follows the context-aware prompt bar.
+the query into a built capability. Scope follows the context-aware prompt bar: the
+open capability resolves vague references and never fences the search.
 
-Where that answer appears is not settled. An answer is disposable and the window
-holds what persists, so the surface waits on the companion — a talking pet that is
-not designed yet — and Module 6 inherits the question rather than an answer.
+**Aluna speaks the answer.** There is no auto-table — a grid headed by SQL aliases is
+the engineering tool §9.7 forbids. Removing it removes the user's only audit, so
+three rules replace it: she states what she looked at before what she found, no
+matched rows is never phrased as a fact about the user's data, and the narration is
+platform-owned copy keyed to a closed set of step labels, so the model can neither
+invent progress nor put SQL on screen. Meaning is supplied rather than stored — the
+registry's declared options plus an ordinary read of a field's distinct values —
+and semantic indexes are declined, because they would put an AI call and a fourth
+derived artifact on the write path (ADR-0008).
+
+The answer opens in its own window — a third window beside the capability window and
+the developer panel, displacing neither, so a capability stays open while it is asked
+about. One answer window: a new question replaces its content in place rather than closing and
+reopening it, the same swap the one window already performs between capabilities. There
+is no route back to an answer once it is gone — no logo, no tile, no address, nothing
+surviving a reload — so it is dismissed rather than put away. A refusal opens nothing: it speaks in the
+prompt bar's notice slot, exactly as it does today. When nothing can answer, Aluna
+names the gap and stops — an offer with a confirmation is a proposal, and the proposal
+surface is Module 8's. ADR-0008 is the contract.
 
 ## 8. The two loops
 
@@ -1159,8 +1188,9 @@ atomically against one gate/catalog snapshot or receives none, and all tokens
 release in `finally`.
 
 Cross-capability reads need no invalidation channel. A capability may read another
-capability's table and can never write to it, one window means one visible
-capability, and every open is a fresh read, so nothing has to be kept in step. A
+capability's table and can never write to it, one capability window means one visible
+capability — the answer window holds a computed answer, never a capability's records —
+and every open is a fresh read, so nothing has to be kept in step. A
 second browser tab is the only remaining route to a stale view, and it is an
 accepted edge rather than a reason to build a bus, a version stamp, or the refresh
 control the window deliberately does not have.

@@ -8,6 +8,24 @@ Nothing about it ships in the base shell — no greeting copy, no cold-start her
 animation, no reserved DOM slot. The cold-start layout changes when the pet lands,
 not before. (Supersedes the original "animated orb" concept.)
 
+> **Read this as guidance of its vintage, not as a contract (noted 2026-09-03).**
+> This file is as old as the repo and predates the desk, the drawn line, High Meadow
+> and the logo contract. Two statements are already stale: messages rendering "into
+> the content area", against a desk whose own markup says it "no longer ships a
+> content area at all"; and "supports walking" in the hard-constraint list, which is a
+> claim about a design that has not been made. **The pet's form, anatomy, hue,
+> technique and motion are the user's to decide**, and nothing here or elsewhere
+> anticipates them. `design/research/the-spark.md` explored a starburst direction with
+> no face, contradicting this file's own "anthropomorphic, with eyes"; it was judged
+> bad and deleted rather than folded into a page. When the pet is designed, its
+> contract becomes a page under `design/`, as the logo's did, and this file retires.
+>
+> **Nothing depends on the pet, by design (2026-09-03).** Module 6 was briefly planned
+> around a speech surface the pet would later inhabit; it now answers in its own window
+> instead (ADR-0008), which needs no pet and reuses the window machinery that already
+> exists. The pet is a delight feature that may never be built, and no plan should be
+> written that waits on it.
+
 ## Concept
 
 An anthropomorphic spark of Aluna: a small luminous companion with eyes and a face
