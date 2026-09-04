@@ -1,18 +1,24 @@
 /*
- * The collection — search, live count, create action, then the records — and
- * the record view it swaps to.
+ * The collection — search and the create action, then the live count, then the
+ * records — and the record view it swaps to.
  *
  * The order is fixed by the shell and is the same for every capability. So is
  * the swap: opening a record replaces the collection inside the window rather
  * than opening anything over it (D2). There is no modal on this surface.
  */
 
-/* The window's content, holding whichever of the two views is current. */
+/* The window's content, holding whichever of the two views is current.
+ *
+ * It is the container row 1 measures itself against. The wrap belongs to the
+ * window and not the viewport: a window dragged narrow on a wide screen needs it
+ * as much as a phone does. */
 .collection-host {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  container-type: inline-size;
+  container-name: window;
 }
 
 .collection {
@@ -22,14 +28,37 @@
   min-height: 0;
 }
 
-/* Row 2 — the count and the create action, the two collection-level facts. */
+/* Row 1 — the search rail and the create action, the two things you can do to a
+   collection. The search takes the room that is left; the action never shrinks. */
 .collection__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
+.collection__head .search {
+  flex: 1 1 28rem;
+  min-width: 0;
+}
+
+.collection__head .btn {
+  flex: 0 0 auto;
+}
+
+@container window (max-width: 620px) {
+  .collection__head {
+    flex-wrap: wrap;
+  }
+
+  .collection__head .search,
+  .collection__head .btn {
+    flex-basis: 100%;
+  }
+}
+
+/* Row 2 — what the collection holds. A fact about the collection rather than an
+   action on it, so it gets its own line under the rail and above the first item. */
 .collection__count {
   color: var(--ink-2);
 }

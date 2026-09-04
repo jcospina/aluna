@@ -598,6 +598,28 @@ client-side release and the server-side release one act rather than two mechanis
 that have to agree (M5 plan 13).
 _Avoid_: teardown hook, unmount, cleanup callback, destructor
 
+**Count sidecar**:
+The collection's record count, carried at the head of every `read` and `search` answer as
+an HTML comment the shell takes off before the records land. It rides the response the
+records arrive in rather than asking for a number of its own, so the count and the rows it
+describes are always the same round trip, and there is nothing to poll or invalidate.
+A comment rather than an element, because a sidecar that ever reached the DOM unstripped
+must not defeat the platform **empty state**: browsers do not count comments when matching
+`:empty`. The platform writes it at position zero and only on a records answer, which is
+also what stops a generated Handler forging one (PLAN decision 32). A `read` carries the
+plain count; a `search` carries both numbers — how many matched and how many there are —
+because a filtered number alone reads as the whole truth and is not, and a search that
+matched nothing must say so beside a total that is not zero rather than read as an
+**empty collection**.
+_Avoid_: count header, count endpoint, badge, out-of-band count
+
+**Empty collection**:
+A capability that holds no records, and the platform **empty state** is what it says:
+"add your first note above". It is not a collection whose search matched nothing — that
+one holds records and is only filtered, and it has its own sentence. The two are different
+facts about different things, and the collection never states both at once.
+_Avoid_: no results, zero state, blank slate, nothing found
+
 **Swap target**:
 The named place a server-addressed swap lands — the stable id `commit` and `fragment`
 carry, and the literal anchors page assembly composes a full page by replacing.

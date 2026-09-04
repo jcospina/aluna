@@ -25,6 +25,7 @@ import {
   type RenderableCapability,
   renderCreateForm,
 } from "../fields/field-renderer.ts";
+import { capabilityCountLabelId, renderCollectionCountLabel } from "./collection-count.ts";
 import { inkSeedAttr } from "./ink-seed.ts";
 import { itemElementIdForTemplate, renderRecordFormBar } from "./record-view.ts";
 
@@ -190,6 +191,7 @@ export function renderCollection(options: CollectionOptions): string {
   const { capability } = options;
   const layout = options.layout ?? DEFAULT_COLLECTION_LAYOUT;
   const regionId = capabilityRecordsRegionId(capability.id);
+  const countLabelId = capabilityCountLabelId(capability.id);
   const layoutClass = collectionLayoutClass(layout);
   const label = escapeHtml(capability.label);
   const items = options.items ?? "";
@@ -238,11 +240,26 @@ export function renderCollection(options: CollectionOptions): string {
     ` @click="${openCreate}" :aria-expanded="createOpen ? 'true' : 'false'">` +
     `New ${label}</button>` +
     `</header>` +
-    renderSearchFeedback(capability) +
+    // How many records this holds, directly under the search rail and directly above the
+    // first item. Empty in the chrome and filled from the same response the records arrive
+    // in, so the number is never the chrome's own stale copy of a fact the region already
+    // moved on from.
+    renderCollectionCountLabel(capability) +
     // No whitespace inside the region: it must stay truly `:empty` so the empty-state
     // CSS fires, and so the first prepended record clears it.
+    // The count is named as the region's description, which is what gives the label's id a
+    // referent. What actually *speaks* it is the window's own content region, which is
+    // `aria-live="polite"` (`public/desk-window.js`), so a changed count is announced
+    // without a second live region here competing with the search's status line.
     `<div id="${regionId}" class="capability-records ${layoutClass}"` +
+    ` aria-describedby="${countLabelId}"` +
     ` data-content-region="records"${recordsLoad}>${recordsContent}</div>` +
+    // The search's status line sits under the records, not over them: nothing may come
+    // between the count and the first record, and this line is not always silent — it
+    // carries the spinner, and it is where a search that matched nothing says so. A live
+    // region is announced when it changes rather than when it is reached, so reading last
+    // costs a screen reader nothing.
+    renderSearchFeedback(capability) +
     `<p class="capability-empty">Nothing here yet — add your first ${escapeHtml(capability.noun)} above.</p>` +
     `</div>` +
     `<div class="capability-collection__create" x-ref="createPanel" x-show="createOpen" x-cloak>` +
@@ -289,6 +306,32 @@ export function renderItemWrapper(
     `<button type="button" id="${itemId}" ${attributes}` +
     ` ${ITEM_RECORD_VIEW_ATTR}="${escapeHtml(recordView.templateId)}">${innerHtml}</button>`
   );
+}
+
+/**
+ * How many records a fragment actually rendered.
+ *
+ * This is the platform counting its own wrappers, which is the only honest way to say how
+ * many a search matched: a capability's `search` Handler owns its filter, and the platform
+ * cannot re-derive that number without re-running generated SQL it does not own (PLAN
+ * decision 32). So the answer is not recomputed — it is read off the answer, and it equals
+ * what the collection puts on screen by construction.
+ *
+ * Parsed rather than scanned: a record whose own text contains the class name would be
+ * counted by any pass over the raw string, and record text is a string a person typed.
+ */
+export function countRenderedItems(html: string): number {
+  let items = 0;
+  new HTMLRewriter()
+    // Both marks, not just the class: `renderItemWrapper` always writes the two together,
+    // and a Handler's own `<div class="capability-item stack">` is then not a record.
+    .on(`.${ITEM_TRIGGER_CLASS}[${ITEM_PAYLOAD_ATTR}]`, {
+      element() {
+        items += 1;
+      },
+    })
+    .transform(html);
+  return items;
 }
 
 /**

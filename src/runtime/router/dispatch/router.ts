@@ -78,6 +78,7 @@ import {
   capabilityIncarnation,
   captureCapabilityRead,
 } from "../admission/read-admission.ts";
+import { collectionCountSidecar } from "../wire/collection-count.ts";
 import {
   assertReadOwnership,
   choiceDisabledFailure,
@@ -481,7 +482,16 @@ async function executeCapabilityHandler(
         `Handler ${id}/${action} returned ${typeof fragment}; the contract requires an HTML string.`,
       );
     }
-    return answerWithHandlerFragment(c, id, spec, action, fragment);
+    return answerWithHandlerFragment(c, id, spec, action, fragment, (html) =>
+      collectionCountSidecar({
+        spec,
+        databases,
+        signal,
+        noun: row.noun,
+        action,
+        fragment: html,
+      }),
+    );
   } catch (error) {
     return capabilityHandlerFailure(c, id, action, error);
   }

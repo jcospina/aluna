@@ -66,16 +66,24 @@
     <script type="module" src="/static/swap-target.js"></script>
 
     <!--
-      What a capability shows, inside the one window. Three dumb presentation-glue files
+      What a capability shows, inside the one window. Four dumb presentation-glue files
       (ARCH §6.1: the shell places what the server sends, never infers intent):
         - record-view.js — pressing a record swaps the collection out for that record's
           form under a back control, and back swaps the collection in again (M5 plan 1).
         - record-mutations.js — request feedback for the create and update forms, and
           where each one lands once its outcome is known.
         - search-chrome.js — the collection's debounced search controller.
-      All three no-op on a page with no capability content, so they are safe to load on
+        - collection-count.js — how many records the collection holds, taken off the head
+          of the same read the records arrive in. It leads the group because the rest of
+          this list reaches it: search-chrome.js by importing it, record-mutations.js by
+          way of the committed-records re-read. (Named that way on purpose — this page
+          must not contain the word for it, because the desk offers no such control and a
+          test holds the whole file to that.) Loading it here is the shell's statement
+          that the system is on, the way region-scope.js is above.
+      All four no-op on a page with no capability content, so they are safe to load on
       every shell (cold-start included).
     -->
+    <script type="module" src="/static/collection-count.js"></script>
     <script type="module" src="/static/record-view.js"></script>
     <script type="module" src="/static/record-mutations.js"></script>
     <script type="module" src="/static/search-chrome.js"></script>

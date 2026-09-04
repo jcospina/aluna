@@ -31,10 +31,16 @@ export {
   RECORD_TEMPLATE_ID_PREFIX,
 } from "./records/adapter.ts";
 export {
+  collectionCountSentence,
+  filteredCollectionCountSentence,
+  renderCollectionCountSidecar,
+} from "./records/collection-count.ts";
+export {
   COLLECTION_LAYOUTS,
   type CollectionLayout,
   type CollectionOptions,
   collectionLayoutClass,
+  countRenderedItems,
   DEFAULT_COLLECTION_LAYOUT,
   ITEM_PAYLOAD_ATTR,
   ITEM_RECORD_VIEW_ATTR,

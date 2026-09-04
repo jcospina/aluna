@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-
 import {
   committedRecordsRefreshTarget,
   RECORDS_REFRESH_START_EVENT,
@@ -8,6 +7,7 @@ import {
 import { createRecordsRegionRequestCoordinator } from "#shell/records-region-requests.js";
 import { registerRegionRelease } from "#shell/region-scope.js";
 import { createDebouncedCapabilitySearch } from "#shell/search-chrome.js";
+import { renderCollectionCountSidecar } from "./collection-count.ts";
 
 describe("refreshCommittedRecords", () => {
   test("replaces the region only after a successful committed read and reprocesses it", async () => {
@@ -28,6 +28,40 @@ describe("refreshCommittedRecords", () => {
     expect(result).toEqual({ applied: true, region, query: "" });
     expect(region.innerHTML).toBe("<article>committed</article>");
     expect(processed).toEqual([region]);
+  });
+
+  test("takes the count off the answer, so only records reach the region", async () => {
+    // The count rides the read the region already asks for — one request, not two — and
+    // it is stripped before the swap. A sidecar left in the region would be a comment, so
+    // `:empty` would still match, but the region is for records and nothing else.
+    const region = { innerHTML: "stale" };
+    let requests = 0;
+
+    await refreshCommittedRecords({
+      region,
+      readUrl: "/capability/tasks/read",
+      request: async () => {
+        requests += 1;
+        return new Response(
+          `${renderCollectionCountSidecar("2 tasks")}<article>a</article><article>b</article>`,
+        );
+      },
+    });
+
+    expect(requests).toBe(1);
+    expect(region.innerHTML).toBe("<article>a</article><article>b</article>");
+  });
+
+  test("an emptied collection lands a region that is byte-empty, count sidecar and all", async () => {
+    const region = { innerHTML: "<article>last</article>" };
+
+    await refreshCommittedRecords({
+      region,
+      readUrl: "/capability/tasks/read",
+      request: async () => new Response(renderCollectionCountSidecar("")),
+    });
+
+    expect(region.innerHTML).toBe("");
   });
 
   test("reruns the active nonblank search query instead of canonical read", async () => {

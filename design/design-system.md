@@ -245,10 +245,24 @@ Aluna has no read view of a record, so the form is where a record is read as wel
 as changed.
 
 The collection's order is fixed and is the same for every capability: the search
-rail, then the count and the create action, then the records in the capability's
-declared layout. `ui_intent.collection.layout` is a closed enum — `.records--feed`
-is a single column, `.records--grid` fills as many equal columns as fit. Search is
-server-side and debounced.
+rail with the create action beside it, then the count, then the records in the
+capability's declared layout. The create action stays on the search's row — the two
+things you can do to a collection sit together, and the count is a fact about it
+rather than an action on it. Below 620px each takes a full row, measured against the
+*window* and not the viewport, because a window dragged narrow on a wide screen needs
+the wrap as much as a phone does. `ui_intent.collection.layout` is a closed enum —
+`.records--feed` is a single column, `.records--grid` fills as many equal columns as
+fit. Search is server-side and debounced.
+
+The count states what the collection holds, in the capability's own record noun
+("22 notes", never "22 records"), and when a search is active it states both numbers —
+how many matched and how many there are — because a filtered number alone reads as the
+whole truth and is not. A search that matched nothing says so beside a total that is not
+zero. An empty collection and a filtered one are different facts: the empty state is what
+a capability with no records says, a search with no matches has its own sentence, and the
+collection never shows both at once. That sentence is the search's status line, which
+comes after the records and not between them and the count — it is silent while there is
+nothing to say, and it is where the search's spinner turns.
 
 ## Forms
 

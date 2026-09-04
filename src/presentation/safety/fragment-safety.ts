@@ -16,7 +16,12 @@
 //
 //   • `<script>` elements, with their content (their content is code, never copy),
 //   • every `on*=` event-handler attribute,
-//   • `javascript:` / `vbscript:` / HTML-smuggling `data:` values on URL attributes.
+//   • `javascript:` / `vbscript:` / HTML-smuggling `data:` values on URL attributes,
+//   • `hx-swap-oob`, which is not execution but escape: it writes into any element on the
+//     desk by id, outside the region the swap was aimed at and outside anything this
+//     Handler owns. Only the platform performs out-of-band swaps (`src/server/http/
+//     fragments.ts`, `src/lifecycle/deletion/presentation.ts`); no generation contract
+//     asks a Handler for one, so a fragment carrying it is reaching for the shell.
 //
 // Conforming markup passes through byte-identical, which is what lets a caller notice that
 // something *was* removed and say so in the log.
@@ -33,6 +38,9 @@ const HANDLER_URL_ATTRS: ReadonlySet<string> = new Set([
   "data",
   "srcset",
 ]);
+
+/** The one attribute that swaps outside the target — platform machinery, never a Handler's. */
+const OUT_OF_BAND_ATTR = "hx-swap-oob";
 
 export interface SafeFragment {
   readonly html: string;
@@ -59,7 +67,7 @@ function scrubElement(element: HTMLRewriterTypes.Element): void {
     // `on*` is the whole event-handler family, and there is no `on`-prefixed attribute
     // outside it — checking the prefix closes the family rather than the members someone
     // thought of.
-    if (lower.startsWith("on")) element.removeAttribute(lower);
+    if (lower.startsWith("on") || lower === OUT_OF_BAND_ATTR) element.removeAttribute(lower);
     else if (HANDLER_URL_ATTRS.has(lower) && isDangerousUrl(value)) element.removeAttribute(lower);
   }
 }

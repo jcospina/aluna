@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { splitCollectionCount } from "#shell/collection-count.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { insertCapability } from "../../../registry/index.ts";
 import { createApp } from "../../../server/app.ts";
@@ -103,7 +104,36 @@ describe("deterministic capability router — presentation adapter and empty rea
     // Nothing rendered into the region — no element, no placeholder text — so `:empty`
     // still matches and `.capability-empty` (rendered by the scaffolding) is the sole
     // empty state, which the first created record then clears on its own.
-    expect((await res.text()).trim()).toBe("");
+    //
+    // The collection count rides at the head of the same answer, and it is read off
+    // before the records land. It says nothing here, because the empty state already
+    // speaks for a collection holding nothing and one fact stated twice is once too
+    // many — and even unread it could not defeat `:empty`, being a comment.
+    const { sentence, records } = splitCollectionCount(await res.text());
+    expect(sentence).toBe("");
+    expect(records.trim()).toBe("");
+  });
+
+  test("the count creates nothing — no table, no registry or version state", async () => {
+    install(conns, notesRow());
+    createCapabilityDataTool(notesSpec(), conns).insert({ text: "Buy milk", pinned: false });
+    const app = createApp({ capabilityRouter: { databases: conns } });
+    // Every table and how many rows each holds — so a new version, artifact, cache or
+    // read-dependency row would be seen, not just a new table.
+    const rowsPerTable = () =>
+      (
+        conns.readonly
+          .query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+          .all() as { name: string }[]
+      ).map(({ name }) => [
+        name,
+        (conns.readonly.query(`SELECT COUNT(*) AS "n" FROM "${name}"`).get() as { n: number }).n,
+      ]);
+    const before = rowsPerTable();
+
+    await app.request("/capability/notes/read");
+
+    expect(rowsPerTable()).toEqual(before);
   });
 
   test("injects the presentation adapter into the toolbox; a handler renders records through it", async () => {
@@ -170,6 +200,99 @@ describe("deterministic capability router — presentation adapter and empty rea
     expect(body).toMatch(/something went sideways/i);
     expect(body).not.toMatch(/item renderer|handler|artifacts|ENOENT/i);
     expect(handlerLoads).toBe(0);
+  });
+});
+
+describe("deterministic capability router — what a collection says it holds", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    ({ dir, conns } = setupRouterTest());
+  });
+
+  afterEach(() => {
+    teardownRouterTest(dir, conns);
+  });
+
+  test("the collection states how many records it holds, without rebuilding the capability", async () => {
+    // PLAN decision 32, end to end. The notes fixture is a capability built before any of
+    // this existed: its Handler, item renderer and spec are untouched, and its read still
+    // answers with the count at the head. The number is a `count` against the read-only
+    // connection, so it costs a read and creates nothing.
+    install(conns, notesRow());
+    const records = createCapabilityDataTool(notesSpec(), conns);
+    records.insert({ text: "Buy milk", pinned: false });
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const one = splitCollectionCount(await (await app.request("/capability/notes/read")).text());
+    expect(one.sentence).toBe("1 note");
+    // It agrees with what the collection renders.
+    expect(one.records.split('class="capability-item"').length - 1).toBe(1);
+
+    records.insert({ text: "Call Ana", pinned: false });
+    const two = splitCollectionCount(await (await app.request("/capability/notes/read")).text());
+    expect(two.sentence).toBe("2 notes");
+    expect(two.records.split('class="capability-item"').length - 1).toBe(2);
+  });
+
+  test("a filtered collection states how many matched and how many there are", async () => {
+    // Decision 32's second half, and the honesty rule it shares with decision 17: a
+    // filtered number presented alone reads as the whole truth and is not. The matched
+    // half is never re-derived — the fixture's own `search` Handler owns its filter, and
+    // it is untouched here — so it is counted off the records the answer actually carries.
+    install(conns, notesRow());
+    const records = createCapabilityDataTool(notesSpec(), conns);
+    records.insert({ text: "Buy milk", pinned: false });
+    records.insert({ text: "Call Ana", pinned: false });
+    records.insert({ text: "Buy bread", pinned: false });
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const hit = splitCollectionCount(
+      await (await app.request("/capability/notes/search?q=milk")).text(),
+    );
+    expect(hit.sentence).toBe("1 of 3 notes");
+    // Matched is what the collection renders; the total is every record it holds.
+    expect(hit.records.split('class="capability-item"').length - 1).toBe(1);
+
+    const some = splitCollectionCount(
+      await (await app.request("/capability/notes/search?q=buy")).text(),
+    );
+    expect(some.sentence).toBe("2 of 3 notes");
+    expect(some.records.split('class="capability-item"').length - 1).toBe(2);
+
+    // Clearing the search is a read, and a read is the plain count 6.1/01 ships.
+    const cleared = splitCollectionCount(
+      await (await app.request("/capability/notes/read")).text(),
+    );
+    expect(cleared.sentence).toBe("3 notes");
+  });
+
+  test("a search that matched nothing says so beside a total that is not zero", async () => {
+    // The case decision 32 exists for. Zero rows rendered and zero rows held are
+    // different facts, and only the second is a claim about the user's own notes.
+    install(conns, notesRow());
+    createCapabilityDataTool(notesSpec(), conns).insert({ text: "Buy milk", pinned: false });
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const none = splitCollectionCount(
+      await (await app.request("/capability/notes/search?q=zzzz")).text(),
+    );
+    expect(none.sentence).toBe("0 of 1 note");
+    expect(none.records.trim()).toBe("");
+  });
+
+  test("a capability holding nothing is bare, not filtered, and says nothing either way", async () => {
+    // Nothing to qualify: the platform empty state is what a collection with no records
+    // says, and 6.1/01's rule is that it says it once.
+    install(conns, notesRow());
+    const app = createApp({ capabilityRouter: { databases: conns } });
+
+    const searched = splitCollectionCount(
+      await (await app.request("/capability/notes/search?q=milk")).text(),
+    );
+    expect(searched.sentence).toBe("");
+    expect(searched.records.trim()).toBe("");
   });
 });
 

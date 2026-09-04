@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { Doc, parseHtml } from "../controls/choice-picker.test-support.ts";
 import { capabilityRecordsRegionId, type RenderableCapability } from "../fields/field-renderer.ts";
+import { COLLECTION_COUNT_LABEL_ATTR, capabilityCountLabelId } from "./collection-count.ts";
 import {
   COLLECTION_LAYOUTS,
   type CollectionLayout,
@@ -90,6 +92,10 @@ describe("collection layout — closed feed | grid map", () => {
 describe("collection layout — CSS parity", () => {
   // The classes the mapper emits must actually be styled, or a layout renders unstyled.
   const css = readFileSync(join(import.meta.dir, "../../../public/css/collection.css"), "utf8");
+  /* Selectors, whatever a formatter did to them: comments gone (a comment quoting a
+     selector must not answer for one) and every run of whitespace one space. */
+  const flatCss = css.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\s+/g, " ");
+  const SEARCH_STATES = ["idle", "loading", "results", "no-matches", "error"] as const;
 
   test("each layout class is defined in collection.css", () => {
     for (const layout of COLLECTION_LAYOUTS) {
@@ -107,13 +113,53 @@ describe("collection layout — CSS parity", () => {
     expect(css).toContain('[data-search-state="error"]');
   });
 
+  test("a search in any state suppresses the canonical empty state", () => {
+    // "Nothing here yet" is what a capability with no records says. Every state but
+    // `idle` is a search in progress or settled, and a filtered collection is not a bare
+    // one — so none of them may leave that sentence on screen.
+    for (const state of SEARCH_STATES.filter((s) => s !== "idle")) {
+      expect(flatCss, `[${state}] leaves the empty state showing`).toContain(
+        `.capability-collection[data-search-state="${state}"] .capability-empty`,
+      );
+    }
+  });
+
   test("collection-wide search feedback suppresses the canonical empty state", () => {
-    expect(css).toContain(
-      '.capability-collection[data-search-state="no-matches"] > .capability-empty',
+    expect(flatCss).toContain(
+      '.capability-collection[data-search-state="no-matches"] .capability-empty',
     );
-    expect(css).toContain(
-      '.capability-collection[data-search-state="no-matches"] > .capability-search__feedback',
+    expect(flatCss).toContain(
+      '.capability-collection[data-search-state="no-matches"] .capability-search__feedback',
     );
+  });
+
+  test("every search-state rule actually reaches the chrome it is written about", () => {
+    // The rules above once used `>`, and matched nothing at all: the flag is on the
+    // collection but the chrome is nested one level down, inside the half of the
+    // collection the create form swaps out. Every state rule was inert, which is how a
+    // search with no matches came to show its own message *and* "Nothing here yet" — two
+    // different facts about two different things, on screen together.
+    //
+    // Asserting the selector string alone is what let that ship. So the nesting is read
+    // out of the parsed render — document order would still pass if the chrome were
+    // hoisted out of the list — and the combinator that cannot cross it is refused over a
+    // whitespace-flattened, comment-free sheet, because the rule that shipped broken was
+    // written across three lines and no single-space scan would have seen it.
+    const root = parseHtml(renderCollection({ capability: SAMPLE }), new Doc());
+    const collection = root.querySelector(".capability-collection");
+    expect(collection).not.toBeNull();
+    for (const nested of [".capability-empty", ".capability-search__feedback"]) {
+      expect(collection?.querySelector(nested), `${nested} is not rendered`).not.toBeNull();
+      expect(
+        collection?.querySelector(nested)?.parent?.classList.contains("capability-collection"),
+        `${nested} is a direct child, so a child combinator would have reached it`,
+      ).toBe(false);
+    }
+    for (const state of SEARCH_STATES) {
+      expect(flatCss, `a child combinator under [${state}] matches nothing`).not.toContain(
+        `.capability-collection[data-search-state="${state}"] >`,
+      );
+    }
   });
 });
 
@@ -210,8 +256,10 @@ describe("container scaffolding", () => {
     );
     expect(searchIndex).toBeGreaterThan(-1);
     expect(searchIndex).toBeLessThan(recordsIndex);
+    // Nothing comes between the count and the first record, and this line is not always
+    // silent — it carries the spinner and the no-match sentence — so it reads last.
     expect(feedbackIndex).toBeGreaterThan(headerEndIndex);
-    expect(feedbackIndex).toBeLessThan(recordsIndex);
+    expect(feedbackIndex).toBeGreaterThan(recordsIndex);
     expect(feed).toContain('role="search"');
     expect(feed).toContain('type="search" name="q"');
     expect(feed).toContain('aria-label="Search Tasks"');
@@ -244,7 +292,7 @@ describe("container scaffolding", () => {
     // No whitespace/children inside the region → `:empty` matches → empty state shows.
     expect(feed).toContain(
       `id="${capabilityRecordsRegionId("tasks")}" class="capability-records capability-records--feed"` +
-        ' data-content-region="records"></div>',
+        ' aria-describedby="tasks-count" data-content-region="records"></div>',
     );
     expect(feed).not.toContain(ITEM_PAYLOAD_ATTR);
   });
@@ -256,7 +304,7 @@ describe("container scaffolding", () => {
     });
     expect(seeded).toContain("ITEM_MARKER");
     expect(seeded).toContain(
-      'class="capability-records capability-records--feed" data-content-region="records">',
+      'class="capability-records capability-records--feed" aria-describedby="tasks-count" data-content-region="records">',
     );
   });
 
@@ -269,6 +317,51 @@ describe("container scaffolding", () => {
   });
 });
 
+describe("what the collection states about how many it holds", () => {
+  const feed = renderCollection({ capability: SAMPLE, layout: "feed" });
+
+  test("states how many records it holds, under the search rail and above the first item", () => {
+    // PLAN decision 32. Platform chrome between the search rail and the records region —
+    // and empty in the container, because the number arrives with the records themselves
+    // rather than being baked into a View that outlives them.
+    const headerEndIndex = feed.indexOf("</header>");
+    const countIndex = feed.indexOf(`${COLLECTION_COUNT_LABEL_ATTR}></p>`);
+    const recordsIndex = feed.indexOf(
+      `<div id="${capabilityRecordsRegionId("tasks")}" class="capability-records`,
+    );
+    // Nothing stands between the count and either neighbour, which is what lets the CSS
+    // give it the same gap above and below.
+    expect(countIndex).toBeGreaterThan(headerEndIndex);
+    expect(countIndex).toBeLessThan(recordsIndex);
+    const countStart = feed.indexOf('<p class="capability-count');
+    expect(feed.slice(headerEndIndex + "</header>".length, countStart)).toBe("");
+    expect(feed).toContain(
+      `<p class="capability-count caps" id="${capabilityCountLabelId("tasks")}"`,
+    );
+  });
+
+  test("a View that does not declare search still states its count", () => {
+    const withoutSearch = renderCollection({
+      capability: { ...SAMPLE, actions: ["create", "read"] },
+      loadThroughRead: true,
+    });
+    const countIndex = withoutSearch.indexOf(`${COLLECTION_COUNT_LABEL_ATTR}></p>`);
+    const recordsIndex = withoutSearch.indexOf(
+      `<div id="${capabilityRecordsRegionId("tasks")}" class="capability-records`,
+    );
+    expect(countIndex).toBeGreaterThan(withoutSearch.indexOf("</header>"));
+    expect(countIndex).toBeLessThan(recordsIndex);
+  });
+
+  test("no number is baked into the chrome — not even for a seeded collection", () => {
+    const seeded = renderCollection({
+      capability: SAMPLE,
+      items: "<article>one</article><article>two</article>",
+    });
+    expect(seeded).toContain(`${COLLECTION_COUNT_LABEL_ATTR}></p>`);
+  });
+});
+
 // The serving mode: the records region lazy-loads live records through
 // the capability's `read` action so the platform View stays data-free.
 describe("container scaffolding — serving mode (loadThroughRead)", () => {
@@ -277,7 +370,7 @@ describe("container scaffolding — serving mode (loadThroughRead)", () => {
   test("wires the records region to load through the read action on load", () => {
     expect(serving).toContain(
       `<div id="${capabilityRecordsRegionId("tasks")}" class="capability-records capability-records--feed"` +
-        ' data-content-region="records"' +
+        ' aria-describedby="tasks-count" data-content-region="records"' +
         ' hx-get="/capability/tasks/read" hx-trigger="load" hx-swap="innerHTML"></div>',
     );
   });

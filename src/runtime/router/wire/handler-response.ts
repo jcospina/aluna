@@ -93,6 +93,12 @@ function findDeclaredRefusal(html: string, declared: ReadonlySet<string>): strin
  * Deliver a Handler's fragment: scrubbed of executable markup, and — when it carries one of
  * the capability's own declared behavioral-error markers — delivered the way the platform's
  * typed refusals are, so the browser can tell a refusal from a commit.
+ *
+ * `countSidecar` is built from the scrubbed fragment and prefixed to it, in that order and
+ * for two reasons: the enforcer's subject is what the *model* wrote, so platform-authored
+ * markup is trusted by construction and never re-parsed here; and the count reports on the
+ * records a search matched, so it must read the answer actually being sent rather than the
+ * one the enforcer was handed.
  */
 export function answerWithHandlerFragment(
   c: Context,
@@ -100,6 +106,7 @@ export function answerWithHandlerFragment(
   spec: CapabilitySpec,
   action: WireProtocolAction,
   fragment: string,
+  countSidecar: (html: string) => string,
 ): Response {
   const outcome = readHandlerFragment(fragment, spec, action);
   if (outcome.neutralized) {
@@ -113,7 +120,7 @@ export function answerWithHandlerFragment(
   if (outcome.refusalCode !== undefined && isRefusableAction(action)) {
     return declaredRefusal(c, id, action, outcome.html);
   }
-  return c.html(outcome.html);
+  return c.html(`${countSidecar(outcome.html)}${outcome.html}`);
 }
 
 /** Only a mutation has a form error region for a refusal to be retargeted into. */

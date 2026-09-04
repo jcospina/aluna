@@ -12,6 +12,7 @@ export {
   RECORD_NOT_FOUND_ERROR_CODE,
   RecordNotFoundError,
 } from "./access/mutation.ts";
+export { countCapabilityRecords } from "./access/record-count.ts";
 export { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "./access/search-bounds.ts";
 export { assertSubmittedFieldValues } from "./access/submitted-values.ts";
 export {

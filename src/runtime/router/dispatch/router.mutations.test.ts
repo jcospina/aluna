@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { splitCollectionCount } from "#shell/collection-count.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
 import { createApp } from "../../../server/app.ts";
@@ -305,9 +306,10 @@ describe("deterministic capability router — the Handler's returned fragment", 
       '<form hx-post="/capability/notes/create" hx-swap="none">' +
       '<input name="text" value="a &amp; b"><button type="submit">Add</button></form>';
 
-    expect(await (await appReturning(fragment).request("/capability/notes/read")).text()).toBe(
-      fragment,
-    );
+    // Past the platform's own count sidecar, which is chrome the answer carries and not
+    // something the enforcer may rewrite.
+    const body = await (await appReturning(fragment).request("/capability/notes/read")).text();
+    expect(splitCollectionCount(body).records).toBe(fragment);
   });
 
   // AC5 of 5.10/04. A capability-declared refusal used to be a bare 200 against a form
