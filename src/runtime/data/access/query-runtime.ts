@@ -161,13 +161,20 @@ function rehydrateCanonicalRows(
   return rehydrated;
 }
 
+/**
+ * Run `operation` over one read snapshot, so a selection and the rehydration that
+ * follows it answer from the same committed moment.
+ *
+ * `BEGIN` inherits whatever snapshot the connection already sits on, so the statement
+ * cache is finalized first: a cached statement some other read left unreset would
+ * otherwise hand this Action a moment older than its own call. The scope check's own
+ * `EXPLAIN` no longer leaves one (`explainOpcodes`) — clearing here is what keeps the
+ * guarantee from resting on that staying true of every other read of the shared
+ * connection.
+ */
 function withReadSnapshot<T>(database: Database, operation: () => T): T {
   const ownsTransaction = !database.inTransaction;
   if (ownsTransaction) {
-    // A cached `.get` statement can retain its last read snapshot until it is
-    // reset. Finalize those cursors before opening the Action's explicit
-    // selection + rehydration snapshot so a preceding registry lookup cannot
-    // pin stale capability data.
     (database as Database & { clearQueryCache(): void }).clearQueryCache();
     database.exec("BEGIN");
   }
@@ -217,7 +224,7 @@ export function assertScopedQuery(
     )
     .all() as SchemaRoot[];
   const sourceByRoot = new Map(roots.map((root) => [root.rootpage, root] as const));
-  const opcodes = database.query(`EXPLAIN ${sql}`).all(...parameters) as ExplainOpcode[];
+  const opcodes = explainOpcodes(database, sql, parameters);
   const accessed = new Set(
     opcodes
       .filter(({ opcode, p2 }) => opcode === "OpenRead" && p2 > 0)
@@ -231,6 +238,32 @@ export function assertScopedQuery(
     );
   }
   assertTargetColumnAccess(database, scope, opcodes, sourceByRoot, options);
+}
+
+/**
+ * The scope check's `EXPLAIN`, finalized so it releases the connection when it is done.
+ *
+ * An `EXPLAIN` — plain or `QUERY PLAN` — is not reset by being stepped to the end the way
+ * an ordinary statement is, and an unreset statement holds open the implicit read
+ * transaction the *next* statement opens. Every later read on that connection then
+ * answers from that moment: on freshly prepared statements, with `inTransaction` still
+ * false, for as long as the connection lives. `dbReadonly` is a long-lived singleton
+ * every concurrent read shares, so one scoped query would otherwise pin the whole
+ * platform read path, the registry lookup that resolves a capability's artifacts
+ * included. Finalizing is the release; preparing rather than `query` only keeps a
+ * statement used once out of the shared cache.
+ */
+function explainOpcodes(
+  database: Database,
+  sql: string,
+  parameters: readonly CapabilityQueryParameter[],
+): ExplainOpcode[] {
+  const statement = database.prepare(`EXPLAIN ${sql}`);
+  try {
+    return statement.all(...parameters) as ExplainOpcode[];
+  } finally {
+    statement.finalize();
+  }
 }
 
 /** The canonical physical tables admitted by one Action's target/dependency scope. */

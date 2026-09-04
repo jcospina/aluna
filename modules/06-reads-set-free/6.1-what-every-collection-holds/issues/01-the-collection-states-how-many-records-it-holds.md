@@ -87,7 +87,8 @@ take the platform empty state away, and browsers do not count comments when matc
 noun contains can close the comment early.
 
 **The count itself** is `COUNT(*)` on the capability's canonical table through `dbReadonly`
-(`src/runtime/data/access/record-count.ts`). No spec, registry or `ui_intent` field; no
+(`src/runtime/data/access/record-count.ts`) — as of 6.1/03 across `CapabilityQueryPort.all`,
+the seam every other read of capability data crosses. No spec, registry or `ui_intent` field; no
 generated artifact changed — the eight capabilities already on the dev desk state their
 counts without being rebuilt.
 

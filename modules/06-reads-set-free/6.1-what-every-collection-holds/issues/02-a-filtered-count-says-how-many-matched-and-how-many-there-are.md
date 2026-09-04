@@ -153,3 +153,13 @@ filed separately, and Module 6's `data_query` loop will need it fixed.
   with "I couldn't find a match. Try another word." and no empty state → clear → 22 entries.
   The wire was read directly too: `<!--aluna:count:0%20of%2022%20entries-->` and a body that is
   the sidecar alone, so the region stays childless.
+
+## Comments
+
+**2026-09-04 — "Carried out, not carried" is now history.** The port bug filed out of this
+issue is fixed (6.1/03), so the reason the count read directly is gone and the count has been
+carried onto `CapabilityQueryPort.all` after all. The section above stays as the record of what
+was true while 6.1/02 was built; what it says about `all()` pinning the connection no longer
+describes the code. The retaining statement turned out to be the scope check's own `EXPLAIN`,
+not `all()`'s projection, and `records()` was unaffected only because it cleared the statement
+cache on its way into its snapshot.

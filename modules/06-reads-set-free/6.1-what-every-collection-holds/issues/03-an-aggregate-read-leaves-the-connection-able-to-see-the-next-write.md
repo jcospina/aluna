@@ -1,6 +1,6 @@
 # An aggregate read leaves the connection able to see the next write
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -87,18 +87,18 @@ confirm the mechanism rather than assuming it: find the statement that retains t
 
 ## Acceptance criteria
 
-- [ ] A write committed on the read-write connection is visible to the next read on the
+- [x] A write committed on the read-write connection is visible to the next read on the
       read-only connection, after an `all` exactly as it already is after a `records`
-- [ ] The statement that was retaining the cursor is identified, and the fix is aimed at it
+- [x] The statement that was retaining the cursor is identified, and the fix is aimed at it
       rather than at the symptom
-- [ ] `records` keeps the snapshot semantics it has — a selection and its rehydration still
+- [x] `records` keeps the snapshot semantics it has — a selection and its rehydration still
       read one consistent moment
-- [ ] A regression test asserts the visibility directly, and does not rely on the loader
+- [x] A regression test asserts the visibility directly, and does not rely on the loader
       test noticing it second-hand
-- [ ] `countCapabilityRecords` moves onto the port and the paragraph in its header
+- [x] `countCapabilityRecords` moves onto the port and the paragraph in its header
       explaining why it could not is deleted
-- [ ] No generated artifact changes, and no capability is rebuilt for it
-- [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
+- [x] No generated artifact changes, and no capability is rebuilt for it
+- [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -112,3 +112,84 @@ regression test is what keeps it fixed.
 ## Blocked by
 
 Nothing.
+
+## What landed
+
+**The retaining statement is the scope check's own `EXPLAIN`**, not `all`'s projection —
+`assertScopedQuery` in `src/runtime/data/access/query-runtime.ts`. An `EXPLAIN` (plain or
+`QUERY PLAN`) is not reset by being stepped to the end the way an ordinary statement is, and
+an unreset statement holds open the implicit read transaction that the *next* statement
+opens. That is why the pin showed `inTransaction=false` and survived a freshly prepared
+statement: nothing held a `BEGIN`, one statement was simply never released. Bisected against
+a fresh WAL file per probe, and confirmed independently by a second agent:
+
+```
+STALE  EXPLAIN .all() / .get() / .values() / .run(), EXPLAIN QUERY PLAN, iterate() broken early
+OK     SELECT .all()/.values()/.get(), .get() mid-scan, PRAGMA, sqlite_master, table-valued
+       fns, a .all() that throws mid-scan, a fully consumed iterate(), a failed prepare()
+OK     EXPLAIN prepared and finalized
+```
+
+Neither the statement cache nor `all`'s `statement.values` is implicated: an *uncached*
+`prepare("EXPLAIN …").all()` without `finalize()` pins identically. **Finalizing is the
+release.** `explainOpcodes` prepares the statement and finalizes it in a `finally`; using
+`prepare` rather than `query` only keeps a statement used once out of the shared cache.
+
+`records` was never affected because `withReadSnapshot` cleared the statement cache on its
+way into its snapshot — which turns out to be load-bearing for a second reason, so it stays.
+`BEGIN` inherits whatever snapshot the connection already sits on, so without the clear an
+Action would be handed a moment older than its own call by any *other* read that left a
+cursor open. Its comment blamed a cached `.get`; measurement disproved that, so the comment
+now names the real mechanism. The margin is thinner than it looks:
+`src/pipeline/evolution/assembly/length-scan.ts:141` runs `.iterate()` on `dbReadonly` and is
+safe only because its loop body cannot `break`, `return` or throw.
+
+**`countCapabilityRecords` now crosses `CapabilityQueryPort.all`** and the paragraph
+explaining why it could not is gone. It costs the port's scope check per collection open —
+four statements rather than one, ~43µs against a 500-row table, named in
+`src/runtime/router/wire/collection-count.ts` where the hot-path cost is already recorded. A
+count that cannot be read now throws rather than reporting zero records; the caller already
+catches and renders no label, which is honest where "0" would be a visible lie.
+
+No generated artifact changed and no capability was rebuilt.
+
+## Findings fixed
+
+Two review agents (correctness/adversarial and spec-conformance). Every finding is fixed,
+INFO included.
+
+- The `clearQueryCache()` deletion was a real regression: it heals a connection some *other*
+  path pinned, and nothing covered it. Restored, comment corrected, and now tested.
+- The record-query test asserted *bracketing* (which SQL ran while `inTransaction`), a
+  structural proxy — it passed with the bug present. Rewritten behaviorally: a commit is
+  landed between the selection and the rehydration, and the rehydration must not see it.
+- The `explainOpcodes` doc blamed the statement cache and claimed `prepare` is "what makes it
+  finalizable". Both false; rewritten.
+- `collection-count.ts` still said "two statements" and "an unindexed scan" — it is four
+  statements now, and it was always a covering-index scan.
+- `record-count.ts` credited the port with spec validation and lease honouring, which the
+  direct read already did; only the scoping is new.
+- `record-count.ts` silently reported 0 when the count was absent. It throws.
+- A test comment restated its own code instead of naming the non-obvious part: a pinned
+  connection still answers the aggregate correctly, so the off-port read is the assertion
+  with teeth.
+- 6.1/02's "Carried out, not carried" section asserted the opposite of reality; retired under
+  its `## Comments`. 6.1/01's description of the count's path updated.
+
+## Verification
+
+- `bun run test` — 2603 passed, 0 failed (74s). `bun run typecheck`, `bun run lint` clean.
+- The issue's own reproduction script now prints `CHANGED` where it printed `Notes`.
+- Every new test is load-bearing, checked by mutation. Restore the cached `EXPLAIN` and only
+  "a committed write is visible to the next read after an aggregate query" fails; drop the
+  `BEGIN`/`COMMIT` and only the two record-query tests fail; drop `clearQueryCache()` and only
+  "a record query reads past a snapshot another read pinned to the connection" fails.
+- The end-to-end guard the issue predicted holds: with the fix reverted and the count on the
+  port, `router.views.test.ts` fails at "the default loader keys Bun imports by incarnation
+  path for a recreated semantic id".
+- A sweep of every real `dbReadonly` read path (`countCapabilityRecords`, `port.all`
+  aggregate and projection, `port.records`, `selectCapabilityRows`,
+  `readActiveRegistryCatalog`, both length-scan branches, three throwing paths) leaves the
+  connection unpinned, 12/12.
+- Live on `:3030`: the count sidecar renders through the port
+  (`<!--aluna:count:22%20books-->`).
