@@ -14,6 +14,7 @@ import { describe, expect, test } from "bun:test";
 import { MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../../registry/index.ts";
 import {
   applyCapabilityTableDdl,
+  type CapabilityRecordQueryRow,
   createCapabilityMutationPort,
   createCapabilityQueryPort,
   MissingRequiredFieldsError,
@@ -98,6 +99,102 @@ describe("split capability data ports", () => {
       // The selection's own order survives the batching, and every row is a real one.
       expect(rows.at(-1)?.record.fields.text).toBe(`Note ${created.length - 1}`);
       expect(new Set(rows.map(({ record }) => record.fields.text)).size).toBe(created.length);
+    });
+  });
+
+  // The read-only connection is a long-lived singleton every concurrent read shares, so a
+  // query that leaves a cursor open pins every later read on it — the registry lookup that
+  // resolves which artifacts a capability runs included — to before the next commit.
+  test("a committed write is visible to the next read after an aggregate query", () => {
+    withFileDatabase((databases) => {
+      const notes = notesSpec();
+      applyCapabilityTableDdl(notes, databases.readwrite);
+      const mutation = createCapabilityMutationPort(notes, databases.readwrite);
+      const query = createCapabilityQueryPort(databases.readonly, { target: notes });
+      const total = () =>
+        query.all({
+          sql: 'SELECT COUNT(*) AS "count" FROM "cap_notes"',
+          result: [{ alias: "count", type: "number" }],
+        })[0]?.count;
+      // A read that does not cross the port at all, the way the registry lookup does not.
+      const stored = () => databases.readonly.query('SELECT "id" FROM "cap_notes"').all();
+
+      mutation.create({ text: "First", pinned: false });
+      expect(total()).toBe(1);
+
+      // A pinned connection still answers this aggregate correctly — the port re-steps its
+      // own statements — so the off-port read below is the one with teeth.
+      mutation.create({ text: "Second", pinned: false });
+      expect(stored()).toHaveLength(2);
+      expect(total()).toBe(2);
+
+      // Exactly as it already is after a record query.
+      query.records({ sql: 'SELECT "id" AS "target_id" FROM "cap_notes"' });
+      mutation.create({ text: "Third", pinned: false });
+      expect(stored()).toHaveLength(3);
+      expect(total()).toBe(3);
+    });
+  });
+
+  test("a record query reads its selection and its rehydration at one moment", () => {
+    withFileDatabase((databases) => {
+      const notes = notesSpec();
+      applyCapabilityTableDdl(notes, databases.readwrite);
+      createCapabilityMutationPort(notes, databases.readwrite).create({
+        text: "Soup notes",
+        pinned: false,
+      });
+      const readonly = databases.readonly;
+      const port = createCapabilityQueryPort(readonly, { target: notes });
+      const query = readonly.query.bind(readonly);
+      // Nothing yields between the selection and the rehydration, so the rehydration's own
+      // preparation is the only place a commit can be landed between the two.
+      Object.defineProperty(readonly, "query", {
+        configurable: true,
+        value: (sql: string) => {
+          if (sql.includes('WHERE "id" IN (')) {
+            databases.readwrite.run(`UPDATE "cap_notes" SET "text" = 'Rewritten'`);
+          }
+          return query(sql);
+        },
+      });
+
+      let rows: CapabilityRecordQueryRow[] = [];
+      try {
+        rows = port.records({ sql: 'SELECT "id" AS "target_id" FROM "cap_notes"' });
+      } finally {
+        Reflect.deleteProperty(readonly, "query");
+      }
+
+      expect(rows.map(({ record }) => record.fields.text)).toEqual(["Soup notes"]);
+      // The moment is released with the snapshot, not kept.
+      expect(readonly.inTransaction).toBe(false);
+      expect(readonly.query('SELECT "text" FROM "cap_notes"').all()).toEqual([
+        { text: "Rewritten" },
+      ]);
+    });
+  });
+
+  // `BEGIN` inherits the snapshot the connection already sits on, so the bracket alone is
+  // not the guarantee: a cursor left open by any other read of the shared connection would
+  // be handed straight to the Action.
+  test("a record query reads past a snapshot another read pinned to the connection", () => {
+    withFileDatabase((databases) => {
+      const notes = notesSpec();
+      applyCapabilityTableDdl(notes, databases.readwrite);
+      const mutation = createCapabilityMutationPort(notes, databases.readwrite);
+      mutation.create({ text: "First", pinned: false });
+      // An unreset `EXPLAIN` is the shape that pins, whoever leaves one behind.
+      databases.readonly.query('EXPLAIN SELECT "id" FROM "cap_notes"').all();
+      databases.readonly.query('SELECT "id" FROM "cap_notes"').all();
+
+      mutation.create({ text: "Second", pinned: false });
+
+      expect(
+        createCapabilityQueryPort(databases.readonly, { target: notes }).records({
+          sql: 'SELECT "id" AS "target_id" FROM "cap_notes"',
+        }),
+      ).toHaveLength(2);
     });
   });
 

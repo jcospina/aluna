@@ -5,11 +5,11 @@
 // SQL it does not own — so it is counted off the very answer being sent. That is why the
 // sidecar is built *from* the fragment rather than beside it.
 //
-// **One round trip, two statements.** The count runs after the Handler's own `SELECT`
+// **One round trip, a second read.** The count runs after the Handler's own `SELECT`
 // returns, on the same read-only connection but not inside a transaction with it — the
 // connection is a platform singleton every concurrent read shares, so a transaction
 // around an `await` here would enclose other requests' reads. A commit landing between
-// the two statements makes the label disagree with the rendered rows for exactly as long
+// the two reads makes the label disagree with the rendered rows for exactly as long
 // as the next read takes, which is the same window in which the rendered rows are
 // themselves one commit behind. Closing it needs a per-request read connection, which is
 // a change to the platform's data access, not to the count. What the count refuses to do
@@ -17,8 +17,11 @@
 // `filteredCollectionCountSentence`.
 //
 // It costs one `COUNT(*)` per collection open, per back-from-record and per post-create
-// refresh — an unindexed scan, which is nothing at desk scale and is named here because
-// it is on the hot read path.
+// refresh — a covering-index scan of the capability's table. Crossing
+// `CapabilityQueryPort.all` makes that four statements rather than one: the port's scope
+// check reads `sqlite_master`, `EXPLAIN`s the count and reads the target's column layout
+// before the count itself runs. Around 43µs against a 500-row table, which is nothing at
+// desk scale and is named here because it is on the hot read path.
 
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
