@@ -1,6 +1,6 @@
 # The query worker opens its own read-only connection, and a write through it still fails
 
-Status: ready-for-agent
+Status: done
 
 ## Epic
 
@@ -46,17 +46,17 @@ is only where SQL executes.
 
 ## Acceptance criteria
 
-- [ ] A Worker opens a read-only connection against the one documented database
+- [x] A Worker opens a read-only connection against the one documented database
       file and returns rows for a parameterized statement issued from the main
       thread
-- [ ] A write attempted through that connection fails at the SQLite seam, proved
+- [x] A write attempted through that connection fails at the SQLite seam, proved
       by test rather than asserted in a comment
-- [ ] The main thread remains responsive while the worker runs a pathological
+- [x] The main thread remains responsive while the worker runs a pathological
       query, proved by a test that fails if the query runs in-process
-- [ ] The worker receives no read token and no incarnation identity
-- [ ] Nothing the worker does creates registry, version, artifact, cache or
+- [x] The worker receives no read token and no incarnation identity
+- [x] Nothing the worker does creates registry, version, artifact, cache or
       `read_dependencies` state
-- [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
+- [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -68,3 +68,64 @@ frozen desk.
 
 Epic 6.1 is independent of this branch and does not gate it; a collection count
 and a query worker share nothing.
+
+## What landed
+
+- `src/runtime/query/query-worker-thread.ts` — the Worker thread. Opens its own
+  `SQLITE_OPEN_READONLY` connection against the path it is handed, refuses the statement
+  forms that leave that file behind, then runs one parameterized statement per message and
+  posts rows back. Prepares and finalizes each statement rather than using the connection's
+  statement cache, since a question's SQL is written once and never asked again.
+- `src/runtime/query/query-worker.ts` — the main-thread side. `createQueryWorker(path =
+  DB_PATH)`, `read(sql, parameters)`, `close()`, and a `QueryWorkerError` family
+  (`Statement`/`Busy`/`Closed`) in the shape of `ReadGateError`. One read at a time; a
+  second concurrent read is refused rather than queued.
+- `src/runtime/query/query-worker.test.ts` — 17 tests.
+
+## Findings
+
+**`SQLITE_OPEN_READONLY` is not the seam on its own.** It means "cannot write *this*
+database", which is narrower than it reads. Through a read-only connection, `VACUUM INTO`
+wrote a complete copy of the catalog to an arbitrary path, `CREATE TEMP TABLE` spilled
+293 MB to disk, and `ATTACH DATABASE` opened and read any other SQLite file on the machine
+— the last of which `PRAGMA query_only` does not stop, and none of which the first draft
+refused. The connection now opens `query_only`, and the worker refuses
+`ATTACH`/`DETACH`/`PRAGMA`/`VACUUM`/`REINDEX`/`ANALYZE` and multi-statement SQL at the
+seam, mirroring `RAW_MUTATION_SQL_PATTERN` in `builder/units/safety/handler-source-safety.ts`.
+Refusing `PRAGMA` is load-bearing: without it `PRAGMA query_only = OFF` reopens everything.
+
+**`terminate()` does not stop a running statement, which decision 10 assumes it does.**
+Measured on Bun 1.3.12: after `terminate()` returned, the thread went on burning 2.98s of
+CPU over the next 3s of a runaway query, and a `process.exit` issued during one waited for
+the statement to finish. `terminate()` reclaims the thread when the statement ends;
+interrupting the statement itself needs `sqlite3_interrupt` through FFI against
+`Database.handle`. Recorded in `query-worker.ts` because 6.2/03 is built on this.
+
+**The SQLite runtime loads once per process, not per thread.** `configureSqliteRuntime()`
+throws `SQLite already loaded` from the worker, so the thread does not call it and inherits
+the library the main thread pinned; a `sqlite_version()` parity test asserts that rather
+than trusting it (on macOS it has teeth — Bun ships 3.51.0, the pinned build is 3.53.1).
+
+**`platform_search_normalize` cannot be registered on this connection yet, and trying
+segfaults the process reproducibly.** The guard in `assertExtensionAbiMatchesRuntime` keys
+off `sqliteLibraryPath`, which `configureSqliteRuntime` assigns *after* `setCustomSQLite` —
+and that call throws on the worker thread, so the path stays unset whatever the thread
+does, the ABI check silently skips itself, and the extension compiles against the system
+headers while Homebrew's library is loaded. A generated search's SQL will fail here with
+*no such function* until the epic that needs it gives the thread the pinned path without
+re-pinning it. Pinned by a test so the day it changes is deliberate.
+
+**A throw at the thread's module scope surfaces only through `worker.onerror`** — without
+it every read waits forever on a thread that is already dead.
+
+**Bun's bundler leaves `new URL("./query-worker-thread.ts", import.meta.url)` as written**,
+so a bundled `dist/` build would look for the thread beside `dist/index.js`. Nothing
+imports the worker yet, so `dist` is unaffected; recorded in the code for whoever first
+makes it reachable from the server.
+
+## Verification
+
+- `bun run test src/runtime/query` — 17 pass
+- `bun run test` — 2620 pass, 0 fail; `bun run typecheck` and `bun run lint` clean
+- The liveness assertion discriminates: the same query in-process fired **0** heartbeats
+  against the test's floor of 10, and held 47/50 under 32 spinners on 16 cores.
