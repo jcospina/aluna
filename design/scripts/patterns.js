@@ -70,13 +70,19 @@ export function renderCollection(capability, opts = {}) {
 /**
  * The collection, in the order the shell fixes.
  *
- *   1 · Search — full-width pill input, placeholder naming the thing
- *   2 · Count & action — live count left, the create action right
+ *   1 · Search & action — the search input, the create action beside it
+ *   2 · Count — what the collection holds, under the rail and above the first item
  *   3 · Records — the feed or grid, per the capability's declared layout
  *
- * The count is live and updates on search: a filtered count is more useful
- * than a total, and it doubles as the search's own feedback without needing a
- * separate status line.
+ * The two things you can do to a collection share row 1; the count is a fact
+ * about it rather than an action on it, so it gets its own line. Below 620px of
+ * *window* — not viewport — each control in row 1 takes a full row.
+ *
+ * The count is live and updates on search, and a filtered count states both
+ * numbers — how many matched and how many there are. A matched number alone
+ * reads as the whole truth and is not, and nothing matched has to say so
+ * beside a total that is not zero, or a filtered collection reads as an
+ * empty one.
  *
  * @param {Capability} capability
  * @param {"feed"|"grid"} layout
@@ -86,7 +92,8 @@ export function renderCollection(capability, opts = {}) {
 function renderList(capability, layout, onOpen) {
   const root = el("div", "collection");
 
-  /* Row 1 — search. Full width means it never competes for the row. */
+  /* Row 1 — search and the create action, the two things you can do to a collection. */
+  const head = el("div", "collection__head");
   const search = el("div", "search");
   const glyph = el("span", "search__glyph");
   glyph.innerHTML = MAGNIFIER;
@@ -95,14 +102,13 @@ function renderList(capability, layout, onOpen) {
   input.placeholder = `Search ${capability.label.toLowerCase()}…`;
   input.setAttribute("aria-label", `Search ${capability.label}`);
   search.append(glyph, input);
-
-  /* Row 2 — count and the create action, the two collection-level facts. */
-  const head = el("div", "collection__head");
-  const count = el("span", "collection__count caps");
   const create = el("button", "btn btn--primary", "New record");
   create.type = "button";
   create.addEventListener("click", () => onOpen(null));
-  head.append(count, create);
+  head.append(search, create);
+
+  /* Row 2 — what the collection holds. */
+  const count = el("span", "collection__count caps");
 
   /* Row 3 — the records. */
   const list = el("div", `records records--${layout}`);
@@ -114,7 +120,12 @@ function renderList(capability, layout, onOpen) {
       (r) => !q || r.title.toLowerCase().includes(q) || r.detail.toLowerCase().includes(q),
     );
 
-    count.textContent = rows.length === 1 ? "1 record" : `${rows.length} records`;
+    const total = capability.records.length;
+    /* The capability's own record noun, the way every other piece of desk copy uses it.
+       Both numbers while filtered, the plain total at rest — and the total governs the
+       noun either way, because the noun belongs to the collection, not to the search. */
+    const noun = total === 1 ? capability.noun : `${capability.noun}s`;
+    count.textContent = q ? `${rows.length} of ${total} ${noun}` : `${total} ${noun}`;
 
     /*
      * Two states, two sentences. An empty collection and a search that found
@@ -135,7 +146,7 @@ function renderList(capability, layout, onOpen) {
   input.addEventListener("input", () => paint(input.value));
   paint("");
 
-  root.append(search, head, list);
+  root.append(head, count, list);
   return root;
 }
 

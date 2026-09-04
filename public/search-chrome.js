@@ -1,5 +1,6 @@
 // @ts-check
 
+import { applyCollectionCount, splitCollectionCount } from "./collection-count.js";
 import { RECORDS_REFRESH_START_EVENT } from "./records-refresh.js";
 import {
   createRecordsRegionRequestCoordinator,
@@ -22,6 +23,7 @@ export const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
  *   searchUrl: string,
  *   render: (html: string) => void,
  *   state: (state: SearchState) => void,
+ *   count?: (sentence: string | undefined) => void,
  *   queryChanged?: (rawQuery: string) => void,
  *   cancelExternalRead?: () => void,
  *   claimRequest?: () => import("./records-region-requests.js").RecordsRegionRequestClaim,
@@ -86,8 +88,14 @@ export function createDebouncedCapabilitySearch(options) {
   /** @param {string} html @param {string} query @param {import("./records-region-requests.js").RecordsRegionRequestClaim} claim @param {number} ownGeneration */
   function acceptResponse(html, query, claim, ownGeneration) {
     if (requestIsObsolete(claim, ownGeneration)) return;
-    options.render(html);
-    options.state(completedState(query, html));
+    // A search answers with both numbers — how many matched and how many there are — so
+    // the label never presents a filtered number as the whole truth, and a search that
+    // matched nothing says so beside a total that is not zero. Restoring the canonical
+    // read brings the plain count back.
+    const { sentence, records } = splitCollectionCount(html);
+    options.render(records);
+    options.count?.(sentence);
+    options.state(completedState(query, records));
   }
 
   /** @param {unknown} error @param {import("./records-region-requests.js").RecordsRegionRequestClaim} claim @param {number} ownGeneration */
@@ -199,6 +207,7 @@ function controllerFor(form) {
       region.innerHTML = html;
       htmx?.process(region);
     },
+    count: (sentence) => applyCollectionCount(region, sentence),
     state: (state) => applySearchState(form, region, state),
     queryChanged: (rawQuery) => {
       if (clear instanceof HTMLButtonElement) clear.hidden = rawQuery.length === 0;

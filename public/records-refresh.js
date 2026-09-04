@@ -13,6 +13,7 @@
  * response that lost its claim) are executable in Bun without a browser DOM.
  */
 
+import { applyCollectionCount, splitCollectionCount } from "./collection-count.js";
 import {
   createRecordsRegionRequestCoordinator,
   recordsRegionRequestCoordinator,
@@ -161,6 +162,35 @@ async function requestRefreshHtml(request, url, signal) {
 }
 
 /**
+ * Land one answer: the count is split off the head of the response, then the records go
+ * in and the count follows them into its label. One read produces both, so there is no
+ * second request for the number to be out of step with.
+ *
+ * The last three lines are the search controller's `acceptResponse` as well, and they stay
+ * apart on purpose: there, `render` and `count` are injected so the timing core runs with
+ * no DOM at all, and here the region may be a bare `{ innerHTML }` with no label to write.
+ * What the two genuinely share — the split and the write — they already import.
+ *
+ * @template {{ innerHTML: string }} T
+ * @param {{
+ *   region: T,
+ *   domRegion: Element | undefined,
+ *   html: string,
+ *   process: ((region: T) => void) | undefined,
+ *   query: string,
+ * }} input
+ */
+function applyRefreshedResponse({ region, domRegion, html, process, query }) {
+  const { sentence, records } = splitCollectionCount(html);
+  region.innerHTML = records;
+  process?.(region);
+  if (domRegion) {
+    applyCollectionCount(domRegion, sentence);
+    finishRefresh(domRegion, query, records);
+  }
+}
+
+/**
  * Refresh a committed records region without hiding failures behind HTMX's
  * promise resolution. Keeping this seam pure makes the post-mutation degraded path
  * executable in Bun without a browser DOM.
@@ -195,9 +225,7 @@ export async function refreshCommittedRecords({
   try {
     const html = await requestRefreshHtml(request, target.url, claim.signal);
     if (!claim.isCurrent()) return { applied: false, region, query: target.query };
-    region.innerHTML = html;
-    process?.(region);
-    if (domRegion) finishRefresh(domRegion, target.query, html);
+    applyRefreshedResponse({ region, domRegion, html, process, query: target.query });
     return { applied: true, region, query: target.query };
   } catch (error) {
     if (!claim.isCurrent()) return { applied: false, region, query: target.query };

@@ -741,20 +741,29 @@
           the whole window, and it is the only record surface there is.
         </p>
 
-        <div class="cols">
+        <!-- One column, not two: each stage has to be wider than the 620px the rail
+             wraps at, or this page would only ever show the wrapped state it is
+             describing the alternative to. -->
+        <div class="cols" style="grid-template-columns: 1fr">
           <div>
             <h3 class="kicker">The collection header · feed</h3>
             <div class="stage stage--flush stage--paper" style="padding: 18px">
               <div data-pattern-collection></div>
             </div>
             <p class="xs" style="margin-top: 12px">
-              Search comes first at full width, so it never competes for space on its row. Below it
-              the count and the create action share one line, which puts the two collection-level
-              facts together. Type in the search box and the count updates <strong>live</strong>. A
-              filtered count is more useful than a total, and it doubles as feedback for the search
-              without needing a separate status line. The filtering itself is a fixture shortcut,
-              because this page has no server: in the product the search is server-side and
-              debounced, and the count arrives with the records.
+              Search and the create action share row one: they are the two things you can do to a
+              collection, so they sit together, and the search takes whatever room the action does
+              not need. Below 620px of <em>window</em> — not viewport, because a window dragged
+              narrow on a wide screen needs it as much as a phone does — each takes a full row. Row
+              two is the count: a fact about the collection rather than an action on it, so it gets
+              its own line, under the rail and directly above the first record. Type in the search
+              box and the count updates <strong>live</strong>. A filtered count states both numbers
+              — how many matched and how many there are — so a filtered number is never read as the
+              whole truth. Nothing matched says so beside a total that is not zero, rather than
+              reading as an empty collection: those are two different facts and the collection never
+              shows both at once. The filtering itself is a fixture shortcut, because this page has
+              no server: in the product the search is server-side and debounced, and the count
+              arrives with the records.
             </p>
           </div>
           <div>
@@ -763,8 +772,8 @@
               <div data-pattern-grid></div>
             </div>
             <p class="xs" style="margin-top: 12px">
-              The header is unchanged. Only row 3 differs, following the capability's declared
-              layout, and feed and grid are the closed set of layouts.
+              The rail and the count are unchanged. Only row 3 differs, following the capability's
+              declared layout, and feed and grid are the closed set of layouts.
             </p>
           </div>
         </div>

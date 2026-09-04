@@ -159,7 +159,19 @@
   border-radius: 50%;
   animation: capability-search-spin var(--dur-rise) linear infinite;
 }
-.capability-collection[data-search-state="idle"] > .capability-search__feedback {
+/* Every state rule below reaches the search chrome as a *descendant*, not a child. The
+   flag is on the collection and the chrome is inside `.capability-collection__list` (the
+   half of the collection the create form swaps out), so a `>` here matches nothing at
+   all — which is how a search with no matches came to show its message and the empty
+   state at the same time, each unaware of the other.
+
+   `results` reads to a screen reader and to nobody else, beside `idle`. "I updated the
+   results." is the announcement of a change, and the change is already on screen twice
+   over — the records themselves, and the count saying how many of how many matched. The
+   states that stay visible are the ones with something a person cannot otherwise see:
+   the spinner, the no-match sentence, and the error. */
+.capability-collection[data-search-state="idle"] .capability-search__feedback,
+.capability-collection[data-search-state="results"] .capability-search__feedback {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -170,11 +182,11 @@
   white-space: nowrap;
 }
 .capability-collection[data-search-state="loading"]
-  > .capability-search__feedback
+  .capability-search__feedback
   .capability-search__loading {
   display: inline-block;
 }
-.capability-collection[data-search-state="no-matches"] > .capability-search__feedback {
+.capability-collection[data-search-state="no-matches"] .capability-search__feedback {
   display: block;
   min-height: 0;
   margin: 0;
@@ -191,6 +203,20 @@
   to {
     rotate: 1turn;
   }
+}
+
+/* ── How many records ─────────────────────────────────────────────────────────
+   Small caps is the role the design system already gives labels, counts and kickers, so
+   the label carries `.caps` and this owns only its box. `margin: 0` undoes the paragraph
+   margin design/styles/base.css puts on every `<p>`: the list is a flex column whose gap
+   owns the rhythm, and a bottom margin here would make the gap below the count larger
+   than the one above it. Empty is how the count says nothing — a bare collection is
+   spoken for by the empty state, and one fact stated twice is once too many. */
+.capability-count {
+  margin: 0;
+}
+.capability-count:empty {
+  display: none;
 }
 
 /* ── Records region — the two closed collection layouts ───────────────────────
@@ -248,15 +274,30 @@
   color: var(--ink-3);
   text-align: center;
 }
-.capability-collection[data-search-state="loading"] > .capability-empty,
-.capability-collection[data-search-state="no-matches"] > .capability-empty,
-.capability-collection[data-search-state="error"] > .capability-empty {
+/* A filtered collection is not an empty one. "Nothing here yet" is what a capability
+   with no records says; a search that matched none of them has its own sentence, and the
+   two are different facts about different things. Only one of them may be on screen.
+   Every state but `idle` is a search in progress or settled, so every state but `idle`
+   is listed — enumerated rather than written as `:not([data-search-state="idle"])`,
+   because a capability without a `search` Action carries no flag at all and a negation
+   would match it and take its empty state away. */
+.capability-collection[data-search-state="loading"] .capability-empty,
+.capability-collection[data-search-state="results"] .capability-empty,
+.capability-collection[data-search-state="no-matches"] .capability-empty,
+.capability-collection[data-search-state="error"] .capability-empty {
   display: none;
 }
-/* The `:empty` selector fires when the region is truly childless (the renderer emits
-   no whitespace inside it), and stops firing the moment a record is server-rendered or
-   prepended — so the empty state hides itself with no JS. */
-.capability-records:not(:empty) ~ .capability-empty {
+/* Keyed on element children rather than `:empty`, so the empty state survives a region
+   holding only whitespace. `:empty` stops matching on a bare text node (Selectors 3), and
+   a read answering `" "` would then have hidden the empty state while rendering nothing —
+   a collection saying nothing at all. The read contract forbids that answer and the Gate
+   holds a capability to it; this makes the chrome not depend on either. It stops firing
+   the moment a record is server-rendered or prepended, so the empty state still hides
+   itself with no JS. */
+.capability-records:not(:has(*)) ~ .capability-empty {
+  display: revert;
+}
+.capability-records:has(*) ~ .capability-empty {
   display: none;
 }
 /* While the region's own read request is in flight it is loading, not empty —
@@ -265,7 +306,7 @@
   display: none;
 }
 
-/* The header is a title, a search field and a New button in one row. It wraps when the
+/* The header is the search rail and the New button in one row. It wraps when the
    window holding it is narrower than the form breakpoint — the window, because that is
    what it is inside; a dragged-narrow window on a wide screen needs the wrap just as
    much as a phone does, and never used to get it. */

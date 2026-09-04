@@ -347,7 +347,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/form-controls.css § .field__guidance [color]",
       "design/styles/components/form-controls.css § .field__optional [color]",
       "design/styles/layout-kit.css § .text-subtle [color]",
-      'public/css/collection.css § .capability-collection[data-search-state="no-matches"] > .capability-search__feedback [color]',
+      'public/css/collection.css § .capability-collection[data-search-state="no-matches"] .capability-search__feedback [color]',
       "public/css/collection.css § .capability-empty [color]",
       "public/css/collection.css § .capability-search__clear [color]",
       "public/css/collection.css § .capability-search__feedback [color]",
