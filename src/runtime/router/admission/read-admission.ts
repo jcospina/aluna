@@ -1,9 +1,7 @@
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import type { ActiveRegistryCatalog, CapabilityRow } from "../../../registry/index.ts";
-import type { CapabilityIncarnation } from "../../concurrency/read-gates.ts";
+import type { ActiveCatalogReader, CapabilityRow } from "../../../registry/index.ts";
+import { type CapabilityIncarnation, capabilityIncarnation } from "../../concurrency/read-gates.ts";
 import type { WireProtocolAction } from "../wire/wire-protocol.ts";
-
-export type ActiveCatalogReader = (database: PlatformDatabase["readonly"]) => ActiveRegistryCatalog;
 
 export type CapabilityCatalogLookup = (
   id: string,
@@ -37,12 +35,6 @@ export function captureCapabilityRead(
     incarnations: [row, ...dependencies].map(capabilityIncarnation),
     row,
   };
-}
-
-export function capabilityIncarnation(
-  row: Pick<CapabilityRow, "id" | "incarnation_id">,
-): CapabilityIncarnation {
-  return { capabilityId: row.id, incarnationId: row.incarnation_id };
 }
 
 function resolveDependencies(

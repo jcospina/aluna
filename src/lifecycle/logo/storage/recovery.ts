@@ -47,9 +47,10 @@ import {
   settleLogoGeneration,
 } from "../../../registry/index.ts";
 import type { MutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
-import type {
-  CapabilityIncarnation,
-  ReadGateCoordinator,
+import {
+  type CapabilityIncarnation,
+  capabilityIncarnation,
+  type ReadGateCoordinator,
 } from "../../../runtime/concurrency/read-gates.ts";
 import type { RunningLogoClaims } from "../generation/claims.ts";
 import {
@@ -172,11 +173,6 @@ async function recoverOneRowQuietly(
     );
     return null;
   }
-}
-
-/** The gate identity of one row. */
-function capabilityIncarnation(row: CapabilityRow): CapabilityIncarnation {
-  return { capabilityId: row.id, incarnationId: row.incarnation_id };
 }
 
 async function recoverOneCapabilityLogo(

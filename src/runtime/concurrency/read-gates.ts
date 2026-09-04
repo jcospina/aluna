@@ -45,6 +45,18 @@ export interface CapabilityIncarnation {
   readonly incarnationId: string;
 }
 
+/**
+ * The gate identity of one registry row — the one mapping every caller of this coordinator
+ * needs before it can ask for anything. Typed structurally rather than against
+ * `CapabilityRow` so this module keeps depending on nothing.
+ */
+export function capabilityIncarnation(row: {
+  readonly id: string;
+  readonly incarnation_id: string;
+}): CapabilityIncarnation {
+  return { capabilityId: row.id, incarnationId: row.incarnation_id };
+}
+
 export interface AcquireReadTokensInput {
   /** One immutable active-registry view captured before generated work begins. */
   readonly catalog: readonly CapabilityIncarnation[];
