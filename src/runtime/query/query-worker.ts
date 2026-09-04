@@ -10,13 +10,19 @@
 // `close()` ends the worker's life, and the caller owns that lifetime: an unclosed worker
 // keeps the process alive on its own.
 //
-// It does **not** stop a statement already running, and 6.2/03 should not inherit the
-// belief that it does. Measured on Bun 1.3.12: after `terminate()` returned, the thread
-// went on burning 2.98s of CPU over the next 3s of a runaway query, and a `process.exit`
-// issued during one waited for the statement to finish. `terminate()` reclaims the thread
-// when the statement ends; interrupting the statement itself needs `sqlite3_interrupt`
-// through FFI against `Database.handle`. Decision 10's cancel path rests on this, so it is
-// recorded here rather than discovered there.
+// It does **not** stop a statement already running, and 6.2/03 did not inherit the belief
+// that it does. Measured on Bun 1.3.12: after `terminate()` returned, the thread went on
+// burning 2.98s of CPU over the next 3s of a runaway query, and a `process.exit` issued
+// during one waited for the statement to finish. `terminate()` reclaims the thread when the
+// statement ends; interrupting the statement itself needs `sqlite3_interrupt` through FFI
+// against `Database.handle`.
+//
+// What `close()` does reclaim immediately is the *caller*: `end()` rejects every pending
+// read on this side, synchronously, whatever the thread is still doing. That is
+// the whole of decision 10's kill — `whole-catalog-read-scope.ts` cancels by closing, and
+// the read gate's drain waits on the released token rather than on the statement's cycles.
+// There is no second `terminate()` entry point here because there would be nothing in it
+// this one does not already do.
 //
 // One packaging seam is open, and stays open while nothing the server entry point reaches
 // imports this file: Bun's bundler leaves `new URL("./query-worker-thread.ts",
@@ -63,7 +69,11 @@ export interface QueryWorker {
    * running, and `QueryWorkerClosedError` once the thread is gone.
    */
   read(sql: string, parameters?: readonly QueryWorkerValue[]): Promise<readonly QueryWorkerRow[]>;
-  /** End the thread and its connection. Pending and later reads reject. */
+  /**
+   * End the thread and its connection. Pending and later reads reject with
+   * `QueryWorkerClosedError` at once, which is also how a question is cancelled.
+   * Idempotent: the thread is terminated once however many times this is called.
+   */
   close(): void;
 }
 
@@ -84,6 +94,7 @@ export function createQueryWorker(path: string = DB_PATH): QueryWorker {
   let nextRequestId = 1;
   let reading = false;
   let ended: QueryWorkerClosedError | undefined;
+  let terminated = false;
 
   function post(
     request: QueryWorkerRequest,
@@ -163,6 +174,12 @@ export function createQueryWorker(path: string = DB_PATH): QueryWorker {
 
     close() {
       end(new QueryWorkerClosedError("The query worker is closed."));
+      // A second `terminate()` goes to a thread that may still be inside its statement, and
+      // a cancelled question closes through here twice by construction — once to kill the
+      // read, once from the scope's `finally`. Ending the bookkeeping is what stays
+      // repeatable; killing the thread happens once.
+      if (terminated) return;
+      terminated = true;
       worker.terminate();
     },
   };

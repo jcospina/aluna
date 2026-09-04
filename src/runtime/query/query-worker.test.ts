@@ -23,16 +23,8 @@ import {
   QueryWorkerClosedError,
   QueryWorkerStatementError,
 } from "./query-worker.ts";
+import { RUNAWAY_QUERY_SQL } from "./runaway-query.test-support.ts";
 import { addedPaths, sweepPlatformStores } from "./store-sweep.test-support.ts";
-
-/**
- * A recursive query long enough to hold the thread for the whole liveness window and
- * short enough that the thread `terminate()` cannot interrupt dies soon after. It counts
- * rather than collects, so it pins a CPU without growing memory.
- */
-const RUNAWAY_QUERY =
-  "WITH RECURSIVE runaway(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM runaway WHERE n < 30000000) " +
-  "SELECT sum(n) AS total FROM runaway";
 
 const HEARTBEAT_INTERVAL_MS = 20;
 const LIVENESS_WINDOW_MS = 1_000;
@@ -134,7 +126,7 @@ describe("the query worker", () => {
     expect(await worker.read("SELECT 1 AS ok")).toEqual([{ ok: 1 }]);
 
     let settled = false;
-    const runaway = worker.read(RUNAWAY_QUERY).then(
+    const runaway = worker.read(RUNAWAY_QUERY_SQL).then(
       () => {
         settled = true;
       },
@@ -260,6 +252,35 @@ describe("the query worker's lifetime", () => {
     worker.close();
 
     await expect(worker.read("SELECT 1 AS ok")).rejects.toThrow(QueryWorkerClosedError);
+  });
+
+  test("closing terminates the thread once, however many times it is asked to", async () => {
+    const { path } = seeded();
+    const RealWorker = globalThis.Worker;
+    let terminated = 0;
+    class CountingWorker extends RealWorker {
+      override terminate() {
+        terminated += 1;
+        return super.terminate();
+      }
+    }
+
+    globalThis.Worker = CountingWorker as unknown as typeof Worker;
+    try {
+      const worker = start(path);
+      await worker.read("SELECT 1 AS ok");
+      worker.close();
+      worker.close();
+    } finally {
+      globalThis.Worker = RealWorker;
+    }
+
+    // Two claims one assertion apart. Every other assertion about `close()` in this file is
+    // satisfied by `end()` rejecting the pending reads, so a `close()` that stopped there and
+    // left the thread running would leave the suite green — and decision 10's kill is the
+    // `terminate()`. And a cancelled question closes through here twice by construction, so
+    // the second call must not reach a thread that may still be inside its statement.
+    expect(terminated).toBe(1);
   });
 
   test("a worker that cannot open reports a dead worker, not a refused statement", async () => {

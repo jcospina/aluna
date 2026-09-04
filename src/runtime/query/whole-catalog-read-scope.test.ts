@@ -6,31 +6,25 @@
 // deletion admitted mid-question drains rather than hanging on a token nobody released.
 // The store sweep is the deterministic form of PLAN decision 2's *nothing is created*.
 
-import type { Database } from "bun:sqlite";
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
-import { runMigrations } from "../../platform/persistence/migrations.ts";
 import { readActiveRegistryCatalog } from "../../registry/index.ts";
-import { validSpec } from "../../registry/spec/spec.test-support.ts";
-import { insertCapability } from "../../registry/store/store.ts";
 import {
-  createReadGateCoordinator,
   ReadGateClosingError,
-  type ReadGateCoordinator,
   ReadGateReleasedError,
   ReadGateUnavailableError,
 } from "../concurrency/read-gates.ts";
+import { createQueryWorker, type QueryWorker, QueryWorkerClosedError } from "./query-worker.ts";
 import {
-  createQueryWorker,
-  type QueryWorker,
-  QueryWorkerClosedError,
-  type QueryWorkerRow,
-  type QueryWorkerValue,
-} from "./query-worker.ts";
+  addCapability,
+  createScratchPlatforms,
+  fakeWorkers,
+  gatesFor,
+  NOTES,
+  readerCounts,
+  TASKS,
+} from "./read-scope.test-support.ts";
 import {
   addedPaths,
   sweepPlatformArtifacts,
@@ -38,24 +32,9 @@ import {
 } from "./store-sweep.test-support.ts";
 import { withWholeCatalogReadScope } from "./whole-catalog-read-scope.ts";
 
-const NOTES = { capabilityId: "notes", incarnationId: "11111111-1111-4111-8111-111111111111" };
-const TASKS = { capabilityId: "tasks", incarnationId: "22222222-2222-4222-8222-222222222222" };
-
-interface FakeWorkerCall {
-  readonly sql: string;
-  readonly parameters: readonly QueryWorkerValue[];
-}
-
-interface FakeWorkerLog {
-  created: number;
-  closed: number;
-  readonly calls: FakeWorkerCall[];
-  readonly factoryArguments: unknown[][];
-}
-
-const connections: PlatformDatabase[] = [];
-const directories: string[] = [];
 let artifactsAtStart: readonly string[] = [];
+const platforms = createScratchPlatforms();
+const { catalogued, migrated } = platforms;
 
 /**
  * A cache — the state decision 2 most wants excluded — is by definition keyed to a stable
@@ -70,85 +49,7 @@ afterAll(() => {
   expect(sweepPlatformArtifacts().filter((entry) => !artifactsAtStart.includes(entry))).toEqual([]);
 });
 
-afterEach(() => {
-  for (const pair of connections) {
-    pair.readwrite.close();
-    pair.readonly.close();
-  }
-  for (const directory of directories) rmSync(directory, { recursive: true, force: true });
-  connections.length = 0;
-  directories.length = 0;
-});
-
-/** A migrated throwaway platform database with an empty registry. */
-function migrated(): { path: string; database: PlatformDatabase } {
-  const directory = mkdtempSync(join(tmpdir(), "omni-crud-query-scope-"));
-  directories.push(directory);
-  const path = join(directory, "test.db");
-  const pair = openDatabase(path);
-  connections.push(pair);
-  runMigrations(pair.readwrite);
-  return { path, database: pair };
-}
-
-/** The same database holding two active capabilities. */
-function catalogued(): { path: string; database: PlatformDatabase } {
-  const platform = migrated();
-  addCapability(platform.database.readwrite, NOTES.capabilityId, NOTES.incarnationId);
-  addCapability(platform.database.readwrite, TASKS.capabilityId, TASKS.incarnationId);
-  return platform;
-}
-
-function addCapability(database: Database, id: string, incarnationId: string): void {
-  insertCapability(
-    {
-      ...validSpec({ id, label: id, noun: id }),
-      incarnation_id: incarnationId,
-      version: 1,
-      artifacts_path: `capabilities/${id}/${incarnationId}/v1/`,
-      seed: 184206,
-    },
-    database,
-  );
-}
-
-function fakeWorkers(rows: readonly QueryWorkerRow[] = []): {
-  log: FakeWorkerLog;
-  createWorker: (...args: unknown[]) => QueryWorker;
-} {
-  const log: FakeWorkerLog = { created: 0, closed: 0, calls: [], factoryArguments: [] };
-  return {
-    log,
-    createWorker: (...args: unknown[]) => {
-      log.created += 1;
-      log.factoryArguments.push(args);
-      return {
-        read(sql: string, parameters: readonly QueryWorkerValue[] = []) {
-          log.calls.push({ sql, parameters });
-          return Promise.resolve(rows);
-        },
-        close() {
-          log.closed += 1;
-        },
-      };
-    },
-  };
-}
-
-function gatesFor(database: PlatformDatabase): ReadGateCoordinator {
-  const readGates = createReadGateCoordinator();
-  readGates.recoverAtBoot(
-    readActiveRegistryCatalog(database.readonly).capabilities.map((row) => ({
-      capabilityId: row.id,
-      incarnationId: row.incarnation_id,
-    })),
-  );
-  return readGates;
-}
-
-function readerCounts(readGates: ReadGateCoordinator): readonly number[] {
-  return readGates.snapshot().map((entry) => entry.readerCount);
-}
+afterEach(platforms.disposeAll);
 
 describe("what a whole-catalog read scope owns", () => {
   test("owns every incarnation in one captured catalog for the length of the question", async () => {

@@ -8,8 +8,14 @@ import {
   insertCapability,
   listCapabilityDeletionTombstones,
 } from "../../../registry/index.ts";
-import { createReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
+import {
+  createReadGateCoordinator,
+  ReadGateClosingError,
+} from "../../../runtime/concurrency/read-gates.ts";
 import { applyCapabilityTableDdl } from "../../../runtime/data/schema/ddl.ts";
+import { createQueryWorker } from "../../../runtime/query/query-worker.ts";
+import { startRunawayQuery } from "../../../runtime/query/runaway-query.test-support.ts";
+import { withWholeCatalogReadScope } from "../../../runtime/query/whole-catalog-read-scope.ts";
 import {
   install,
   notesRow,
@@ -18,6 +24,7 @@ import {
   teardownRouterTest,
 } from "../../../runtime/router/dispatch/router.test-support.ts";
 import {
+  type CapabilityDestructionResult,
   createArtifactCleanupAdapter,
   destroyCapability,
   type OwnedResourceCleanupAdapter,
@@ -162,6 +169,49 @@ describe("two-phase capability destruction", () => {
     expect(result.status).toBe("deleted");
     // The drain waited for the reader instead of giving up on it.
     expect(Date.now() - startedAt).toBeGreaterThanOrEqual(HELD_MS);
+    expect(getCapability(target.id, conns.readonly)).toBeNull();
+    expect(tableExists(conns.readonly, "cap_notes")).toBe(false);
+    expect(readGates.snapshot()).toEqual([]);
+  });
+
+  test("a long query is killed by the deletion instead of failing it", async () => {
+    const target = notesRow();
+    install(conns, target);
+    // Deliberately far under the statement it races. A whole-catalog question holds its
+    // token set for as long as its query runs and no deadline shortens it (PLAN decision 9),
+    // so before the query moved to a worker this drain had nothing to do but expire and
+    // report `deletion_drain_timeout` for a deletion the user had already confirmed.
+    const readGates = createReadGateCoordinator({ drainTimeoutMs: 200 });
+    let destruction: Promise<CapabilityDestructionResult> | undefined;
+
+    await expect(
+      withWholeCatalogReadScope(
+        {
+          readGates,
+          database: conns.readonly,
+          createWorker: () => createQueryWorker(join(dir, "test.db")),
+        },
+        async (scope) => {
+          const { runaway } = await startRunawayQuery(scope);
+          destruction = destroyCapability({
+            target,
+            database: conns.readwrite,
+            readonlyDatabase: conns.readonly,
+            readGates,
+            adapters: [],
+          });
+          // Nothing observes the deletion until the scope has unwound, and a failure in
+          // between would land as a process-level unhandled rejection rather than as this
+          // test's own failure. The assertion below still sees it.
+          destruction.catch(() => undefined);
+          return await runaway;
+        },
+      ),
+    ).rejects.toBeInstanceOf(ReadGateClosingError);
+
+    // Decision 13's precedence, in the one place it decides something: the deletion the
+    // user confirmed wins over the question they can ask again.
+    await expect(destruction).resolves.toMatchObject({ status: "deleted" });
     expect(getCapability(target.id, conns.readonly)).toBeNull();
     expect(tableExists(conns.readonly, "cap_notes")).toBe(false);
     expect(readGates.snapshot()).toEqual([]);
