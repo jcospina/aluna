@@ -29,8 +29,15 @@
  *
  * Longer-lived token scopes exist and are not covered by that ordering: a logo attempt
  * holds one across provider I/O bounded by `DEFAULT_LOGO_GENERATION_TIMEOUT_MS`, six
- * times this deadline. They stay compatible by *observing* the cancellation a close
- * signals, which `src/lifecycle/logo/generation/attempt.test.ts` pins — not by being shorter.
+ * times this deadline, and a whole-catalog question holds one for as long as its query
+ * runs, which ADR-0008 deliberately does not bound at all. They stay compatible by
+ * *observing* the cancellation a close signals, which
+ * `src/lifecycle/logo/generation/attempt.test.ts` pins — not by being shorter. The question
+ * cannot observe it the way a logo attempt does, since its statement is synchronous inside
+ * a worker thread, so `src/runtime/query/whole-catalog-read-scope.ts` turns the same signal
+ * into a `terminate()`. That unparks the question from its statement; the tokens go back
+ * when its body unwinds, so a body parked on something other than a read still holds them
+ * and can still run this deadline out.
  *
  * The raise has a real cost, taken deliberately: deletion holds the mutation
  * coordinator's non-queued lease across the whole drain, so a drain that runs all the way
