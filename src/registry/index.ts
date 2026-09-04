@@ -126,6 +126,7 @@ export {
 } from "./spec/spec.ts";
 export { MAX_SQL_NAME_LENGTH, SQL_NAME_PATTERN } from "./spec/spec-text.ts";
 export {
+  type ActiveCatalogReader,
   type ActiveRegistryCatalog,
   fingerprintActiveRegistryCatalog,
   readActiveRegistryCatalog,

@@ -18,12 +18,13 @@
 // through FFI against `Database.handle`. Decision 10's cancel path rests on this, so it is
 // recorded here rather than discovered there.
 //
-// One packaging seam is open, and stays open while nothing imports this file: Bun's
-// bundler leaves `new URL("./query-worker-thread.ts", import.meta.url)` exactly as
-// written, so a `bun run build` output would look for the thread beside `dist/index.js`
-// instead of in `src/`. `src/index.ts` cannot reach this module yet, so `dist` is
-// unaffected today — whoever first makes the worker reachable from the server has to
-// ship the thread alongside it.
+// One packaging seam is open, and stays open while nothing the server entry point reaches
+// imports this file: Bun's bundler leaves `new URL("./query-worker-thread.ts",
+// import.meta.url)` exactly as written, so a `bun run build` output would look for the
+// thread beside `dist/index.js` instead of in `src/`. `whole-catalog-read-scope.ts` imports
+// this module, and nothing imports that one, so `src/index.ts` still cannot reach the
+// thread and `dist` is unaffected today — whoever first makes the worker reachable from the
+// server has to ship the thread alongside it.
 
 import { DB_PATH } from "../../platform/persistence/db.ts";
 import type {

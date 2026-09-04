@@ -129,3 +129,16 @@ makes it reachable from the server.
 - `bun run test` — 2620 pass, 0 fail; `bun run typecheck` and `bun run lint` clean
 - The liveness assertion discriminates: the same query in-process fired **0** heartbeats
   against the test's floor of 10, and held 47/50 under 32 spinners on 16 cores.
+
+## Comments
+
+**2026-09-04 — the store sweep moved, and the authorizer note was wrong.** 6.2/02 needed
+the same no-state proof, so this issue's `sweep` helper now lives in
+`src/runtime/query/store-sweep.test-support.ts` and is shared by both query suites;
+`query-worker.test.ts` consumes it and asserts exactly what it did before, with a per-table
+contents digest added. Separately, this issue's `query-worker-thread.ts` header said
+decision 6's table bound "needs `sqlite3_set_authorizer` through FFI". PLAN decision 6 names
+`assertScopedQuery`'s `EXPLAIN`-opcode enumeration instead, and says it generalises to a
+whole-catalog scope without change; the comment is corrected. An authorizer is still
+unavailable through `bun:sqlite`, which is why that half was written — it is just not the
+mechanism the plan points at.

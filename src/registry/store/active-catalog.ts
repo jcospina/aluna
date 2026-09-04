@@ -13,7 +13,7 @@
 
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
-import { dbReadonly } from "../../platform/persistence/db.ts";
+import { dbReadonly, type PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../spec/spec.ts";
 import { listCapabilities } from "./store.ts";
 
@@ -21,6 +21,9 @@ export interface ActiveRegistryCatalog {
   readonly capabilities: readonly CapabilityRow[];
   readonly fingerprint: string;
 }
+
+/** {@link readActiveRegistryCatalog}'s own shape, as a seam callers can substitute. */
+export type ActiveCatalogReader = (database: PlatformDatabase["readonly"]) => ActiveRegistryCatalog;
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);

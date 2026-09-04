@@ -21,10 +21,12 @@
 //   - refusing `ATTACH`/`DETACH` — which `query_only` does *not* stop, and which is how a
 //     statement reads a file the read gate never admitted.
 //
-// This bounds the connection to its own file. It is not decision 6's authorizer, which
-// bounds *which capability tables* a statement may touch and needs `sqlite3_set_authorizer`
-// through FFI (`bun:sqlite` exposes no authorizer API, only `Database.handle`); that is
-// the loop's, in 6.3/01.
+// This bounds the connection to its own file. It does not bound *which capability tables*
+// a statement may touch: decision 6 has that generalise from `assertScopedQuery`, which
+// enumerates the tables an `EXPLAIN` says a statement actually opens rather than matching
+// strings, and it is the loop's to wire up in 6.3/01. (An SQLite authorizer would be the
+// other way to do it and is not available here — `bun:sqlite` exposes no authorizer API,
+// only `Database.handle` for FFI — but it is not the mechanism the plan names.)
 //
 // The thread holds no ownership. It never receives a read token, never learns which
 // incarnations it is reading and never decides whether a read is *allowed* — all of that

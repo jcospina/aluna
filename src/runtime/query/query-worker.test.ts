@@ -10,7 +10,7 @@
 
 import type { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -23,6 +23,7 @@ import {
   QueryWorkerClosedError,
   QueryWorkerStatementError,
 } from "./query-worker.ts";
+import { addedPaths, sweepPlatformStores } from "./store-sweep.test-support.ts";
 
 /**
  * A recursive query long enough to hold the thread for the whole liveness window and
@@ -44,12 +45,6 @@ const LIVENESS_WINDOW_MS = 1_000;
  * expected count settles it with an order of magnitude to spare.
  */
 const MIN_HEARTBEATS = Math.floor(LIVENESS_WINDOW_MS / HEARTBEAT_INTERVAL_MS / 5);
-
-const REPO_ROOT = join(import.meta.dir, "..", "..", "..");
-/** Where capability artifacts, generated code and stored logos land, if they ever do. */
-const PLATFORM_ARTIFACT_ROOTS = ["artifacts", "capabilities", "storage"].map((root) =>
-  join(REPO_ROOT, root),
-);
 
 const workers: QueryWorker[] = [];
 const connections: PlatformDatabase[] = [];
@@ -208,7 +203,7 @@ describe("the query worker", () => {
 
   test("a read creates no registry, version, artifact, cache or read-dependency state", async () => {
     const { path, database } = seeded({ migrate: true });
-    const before = sweep(database, join(path, ".."));
+    const before = sweepPlatformStores(database, join(path, ".."));
     const worker = start(path);
 
     await worker.read("SELECT count(*) AS total FROM widget");
@@ -216,12 +211,10 @@ describe("the query worker", () => {
       /attempt to write a readonly database/,
     );
     await worker.read("SELECT name FROM widget ORDER BY name");
-    const after = sweep(database, join(path, ".."));
+    const after = sweepPlatformStores(database, join(path, ".."));
 
     expect(after.stores).toEqual(before.stores);
-    // Additions only: the claim is that a read *creates* nothing, and a dev server building
-    // a capability beside this run may legitimately remove something.
-    expect(after.paths.filter((entry) => !before.paths.includes(entry))).toEqual([]);
+    expect(addedPaths(before, after)).toEqual([]);
   });
 
   test("the worker's connection runs on the SQLite runtime the main thread pinned", async () => {
@@ -337,37 +330,3 @@ describe("the query worker's connection cannot leave its own file", () => {
     expect(rows).toEqual([{ text: ";  ATTACH", ok: 1 }]);
   });
 });
-
-/**
- * Everything a read could have added: the database's own objects and their row counts, the
- * database file's directory, and the platform's artifact roots. The roots are absolute so
- * the sweep cannot silently degrade to nothing when the process runs from another
- * directory, and the walk is recursive so a file written one level in is still seen. Table
- * names come from `sqlite_master` on a database this file created, never from user input,
- * so quoting them here rather than reaching into `runtime/data`'s internals costs nothing.
- */
-function sweep(
-  database: Database,
-  directory: string,
-): { stores: unknown; paths: readonly string[] } {
-  const objects = database
-    .query("SELECT type, name, sql FROM sqlite_master ORDER BY type, name")
-    .all() as { type: string; name: string; sql: string | null }[];
-  return {
-    stores: objects.map((object) => ({
-      ...object,
-      rows: object.type === "table" ? countRows(database, object.name) : null,
-    })),
-    paths: [directory, ...PLATFORM_ARTIFACT_ROOTS].flatMap(entries).sort(),
-  };
-}
-
-function entries(directory: string): readonly string[] {
-  if (!existsSync(directory)) return [];
-  return readdirSync(directory, { recursive: true }).map((entry) => join(directory, String(entry)));
-}
-
-function countRows(database: Database, table: string): number {
-  const row = database.query(`SELECT count(*) AS total FROM "${table}"`).get() as { total: number };
-  return row.total;
-}

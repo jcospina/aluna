@@ -26,6 +26,7 @@
 import type { Context, Hono } from "hono";
 import { db, dbReadonly, type PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
+  type ActiveCatalogReader,
   activeSpecFields,
   type CapabilityRow,
   type CapabilitySpec,
@@ -42,6 +43,7 @@ import {
   type MutationCoordinator,
 } from "../../concurrency/mutation-coordinator.ts";
 import {
+  capabilityIncarnation,
   createReadGateCoordinator,
   ReadGateClosingError,
   type ReadGateCoordinator,
@@ -72,12 +74,7 @@ export {
   type ItemRendererLoader,
 } from "./generated-code.ts";
 
-import {
-  type ActiveCatalogReader,
-  type CapturedCapabilityRead,
-  capabilityIncarnation,
-  captureCapabilityRead,
-} from "../admission/read-admission.ts";
+import { type CapturedCapabilityRead, captureCapabilityRead } from "../admission/read-admission.ts";
 import { collectionCountSidecar } from "../wire/collection-count.ts";
 import {
   assertReadOwnership,
