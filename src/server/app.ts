@@ -63,6 +63,7 @@ import {
   renderPromptNotice,
   renderRehydratedShellPage,
 } from "./http/index.ts";
+import { registerDemoQuestionRoutes } from "./routes/query/demo-question.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "./sse/index.ts";
 
 /**
@@ -572,6 +573,15 @@ export function createApp(deps: AppDeps = {}): Hono {
   registerBuildJobRoutes(app, ctx);
   registerCapabilityDeletionRoutes(app, ctx);
   registerCapabilityRenameRoutes(app, ctx);
+
+  // One question turn, exercisable by hand. Scaffolding behind the developer gate: the
+  // module is invisible until 6.5, and this is what keeps the integration from being
+  // invisible with it. 6.5/05 takes it down.
+  registerDemoQuestionRoutes(app, {
+    getProvider: ctx.getProvider,
+    readGates: ctx.readGates,
+    registryReadonly: ctx.registryReadonly,
+  });
 
   // The logo's own two addresses. Registered before the generated capability router so
   // the four-segment paths are matched by their owner; they cannot collide with the

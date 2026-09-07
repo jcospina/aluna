@@ -24,13 +24,15 @@
 // There is no second `terminate()` entry point here because there would be nothing in it
 // this one does not already do.
 //
-// One packaging seam is open, and stays open while nothing the server entry point reaches
-// imports this file: Bun's bundler leaves `new URL("./query-worker-thread.ts",
-// import.meta.url)` exactly as written, so a `bun run build` output would look for the
-// thread beside `dist/index.js` instead of in `src/`. `whole-catalog-read-scope.ts` imports
-// this module, and nothing imports that one, so `src/index.ts` still cannot reach the
-// thread and `dist` is unaffected today — whoever first makes the worker reachable from the
-// server has to ship the thread alongside it.
+// The packaging seam 6.2/01 left open is closed, because 6.3/01 is what opened it for real.
+// Bun's bundler emits the specifier below exactly as written — dropping `.href` does not
+// make it follow the worker either — so a bundled entry point looks for the thread *beside
+// itself* rather than in `src/`. That was harmless while nothing the server reached
+// imported this file; `/demo/question` reaches it now. `scripts/build.ts` therefore copies
+// `query-worker-thread.ts` beside the bundle, which works because the thread imports
+// `bun:sqlite` and nothing else and Bun runs the TypeScript file directly. `build.test.ts`
+// asserts both halves: the copy is there, and the thread still has no relative import that
+// the copy could not resolve.
 
 import { DB_PATH } from "../../platform/persistence/db.ts";
 import type {
@@ -46,8 +48,9 @@ export class QueryWorkerError extends Error {
   override readonly name: string = "QueryWorkerError";
 }
 
-/** SQLite refused the statement itself, carrying its own message — a write reaches the
- * caller as *attempt to write a readonly database*. The worker stays open. */
+/** The statement itself was refused, carrying its own message — a write reaches the caller
+ * as *attempt to write a readonly database*, and a bad column as *no such column*. The
+ * worker stays open, and a different statement is what fixes it. */
 export class QueryWorkerStatementError extends QueryWorkerError {
   override readonly name = "QueryWorkerStatementError";
 }
@@ -60,6 +63,18 @@ export class QueryWorkerBusyError extends QueryWorkerError {
 /** The thread is gone — closed by its owner, or dead — and no further read can run. */
 export class QueryWorkerClosedError extends QueryWorkerError {
   override readonly name = "QueryWorkerClosedError";
+}
+
+/**
+ * The database failed, not the statement: busy, locked, interrupted, an I/O error, a corrupt
+ * image, no connection at all. Distinct from `QueryWorkerStatementError` because the two ask
+ * for opposite things — a statement failure is something to rewrite, and this is not. A
+ * caller that folded them together would hand a loop *try a better query* about a database
+ * that is not answering, and the loop would keep trying until its budget was gone. The
+ * thread draws the line, because SQLite's result code does not cross the message boundary.
+ */
+export class QueryWorkerConnectionError extends QueryWorkerError {
+  override readonly name = "QueryWorkerConnectionError";
 }
 
 export interface QueryWorker {
@@ -120,24 +135,37 @@ export function createQueryWorker(path: string = DB_PATH): QueryWorker {
     pending.clear();
   }
 
-  function settle(waiting: PendingRequest, response: QueryWorkerResponse): void {
-    // A reply of the wrong kind would otherwise resolve a read as zero rows, which is the
-    // one answer a query worker must never invent.
-    if (response.kind === waiting.expects) {
-      waiting.resolve(response.kind === "rows" ? response.rows : []);
-    } else if (response.kind !== "failed") {
-      waiting.reject(new QueryWorkerError(`The query worker answered with "${response.kind}".`));
-    } else if (waiting.expects !== "opened") {
-      waiting.reject(new QueryWorkerStatementError(response.message));
-    } else {
-      // An open that failed leaves no connection to run anything on, so it ends the worker
-      // rather than reporting a statement the caller could rephrase.
+  /** What a `failed` reply becomes, once it is known which read was waiting for it. */
+  function rejection(
+    waiting: PendingRequest,
+    response: Extract<QueryWorkerResponse, { kind: "failed" }>,
+  ): QueryWorkerError {
+    // An open that failed leaves no connection to run anything on, so it ends the worker
+    // rather than reporting a statement the caller could rephrase.
+    if (waiting.expects === "opened") {
       const closed = new QueryWorkerClosedError(
         `The query worker could not open: ${response.message}`,
       );
       ended ??= closed;
-      waiting.reject(closed);
+      return closed;
     }
+    return response.fault === "connection"
+      ? new QueryWorkerConnectionError(response.message)
+      : new QueryWorkerStatementError(response.message);
+  }
+
+  function settle(waiting: PendingRequest, response: QueryWorkerResponse): void {
+    if (response.kind === waiting.expects) {
+      waiting.resolve(response.kind === "rows" ? response.rows : []);
+      return;
+    }
+    // A reply of the wrong kind would otherwise resolve a read as zero rows, which is the
+    // one answer a query worker must never invent.
+    if (response.kind !== "failed") {
+      waiting.reject(new QueryWorkerError(`The query worker answered with "${response.kind}".`));
+      return;
+    }
+    waiting.reject(rejection(waiting, response));
   }
 
   worker.onmessage = (event: MessageEvent) => {

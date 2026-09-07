@@ -35,6 +35,13 @@ it; only its entry point changes. Coverage must not fall because scaffolding cam
 down — if a behaviour was only ever proved through the exercise, it needs a
 permanent home before the exercise goes, not after.
 
+**Two things look like the exercise's and are not.**
+`src/runtime/query/question.test-support.ts` is shared with `question-turn.test.ts`
+and `data-query.test.ts`, which are permanent; and `QUESTION_TURN_PROMPT_PREFIX` is
+exported so a fake provider can tell a turn's call from the resolver's by its
+prompt rather than by queue position — the real path wants that seam exactly as
+much as the exercise did. Neither goes.
+
 **The prose stops promising it too.** 6.3/01 says "it is deleted when 6.5 makes the
 real path visible, and the issue that deletes it says so" — that forward reference
 resolves to this file. The plan's note in `## Approved epic build order and
@@ -45,20 +52,31 @@ exercise as present once this lands.
 
 - [ ] The developer-gated one-turn exercise, its route, handler, registration and
       any markup or fixture existing solely for it are gone
+      (`src/server/routes/query/demo-question.ts` and its
+      `app.demo-question.test.ts`, and the `registerDemoQuestionRoutes` call in
+      `src/server/app.ts`)
 - [ ] `developerSurfacesEnabled()` and the developer panel are untouched
 - [ ] Every assertion that ran through the exercise now runs against the loop
       directly or through the real query path; none is deleted
 - [ ] `grep -rn "developerSurfacesEnabled" src/` returns only pre-existing platform
       uses, none of them Module 6's
-- [ ] No file in `src/`, `public/`, `modules/06-reads-set-free/` or `docs/` still
-      describes the exercise as present
+- [ ] No file in `src/`, `public/`, `scripts/`, `modules/06-reads-set-free/` or
+      `docs/` still describes the exercise as present
+- [ ] The bundle's worker-thread copy **stays**; only its justification is
+      rewritten. `scripts/build.ts` and `scripts/build.test.ts` name
+      `/demo/question` as what first made the server reach the query worker, and
+      that sentence becomes 6.5/03's real path — but the copy itself is what keeps
+      `bun run start` able to open a worker at all, and deleting it with the
+      exercise breaks production silently, in the one place `bun run test` does
+      not look
 - [ ] The living demo in the plan passes end to end with the exercise absent
 - [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
-Run `bun run reset`, start Aluna on `:3030`, open the developer panel, and confirm
-the one-turn exercise is no longer there. Then run the plan's living-demo steps 2
+Run `bun run reset`, start Aluna on `:3030` and navigate to `/demo/question` — the
+exercise is a bare URL, never a link from the developer panel, so 404 is what
+confirms it. Then run the plan's living-demo steps 2
 through 8 and confirm every one still passes through the real path — the surface
 the user actually uses is the only way in, which is what "the demo stays alive"
 meant all along.

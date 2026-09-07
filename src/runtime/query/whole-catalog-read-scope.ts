@@ -18,9 +18,10 @@
 // `src/runtime/data/tool.ts` is the other half of the word *scope* here: it bounds which
 // tables one Action's statement may open, through `assertScopedQuery`'s enumeration of the
 // tables an `EXPLAIN` says a statement actually reads. Decision 6 has that generalise to a
-// whole-catalog scope with the loop in 6.3/01; until then a capability created after the
-// snapshot is unowned and absent from `catalog`, and nothing stops SQL from reading its
-// table.
+// whole-catalog scope, and 6.3/01 built the generalisation in
+// `whole-catalog-query-scope.ts` — but it is the *turn* that takes it, not this scope. A
+// caller that reads through `scope.read` without going through `assertWholeCatalogQuery`
+// is owning the catalog and bounded to nothing but the worker's own file.
 //
 // **Ownership never enters the worker** (decision 11). The token set, the incarnation
 // identities and the catalog all stay here; `query-worker.ts` is handed a statement and
@@ -127,7 +128,10 @@ export interface WholeCatalogReadScope {
 
 export interface WholeCatalogReadScopeDeps {
   readonly readGates: ReadGateCoordinator;
-  /** Where the catalog snapshot is read; the worker opens its own connection. */
+  /**
+   * Where the catalog snapshot is read. The worker opens its own connection, to this same
+   * file, so a scope handed a scratch connection does not answer from the product's.
+   */
   readonly database?: PlatformDatabase["readonly"];
   readonly readActiveCatalog?: ActiveCatalogReader;
   readonly createWorker?: () => QueryWorker;
@@ -143,8 +147,14 @@ export async function withWholeCatalogReadScope<T>(
   body: (scope: WholeCatalogReadScope) => T | Promise<T>,
 ): Promise<T> {
   const readActiveCatalog = deps.readActiveCatalog ?? readActiveRegistryCatalog;
-  const createWorker = deps.createWorker ?? createQueryWorker;
-  const catalog = readActiveCatalog(deps.database ?? dbReadonly);
+  const database = deps.database ?? dbReadonly;
+  // The worker opens the file this catalog was read from, not `DB_PATH`. They are the same
+  // singleton in the product, and they stop being the same the moment anything hands the
+  // scope another connection — a question would then be answered about one desk's registry
+  // against another desk's rows, silently and with confident numbers. `createQueryWorker`
+  // still defaults to `DB_PATH` for a caller with no connection in hand.
+  const createWorker = deps.createWorker ?? (() => createQueryWorker(database.filename));
+  const catalog = readActiveCatalog(database);
   const incarnations = catalog.capabilities.map(capabilityIncarnation);
 
   return await deps.readGates.withTokens(

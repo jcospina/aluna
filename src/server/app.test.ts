@@ -538,11 +538,12 @@ describe("GET / (shell) — stream close glue", () => {
   });
 });
 
-// Nothing lives under `/demo` any more. Module 5's last three inspection surfaces came
-// down with it, so the namespace ADR-0002 reserved for throwaway scaffolding is empty in
-// every environment — and the guard that used to gate it now holds back only the
-// developer panel's lifecycle payload, proved above.
-describe("the /demo namespace is empty", () => {
+// Every surface these three tests name came down, and none of them answers in any
+// environment. `/demo` itself is not empty: ADR-0002 reserves it for throwaway
+// scaffolding, and 6.3/01's one-question-turn exercise is standing in it now behind the
+// same developer gate, with `6.5-the-answer-window/issues/05-the-scaffolding-comes-down.md`
+// owning its removal. What is asserted here is that the *retired* ones stayed retired.
+describe("the retired /demo surfaces are gone", () => {
   const previous = process.env.NODE_ENV;
   afterEach(() => {
     if (previous === undefined) delete process.env.NODE_ENV;

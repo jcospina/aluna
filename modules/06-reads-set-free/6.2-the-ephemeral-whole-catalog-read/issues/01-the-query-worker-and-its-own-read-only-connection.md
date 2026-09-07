@@ -142,3 +142,18 @@ decision 6's table bound "needs `sqlite3_set_authorizer` through FFI". PLAN deci
 whole-catalog scope without change; the comment is corrected. An authorizer is still
 unavailable through `bun:sqlite`, which is why that half was written — it is just not the
 mechanism the plan points at.
+
+**2026-09-04 — the bundler finding is resolved, by the issue it was addressed to.** It ended
+*"whoever first makes the worker reachable from the server has to ship the thread alongside
+it"*, and 6.3/01 is that: `/demo/question` runs a question turn, so `src/index.ts` now
+reaches this file. Bun still emits the specifier exactly as written — dropping `.href` does
+not make it follow the worker either — so `scripts/build.ts` copies
+`query-worker-thread.ts` beside the bundle, which works precisely because this thread
+imports `bun:sqlite` and nothing else. `scripts/build.test.ts` asserts the copy is there,
+that the bundle asks for that exact name, and that the thread has grown no relative import
+the copy could not resolve.
+
+**The table bound the header pointed at is built.** `query-worker-thread.ts` recorded that
+bounding a statement to the catalog's *tables* — as opposed to the connection's own file —
+was "the loop's to wire up in 6.3/01". It is `assertWholeCatalogQuery` in
+`src/runtime/query/whole-catalog-query-scope.ts`.

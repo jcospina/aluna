@@ -13,7 +13,7 @@
     "dev": "bun scripts/dev.ts",
     "test": "bun scripts/test.ts",
     "test:serial": "bun test",
-    "build": "bun build src/index.ts --target=bun --outdir=dist --define process.env.NODE_ENV='\"production\"'",
+    "build": "bun scripts/build.ts",
     "reset": "bun scripts/reset-runtime.ts",
     "start": "bun ./dist/index.js",
     "typecheck": "rm -rf .types && tsc -p tsconfig.browser.json && tsc --noEmit",

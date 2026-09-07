@@ -19,8 +19,8 @@
 
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..", "..");
 /** Where capability artifacts, generated code and stored logos land, if they ever do. */
@@ -41,6 +41,27 @@ export interface PlatformStoreSweep {
   readonly paths: readonly string[];
 }
 
+/**
+ * SQLite's own sidecars. They appear and disappear as a connection opens, checkpoints and
+ * closes, and none of them is state a question created — but a `VACUUM INTO` output, a temp
+ * spill or any other file written beside the desk is, which is the whole reason the walk
+ * below exists.
+ */
+const SQLITE_SIDECAR = /-(?:wal|shm|journal)$/;
+
+/**
+ * Everything beside the desk, which is not what this used to look at.
+ *
+ * Callers pass the *database file*, and `entries()` on a file returns nothing — so the walk
+ * enumerated an empty list and any file written next to the scratch database passed the
+ * sweep in silence. Resolving to the containing directory is what makes the claim testable;
+ * proved by writing a file beside the desk and watching `addedPaths` report it.
+ */
+function deskEntries(target: string): readonly string[] {
+  const directory = existsSync(target) && statSync(target).isDirectory() ? target : dirname(target);
+  return [directory, ...entries(directory)].filter((entry) => !SQLITE_SIDECAR.test(entry));
+}
+
 export function sweepPlatformStores(database: Database, directory: string): PlatformStoreSweep {
   const objects = database
     .query("SELECT type, name, sql FROM sqlite_master ORDER BY type, name")
@@ -51,7 +72,7 @@ export function sweepPlatformStores(database: Database, directory: string): Plat
       rows: object.type === "table" ? countRows(database, object.name) : null,
       digest: object.type === "table" ? digestRows(database, object.name) : null,
     })),
-    paths: [directory, ...sweepPlatformArtifacts()].sort(),
+    paths: [...deskEntries(directory), ...sweepPlatformArtifacts()].sort(),
   };
 }
 

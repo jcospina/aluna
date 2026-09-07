@@ -69,3 +69,14 @@ arriving early, without a surface.
 ## Blocked by
 
 - modules/06-reads-set-free/6.3-the-loop/issues/04-every-step-carries-a-label-and-the-platform-owns-the-sentence.md
+
+## Comments
+
+**2026-09-04 — the catalog's *shape* already reaches the model; the *values* are still
+yours.** 6.3/01's turn cannot write SQL without table and column names, so
+`buildQuestionTurnPrompt` in `src/runtime/query/question-turn.ts` already supplies every
+collection's table, its `id` and `created_at`, and its active fields with their types. It
+stops exactly there: it does not emit a `choice` field's declared options, and there is no
+bounded distinct read. This issue's first acceptance criterion is therefore half-met on
+arrival — extend `formatCollection` rather than rebuilding the supply, and treat the shape
+half as existing coverage rather than as duplicated work.

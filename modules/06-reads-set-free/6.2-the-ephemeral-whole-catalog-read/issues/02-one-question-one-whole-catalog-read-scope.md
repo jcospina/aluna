@@ -180,3 +180,18 @@ an `ActiveRegistryCatalog`, which read-gates must not import — so it moved the
 to `src/registry/store/active-catalog.ts` beside the `readActiveRegistryCatalog` whose
 signature it describes, and is exported from the registry barrel. The scope's `database`
 seam lost a `as Database` cast in the process. Behaviour unchanged; suite green.
+
+**2026-09-04 — the last bullet of *What landed* stopped being true, and 6.3/01 is why.** It
+read *"nothing new is reachable from `src/index.ts` — `bun run build` still emits no
+reference to the worker thread."* Both halves are now false: `createApp` registers
+`/demo/question`, which reaches `runDataQueryTurn` and through it this scope, and the
+bundle does emit `new URL("./query-worker-thread.ts", import.meta.url)` — `scripts/build.ts`
+copies the thread beside it and `scripts/build.test.ts` asserts the name the bundle asks for
+is the name that is there. The bullet is left as written because it is a dated record of
+what landed here; this comment is where it stops being a live claim.
+
+**The scope's default worker also moved.** It opened `DB_PATH` whatever connection the
+scope had been handed, which was invisible while every caller passed `createWorker`. It now
+opens `(deps.database ?? dbReadonly).filename`, so a scope given a scratch connection cannot
+answer from the product's database. Pinned in `question-turn.test.ts` by a turn that injects
+no worker factory.

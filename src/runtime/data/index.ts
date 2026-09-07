@@ -27,6 +27,7 @@ export {
   SQLITE_TYPE_BY_FIELD_TYPE,
 } from "./schema/ddl.ts";
 export {
+  assertScopedQuery,
   type CapabilityActionRecord,
   type CapabilityDataColumnValue,
   type CapabilityDataRow,

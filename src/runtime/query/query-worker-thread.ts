@@ -24,9 +24,12 @@
 // This bounds the connection to its own file. It does not bound *which capability tables*
 // a statement may touch: decision 6 has that generalise from `assertScopedQuery`, which
 // enumerates the tables an `EXPLAIN` says a statement actually opens rather than matching
-// strings, and it is the loop's to wire up in 6.3/01. (An SQLite authorizer would be the
-// other way to do it and is not available here — `bun:sqlite` exposes no authorizer API,
-// only `Database.handle` for FFI — but it is not the mechanism the plan names.)
+// strings. 6.3/01 built it, on the main thread where the catalog is, as
+// `assertWholeCatalogQuery` in `whole-catalog-query-scope.ts` — so a statement arriving here
+// has already been bounded, and this thread still assumes nothing about that. (An SQLite
+// authorizer would be the other way to do it and is not available here — `bun:sqlite`
+// exposes no authorizer API, only `Database.handle` for FFI — but it is not the mechanism
+// the plan names.)
 //
 // The thread holds no ownership. It never receives a read token, never learns which
 // incarnations it is reading and never decides whether a read is *allowed* — all of that
@@ -74,10 +77,26 @@ export type QueryWorkerRequest =
       readonly parameters: readonly QueryWorkerValue[];
     };
 
+/**
+ * Which half of the read failed. `statement` is something a differently written statement
+ * would fix — a parse error, an unknown column, the seam's own refusal of a write, one of
+ * this thread's guard refusals. `connection` is not: busy, locked, interrupted, an I/O
+ * error, a corrupt image, no connection at all. The distinction has to be drawn *here*,
+ * because SQLite's result code does not survive the structured-clone boundary, and it has
+ * to be drawn at all because a loop told to rewrite its SQL against a corrupt database will
+ * do exactly that until its budget is gone.
+ */
+export type QueryWorkerFault = "statement" | "connection";
+
 export type QueryWorkerResponse =
   | { readonly kind: "opened"; readonly id: number }
   | { readonly kind: "rows"; readonly id: number; readonly rows: readonly QueryWorkerRow[] }
-  | { readonly kind: "failed"; readonly id: number; readonly message: string };
+  | {
+      readonly kind: "failed";
+      readonly id: number;
+      readonly message: string;
+      readonly fault: QueryWorkerFault;
+    };
 
 /**
  * Statement forms that leave this connection's own file behind, whatever else they do.
@@ -107,6 +126,7 @@ self.onmessage = (event: MessageEvent) => {
       kind: "failed",
       id: request.id,
       message: error instanceof Error ? error.message : String(error),
+      fault: faultOf(error),
     } satisfies QueryWorkerResponse);
   }
 };
@@ -118,7 +138,7 @@ function handle(request: QueryWorkerRequest): QueryWorkerResponse {
   }
 
   if (!connection) {
-    throw new Error("The query worker has no connection open.");
+    throw new NoConnection("The query worker has no connection open.");
   }
   assertOneReadStatement(request.sql);
 
@@ -131,6 +151,36 @@ function handle(request: QueryWorkerRequest): QueryWorkerResponse {
   } finally {
     statement.finalize();
   }
+}
+
+/**
+ * SQLite's result codes for the statement rather than for the connection carrying it.
+ * `SQLITE_ERROR` covers a parse failure and an unknown column or table; `SQLITE_READONLY`
+ * is decision 6's own refusal of a write, which is emphatically something the model should
+ * see. Anything not listed is the database's trouble, not the query's.
+ */
+const STATEMENT_RESULT_CODES: ReadonlySet<number> = new Set([1, 8, 18, 19, 20, 21, 23, 25]);
+
+function faultOf(error: unknown): QueryWorkerFault {
+  if (error instanceof RefusedStatement) return "statement";
+  if (error instanceof NoConnection) return "connection";
+  const errno = (error as { errno?: unknown } | null)?.errno;
+  // Bun reports a `?`/value count mismatch as a plain `Error` with no code at all, and that
+  // is the statement's problem as much as a syntax error is. An unrecognised failure with
+  // no result code is treated the same way: a refusal the model can read costs it a step,
+  // where ending the question costs it the whole question.
+  if (typeof errno !== "number") return "statement";
+  return STATEMENT_RESULT_CODES.has(errno) ? "statement" : "connection";
+}
+
+/** One of this thread's own guard refusals: something a different statement would fix. */
+class RefusedStatement extends Error {
+  override readonly name = "RefusedStatement";
+}
+
+/** There is nothing to run the statement on. No statement fixes that. */
+class NoConnection extends Error {
+  override readonly name = "NoConnection";
 }
 
 function open(path: string): Database {
@@ -150,12 +200,14 @@ function assertOneReadStatement(sql: string): void {
   const body = sql.replace(SQL_LITERALS_AND_COMMENTS, " ");
   const refused = NOT_A_READ.exec(body);
   if (refused) {
-    throw new Error(`The query worker refuses ${refused[0].trim().toUpperCase()}: it reads.`);
+    throw new RefusedStatement(
+      `The query worker refuses ${refused[0].trim().toUpperCase()}: it reads.`,
+    );
   }
   // SQLite compiles only the first statement of a multi-statement string and drops the
   // rest silently, so anything after the first would be validated by a later gate and
   // never run. Refusing is the only honest answer.
   if (body.replace(/;\s*$/, "").includes(";")) {
-    throw new Error("The query worker runs one statement at a time.");
+    throw new RefusedStatement("The query worker runs one statement at a time.");
   }
 }
