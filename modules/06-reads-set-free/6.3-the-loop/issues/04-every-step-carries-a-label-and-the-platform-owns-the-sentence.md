@@ -74,3 +74,16 @@ produce, so the words can be read before there is an answer window to read them 
 ## Blocked by
 
 - modules/06-reads-set-free/6.3-the-loop/issues/03-the-size-cap-refuses-and-the-loop-narrows.md
+
+## Notes from 6.3/03
+
+There are **two** over-size refusals, not one: `QUESTION_STEP_RESULT_TOO_LARGE` (this
+read alone was too big) and `QUESTION_PAYLOAD_BUDGET_SPENT` (the whole question has no
+room left). Both are exported from `src/runtime/query/question-payload.ts`, and the
+sweep in the acceptance criteria above must drive both.
+
+Both strings are addressed to the model and **deliberately contain SQL keywords** —
+`GROUP BY`, `WHERE`, `count`, `sum`, `avg`. They arrive as `QuestionStep.result.message`,
+which is an *error string* by this issue's own wording, so no sweep over rendered output
+may ever be fed a step message. Sweep the sentences the platform authors, never the
+words the model was told.

@@ -18,11 +18,18 @@ import { runMigrations } from "../../../platform/persistence/migrations.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
 import {
   QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
   QUESTION_STEP_BUDGET,
+  QUESTION_STEP_RESULT_CAP_BYTES,
+  QUESTION_STEP_RESULT_TOO_LARGE,
   QUESTION_TURN_PROMPT_PREFIX,
   READ_ONLY_QUERY_TOOL,
 } from "../../../runtime/query/index.ts";
-import { catalogueWithRecords, NOTES_TABLE } from "../../../runtime/query/question.test-support.ts";
+import {
+  addNotes,
+  catalogueWithRecords,
+  NOTES_TABLE,
+} from "../../../runtime/query/question.test-support.ts";
 import { createApp } from "../../app.ts";
 import { escapeHtml } from "../../http/html.ts";
 import { BUDGET_SPENT_HEADING, DEMO_QUESTION_PATH } from "./demo-question.ts";
@@ -168,6 +175,32 @@ describe("the one-question exercise", () => {
         }
       ).total,
     ).toBe(3);
+  });
+
+  test("an over-size read is refused on the page, and the payload is shown against the cap", async () => {
+    // The living demo for 6.3/03: a capability holding long-text records, asked for the rows
+    // themselves. The step is refused whole and the page shows what it would have cost.
+    addNotes(databases.readwrite, 8, "x".repeat(3000), "long");
+
+    const response = await app(
+      DATA_QUERY_INTENT,
+      `SELECT text FROM ${NOTES_TABLE} WHERE text != ?`,
+    ).request(DEMO_QUESTION_PATH, ask("read me every note I have written"));
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("Statement failed");
+    expect(html).toContain(escapeHtml(QUESTION_STEP_RESULT_TOO_LARGE));
+    // Refused whole: not one of the rows is on the page either.
+    expect(html).not.toContain("x".repeat(200));
+
+    // And the page shows what the step costs rather than a zero that hides it. Asserted as a
+    // read number, not as the literal constant, which any surrounding digits would satisfy.
+    expect(html).toContain(`0 of ${QUESTION_STEP_RESULT_CAP_BYTES} bytes of rows`);
+    const carried = /(\d+) bytes into every later prompt/.exec(html);
+    expect(Number(carried?.[1])).toBeGreaterThan(0);
+    const spent = new RegExp(`(\\d+) of ${QUESTION_RESULT_PAYLOAD_BUDGET_BYTES} spent`).exec(html);
+    expect(Number(spent?.[1])).toBe(Number(carried?.[1]));
   });
 
   test("takes no turn for a prompt classified as anything else", async () => {

@@ -55,3 +55,13 @@ same question does not appear as a page of rows being summed a turn later.
 ## Blocked by
 
 - modules/06-reads-set-free/6.4-what-aluna-says/issues/01-the-vocabulary-of-the-data-is-supplied-not-stored.md
+
+## Notes from 6.3/03
+
+The acceptance criterion *a model attempt to pull the rows and total them itself meets
+the size cap and recovers by aggregating* is satisfiable now, and there is a fixture in
+`src/runtime/query/question-payload.test.ts` that does exactly it.
+
+The refusal the model gets already says *let SQL do the work with count, sum, avg, min,
+max or GROUP BY*. When this issue adds its prompt rule, do not make it a third statement
+of the same instruction — the refusal is the one that arrives at the moment it matters.

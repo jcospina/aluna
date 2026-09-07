@@ -112,3 +112,13 @@ too many.
 ## Blocked by
 
 - modules/06-reads-set-free/6.5-the-answer-window/issues/02-the-answer window-outlives-navigation-but-not-the-next-question.md
+
+## Notes from 6.3/03
+
+The size cap bounds the **row text** a question puts into its prompts: worst case now
+about 557,000 characters across a question's eleven prompts, against the 2,653,692 that
+6.3/02 measured for one uncapped question. The SQL the model writes, the collections
+block and the question itself are **not** bounded by anything. So the context-window
+overrun this issue names as part of its third ending got much less likely and did not
+go away — the sentence for *the question could not be finished* is still this issue's
+work, and the bound is not a reason to skip it.

@@ -160,6 +160,15 @@ are **deliberately left alone**: closed module plans are history.
     long-text notes are ~100k tokens re-sent on every subsequent turn. It is a worst-case
     backstop, not the primary mechanism; decision 4 is what keeps payloads small.
 
+    *Amended by 6.3/03 (2026-09-07).* One cap turned out not to bound a question. Every
+    prompt re-renders every prior step, so a per-step cap of `C` admits about `55C` across
+    ten reads — measured at 2,653,692 characters for one question in 6.3/02. So there are
+    two numbers: 16 KiB for one step's rows, and 64 KiB for everything a whole question
+    renders into its prompts, statements and bound values included. The second is
+    deliberately smaller than ten times the first, and is checked once before a statement
+    runs and again after it, because a statement that fails has no rows to weigh and its
+    text costs every later prompt all the same.
+
 13. **The residual risk is recorded rather than engineered away.** With no timeout, a long
     query holds its read tokens, and a deletion admitted during it will cancel that query
     rather than wait. That is correct behaviour — the deletion the user confirmed wins over

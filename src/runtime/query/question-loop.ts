@@ -12,12 +12,20 @@
 // a guess, and decision 33 is what will tell us whether it was generous or tight; 6.6/04
 // records the number a real question actually used.
 //
+// **A question has a second budget, and it is not counted in reads** (decision 12). Ten
+// steps bound how many times the model may look; `QUESTION_RESULT_PAYLOAD_BUDGET_BYTES`
+// bounds how much those looks may put into the conversation — rows, statements and bound
+// values alike — because the prompt re-renders every prior step into every later turn and ten
+// small reads and ten large ones are not the same question. Both numbers and both refusals live in `question-payload.ts`, and the
+// turn checks them; a refused step is an ordinary step here, spending one read and going
+// back to the model to be narrowed.
+//
 // **No timeout** (decision 9), which is the absence of code rather than any code here. No
-// file on this path — this one, `question-turn.ts`, `question-tool.ts`, the two scopes, the
-// worker and its thread, `data-query.ts` — arms a timer, reads a clock or holds a deadline,
-// and `question-loop.test.ts` pins that twice: it warps every clock forward by years across a
-// whole budget and watches the loop finish anyway, and it sweeps all eight files for the
-// constructs a deadline is built from. Slow is allowed: waiting is a product cost the user
+// file on this path — this one, `question-turn.ts`, `question-tool.ts`, `question-payload.ts`,
+// the two scopes, the worker and its thread, `data-query.ts` — arms a timer, reads a clock or
+// holds a deadline, and `question-loop.test.ts` pins that twice: it warps every clock forward
+// by years across a whole budget and watches the loop finish anyway, and it sweeps all nine
+// files for the constructs a deadline is built from. Slow is allowed: waiting is a product cost the user
 // accepts, and freezing — the thing that actually mattered — was a liveness bug epic 6.2
 // fixed structurally by moving execution into a worker. What ends a question early is a
 // cancellation, never a clock: `question-turn.ts` wraps the provider in the scope's signal so

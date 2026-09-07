@@ -6,7 +6,14 @@
 // the count of reads it has left, which is the budget it is *told about* rather than the
 // budget that is *enforced* — enforcement is the loop's, and a turn that enforced it would
 // be a loop of one. There is still no wall-clock deadline anywhere on this path (decision
-// 9), no result-size cap (6.3/03) and no step label (6.3/04).
+// 9) and no step label (6.3/04).
+//
+// **The size cap lives here because a result is only a result for one line** (decision 12).
+// `question-payload.ts` holds both numbers and both refusals; what this file does is check
+// them the moment the worker hands rows back and before they become a step, so an over-size
+// result is refused while it is still a result rather than unwritten afterwards. A refusal
+// is an ordinary failed step: it costs one read, goes back to the model as words, and the
+// loop carries on. Nothing is ever trimmed to fit — see that file for why.
 //
 // **A failed statement is a turn, not an ending.** Malformed SQL, an unknown column, a
 // table outside the question's scope and a mutation SQLite refused all come back as a step
@@ -50,6 +57,13 @@ import {
   SQLITE_TYPE_BY_FIELD_TYPE,
 } from "../data/index.ts";
 import { type QueryWorkerRow, QueryWorkerStatementError } from "./query-worker.ts";
+import {
+  questionPayloadBytes,
+  questionPayloadRefusal,
+  questionRenderedBytes,
+  questionStatementRefusal,
+  renderQuestionRows,
+} from "./question-payload.ts";
 import { QUESTION_TOOLS, type QuestionToolCall, questionDecisionSchema } from "./question-tool.ts";
 import {
   assertWholeCatalogQuery,
@@ -65,9 +79,11 @@ export type QuestionStepResult =
   | { readonly outcome: "failed"; readonly message: string };
 
 /**
- * One tool call and what came back from it, or `null` for a decision that could not be read
- * at all. A step is what the model is shown next, and it is shown its own unreadable decision
- * for the same reason it is shown a failed statement (see {@link runQuestionTurn}).
+ * One tool call and what came back from it, or `null` for a decision this turn could not take
+ * at all — one that would not parse, or one whose statement was itself too large to carry
+ * back into a prompt (decision 12). A step is what the model is shown next, and it is shown
+ * both of those for the same reason it is shown a failed statement (see
+ * {@link runQuestionTurn}).
  */
 export interface QuestionStep {
   readonly call: QuestionToolCall | null;
@@ -100,8 +116,12 @@ export interface QuestionTurnDeps {
 export interface QuestionTurnInput {
   /** What the user asked, in their own words. */
   readonly question: string;
-  /** Every step this question has already taken, oldest first. */
-  readonly steps?: readonly QuestionStep[];
+  /**
+   * Every step this question has already taken, oldest first. Required rather than optional:
+   * the question's payload budget is measured from these, and a field a caller may leave off
+   * is a bound a caller may leave off.
+   */
+  readonly steps: readonly QuestionStep[];
   /**
    * How many reads this question gets in total (decision 8). Supplied by the caller rather
    * than read from a constant here, because the loop is what holds the budget and a turn
@@ -156,7 +176,7 @@ const DATA_CLOSE = "  end of data";
 
 function formatResult(result: QuestionStepResult): string {
   if (result.outcome === "failed") return `  failed: ${result.message}`;
-  return [DATA_OPEN, `  ${JSON.stringify(result.rows)}`, DATA_CLOSE].join("\n");
+  return [DATA_OPEN, `  ${renderQuestionRows(result.rows)}`, DATA_CLOSE].join("\n");
 }
 
 function formatStep(step: QuestionStep, index: number): string {
@@ -242,6 +262,73 @@ export const UNREADABLE_DECISION = [
   "or next set to answer with read set to null.",
 ].join(" ");
 
+/**
+ * What one step costs every later prompt: its statement, its bound values, and either its rows
+ * or the words it failed with.
+ *
+ * Measured on `formatStep`'s own output rather than on the rows, because all of it is
+ * re-rendered into every later turn. A budget watching rows alone would read zero while a
+ * question accumulated through the one channel a person's own data can reach — the bound
+ * values of a narrowing statement — which is not a bound.
+ */
+export function questionStepBytes(step: QuestionStep, index = 0): number {
+  return questionRenderedBytes(() => formatStep(step, index));
+}
+
+/**
+ * What every step of this question has already put into the prompt (decision 12).
+ *
+ * Recomputed from the steps rather than carried alongside them, so there is no second number
+ * to keep in step with the first: what a question has spent is a property of what it did.
+ */
+export function questionPayloadSpent(steps: readonly QuestionStep[]): number {
+  return steps.reduce((total, step, index) => total + questionStepBytes(step, index), 0);
+}
+
+function refused(call: QuestionToolCall, message: string): QuestionTurn {
+  return { kind: "step", step: { call, result: { outcome: "failed", message } } };
+}
+
+/**
+ * The question's two weighings of one step (decision 12), sharing the one measurement of what
+ * it has already spent.
+ *
+ * `beforeReading` weighs the statement and its bound values alone — an empty result stands in
+ * for rows nobody has yet — and `afterReading` weighs the step the worker actually produced.
+ * Both refusals are the payload module's words; what is decided here is only what to measure.
+ */
+function payloadRefusal(
+  steps: readonly QuestionStep[],
+  call: QuestionToolCall,
+): {
+  /** Refused for its own size, and recorded without the call that could not be carried. */
+  readonly statement: string | null;
+  readonly beforeReading: string | null;
+  afterReading(rows: readonly QueryWorkerRow[]): {
+    readonly step: QuestionStep;
+    readonly refusal: string | null;
+  };
+} {
+  const spent = questionPayloadSpent(steps);
+  const asked: QuestionStep = { call, result: { outcome: "rows", rows: [] } };
+  const askedBytes = questionStepBytes(asked, steps.length);
+  return {
+    statement: questionStatementRefusal(askedBytes),
+    beforeReading: questionPayloadRefusal(0, askedBytes, spent),
+    afterReading(rows) {
+      const step: QuestionStep = { call, result: { outcome: "rows", rows } };
+      return {
+        step,
+        refusal: questionPayloadRefusal(
+          questionPayloadBytes(rows),
+          questionStepBytes(step, steps.length),
+          spent,
+        ),
+      };
+    },
+  };
+}
+
 function unreadable(): QuestionTurn {
   return {
     kind: "step",
@@ -264,6 +351,11 @@ function unreadable(): QuestionTurn {
  * awaited handle, a bad shape resolves it — which is exactly what the provider contract
  * promises and all it promises. See the issue's findings for what that costs today.
  *
+ * **A result too large to send back is a turn too** (decision 12). It is refused rather than
+ * trimmed, costs its one read, and comes back to the model as the words that tell it to
+ * narrow or aggregate — the same shape a failed statement takes, because to the model it is
+ * the same fact: that statement produced nothing usable, write a better one.
+ *
  * **The provider is wrapped so the scope can end a generation** (decision 10). Without it an
  * AI call that never settles parks the turn for ever and the question holds the whole catalog
  * with it — the case 6.2/02 recorded of a body that never returns. Cancellation is what
@@ -273,7 +365,7 @@ export async function runQuestionTurn(
   deps: QuestionTurnDeps,
   input: QuestionTurnInput,
 ): Promise<QuestionTurn> {
-  const steps = input.steps ?? [];
+  const steps = input.steps;
   const specs = scopedCapabilitySpecs(deps.scope.catalog, deps.scope.incarnations);
   const prompt = buildQuestionTurnPrompt({
     question: input.question,
@@ -296,8 +388,26 @@ export async function runQuestionTurn(
 
   try {
     assertWholeCatalogQuery(deps.database, specs, call.sql, call.parameters);
+    const refusal = payloadRefusal(steps, call);
+    // Weighed before it runs, because a statement that *fails* never has rows to weigh and
+    // its text is re-rendered into every later prompt all the same. The bound values are the
+    // half of that a person's own data can reach.
+    if (refusal.statement !== null) {
+      // The one refusal that keeps no call: quoting an unquotable statement back into the
+      // prompt that refuses it would be the failure it is refusing.
+      return {
+        kind: "step",
+        step: { call: null, result: { outcome: "failed", message: refusal.statement } },
+      };
+    }
+    if (refusal.beforeReading !== null) return refused(call, refusal.beforeReading);
     const rows = await deps.scope.read(call.sql, call.parameters);
-    return { kind: "step", step: { call, result: { outcome: "rows", rows } } };
+    // And weighed again with its rows, between the worker and the step, so an over-size result
+    // is never something a later reader has to remember not to use. The rows are dropped
+    // whole: the model gets the refusal and nothing else (decision 12).
+    const read = refusal.afterReading(rows);
+    if (read.refusal !== null) return refused(call, read.refusal);
+    return { kind: "step", step: read.step };
   } catch (error) {
     const message = stepFailureMessage(error);
     if (message === undefined) throw error;

@@ -80,3 +80,10 @@ stops exactly there: it does not emit a `choice` field's declared options, and t
 bounded distinct read. This issue's first acceptance criterion is therefore half-met on
 arrival — extend `formatCollection` rather than rebuilding the supply, and treat the shape
 half as existing coverage rather than as duplicated work.
+
+## Notes from 6.3/03
+
+The vocabulary read is subject to **two** caps now, not one: the per-step payload cap
+and the budget a whole question accumulates against. A vocabulary read spends question
+budget that the later aggregate steps need, which is an argument for asking for
+`DISTINCT` values rather than rows.

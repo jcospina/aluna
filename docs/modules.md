@@ -657,7 +657,7 @@ Numbered in build order.
 - **6.3 — The query loop.** Classify intent as `data_query`, then resolve it through a
   bounded loop: one tool, a closed vocabulary of step labels the platform owns the copy
   for, ten steps, and a payload cap that refuses over-size steps rather than truncating
-  them. No timeout. Never persisted: no registry entry, no logo on the desk, no version,
+  them — one bound on a step, one on everything a whole question accumulates. No timeout. Never persisted: no registry entry, no logo on the desk, no version,
   no cache. (ARCH §7 "`data_query`"; PLAN decisions 5, 8, 9, 12, 14)
 - **6.4 — What Aluna says.** SQL carries the whole computation; the model only finds the
   words. She states what she looked at before what she found, never phrases zero matched

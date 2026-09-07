@@ -34,11 +34,16 @@ import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
 import type { ReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
 import {
+  QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
   QUESTION_STEP_BUDGET,
+  QUESTION_STEP_RESULT_CAP_BYTES,
   QUESTION_TOOLS,
   type QuestionLoopResult,
   type QuestionStep,
   questionEndingNarration,
+  questionPayloadBytes,
+  questionPayloadSpent,
+  questionStepBytes,
 } from "../../../runtime/query/index.ts";
 import { developerSurfacesEnabled } from "../../dev-surfaces/dev-surfaces.ts";
 import { escapeHtml } from "../../http/html.ts";
@@ -87,12 +92,30 @@ function renderOfferedTools(): string {
   return renderSection(`Tools offered (${QUESTION_TOOLS.length})`, body);
 }
 
-function renderStep(step: QuestionStep, index: number): string {
+/**
+ * What a step costs, against the two numbers the cap is made of (decision 12).
+ *
+ * The same two functions the turn measures with, so the page cannot report one thing while
+ * the refusal was decided on another. A refused step still has a cost — its statement, its
+ * bound values and the words it came back with are re-rendered into every later prompt — and
+ * showing it as nothing would hide the number a developer opened this page to see.
+ */
+function renderPayload(step: QuestionStep, index: number, steps: readonly QuestionStep[]): string {
+  const rows = step.result.outcome === "rows" ? questionPayloadBytes(step.result.rows) : 0;
+  const spent = questionPayloadSpent(steps.slice(0, index + 1));
+  return [
+    `${rows} of ${QUESTION_STEP_RESULT_CAP_BYTES} bytes of rows`,
+    `${questionStepBytes(step, index)} bytes into every later prompt`,
+    `${spent} of ${QUESTION_RESULT_PAYLOAD_BUDGET_BYTES} spent by this question`,
+  ].join("\n");
+}
+
+function renderStep(step: QuestionStep, index: number, steps: readonly QuestionStep[]): string {
   const { call, result } = step;
   const heading = `Step ${index + 1} of at most ${QUESTION_STEP_BUDGET}`;
   const asked =
     call === null
-      ? [renderSection(heading, "the model's decision could not be read", "failure")]
+      ? [renderSection(heading, "no statement was recorded for this step", "failure")]
       : [
           renderSection(heading, `${call.tool}\n${call.sql}`),
           renderSection("Parameters", JSON.stringify(call.parameters)),
@@ -102,6 +125,7 @@ function renderStep(step: QuestionStep, index: number): string {
     result.outcome === "rows"
       ? renderSection(`Rows (${result.rows.length})`, JSON.stringify(result.rows, null, 2))
       : renderSection("Statement failed", result.message, "failure"),
+    renderSection("Payload", renderPayload(step, index, steps)),
   ].join("");
 }
 
@@ -157,7 +181,8 @@ function renderPage(exercise?: QuestionExercise): string {
     '<p class="note">Ask something about what is saved on this desk. The prompt is classified, ',
     "a whole-catalog read scope opens, and the model is offered one tool and up to ",
     `${QUESTION_STEP_BUDGET} reads — it decides each next step until it has enough or the `,
-    "reads run out. Nothing is timed. Scaffolding: this page comes down in 6.5/05.</p>",
+    "reads run out. Nothing is timed. A read that comes back too large is refused whole, never ",
+    "trimmed, and the model is told to narrow it. Scaffolding: this page comes down in 6.5/05.</p>",
     `<form method="post" action="${DEMO_QUESTION_PATH}">`,
     `<textarea name="question" placeholder="how many notes did I write last month?">${escapeHtml(exercise?.question ?? "")}</textarea>`,
     '<br><button type="submit">Run the loop</button>',
