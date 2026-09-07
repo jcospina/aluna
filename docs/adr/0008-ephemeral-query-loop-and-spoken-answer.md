@@ -62,6 +62,14 @@ rather than rows, because ten thousand `(month, total)` pairs are trivial while 
 hundred long-text records are on the order of 100k tokens re-sent on every subsequent
 turn.
 
+**A whole question carries a payload budget beside the per-step cap.** Every turn's prompt
+re-renders every prior step's complete row set, so a question's cost grows as n²/2 across
+the budget and a per-step cap of `C` admits about `55C` across ten reads. A question
+therefore accumulates against a budget of its own, and a read that would fit on its own is
+refused once that budget is spent — in the same shape and for the same reason, addressed to
+the model so it narrows. Without it the step cap bounds a step and nothing bounds the
+question, which is what a context-window overrun is made of.
+
 **SQL computes; the model only finds the words.** Generated SQL must carry the whole
 computation — counting, totalling, grouping, ordering. The model never performs
 arithmetic by reading rows. Free reads exist precisely so SQL can be asked to do this

@@ -86,7 +86,7 @@ function desk(): Desk {
       const step = await withWholeCatalogReadScope(scopeDeps, (scope) =>
         oneTurn(
           { provider, scope, database: platform.database.readonly },
-          { question: "how much did I spend on groceries?", steps: options.steps },
+          { question: "how much did I spend on groceries?", steps: options.steps ?? [] },
         ),
       );
       return { step, prompts: provider.prompts };

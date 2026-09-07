@@ -13,15 +13,14 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { warpClocks } from "./clock-warp.test-support.ts";
-import { createQueryWorker, type QueryWorkerValue } from "./query-worker.ts";
 import {
   answers,
-  catalogueWithRecords,
   EXPENSES_TABLE,
   NOTES_TABLE,
   providerResolving,
+  type QuestionDesk,
+  questionDesk,
   reads,
   type ScriptedProvider,
   scriptedProvider,
@@ -29,88 +28,18 @@ import {
 import {
   QUESTION_BUDGET_SPENT_SENTENCE,
   QUESTION_STEP_BUDGET,
-  type QuestionLoopResult,
   questionEndingNarration,
   runQuestionLoop,
 } from "./question-loop.ts";
 import { READ_ONLY_QUERY_TOOL } from "./question-tool.ts";
 import { type QuestionStep, UNREADABLE_DECISION } from "./question-turn.ts";
-import {
-  createScratchPlatforms,
-  gatesFor,
-  readerCounts,
-  type ScratchPlatforms,
-} from "./read-scope.test-support.ts";
-import {
-  type WholeCatalogReadScope,
-  withWholeCatalogReadScope,
-} from "./whole-catalog-read-scope.ts";
+import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 
 let platforms: ScratchPlatforms;
 
-interface LoopRun {
-  readonly result: QuestionLoopResult;
-  /** Every step, watched through `onStep` — the only way a caller sees a spent budget's. */
-  readonly steps: readonly QuestionStep[];
-  readonly prompts: readonly string[];
-}
-
-interface Desk {
-  readonly database: PlatformDatabase;
-  readonly readerCounts: () => readonly number[];
-  /** Statements that actually reached the worker, which is not the same as steps recorded. */
-  readonly executed: () => number;
-  run(
-    provider: ScriptedProvider,
-    question?: string,
-    onStep?: (step: QuestionStep) => void,
-  ): Promise<LoopRun>;
-  inScope<T>(body: (scope: WholeCatalogReadScope) => Promise<T>): Promise<T>;
-}
-
-/** A migrated throwaway desk holding Notes and Expenses, with the real worker wired in. */
-function desk(): Desk {
-  const platform = platforms.migrated();
-  catalogueWithRecords(platform.database.readwrite);
-  const readGates = gatesFor(platform.database);
-  let executed = 0;
-  const scopeDeps = {
-    readGates,
-    database: platform.database.readonly,
-    createWorker: () => {
-      const worker = createQueryWorker(platform.path);
-      return {
-        ...worker,
-        read: (sql: string, parameters?: readonly QueryWorkerValue[]) => {
-          executed += 1;
-          return worker.read(sql, parameters);
-        },
-      };
-    },
-  };
-
-  return {
-    database: platform.database,
-    readerCounts: () => readerCounts(readGates),
-    executed: () => executed,
-    inScope: (body) => withWholeCatalogReadScope(scopeDeps, body),
-    async run(provider, question = "how much did I spend on groceries?", onStep) {
-      const steps: QuestionStep[] = [];
-      const result = await withWholeCatalogReadScope(scopeDeps, (scope) =>
-        runQuestionLoop(
-          { provider, scope, database: platform.database.readonly },
-          {
-            question,
-            onStep: (step) => {
-              steps.push(step);
-              onStep?.(step);
-            },
-          },
-        ),
-      );
-      return { result, steps, prompts: provider.prompts };
-    },
-  };
+/** The shared desk, at this suite's own lifecycle. See `question.test-support.ts`. */
+function desk(): QuestionDesk {
+  return questionDesk(platforms);
 }
 
 beforeEach(() => {
@@ -319,6 +248,7 @@ describe("no timeout exists on a step or on the loop", () => {
       "question-loop.ts",
       "question-turn.ts",
       "question-tool.ts",
+      "question-payload.ts",
       "whole-catalog-query-scope.ts",
       "whole-catalog-read-scope.ts",
       "query-worker.ts",

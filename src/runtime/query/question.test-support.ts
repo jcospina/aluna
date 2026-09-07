@@ -10,6 +10,7 @@
 
 import type { Database } from "bun:sqlite";
 
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
 import {
   type CapabilitySpec,
@@ -19,7 +20,8 @@ import {
 import { validSpec } from "../../registry/spec/spec.test-support.ts";
 import { insertCapability } from "../../registry/store/store.ts";
 import { applyCapabilityTableDdl } from "../data/index.ts";
-import { QUESTION_STEP_BUDGET } from "./question-loop.ts";
+import { createQueryWorker, type QueryWorkerValue } from "./query-worker.ts";
+import { QUESTION_STEP_BUDGET, type QuestionLoopResult, runQuestionLoop } from "./question-loop.ts";
 import {
   type QuestionDecision,
   type QuestionToolCall,
@@ -32,6 +34,11 @@ import {
   type QuestionTurnInput,
   runQuestionTurn,
 } from "./question-turn.ts";
+import { gatesFor, readerCounts, type ScratchPlatforms } from "./read-scope.test-support.ts";
+import {
+  type WholeCatalogReadScope,
+  withWholeCatalogReadScope,
+} from "./whole-catalog-read-scope.ts";
 
 export const NOTES_CAPABILITY = {
   id: "notes",
@@ -142,9 +149,16 @@ export function answers(): QuestionDecision {
  */
 export async function oneTurn(
   deps: QuestionTurnDeps,
-  input: Omit<QuestionTurnInput, "budget">,
+  input: Omit<QuestionTurnInput, "budget" | "steps"> & {
+    /** Defaulted here and required on the real input: a question is bounded by its steps. */
+    readonly steps?: readonly QuestionStep[];
+  },
 ): Promise<QuestionStep> {
-  const turn = await runQuestionTurn(deps, { ...input, budget: QUESTION_STEP_BUDGET });
+  const turn = await runQuestionTurn(deps, {
+    ...input,
+    steps: input.steps ?? [],
+    budget: QUESTION_STEP_BUDGET,
+  });
   if (turn.kind !== "step") throw new Error("the scripted decision was a read; the turn was not");
   return turn.step;
 }
@@ -241,6 +255,99 @@ export function scriptedProvider(...decisions: readonly QuestionDecision[]): Scr
           totalTokens: undefined,
         }),
       };
+    },
+  };
+}
+
+/**
+ * More notes than `catalogueWithRecords` writes, each carrying `text`, so a suite can ask for
+ * a payload of a chosen size. Written straight to the table rather than through a route: what
+ * these rows are for is their size in a prompt, and nothing about how they were saved matters
+ * to that.
+ */
+export function addNotes(database: Database, count: number, text: string, prefix = "bulk"): void {
+  const insert = database.prepare(
+    `INSERT INTO ${NOTES_TABLE} (id, created_at, extra, text) VALUES (?, ?, '{}', ?)`,
+  );
+  for (let index = 0; index < count; index += 1) {
+    insert.run(`${prefix}-${String(index).padStart(5, "0")}`, "2026-07-05 09:00:00", text);
+  }
+  insert.finalize();
+}
+
+export interface LoopRun {
+  readonly result: QuestionLoopResult;
+  /** Every step, watched through `onStep` — the only way a caller sees a spent budget's. */
+  readonly steps: readonly QuestionStep[];
+  readonly prompts: readonly string[];
+}
+
+export interface QuestionDesk {
+  readonly database: PlatformDatabase;
+  readonly readerCounts: () => readonly number[];
+  /** Statements that actually reached the worker, which is not the same as steps recorded. */
+  readonly executed: () => number;
+  run(
+    provider: ScriptedProvider,
+    question?: string,
+    onStep?: (step: QuestionStep) => void,
+  ): Promise<LoopRun>;
+  inScope<T>(body: (scope: WholeCatalogReadScope) => Promise<T>): Promise<T>;
+}
+
+/**
+ * A migrated throwaway desk holding Notes and Expenses, with the real worker wired in, and
+ * the loop run inside one scope over it.
+ *
+ * Shared by every suite that drives the whole loop rather than one turn, so the two cannot
+ * drift into disagreeing about what a desk is or about how a question is run against one.
+ * `seed` is called with the read-write connection before the first read, which is where a
+ * suite adds the rows its own case needs.
+ */
+export function questionDesk(
+  platforms: ScratchPlatforms,
+  seed?: (database: Database) => void,
+): QuestionDesk {
+  const platform = platforms.migrated();
+  catalogueWithRecords(platform.database.readwrite);
+  seed?.(platform.database.readwrite);
+  const readGates = gatesFor(platform.database);
+  let executed = 0;
+  const scopeDeps = {
+    readGates,
+    database: platform.database.readonly,
+    createWorker: () => {
+      const worker = createQueryWorker(platform.path);
+      return {
+        ...worker,
+        read: (sql: string, parameters?: readonly QueryWorkerValue[]) => {
+          executed += 1;
+          return worker.read(sql, parameters);
+        },
+      };
+    },
+  };
+
+  return {
+    database: platform.database,
+    readerCounts: () => readerCounts(readGates),
+    executed: () => executed,
+    inScope: (body) => withWholeCatalogReadScope(scopeDeps, body),
+    async run(provider, question = "how much did I spend on groceries?", onStep) {
+      const steps: QuestionStep[] = [];
+      const result = await withWholeCatalogReadScope(scopeDeps, (scope) =>
+        runQuestionLoop(
+          { provider, scope, database: platform.database.readonly },
+          {
+            question,
+            onStep: (step) => {
+              steps.push(step);
+              onStep?.(step);
+            },
+          },
+        ),
+      );
+      return { result, steps, prompts: provider.prompts };
     },
   };
 }
