@@ -8,7 +8,7 @@
 // escaped, so this is disclosure rather than XSS; none of it is a user's business, and
 // none of it belongs in a production bundle.
 //
-// The second *is* a page somebody opens: `/demo/question`, the one-turn exercise
+// The second *is* a page somebody opens: `/demo/question`, the query-loop exercise
 // (`src/server/routes/query/demo-question.ts`). The earlier `/demo/*` previews came down and
 // this is the namespace being borrowed again, deliberately and temporarily, until the real
 // answer window exists. It shows the statement the model wrote and the rows that came back,
