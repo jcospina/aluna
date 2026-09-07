@@ -18,10 +18,20 @@
 // inventory every capability is born with (`src/registry/tools.ts`); this is the loop's,
 // and the two never meet. Hence `QUESTION_TOOLS`.
 //
+// **A turn's decision is not a second tool.** The loop (6.3/02) asks the model for one of
+// two things at every step — read again, or stop reading because there is enough to answer
+// — and `questionDecisionSchema` is that choice wrapped around this file's one call. It
+// nests the *derived* schema rather than the literal one, so the invariant above survives
+// the wrapping: the thing the model may say is still whatever the single offered tool
+// describes, and an inventory that grew a second member still fails at load.
+//
 // The wire shape is checked against what OpenAI's strict structured outputs accept: every
 // property required, `additionalProperties: false`, the tool name an `enum` rather than a
 // `const`, and the parameter scalar a plain type union — the same union the behavioral
-// suite schema already sends through this provider contract.
+// suite schema already sends through this provider contract. The decision's `read` is
+// required-and-nullable for the same reason `proposed_identity` is in
+// `src/pipeline/intent/schema.ts`: an absent key is what strict mode refuses, and the
+// cross-field rule that makes `null` mean something is a refinement, which emits nothing.
 
 import { z } from "zod";
 
@@ -102,5 +112,34 @@ export function theOnlyQuestionTool(tools: readonly QuestionTool[] = QUESTION_TO
   return only;
 }
 
-/** The schema one turn's generation is validated against. */
+/** The one call shape there is, derived from the one offered tool. */
 export const questionToolCallSchema = theOnlyQuestionTool().call;
+
+/** What a turn may decide: run one more read, or stop reading and answer from what it has. */
+export const QUESTION_DECISIONS = ["read", "answer"] as const;
+export type QuestionNextStep = (typeof QUESTION_DECISIONS)[number];
+
+const questionDecisionObject = z.strictObject({
+  next: z.enum(QUESTION_DECISIONS),
+  /** The statement to run, and `null` when the model is done reading. */
+  read: questionToolCallSchema.nullable(),
+});
+
+/**
+ * The schema one turn's generation is validated against.
+ *
+ * The refinement is what makes the two fields one decision: a `read` without a statement is
+ * a step that cannot run, and an `answer` carrying one is a model asking for a read it just
+ * said it does not need. Both come back as a generation the turn refuses rather than as a
+ * shape the loop has to interpret.
+ */
+export const questionDecisionSchema = questionDecisionObject.superRefine((decision, ctx) => {
+  if (decision.next === "read" && decision.read === null) {
+    ctx.addIssue({ code: "custom", path: ["read"], message: "a read must carry its statement" });
+  }
+  if (decision.next === "answer" && decision.read !== null) {
+    ctx.addIssue({ code: "custom", path: ["read"], message: "an answer runs no statement" });
+  }
+});
+
+export type QuestionDecision = z.infer<typeof questionDecisionSchema>;

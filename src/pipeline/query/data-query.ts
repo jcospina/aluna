@@ -3,18 +3,19 @@
 // The resolver already classifies `data_query` and has since Module 2; until now that
 // classification only ever reached `deflectionNarration`'s *I can't answer across your
 // things yet*. This is the seam where it stops being a deflection: the intent opens
-// 6.2/02's whole-catalog scope, one turn runs inside it, and the scope closes.
+// 6.2/02's whole-catalog scope, the bounded loop runs inside it, and the scope closes.
 //
 // **It lives in the pipeline, not the runtime**, because it is the one thing on this path
 // that needs an `IntentClassification`. `src/runtime/query/` owns the tool, the turn, the
 // scope and the worker, and knows nothing about how a prompt was classified — the same
 // direction every other dependency in this repo runs.
 //
-// **One turn, and the scope closes behind it.** 6.3/02 turns the single
-// `runQuestionTurn` below into a bounded loop over the same scope; nothing else about this
-// function changes when it does. There is deliberately no step budget, no deadline and no
-// retry here — a turn that failed is a result the model reads, and reading it is the loop's
-// job rather than this one's.
+// **The whole loop, and the scope closes behind it.** One scope is opened, the loop takes
+// as many turns inside it as the model asks for up to its budget, and the scope closes on
+// every ending — an answer, a spent budget, a cancellation, a throw — because
+// `withWholeCatalogReadScope` releases in its own `finally` (decision 11). There is
+// deliberately no deadline here and none in the loop: slow is allowed (decision 9), and this
+// is the seam a convenience one would be smuggled into.
 //
 // **The scope creates nothing** (decision 2). No registry row, no version, no artifact, no
 // cache, no persisted read dependency and no conversation thread: the same question asked
@@ -26,11 +27,10 @@ import type { Provider } from "../../platform/provider/index.ts";
 import type { ActiveCatalogReader } from "../../registry/index.ts";
 import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
 import {
-  buildQuestionTurnPrompt,
   type QueryWorker,
+  type QuestionLoopResult,
   type QuestionStep,
-  runQuestionTurn,
-  scopedCapabilitySpecs,
+  runQuestionLoop,
   withWholeCatalogReadScope,
 } from "../../runtime/query/index.ts";
 import type { IntentClassification } from "../intent/index.ts";
@@ -53,31 +53,24 @@ export interface DataQuestion {
   readonly intent: IntentClassification;
   /** The prompt bar text, in the person's own words. */
   readonly question: string;
-}
-
-export interface DataQueryTurn {
-  readonly step: QuestionStep;
   /**
-   * The prompt the model would be handed next, with this step's result already in it.
-   *
-   * This is what *the result reaching the model* means concretely, and it is returned
-   * rather than left implicit so a test can hold it. 6.3/02 stops returning it and starts
-   * generating against it.
+   * Each step as it completes, so a caller can watch the loop without the result having to
+   * carry the rows past a spent budget. Threaded straight through to the loop's own seam.
    */
-  readonly nextPrompt: string;
+  readonly onStep?: (step: QuestionStep) => void;
 }
 
 /**
- * Open the whole-catalog scope for one classified question and take one turn in it.
+ * Open the whole-catalog scope for one classified question and run the loop inside it.
  *
  * Throws `NotADataQuestionError` for any other intent, `ReadGateUnavailableError` when the
  * complete token set cannot be acquired, and whatever ended the question when one is
- * cancelled. A statement that merely failed is not a throw — it comes back inside `step`.
+ * cancelled. A statement that merely failed is not a throw — it is one of the loop's steps.
  */
-export async function runDataQueryTurn(
+export async function runDataQuery(
   deps: DataQueryDeps,
   input: DataQuestion,
-): Promise<DataQueryTurn> {
+): Promise<QuestionLoopResult> {
   if (input.intent.type !== "data_query") {
     throw new NotADataQuestionError(
       `Only a data_query opens a read scope; this prompt was classified ${input.intent.type}.`,
@@ -92,19 +85,10 @@ export async function runDataQueryTurn(
       readActiveCatalog: deps.readActiveCatalog,
       createWorker: deps.createWorker,
     },
-    async (scope) => {
-      const step = await runQuestionTurn(
+    (scope) =>
+      runQuestionLoop(
         { provider: deps.provider, scope, database },
-        { question: input.question },
-      );
-      return {
-        step,
-        nextPrompt: buildQuestionTurnPrompt({
-          question: input.question,
-          specs: scopedCapabilitySpecs(scope.catalog, scope.incarnations),
-          steps: [step],
-        }),
-      };
-    },
+        { question: input.question, ...(input.onStep ? { onStep: input.onStep } : {}) },
+      ),
   );
 }

@@ -28,6 +28,17 @@ computation, so a result is an aggregate and small by construction — is what k
 payloads small, and it lands in 6.4/02. The cap catches the case where that
 failed, and a cap that fires often is evidence decision 4 is not holding.
 
+**What the cap has to bound is the whole question, not one step — measured, from
+6.3/02.** `buildQuestionTurnPrompt` re-renders every prior step's complete row set
+into every later prompt, so cost grows as n²/2 across the budget. Measured on a
+real ten-step loop with one 729-row × 6-column result (~58.6 KB of JSON): prompts
+ran 1,734 → 60,290 → 118,883 → … → 529,034 characters, **2,653,692 characters for
+one question** — order 660k tokens, and 729 rows is a small read. A per-step cap of
+`C` therefore admits about `50C` across ten steps, so a cap chosen only against one
+step's payload will still let a question blow the context window, at which point the
+generation fails and 6.3/02's turn ends the question. Choose the number against the
+whole question, and say in the issue's findings which of the two the number bounds.
+
 **An over-size refusal is a turn, not an ending.** It consumes one of the ten
 steps, goes back to the model like any other result, and the loop recovers by
 narrowing. Nothing about it reaches a surface.
@@ -44,6 +55,8 @@ narrowing. Nothing about it reaches a surface.
 - [ ] The loop continues after a refusal, consumes one step for it, and can reach
       an answer by narrowing — proved by a fixture that does exactly that
 - [ ] No cap message, size or count reaches any user-facing sentence
+- [ ] The cap bounds what a whole ten-step question can accumulate, not only what
+      one step returns, and a test drives ten capped steps and asserts the total
 - [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo

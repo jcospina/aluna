@@ -30,6 +30,19 @@ waited through — not a sum of step times.
 **Best-effort stays best-effort.** Completion never waits for this write, and
 losing it in a crash implies nothing about the answer the user received.
 
+**Where the clock may live — from 6.3/02.** Decision 9's no-timeout guarantee is pinned by
+a sweep that refuses `Date.now`, `new Date`, `performance.now`, `nanoseconds` and `hrtime`
+anywhere on the query path, `src/pipeline/query/data-query.ts` included, because a substring
+sweep cannot tell a measurement from a deadline. So take the elapsed reading *above*
+`runDataQuery` rather than inside it — `src/pipeline/metrics-recorder.ts` already uses
+`performance.now()` and is not swept, and a reading taken there also captures more of what the
+user actually waited through. If the sweep reddens, that is this constraint and not a
+regression.
+
+**Step count is on the result, in two places.** `QuestionLoopResult` is a union: an answered
+question carries `steps` (count it), a spent budget carries `stepsTaken`. A question ended by
+cancellation carries neither and has to be counted through `onStep`.
+
 ## Acceptance criteria
 
 - [ ] The `data_query` metrics row carries turns taken and wall-clock elapsed

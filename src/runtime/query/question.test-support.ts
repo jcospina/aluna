@@ -1,5 +1,5 @@
 // The two things every question suite needs and neither should invent twice: a desk with
-// real capability tables holding real rows, and a provider that answers with a tool call
+// real capability tables holding real rows, and a provider that answers with the decisions
 // the test chose.
 //
 // The tables are physical on purpose. A question's whole claim is that a statement runs in
@@ -19,7 +19,19 @@ import {
 import { validSpec } from "../../registry/spec/spec.test-support.ts";
 import { insertCapability } from "../../registry/store/store.ts";
 import { applyCapabilityTableDdl } from "../data/index.ts";
-import type { QuestionToolCall } from "./question-tool.ts";
+import { QUESTION_STEP_BUDGET } from "./question-loop.ts";
+import {
+  type QuestionDecision,
+  type QuestionToolCall,
+  READ_ONLY_QUERY_TOOL,
+} from "./question-tool.ts";
+import {
+  buildQuestionTurnPrompt,
+  type QuestionStep,
+  type QuestionTurnDeps,
+  type QuestionTurnInput,
+  runQuestionTurn,
+} from "./question-turn.ts";
 
 export const NOTES_CAPABILITY = {
   id: "notes",
@@ -109,17 +121,102 @@ export function registeredSpecs(database: Database): readonly CapabilitySpec[] {
   return readActiveRegistryCatalog(database).capabilities.map(capabilitySpecFromRow);
 }
 
+/** A decision to run one statement. */
+export function reads(
+  sql: string,
+  parameters: QuestionToolCall["parameters"] = [],
+): QuestionDecision {
+  return { next: "read", read: { tool: READ_ONLY_QUERY_TOOL, sql, parameters } };
+}
+
+/** A decision to stop reading. What Aluna then says is 6.4's. */
+export function answers(): QuestionDecision {
+  return { next: "answer", read: null };
+}
+
+/**
+ * One turn that ran a statement, for a suite that scripts only `read` decisions — a turn
+ * that came back as an answer there is the fixture having drifted rather than a case to
+ * handle. The decision itself, and the budget it is spent against, belong to
+ * `question-loop.test.ts`.
+ */
+export async function oneTurn(
+  deps: QuestionTurnDeps,
+  input: Omit<QuestionTurnInput, "budget">,
+): Promise<QuestionStep> {
+  const turn = await runQuestionTurn(deps, { ...input, budget: QUESTION_STEP_BUDGET });
+  if (turn.kind !== "step") throw new Error("the scripted decision was a read; the turn was not");
+  return turn.step;
+}
+
+/** The prompt the next turn of a question would be built from, at a fresh budget. */
+export function nextPrompt(
+  question: string,
+  specs: readonly CapabilitySpec[],
+  steps: readonly QuestionStep[],
+): string {
+  return buildQuestionTurnPrompt({ question, specs, steps, budget: QUESTION_STEP_BUDGET });
+}
+
+/**
+ * A provider that resolves `object` to whatever the test chose, in order, *without* parsing
+ * it — the only way to exercise the turn's own re-validation, which is what stands between a
+ * non-conforming object and the worker. The last value repeats once the list runs out.
+ */
+export function providerResolving(...values: readonly unknown[]): Provider {
+  let next = 0;
+  return {
+    generate<T>(): GenerateResult<T> {
+      const value = values[Math.min(next, values.length - 1)];
+      next += 1;
+      return {
+        partialStream: (async function* () {
+          yield value as DeepPartial<T>;
+        })(),
+        object: Promise.resolve(value as T),
+        usage: Promise.resolve({
+          inputTokens: undefined,
+          outputTokens: undefined,
+          totalTokens: undefined,
+        }),
+      };
+    },
+  };
+}
+
+/** A provider whose generation faults, the way a connection that is not there does. */
+export function providerFaulting(error: Error): Provider {
+  return {
+    generate<T>(): GenerateResult<T> {
+      const object = Promise.reject(error) as Promise<T>;
+      object.catch(() => {});
+      return {
+        partialStream: (async function* () {})(),
+        object,
+        usage: Promise.resolve({
+          inputTokens: undefined,
+          outputTokens: undefined,
+          totalTokens: undefined,
+        }),
+      };
+    },
+  };
+}
+
 export interface ScriptedProvider extends Provider {
   /** Every prompt the turn built, in order. */
   readonly prompts: string[];
 }
 
 /**
- * A provider that answers each `generate` with the next scripted tool call, validated
+ * A provider that answers each `generate` with the next scripted decision, validated
  * through the same schema the real spine validates against — so a fixture that could never
  * come off the wire fails here rather than passing a test the product would not.
+ *
+ * A script that runs out repeats its last decision, which is what makes a one-entry script of
+ * `reads(...)` a question that never converges — the fixture the ten-step budget needs.
  */
-export function scriptedProvider(...calls: readonly QuestionToolCall[]): ScriptedProvider {
+export function scriptedProvider(...decisions: readonly QuestionDecision[]): ScriptedProvider {
   const prompts: string[] = [];
   let next = 0;
 
@@ -127,7 +224,7 @@ export function scriptedProvider(...calls: readonly QuestionToolCall[]): Scripte
     prompts,
     generate<T>(prompt: string, schema: Parameters<Provider["generate"]>[1]): GenerateResult<T> {
       prompts.push(prompt);
-      const scripted = calls[Math.min(next, calls.length - 1)];
+      const scripted = decisions[Math.min(next, decisions.length - 1)];
       next += 1;
       const object = (async () => (schema as { parse(value: unknown): T }).parse(scripted))();
       // A rejected object with nothing awaiting it yet is an unhandled rejection, and the

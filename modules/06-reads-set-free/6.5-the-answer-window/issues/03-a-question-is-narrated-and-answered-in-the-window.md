@@ -58,6 +58,18 @@ with *"I can't answer across your things yet, but I'll be able to soon."* — wh
 becomes false the moment this issue lands. It goes, and the `reject` line stays
 where 6.6/03 will use it.
 
+**A third ending exists and is unlit — from 6.3/02.** The loop has two endings that are
+its own (answered, budget spent) and one that is nobody's yet: a question can *throw*. A
+generation that faulted, a closing read gate, a worker that will not answer and a context
+window overrun all leave `runDataQuery` as an exception rather than as a
+`QuestionLoopResult` — and today that surfaces as a raw error string. ADR-0001 and ARCH §9.7
+say errors speak in product voice too, so this issue owns an authored sentence for *the
+question could not be finished*, alongside the answer and the spent-budget ending.
+
+**`onStep` is the narration seam, and it is synchronous.** `runQuestionLoop` and
+`runDataQuery` both take `onStep(step)`, called as each step completes. A throw from it ends
+the question (pinned deliberately), so a stream write that can fail needs its own guard.
+
 ## Acceptance criteria
 
 - [ ] A question typed into the prompt bar is classified, run and answered in the

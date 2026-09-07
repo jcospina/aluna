@@ -9,7 +9,6 @@ import { rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
-import type { Provider } from "../../platform/provider/index.ts";
 import type { CapabilitySpec } from "../../registry/index.ts";
 import { createReadGateCoordinator } from "../concurrency/read-gates.ts";
 import { deriveCapabilityTableDdl } from "../data/index.ts";
@@ -18,15 +17,19 @@ import {
   catalogueWithRecords,
   EXPENSES_TABLE,
   NOTES_TABLE,
+  nextPrompt,
+  oneTurn,
+  providerFaulting,
+  providerResolving,
+  reads,
   registeredSpecs,
   scriptedProvider,
 } from "./question.test-support.ts";
 import { QUESTION_TOOLS, type QuestionToolCall, READ_ONLY_QUERY_TOOL } from "./question-tool.ts";
 import {
-  buildQuestionTurnPrompt,
   QUESTION_TURN_PROMPT_PREFIX,
   type QuestionStep,
-  runQuestionTurn,
+  UNREADABLE_DECISION,
 } from "./question-turn.ts";
 import {
   createScratchPlatforms,
@@ -79,9 +82,9 @@ function desk(): Desk {
     database: platform.database,
     inScope: (body) => withWholeCatalogReadScope(scopeDeps, body),
     async run(turn, options = {}) {
-      const provider = scriptedProvider(turn);
+      const provider = scriptedProvider(reads(turn.sql, turn.parameters));
       const step = await withWholeCatalogReadScope(scopeDeps, (scope) =>
-        runQuestionTurn(
+        oneTurn(
           { provider, scope, database: platform.database.readonly },
           { question: "how much did I spend on groceries?", steps: options.steps },
         ),
@@ -111,7 +114,7 @@ describe("one turn", () => {
       call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`),
     );
 
-    expect(step.call.tool).toBe(READ_ONLY_QUERY_TOOL);
+    expect(step.call?.tool).toBe(READ_ONLY_QUERY_TOOL);
     expect(step.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toStartWith(QUESTION_TURN_PROMPT_PREFIX);
@@ -223,9 +226,9 @@ describe("values are bound, never interpolated", () => {
       call(`SELECT text FROM ${NOTES_TABLE} WHERE text = ? ORDER BY id`, ["rent"]),
     );
 
-    expect(step.call.sql).toContain("?");
-    expect(step.call.sql).not.toContain("rent");
-    expect(step.call.parameters).toEqual(["rent"]);
+    expect(step.call?.sql).toContain("?");
+    expect(step.call?.sql).not.toContain("rent");
+    expect(step.call?.parameters).toEqual(["rent"]);
     expect(step.result).toEqual({ outcome: "rows", rows: [{ text: "rent" }] });
   });
 });
@@ -321,8 +324,8 @@ describe("the platform's own columns", () => {
       const specs = scopedCapabilitySpecs(scope.catalog, scope.incarnations);
       expect(specs.length).toBeGreaterThan(1);
       const turn = (sql: string) =>
-        runQuestionTurn(
-          { provider: scriptedProvider(call(sql)), scope, database: scratch.database.readonly },
+        oneTurn(
+          { provider: scriptedProvider(reads(sql)), scope, database: scratch.database.readonly },
           { question: "what is in there?" },
         );
 
@@ -354,11 +357,7 @@ describe("the result reaches the model", () => {
     const { step } = await scratch.run(call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
     const specs = registeredSpecs(scratch.database.readonly);
 
-    const next = buildQuestionTurnPrompt({
-      question: "how much did I spend on groceries?",
-      specs,
-      steps: [step],
-    });
+    const next = nextPrompt("how much did I spend on groceries?", specs, [step]);
 
     expect(next).toContain('"total":3');
     expect(next).toContain(`SELECT count(*) AS total FROM ${NOTES_TABLE}`);
@@ -368,11 +367,8 @@ describe("the result reaches the model", () => {
     const scratch = desk();
     const { step } = await scratch.run(call(`SELECT nowhere FROM ${NOTES_TABLE}`));
 
-    const next = buildQuestionTurnPrompt({
-      question: "how much did I spend on groceries?",
-      specs: registeredSpecs(scratch.database.readonly),
-      steps: [step],
-    });
+    const specs = registeredSpecs(scratch.database.readonly);
+    const next = nextPrompt("how much did I spend on groceries?", specs, [step]);
 
     expect(next).toContain("failed: no such column");
   });
@@ -402,9 +398,9 @@ describe("the worker reads the same desk the catalog came from", () => {
     const step = await withWholeCatalogReadScope(
       { readGates: gatesFor(platform.database), database: platform.database.readonly },
       (scope) =>
-        runQuestionTurn(
+        oneTurn(
           {
-            provider: scriptedProvider(call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`)),
+            provider: scriptedProvider(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`)),
             scope,
             database: platform.database.readonly,
           },
@@ -443,9 +439,9 @@ describe("the mistakes a model actually makes", () => {
     const step = await withWholeCatalogReadScope(
       { readGates: gatesFor(platform.database), database: platform.database.readonly },
       (scope) =>
-        runQuestionTurn(
+        oneTurn(
           {
-            provider: scriptedProvider(call("SELECT count(*) AS total FROM cap_anything")),
+            provider: scriptedProvider(reads("SELECT count(*) AS total FROM cap_anything")),
             scope,
             database: platform.database.readonly,
           },
@@ -458,30 +454,43 @@ describe("the mistakes a model actually makes", () => {
     expect(step.result.message).toContain("nothing to read");
   });
 
-  test("a tool call the provider did not validate is refused by the turn", async () => {
+  test("a decision the provider did not validate never reaches the worker", async () => {
     // The scripted provider parses, so the turn's own re-parse is otherwise never exercised
-    // — and it is the only thing standing between a non-conforming object and the worker.
+    // — and it is the only thing standing between a non-conforming object and the worker. It
+    // comes back as a step the model can act on rather than as a throw: 6.3/02 made that the
+    // rule, because ending a ten-read question over one badly shaped object charges the
+    // question for the model's typo. Nothing non-conforming is executed either way.
     const scratch = desk();
-    const rogue: Provider = {
-      generate: () => ({
-        partialStream: (async function* () {})(),
-        object: Promise.resolve({ tool: "write_anything", sql: 7 } as never),
-        usage: Promise.resolve({
-          inputTokens: undefined,
-          outputTokens: undefined,
-          totalTokens: undefined,
-        }),
-      }),
-    };
+    const rogue = providerResolving({ tool: "write_anything", sql: 7 });
+
+    const step = await scratch.inScope((scope) =>
+      oneTurn(
+        { provider: rogue, scope, database: scratch.database.readonly },
+        { question: "how many notes?" },
+      ),
+    );
+
+    expect(step).toEqual({
+      call: null,
+      result: { outcome: "failed", message: UNREADABLE_DECISION },
+    });
+  });
+
+  test("a generation that faulted still ends the question", async () => {
+    // The other half of the rule, and the reason it is not "every generation failure is a
+    // turn": a rejected handle is a connection that is not there, and asking the model to
+    // decide again over it is the shape 6.3/01 refused for a database that is not answering.
+    const scratch = desk();
+    const broken = providerFaulting(new Error("the connection went away"));
 
     await expect(
       scratch.inScope((scope) =>
-        runQuestionTurn(
-          { provider: rogue, scope, database: scratch.database.readonly },
+        oneTurn(
+          { provider: broken, scope, database: scratch.database.readonly },
           { question: "how many notes?" },
         ),
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/connection went away/);
   });
 });
 
@@ -509,11 +518,8 @@ describe("the user's own words in the prompt", () => {
       call(`SELECT text FROM ${NOTES_TABLE} WHERE id = ?`, ["n9"]),
     );
 
-    const next = buildQuestionTurnPrompt({
-      question: "what did I write?",
-      specs: registeredSpecs(scratch.database.readonly),
-      steps: [step],
-    });
+    const specs = registeredSpecs(scratch.database.readonly);
+    const next = nextPrompt("what did I write?", specs, [step]);
 
     // The value is not altered — rewriting a person's data is how an answer becomes wrong —
     // but it arrives inside a fence that says what it is, and the rule is stated once up top.
@@ -551,9 +557,9 @@ describe("a database that is not answering is not a bad query", () => {
         createWorker: () => createQueryWorker(garbage),
       },
       (scope) =>
-        runQuestionTurn(
+        oneTurn(
           {
-            provider: scriptedProvider(call("SELECT 1 AS one")),
+            provider: scriptedProvider(reads("SELECT 1 AS one")),
             scope,
             database: platform.database.readonly,
           },
@@ -577,11 +583,11 @@ describe("a database that is not answering is not a bad query", () => {
 describe("a question that ends is not a step", () => {
   test("a cancelled question rejects rather than reporting a failed statement", async () => {
     const scratch = desk();
-    const provider = scriptedProvider(call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
+    const provider = scriptedProvider(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
 
     const turn = scratch.inScope(async (scope) => {
       scope.cancel();
-      return await runQuestionTurn(
+      return await oneTurn(
         { provider, scope, database: scratch.database.readonly },
         { question: "how many notes?" },
       );
@@ -617,9 +623,9 @@ describe("a turn creates nothing", () => {
         createWorker: () => createQueryWorker(platform.path),
       },
       (scope) =>
-        runQuestionTurn(
+        oneTurn(
           {
-            provider: scriptedProvider(call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`)),
+            provider: scriptedProvider(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`)),
             scope,
             database: platform.database.readonly,
           },

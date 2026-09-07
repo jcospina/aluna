@@ -8,7 +8,7 @@
 // escaped, so this is disclosure rather than XSS; none of it is a user's business, and
 // none of it belongs in a production bundle.
 //
-// The second *is* a page somebody opens: `/demo/question`, module 6's one-turn exercise
+// The second *is* a page somebody opens: `/demo/question`, module 6's query-loop exercise
 // (`src/server/routes/query/demo-question.ts`). Module 5's `/demo/*` previews came down and
 // this is the namespace being borrowed again, deliberately and temporarily —
 // `6.5-the-answer-window/issues/05-the-scaffolding-comes-down.md` removes it once the real

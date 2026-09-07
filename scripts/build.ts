@@ -8,7 +8,8 @@
  * bundled entry point looks for the query worker's thread *beside itself* rather than in
  * `src/`. 6.2/01 measured that and recorded it as a seam that stays open only while
  * nothing the server reaches imports the worker. 6.3/01 is what made the server reach it —
- * `/demo/question` runs a question turn — so the thread is copied beside the bundle here.
+ * `/demo/question` reaches the worker, and 6.3/02 turned that one turn into the loop — so
+ * the thread is copied beside the bundle here.
  *
  * It is copied rather than bundled, and as TypeScript rather than as JavaScript, because
  * the URL in the bundle names `./query-worker-thread.ts` and Bun runs that file directly.

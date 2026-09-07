@@ -1,5 +1,6 @@
 // The ephemeral whole-catalog read path: the worker SQL runs in, the scope that owns the
-// catalog for the length of one question, and the one tool a question is offered.
+// catalog for the length of one question, the one tool a question is offered, and the
+// bounded loop that repeats a turn until the model answers or its ten reads are spent.
 
 export {
   createQueryWorker,
@@ -13,10 +14,23 @@ export {
   type QueryWorkerValue,
 } from "./query-worker.ts";
 export {
+  QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_STEP_BUDGET,
+  type QuestionEnding,
+  type QuestionLoopInput,
+  type QuestionLoopResult,
+  questionEndingNarration,
+  runQuestionLoop,
+} from "./question-loop.ts";
+export {
+  QUESTION_DECISIONS,
   QUESTION_TOOLS,
+  type QuestionDecision,
+  type QuestionNextStep,
   type QuestionParameter,
   type QuestionTool,
   type QuestionToolCall,
+  questionDecisionSchema,
   questionParameterSchema,
   questionToolCallSchema,
   READ_ONLY_QUERY_TOOL,
@@ -28,6 +42,7 @@ export {
   type QuestionPromptContext,
   type QuestionStep,
   type QuestionStepResult,
+  type QuestionTurn,
   type QuestionTurnDeps,
   type QuestionTurnInput,
   runQuestionTurn,

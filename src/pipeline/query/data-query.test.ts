@@ -1,21 +1,27 @@
 // Where a classified `data_query` stops being a deflection.
 //
 // The claims here are about the seam rather than about SQL: that only this intent opens a
-// scope, that the scope really is the whole catalog and really closes, and that the step's
-// result comes back somewhere the model can read it.
+// scope, that the scope really is the whole catalog and really closes, and that its tokens
+// go back on every ending the loop has — an answer, a spent budget, a failed statement and a
+// throw. Decision 11 asks for release in `finally`, and `finally` is only worth what the
+// endings that reach it prove.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import type { IntentClassification, IntentType } from "../../pipeline/intent/index.ts";
 import {
   createQueryWorker,
-  type QuestionToolCall,
+  QUESTION_STEP_BUDGET,
+  type QuestionDecision,
+  type QuestionStep,
   READ_ONLY_QUERY_TOOL,
 } from "../../runtime/query/index.ts";
 import {
+  answers,
   catalogueWithRecords,
   EXPENSES_TABLE,
   NOTES_TABLE,
+  reads,
   scriptedProvider,
 } from "../../runtime/query/question.test-support.ts";
 import {
@@ -24,7 +30,7 @@ import {
   readerCounts,
   type ScratchPlatforms,
 } from "../../runtime/query/read-scope.test-support.ts";
-import { NotADataQuestionError, runDataQueryTurn } from "./data-query.ts";
+import { NotADataQuestionError, runDataQuery } from "./data-query.ts";
 
 let platforms: ScratchPlatforms;
 
@@ -41,10 +47,6 @@ function intent(type: IntentType): IntentClassification {
   } as IntentClassification;
 }
 
-function call(sql: string, parameters: QuestionToolCall["parameters"] = []): QuestionToolCall {
-  return { tool: READ_ONLY_QUERY_TOOL, sql, parameters };
-}
-
 function desk() {
   const platform = platforms.migrated();
   catalogueWithRecords(platform.database.readwrite);
@@ -52,9 +54,9 @@ function desk() {
   return {
     platform,
     readGates,
-    deps(turn: QuestionToolCall) {
+    deps(...decisions: readonly QuestionDecision[]) {
       return {
-        provider: scriptedProvider(turn),
+        provider: scriptedProvider(...decisions),
         readGates,
         database: platform.database.readonly,
         createWorker: () => createQueryWorker(platform.path),
@@ -74,50 +76,110 @@ afterEach(() => {
 describe("a classified data_query", () => {
   test("opens the whole-catalog scope, calls the one tool and gets rows from the worker", async () => {
     const scratch = desk();
+    const steps: QuestionStep[] = [];
 
-    const turn = await runDataQueryTurn(
+    const loop = await runDataQuery(
       scratch.deps(
-        call(`SELECT sum(amount) AS spent FROM ${EXPENSES_TABLE} WHERE text = ?`, ["groceries"]),
+        reads(`SELECT sum(amount) AS spent FROM ${EXPENSES_TABLE} WHERE text = ?`, ["groceries"]),
+        answers(),
       ),
-      { intent: intent("data_query"), question: "how much did I spend on groceries?" },
+      {
+        intent: intent("data_query"),
+        question: "how much did I spend on groceries?",
+        onStep: (step) => steps.push(step),
+      },
     );
 
-    expect(turn.step.call.tool).toBe(READ_ONLY_QUERY_TOOL);
-    expect(turn.step.result).toEqual({ outcome: "rows", rows: [{ spent: 12.5 }] });
+    expect(loop.ending).toBe("answered");
+    expect(steps.map((step) => step.call?.tool)).toEqual([READ_ONLY_QUERY_TOOL]);
+    expect(steps[0]?.result).toEqual({ outcome: "rows", rows: [{ spent: 12.5 }] });
   });
 
-  test("hands the result back where the model reads it", async () => {
+  test("keeps taking turns inside the one scope until the model stops reading", async () => {
     const scratch = desk();
 
-    const turn = await runDataQueryTurn(
-      scratch.deps(call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`)),
-      { intent: intent("data_query"), question: "how many notes do I have?" },
+    const loop = await runDataQuery(
+      scratch.deps(
+        reads(`SELECT DISTINCT text FROM ${NOTES_TABLE}`),
+        reads(`SELECT count(*) AS total FROM ${NOTES_TABLE} WHERE text = ?`, ["groceries"]),
+        answers(),
+      ),
+      { intent: intent("data_query"), question: "how many notes are about groceries?" },
     );
 
-    expect(turn.nextPrompt).toContain("how many notes do I have?");
-    expect(turn.nextPrompt).toContain('"total":3');
+    if (loop.ending !== "answered") throw new Error("the fixture answers");
+    expect(loop.steps).toHaveLength(2);
+    expect(loop.steps[1]?.result).toEqual({ outcome: "rows", rows: [{ total: 2 }] });
   });
 
-  test("gives the scope back when the turn is over", async () => {
+  test("hands each result back where the model reads it", async () => {
     const scratch = desk();
+    const deps = scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`), answers());
 
-    expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
-    await runDataQueryTurn(scratch.deps(call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`)), {
+    await runDataQuery(deps, {
       intent: intent("data_query"),
       question: "how many notes do I have?",
     });
+
+    const prompts = (deps.provider as { prompts: string[] }).prompts;
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("how many notes do I have?");
+    expect(prompts[1]).toContain('"total":3');
+  });
+
+  test("gives the scope back when the question is answered", async () => {
+    const scratch = desk();
+
+    expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
+    await runDataQuery(
+      scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`), answers()),
+      { intent: intent("data_query"), question: "how many notes do I have?" },
+    );
+    expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
+  });
+
+  test("gives the scope back when the budget is spent", async () => {
+    const scratch = desk();
+
+    const loop = await runDataQuery(
+      scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`)),
+      { intent: intent("data_query"), question: "how many notes do I have?" },
+    );
+
+    expect(loop).toEqual({ ending: "budget_spent", stepsTaken: QUESTION_STEP_BUDGET });
     expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
   });
 
   test("a failed statement still ends the scope cleanly rather than throwing", async () => {
     const scratch = desk();
 
-    const turn = await runDataQueryTurn(
-      scratch.deps(call(`UPDATE ${NOTES_TABLE} SET text = 'x'`)),
+    const loop = await runDataQuery(
+      scratch.deps(reads(`UPDATE ${NOTES_TABLE} SET text = 'x'`), answers()),
       { intent: intent("data_query"), question: "rewrite my notes" },
     );
 
-    expect(turn.step.result.outcome).toBe("failed");
+    if (loop.ending !== "answered") throw new Error("the fixture answers");
+    expect(loop.steps[0]?.result.outcome).toBe("failed");
+    expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
+  });
+
+  test("a question that ends mid-flight gives the scope back too", async () => {
+    const scratch = desk();
+    const deps = scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`), answers());
+
+    // The gate closing under a running question is what 6.2/03 made a kill; what matters
+    // here is that the throw travels out through the scope's own `finally`.
+    const failing = runDataQuery(
+      {
+        ...deps,
+        readActiveCatalog: () => {
+          throw new Error("the catalog went away mid-question");
+        },
+      },
+      { intent: intent("data_query"), question: "how many notes do I have?" },
+    );
+
+    await expect(failing).rejects.toThrow(/went away/);
     expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
   });
 });
@@ -126,10 +188,10 @@ describe("every other intent", () => {
   test("never opens a read scope", async () => {
     for (const type of ["new_capability", "extend_capability", "ui_change", "reject"] as const) {
       const scratch = desk();
-      const deps = scratch.deps(call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
+      const deps = scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
 
       await expect(
-        runDataQueryTurn(deps, { intent: intent(type), question: "build me a thing" }),
+        runDataQuery(deps, { intent: intent(type), question: "build me a thing" }),
       ).rejects.toBeInstanceOf(NotADataQuestionError);
 
       // Nothing was asked of the model and no token was taken.

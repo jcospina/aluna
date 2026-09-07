@@ -9,8 +9,10 @@ import { describe, expect, test } from "bun:test";
 import { zodSchema } from "ai";
 
 import {
+  QUESTION_DECISIONS,
   QUESTION_TOOLS,
   type QuestionTool,
+  questionDecisionSchema,
   questionParameterSchema,
   questionToolCallSchema,
   READ_ONLY_QUERY_TOOL,
@@ -19,6 +21,14 @@ import {
 
 function jsonSchema(): Record<string, unknown> {
   return zodSchema(questionToolCallSchema).jsonSchema as Record<string, unknown>;
+}
+
+function decisionJsonSchema(): Record<string, unknown> {
+  return zodSchema(questionDecisionSchema).jsonSchema as Record<string, unknown>;
+}
+
+function aRead(sql = "SELECT 1"): unknown {
+  return { next: "read", read: { tool: READ_ONLY_QUERY_TOOL, sql, parameters: [] } };
 }
 
 describe("the offered tool set", () => {
@@ -106,5 +116,69 @@ describe("the call's wire shape", () => {
     for (const value of [new Uint8Array([1]), { a: 1 }, ["a"], undefined]) {
       expect(questionParameterSchema.safeParse(value).success).toBe(false);
     }
+  });
+});
+
+describe("the decision a turn is generated against", () => {
+  test("offers exactly two moves, and neither of them is a second tool", () => {
+    const properties = decisionJsonSchema().properties as Record<
+      string,
+      { enum?: readonly string[] }
+    >;
+    expect(properties.next?.enum).toEqual([...QUESTION_DECISIONS]);
+    expect(QUESTION_DECISIONS).toEqual(["read", "answer"]);
+    // The read it may ask for is the one offered tool's own call, nested rather than
+    // restated — so a second member in the inventory still fails at load rather than
+    // slipping through a shape written beside it.
+    expect(JSON.stringify(decisionJsonSchema())).toContain(READ_ONLY_QUERY_TOOL);
+  });
+
+  test("marks every property required and forbids extra ones, nested object included", () => {
+    const schema = decisionJsonSchema();
+    expect(schema.required).toEqual(["next", "read"]);
+    expect(schema.additionalProperties).toBe(false);
+
+    const read = (schema.properties as { read: { anyOf: readonly Record<string, unknown>[] } })
+      .read;
+    const [object, nothing] = read.anyOf;
+    expect(object?.required).toEqual(["tool", "sql", "parameters"]);
+    expect(object?.additionalProperties).toBe(false);
+    expect(nothing).toEqual({ type: "null" });
+  });
+
+  test("carries none of the keywords OpenAI's strict structured outputs refuses", () => {
+    // `anyOf` is what a required-nullable emits and is accepted; `oneOf` is not, which is
+    // why the two branches are a nullable rather than a discriminated union.
+    const emitted = JSON.stringify(decisionJsonSchema());
+    for (const keyword of ["oneOf", "minLength", "maxLength", "pattern", "format", "default"]) {
+      expect({ keyword, present: emitted.includes(keyword) }).toEqual({ keyword, present: false });
+    }
+    expect(emitted).toContain("anyOf");
+  });
+
+  test("a read must carry its statement and an answer must not", () => {
+    expect(questionDecisionSchema.safeParse(aRead()).success).toBe(true);
+    expect(questionDecisionSchema.safeParse({ next: "answer", read: null }).success).toBe(true);
+    expect(questionDecisionSchema.safeParse({ next: "read", read: null }).success).toBe(false);
+    expect(
+      questionDecisionSchema.safeParse({
+        next: "answer",
+        read: { tool: READ_ONLY_QUERY_TOOL, sql: "SELECT 1", parameters: [] },
+      }).success,
+    ).toBe(false);
+  });
+
+  test("refuses an absent read key, which is what a model omitting it would send", () => {
+    expect(questionDecisionSchema.safeParse({ next: "answer" }).success).toBe(false);
+  });
+
+  test("holds the call schema to its own rules inside the wrapper", () => {
+    expect(questionDecisionSchema.safeParse(aRead("   ")).success).toBe(false);
+    expect(
+      questionDecisionSchema.safeParse({
+        next: "read",
+        read: { tool: "write", sql: "SELECT 1", parameters: [] },
+      }).success,
+    ).toBe(false);
   });
 });

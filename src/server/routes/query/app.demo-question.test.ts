@@ -1,7 +1,8 @@
 // The scaffolding, exercised through the real app.
 //
 // This is the only place in the module where the whole path runs from an HTTP request:
-// classify, open the whole-catalog scope, offer one tool, run the statement in the worker.
+// classify, open the whole-catalog scope, offer one tool, and run the loop's statements in
+// the worker until the model answers or its ten reads are spent.
 // It is scaffolding and its removal has an owner — 6.5/05 — which is exactly why the
 // assertions here name what they are proving, so they can be re-homed rather than deleted.
 
@@ -15,10 +16,16 @@ import { INTENT_RESOLVER_PROMPT_PREFIX } from "../../../pipeline/intent/index.ts
 import { openDatabase, type PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { runMigrations } from "../../../platform/persistence/migrations.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
-import { QUESTION_TURN_PROMPT_PREFIX, READ_ONLY_QUERY_TOOL } from "../../../runtime/query/index.ts";
+import {
+  QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_STEP_BUDGET,
+  QUESTION_TURN_PROMPT_PREFIX,
+  READ_ONLY_QUERY_TOOL,
+} from "../../../runtime/query/index.ts";
 import { catalogueWithRecords, NOTES_TABLE } from "../../../runtime/query/question.test-support.ts";
 import { createApp } from "../../app.ts";
-import { DEMO_QUESTION_PATH } from "./demo-question.ts";
+import { escapeHtml } from "../../http/html.ts";
+import { BUDGET_SPENT_HEADING, DEMO_QUESTION_PATH } from "./demo-question.ts";
 
 const DATA_QUERY_INTENT = {
   type: "data_query",
@@ -41,14 +48,26 @@ const NEW_CAPABILITY_INTENT = {
 /**
  * One provider answering two different questions, told apart by the prompt each stage
  * builds rather than by call order — the seam both prefixes are exported for.
+ *
+ * `reads` is how many statements it runs before it stops reading. The default is one, and
+ * `Infinity` is a question that never converges — the fixture the budget is proved against.
  */
-function stagedProvider(intent: unknown, sql: string): Provider {
+function stagedProvider(intent: unknown, sql: string, reads = 1): Provider {
+  let taken = 0;
   return {
     generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
+      const decide = () => {
+        if (taken >= reads) return { next: "answer", read: null };
+        taken += 1;
+        return {
+          next: "read",
+          read: { tool: READ_ONLY_QUERY_TOOL, sql, parameters: ["groceries"] },
+        };
+      };
       const answer = prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)
         ? intent
         : prompt.startsWith(QUESTION_TURN_PROMPT_PREFIX)
-          ? { tool: READ_ONLY_QUERY_TOOL, sql, parameters: ["groceries"] }
+          ? decide()
           : undefined;
       const object = (async () => schema.parse(answer))();
       object.catch(() => {});
@@ -71,9 +90,10 @@ let directory: string;
 let databases: PlatformDatabase;
 const previousNodeEnv = process.env.NODE_ENV;
 
-function app(intent: unknown, sql: string) {
+function app(intent: unknown, sql: string, reads = 1) {
+  const provider = stagedProvider(intent, sql, reads);
   return createApp({
-    getProvider: () => stagedProvider(intent, sql),
+    getProvider: () => provider,
     buildDatabases: databases,
     artifactsRoot: join(directory, "artifacts"),
     capabilityRouter: { databases },
@@ -99,7 +119,7 @@ afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-describe("the one-question-turn exercise", () => {
+describe("the one-question exercise", () => {
   test("runs a classified data_query end to end and shows what came back", async () => {
     const response = await app(
       DATA_QUERY_INTENT,
@@ -116,6 +136,8 @@ describe("the one-question-turn exercise", () => {
     expect(html).toContain("WHERE text = ?");
     expect(html).toContain("groceries");
     expect(html).toContain("&quot;total&quot;: 2");
+    expect(html).toContain(`Step 1 of at most ${QUESTION_STEP_BUDGET}`);
+    expect(html).toContain("She stopped reading");
   });
 
   test("shows a failed statement rather than ending the exercise", async () => {
@@ -156,7 +178,55 @@ describe("the one-question-turn exercise", () => {
     const html = await response.text();
 
     expect(html).toContain("new_capability");
-    expect(html).not.toContain("Tool call");
+    expect(html).not.toContain("Step 1 of at most");
+  });
+
+  test("a question that never converges stops at ten and says so", async () => {
+    // The living demo: drive a fixture that never stops reading and confirm the page ends
+    // with Aluna's own sentence rather than with whatever the last statement happened to
+    // return. The rows are on the page — it is a developer's instrument — but the *ending*
+    // is a sentence, and no total assembled from those steps is presented as an answer.
+    const response = await app(
+      DATA_QUERY_INTENT,
+      `SELECT count(*) AS total FROM ${NOTES_TABLE}`,
+      Number.POSITIVE_INFINITY,
+    ).request(DEMO_QUESTION_PATH, ask("how many notes did I write last month?"));
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain(`Step ${QUESTION_STEP_BUDGET} of at most ${QUESTION_STEP_BUDGET}`);
+    expect(html).not.toContain(`Step ${QUESTION_STEP_BUDGET + 1} of at most`);
+    expect(html).not.toContain("She stopped reading");
+
+    // The ending is Aluna's sentence and *nothing else*. Asserting the sentence is merely
+    // present would stay green with a total assembled from the ten steps sitting beside it,
+    // which is precisely the half-answer decision 3 removed the table's ability to expose —
+    // so this pins the whole block, from its heading to its closing tag.
+    const ending = html.slice(html.indexOf(`<h2>${escapeHtml(BUDGET_SPENT_HEADING)}</h2>`));
+    expect(ending).toBe(
+      `<h2>${escapeHtml(BUDGET_SPENT_HEADING)}</h2><pre class="failure">${escapeHtml(
+        QUESTION_BUDGET_SPENT_SENTENCE,
+      )}</pre></section></body></html>`,
+    );
+  });
+
+  test("a provider that cannot be built is read on the page, not a 500", async () => {
+    // The likeliest developer failure there is: no API key. `createProvider` resolves its
+    // config eagerly and throws, and this page's premise is that a failure is something you
+    // read on it rather than an Internal Server Error in somebody's terminal.
+    const app = createApp({
+      getProvider: () => {
+        throw new Error("Missing OMNI_API_KEY");
+      },
+      buildDatabases: databases,
+      artifactsRoot: join(directory, "artifacts"),
+      capabilityRouter: { databases },
+    });
+
+    const response = await app.request(DEMO_QUESTION_PATH, ask("how many notes?"));
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("Missing OMNI_API_KEY");
   });
 
   test("renders the form on its own", async () => {
@@ -214,7 +284,7 @@ describe("what the page does with a hostile request", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("Tool call");
+    expect(await response.text()).toContain("Step 1 of at most");
   });
 });
 

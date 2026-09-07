@@ -41,6 +41,14 @@ resembling machinery is emitted on any of those paths.
 sentences and pins them; 6.5/03 streams them into the answer window over the existing
 per-job stream (ADR-0002).
 
+**One step has no tool call — from 6.3/02.** `QuestionStep.call` is
+`QuestionToolCall | null`: a decision the schema could not read becomes an ordinary step with
+no call, so it carries no label either. The acceptance criterion below stays literally true
+(there is no tool call to label), but the narration switch needs a branch for it, and decision
+14's generic fallback is the obvious home. The spent-budget ending's sentence already exists as
+`QUESTION_BUDGET_SPENT_SENTENCE` in `src/runtime/query/question-loop.ts` and is part of what
+the sign-off gate below reads.
+
 ## Acceptance criteria
 
 - [ ] Every tool call carries a label, and the loop rejects a call whose label is

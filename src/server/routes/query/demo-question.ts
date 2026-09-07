@@ -1,19 +1,26 @@
-// The developer-gated exercise of one question turn (PLAN, epic order: "6.3/01 stands up a
-// developer-gated exercise of one loop turn behind `developerSurfacesEnabled()`").
+// The developer-gated exercise of one question (PLAN, epic order: "6.3/01 stands up a
+// developer-gated exercise of one loop turn behind `developerSurfacesEnabled()`"). 6.3/02
+// turned that one turn into the loop, and this page runs the whole of it.
 //
 // **This is scaffolding, and its removal has an owner.** The module is invisible from
 // 6.2/01 to 6.4/05, and rather than leave that integration gap unlit until the end, this
-// page makes one turn exercisable against the real database the moment it can run. 6.4's
+// page makes the loop exercisable against the real database the moment it can run. 6.4's
 // issues read Aluna's sentences here before there is an answer window to read them in, and
 // `6.5-the-answer-window/issues/05-the-scaffolding-comes-down.md` deletes it once 6.5/03
 // has made the real path visible, re-homing every assertion that ran through it.
+//
+// **It watches the loop through `onStep` rather than reading the steps off the result.** A
+// spent budget hands back a count and no rows on purpose (`question-loop.ts`), and a
+// developer page is exactly the caller that would otherwise want that rule relaxed — so it
+// collects what it shows as the loop runs, and the ending it renders is still the platform's
+// own sentence rather than anything computed from what happened to have been read.
 //
 // **It is a developer's instrument, and it shows machinery.** Decision 15 governs what
 // *Aluna says* — no SQL, no table name, no error string, no step count reaches a surface
 // the user meets — and 6.5/03 is where that surface arrives. This one is behind the same
 // gate that already withholds model ids, token counts, stage timings and absolute
-// filesystem paths from a production bundle, and showing the statement is the only way to
-// see that the turn ran at all. Nothing here is reachable when `NODE_ENV` is `production`.
+// filesystem paths from a production bundle, and showing the statements is the only way to
+// see what the loop did. Nothing here is reachable when `NODE_ENV` is `production`.
 //
 // It lives under `/demo/*`, the namespace ADR-0002 reserved for exactly this: "throwaway
 // and freely removable". The page is self-contained — its style is inline, because a
@@ -22,11 +29,17 @@
 
 import type { Hono } from "hono";
 import { classifyIntent, type IntentClassification } from "../../../pipeline/intent/index.ts";
-import { type DataQueryTurn, runDataQueryTurn } from "../../../pipeline/query/data-query.ts";
+import { runDataQuery } from "../../../pipeline/query/data-query.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
 import type { ReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
-import { QUESTION_TOOLS } from "../../../runtime/query/index.ts";
+import {
+  QUESTION_STEP_BUDGET,
+  QUESTION_TOOLS,
+  type QuestionLoopResult,
+  type QuestionStep,
+  questionEndingNarration,
+} from "../../../runtime/query/index.ts";
 import { developerSurfacesEnabled } from "../../dev-surfaces/dev-surfaces.ts";
 import { escapeHtml } from "../../http/html.ts";
 
@@ -41,7 +54,8 @@ export interface DemoQuestionDeps {
 interface QuestionExercise {
   readonly question: string;
   readonly intent?: IntentClassification;
-  readonly turn?: DataQueryTurn;
+  readonly steps: readonly QuestionStep[];
+  readonly loop?: QuestionLoopResult;
   readonly failure?: string;
 }
 
@@ -73,16 +87,45 @@ function renderOfferedTools(): string {
   return renderSection(`Tools offered (${QUESTION_TOOLS.length})`, body);
 }
 
-function renderTurn(turn: DataQueryTurn): string {
-  const { call, result } = turn.step;
+function renderStep(step: QuestionStep, index: number): string {
+  const { call, result } = step;
+  const heading = `Step ${index + 1} of at most ${QUESTION_STEP_BUDGET}`;
+  const asked =
+    call === null
+      ? [renderSection(heading, "the model's decision could not be read", "failure")]
+      : [
+          renderSection(heading, `${call.tool}\n${call.sql}`),
+          renderSection("Parameters", JSON.stringify(call.parameters)),
+        ];
   return [
-    renderSection("Tool call", `${call.tool}\n${call.sql}`),
-    renderSection("Parameters", JSON.stringify(call.parameters)),
+    ...asked,
     result.outcome === "rows"
       ? renderSection(`Rows (${result.rows.length})`, JSON.stringify(result.rows, null, 2))
       : renderSection("Statement failed", result.message, "failure"),
-    renderSection("What the model is handed next", turn.nextPrompt),
   ].join("");
+}
+
+/** The heading a spent budget's ending renders under. Exported so a test can pin the whole
+ * block rather than merely its presence: the ending must be Aluna's sentence and nothing
+ * else, and a total assembled from the steps above it appearing beside her is the exact
+ * failure decision 3 removed the table's ability to expose. */
+export const BUDGET_SPENT_HEADING = "The reads ran out — what Aluna says";
+
+/**
+ * How the loop stopped. A spent budget renders the platform's own sentence and nothing else.
+ */
+function renderEnding(loop: QuestionLoopResult): string {
+  if (loop.ending === "budget_spent") {
+    return renderSection(
+      BUDGET_SPENT_HEADING,
+      questionEndingNarration("budget_spent") ?? "",
+      "failure",
+    );
+  }
+  return renderSection(
+    "She stopped reading",
+    "The model has what it needs. What she then says is 6.4's.",
+  );
 }
 
 function renderExercise(exercise: QuestionExercise): string {
@@ -97,7 +140,8 @@ function renderExercise(exercise: QuestionExercise): string {
     );
   }
   parts.push(renderOfferedTools());
-  if (exercise.turn) parts.push(renderTurn(exercise.turn));
+  parts.push(...exercise.steps.map(renderStep));
+  if (exercise.loop) parts.push(renderEnding(exercise.loop));
   return parts.join("");
 }
 
@@ -106,16 +150,17 @@ function renderPage(exercise?: QuestionExercise): string {
     "<!doctype html>",
     '<html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    "<title>One question turn — developer exercise</title>",
+    "<title>One question, start to finish — developer exercise</title>",
     `<style>${PAGE_STYLE}</style>`,
     "</head><body>",
-    "<h1>One question turn</h1>",
+    "<h1>One question, start to finish</h1>",
     '<p class="note">Ask something about what is saved on this desk. The prompt is classified, ',
-    "a whole-catalog read scope opens, the model is offered one tool, and the statement it ",
-    "writes runs in the read-only worker. Scaffolding: this page comes down in 6.5/05.</p>",
+    "a whole-catalog read scope opens, and the model is offered one tool and up to ",
+    `${QUESTION_STEP_BUDGET} reads — it decides each next step until it has enough or the `,
+    "reads run out. Nothing is timed. Scaffolding: this page comes down in 6.5/05.</p>",
     `<form method="post" action="${DEMO_QUESTION_PATH}">`,
     `<textarea name="question" placeholder="how many notes did I write last month?">${escapeHtml(exercise?.question ?? "")}</textarea>`,
-    '<br><button type="submit">Run one turn</button>',
+    '<br><button type="submit">Run the loop</button>',
     "</form>",
     exercise ? renderExercise(exercise) : "",
     "</body></html>",
@@ -129,29 +174,38 @@ function htmlResponse(body: string): Response {
 }
 
 async function runExercise(deps: DemoQuestionDeps, question: string): Promise<QuestionExercise> {
-  const provider = deps.getProvider();
+  const steps: QuestionStep[] = [];
   try {
+    // Inside the catch, not before it: `createProvider` resolves its config eagerly, so the
+    // likeliest developer failure of all — no API key — is a throw from this line, and this
+    // page's whole premise is that a failure is something you read on it.
+    const provider = deps.getProvider();
     const intent = await classifyIntent({
       provider,
       prompt: question,
       database: deps.registryReadonly,
     });
     if (intent.type !== "data_query") {
-      return { question, intent };
+      return { question, intent, steps };
     }
-    const turn = await runDataQueryTurn(
+    const loop = await runDataQuery(
       { provider, readGates: deps.readGates, database: deps.registryReadonly },
-      { intent, question },
+      { intent, question, onStep: (step) => steps.push(step) },
     );
-    return { question, intent, turn };
+    return { question, intent, steps, loop };
   } catch (error) {
-    return { question, failure: error instanceof Error ? error.message : String(error) };
+    return {
+      question,
+      steps,
+      failure: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
 /**
- * Two real provider calls sit behind this button, so a page on another origin must not be
- * able to press it. `form-action 'self'` governs where *our* pages may post, never where a
+ * Real provider calls sit behind this button — one to classify and up to
+ * `QUESTION_STEP_BUDGET` more to run the loop — so a page on another origin must not be able
+ * to press it. `form-action 'self'` governs where *our* pages may post, never where a
  * post may come from. A browser that sends `Sec-Fetch-Site` at all sends it on every
  * request, so absence means a client that is not a browser rather than a gap in the header.
  */
@@ -195,7 +249,7 @@ export function registerDemoQuestionRoutes(app: Hono, deps: DemoQuestionDeps): v
       return c.text("Forbidden", 403, { "cache-control": "no-store" });
     }
     const submitted = await readQuestion(c.req.raw);
-    if ("failure" in submitted) return htmlResponse(renderPage(submitted));
+    if ("failure" in submitted) return htmlResponse(renderPage({ ...submitted, steps: [] }));
     if (submitted.question.length === 0) return htmlResponse(renderPage());
     return htmlResponse(renderPage(await runExercise(deps, submitted.question)));
   });
