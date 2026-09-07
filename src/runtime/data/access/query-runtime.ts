@@ -203,6 +203,20 @@ interface SchemaRoot {
 
 interface QueryScopeOptions {
   readonly allowTargetId: boolean;
+  /**
+   * Bound the whole scope rather than its nominated target.
+   *
+   * A Handler's scope has one target and reads its dependencies as ordinary data, so the
+   * platform columns are protected on the target alone. A question's scope has no target —
+   * `whole-catalog-query-scope.ts` nominates the first granted incarnation only because the
+   * shape requires one — so protecting that capability and not the other eight would mean
+   * `extra` and every retired field stayed readable on all but one collection. Under this
+   * flag the protection covers `[target, ...dependencies]`, and a virtual table is refused
+   * outright: the table bound counts `OpenRead`, a virtual table opens with `VOpen`, and a
+   * question has no business in one. Off by default, so the generated-Handler path keeps
+   * exactly the bound it had.
+   */
+  readonly wholeCatalog?: boolean;
 }
 
 export function assertScopedQuery(
@@ -276,7 +290,7 @@ export function capabilityQueryScopeTableNames(scope: CapabilityQueryScope): rea
 function assertNoAmbientSchemaReader(sql: string): void {
   if (/\b(?:pragma_[a-z0-9_]+|sqlite_[a-z0-9_]+|dbstat)\b/i.test(sql)) {
     throw new CapabilityDataValidationError(
-      "Query access to SQLite schema and ambient virtual tables is not available to Handlers.",
+      "Query access to SQLite schema and ambient virtual tables is not available.",
     );
   }
 }
@@ -288,10 +302,21 @@ function assertTargetColumnAccess(
   sourceByRoot: ReadonlyMap<number, SchemaRoot>,
   options: QueryScopeOptions,
 ): void {
-  const targetTable = deriveCapabilityTableDdl(scope.target).tableName;
-  const forbiddenColumns = protectedTargetColumns(scope, options);
-  const cursorColumns = targetCursorColumns(database, opcodes, sourceByRoot, targetTable);
-  const exposed = accessedProtectedColumns(opcodes, cursorColumns, forbiddenColumns);
+  if (options.wholeCatalog && opcodes.some(({ opcode }) => opcode === "VOpen")) {
+    throw new CapabilityDataValidationError("Query access to virtual tables is not available.");
+  }
+  const bounded = options.wholeCatalog
+    ? [scope.target, ...(scope.dependencies ?? [])]
+    : [scope.target];
+  const exposed = new Set<string>();
+  for (const spec of bounded) {
+    const table = deriveCapabilityTableDdl(spec).tableName;
+    const forbiddenColumns = protectedTargetColumns(spec, options);
+    const cursorColumns = targetCursorColumns(database, opcodes, sourceByRoot, table);
+    for (const column of accessedProtectedColumns(opcodes, cursorColumns, forbiddenColumns)) {
+      exposed.add(column);
+    }
+  }
   if (exposed.size > 0) {
     throw new CapabilityDataValidationError(
       `Query reads protected target column${exposed.size === 1 ? "" : "s"}: ${[...exposed].sort().join(", ")}.`,
@@ -300,12 +325,12 @@ function assertTargetColumnAccess(
 }
 
 function protectedTargetColumns(
-  scope: CapabilityQueryScope,
+  spec: CapabilitySpec,
   options: QueryScopeOptions,
 ): ReadonlySet<string> {
   const columns = new Set([
     "extra",
-    ...scope.target.schema.fields
+    ...spec.schema.fields
       .filter(({ lifecycle }) => lifecycle === "inactive")
       .map(({ name }) => name),
   ]);

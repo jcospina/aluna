@@ -30,6 +30,7 @@ import { assertAdmittedStringLengths } from "./schema/string-lengths.ts";
 
 export { normalizeSearchText } from "../../platform/persistence/sqlite-functions.ts";
 export {
+  assertScopedQuery,
   capabilityQueryScopeTableNames,
   createCapabilityActionRecord,
   isCapabilityActionRecord,
