@@ -10,9 +10,8 @@
 import type { SSEStreamingApi } from "hono/streaming";
 
 /**
- * Below Bun's server idle timeout (`src/index.ts`'s `STREAM_IDLE_TIMEOUT_SECONDS`),
- * so the heartbeat fires before a silent generation stage would let the connection
- * go idle. Tests lower it to prove that keepalive.
+ * Below Bun's server idle timeout (`src/index.ts`'s `STREAM_IDLE_TIMEOUT_SECONDS`), so the
+ * heartbeat fires before a silent generation stage lets the connection go idle.
  */
 export const DEFAULT_SSE_HEARTBEAT_MS = 15_000;
 
@@ -34,10 +33,8 @@ export interface SseTransport {
 }
 
 /**
- * Wrap a Hono SSE stream with the transport guarantees: app-level monotonic ids on
- * every `send`, id-less heartbeats, and a serialized write chain so two awaited
- * writes never interleave on the wire. The chain stays usable after an aborted
- * stream — the route's main path owns the actual abort/error handling.
+ * Wrap a Hono SSE stream with the transport guarantees: monotonic app-level ids, id-less
+ * heartbeats, and a serialized write chain, still usable after an aborted stream.
  */
 export function sseTransport(stream: SSEStreamingApi): SseTransport {
   let id = 0;
@@ -58,11 +55,8 @@ export function sseTransport(stream: SSEStreamingApi): SseTransport {
 }
 
 /**
- * Run `body` while emitting a heartbeat every `intervalMs` for as long as it is
- * still in flight, so a stage that falls silent for whole seconds does not let Bun
- * reclaim the idle connection. A non-positive interval disables heartbeats (runs
- * `body` directly). The original completion — value or rejection — is preserved and
- * re-awaited so the caller still sees the real outcome.
+ * Run `body` while emitting a heartbeat every `intervalMs`, so a stage that falls silent does not
+ * let Bun reclaim the connection. A non-positive interval disables them; the outcome is preserved.
  */
 export async function withSseHeartbeat(
   transport: SseTransport,

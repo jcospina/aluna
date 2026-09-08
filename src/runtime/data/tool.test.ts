@@ -69,10 +69,8 @@ describe("split capability data ports", () => {
     });
   });
 
-  // The rehydration used to bind one parameter per matched row, so the whole collection
-  // arrived as a single `IN (?, ?, …)` — and SQLite bounds how many parameters a statement
-  // may carry. Past that bound the read does not slow down, it stops, and there is no route
-  // back except deleting records the read cannot show you.
+  // The rehydration used to bind one parameter per matched row, and past SQLite's parameter limit
+  // the read does not slow down, it stops — with no route back but deleting unreadable records.
   test("a collection larger than one statement can bind still reads, whole and in order", () => {
     withFileDatabase((databases) => {
       const notes = notesSpec();
@@ -102,9 +100,8 @@ describe("split capability data ports", () => {
     });
   });
 
-  // The read-only connection is a long-lived singleton every concurrent read shares, so a
-  // query that leaves a cursor open pins every later read on it — the registry lookup that
-  // resolves which artifacts a capability runs included — to before the next commit.
+  // The read-only connection is a long-lived singleton every concurrent read shares, so a query
+  // leaving a cursor open pins every later read on it to before the next commit.
   test("a committed write is visible to the next read after an aggregate query", () => {
     withFileDatabase((databases) => {
       const notes = notesSpec();
@@ -175,9 +172,8 @@ describe("split capability data ports", () => {
     });
   });
 
-  // `BEGIN` inherits the snapshot the connection already sits on, so the bracket alone is
-  // not the guarantee: a cursor left open by any other read of the shared connection would
-  // be handed straight to the Action.
+  // `BEGIN` inherits the snapshot the connection already sits on, so the bracket alone is not the
+  // guarantee: a cursor left open by any other read would be handed straight to the Action.
   test("a record query reads past a snapshot another read pinned to the connection", () => {
     withFileDatabase((databases) => {
       const notes = notesSpec();
@@ -521,9 +517,8 @@ describe("split capability data ports", () => {
 });
 
 describe("capability data tool — scoped surface & connection routing", () => {
-  // No surface-shape test here: `createCapabilityDataTool` is a fixture defined in
-  // tool.test-support.ts, so asserting its keys and arity would only describe the
-  // test helper. The production ports are pinned in mutation.test.ts.
+  // No surface-shape test here: `createCapabilityDataTool` is a fixture in tool.test-support.ts,
+  // so asserting its keys would describe the helper. The production ports are in mutation.test.ts.
   test("a tool constructed for one capability cannot read or write another capability table", () => {
     withFileDatabase((databases) => {
       const notes = notesSpec();

@@ -135,9 +135,8 @@ describe("debounced capability search", () => {
 
 describe("capability search request ownership", () => {
   test("the region is taken from whatever was reading it before this query claims it", async () => {
-    // The order is the rule. Search hands `cancelExternalRead` a release of the whole
-    // region, so a claim made first would be the first thing that release aborted — and
-    // the query would then own nothing and render nothing.
+    // Search hands `cancelExternalRead` a release of the whole region, so a claim made first
+    // would be the first thing that release aborted, and the query would render nothing.
     const scheduled = controlledSchedule();
     const order: string[] = [];
     const search = createDebouncedCapabilitySearch({

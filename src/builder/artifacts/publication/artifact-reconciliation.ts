@@ -223,10 +223,8 @@ function planIncarnationRemovals(
 }
 
 /**
- * The three legitimate siblings of an incarnation's `vN/` directories. Each is somebody
- * else's to own, so recognising one is the whole job: anything this does not consume falls
- * through to the version-directory rules, where an unknown name is an error rather than a
- * shrug. Returns whether the entry was handled here.
+ * The three legitimate siblings of an incarnation's `vN/` directories, each somebody else's to
+ * own. Anything not consumed here falls through, where an unknown name is an error.
  */
 function consumedIncarnationSibling(
   entry: {
@@ -242,17 +240,13 @@ function consumedIncarnationSibling(
   removals: RemovalCandidate[],
 ): boolean {
   if (entry.name.includes(".publish-lock")) {
-    // Publication owns its non-destructive live/stale successor protocol. Never
-    // sweep lock generations here, but do not let a crash-stale lock brick boot or
-    // prevent the next publisher from performing the safe recovery handshake.
+    // Publication owns the live/stale successor protocol, so lock generations are never swept
+    // here — but a crash-stale lock must not brick boot or block the recovery handshake.
     return true;
   }
   if (entry.name === CAPABILITY_LOGO_FILENAME) {
-    // The capability's artwork, installed after activation and deliberately outside
-    // every immutable `vN/` inventory (ADR-0007). It is not a build artifact and this
-    // pass owns nothing about it: it arrives once, is never remade, and leaves with the
-    // incarnation tree that deletion removes. Reconciliation's only duty is to know it
-    // is a legitimate sibling rather than unknown state.
+    // The capability's artwork, installed after activation and outside every `vN/` inventory
+    // (ADR-0007). Not a build artifact: this pass only has to know it is a legitimate sibling.
     assertFileEntry(entry, directory, "capability logo");
     return true;
   }
@@ -279,12 +273,8 @@ function planStagingRemovals(
 ): void {
   for (const entry of readdirSync(stagingDirectory, { withFileTypes: true })) {
     if (CAPABILITY_LOGO_STAGING_PATTERN.test(entry.name)) {
-      // A logo attempt's temporary bytes. The ordinary paths remove theirs in `finally`,
-      // so one surviving here is a crashed claim — and sweeping it is the *retry*
-      // recovery's job (`capability-logo/recovery.ts`), not this pass's. Deliberately
-      // left alone: reconciliation also runs at the head of every build, where a logo
-      // attempt may be mid-write, and removing a live attempt's staging file would break
-      // the very claim it paid for.
+      // A logo attempt's temporary bytes: a survivor is a crashed claim, and sweeping it is
+      // `lifecycle/logo/storage/recovery.ts`'s job — a live attempt may be mid-write right now.
       assertFileEntry(entry, stagingDirectory, "logo attempt staging");
       continue;
     }

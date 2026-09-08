@@ -2,12 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import { enforceItemMarkup } from "./enforcer.ts";
 
-// The runtime allow-list enforcer is the *last line at render time*: it
-// runs on the inner markup of every rendered record, after build-time validation, so a
-// dynamic field value can never become executable markup. These tests cover the accept
-// path and each hostile category the contract enumerates (design-system.md "Forbidden
-// absolutely"). No external dependency is touched — Bun's native HTMLRewriter does the
-// parsing.
+// The runtime allow-list enforcer is the last line at render time. These tests cover the accept
+// path and each hostile category design-system.md "Forbidden absolutely" enumerates.
 
 /** Assert that enforced markup carries no executable surface whatsoever. */
 function expectInert(output: string): void {
@@ -56,9 +52,8 @@ describe("enforcer — accept path", () => {
     expect(enforceItemMarkup(markup)).toBe(markup);
   });
 
-  // A record *is* a `<button>` and opening it is the only thing it does, so the semantics
-  // of the item are the platform's. A `role` inside one can only make it lie, and
-  // `aria-hidden` can take the record's own text away from a reader who cannot see it.
+  // A record is a `<button>`, so the item's semantics are the platform's. A `role` inside one
+  // can only make it lie, and `aria-hidden` takes its text from a reader who cannot see it.
   test("a record may not redeclare what it is, or hide itself from a screen reader", () => {
     for (const attribute of ['role="button"', 'role="link"', 'role="img"', 'aria-hidden="true"']) {
       const output = enforceItemMarkup(`<span ${attribute}>text</span>`);
@@ -117,9 +112,8 @@ describe("enforcer — off-token style on the owned axes", () => {
     );
   });
 
-  // A boundary the browser draws with no declaration at all — the one edge a
-  // property-keyed ban structurally cannot see. It has no content, so unwrapping it
-  // leaves nothing behind.
+  // A boundary the browser draws with no declaration at all: the one edge a property-keyed ban
+  // cannot see. It has no content, so unwrapping it leaves nothing behind.
   test("an <hr> is a boundary, and the ink system owns every boundary", () => {
     expect(
       enforceItemMarkup('<div class="stack gap-1"><span>A</span><hr><span>B</span></div>'),
@@ -241,10 +235,8 @@ describe("enforcer — scripts and event handlers", () => {
   });
 });
 
-// A record may not make the browser fetch from somewhere else. The `url(...)` ban in
-// `style-discipline.ts` exists for exactly this reason, and leaving `<img src>` open made
-// it half a rule: a one-pixel remote image carrying record fields in its query string
-// passed the design-lint rung clean and survived enforcement byte-identically.
+// A record may not make the browser fetch from somewhere else. Leaving `<img src>` open made the
+// `url(...)` ban half a rule: a remote 1×1 with record fields in its query string passed clean.
 describe("enforcer — a record never reaches off this origin", () => {
   test("drops a remote media URL while keeping the element and its other attributes", () => {
     const output = enforceItemMarkup(
@@ -363,9 +355,8 @@ describe("enforcer — deterministic and dependency-free", () => {
     const hostile = '<a href="x" onclick="e()"><script>e()</script><b style="color:red">Hi</b></a>';
     const first = enforceItemMarkup(hostile);
 
-    // Interleave different markup: a rewriter that leaked state across calls would
-    // return something different the second time. Comparing a call to itself back
-    // to back could not detect that.
+    // Interleave different markup: a rewriter that leaked state across calls would return
+    // something different the second time, which back-to-back identical calls cannot detect.
     enforceItemMarkup('<section id="other"><img src="x" onerror="e()"></section>');
 
     expect(enforceItemMarkup(hostile)).toBe(first);
@@ -382,9 +373,8 @@ describe("enforcer — deterministic and dependency-free", () => {
 
 describe("enforcer — a repeated attribute collapses to the copy a browser honours", () => {
   test("a hostile duplicate cannot outlive the conforming first copy", () => {
-    // Before this, `removeAttribute` on the second copy deleted the *first*, leaving the
-    // hostile one standing — the enforcer turned an attribute the browser was ignoring into
-    // the live one, remote `url(...)` and `javascript:` src included.
+    // Before this, `removeAttribute` on the second copy deleted the first, so the enforcer turned
+    // an attribute the browser was ignoring into the live one.
     expect(
       enforceItemMarkup(
         '<div style="color: var(--ink)" style="background-image: url(https://evil.example/x.png)">x</div>',
@@ -414,10 +404,8 @@ describe("enforcer — a repeated attribute collapses to the copy a browser hono
   });
 });
 
-// A raw-text/RCDATA element's content is *text*, never markup, so the parser never offers
-// its children to the element handler. Unwrapping such an element therefore re-emits that
-// text into the output as markup — turning an inert payload into a live one, which is the
-// exact opposite of what this enforcer promises. They leave with their content instead.
+// A raw-text/RCDATA element's content is text, never markup, so unwrapping one re-emits that
+// text as markup and turns an inert payload live. They leave with their content instead.
 describe("enforcer — a raw-text element cannot launder its content into markup", () => {
   test("an RCDATA element is removed with everything inside it", () => {
     for (const markup of [

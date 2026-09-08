@@ -3,7 +3,7 @@
 // regenerated, statically rechecked, and tried again from fresh scratch state.
 
 import { isProviderAbortError, type TokenUsage } from "../../../../platform/provider/index.ts";
-import { type CapabilityRow, LOGO_BIRTH_STATUS } from "../../../../registry/index.ts";
+import type { CapabilityRow } from "../../../../registry/index.ts";
 import {
   DEFAULT_UNIT_FIX_ATTEMPTS,
   generateUnitContent,
@@ -13,6 +13,7 @@ import {
 } from "../../../units/generation/units.ts";
 import { checkGeneratedUnit } from "../../../units/safety/unit-checks.ts";
 import type { CapabilityGateInput, SmokeGateAttempt, SmokeGateResult } from "../../gate.ts";
+import { scratchDependencyRows } from "../../gate-internal.ts";
 
 type SmokeExecutionResult = Omit<SmokeGateResult, "fixed" | "attempts" | "usage">;
 
@@ -72,7 +73,7 @@ export async function runSmokeRepairLoop(
   const maxAttempts = normalizeMaxAttempts(input.smoke?.maxAttempts);
   const attempts: SmokeGateAttempt[] = [];
   const handlers: Partial<Record<HandlerUnitName, string>> = { ...input.handlers };
-  const dependencyCatalog = scratchDependencyRows(input);
+  const dependencyCatalog = scratchDependencyRows(input.scratchCatalog);
   let pending: PendingRepair | undefined;
 
   while (attempts.length < maxAttempts) {
@@ -255,22 +256,6 @@ function toSmokeFailure(error: unknown): {
   return error instanceof SmokeActionFailure
     ? { action: error.action, message: error.message }
     : { message: error instanceof Error ? error.message : String(error) };
-}
-
-// Scratch dependency rows never reach the registry, so their logo values are the
-// birth state a real row would be inserted with rather than anything meaningful.
-const SCRATCH_DEPENDENCY_SEED = 1;
-
-function scratchDependencyRows(input: CapabilityGateInput): CapabilityRow[] {
-  return (input.scratchCatalog ?? []).map((fixture) => ({
-    ...fixture.spec,
-    incarnation_id: fixture.incarnationId,
-    version: 1,
-    artifacts_path: `scratch/${fixture.spec.id}`,
-    seed: SCRATCH_DEPENDENCY_SEED,
-    logo: { status: LOGO_BIRTH_STATUS, attempts: 0 },
-    display_label_override: null,
-  }));
 }
 
 function normalizeMaxAttempts(value: number | undefined): number {

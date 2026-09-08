@@ -331,10 +331,8 @@ describe("capability gate — setup-row ordering", () => {
   });
 
   test("setup rows are newest-first: array order maps directly to a newest-first read", async () => {
-    // Regression: with two+ setup rows, the model lists them newest-first and derives
-    // expectReadFragmentIncludesInOrder = [new row, ...setupRows]. The gate must age
-    // them so setupRows[0] is the most recent preexisting row; otherwise a correct
-    // newest-first handler fails a self-inconsistent test (the bug this guards).
+    // Regression: with two or more setup rows the model derives [new row, ...setupRows], so the
+    // gate must age them or a correct newest-first handler fails a self-inconsistent test.
     const orderSuite = structuredClone(DEFAULT_BEHAVIORAL_SUITE);
     const readCase = orderSuite.cases.find((testCase) => testCase.action === "read");
     if (!readCase) throw new Error("order suite is missing read coverage");

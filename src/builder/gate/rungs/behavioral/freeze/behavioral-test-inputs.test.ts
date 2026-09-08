@@ -177,9 +177,8 @@ describe("a choice field's admitted values are create/update validation shape", 
   });
 
   test("appending an already-retired option moves the digest too", () => {
-    // Nothing new can be written, but what a submission *earns* changed: that value now
-    // earns `choice_disabled` where it earned `invalid_choice` before. Validation shape
-    // moved, so a prior suite may not be carried forward on the strength of the digest.
+    // Nothing new can be written, but what a submission earns changed: that value now earns
+    // `choice_disabled` where it earned `invalid_choice`, so no prior suite carries forward.
     expect(
       movedActions(
         choiceSpec(CHOICE_OPTIONS),

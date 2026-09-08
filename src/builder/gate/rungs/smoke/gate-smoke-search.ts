@@ -331,9 +331,8 @@ function addExclusionCases(state: FixtureState): void {
   for (const field of inactiveText) {
     excluded.values[field.name] = field.type === "string[]" ? ["inactiveonly"] : "inactiveonly";
   }
-  // "Non-text" here means "content a query can never match", which is what makes an
-  // exclusion assertion honest. A choice is searchable text — it stores a string in a TEXT
-  // column — so it is not one of these, and keeps the ordinary rotating fixture value.
+  // "Non-text" means content a query can never match, which is what makes an exclusion
+  // assertion honest. A choice stores a string in a TEXT column, so it is not one of these.
   const nonText = activeSpecFields(state.spec.schema.fields).filter(
     (field) => !isSearchableTextType(field.type),
   );
@@ -372,19 +371,15 @@ function addNonTextExclusionCases(state: FixtureState, nonText: readonly SpecFie
 }
 
 /**
- * Every value an active choice field may hold. An exclusion case asserts an empty result
- * set for a fixed token, and a choice column is searchable, so a capability that happened
- * to declare an option equal to one of those tokens would make that assertion false about
- * a correct Handler. The fixture drops the case rather than freezing a wrong expectation
- * the repair loop is not allowed to weaken.
+ * Every value an active choice field may hold. An option equal to an exclusion token would
+ * make that assertion false about a correct Handler, so the fixture drops the case.
  */
 function declaredChoiceValues(spec: CapabilitySpec): ReadonlySet<string> {
   const values = new Set<string>();
   for (const field of activeSpecFields(spec.schema.fields)) {
     if (!isChoiceFieldType(field.type)) continue;
-    // Every declared value, disabled ones included: what this guards is a search token
-    // colliding with something a stored row might hold, and a retired option is still
-    // exactly that.
+    // Disabled values included: the collision guarded against is with something a stored row
+    // might hold, and a retired option is still exactly that.
     for (const option of choiceFieldOptions(field)) values.add(option.value);
   }
   return values;
@@ -395,9 +390,8 @@ function addBehaviorNeutralOrderRows(
   location: TextLocation | undefined,
 ): void {
   if (!location) return;
-  // These rows have identical active values and share a creation time. Authored
-  // ranking therefore ties without interpreting free-text behavior; the platform's
-  // deterministic id-desc fallback remains independently provable.
+  // Identical active values and one creation time, so authored ranking ties without reading
+  // free-text behavior; the platform's id-desc fallback stays independently provable.
   const tiedC = state.row("search_order_c", "2038-08-08T08:08:08.000Z");
   setText(tiedC, location, "stabledefaultordering");
   const tiedA = state.row("search_order_a", "2038-08-08T08:08:08.000Z");
@@ -414,9 +408,8 @@ function addBehaviorNeutralOrderRows(
 }
 
 /**
- * One neutral fixture value per pantry type. The return type is deliberately concrete
- * rather than `unknown`: a `switch` with no `default` and a narrow return is what makes
- * the compiler refuse a new field type until it has a fixture value of its own.
+ * One neutral fixture value per pantry type. The return type is concrete, not `unknown`, so a
+ * `switch` with no `default` makes the compiler refuse a new field type without a value.
  */
 export function fixtureFieldValue(
   field: SpecField,
@@ -426,12 +419,8 @@ export function fixtureFieldValue(
     case "string":
       return `neutral${seed}`;
     case "choice": {
-      // A choice can only ever hold a value it declares, so the fixture rotates through
-      // the options instead of manufacturing neutral text the way it can for a free
-      // string — and only through the ones still on offer. Not because anything stops it:
-      // these rows are inserted directly, and the storage encoder checks the *admitted*
-      // set, which a retired option is still in. Because a corpus is meant to be one a
-      // person could have produced, and nobody can produce a row on a retired option.
+      // A choice holds only what it declares, so the fixture rotates through the options still
+      // on offer: nothing stops a retired one, but nobody could have produced that row.
       const options = [...selectableChoiceValues(field)];
       return options[seed % options.length] ?? null;
     }
@@ -449,13 +438,8 @@ export function fixtureFieldValue(
 }
 
 /**
- * The value an excluded row carries: a distinctive one for the types whose content the
- * fixture controls, and the ordinary rotating value for the text-shaped ones. Total for
- * the same reason {@link fixtureFieldValue} is — a `default` here would silently swallow
- * a new field type instead of asking what it should hold.
- *
- * A choice is searchable text but its content is a closed declared set, so the fixture
- * cannot plant a distinctive non-matching value in it and takes the rotating one.
+ * The value an excluded row carries: distinctive where the fixture controls content, rotating
+ * for the text-shaped types. Total for the same reason {@link fixtureFieldValue} is.
  */
 function excludedNonTextValue(
   field: SpecField,
@@ -488,9 +472,8 @@ function setText(row: FixtureRow, location: TextLocation, value: string | readon
 }
 
 /**
- * Searchable text, decided the way the Diff Engine and the behavioral total inputs decide
- * it. All of them must move together: a type this calls searchable but the fixture treats
- * as inert would make an exclusion assertion claim something untrue.
+ * Searchable text, decided as the Diff Engine and the behavioral total inputs decide it. All
+ * must move together, or an exclusion assertion claims something untrue.
  */
 function isSearchableTextType(type: SpecField["type"]): boolean {
   return type === "string" || isChoiceFieldType(type) || isListFieldType(type);

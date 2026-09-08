@@ -20,9 +20,8 @@ export type EvolutionIntentOverrides = Partial<Omit<IntentClassification, "type"
 };
 
 /**
- * A resolver classification aimed at one committed capability — what the Intent Resolver
- * hands the evolution engine for `intentText`. Stands in for a real classification so a
- * suite can drive the engine without a resolver provider call of its own.
+ * A resolver classification aimed at one committed capability, standing in for a real one so a
+ * suite can drive the engine without a resolver provider call.
  */
 export function evolutionIntentFor(
   committed: Pick<CapabilityRow, "id">,
@@ -43,10 +42,8 @@ export function evolutionIntentFor(
 }
 
 /**
- * The committed capability under evolution. Field-lifecycle coverage on
- * purpose: an active required scalar, an active optional `string[]` (with its
- * form list-input entry), an inactive scalar, an inactive `string[]` (the
- * reactivation targets), and an inactive number.
+ * The committed capability under evolution. Field-lifecycle coverage on purpose: active required
+ * scalar, active optional `string[]`, inactive scalar, inactive `string[]`, inactive number.
  */
 export function journalCapabilityRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
   return {
@@ -138,9 +135,8 @@ export function journalCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
 }
 
 /**
- * The external dependency capability. `shelf_secret` is inactive on purpose:
- * the context test pins that it never reaches candidate-generation context,
- * while `shelf_name` (active) does.
+ * The external dependency capability. `shelf_secret` is inactive on purpose: the context test
+ * pins that it never reaches generation context, while active `shelf_name` does.
  */
 export function shelvesCapabilityRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
   return {
@@ -223,9 +219,8 @@ export function evolutionDependencyCatalog() {
 }
 
 /**
- * A deeply-mutable candidate draft: the committed spec's authored shape as
- * plain JSON, cloned fresh so the rejection matrix can omit, rename, retype,
- * duplicate, and inject platform-owned keys without type friction.
+ * A deeply-mutable candidate draft: the committed spec's authored shape as plain JSON, cloned so
+ * the rejection matrix can omit, rename, retype, duplicate and inject keys without friction.
  */
 export interface CandidateDraft {
   id: string;
@@ -277,9 +272,8 @@ export function candidateFrom(row: CapabilityRow): CandidateDraft {
 }
 
 /**
- * A single-shot fake provider for candidate generation: one canned structured
- * response, the prompt and schema recorded for context-pinning assertions.
- * No SDK, no network, no spend.
+ * A single-shot fake provider for candidate generation, recording the prompt and schema for
+ * context-pinning assertions. No SDK, no network, no spend.
  */
 export function makeCandidateProvider(response: unknown): {
   provider: Provider;

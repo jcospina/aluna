@@ -220,11 +220,8 @@ describe("the picker's feature set, one fact at a time", () => {
       if (option) option.disabled = true;
     });
     expect(diff.facts.map((fact) => fact.kind)).toEqual(["choice_option_disabled"]);
-    // What a new selection may name has narrowed, so the platform's own validation moves
-    // and both writing suites are generated again. Storage does not, because a row already
-    // holding the option keeps it — and neither Handler does, because both are given the
-    // values a choice *admits* and a retired one is still admitted, so the fact cannot
-    // have reached either prompt (`units/choice-prompt.test.ts` pins that).
+    // A narrowed selection moves the platform's own validation and both writing suites. Storage
+    // does not, and neither Handler does: a retired option is still admitted to them.
     expect(diff.workPlan.platformWork).toEqual(["choice_admitted_values"]);
     expect(diff.workPlan.regeneratedUnits).toEqual([]);
     expect([...diff.workPlan.gate.behavioral.actions].sort()).toEqual(["create", "update"]);

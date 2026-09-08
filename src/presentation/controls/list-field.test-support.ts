@@ -1,30 +1,13 @@
+// The DOM the repeated-value control is exercised against, and the fixtures built in it. The
+// suite installs the globals in its own `beforeAll`, so it can be read top to bottom.
+//
+// The rules under test ask the DOM's own constructors what a node is, which is why a run has to
+// install them as globals. Selectors, focus and `disabled` are modelled rather than stubbed:
+// three rules in `design/scripts/list-rows.js` bail out on a disabled grip, so a stub that
+// ignored the attribute would pass every one of them where the real DOM refuses.
+
 import type { ListInputMode } from "../../registry/index.ts";
 import { type RenderableCapability, renderEditForm } from "../fields/field-renderer.ts";
-
-// The DOM the repeated-value control is exercised against, and the fixtures built in it.
-//
-// A file of its own because it is apparatus rather than assertion: `list-field.test.ts`
-// says what the rows do, and this says what a node is while it is being asked. Installing
-// the globals is a call the suite makes in its own `beforeAll`, rather than a hook fired
-// from an import, so the suite owns its own setup and can be read top to bottom.
-
-/**
- * The rules, run.
- *
- * The module is authored for a browser and asks the DOM's own constructors what a node is,
- * so the constructors are what a Bun run has to supply. They are installed as globals for
- * the length of this file and taken away again — the module reads them when a rule runs
- * rather than when it is imported, so this is enough and nothing outside this file ever
- * sees them.
- *
- * Three things this double models rather than approximates, because tests were passing for
- * the wrong reason without them. Selectors match on a **class** as well as an attribute, so
- * a line that hunts `.ink__ground` is exercised rather than silently returning nothing.
- * Focus is a **single** thing the document holds, and a disabled element cannot take it,
- * which is what a browser does and what `moveListRow`'s fallback leans on. And `disabled`
- * is a **property reflecting the attribute**, so a correct implementation written either
- * way passes.
- */
 
 /** What the document is standing on. One node, the way a document has one. */
 let activeNode: Node | null = null;
@@ -73,10 +56,8 @@ export class Node {
   box = { top: 0, height: 20 };
 
   /**
-   * What a drag writes and takes back off. Only `translate` is ever set — the property the
-   * surface travels on, which is how the row's transition is on the travel duration and
-   * lands rather than sliding under Reduce Motion. The distance itself is measured from
-   * the list, so it is a raw number here rather than a token.
+   * What a drag writes and takes back off. Only `translate` is set — the property the surface
+   * travels on, so the row lands rather than sliding under Reduce Motion.
    */
   readonly style = { translate: "" };
 
@@ -251,9 +232,8 @@ export class Node {
   }
 
   cloneNode(_deep: boolean): Node {
-    // Built from its own constructor, not the base one: a copied `<input>` that came back
-    // as a plain node would fail every `instanceof HTMLInputElement` the control makes, and
-    // a clone nothing recognises is a clone nothing clears.
+    // Built from its own constructor, not the base one: a copied `<input>` returning as a plain
+    // node would fail every `instanceof HTMLInputElement` the control makes.
     const Built = this.constructor as new (
       tag: string,
       attributes?: Record<string, string>,
@@ -266,9 +246,8 @@ export class Node {
 }
 
 /*
- * One class per constructor rather than one shared by all five, so every `instanceof` guard
- * in the control is a guard a test can actually break. With one class they all answered
- * yes to everything, and five type checks had no coverage at all.
+ * One class per constructor rather than one shared by all five, so every `instanceof` guard in
+ * the control is one a test can break. With one class they all answered yes to everything.
  */
 class DoubleElement extends Node {}
 class DoubleInput extends Node {}
@@ -317,12 +296,8 @@ export function el(tag: string, attributes: Record<string, string> = {}): Node {
 }
 
 /**
- * One row, built the shape the server writes it.
- *
- * Nested rather than flat, and that matters: the input sits inside a `.field__control` shell
- * carrying a drawn boundary and its seed, the grip and the remove each carry a glyph that a
- * real press actually lands on, and the input carries the `name` every row shares — which is
- * what makes "the order they are in is the order they post in" a thing this file can check.
+ * One row, built the shape the server writes it — nested rather than flat. The input carries the
+ * `name` every row shares, which is what makes the order-they-post-in checkable here.
  */
 function listRow(value: string, seed: number) {
   const row = el("div", { "data-list-field-row": "" });

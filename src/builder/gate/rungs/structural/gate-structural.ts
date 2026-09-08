@@ -106,10 +106,8 @@ function structuralSpecOutcome(
 function structuralItemOutcome(input: CapabilityGateInput): StructuralUnitOutcome {
   try {
     assertItemRendererExportShape(input.itemRenderer);
-    // The renderer's *whole* source contract, not a subset of it. This rung used to run
-    // the field-access half alone, so the import ban and the ambient-runtime ban held
-    // during unit generation and were silently dropped for the snapshot the Gate admits —
-    // and a copied or hand-supplied renderer never passes through unit generation at all.
+    // The renderer's *whole* source contract. Running the field-access half alone silently
+    // dropped the import and ambient bans for the snapshot the Gate admits.
     const contractFailure = checkItemRendererSourceContract(input.spec, input.itemRenderer);
     if (contractFailure) throw new Error(contractFailure);
     const rendererFailure = typeCheckItemRenderer(input.itemRenderer);
@@ -363,17 +361,16 @@ interface CapabilityActionRecord {
 type PresentationAdapter = (record: CapabilityActionRecord) => string;
 `;
 
-// The handler contract — including ADR-0005 §2's injected `present` adapter (mirrors
-// src/runtime/router/contract.ts and src/builder/unit-checks.ts).
 /**
- * The query-result column types, derived from the registry pantry rather than restated.
- * A generated Handler is type-checked against this text, so a hand-written mirror missing
- * a new field type would reject a projection the runtime accepts.
+ * The query-result column types, derived from the registry pantry rather than restated: a mirror
+ * missing a new field type would reject a projection the runtime accepts.
  */
 const QUERY_RESULT_TYPE_UNION = fieldTypeSchema.options
   .map((type) => JSON.stringify(type))
   .join(" | ");
 
+// The handler contract — including ADR-0005 §2's injected `present` adapter (mirrors
+// `src/runtime/router/contract.ts` and `src/builder/units/safety/unit-checks.ts`).
 const handlerContractDeclarations = `${recordContractDeclarations}
 type CapabilityInputValue = string | readonly string[];
 interface CapabilityInput {

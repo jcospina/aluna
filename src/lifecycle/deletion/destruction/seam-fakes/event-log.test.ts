@@ -282,9 +282,8 @@ describe("the Module 7 Event Log acceptance fake", () => {
       adapters: [],
     });
 
-    // The payload is one canonical blob, so a deleted owner's content cannot be excised
-    // from it — the whole row is redacted even though `boom` still exists. The surviving
-    // owner keeps its ownership row, now pointing at a content-free deletion fact.
+    // The payload is one canonical blob, so a deleted owner's content cannot be excised from it.
+    // The whole row is redacted though `boom` survives, its ownership row now a content-free fact.
     expect(expectDestroyed(destroyed).payloads).toEqual({
       redactedEvents: 1,
       releasedOwnership: 1,

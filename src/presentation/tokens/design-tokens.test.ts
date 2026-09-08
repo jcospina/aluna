@@ -10,11 +10,8 @@ import {
   tokenList,
 } from "./design-tokens.ts";
 
-// The cross-check that keeps the *names* the contract closes on bound to the stylesheet
-// that holds their *values*. Values live once in `design/styles/tokens.css`; a token
-// renamed or removed there fails here rather than quietly becoming an off-token value the
-// gate rejects at build time — the same guard `vocabulary.test.ts` puts on the class
-// allow-list.
+// The cross-check binding the contract's names to `design/styles/tokens.css`, which holds their
+// values. A rename there fails here — the guard `vocabulary.test.ts` puts on the class list.
 
 const TOKENS_CSS = readFileSync(
   resolve(import.meta.dir, "../../../design/styles/tokens.css"),
@@ -45,9 +42,8 @@ describe("the closed axes name only tokens High Meadow declares", () => {
   });
 
   test("the palette carries every colour the handbook names and none of the chrome-only ones", () => {
-    // design/design-system.md §Colour: five fills, ink at reading strengths, eight tint
-    // anchors, and the reserved signal. The title-bar panes, the partial-strength ink the
-    // ink system draws with, and the focus ring are chrome, not a record's to name.
+    // design/design-system.md §Colour: five fills, ink at reading strengths, eight tint anchors,
+    // the reserved signal. Panes, shadow ink and the focus ring are chrome, not a record's.
     expect([...PALETTE_COLOR_TOKENS]).toEqual([
       "ground",
       "ground-deep",
@@ -86,10 +82,8 @@ describe("the closed axes name only tokens High Meadow declares", () => {
     expect(new Set(declaredSpace)).toEqual(new Set(SPACING_TOKENS));
   });
 
-  // The three axes are the whole pick-from-a-list surface. The two absences that used to
-  // read as short ladders are absences now: there is no radius token to pick from, and no
-  // weight either — `--line` is the room a platform component reserves for the drawn line,
-  // never a value a record names.
+  // The three axes are the whole pick-from-a-list surface. There is no radius token and no
+  // weight: `--line` is the room reserved for the drawn line, never a value a record names.
   test("neither a radius nor a weight is an axis a record picks from", () => {
     expect([...DECLARED].filter((name) => name.endsWith("radius"))).toEqual([]);
     expect(DECLARED.has("line")).toBe(true);
@@ -112,11 +106,8 @@ function declaredValue(name: string): string | undefined {
   return match?.[1]?.trim();
 }
 
-// The units rung. `design/design-system.md` §Spacing and units states the rule and no
-// values: layout and type are relative so browser text scaling grows the box along with
-// the text, and the drawing constants stay in pixels because scaling a hand-drawn line
-// changes the artwork rather than the fit. This pins that split to the stylesheet, so the
-// next token added to either side cannot quietly land in the wrong unit.
+// The units rung, from `design/design-system.md` §Spacing and units. Layout and type are
+// relative so text scaling grows the box; scaling a drawn line would change the artwork.
 describe("layout and type are relative; the drawing constants are not", () => {
   test.each([...SPACING_TOKENS, ...TYPE_SIZE_TOKENS, "caps-size"])("--%s is relative", (name) => {
     const value = declaredValue(name);
@@ -125,9 +116,8 @@ describe("layout and type are relative; the drawing constants are not", () => {
     expect(value).not.toContain("px");
   });
 
-  // The four `desk-geometry.js` reads. These must stay a single bare length: the
-  // script parses what `getComputedStyle` hands back, and a registered `<length>`
-  // resolves one term, not a sum.
+  // The four `desk-geometry.js` reads. These must stay a single bare length: the script parses
+  // what `getComputedStyle` hands back, and a registered `<length>` resolves one term, not a sum.
   test.each([
     "prompt-clearance",
     "window-min-w",
@@ -139,9 +129,8 @@ describe("layout and type are relative; the drawing constants are not", () => {
     expect(value).toMatch(/^[\d.]+rem$/);
   });
 
-  // The logo cell is the exception and states a sum on purpose — the tile inside it
-  // is one of the drawing constants and stays in pixels, so a cell written as a
-  // pure rem literal is only the right size at a 16px root. It has to carry both.
+  // The logo cell states a sum on purpose: the tile inside it is a drawing constant and stays in
+  // pixels, so a cell written as a pure rem literal is only the right size at a 16px root.
   test.each(["logo-cell-w", "logo-cell-h"])("the logo cell's %s carries both", (name) => {
     const value = declaredValue(name);
     expect(value, `design/styles/tokens.css declares no --${name}`).toBeDefined();
@@ -157,9 +146,8 @@ describe("layout and type are relative; the drawing constants are not", () => {
     }
   });
 
-  // Not an exhaustive sweep for stray lengths — the sheet keeps a few in pixels on
-  // purpose (the gutter a drawn line overhangs into, the focus ring, the press offset).
-  // Type carries no such exception, so it can be checked outright.
+  // Not an exhaustive sweep for stray lengths — the sheet keeps a few in pixels on purpose (line
+  // overhang, focus ring, press offset). Type carries no such exception, so it is checked whole.
   test("no stylesheet sets a type size in pixels", () => {
     for (const root of ["../../../design/styles", "../../../public/css"]) {
       const sheets = new Bun.Glob("**/*.css").scanSync({

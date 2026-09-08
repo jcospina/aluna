@@ -10,10 +10,8 @@ import {
   REMOVED_ELEMENTS,
 } from "./vocabulary.ts";
 
-// design/design-system.md names the layout kit as the single source of truth, and
-// design/styles/layout-kit.css is where those classes actually live. The enforcer hard-codes
-// the allow-list (so render time stays dependency-free), so this test pins the two
-// together: if the CSS gains or loses a class, the allow-list must move with it.
+// design/design-system.md names the layout kit as the source of truth and the classes live in
+// design/styles/layout-kit.css. The enforcer hard-codes the allow-list, so this pins the two.
 
 function classesDefinedInLayoutKit(): Set<string> {
   const css = readFileSync(join(import.meta.dir, "../../../design/styles/layout-kit.css"), "utf8");

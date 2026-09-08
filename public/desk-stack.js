@@ -1,20 +1,8 @@
 // @ts-check
 
 /**
- * Which of the desk's windows is in front.
- *
- * Two windows exist at most — the capability's, and the developer panel's one
- * exception to that (design D13) — so stacking is a pair rather than a counter:
- * the one you touched last is in front, and the other is behind it. There is no
- * z-index that climbs, no taskbar, and nothing here that would become a window
- * manager if a third window ever asked. It could not: the exception is one.
- *
- * Below the breakpoint the same pair means something stronger. The window is the
- * screen there, so the one behind is not behind anything — it is underneath the
- * whole surface, and `.window--desk.is-unfocused` is taken out of the page
- * entirely (`design/styles/components/desk.css`). That is presentation only:
- * neither window's remembered desktop box is written while a phone is showing
- * one, so widening gives both of them back.
+ * Two windows exist at most — the capability's and the developer panel's exception (design D13),
+ * so stacking is a pair, not a counter: no climbing z-index, no taskbar, no window manager.
  */
 
 /** The focused window's stacking level, and the other one's. */
@@ -49,14 +37,8 @@ export function raise(member) {
 }
 
 /**
- * A window has opened. It arrives in front, which is what every window manager and
- * every desk agrees on: the thing you just asked for is the thing you are looking at.
- *
- * `front: false` is for the one window nobody asked for — the developer panel
- * reopening from a remembered preference on load. The address names a capability and
- * that is what the page is for, so a panel restored beside it stands behind it. It
- * still comes to the front if it is the only window there is, because on a phone the
- * one behind is not shown at all and a lone window behind nothing is a blank desk.
+ * A window opens in front. `front: false` is the developer panel restored from a remembered
+ * preference; it still rises when alone, because on a phone a lone window behind is a blank desk.
  *
  * @param {StackMember} member
  * @param {boolean} [front]
@@ -68,7 +50,8 @@ export function joinStack(member, front = true) {
 }
 
 /**
- * Put one window behind, without disturbing which of the others is in front.
+ * Put one window behind; below the breakpoint that is out of the page entirely
+ * (`design/styles/components/desk.css`), though the remembered desktop box is left unwritten.
  *
  * @param {StackMember} member
  */
@@ -79,9 +62,8 @@ function lower(member) {
 }
 
 /**
- * A window has gone. Whatever is left is now the only window, so it is the front
- * one — and on a phone that is the difference between the survivor being shown and
- * the surface going blank.
+ * A window has gone. Whatever is left is the only window, so it is the front one — on a phone
+ * that is the difference between showing the survivor and going blank.
  *
  * @param {StackMember} member
  */

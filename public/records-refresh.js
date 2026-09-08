@@ -1,16 +1,8 @@
 // @ts-check
 
 /**
- * Re-reading a capability's committed records into the region they already occupy.
- *
- * The one place a mutation's aftermath meets the read path: a committed create asks for
- * the region again rather than splicing a row in by hand, so what the user sees after a
- * mutation is what the server actually holds. Search is part of that — a refresh honours
- * the query the collection is filtered by, so a create under an active search does not
- * silently widen it.
- *
- * Kept as a pure seam over `region.innerHTML` so the degraded paths (a failed refresh, a
- * response that lost its claim) are executable in Bun without a browser DOM.
+ * Re-reading a capability's committed records into the region they occupy: a create asks for the
+ * region again rather than splicing a row, and honours the collection's active query.
  */
 
 import { applyCollectionCount, splitCollectionCount } from "./collection-count.js";
@@ -84,10 +76,8 @@ function refreshStatusMessage(state) {
 }
 
 /**
- * Take the region for this refresh: whatever was reading into it — the View's own
- * one-shot load, a search still settling — leaves through the region rule. There is no
- * hand-off of its own, because one rule already owns everything a region's content
- * started.
+ * Take the region for this refresh: the View's one-shot load or a search still settling leaves
+ * through the region rule, so there is no hand-off of its own.
  *
  * @param {Element} region
  * @param {string} query
@@ -162,14 +152,8 @@ async function requestRefreshHtml(request, url, signal) {
 }
 
 /**
- * Land one answer: the count is split off the head of the response, then the records go
- * in and the count follows them into its label. One read produces both, so there is no
- * second request for the number to be out of step with.
- *
- * The last three lines are the search controller's `acceptResponse` as well, and they stay
- * apart on purpose: there, `render` and `count` are injected so the timing core runs with
- * no DOM at all, and here the region may be a bare `{ innerHTML }` with no label to write.
- * What the two genuinely share — the split and the write — they already import.
+ * Land one answer: the count is split off the head of the response, the records go in, and the
+ * count follows into its label. One read produces both, so the number cannot be out of step.
  *
  * @template {{ innerHTML: string }} T
  * @param {{
@@ -181,6 +165,8 @@ async function requestRefreshHtml(request, url, signal) {
  * }} input
  */
 function applyRefreshedResponse({ region, domRegion, html, process, query }) {
+  // These lines are the search controller's `acceptResponse` too, deliberately apart: there
+  // `render` and `count` are injected, and here the region may be a bare `{ innerHTML }`.
   const { sentence, records } = splitCollectionCount(html);
   region.innerHTML = records;
   process?.(region);
@@ -191,9 +177,8 @@ function applyRefreshedResponse({ region, domRegion, html, process, query }) {
 }
 
 /**
- * Refresh a committed records region without hiding failures behind HTMX's
- * promise resolution. Keeping this seam pure makes the post-mutation degraded path
- * executable in Bun without a browser DOM.
+ * Refresh a committed records region without hiding failures behind HTMX's promise resolution.
+ * A pure seam, so the post-mutation degraded path is executable in Bun without a browser DOM.
  *
  * @template {{ innerHTML: string }} T
  * @param {{

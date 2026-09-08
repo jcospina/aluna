@@ -12,10 +12,8 @@ import {
 import { renderBuildSubscriber } from "../../../server/http/fragments.ts";
 
 /**
- * A node small enough to run the rule in Bun. The guard needs three DOM facts and no more
- * — is this target still in the document, what does a node carry on it, and which nodes
- * under a connection are swap listeners — so this implements exactly those plus the tree
- * operations a test performs on them.
+ * A node small enough to run the rule in Bun. The guard needs three DOM facts: is the target still
+ * in the document, what does a node carry, and which nodes under a connection are swap listeners.
  */
 class Node {
   readonly children: Node[] = [];
@@ -66,10 +64,8 @@ class Node {
 }
 
 /**
- * htmx's `getTarget` reduced to the two answers it gives here: whatever `hx-target` names
- * — inherited from the nearest ancestor that carries it, which is htmx's rule and the one
- * a plain `getAttribute` would miss — or the listener itself. The shipped guard borrows
- * the real function rather than this; the double exists so the rule around it can run.
+ * htmx's `getTarget` reduced to the two answers it gives here: whatever `hx-target` names, taken
+ * from the nearest ancestor carrying it as htmx does, or the listener itself.
  */
 function resolveLikeHtmx(root: Node): SwapTargetResolver {
   return (candidate) => {
@@ -110,10 +106,8 @@ function buildStream(): { document: Node; connection: Node; listeners: Record<st
 }
 
 /**
- * What an `EventSource` does with a listener that throws: it **reports** the exception
- * rather than propagating it to whoever dispatched. The raise is loud — it reaches the
- * page's own error handler — but it aborts nothing, so a double that let the throw escape
- * `deliver` would be asserting a guarantee the browser never makes.
+ * What an `EventSource` does with a listener that throws: it reports the exception rather than
+ * propagating it. The raise reaches the page's error handler but aborts nothing.
  */
 class Source {
   readonly handlers = new Map<string, (() => void)[]>();
@@ -203,9 +197,8 @@ describe("finding the named target", () => {
   });
 
   test("the connection element is a listener too, and so is every one under it", () => {
-    // htmx registers a connection that carries `sse-swap` itself — the likely shape once
-    // page assembly collapses to one anchor — and it registers every descendant. A guard
-    // that checked one of them would leave the others silent.
+    // htmx registers a connection carrying `sse-swap` itself, and every descendant too, so a
+    // guard that checked one of them would leave the others silent.
     const document = new Node();
     document.rooted = true;
     const connection = new Node({ "sse-connect": "/build/job-1/stream", "sse-swap": "commit" });
@@ -271,10 +264,8 @@ describe("the guard on a live connection", () => {
 });
 
 /**
- * The wiring, which is the half with real coupling to htmx: the event name, where the
- * connection comes from, and where the source comes from. An htmx upgrade that moved
- * `source` to another key on the detail would otherwise disable the whole guard under a
- * green suite.
+ * The wiring, which is the half coupled to htmx: the event name, the connection and the source.
+ * An htmx upgrade moving `source` to another detail key would disable the guard silently.
  */
 describe("starting the guard on the shell", () => {
   class DocumentDouble {

@@ -130,11 +130,8 @@ describe("permanent capability deletion followed by same-id recreation", () => {
     expect(freshMetrics.rows.at(-1)?.incarnationId).toBe(freshRow.incarnation_id);
   });
 
-  // A tombstone whose cleanup is owed keeps reserving the id, and the rebuild path used to
-  // discover that only at the activation CAS — after the spec, six units, the whole Gate and
-  // the published artifacts had been generated and paid for, every time, for as long as the
-  // tombstone stood. The lease-head check cannot catch it, because an ordinary "track my
-  // notes" names no id for it to test.
+  // A tombstone reserving an id used to surface only at the activation CAS, after the spec, six
+  // units, the Gate and the artifacts were paid for. The lease-head check misses it: no id named.
   test("refuses a rebuild of a reserved id as soon as the id is known, before any unit is generated", async () => {
     const target = notesRow();
     install(conns, target);

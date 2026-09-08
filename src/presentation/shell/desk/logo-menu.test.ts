@@ -43,9 +43,8 @@ describe("the three ways into a logo's menu", () => {
 
     scene.root.fire("contextmenu", scene.notes.logo, { clientX: 10, clientY: 396 });
 
-    // The strip the bar floats in is a floor for everything on this desk, and it is where
-    // a refusal about the name being typed is spoken — a panel over that sentence would
-    // cover the answer to itself.
+    // The strip the bar floats in is a floor for everything on this desk, and it is where a
+    // refusal about the name is spoken, so a panel over it would cover the answer to itself.
     const top = Number.parseInt(scene.notes.menu.style.getPropertyValue("top"), 10);
     expect(top + scene.notes.menu.getBoundingClientRect().height).toBeLessThanOrEqual(
       scene.promptBar.getBoundingClientRect().top,
@@ -74,17 +73,15 @@ describe("the three ways into a logo's menu", () => {
     await pressAndHold(scene, scene.notes.logo);
     expect(scene.notes.menu.hasAttribute("hidden")).toBe(false);
 
-    // A keyboard activation on the menu it just opened is not the click the hold owes.
-    // A platform that suppressed its own would otherwise have the first press of Rename
-    // swallowed here and do nothing at all.
+    // A keyboard activation on the menu it just opened is not the click the hold owes, so a
+    // platform suppressing its own would swallow the first press of Rename.
     const byKeyboard = scene.root.fire("click", scene.notes.rename, { detail: 0 });
     expect(byKeyboard.prevented).toBe(false);
     closeRenameEditor({ restoreFocus: false });
     scene.root.fire("contextmenu", scene.notes.logo, { clientX: 10, clientY: 10 });
 
-    // The release the browser follows with a click on the button that was held. Opening
-    // the menu must never also open the capability, so exactly one click is taken — and
-    // taken outside the document, before the desk's own opener can see it.
+    // The release the browser follows with a click on the button that was held. Opening the menu
+    // must never also open the capability, so one click is taken before the opener sees it.
     const consumed = scene.root.fire("click", scene.notes.logo);
     expect(consumed.prevented).toBe(true);
     expect(consumed.stopped).toBe(true);
@@ -238,9 +235,8 @@ describe("the menu itself", () => {
     scene.root.fire("click", scene.notes.remove);
 
     expect(scene.notes.menu.hasAttribute("hidden")).toBe(true);
-    // The row the press put the focus on is now hidden, and the window's own answer
-    // arrives later and only if it arrives: a refused deletion swaps nothing, and the
-    // keyboard would be left on the body with nothing to carry on from.
+    // The row the press put the focus on is now hidden, and the window's answer arrives later if
+    // at all: a refused deletion swaps nothing, and the keyboard would be left on the body.
     expect(scene.root.activeElement).toBe(scene.notes.logo);
   });
 });
@@ -445,9 +441,8 @@ describe("what happens to an open panel when its logo is re-rendered", () => {
   test("an evolution's out-of-band replacement takes the editor with it", () => {
     const scene = editing();
 
-    // An evolution answers into the window and replaces the slot out of band, so the
-    // event names the *new* element inside a response that was never about this slot.
-    // Nothing in it points at the slot that left.
+    // An evolution answers into the window and replaces the slot out of band, so the event names
+    // the new element and nothing in it points at the slot that left.
     const replacement = slotFor("notes", "Notes");
     const was = scene.notes.slot;
     scene.layer.append(replacement.slot);
@@ -461,9 +456,8 @@ describe("what happens to an open panel when its logo is re-rendered", () => {
   test("a deletion removes the slot without a swap, and the editor still comes down", () => {
     const scene = editing();
 
-    // `hx-swap-oob="delete:…"` takes the slot out and htmx swaps nothing for it, so no
-    // swap event is dispatched at all. The settle at the end of the request is the only
-    // thing that can notice.
+    // `hx-swap-oob="delete:…"` takes the slot out and htmx swaps nothing for it, so no swap event
+    // is dispatched and the settle at the end of the request is the only thing that notices.
     scene.notes.slot.remove();
     scene.root.fire("htmx:afterSettle", scene.layer, {});
 

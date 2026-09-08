@@ -3,8 +3,8 @@
 // canonical state moves.
 //
 // The native attribute already stops this on a form that was filled in, so every case here
-// is the crafted request the attribute cannot answer — which is the whole reason the limit
-// is not only a browser fact.
+// is the crafted request the attribute cannot answer, which is why the limit is enforced on
+// the server as well as in the browser.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -62,9 +62,8 @@ describe("an over-length string on the wire", () => {
   });
 
   /**
-   * The Handler asks for the write and takes no view of length at all — which is the
-   * contract: the platform refuses before the write lands, so a generated unit never
-   * becomes a second length check.
+   * The Handler asks for the write and takes no view of length: the platform refuses before the
+   * write lands, so a generated unit never becomes a second length check.
    */
   const loadHandler: HandlerLoader = async (_path, action) => {
     if (action === "update") {
@@ -127,10 +126,8 @@ describe("an over-length string on the wire", () => {
   test("the platform answers it, not the Handler: no capability code judges a length", async () => {
     const app = appForBoundedNotes();
     await app.request("/capability/notes/create", body("x".repeat(LIMIT + 1)));
-    // Not "the Handler asked and was refused" — the Handler is never loaded. The length is
-    // a fact about the submission, so the router settles it before any generated code runs,
-    // which is what makes the 422, the retarget and the sentence the platform's rather than
-    // whatever the Handler chose to do with a caught error.
+    // Not "the Handler asked and was refused" — the Handler is never loaded. Length is a fact
+    // about the submission, so the 422, the retarget and the sentence are all the platform's.
     expect(handlerRuns).toBe(0);
     expect(createCapabilityDataTool(boundedNotesSpec(), conns).select()).toEqual([]);
   });

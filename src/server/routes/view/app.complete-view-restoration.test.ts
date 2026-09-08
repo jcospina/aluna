@@ -217,9 +217,8 @@ test("a connected cancellation restores the captured View before done", async ()
 
   expect((await app.request(`/build/${jobId}/cancel`, { method: "POST" })).status).toBe(202);
   const events = collectSseEvents(await payload);
-  // The *restoration* fragment. `fragment` is the name a non-terminal fragment placed
-  // into a targeted region rides (ADR-0002), and the desk sidecar an admitted build sends
-  // at the start is one of those too — so the restoration is found by what it carries.
+  // The restoration fragment. `fragment` is the name a non-terminal fragment placed into a
+  // targeted region rides (ADR-0002), and the desk sidecar is one too, so this is found by payload.
   const fragmentIndex = events.findIndex(
     ({ event, data }) => event === "fragment" && data.includes("data-build-restoration"),
   );

@@ -58,9 +58,8 @@ describe("the authored logo keys", () => {
     }
   });
 
-  // The whole point of the change: the second colour is no longer one fixed partner per
-  // ground. Every ordered pair of two different anchors is a spec the model may author —
-  // 56 of them, where the closed lookup admitted four.
+  // The second colour is no longer one fixed partner per ground: every ordered pair of two
+  // different anchors is authorable — 56 of them, where the closed lookup admitted four.
   test("any two different anchors pair, in either order", () => {
     let admitted = 0;
     for (const ground of LOGO_HUE_FAMILIES) {
@@ -112,9 +111,8 @@ describe("the authored logo keys", () => {
     for (const ground of ["signal", "blue", "surface", "Leaf", ""]) {
       const result = capabilitySpecSchema.safeParse({ ...validSpec(), ground });
       expect(result.success).toBe(false);
-      // The issue is on the ground's own path — "ground" also appears in the
-      // companion refinement's message, so matching the word alone would not
-      // discriminate between the two rules.
+      // "ground" also appears in the companion refinement's message, so matching the word alone
+      // would not discriminate between the two rules.
       expect(result.error?.issues.some((issue) => issue.path[0] === "ground")).toBe(true);
     }
   });

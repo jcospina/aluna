@@ -67,9 +67,8 @@ describe("the point of no return", () => {
         evolve(env, behaviorNeutralDueDateCandidate(), "add a due date", {
           buildId: `fault-${name}`,
           behavioralTierEnabled: false,
-          // The lifecycle must ride the real write connection: `finalizeMetrics` runs
-          // *inside* the activation transaction, so only SQLite's rollback can show
-          // that a faulted run left no success row behind.
+          // `finalizeMetrics` runs inside the activation transaction, so the lifecycle must ride
+          // the real write connection: only SQLite's rollback shows a faulted run left no row.
           durableMetrics: true,
           faults: {
             [name]: () => {
@@ -261,9 +260,8 @@ describe("failing closed before publication", () => {
     expect(getCapability("notes", env.conns.readonly)?.version).toBe(1);
     expect(existsSync(versionDirectory(env, 1))).toBe(true);
     expect(existsSync(versionDirectory(env, 2))).toBe(false);
-    // The row shows the run stopped while assembling, with publication never attempted —
-    // a corrupt base is not a publication fault (the vocabulary has no stage of its own
-    // for it, so the failure message carries the reason).
+    // The run stopped while assembling, publication never attempted: a corrupt base is not a
+    // publication fault, and having no stage of its own it carries the reason in the message.
     const lifecycle = durableLifecycle(env, "corrupt");
     expect(lifecycle).toMatchObject({ lifecycleStatus: "failed" });
     expect(lifecycle?.stages).toEqual(
@@ -302,9 +300,8 @@ describe("failing closed before publication", () => {
     const result = await evolve(env, behaviorNeutralDueDateCandidate(), "add a due date", {
       buildId: "cancelled",
       behavioralTierEnabled: false,
-      // Already cancelled when the run starts: the candidate is authored (the provider
-      // call is in flight before the first check), then the run stops before the Diff's
-      // work is assembled.
+      // Already cancelled at the start: the candidate is authored anyway (the call is in flight
+      // before the first check), then the run stops before the Diff work is assembled.
       isAborted: () => true,
     });
     expect(result.outcome.kind).toBe("cancelled");

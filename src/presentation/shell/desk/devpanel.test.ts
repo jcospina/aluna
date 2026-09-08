@@ -99,13 +99,8 @@ class FakeFragment extends FakeElement {
 }
 
 /*
- * Installed for the run and taken away after it, never at module scope.
- *
- * Bun loads every test file in a shard into one process before it runs any of them,
- * and each browser module here bootstraps itself behind `typeof document !== "undefined"`.
- * A fake `document` standing at import time answers that question for all of them, and
- * they start against a stand-in built for four functions — which is how a fake in this
- * file broke `logo-attempt.js` in a file that had never heard of it.
+ * Installed for the run and taken away after it, never at module scope. Bun loads a whole shard
+ * into one process, so a fake `document` at import time starts every browser module in it.
  */
 const OCCUPIED = ["HTMLElement", "document", "CSS"] as const;
 const globals = globalThis as unknown as Record<string, unknown>;
@@ -153,9 +148,8 @@ describe("the eight stages", () => {
       "gate",
       "commit",
     ]);
-    // Every stage carries the product-voice line for the same moment. It is never
-    // printed here — the panel stands outside that voice — but the two readings are
-    // held together so a stage cannot be added to one and forgotten in the other.
+    // Every stage carries the product-voice line for the same moment. It is never printed here,
+    // but the two are held together so a stage cannot be added to one and forgotten in the other.
     for (const stage of DEV_STAGES) {
       expect(stage.label.length).toBeGreaterThan(0);
       expect(stage.line.length).toBeGreaterThan(0);
@@ -205,9 +199,8 @@ describe("a payload in a code block", () => {
     const kinds = Object.fromEntries(
       tints(block).map(([className, text]) => [text.trim(), className]),
     );
-    // A key carries the colon that makes it one, so it is never tinted as a string —
-    // which is the whole reason the pattern claims the colon rather than the string
-    // stopping at the closing quote.
+    // A key carries the colon that makes it one, so it is never tinted as a string. That is
+    // why the pattern claims the colon rather than stopping at the closing quote.
     expect(kinds['"label":']).toBe("devpanel__key");
     expect(kinds['"Notes"']).toBe("devpanel__string");
     expect(kinds["6"]).toBe("devpanel__number");
@@ -242,11 +235,8 @@ describe("a payload in a code block", () => {
   });
 
   test("is tinted end to end however long it is", () => {
-    // A character budget used to stop the colour partway through, which showed up on
-    // the real metrics payload: its third `gateRungs` sits at character 19,949, fifty
-    // characters before the cap, so the panel went monochrome for the last quarter of
-    // the one thing it exists to show. Measured, the budget was answering a cost that
-    // is not there — 27,000 characters tint in 15ms — so it is gone.
+    // A character budget stopped the colour partway through: the metrics payload's third
+    // `gateRungs` sits at 19,949, fifty before the cap. 27,000 characters tint in 15ms.
     const panel = devPanelBody();
     const wide = JSON.stringify({
       rungs: Array.from({ length: 900 }, (_, i) => ({
@@ -297,12 +287,8 @@ describe("a new build starts from an empty panel", () => {
 
 describe("the terminal reading stops where the design settles it", () => {
   test("the five tints are the palette's own anchors, and never the alert colour", () => {
-    // `--signal` is the one red and it is reserved for alerts. A payload reporting a
-    // failed Gate is still a reading rather than an alarm. The five are picked for a
-    // dark well, which is the one ground in Aluna that is not the meadow — and the
-    // contrast audit is what picks them: four name an anchor, and punctuation derives
-    // the well's own faint from `--surface`, because `--ink-3` is faint by being
-    // darker and there is nothing darker to be on this ground.
+    // `--signal` is the one red and it is reserved for alerts; a failed Gate is a reading. The
+    // five are picked for a dark well: `--ink-3` is faint by being darker, and nothing here is.
     const panel = /\.devpanel__(key|string|number|atom|punct) \{\s*color: ([^;]+);/g;
     const used = [...PANEL_CSS.matchAll(panel)].map((match) => match[2]);
     expect(used).toHaveLength(5);

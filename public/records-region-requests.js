@@ -1,10 +1,8 @@
 // @ts-check
 
 /**
- * One request-ownership module for a records region. Search, canonical reads, and
- * post-mutation refreshes all write the same DOM surface, so the newest claim is
- * the only response allowed to render. Aborting is an optimization; the ownership
- * check remains the integrity rule when a request adapter ignores AbortSignal.
+ * Search, canonical reads, and post-mutation refreshes write one records region, so only the
+ * newest claim renders. Aborting is an optimization; an adapter may ignore AbortSignal.
  */
 
 import { registerRegionRelease } from "./region-scope.js";
@@ -40,11 +38,8 @@ export function createRecordsRegionRequestCoordinator() {
 const coordinators = new WeakMap();
 
 /**
- * The region-bound coordinator. Every claim it hands out is also a release in the
- * region's scope for exactly as long as that request is in flight, so replacing the
- * region's content — or putting the region away — aborts the request rather than letting
- * it resolve against a detached node. The abort is what frees the server's read token,
- * so there is one act and not two.
+ * A claim doubles as a region release while in flight, so replacing or retiring the region
+ * aborts it rather than resolving against a detached node, which frees the server's read token.
  *
  * @param {Element} region
  */

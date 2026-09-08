@@ -149,10 +149,8 @@ describe("deletion cleanup supervisor — scheduling", () => {
     return target;
   }
 
-  // The busy loop this replaced: while a build held the coordinator, `runOnce`
-  // short-circuited on `running`, the chained `requestRetry` scheduled again, and — no
-  // attempt having been counted — it scheduled at the *first* rung. One pass a second, for
-  // as long as the build ran.
+  // The busy loop this replaced, one pass a second while a build held the coordinator: `runOnce`
+  // short-circuited on `running`, counted no attempt, and the chained retry took the first rung.
   test("a pass already in flight is not scheduled around, it is waited for", async () => {
     const state = { fails: true, cleaned: 0 };
     await commitWithPendingCleanup(state);

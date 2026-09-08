@@ -85,9 +85,8 @@ describe("artifact cleanup path safety", () => {
     ).toThrow("unknown resource key");
   });
 
-  // The adapter removed `capabilities/<id>/<incarnation>/` and stopped there, so every
-  // capability built once and deleted left its own empty directory behind for ever —
-  // nothing else on the deletion path or in artifact reconciliation removes an id-level one.
+  // The adapter removed `capabilities/<id>/<incarnation>/` and stopped there, so every capability
+  // built once and deleted left an empty directory for ever; nothing else removes an id-level one.
   test("the capability's own directory goes with its last incarnation, and not before", () => {
     const artifactsRoot = join(dir, "artifacts");
     const capability = join(artifactsRoot, "notes");

@@ -126,16 +126,9 @@ function actionRecord(
 }
 
 /**
- * How many ids one rehydration statement binds.
- *
- * The rehydration used to emit one bind parameter per matched row, so the whole of a
- * capability's collection arrived as a single `IN (?, ?, …)` — and SQLite bounds how many
- * parameters a statement may carry. Past that bound the read does not slow down, it stops:
- * a capability that reached the limit became permanently unreadable, and there is no route
- * back from that except deleting records the read cannot show you.
- *
- * Well under every version's limit (999 on the oldest builds still in the wild, 32,766 on
- * current ones), and large enough that an ordinary collection is one statement.
+ * How many ids one rehydration statement binds. One parameter per matched row made a large
+ * collection permanently unreadable; 500 is well under SQLite's bound-parameter limit, which is
+ * 999 on the oldest builds and 32,766 on current ones.
  */
 const REHYDRATION_BATCH = 500;
 
@@ -162,15 +155,8 @@ function rehydrateCanonicalRows(
 }
 
 /**
- * Run `operation` over one read snapshot, so a selection and the rehydration that
- * follows it answer from the same committed moment.
- *
- * `BEGIN` inherits whatever snapshot the connection already sits on, so the statement
- * cache is finalized first: a cached statement some other read left unreset would
- * otherwise hand this Action a moment older than its own call. The scope check's own
- * `EXPLAIN` no longer leaves one (`explainOpcodes`) — clearing here is what keeps the
- * guarantee from resting on that staying true of every other read of the shared
- * connection.
+ * Run `operation` over one read snapshot, so a selection and the rehydration after it answer from
+ * one committed moment. `BEGIN` inherits the connection's, so the statement cache is cleared first.
  */
 function withReadSnapshot<T>(database: Database, operation: () => T): T {
   const ownsTransaction = !database.inTransaction;
@@ -204,17 +190,8 @@ interface SchemaRoot {
 interface QueryScopeOptions {
   readonly allowTargetId: boolean;
   /**
-   * Bound the whole scope rather than its nominated target.
-   *
-   * A Handler's scope has one target and reads its dependencies as ordinary data, so the
-   * platform columns are protected on the target alone. A question's scope has no target —
-   * `whole-catalog-query-scope.ts` nominates the first granted incarnation only because the
-   * shape requires one — so protecting that capability and not the other eight would mean
-   * `extra` and every retired field stayed readable on all but one collection. Under this
-   * flag the protection covers `[target, ...dependencies]`, and a virtual table is refused
-   * outright: the table bound counts `OpenRead`, a virtual table opens with `VOpen`, and a
-   * question has no business in one. Off by default, so the generated-Handler path keeps
-   * exactly the bound it had.
+   * Bound the whole scope rather than its nominated target. A question's scope has no real target,
+   * so protecting one capability leaves `extra` and retired fields readable on all the others.
    */
   readonly wholeCatalog?: boolean;
 }
@@ -255,17 +232,8 @@ export function assertScopedQuery(
 }
 
 /**
- * The scope check's `EXPLAIN`, finalized so it releases the connection when it is done.
- *
- * An `EXPLAIN` — plain or `QUERY PLAN` — is not reset by being stepped to the end the way
- * an ordinary statement is, and an unreset statement holds open the implicit read
- * transaction the *next* statement opens. Every later read on that connection then
- * answers from that moment: on freshly prepared statements, with `inTransaction` still
- * false, for as long as the connection lives. `dbReadonly` is a long-lived singleton
- * every concurrent read shares, so one scoped query would otherwise pin the whole
- * platform read path, the registry lookup that resolves a capability's artifacts
- * included. Finalizing is the release; preparing rather than `query` only keeps a
- * statement used once out of the shared cache.
+ * The scope check's `EXPLAIN`, finalized so it releases the connection. An `EXPLAIN` is not reset
+ * by being stepped, and an unreset statement pins every later read on the shared `dbReadonly`.
  */
 function explainOpcodes(
   database: Database,

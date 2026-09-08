@@ -85,11 +85,8 @@ const snapshotFileEntrySchema = z.strictObject({
 });
 
 /**
- * The tier metadata a tier-on snapshot records beyond the on/off flag: per Action,
- * where this version's frozen cases came from and whether they were re-proven against these
- * bytes. It lives here rather than inside `tests/behavioral.json` on purpose — the frozen
- * artifact must stay byte-identical when its inputs did not move, so a fact about *this
- * build's* execution cannot be written into it without destroying that guarantee.
+ * Per Action, where this version's frozen cases came from and whether they were re-proven. It
+ * lives here because `tests/behavioral.json` must stay byte-identical when its inputs did not.
  */
 const snapshotBehavioralTestEntrySchema = z.strictObject({
   action: z.enum(FULL_CAPABILITY_TOOLS),
@@ -134,10 +131,8 @@ export interface PublishCapabilitySnapshotInput {
   readonly gate: CapabilityGateResult;
   readonly artifactsRoot?: string;
   /**
-   * The per-unit dependency-generation provenance this snapshot records. Omitted for a
-   * fresh v1 build, whose every unit is new; an evolution supplies the manifest its Diff
-   * settled, so a byte-copied unit carries its committed provenance forward instead of
-   * having it silently recomputed against the candidate.
+   * The per-unit provenance this snapshot records, omitted for a v1 build. An evolution
+   * supplies the manifest its Diff settled, so a copied unit is not silently recomputed.
    */
   readonly unitProvenance?: UnitProvenanceManifest;
   /** Test-only fault seam immediately after verification and before rename. */
@@ -179,9 +174,8 @@ const verifiedPublicationEvidence = new WeakMap<
 >();
 
 /**
- * Assemble, verify, and publish one immutable capability snapshot. The staging
- * directory and final directory share the same incarnation parent, so the final
- * rename cannot cross filesystems.
+ * Assemble, verify, and publish one immutable capability snapshot. Staging and final share an
+ * incarnation parent, so the final rename cannot cross filesystems.
  */
 export function publishCapabilitySnapshot(
   input: PublishCapabilitySnapshotInput,
@@ -246,9 +240,8 @@ export function publishCapabilitySnapshot(
     });
     return publication;
   } catch (error) {
-    // A failed staging/verification path is never routable. Keep a successfully
-    // verified staging directory only when the injected pre-publish fault fires,
-    // because recovery work needs that exact crash-like state for acceptance.
+    // A failed staging path is never routable. A verified one is kept only when the injected
+    // pre-publish fault fires, because recovery acceptance needs that crash-like state.
     if (!input.beforePublish || !existsSync(stagingDirectory)) {
       rmSync(stagingDirectory, { recursive: true, force: true });
     }
@@ -278,11 +271,8 @@ export function verifyCapabilitySnapshot(
 }
 
 /**
- * Read a verified snapshot's frozen behavioral tests, or `undefined` when that version was
- * built tier-off and therefore carries no test artifact at all. The snapshot
- * has already been verified against its manifest digests by the time this runs, so the
- * bytes are known-unmodified; parsing is still strict, because a shape the current platform
- * cannot admit must fail closed rather than silently carry stale intent forward.
+ * Read a verified snapshot's frozen tests, or `undefined` for a tier-off version. The bytes are
+ * known-unmodified, but parsing stays strict: an unadmittable shape must fail closed.
  */
 export function readFrozenBehavioralTests(
   verified: VerifiedCapabilitySnapshot,
@@ -315,9 +305,8 @@ function readCapabilitySpec(directory: string): CapabilitySpec {
       `Invalid spec.json: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  // A published snapshot is immutable, so an older `spec.json` is read forward rather than
-  // rewritten: a form-intent collection added after it was written canonicalizes to empty,
-  // which leaves its bytes — and therefore its content digest — untouched.
+  // A published snapshot is immutable, so an older `spec.json` is read forward: a collection
+  // added after it was written canonicalizes to empty, leaving its content digest untouched.
   const parsed = capabilitySpecSchema.safeParse(canonicalizeStoredCapabilityShape(value));
   if (!parsed.success) {
     throw new SnapshotVerificationError(`Invalid spec.json: ${parsed.error.message}`);
@@ -498,10 +487,8 @@ function writeSnapshotManifest(input: {
 }
 
 /**
- * Project the Gate's execution plan into the manifest's snake_case record. The snapshot is
- * the durable answer to "was this version's frozen intent actually re-proven against these
- * bytes, or carried on the strength of unchanged Handlers?" — a question a later reader of
- * the artifacts cannot reconstruct from the frozen tests alone.
+ * Project the Gate's execution plan into the manifest's snake_case record — the durable answer
+ * a later reader cannot reconstruct from the frozen tests alone.
  */
 function behavioralTestMetadata(
   execution: BehavioralExecutionPlan,

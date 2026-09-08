@@ -15,10 +15,8 @@ const PLATFORM_DATA_TABLES = [
   // Clearing it keeps reset genuinely corpus-free across supported local histories.
   "capability_deletion_tombstones",
   "event_log",
-  // Both halves of the Event Log store, or a reset leaves ownership rows pointing at
-  // event ids that no longer exist. Neither table exists until the implicit loop installs
-  // them (a seam fake creates them in tests only), so today both entries are no-ops that
-  // keep the reset correct the moment the implicit loop ships.
+  // Both halves of the Event Log store, or a reset leaves ownership rows pointing at deleted
+  // event ids. Neither exists outside a seam fake until the implicit loop ships: both are no-ops.
   "event_log_ownership",
 ] as const;
 

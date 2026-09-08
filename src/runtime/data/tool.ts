@@ -113,10 +113,8 @@ export interface StoredCapabilityRow {
 }
 
 /**
- * Encode one already-selected spec field for platform-owned physical fixture writes.
- * Generated Handlers never receive this helper; canonical live writes still cross the
- * capability-bound mutation port. The Gate uses it only to seed synthetic inactive
- * compatibility columns that a copied reader may legally observe.
+ * Encode one already-selected spec field for platform-owned physical fixture writes. Generated
+ * Handlers never receive it; canonical live writes still cross the capability-bound mutation port.
  */
 export function encodeCapabilityFieldForStorage(
   field: Pick<SpecField, "name" | "type" | "values">,
@@ -285,17 +283,11 @@ export function normalizeSpecFieldValues(
     throw new MissingRequiredFieldsError(capabilityId, missing, action);
   }
 
-  // The whole submission is checked against the declared options before any of it is
-  // normalized, so one refusal names every offending field at once — the same shape the
-  // missing-required refusal above has.
-  //
-  // On update this also sees the merged current values of fields the user did not submit,
-  // which is why `held` is passed alongside: a value that was legal when the row stored it
-  // stays legal for that row (`choice-values.ts`).
+  // The whole submission is checked against the declared options before any of it is normalized,
+  // so one refusal names every field. `held` keeps a stored value legal (`choice-values.ts`).
   assertAdmittedChoiceValues(capabilityId, fields, values, held, action);
-  // The declared bound, enforced on the same whole-submission footing. It runs after the
-  // choice checks so the refusals stay in one stated order, and before normalization so
-  // nothing over-length is ever encoded for storage.
+  // The declared bound, on the same whole-submission footing. After the choice checks so the
+  // refusals stay in one order, and before normalization so nothing over-length is encoded.
   assertAdmittedStringLengths(capabilityId, fields, values, action);
 
   for (const field of fields) {

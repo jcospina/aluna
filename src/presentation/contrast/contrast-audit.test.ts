@@ -29,17 +29,8 @@ function ratioOf({ foreground, background }: Pairing): number {
 }
 
 /**
- * Every declaration that puts a colour in front of a reader, or changes what one is
- * read against. That is `color`, `outline` and `opacity` everywhere, plus any fill
- * that is *derived* rather than named — a `color-mix()` is a colour that exists
- * nowhere else in the palette, so nothing else would ever measure it.
- *
- * Plain `background: var(--token)` is deliberately not a site. It is covered by the
- * token check below instead: a fill nothing is ever read against is not a pairing,
- * and enumerating all ninety of them would pad the inventory without measuring
- * anything. What that boundary cannot catch is a *new combination* of two tokens
- * already in the inventory — say `--ink-3` moved onto the desk — because which fill
- * a rule lands on is a fact about the DOM, not about the stylesheet.
+ * Every declaration that puts a colour in front of a reader: `color`, `outline` and `opacity`,
+ * plus a `color-mix()` fill, which is a colour nothing else in the palette would ever measure.
  */
 function declaredSites(): ReadonlySet<string> {
   const foregrounds = AUDITED_SHEETS.flatMap((sheet) =>
@@ -99,21 +90,13 @@ function importedSheets(): string[] {
     "design/styles/index.css",
     ...manifest("design/styles/index.css", "design/styles"),
     "public/app.css",
-    ...manifest("public/app.css", "public").map((href) =>
-      href.replace("public/css/", "public/css/"),
-    ),
+    ...manifest("public/app.css", "public"),
   ];
 }
 
 /**
- * Whether a source carries style the audit would have to read.
- *
- * Asked of the audit's own reader rather than of a substring, which is the whole point:
- * this check used to look for a literal `<style` and so agreed with the parser only by
- * coincidence. A file painting entirely through inline `style` attributes — the few-shot
- * gallery — was invisible to both, and a live AA failure sat in it while being taught to
- * the model as an approved exemplar. Now a file the parser can read is a file this
- * requires to be audited, by construction.
+ * Whether a source carries style the audit would have to read. Asked of the audit's own reader
+ * rather than of a literal `<style`, which missed the gallery's inline-only exemplars entirely.
  */
 function carriesAStylesheet(path: string, name: string): boolean {
   if (!/\.(?:html|ts)$/.test(name) || name.endsWith(".test.ts")) return false;
@@ -139,9 +122,8 @@ function sheetsOnDisk(): string[] {
 }
 
 /**
- * Every declaration a pairing claims, paired with the rows claiming it. An `exempt`
- * row measures nothing, so there is no colour to bind it to — the token check still
- * requires whatever it paints to be in the palette.
+ * Every declaration a pairing claims, paired with the rows claiming it. An `exempt` row measures
+ * nothing, so no colour binds to it; the token check still requires what it paints in the palette.
  */
 function boundSites(): [Declaration, Pairing[]][] {
   const claimed = new Map<string, Pairing[]>();
@@ -173,9 +155,8 @@ function measuredBackgrounds(): ReadonlySet<string> {
 
 describe("the contrast audit", () => {
   test("audits every stylesheet the product actually loads", () => {
-    // The list is written out because it is also documentation, but nothing may be
-    // missing from it: a sheet the manifests import, a file that appears beside the
-    // ones they import, or a page that carries its own `<style>`, all have to be here.
+    // The list is written out because it is also documentation, but nothing may be missing from
+    // it: an imported sheet, a file beside one of those, or a page carrying its own `<style>`.
     const audited = new Set(AUDITED_SHEETS);
     const manifests = new Set(["design/styles/index.css", "public/app.css"]);
     const required = [
@@ -221,12 +202,13 @@ describe("the contrast audit", () => {
 });
 
 /*
- * The second half of the audit: not whether the pairings pass, but whether they are
- * all of them. A number that is true of a colour nothing paints any more is worse
- * than no number, so every one of these asks the stylesheets rather than the table.
+ * The second half of the audit: not whether the pairings pass, but whether they are all of them.
+ * A number true of a colour nothing paints is worse than none, so these ask the stylesheets.
  */
 describe("the audit's reach", () => {
   test("the inventory is exhaustive: every declaration is claimed by a pairing", () => {
+    // A plain `background: var(--token)` is not a site; the token check below covers it. What
+    // neither catches is a new pairing of two tokens already known, which is a DOM fact.
     const claimed = new Set(PAIRINGS.flatMap((pairing) => pairing.sites));
     const declared = declaredSites();
 
@@ -277,8 +259,7 @@ describe("the audit's reach", () => {
 
   test("a pairing names the colour the declaration it claims actually paints", () => {
     // Without this the inventory pins selectors rather than colours: recolour a claimed
-    // declaration and the site is still claimed, still measured, and now measuring a
-    // colour the page does not paint.
+    // declaration and the site is still measured, now against a colour the page does not paint.
     for (const [rule, rows] of boundSites()) {
       const named = new Set(
         rows.flatMap((row) => [...tokensIn(row.foreground), ...tokensIn(row.background)]),
@@ -308,11 +289,8 @@ describe("the audit's reach", () => {
   });
 
   test("the fills a script paints are the ones the inventory measures against", () => {
-    // The window's own surface and its five title-bar panes are painted as SVG `fill`
-    // attributes by `window-frame.js`, not by any stylesheet — so eighteen rows measure
-    // against a background no audited sheet declares. Change `SURFACE` there and none
-    // of them would notice. The script names tokens rather than values, and this is
-    // what holds it to the ones the inventory knows.
+    // `window-frame.js` paints the window surface and its five title-bar panes as SVG `fill`
+    // attributes, so eighteen rows measure against a background no audited sheet declares.
     const painted = readFileSync(join(ROOT, "design/scripts/window-frame.js"), "utf8");
     const named = [...painted.matchAll(/var\(--([a-z0-9-]+)\)/g)].map(
       ([, token]) => token as string,

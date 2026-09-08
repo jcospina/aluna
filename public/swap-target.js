@@ -1,23 +1,14 @@
 // @ts-check
 
 /**
- * Every swap target fails loudly.
- *
- * ADR-0002's transport contract is untouched: `commit` and `fragment` keep addressing a
- * stable named target, and the server still knows nothing about whether a region is on
- * screen. The obligation sits here — **the client guarantees the named target exists
- * whenever a swap can be in flight** — and the content region's release rule
- * (`region-scope.js`) keeps most of that promise by cancelling what a departing region
- * started, so nothing can normally arrive at a region that has gone.
- *
- * This is the residual case, made audible instead of assumed away. htmx's SSE extension
- * drops a message whose listener node has left the document, and it drops it in silence:
- * the listener is unregistered and nothing is said. A swap that lands nowhere is
- * indistinguishable from a build that produced nothing — which is the one outcome that is
- * not allowed. Here the same moment raises.
+ * Every swap target fails loudly: ADR-0002 leaves the server blind to whether a region is on
+ * screen, so the client owes the named target. `region-scope.js` keeps most of that promise.
  */
 
-/** The two events whose target the client is on the hook for (ADR-0002). */
+/**
+ * The two events whose target the client is on the hook for (ADR-0002). htmx's SSE extension
+ * drops a message whose listener has left the document, and says nothing; this raises instead.
+ */
 export const GUARDED_SWAP_EVENTS = Object.freeze(["commit", "fragment"]);
 
 /** What a raised swap-target failure announces itself with before it throws. */
@@ -27,9 +18,8 @@ export const MISSING_SWAP_TARGET_EVENT = "aluna:missing-swap-target";
 const SWAP_LISTENER_SELECTOR = "[sse-swap], [data-sse-swap]";
 
 /**
- * The DOM facts a swap target has to answer for, and nothing else. Structural on purpose,
- * the way the release scope's anchor is: a real `Element` satisfies it and so does a test
- * double, which is what lets the rule run in Bun without a browser.
+ * The DOM facts a swap target has to answer for, and nothing else. Structural on purpose, so a
+ * test double satisfies it as well as an `Element` and the rule runs in Bun without a browser.
  *
  * @typedef {{
  *   readonly isConnected: boolean,
@@ -38,9 +28,8 @@ const SWAP_LISTENER_SELECTOR = "[sse-swap], [data-sse-swap]";
  */
 
 /**
- * The connection a named event arrives on — the element carrying `sse-connect`. It can
- * carry `sse-swap` itself as well as holding listeners under it, which is a shape htmx
- * supports and the window is likely to use once page assembly collapses to one anchor.
+ * The connection a named event arrives on — the element carrying `sse-connect`. It can carry
+ * `sse-swap` itself as well as hold listeners under it, a shape htmx supports.
  *
  * @typedef {SwapTarget & {
  *   querySelectorAll(selector: string): Iterable<SwapTarget>,
@@ -70,13 +59,8 @@ export class MissingSwapTargetError extends Error {
 }
 
 /**
- * Every listener node a named event swaps through: the connection itself when it carries
- * `sse-swap`, and every descendant that does. All of them, because htmx registers all of
- * them — a guard that checked only the first would leave the rest silent.
- *
- * `sse-swap` takes a comma-separated list, so the name is matched the way the extension
- * itself splits it rather than by string containment: `commit` must never be answered by
- * the developer panel's `commit-preview`.
+ * Every listener node a named event swaps through: the connection when it carries `sse-swap`,
+ * and every descendant that does — htmx registers all of them, so a guard on the first is deaf.
  *
  * @param {SwapConnection} connection
  * @param {string} eventName
@@ -84,6 +68,8 @@ export class MissingSwapTargetError extends Error {
  */
 export function findSwapListeners(connection, eventName) {
   const candidates = [connection, ...connection.querySelectorAll(SWAP_LISTENER_SELECTOR)];
+  // `sse-swap` is a comma-separated list, split the way the extension splits it: `commit` must
+  // never be answered by the developer panel's `commit-preview`.
   return candidates.filter((node) => {
     const attribute = node.getAttribute("sse-swap") ?? node.getAttribute("data-sse-swap") ?? "";
     return attribute.split(",").some((name) => name.trim() === eventName);
@@ -121,11 +107,8 @@ function announceMissingSwapTarget(error) {
 }
 
 /**
- * Guard one open connection: every `commit` and `fragment` that arrives must find where
- * it lands. The check reads the DOM and swaps nothing, so it holds the same answer
- * whether it runs before or after htmx's own listener on the same source — which matters,
- * because the extension fires `htmx:sseOpen` *before* re-registering its listeners on a
- * reconnect and after registering them on a first connect.
+ * Guard one open connection. The check swaps nothing, so order against htmx's own listener does
+ * not matter: `htmx:sseOpen` fires after registering on a first connect and before on a reconnect.
  *
  * @param {SwapConnection} connection
  * @param {{ addEventListener(type: string, listener: () => void): void }} source
@@ -145,6 +128,8 @@ export function guardSwapTargets(connection, source, resolveTarget) {
 }
 
 /**
+ * Reimplementing this would mean `hx-target`'s inheritance and htmx's extended selectors
+ * (`closest`, `find`, `next`, `previous`, `this`), and any drift is a false alarm or a silence.
  * @typedef {{ getTarget(listener: Element): Element | null | undefined }} HtmxInternalApi
  */
 
@@ -152,14 +137,8 @@ export function guardSwapTargets(connection, source, resolveTarget) {
 let borrowedApi = null;
 
 /**
- * htmx's own `getTarget`, borrowed rather than reimplemented. Defining an extension is
- * how htmx hands out its internal API — the SSE extension holds the same object — so the
- * guard asks the exact function that decides where a swap lands.
- *
- * Reimplementing it would mean reimplementing `hx-target`'s inheritance from ancestors
- * and htmx's extended selector syntax (`closest`, `find`, `next`, `previous`, `this`, …),
- * and every drift between the two shows up as one of only two things: an alarm on a
- * healthy swap, or silence on a broken one. Both are worse than not guarding at all.
+ * htmx's own `getTarget`, borrowed rather than reimplemented. Defining an extension is how htmx
+ * hands out its internal API — the SSE extension holds the same object.
  *
  * @returns {SwapTargetResolver}
  */
@@ -176,9 +155,8 @@ export function htmxSwapTargetResolver() {
 
   const api = borrowedApi;
   if (api === null) {
-    // The guard cannot agree with htmx about where a swap lands without asking it. Saying
-    // so is the one honest option; degrading to a guess is the failure mode this file
-    // exists to prevent.
+    // The guard cannot agree with htmx about where a swap lands without asking it; degrading
+    // to a guess is the failure mode this file exists to prevent.
     throw new Error("The swap-target guard could not borrow htmx's target resolution.");
   }
 
@@ -186,10 +164,8 @@ export function htmxSwapTargetResolver() {
 }
 
 /**
- * Start guarding every SSE connection the shell opens. Called once from module
- * evaluation, the way the release scope is started from its own. The resolver is borrowed
- * per connection rather than at startup, so this never depends on whether htmx has
- * finished loading by the time this module runs.
+ * Start guarding every SSE connection the shell opens. The resolver is borrowed per connection
+ * rather than at startup, so this never depends on htmx having finished loading.
  *
  * @param {Document} root
  * @param {() => SwapTargetResolver} borrowResolver

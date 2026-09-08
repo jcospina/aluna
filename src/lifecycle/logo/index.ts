@@ -1,7 +1,7 @@
 // The capability logo: one claimed generation per incarnation, stored beside the
 // immutable version snapshots and served as a picture.
 //
-// [ADR-0007](../../docs/adr/0007-capability-logo-contract.md) owns the contract;
+// [ADR-0007](../../../docs/adr/0007-capability-logo-contract.md) owns the contract;
 // `design/logo.html` owns the art. This module owns the delivery half: the request, the
 // provider client, the atomic install, the claimed attempt, and the two routes a tile
 // talks to.

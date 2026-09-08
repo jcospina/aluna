@@ -37,10 +37,8 @@ export function capabilityOf(
 }
 
 /**
- * The fragment the router really answers with, taken off the real response builder.
- *
- * `c.header` is the retarget the shell already honours and says nothing about this module;
- * `c.html` is the body, which is everything it reads.
+ * The fragment the router really answers with, taken off the real response builder. `c.header` is
+ * the retarget the shell honours; `c.html` is the body, which is everything this module reads.
  */
 export function refusalFrom(build: (c: Context) => Response): string {
   let body = "";

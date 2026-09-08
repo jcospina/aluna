@@ -24,10 +24,8 @@ import {
 } from "../../app.test-support.ts";
 import { createApp } from "../../app.ts";
 
-// The registry's read-side payoff: on load the logo layer rehydrates from the
-// registry — Aluna remembers you across a refresh. These run against a scratch db
-// shared with the router, so an injected (or freshly committed) capability stands on
-// the rehydrated desk and a click on its logo serves its cached view.
+// The registry's read-side payoff: on load the logo layer rehydrates from the registry. These run
+// against a scratch db shared with the router, so a committed capability stands on the desk.
 describe("GET / (logo rehydration, Epic 2.1)", () => {
   let dir: string;
   let conns: PlatformDatabase;
@@ -50,8 +48,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
     const html = await responseText(await app.request("/"));
 
     // No logos, and nothing gating the page: an empty desk needs no gate, so the
-    // `has-capabilities` state the rail was hidden behind is gone from the whole page —
-    // the Alpine binding included. The prompt bar is intact.
+    // `has-capabilities` state the rail hid behind is gone, Alpine binding included.
     expect(html).not.toContain("data-capability-logo");
     expect(html).not.toContain("has-capabilities");
     expect(html).toContain('class="shell"');
@@ -108,10 +105,8 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
 
     const html = await responseText(await app.request("/"));
 
-    // Seeded onto the page for the developer panel to pick up when it opens. The
-    // panel is a window now and may not be standing, so the payload rides the page
-    // rather than being written into a <pre> the shell no longer has. Compact here
-    // and indented where it is shown: the panel formats every stage the same way.
+    // Seeded onto the page for the developer panel to pick up when it opens: the panel is a window
+    // now and may not be standing. Compact here and indented where shown, by the panel.
     expect(html).toContain('id="dev-stage-seed"');
     expect(html).toContain("build-interrupted-preview");
     expect(html).toContain("&quot;lifecycleStatus&quot;:&quot;interrupted&quot;");

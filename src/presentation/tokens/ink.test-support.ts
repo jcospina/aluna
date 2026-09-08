@@ -167,18 +167,14 @@ export function installFakeDom(): FakeDom {
       createElementNS: () => new FakeSVGElement("svg"),
       querySelectorAll: (selector: string) => body.querySelectorAll(selector),
       /*
-       * Browser modules elsewhere in this repo install themselves behind a
-       * `typeof document !== "undefined"` guard. Bun has no `document`, so they stay
-       * dormant — until this fake answers that question for them. These two are what
-       * they reach for on the way in.
+       * Browser modules elsewhere install themselves behind a `typeof document !== "undefined"`
+       * guard. Bun has no `document`, so they stay dormant until this fake answers for them.
        */
       addEventListener: () => {},
       removeEventListener: () => {},
     },
-    // A detached element has no computed style at all: the browser answers every
-    // property with the empty string, `position` included. That is not a detail — a
-    // guard reading `=== "static"` silently declines on it — so the fake answers the
-    // way a browser does rather than the way it is convenient to.
+    // A detached element has no computed style: the browser answers every property with the
+    // empty string, `position` included, so a guard reading `=== "static"` silently declines.
     getComputedStyle: (el: FakeElement) => ({
       getPropertyValue: (name: string) => (el.isConnected ? (el.properties[name] ?? "") : ""),
       borderLeftWidth: el.isConnected ? `${el.borderWidth}px` : "",

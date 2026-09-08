@@ -80,9 +80,8 @@ describe("it is the second window, and there is no third", () => {
     expect(capability.marks.focused).toBe(true);
     expect(capability.marks.z).toBe(FRONT_Z);
 
-    // Opening the panel puts it in front — the thing you just asked for is the thing
-    // you are looking at — and the capability window steps back one slot. Not down a
-    // counter: there are two slots and that is the whole of it.
+    // Opening the panel puts it in front and the capability window steps back one slot. Not down
+    // a counter: there are two slots and that is the whole of it.
     joinStack(panel);
     expect(panel.marks.z).toBe(FRONT_Z);
     expect(capability.marks.z).toBe(BACK_Z);
@@ -103,11 +102,8 @@ describe("it is the second window, and there is no third", () => {
   });
 
   test("a window that is already up still comes forward when it is asked for", () => {
-    // The press that opens nothing is still a press on the logo of the thing you want
-    // to look at. Without this the capability standing behind the panel had no way
-    // back — and below the breakpoint, where only the frontmost window is in the page
-    // at all, no way back on screen. Same for a build: it narrates into the window it
-    // finds, so that window has to be the one in front.
+    // The press that opens nothing is still a press on the logo of the thing you want to look at,
+    // and below the breakpoint only the frontmost window is in the page at all.
     expect(WINDOW).toMatch(
       /if \(pressWouldOpen\([\s\S]{0,340}\n\s*if \(mounted\) raise\(mounted\);/,
     );
@@ -120,9 +116,8 @@ describe("it is the second window, and there is no third", () => {
   });
 
   test("the address wins on load; a restored panel stands behind it", () => {
-    // Nobody asked for the panel on this visit — a remembered preference did. The URL
-    // asked for the capability, so that is what is in front. A lone restored panel is
-    // still raised, because a window behind nothing is a blank desk on a phone.
+    // Nobody asked for the panel on this visit, a remembered preference did, so the URL's
+    // capability is in front. A lone restored panel is still raised: a phone shows one window.
     expect(PANEL).toMatch(/openPanel\(root, root\.querySelector\(DEV_TILE_SELECTOR\), false\)/);
     expect(STACK).toMatch(
       /if \(front \|\| standing\.size === 1\) raise\(member\);\s*else lower\(member\)/,
@@ -168,10 +163,8 @@ describe("the tile is the way in, and it is not a capability", () => {
   });
 
   test("both surfaces draw the same mark, and it is a drawing rather than type", () => {
-    // The handbook builds the tile in script and the shell ships it as static markup,
-    // so the mark exists twice and has already been edited by hand more than once.
-    // A drifted pair is a developer checking the product against a tile that is not
-    // the product's.
+    // The handbook builds the tile in script and the shell ships it as static markup, so the mark
+    // exists twice and a drifted pair checks the product against a tile that is not its.
     const marks = read("design/scripts/desk-logo.js");
     const paths = [...marks.matchAll(/"(M[\d\s.LH]+)"/g)].map((match) => match[1]);
     expect(paths).toHaveLength(2);
@@ -216,9 +209,8 @@ describe("read-only means read-only", () => {
   });
 
   test("the panel is never in the address", () => {
-    // `/capability/:id` names a capability and nothing else (design D14). The panel is
-    // furniture, so it has no address to be in — and unlike the capability window's
-    // clay lamp, closing it pushes nothing.
+    // `/capability/:id` names a capability and nothing else (design D14). The panel is furniture,
+    // so it has no address to be in and closing it pushes nothing.
     for (const address of ["pushState", "replaceState", "location", "history"]) {
       expect(PANEL, `the panel writes \`${address}\``).not.toContain(address);
     }
@@ -226,9 +218,8 @@ describe("read-only means read-only", () => {
   });
 
   test("the panel carries no controls, only readouts", () => {
-    // Two windows is not a layout worth managing, so there is nothing here to press:
-    // the panel is eight readouts and the frame's own two lamps. Anything that turned
-    // up in here would be a control hidden behind a developer surface.
+    // Two windows is not a layout worth managing, so there is nothing here to press: the panel is
+    // eight readouts and the frame's two lamps. Anything else is a control hidden behind it.
     expect(PANEL).not.toContain('createElement("button")');
     expect(PANEL).not.toContain("btn--");
   });
@@ -246,22 +237,19 @@ describe("the second presentation record, and the last", () => {
   test("carries one box, the maximised flag, and whether it was open", () => {
     expect(DEV_STORAGE_KEY).toBe("aluna.desk.dev.v1");
     expect(DEV_STORAGE_KEY).not.toBe(WINDOW_STORAGE_KEY);
-    // The extra flag is the one thing only this window has. The box beside it is the
-    // *normal* one — `presentationOf` reads `restore ?? box` — so a maximised size is
-    // never written here either.
+    // The extra flag is the one thing only this window has. The box beside it is the normal one
+    // (`presentationOf` reads `restore ?? box`), so a maximised size is never written here.
     expect(PANEL).toMatch(
       /savePresentation\(mounted, phone, localStore\(\), DEV_STORAGE_KEY, \{\s*open: true/,
     );
-    // And the flag alone is written through its own path, which preserves whatever box
-    // is down — including none at all, which is what a panel opened but never moved
-    // leaves behind.
+    // And the flag alone is written through its own path, which preserves whatever box is down,
+    // including none at all — what a panel opened but never moved leaves behind.
     expect(PANEL).toMatch(/box \? \{ \.\.\.box, max: stored\?\.max === true, open \} : \{ open \}/);
   });
 
   test("a bad record still opens the panel, and a bad flag still opens the desk", () => {
-    // A presentation preference is the shell's to keep and never the shell's to depend
-    // on. The flag is read on its own so a record whose box is nonsense still says
-    // whether the panel was standing.
+    // A presentation preference is the shell's to keep and never to depend on. The flag is read
+    // on its own, so a record whose box is nonsense still says whether the panel was standing.
     const store = (raw: string | null) => ({ getItem: () => raw, setItem: () => {} });
     expect(storedOpenFlag(store("{"))).toBe(false);
     expect(storedOpenFlag(store("null"))).toBe(false);
@@ -280,14 +268,8 @@ describe("the second presentation record, and the last", () => {
   });
 
   test("opening the panel authors no box, and putting it away is heard on a phone", () => {
-    // Two failures that live in the same place. Writing the full record at mount
-    // persisted a box the user never chose — and on a cold load, where the desk still
-    // measures zero, persisted `MIN_SIZE` in the corner as the box this panel opens
-    // on for good. And routing the flag through `savePresentation` meant its phone
-    // guard swallowed it: a panel put away on a phone came back on every phone load
-    // with nothing the user could do about it. The flag is written on its own now,
-    // the box is left exactly as it was found, and the box itself is only ever
-    // written where `fitBox` says there were edges to fit to.
+    // Two failures in one place: writing the full record at mount persisted `MIN_SIZE` in the
+    // corner on a cold load, and `savePresentation`'s phone guard swallowed the flag.
     expect(PANEL).toMatch(/rememberOpen\(true\)/);
     expect(PANEL).toMatch(/rememberOpen\(false\)/);
     expect(PANEL).toMatch(/function remember\(\) \{\s*if \(!mounted\?\.sized\) return;/);
@@ -301,9 +283,8 @@ describe("the second presentation record, and the last", () => {
   });
 
   test("the panel writes its own key and never the capability window's", () => {
-    // `syncForm` in `desk-window.js` binds gestures whose finished drag is remembered
-    // under the capability window's key. A panel that reused it would quietly write its
-    // box into the other window's record and strand both, so it keeps its own.
+    // `syncForm` in `desk-window.js` binds gestures whose finished drag is remembered under the
+    // capability window's key, so a panel reusing it would strand both records.
     expect(PANEL).toContain("export function syncDevForm(");
     expect(PANEL).not.toMatch(/\bsyncForm\(/);
     expect(PANEL).not.toContain("WINDOW_STORAGE_KEY");
@@ -344,9 +325,8 @@ describe("the seam a classic script reaches the panel across", () => {
   });
 
   test("every preview listener names a stage the panel actually builds", () => {
-    // The listeners used to name a `<pre>` in the shell. There is no such element now —
-    // the panel is a window that may not be standing — so what a listener names has to
-    // be one of the eight, or its payload lands nowhere at all.
+    // The listeners used to name a `<pre>` in the shell. There is no such element now, so what a
+    // listener names has to be one of the eight or its payload lands nowhere.
     const named = [...FRAGMENTS.matchAll(/\["[a-z-]+-preview", "([a-z-]+)"\]/g)].map(
       (match) => match[1] ?? "",
     );
@@ -354,35 +334,30 @@ describe("the seam a classic script reaches the panel across", () => {
     const keys = new Set(DEV_STAGES.map((stage) => stage.key));
     for (const stage of named) expect(keys.has(stage)).toBe(true);
     expect(FRAGMENTS).not.toContain("data-preview-target");
-    // The terminal error files under `commit`, not under the Gate whose verdict
-    // already arrived — filing it there overwrote the verdict with the error that
-    // followed it, and captioned the Gate block as something it no longer held.
+    // The terminal error files under `commit`, not under the Gate whose verdict already arrived:
+    // filing it there overwrote that verdict with the error that followed it.
     expect(FRAGMENTS).toContain('["build-error-preview", "commit"]');
   });
 
   test("only an admitted build empties the panel", () => {
-    // The clear used to ride an out-of-band swap inside the subscriber fragment, so
-    // it landed only when the server returned one. Moved to the request it would fire
-    // on every refusal — a blank prompt, a queued sibling, a 500 — wiping the
-    // lifecycle history the page seeded, which nothing restores until a reload.
+    // The clear used to ride an out-of-band swap inside the subscriber fragment. Moved to the
+    // request it would fire on every refusal, wiping lifecycle history nothing restores.
     expect(GLUE).toMatch(/htmx:afterSwap[\s\S]{0,600}STAGES_CLEARED_EVENT/);
     expect(GLUE).toContain("jobId === clearedForJob");
     expect(GLUE).not.toMatch(/htmx:beforeRequest[\s\S]{0,200}STAGES_CLEARED_EVENT/);
   });
 
   test("the tile stands last however the logos arrive", () => {
-    // Every logo that arrives after first paint is appended to the end of the layer
-    // out of band (`hx-swap-oob="beforeend:#capability-logos"`), which left the
-    // developer tile stranded mid-grid until the next reload put it back.
+    // Every logo arriving after first paint is appended to the end of the layer out of band,
+    // which left the developer tile stranded mid-grid until the next reload.
     expect(DESK_CSS).toMatch(/\.logo--dev \{\s*order: 1;/);
     expect(FRAGMENTS).toContain('CAPABILITY_LOGO_LAYER_TARGET = "#capability-logos"');
     expect(FRAGMENTS).toMatch(/beforeend:\$\{CAPABILITY_LOGO_LAYER_TARGET\}/);
   });
 
   test("the one stage the server already knows rides the page", () => {
-    // Lifecycle metrics and committed versions are what the platform has already done,
-    // not what a stream will say — so they are seeded onto the page and filed when the
-    // panel starts, which is what makes the version history survive a refresh.
+    // Lifecycle metrics and committed versions are what the platform has already done, so they
+    // are seeded onto the page and filed at start, which is what survives a refresh.
     expect(DEV_SEED_SELECTOR).toBe("[data-dev-stage-seed]");
     expect(SHELL).toContain('data-dev-stage-seed="metrics"');
     expect(read("src/server/http/cached-view.ts")).toContain('data-dev-stage-seed="metrics"');

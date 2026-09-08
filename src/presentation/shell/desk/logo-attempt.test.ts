@@ -8,18 +8,8 @@ import {
   renderCapabilityLogo,
 } from "../../../server/http/fragments.ts";
 
-// The rule under test is "only a fresh desk render or a newly activated tile may arm one
-// attempt" (ADR-0007). The server holds most of it; this holds the one arming source the
-// server cannot reach — htmx's history cache replaying a snapshot taken mid-attempt.
-//
-// What these cases establish, and what they do not: they pin *this module's* rule — which
-// elements it disarms, which it leaves alone, and that the request beginning is the
-// moment it acts. They do not exercise htmx. That the vendored bundle dispatches
-// `htmx:beforeRequest` on the issuing element with `bubbles: true`, that its history
-// snapshot is the live DOM taken at swap time, and that a restore re-processes the
-// snapshot and re-fires `hx-trigger="load"`, were each read out of
-// `public/vendor/htmx.min.js` when this was written. A DOM-free test cannot check that;
-// the live desk is where it is confirmed.
+// Only a fresh desk render or a newly activated tile may arm one attempt (ADR-0007). This holds
+// the arming source the server cannot reach: htmx replaying a snapshot taken mid-attempt.
 
 /** Just enough of an element: read an attribute, remove one, receive an event. */
 class Node {

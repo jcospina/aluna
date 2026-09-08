@@ -104,13 +104,8 @@ describe("what the item renderer is told about a choice", () => {
 });
 
 /*
- * What a generated unit is *not* told, which is what lets the Diff matrix copy it.
- *
- * Every one of these is a fact the matrix maps to platform work alone. A unit copied
- * byte-for-byte across such a change is only sound if the change could not have reached
- * the prompt the unit was written from — so the projections are pinned here, from the one
- * side that can prove it: two specs differing only in that fact must produce the same
- * prompt, byte for byte.
+ * What a generated unit is *not* told, which is what lets the Diff matrix copy it: two specs
+ * differing only in a platform-work fact must produce the same prompt, byte for byte.
  */
 describe("the option facts a generated unit never sees", () => {
   const GROUPED = [

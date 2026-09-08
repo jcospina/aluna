@@ -61,9 +61,8 @@ describe("dual sqlite connections", () => {
   });
 
   test("exposes shared rw + ro access points with the read path still read-only", () => {
-    // Deliberately no assertion on DB_PATH's value or on the file existing: both
-    // resolve against the process cwd, so they described the developer's real
-    // database rather than anything this test set up.
+    // No assertion on DB_PATH's value or on the file existing: both resolve against the process
+    // cwd, so they described the developer's real database rather than anything this test set up.
     expect(db.query("SELECT 1 AS n").get()).toEqual({ n: 1 });
     expect(dbReadonly.query("SELECT 1 AS n").get()).toEqual({ n: 1 });
     expect(() => dbReadonly.exec("CREATE TABLE shared_write_check (id INTEGER)")).toThrow(

@@ -1,7 +1,7 @@
 // The ephemeral whole-catalog read path: the worker SQL runs in, the scope that owns the
 // catalog for the length of one question, the one tool a question is offered, the size cap
-// that refuses a result too large to send back, and the bounded loop that repeats a turn
-// until the model answers or its ten reads are spent.
+// that refuses a result too large to send back, the bounded loop that repeats a turn until the
+// model answers or its ten reads are spent, and the sentences Aluna says while it runs.
 
 export {
   createQueryWorker,
@@ -15,14 +15,18 @@ export {
   type QueryWorkerValue,
 } from "./query-worker.ts";
 export {
-  QUESTION_BUDGET_SPENT_SENTENCE,
   QUESTION_STEP_BUDGET,
   type QuestionEnding,
   type QuestionLoopInput,
   type QuestionLoopResult,
-  questionEndingNarration,
   runQuestionLoop,
 } from "./question-loop.ts";
+export {
+  QUESTION_BUDGET_SPENT_SENTENCE,
+  questionEndingNarration,
+  questionLabelNarration,
+  questionStepNarration,
+} from "./question-narration.ts";
 export {
   QUESTION_PAYLOAD_BUDGET_SPENT,
   QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
@@ -35,8 +39,11 @@ export {
   questionStatementRefusal,
   renderQuestionRows,
 } from "./question-payload.ts";
+// `QUESTION_STEP_LABEL_HINTS` is deliberately not re-exported: it is what the *model* is told
+// a label means, and this barrel is what `src/server/` reaches for.
 export {
   QUESTION_DECISIONS,
+  QUESTION_STEP_LABELS,
   QUESTION_TOOLS,
   type QuestionDecision,
   type QuestionNextStep,

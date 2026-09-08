@@ -88,10 +88,8 @@ test("abort also stops a usage wait after the provider object has resolved", asy
 });
 
 test("a non-Error abort reason still rejects as a named provider abort", async () => {
-  // The two cases above abort with no reason, so `signal.reason` is a DOMException
-  // and the wrapper simply forwards it. A caller that aborts with a plain value
-  // takes the other branch, which must still produce a typed platform error rather
-  // than rejecting with a bare string.
+  // The cases above abort with no reason, so `signal.reason` is a DOMException the wrapper
+  // forwards. A plain-value abort takes the other branch and must still be a typed platform error.
   const controller = new AbortController();
   const result = abortableProvider(neverSettlingProvider(), controller.signal).generate(
     "wait forever",

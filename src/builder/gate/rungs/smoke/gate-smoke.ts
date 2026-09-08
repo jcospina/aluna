@@ -40,9 +40,8 @@ import {
 } from "./gate-smoke-search.ts";
 
 /**
- * Run the unchanged fixture, repairing only the Handler to which a failure is
- * attributed. Attempt one checks the supplied snapshot; each later attempt uses one
- * provider regeneration and reruns the entire fixture from a fresh scratch database.
+ * Run the unchanged fixture, repairing only the Handler a failure is attributed to. Attempt one
+ * checks the supplied snapshot; later ones regenerate once and rerun from a fresh scratch db.
  */
 export async function runSmokeRung(input: CapabilityGateInput): Promise<SmokeRungRun> {
   return runSmokeRepairLoop(input, (handlers) => executeSmokeSnapshot({ ...input, handlers }));

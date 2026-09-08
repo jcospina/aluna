@@ -4,8 +4,8 @@
 // to agree on them**: the installer writes them, and `artifact-reconciliation.ts` — which
 // enumerates the incarnation directory at boot and at the head of every build — has to
 // recognize them as legitimate rather than as unknown state. Holding the strings in one
-// place is the whole point: when they were spelled twice, reconciliation did not know
-// about the logo and a capability that grew a face made the platform unbootable.
+// place is what keeps them agreeing: when they were spelled twice, reconciliation did not
+// know about the logo, and a capability that grew a face made the platform unbootable.
 
 /** The accepted artwork, at the incarnation root beside the immutable `vN/` directories. */
 export const CAPABILITY_LOGO_FILENAME = "logo.svg";

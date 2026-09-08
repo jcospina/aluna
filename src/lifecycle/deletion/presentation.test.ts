@@ -67,10 +67,8 @@ describe("capability-deletion presentation", () => {
     expect(html).not.toContain("Aluna will");
   });
 
-  // Two rules, and the outer one is why this reads as it does. A stored label that is not
-  // a name is not shown at all — the name validator refuses markup shapes now, and
-  // `canonicalCapabilityLabel` falls back rather than printing one. Escaping is still what
-  // makes the sink safe, and is checked below on a name that *is* one.
+  // A stored label that is not a name is never shown: the validator refuses markup shapes, and
+  // `canonicalCapabilityLabel` falls back. Escaping still guards the sink; checked below.
   test("a label that is not a name is not rendered, escaped or otherwise", () => {
     const target = notesRow({ label: '<img src=x onerror="alert(1)">' });
     const dependent = { ...boomRow(), label: "<script>alert(2)</script>" };
@@ -108,9 +106,8 @@ describe("capability-deletion presentation", () => {
     expect(html).toContain('data-capability-deletion-confirm="/capability-deletion/notes"');
   });
 
-  // The client marks its recheck so the answer can tell "you never deleted this" from
-  // "your Confirm may be exactly why it is gone". Saying the first when the second is true
-  // tells somebody their destructive action did nothing when it may have done everything.
+  // The client marks its recheck so the answer can tell "you never deleted this" from "your
+  // Confirm may be why it is gone". Saying the first when the second holds denies a real deletion.
   test("the recheck's own answer says what is true of a Confirm that may have landed", () => {
     const recovered = renderCapabilityDeletionAlreadyGone("notes", "", "after-confirm");
     const pressed = renderCapabilityDeletionAlreadyGone("notes", "", "never-asked");
@@ -145,10 +142,8 @@ describe("capability-deletion presentation", () => {
     expect(html).not.toContain("capability-deletion__actions");
   });
 
-  // The already-gone branch is reached with a raw URL segment: no registry row proved it,
-  // because there is no row. `escapeHtml` stops an attribute breakout and says nothing
-  // about selector *shape* — `notes, body` is a well-formed attribute value and a
-  // two-element selector, and htmx would delete `<body>` along with the tile.
+  // The already-gone branch takes a raw URL segment that no registry row proved. `escapeHtml` stops
+  // a breakout, not selector *shape*: `notes, body` is well formed, and htmx deletes `<body>` too.
   test("an id that is not a capability id names no element to delete", () => {
     for (const hostile of ["notes, body", "notes\\, body", "Notes", "", "*", "notes:not(x)"]) {
       const html = renderCapabilityDeletionAlreadyGone(hostile);

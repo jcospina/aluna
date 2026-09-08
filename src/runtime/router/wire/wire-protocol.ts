@@ -19,9 +19,9 @@ export class WireProtocolError extends Error {
 }
 
 /**
- * Parse and validate the closed capability HTTP protocol before generated code
- * loads. This function deliberately supports the full five-Action vocabulary so
- * mutation authority can bind the already-validated record target without re-parsing raw HTTP.
+ * Parse and validate the closed capability HTTP protocol before generated code loads. It supports
+ * the full five-Action vocabulary so mutation authority can bind the record target without
+ * re-parsing raw HTTP.
  */
 export async function parseCapabilityRequest(
   request: Request,

@@ -85,9 +85,8 @@ describe("intent resolver active catalog", () => {
   });
 
   test("fingerprints ignore the logo lifecycle, which moves out of band", () => {
-    // A desk load claiming an attempt, or artwork landing, must never make an
-    // unrelated in-flight build look classified-against-stale-state. What the
-    // resolver reads is semantic registry content; whether a picture arrived is not.
+    // A desk load claiming an attempt, or artwork landing, must never make an unrelated in-flight
+    // build look stale: the resolver reads semantic content, not whether a picture arrived.
     const row = notesCapabilityRow();
     const claimed = { ...row, logo: { status: "generating" as const, attempts: 1 } };
     const arrived = { ...row, logo: { status: "present" as const, attempts: 1 } };

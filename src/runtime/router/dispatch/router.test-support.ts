@@ -23,9 +23,8 @@ import {
 import type { HandlerLoader } from "./router.ts";
 
 /**
- * Each case runs against a throwaway file db so the real data file is never touched.
- * setup/teardown preserve the exact temp-dir + database lifecycle the original
- * describe's beforeEach/afterEach established, per test.
+ * Each case runs against a throwaway file db so the real data file is never touched; setup and
+ * teardown keep the per-test temp-dir and database lifecycle the original describe established.
  */
 export function setupRouterTest(): { dir: string; conns: PlatformDatabase } {
   const dir = mkdtempSync(join(tmpdir(), "omni-crud-router-"));

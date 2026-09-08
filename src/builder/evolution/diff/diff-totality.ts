@@ -6,9 +6,8 @@
 import type { CapabilitySpec, SpecField } from "../../../registry/index.ts";
 
 /**
- * The fail-closed guard: a committed→candidate difference the matrix
- * does not map. It carries the residual JSON of both sides so the shared build-error
- * preview surfaces exactly what could not be explained.
+ * The fail-closed guard: a committed→candidate difference the matrix does not map. It carries
+ * both residuals, so the build-error preview shows exactly what could not be explained.
  */
 export class UnmappedChangeFactError extends Error {
   override readonly name = "UnmappedChangeFactError";
@@ -25,10 +24,8 @@ export class UnmappedChangeFactError extends Error {
 
 // ── Totality: fail closed on the unexplained ────────────────────────────────
 
-// A control-character sentinel that stands in for every region a change fact
-// covers. Regions left un-neutralized are the immutable invariants (id, tools,
-// each committed field's name/type) plus anything a future spec adds without a
-// matrix row — those must be identical, or the difference is unmapped.
+// A control-character sentinel standing in for every region a change fact covers. What is left
+// un-neutralized — the immutable invariants, and any unmatrixed future key — must be identical.
 const RESIDUAL_SENTINEL = "\u0000diff-covered\u0000";
 
 export function assertTotalCoverage(committed: CapabilitySpec, candidate: CapabilitySpec): void {
@@ -41,12 +38,8 @@ export function assertTotalCoverage(committed: CapabilitySpec, candidate: Capabi
   }
 }
 
-// Reduce a spec to only what no change fact explains: canonicalize the whole
-// value, then blank every fact-bearing region. What survives — id, all three logo birth
-// facts (`subject`, `ground`, `companion`), tools, and the committed fields' name/type —
-// is the equality the diff cannot manufacture and must never silently ignore.
-// A new admitted top-level key survives here too, so an unextended matrix fails closed
-// rather than dropping it.
+// Reduce a spec to what no change fact explains: canonicalize, then blank every fact-bearing
+// region. A new admitted top-level key survives here, so an unextended matrix fails closed.
 function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<string>): unknown {
   const canonical = canonicalize(spec) as Record<string, unknown>;
   canonical.label = RESIDUAL_SENTINEL;
@@ -65,16 +58,9 @@ function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<st
   return canonical;
 }
 
-// Deep clone with object keys sorted; arrays keep their order (an ordered product
-// fact), primitives pass through. This is what makes object-key reordering a no-op
-// while preserving ordered facts.
 /**
- * One committed field with every fact-bearing key blanked.
- *
- * Re-canonicalized *after* the blanking, not before: a key the projection adds to a field
- * that did not carry it would otherwise land at the end of the object while the same key on
- * a field that did carry it stays in sorted position, and the two would stringify
- * differently for no difference at all.
+ * One committed field with every fact-bearing key blanked. Re-canonicalized *after* the
+ * blanking: an added key would otherwise land last, and stringify differently for no reason.
  */
 function blankedField(field: SpecField): Record<string, unknown> {
   return canonicalize({
@@ -82,21 +68,18 @@ function blankedField(field: SpecField): Record<string, unknown> {
     label: RESIDUAL_SENTINEL,
     required: RESIDUAL_SENTINEL,
     lifecycle: RESIDUAL_SENTINEL,
-    // Blanked unconditionally, unlike the two choice collections beside it: what the
-    // `max_length` fact explains includes the key *arriving* and *going away*, so a
-    // projection that only blanked a key it found would report adding or removing a limit
-    // as an unmapped difference.
+    // Blanked unconditionally, unlike the choice collections below: the `max_length` fact
+    // covers the key arriving and going away, and blanking only what is there would not.
     max_length: RESIDUAL_SENTINEL,
-    // A choice field's options are explained by the six option facts, and its group
-    // declarations by `choice_option_groups`. Both regions blank wholesale: every key
-    // inside an option — value, label, note, group, disabled — has a row, and a key added
-    // to the option shape without one would still be caught, because the fact detectors
-    // read only the keys they know and a new one would move nothing.
+    // The six option facts explain these regions, so both blank wholesale. A key added to the
+    // option shape without a row is still caught: no detector reads it, so it moves nothing.
     ...(field.values === undefined ? {} : { values: RESIDUAL_SENTINEL }),
     ...(field.groups === undefined ? {} : { groups: RESIDUAL_SENTINEL }),
   }) as Record<string, unknown>;
 }
 
+// Deep clone with object keys sorted; arrays keep their order (an ordered product fact), so
+// reordering object keys is a no-op while ordered facts still diff.
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value !== null && typeof value === "object") {

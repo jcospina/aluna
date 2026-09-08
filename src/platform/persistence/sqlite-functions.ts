@@ -84,9 +84,8 @@ type NativeBridge = {
 };
 
 /**
- * Bun's macOS SQLite is Apple's extension-disabled build. Point Bun at the
- * conventional Homebrew SQLite before the first connection is opened so the
- * platform-owned scalar function can be registered on every query connection.
+ * Bun's macOS SQLite is Apple's extension-disabled build, so point Bun at the conventional
+ * Homebrew SQLite before the first connection opens and the scalar function can register on it.
  */
 export function configureSqliteRuntime(): void {
   if (runtimeConfigured) return;
@@ -119,16 +118,30 @@ export function registerPlatformSqlFunctions(database: Database): void {
 }
 
 /**
- * Refuse to load an extension built against a different SQLite than the one
- * running. Loading it would not throw — it would corrupt a function-pointer
- * lookup and take the whole process down with an unattributable segfault, which
- * is far more expensive to diagnose than an error naming the two versions.
+ * Compile against one SQLite and load into another and `sqlite3_create_function_v2` lands on a
+ * null pointer: the process dies with "Segmentation fault at address 0x0" rather than throwing.
+ * So every way of not knowing the ABI refuses instead of skipping. Only one platform pins a
+ * library, and where nothing is pinned the headers and the library are one install.
  */
 function assertExtensionAbiMatchesRuntime(database: Database): void {
+  if (!sqliteLibraryPath) {
+    if (process.platform !== "darwin") return;
+    throw new Error(
+      "Cannot register the SQLite search extension: the pinned libsqlite3 is unnamed on this " +
+        "thread — configureSqliteRuntime() was never called here, or it threw before recording " +
+        "the path — so the ABI the extension would compile against cannot be checked.",
+    );
+  }
   const includeDirectory = resolveSqliteIncludeDirectory();
-  if (!includeDirectory) return;
-  const headerVersion = readHeaderVersion(includeDirectory);
-  if (!headerVersion) return;
+  const headerVersion = includeDirectory ? readHeaderVersion(includeDirectory) : undefined;
+  if (!headerVersion) {
+    throw new Error(
+      `SQLite ABI unknown: ${sqliteLibraryPath} is pinned, but no readable sqlite3ext.h and ` +
+        "sqlite3.h sit beside it, so the extension would compile against this platform's default " +
+        "headers and segfault whenever they disagree with the loaded library. Point " +
+        "OMNI_CRUD_SQLITE_LIBRARY at a libsqlite3 whose matching headers are installed alongside it.",
+    );
+  }
   const runtimeVersion = (
     database.query("select sqlite_version() as version").get() as { version: string }
   ).version;
@@ -162,9 +175,8 @@ function ensureNativeBridge(): NativeBridge {
   const extensionPath = compileExtension();
   const callback = new JSCallback(
     (input, length) => {
-      // SQLite may represent an empty TEXT value with a null pointer and a zero
-      // byte length. Bun's `toArrayBuffer(null, 0, 0)` returns no decodable
-      // buffer, so keep the valid empty-string case out of the FFI copy path.
+      // SQLite may represent an empty TEXT value as a null pointer with zero length, and Bun's
+      // `toArrayBuffer(null, 0, 0)` returns no decodable buffer for one.
       const value = length === 0 ? "" : new TextDecoder().decode(toArrayBuffer(input, 0, length));
       callbackOutput = Buffer.from(`${normalizeSearchText(value)}\0`);
       return ptr(callbackOutput);
@@ -181,18 +193,8 @@ function ensureNativeBridge(): NativeBridge {
 }
 
 /**
- * Locate the `sqlite3ext.h` that belongs to the SQLite we actually load.
- *
- * A loadable extension talks to its host through `sqlite3_api_routines`, a
- * struct of function pointers whose layout grows with each SQLite release. The
- * header supplies the offsets; the host supplies the struct. Compile against
- * one version and load into another and every `sqlite3_*` call inside the
- * extension reads the wrong slot — `sqlite3_create_function_v2` lands on a null
- * pointer and the process dies with "Segmentation fault at address 0x0".
- *
- * On macOS the default include path is Apple's SDK (an older SQLite) while
- * `configureSqliteRuntime` deliberately loads Homebrew's, so the two disagree
- * unless we point the compiler at Homebrew's headers explicitly.
+ * An extension reaches its host through `sqlite3_api_routines`, whose layout grows each release.
+ * The macOS default include path is Apple's SDK; `configureSqliteRuntime` loads Homebrew's.
  */
 function resolveSqliteIncludeDirectory(): string | undefined {
   if (!sqliteLibraryPath) return undefined;
@@ -211,9 +213,8 @@ function readHeaderVersion(includeDirectory: string): string | undefined {
 function compileExtension(): string {
   const includeDirectory = resolveSqliteIncludeDirectory();
   const headerVersion = includeDirectory ? readHeaderVersion(includeDirectory) : undefined;
-  // The ABI depends on the headers as much as on the source, so both feed the
-  // cache key. Without this a stale artifact compiled against the wrong SQLite
-  // would be reused forever and keep crashing after the fix.
+  // The ABI depends on the headers as much as on the source, so both feed the cache key: a stale
+  // artifact compiled against the wrong SQLite would otherwise be reused after the fix.
   const hash = createHash("sha256")
     .update(EXTENSION_SOURCE)
     .update(includeDirectory ?? "default-include")

@@ -37,9 +37,8 @@ export interface ExplicitEvolutionPresentation {
   readonly database: PlatformDatabase["readonly"];
   readonly recordMetrics: RecordMetrics;
   /**
-   * The bound on terminal delivery. It is the caller's to set because the build lease is
-   * held for the whole of it — a presenter that ignored this would hold mutation ownership
-   * for the default regardless of what the caller asked for.
+   * The bound on terminal delivery, the caller's to set because the build lease is held for the
+   * whole of it: ignoring it would hold mutation ownership for the default instead.
    */
   readonly terminalPresenterTimeoutMs?: number;
 }

@@ -2,25 +2,15 @@
 /**
  * The development server runner: restart on authored-source changes only.
  *
- * `bun --watch src/index.ts` cannot be used here. Bun's watcher restarts the
- * process whenever *any* file in the module graph changes, and a capability's
- * generated Handler files under `capabilities/` enter that graph the moment the
- * router dynamically imports them (src/runtime/router/dispatch/router.ts). Generated artifacts are
- * runtime data, not source, and the platform rewrites them while it is serving:
- * a build writes a new incarnation, an evolution replaces one, and permanent
- * deletion removes one outright.
- *
- * That last case was a live bug. Deleting a capability removed exactly the files
- * Bun was watching, so the watcher tore the server down *while the confirmation
- * response was still being written*. The browser saw a severed connection instead
- * of a response, HTMX therefore swapped nothing (`htmx:sendError`), and the
- * confirmation panel stayed on screen at the same URL even though the capability
- * was already permanently gone — the deletion looked like it had done nothing.
- *
- * Watching only authored source fixes that at the root: generated artifacts churn
- * as much as the platform needs without ever touching the running process.
- * `public/` is deliberately not watched — those assets are read from disk per
- * request, so a browser reload already picks up an edit.
+ * `bun --watch src/index.ts` cannot be used here. Bun's watcher restarts on any change in the
+ * module graph, and a capability's generated Handler files enter that graph the moment the
+ * router dynamically imports them (src/runtime/router/dispatch/router.ts). The platform
+ * rewrites those artifacts while it is serving, and deleting a capability removed exactly the
+ * files Bun was watching: the watcher tore the server down while the confirmation response was
+ * still being written, the browser saw a severed connection, HTMX swapped nothing
+ * (`htmx:sendError`), and the confirmation panel stayed on screen although the capability was
+ * already gone. `public/` is not watched either — those assets are read from disk per request,
+ * so a browser reload already picks up an edit.
  */
 
 import { watch } from "node:fs";
@@ -40,9 +30,8 @@ const WATCHED_ROOTS = [join(REPO_ROOT, "src")] as const;
 const RESTART_DEBOUNCE_MS = 120;
 
 /**
- * Only source the server actually runs should cost a restart. Test files sit in the
- * same tree but never enter the server's module graph, so editing one while the app
- * is open would otherwise bounce it for nothing.
+ * Test files sit in the same tree but never enter the server's module graph, so editing one
+ * while the app is open would otherwise bounce the server for nothing.
  */
 export function isRestartWorthy(path: string | null): boolean {
   if (!path) return false;

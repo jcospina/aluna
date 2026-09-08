@@ -148,9 +148,8 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
   });
 
   test("a provider that dies after admission streams a warm apology, not a crash", async () => {
-    // A provider that answers the resolver and then fails is the only way to reach the
-    // Builder's own failure path: a provider that is unavailable from the start never
-    // gets past classification (that case lives in app.resolver-pipeline.test.ts).
+    // A provider that answers the resolver and then fails is the only way to reach the Builder's
+    // own failure path; an unavailable provider stops at classification (app.resolver-pipeline).
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(
       providerFailingAfterResolution(NEW_CAPABILITY_INTENT, "Missing OMNI_API_KEY. ..."),
@@ -169,9 +168,8 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
     expect(dataFor("fragment")).toContain('data-build-restoration="neutral"');
     expect(payload).not.toContain("event: commit");
     expect(dataFor("narration")).not.toMatch(/OMNI_API_KEY|api key|provider/i);
-    // Admission already happened under the active lease, so the failed provider call is
-    // measured as a typed spec-generation failure against this build's own durable row,
-    // not silently lost.
+    // Admission already happened under the active lease, so the failed provider call is measured
+    // as a typed spec-generation failure against this build's own durable row, not lost.
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       outcome: "failure",
@@ -252,9 +250,8 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
       ),
     };
     const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC, failingSuite, {
-      // A v1 fragment failure is conservatively attributed because item.ts was generated.
-      // Return every Handler byte-identically: five real measured calls, no invented defect,
-      // and no admissible rewrite that could make the impossible assertion pass.
+      // A v1 fragment failure is conservatively attributed because item.ts was generated. Return
+      // every Handler byte-identically: five real measured calls and no admissible rewrite.
       repairs: [CREATE_HANDLER, READ_HANDLER, UPDATE_HANDLER, DELETE_HANDLER, SEARCH_HANDLER],
     });
     const { lifecycles, rows, recordMetrics } = makeMetricsRecorder();
@@ -288,9 +285,8 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
     expect(rows[0]?.failure).toMatchObject({ stage: "gate", rung: "behavioral" });
     expect(rows[0]?.capabilityId).toBe("notes");
     expect(rows[0]?.timings?.specGenMs).toBeGreaterThanOrEqual(0);
-    // intent + spec + five Action suites + six initial units + five conservative Handler
-    // attempts. Every fake call costs 53 tokens, including the resolver's own and the
-    // byte-identical repairs that did not publish.
+    // intent + spec + five Action suites + six initial units + five conservative Handler attempts.
+    // Every fake call costs 53 tokens, the resolver's own and the byte-identical repairs included.
     expect(rows[0]?.usage?.totalTokens).toBe(53 * 18);
     expect(
       rows[0]?.unitAttempts?.filter((unit) => unit.kind === "handler").map((unit) => unit.attempts),
@@ -310,9 +306,8 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
         .every((stage) => stage.state === "generated"),
     ).toBe(true);
 
-    // Commit is unreachable when a gate rung fails: the transaction rolled back, so
-    // nothing committed — no registry row, no cap_<id> table, no artifacts on disk —
-    // and no commit-preview or commit swap was streamed.
+    // Commit is unreachable when a gate rung fails: the transaction rolled back, so no registry
+    // row, no cap_<id> table, no artifacts on disk, and no commit-preview or commit swap.
     expect(events.map((event) => event.event)).not.toContain("commit-preview");
     expect(dataFor("fragment")).toContain('data-build-restoration="neutral"');
     expect(events.map((event) => event.event)).not.toContain("commit");
@@ -336,12 +331,8 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
   });
 
   test("a commit-stage failure rolls back and records it, leaving the prior capability intact", async () => {
-    // A capability is already registered at this id, so commit's registry insert
-    // collides — the gate passes but the build fails at the terminal commit step.
-    // (The resolver normally prevents id collisions; this forces the commit-stage
-    // failure path directly. The prompt deliberately shares no token with the live
-    // Notes row, so the deterministic duplicate guard lets the build through and the
-    // collision happens where this test wants it — at commit.)
+    // A capability is already registered at this id, so commit's registry insert collides: the
+    // gate passes and the build fails at commit. The prompt shares no token with the Notes row.
     insertCapability(notesCapabilityRow(), conns.readwrite);
     const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
     const recordMetrics = createMetricsRecorder(conns.readwrite);

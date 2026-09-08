@@ -23,17 +23,14 @@ export function isChoiceFieldType(type: string): type is ChoiceFieldType {
 }
 
 /**
- * The structural refusal a submitted value outside a choice field's declared options
- * earns. Platform-owned, like `record_not_found`: the platform raises it before canonical
- * state moves, so a capability that authored it would be claiming an error it never gets
- * to see.
+ * The structural refusal a value outside a choice field's declared options earns. Platform-owned:
+ * it is raised before canonical state moves, so a capability authoring it never gets to see it.
  */
 export const INVALID_CHOICE_ERROR_CODE = "invalid_choice";
 
 /**
- * The refusal a *newly chosen* disabled option earns. Separate from `invalid_choice`
- * because the value is declared and the row that already holds it stays valid — what is
- * refused is arriving at it, not carrying it.
+ * The refusal a newly chosen disabled option earns. Separate from `invalid_choice` because a row
+ * already holding the value stays valid: what is refused is arriving at it, not carrying it.
  */
 export const CHOICE_DISABLED_ERROR_CODE = "choice_disabled";
 
@@ -42,33 +39,27 @@ export const MAX_CHOICE_GROUP_HEADING_LENGTH = 32;
 export const MAX_CHOICE_OPTION_NOTE_LENGTH = 48;
 
 /**
- * An option's label is the wording on one row of a control. It is bounded and single-line
- * for the same reason its note is: a row is a row. Left as bare non-blank text it admitted
- * a newline and any length at all, and a control drew whatever arrived.
+ * An option's label is the wording on one row of a control. Left as bare non-blank text it
+ * admitted a newline and any length at all, and a control drew whatever arrived.
  */
 export const MAX_CHOICE_OPTION_LABEL_LENGTH = 64;
 
 /**
- * A wire value is bounded for the same reason a label is, and for two more: it is written
- * into an HTML attribute on every row of every control, and it is serialized into the item
- * renderer's and both writing Handlers' generation prompts.
+ * A wire value is written into an HTML attribute on every row of every control, and serialized
+ * into the item renderer's and both writing Handlers' generation prompts.
  */
 export const MAX_CHOICE_OPTION_VALUE_LENGTH = 48;
 
 /**
- * How many options and groups one field may declare. Not a rendering limit — the picker
- * scrolls — but a generation one: every option is serialized into the item renderer's and
- * both writing Handlers' prompts, so an unbounded collection is an unbounded prompt.
+ * How many options and groups one field may declare. Not a rendering limit — the picker scrolls —
+ * but a generation one: every option reaches a prompt, so an unbounded set is an unbounded prompt.
  */
 export const MAX_CHOICE_OPTIONS = 64;
 export const MAX_CHOICE_GROUPS = 16;
 
 /**
- * A wire value is a stored string that also joins the Diff's own NUL-delimited keys and
- * lands in an HTML attribute, so it holds no control characters at all. The same rule
- * covers every authored string an option carries: nothing on one row of a control has a
- * use for one, and admitting them makes every downstream separator depend on an unstated
- * invariant.
+ * A wire value joins the Diff's NUL-delimited keys and lands in an HTML attribute, so it holds no
+ * control characters; admitting them makes every downstream separator an unstated invariant.
  */
 const printableText = (text: string) => !/\p{Cc}/u.test(text);
 const PRINTABLE_MESSAGE = "must not contain control characters";
@@ -76,17 +67,8 @@ const printablePhrase = (max: number) =>
   singleLinePhrase(max).refine(printableText, PRINTABLE_MESSAGE);
 
 /**
- * One declared option.
- *
- * `value` and `label` are the pair every option carries. The three optional keys are the
- * picker's own feature set: `group` names a group this field declares, `note` is the
- * short phrase that rides the row, and `disabled` says the option is present but may not
- * be newly chosen.
- *
- * `disabled` is `true` or absent rather than a boolean, so an enabled option has exactly
- * one spelling. Two specs that differ only in `disabled: false` versus no key at all
- * would otherwise compare unequal and manufacture an evolution fact for a change nobody
- * made.
+ * One declared option. `disabled` is `true` or absent rather than a boolean, so two specs that
+ * differ only in `disabled: false` cannot manufacture an evolution fact for a change nobody made.
  */
 export const choiceOptionSchema = z.strictObject({
   value: printablePhrase(MAX_CHOICE_OPTION_VALUE_LENGTH),
@@ -98,10 +80,8 @@ export const choiceOptionSchema = z.strictObject({
 export type ChoiceOption = z.infer<typeof choiceOptionSchema>;
 
 /**
- * The provider spelling of an option. A strict structured-output schema cannot express an
- * absent key, so every optional key is declared required-nullable and transformed back to
- * absence on the way in. `disabled: false` lands as absence for the same reason the domain
- * shape refuses it: an enabled option has one representation.
+ * The provider spelling of an option. A strict structured-output schema cannot express an absent
+ * key, so every optional key is required-nullable and transformed back to absence on the way in.
  */
 export const promptChoiceOptionSchema = z
   .strictObject({
@@ -121,9 +101,8 @@ export const promptChoiceOptionSchema = z
   );
 
 /**
- * One declared option group. The collection is ordered, and that order is the order the
- * headings appear in; an option names a group by id, and the id never changes once
- * committed while the heading is wording and evolves freely.
+ * One declared option group, in the order its headings appear. An option names a group by id; the
+ * id never changes once committed, while the heading is wording and evolves freely.
  */
 export const choiceGroupSchema = z.strictObject({
   id: sqlNameText,
@@ -132,10 +111,8 @@ export const choiceGroupSchema = z.strictObject({
 export type ChoiceGroup = z.infer<typeof choiceGroupSchema>;
 
 /**
- * The closed set of controls a choice field may render as. All three draw the same
- * declared values and store the same string; which one a field uses is authored per field
- * rather than inferred from how many options it happens to have. An unknown one fails the
- * build closed exactly as an unknown field type does.
+ * The closed set of controls a choice field may render as. Which one a field uses is authored per
+ * field rather than inferred from its option count; an unknown one fails the build closed.
  */
 export const CHOICE_PRESENTATIONS = ["picker", "radio", "segmented"] as const;
 export const choicePresentationSchema = z.enum(CHOICE_PRESENTATIONS);
@@ -148,10 +125,8 @@ export const choiceInputIntentSchema = z.strictObject({
 export type ChoiceInputIntent = z.infer<typeof choiceInputIntentSchema>;
 
 /**
- * The declared options of one choice field. Callers that already know the field is a
- * choice get the non-null array without restating the validated invariant; anything else
- * fails loudly, because a choice field reaching a consumer without its values means the
- * spec gate was bypassed.
+ * The declared options of one choice field, non-null so a caller need not restate the validated
+ * invariant. A choice field reaching a consumer without values means the spec gate was bypassed.
  */
 export function choiceFieldOptions(
   field: Pick<SpecField, "name" | "type" | "values">,
@@ -200,23 +175,16 @@ export interface ChoiceOptionRun {
 }
 
 /**
- * The options of one choice field in the order a control draws them: the ungrouped ones
- * first, then each declared group in the order the field declares it, each group's own
- * options in authored order.
- *
- * Grouping is what decides the visual order, not the options array — otherwise an option
- * authored between two groups would force its heading to appear twice.
- *
- * Every option comes out exactly once. An option naming a group its field never declared
- * would otherwise fall out of every run and vanish from the control, so it fails loudly
- * here the way {@link choiceFieldOptions} does: the spec gate refuses that spec, and a
- * field reaching a renderer without having passed it is a bypass, not a rendering problem.
+ * The options of one choice field in draw order: ungrouped first, then each declared group, since
+ * grouping decides the visual order. An undeclared group fails loudly: {@link choiceFieldOptions}.
  */
 export function choiceOptionRuns(
   field: Pick<SpecField, "name" | "type" | "values" | "groups">,
 ): readonly ChoiceOptionRun[] {
   const options = choiceFieldOptions(field);
   const declared = new Set(choiceFieldGroups(field).map((group) => group.id));
+  // An option naming a group its field never declared would fall out of every run and vanish
+  // from the control with nothing said.
   for (const option of options) {
     if (option.group === undefined || declared.has(option.group)) continue;
     throw new Error(
@@ -235,12 +203,8 @@ export function choiceOptionRuns(
 }
 
 /**
- * The choice field's own fail-closed rules, in both directions. A non-choice field that
- * carried options would be declaring a vocabulary nothing enforces; a choice field
- * without them would be a text input with a picker painted on it. Blank values, blank
- * labels, over-long notes and over-long headings are already refused per option and per
- * group — what only the whole field can see is that its values are unique, that it has
- * any at all, and that its groups and its options agree about which groups exist.
+ * The choice field's own fail-closed rules, in both directions. Blank and over-long values are
+ * already refused per option; only the whole field sees uniqueness, presence and group agreement.
  */
 export function validateChoiceFields(
   spec: Pick<CapabilitySpec, "schema">,
@@ -300,9 +264,8 @@ function validateChoiceFieldCollections(
 }
 
 /**
- * Groups and the options that name them, checked against each other in both directions. A
- * group nothing names is a heading with nothing under it, which renders as nothing at all
- * — admitting it would let a stored spec claim structure no surface shows.
+ * Groups and the options that name them, checked in both directions. A group nothing names is a
+ * heading that renders as nothing, so a stored spec would claim structure no surface shows.
  */
 function validateOptionGroups(
   ctx: z.RefinementCtx,
@@ -365,10 +328,8 @@ function validateOptionGroupReferences(
 }
 
 /**
- * A choice must always leave something to choose. Disabling every option would make a
- * required field impossible to fill and an optional one a control with nothing live in it
- * — and it would leave the platform's own fixtures, which write a real admitted value,
- * with nothing to write. Retiring options is how a set is narrowed; emptying it is not.
+ * A choice must always leave something to choose: disabling every option makes a required field
+ * impossible to fill and leaves the platform's own fixtures with nothing to write.
  */
 function validateSomethingRemainsChoosable(
   ctx: z.RefinementCtx,
@@ -411,15 +372,8 @@ function addFieldIssue(
 }
 
 /**
- * `choice_inputs` mirrors `list_inputs`: exactly one entry per active choice field, in
- * schema-field order, so the form renderer resolves a control for every choice it draws
- * and a hidden field never leaves a stale entry behind.
- *
- * It is also where the one rule that spans both halves of the spec lives: a segmented
- * control is a joined row of buttons with no room for a heading between them or a second
- * line inside one, so it admits neither groups nor notes. Refusing here is the same
- * fail-closed instinct as an unknown presentation — the alternative is a spec that
- * declares structure the control it asked for can never show.
+ * `choice_inputs` mirrors `list_inputs`: one entry per active choice field, in schema-field order.
+ * A segmented control has no room for a heading or a second line, so it admits neither.
  */
 export function validateChoiceInputs(
   spec: Pick<CapabilitySpec, "schema" | "ui_intent">,

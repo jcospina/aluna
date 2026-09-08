@@ -65,8 +65,7 @@ export function renderRestorationFragment(
     }
   }
   if (notice === undefined) return restoration;
-  // Whether the sentence is a refusal is the caller's to say, not this function's: it
-  // carries whatever it is handed out to the prompt bar, and only the caller knows
-  // whether Aluna was declining or answering.
+  // Whether the sentence is a refusal is the caller's to say: only the caller knows whether Aluna
+  // was declining or answering, so this carries whatever it is handed to the prompt bar.
   return [restoration, renderPromptNotice(notice, tone)].join("\n");
 }

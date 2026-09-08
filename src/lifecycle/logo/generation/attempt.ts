@@ -1,31 +1,15 @@
-// One claimed logo attempt, end to end.
+// One claimed logo attempt, end to end — the post-build follow-up ADR-0007 describes, and the
+// same operation the desk-load sweep runs: they differ only in what triggers them.
 //
-// This is the operation [ADR-0007](../../docs/adr/0007-capability-logo-contract.md)
-// describes as a post-build follow-up to a successful v1, and the same operation the
-// desk-load sweep runs. It is deliberately one path: a build's follow-up and a desk
-// load's retry differ only in what triggers them.
+// The ordering is the contract. A claim spends its attempt the instant it is won and nothing ever
+// decrements one, so a missing key or an already closing read gate is checked first. Provider I/O
+// and installation hold the incarnation's read token and observe its cancellation signal, so a
+// deletion closing the gate aborts the call. The token is released before finalization reacquires
+// mutation ownership, because a queued acquisition awaited inside a read-token scope deadlocks
+// against deletion, which takes its lease and then closes the gate.
 //
-// The ordering here is the contract, not a preference:
-//
-//   0. **Nothing is claimed that cannot possibly succeed.** A missing key or an already
-//      closing read gate is checked first, because a claim spends its attempt the instant
-//      it is won and nothing ever decrements one.
-//   1. **A short coordinator write claims the attempt.** `withPlatformWrite` queues in
-//      ordinary FIFO order, so a follow-up arriving while the build lease is still
-//      releasing simply waits its turn. The claim moves `absent → generating` and spends
-//      the attempt in one statement, before any provider is called.
-//   2. **Provider I/O and installation hold the incarnation's read token** and observe
-//      its cancellation signal. Deletion closing the gate therefore aborts the call and
-//      no late response can write into a tombstoned tree.
-//   3. **The token is released before finalization reacquires mutation ownership.** A
-//      queued acquisition awaited inside a read-token scope deadlocks against deletion,
-//      which takes its lease and *then* closes the gate; the coordinator's own doc
-//      comment names this exact hazard.
-//
-// A failure never reaches whatever asked for the attempt. The capability is already
-// activated, usable and placeholdered — the build that made it is long since `success`,
-// and a desk load is only a page render — so the attempt returns the row to `absent` for
-// a later try, or to `abandoned` once the third claimed attempt has failed.
+// A failure never reaches the caller: the capability is already activated, usable and
+// placeholdered, so the attempt returns the row to `absent`, or to `abandoned` after the third.
 
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
@@ -77,42 +61,28 @@ export type CapabilityLogoAttemptOutcome =
   /** The last allowed attempt failed; the placeholder is permanent. */
   | "abandoned"
   /**
-   * The attempt was spent but the row it belonged to moved underneath it — deleted, or
-   * settled by something else while the drawing was being made. Distinct from
-   * `installed`/`failed` because the registry records neither: a late reply must not be
-   * reported as having changed a state it could not reach.
+   * The attempt was spent but its row moved underneath it — deleted, or settled by something else.
+   * Distinct from `installed`/`failed` because the registry recorded neither.
    */
   | "superseded";
 
 /**
- * Run one attempt for the exact active incarnation. Never throws for an ordinary
- * failure — a provider outage, a malformed response, a cancelled call and a refused
- * install all resolve to an outcome, because none of them is the caller's problem to
- * handle differently.
+ * Run one attempt for the exact active incarnation, never throwing for an ordinary failure: a
+ * provider outage, a malformed response, a cancelled call, a refused install all become outcomes.
  */
 export async function runCapabilityLogoAttempt(
   target: CapabilityIncarnation,
   deps: CapabilityLogoAttemptDeps,
 ): Promise<CapabilityLogoAttemptOutcome> {
-  // Asked before the claim, because a claim spends an attempt the moment it is won and
-  // nothing ever decrements one. Two ways an attempt can be doomed before it starts — no
-  // key, and a gate already closing for a deletion — would otherwise burn attempts
-  // without a single request leaving the process, and three of those reach the permanent
-  // placeholder for a capability nobody deleted on a machine nobody configured.
+  // Asked before the claim: no key and an already closing gate would otherwise burn attempts with
+  // no request leaving the process, and three burnt attempts are a permanent placeholder.
   if (!canReachTheProvider(target, deps)) return "unclaimed";
-  // And a row the claim would refuse anyway is turned away before it costs anything. This
-  // cannot decide the claim — the conditional UPDATE still does that, and a row that
-  // becomes claimable in between is simply claimed on the next load — but it keeps a stale
-  // tile from an old page, or a script hammering the address, from queueing a platform
-  // ticket per request and from holding this incarnation "attempting" for as long as it
-  // keeps asking, which would suppress its recovery indefinitely.
+  // A row the claim would refuse anyway costs nothing here. The conditional UPDATE still decides;
+  // this stops a stale tile queueing a ticket per request and suppressing its own recovery.
   if (!looksClaimable(target, deps)) return "unclaimed";
 
-  // Tracked from *before* the claim to after the finalizing write. Recovery reads this to
-  // tell a running claim from an interrupted one, and the gap between the claim's commit
-  // and a registration made after it would be exactly the window in which a concurrent
-  // desk load's recovery sees a `generating` row nobody appears to hold and releases it
-  // out from under a paid call.
+  // Tracked from *before* the claim to after the finalizing write: registering after the commit
+  // leaves a window where a concurrent recovery releases a `generating` row out from under a call.
   const ticket = deps.claims.begin(target);
   try {
     const claim = await deps.mutationCoordinator.withPlatformWrite(() =>
@@ -159,16 +129,8 @@ function looksClaimable(target: CapabilityIncarnation, deps: CapabilityLogoAttem
 }
 
 /**
- * A non-blocking look at whether this attempt could reach the service at all: the
- * provider is configured, and this incarnation's gate is open. The read token is taken
- * and released at once.
- *
- * It closes the common cases, not the race: a gate that closes in the moment between
- * this and the real acquisition still spends its attempt, which is the cancellation the
- * contract already counts.
- *
- * Deliberately `tryAcquire` and not a queued acquisition — nothing here may block, and
- * nothing is held across the coordinator write that follows.
+ * A non-blocking look at whether the attempt could reach the service: provider configured, gate
+ * open. `tryAcquire`, never a queued acquisition; it closes the common cases, not the race.
  */
 function canReachTheProvider(
   target: CapabilityIncarnation,
@@ -185,9 +147,8 @@ function canReachTheProvider(
 }
 
 /**
- * The paid half: generate and install while holding the incarnation's read token. Returns
- * whether accepted bytes reached their final path; nothing here touches the registry, so
- * the token can be released before mutation ownership is asked for again.
+ * The paid half: generate and install while holding the incarnation's read token. Nothing here
+ * touches the registry, so the token is released before mutation ownership is asked for again.
  */
 async function attemptUnderReadToken(
   claim: LogoGenerationClaim,
@@ -215,13 +176,8 @@ async function attemptUnderReadToken(
       },
     );
   } catch (error) {
-    // Timeout, cancellation, a malformed envelope, a refused install, a closed gate —
-    // every one of them consumes the claimed attempt, and none of them is fatal to the
-    // capability, which is already built and usable.
-    //
-    // A cancellation is a designed outcome — deletion closed the gate — so it is not
-    // shouted about. Everything else is: a spend that fails silently leaves an operator
-    // with three burnt attempts and no reason.
+    // Every failure consumes the claimed attempt, and none is fatal. A cancellation is designed
+    // (deletion closed the gate), so it stays quiet; a silent spend leaves three burnt attempts.
     if (!(error instanceof LogoGenerationError && error.reason === "cancelled")) {
       console.error(
         `omni-crud logo attempt ${claim.attempts} for ${claim.capabilityId}/${claim.incarnationId} failed:`,
@@ -233,10 +189,8 @@ async function attemptUnderReadToken(
 }
 
 /**
- * The second short coordinator write. It revalidates the exact active incarnation by
- * construction: every transition is bound to `id + incarnation_id + lifecycle_state
- * = 'active'`, so a deleted or superseded row settles nothing and returns `null` — which
- * is reported as `superseded` rather than as the transition that did not happen.
+ * The second short coordinator write, revalidating by construction: every transition binds
+ * `id + incarnation_id + lifecycle_state = 'active'`, so a moved row settles nothing.
  */
 async function finalizeAttempt(
   claim: LogoGenerationClaim,
@@ -260,9 +214,8 @@ async function finalizeAttempt(
           );
     if (moved) return settlement.outcome;
     if (installed) {
-      // Bytes nobody acknowledged: the row moved out from under this attempt, so no
-      // lifecycle ever said `present`. Left there they would be unservable forever and
-      // would make every later attempt fail on EEXIST.
+      // Bytes nobody acknowledged: no lifecycle ever said `present`, so left there they would be
+      // unservable for ever and would make every later attempt fail on EEXIST.
       discardUnacknowledgedLogo(installed);
     }
     return "superseded";

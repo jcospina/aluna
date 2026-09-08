@@ -1,16 +1,15 @@
 // How many records a capability holds.
 //
-// A `count` is a read, and reading is free (ARCH §3), so this is taken through the
-// physically read-only connection and creates no registry, version, artifact, cache or
-// read-dependency state. It counts the capability's canonical table whole, which is the
-// same row set the platform's canonical read renders (`selectCapabilityRows`): the table
-// carries no soft-delete column for the two to disagree over.
+// A `count` is a read, and reading is free (ARCH §3), so this is taken through the physically
+// read-only connection and creates no registry, version, artifact, cache or read-dependency
+// state. It counts the capability's canonical table whole, which is the same row set the
+// platform's canonical read renders: the table carries no soft-delete column for the two to
+// disagree over.
 //
-// It goes through `CapabilityQueryPort.all`, where a platform-owned read of capability
-// data belongs, so the statement is scoped to the capability's own table by the same check
-// every Handler read crosses. The spec is still parsed before its table is named, and the
-// read lease is still honoured, so a count running while a deletion drains the capability
-// is cancelled the way every other read of it is.
+// It goes through `CapabilityQueryPort.all`, where a platform-owned read of capability data
+// belongs, so the statement is scoped to the capability's own table by the same check every
+// Handler read crosses. The spec is still parsed before its table is named and the read lease is
+// still honoured, so a count running while a deletion drains the capability is cancelled.
 
 import type { Database } from "bun:sqlite";
 

@@ -259,10 +259,8 @@ const CREATE_HANDLER = [
   "}",
 ].join("\n");
 
-// The read handler maps every row through `present` and joins them — identical item
-// markup to create, by construction. No rows joins to an empty string, leaving the
-// region truly `:empty` so the platform-owned empty state shows; the
-// handler never emits its own empty state.
+// The read handler maps every row through `present` and joins them — identical item markup to
+// create. No rows joins to an empty string, leaving the region `:empty` for the platform.
 const READ_HANDLER = [
   "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
   "  const notes = query.records({",
@@ -876,9 +874,8 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
     // The closed primitive vocabulary is injected (single source of truth).
     expect(feedPrompt).toContain("Injected design contract and few-shot gallery");
     expect(feedPrompt).toContain("line-clamp-2");
-    // The three closed axes are enumerated by name, not by a `--space-*` wildcard: High
-    // Meadow's colour family has no shared prefix to wildcard, so the model is handed the
-    // sets themselves.
+    // The three closed axes are enumerated by name, not by a `--space-*` wildcard: High Meadow's
+    // colour family has no shared prefix, so the model is handed the sets themselves.
     expect(feedPrompt).toContain("Three axes are closed");
     expect(feedPrompt).toContain("var(--space-1), var(--space-2)");
     expect(feedPrompt).toContain("var(--ink), var(--ink-2)");
@@ -969,13 +966,8 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
 
 describe("unit generation with bounded fix loop — read, few-shot, and present-adapter prompts", () => {
   test("the read handler prompt defers the empty state to the platform, never emitting its own", () => {
-    // Regression: the read prompt used to tell the model to "include a helpful empty
-    // state when there are no rows". That contradicts ADR-0005 §1 + ARCH §"Platform
-    // presentation" — the list scaffolding's empty state is platform-owned. A handler
-    // that returns its own empty-state markup fills `#<id>-records` on the read `load`,
-    // which (1) defeats the platform's `:empty` empty state and (2) lingers below the
-    // first record once `create` prepends it (hx-swap="afterbegin"). The contract must
-    // instead have `read` return only presented records — an empty string when none.
+    // Regression: the read prompt used to ask for an empty state. A handler's own markup fills
+    // `#<id>-records`, defeating the platform's `:empty` and lingering below a created record.
     const readPrompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "read" });
 
     // Records-only, empty string when there are none — the platform shows the empty state.

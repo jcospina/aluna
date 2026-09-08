@@ -41,10 +41,8 @@ describe("the eight hue families", () => {
     }
   });
 
-  // Three of the first four live capabilities took `sky` as their ground, and one of them
-  // was a house — an object that sits under a sky. A family name that names a hue and
-  // nothing else cannot be picked for what it depicts, which is why the vocabulary the
-  // model reads is no longer the palette's token names.
+  // Three of the first four live capabilities took `sky` as their ground, and one was a house —
+  // an object that sits under a sky. A name that is only a hue cannot be picked for what it shows.
   test("no family name is a scene noun the model could pick for what it depicts", () => {
     const scenery = /\b(sky|shade|sun|horizon|ground|floor|wall|sea|ocean|leaf|clay)\b/;
     for (const family of LOGO_HUE_FAMILIES) {
@@ -104,9 +102,8 @@ describe("resolving one capability's two colours", () => {
     }
   });
 
-  // The whole point of the ladder. A spec model collapses to a mode — four consecutive
-  // live capabilities came out carrying `sky` — so the family a capability names is not a
-  // source of variety. The seed is, and it has to reach every rung.
+  // A spec model collapses to a mode — four consecutive live capabilities came out carrying
+  // `sky` — so the family is not a source of variety. The seed is, and it must reach every rung.
   test("consecutive seeds walk the whole family, so a collapsed hue is still four colours", () => {
     const drawn = new Set(
       [0, 1, 2, 3].map(
@@ -131,10 +128,8 @@ describe("resolving one capability's two colours", () => {
     expect(sameRung.length).toBeLessThanOrEqual(6);
   });
 
-  // The closed lookup this replaced paired leaf/shade, teal/sky, sun/ochre and
-  // clay/violet — four distinct pairs for the whole product. Eight freely-paired anchors
-  // lifted that to 56 and the model still collapsed onto one of them. Eight families of
-  // four is 896 cross-family ordered pairs, and which one comes up is not the model's.
+  // The closed lookup this replaced gave four distinct pairs for the whole product; eight
+  // freely-paired anchors lifted that to 56, and eight families of four give 896.
   test("open over 896 ordered pairs of shades from two different families", () => {
     const pairs = new Set<string>();
     for (const ground of LOGO_SHADES) {

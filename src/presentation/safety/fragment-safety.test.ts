@@ -2,16 +2,13 @@ import { describe, expect, test } from "bun:test";
 
 import { enforceHandlerFragment } from "./fragment-safety.ts";
 
-// The render-time last line for the markup a generated Handler composes *around* its
-// items. `enforcer.test.ts` covers the item vocabulary; this covers the wrapper, and in
-// particular the one attribute that is not execution but escape.
+// The render-time last line for the markup a generated Handler composes around its items.
+// `enforcer.test.ts` covers the item vocabulary; this covers the wrapper.
 
 describe("a Handler's fragment cannot swap outside the region it was aimed at", () => {
   test("hx-swap-oob is removed, wherever it points and however it is cased", () => {
     // Out-of-band is how the platform writes the desk from a response
-    // (`src/server/http/fragments.ts`). No generation contract asks a Handler for one, and
-    // a Handler that emits one is reaching past its own swap target into the shell — here,
-    // straight into the collection's count label.
+    // (`src/server/http/fragments.ts`); a Handler emitting one reaches past its own swap target.
     for (const attribute of [
       `hx-swap-oob="innerHTML:#tasks-count"`,
       `HX-SWAP-OOB="outerHTML"`,

@@ -88,9 +88,8 @@ describe("the shipped page runs the module against what the server writes", () =
   });
 
   test("the marker is escaped on its way out, like every other authored string", () => {
-    // Field names are validated to `[a-z][a-z0-9_]*` long before here, and the client
-    // checks the same shape again before spending one in a selector. This is the third
-    // lock, and it is the one that costs nothing: the attribute is written by the server.
+    // Field names are validated to `[a-z][a-z0-9_]*` long before here, and the client checks the
+    // same shape again before spending one in a selector. This is the third lock, and it is free.
     expect(requiredRefusal(['title" onx="'])).toContain(
       'data-error-fields="title&quot; onx=&quot;"',
     );
@@ -245,11 +244,8 @@ describe("a refusal this form has nowhere to put", () => {
 
   test("a field name that is not one stays out of the selector it would be spent in", async () => {
     const one = await scene(capabilityOf([probeField("string")]));
-    // `data-error-fields` is read off generated code, so the one thing it must never be is
-    // interpolated unchecked. A pseudo-class is what proves the guard rather than the
-    // parser: a browser matches `[name="value:hover"]` against nothing and says nothing,
-    // and the double refuses the selector outright — so without the guard this run throws
-    // and with it nothing is marked. Both ends of the same rule.
+    // `data-error-fields` is read off generated code, so it must never be interpolated unchecked.
+    // A pseudo-class proves the guard: without it this run throws, with it nothing is marked.
     expect(() =>
       one.landRefusal(
         '<p data-role="error" data-error-code="crafted" data-error-fields="value:hover">x</p>',
@@ -294,10 +290,8 @@ describe("clearing the error puts the field back the way it was rendered", () =>
   });
 
   test("a radio group refused once per radio still restores the hint, not the sentence", async () => {
-    // The case the stash's write-once guard exists for. A radio group is one field with
-    // several required inputs, so the browser reports it once per input and the field is
-    // marked two and three times with no clearing in between — and a stash taken on the
-    // second would keep the error sentence as if it were the declared hint, for good.
+    // The case the stash's write-once guard exists for. A radio group is one field with several
+    // required inputs, so a stash taken on the second would keep the error sentence as the hint.
     const one = await scene(
       capabilityOf([probeField("choice", { name: "status", label: "Status" })], {
         choice_inputs: [{ field: "status", presentation: "radio" }],
@@ -332,9 +326,8 @@ describe("clearing the error puts the field back the way it was rendered", () =>
   });
 
   test("an answer that names no field at all still clears the last verdict", async () => {
-    // Half the refusals that land in this region name nothing — a held mutation lease, a
-    // record already gone. One of those arriving over a field still saying it is too long
-    // would leave that field describing a verdict the server has just not given.
+    // Half the refusals landing in this region name nothing — a held mutation lease, a record
+    // already gone — and one over a field still saying it is too long would leave it lying.
     const one = await scene(capabilityOf([probeField("string", { max_length: 64 })]));
     one.landRefusal(overLengthRefusal(["value"]));
     expect(one.isInvalid("value")).toBe(true);
@@ -349,9 +342,8 @@ describe("clearing the error puts the field back the way it was rendered", () =>
   });
 
   test("putting the draft down puts every verdict on it down too", async () => {
-    // Cancel and a committed create both go through `form.reset()`, and a picker is the
-    // one control that cannot be put back by it — its value rides a hidden input, whose
-    // default a write has already rewritten. The verdict on it goes back either way.
+    // Cancel and a committed create both go through `form.reset()`, and a picker is the one
+    // control it cannot put back: its value rides a hidden input whose default a write rewrote.
     const one = await scene(
       capabilityOf(
         [

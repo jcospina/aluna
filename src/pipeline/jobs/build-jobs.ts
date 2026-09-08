@@ -156,11 +156,8 @@ export class BuildJobQueue {
     } catch (err) {
       console.error("Aluna build job failed:", err instanceof Error ? err.message : err);
       if (!isAborted()) {
-        // The last resort: a pipeline that threw *and* had not already presented its own
-        // terminal. It has no restoration to give back — nothing here knows what the run
-        // displaced — but it is still a build that failed, so it ends the narration the
-        // way every failure does and the window holds there. Dismissing it drops the
-        // story and leaves the surface the run only ever covered.
+        // The last resort: a pipeline that threw without presenting its own terminal. Nothing here
+        // knows what the run displaced, so it ends the narration and holds instead of dismissing.
         await send("narration", renderBuildEnding(job.id, FAILED_BUILD_ENDING));
         await send("done", "error");
       }

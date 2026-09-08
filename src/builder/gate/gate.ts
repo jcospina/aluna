@@ -86,16 +86,13 @@ export interface BehavioralTierInput {
    */
   readonly frozen?: FrozenBehavioralTestsInput;
   /**
-   * This build's executable impact — which Handlers it authored rather than copied. The
-   * Gate folds its own bounded repairs into this before
-   * selecting, so a Handler the smoke rung rewrote counts as changed. Omitted, nothing can be
-   * proven unaffected and the complete frozen suite runs.
+   * Which Handlers this build authored rather than copied, with the Gate's own repairs
+   * folded in. Omitted, nothing is provably unaffected and the complete frozen suite runs.
    */
   readonly impact?: BehavioralExecutionImpact;
   /**
-   * Optional override for the rung's bounded repair budget. Defaults to the same
-   * reused `DEFAULT_UNIT_FIX_ATTEMPTS` knob generation, design lint, and smoke spend — one
-   * execution plus one repair-and-rerun — not a new per-rung dial.
+   * Overrides the rung's bounded repair budget. Defaults to `DEFAULT_UNIT_FIX_ATTEMPTS`,
+   * the same knob generation, design lint, and smoke spend — one execution, one repair.
    */
   readonly maxAttempts?: number;
 }
@@ -130,10 +127,8 @@ export interface BehavioralTestRunMetrics {
 }
 
 /**
- * One turn of the behavioral rung's bounded repair loop: the frozen suite ran, and
- * — when it failed and the budget allowed — the attributed Handlers were rewritten. `failure`
- * and `attribution` are present exactly on a turn whose run failed; `repairedHandlers` and
- * `usage` exactly on a turn that then spent provider work.
+ * One turn of the behavioral rung's bounded repair loop. `failure` and `attribution` are
+ * present exactly on a turn whose run failed, `repairs` and `usage` on one that then paid.
  */
 export interface BehavioralRepairAttempt {
   readonly attempt: number;
@@ -147,15 +142,13 @@ export interface BehavioralRepairAttempt {
   /** Whose fault the failing frozen case was, and on what grounds (total, or conservative). */
   readonly attribution?: BehavioralFailureAttribution;
   /**
-   * The Handlers this turn actually rewrote, each with its own cost. Per Handler rather
-   * than per turn because a conservative round rewrites several: charging every one of them
-   * the whole round's tokens would inflate unit-level accounting by the size of the set.
+   * The Handlers this turn rewrote, each with its own cost. A conservative round rewrites
+   * several, so charging each the whole round's tokens inflates accounting by that set size.
    */
   readonly repairs?: readonly BehavioralHandlerRepair[];
   /**
-   * Every provider generation this turn actually started, including rejected output.
-   * This is distinct from `repairs`: a structural rejection, byte-identical answer, or
-   * provider failure spent a unit attempt without changing publishable Handler bytes.
+   * Every provider generation this turn started, rejected output included. Unlike `repairs`:
+   * a structural rejection, byte-identical answer, or provider error changed no Handler byte.
    */
   readonly generations?: readonly BehavioralHandlerGenerationAttempt[];
   /** The whole round's wall time and provider cost, repaired and rejected units alike. */
@@ -198,10 +191,8 @@ export type BehavioralGateResult =
       readonly testGen: BehavioralTestGenerationMetrics;
       readonly testRun: BehavioralTestRunMetrics;
       /**
-       * Per Action: copied or generated, executed or skipped, and why. The run/skip
-       * half of the record the snapshot's tier metadata and the metrics stage vector carry.
-       * This is the plan of the turn that *passed*, and the rung refuses to return unless
-       * every Handler it repaired appears in it as executed.
+       * Per Action: copied or generated, executed or skipped, and why — for the turn that
+       * passed. The rung refuses to return unless every Handler it repaired ran here.
        */
       readonly execution: BehavioralExecutionPlan;
       readonly frozenTests: FrozenBehavioralTests;
@@ -227,9 +218,8 @@ export interface SmokeGateInput {
 }
 
 /**
- * One turn of the design-lint fix loop: the review (attempt 1) or a regeneration + review.
- * `usage` is present only on a regeneration turn; `error` is the failure fed into the next
- * attempt (absent on the turn that passed).
+ * One turn of the design-lint fix loop: the review (attempt 1), or a regeneration + review.
+ * `usage` marks a regeneration turn; `error` is the failure fed forward, absent when passed.
  */
 export interface DesignLintAttempt {
   readonly attempt: number;
@@ -239,9 +229,8 @@ export interface DesignLintAttempt {
 }
 
 /**
- * The design-lint rung's result: the final item renderer (the original, or the one the fix
- * loop regenerated clean), whether a fix was needed, the per-attempt record, and the token
- * usage any regeneration cost. The pipeline commits `itemRenderer`, so a fix reaches disk.
+ * The rung's verdict, carrying the final item renderer — the original, or the one the fix
+ * loop regenerated clean. The pipeline commits `itemRenderer`, so a fix reaches disk.
  */
 export interface DesignLintGateResult {
   readonly status: "passed";
@@ -257,33 +246,26 @@ export interface CapabilityGateInput {
   // scratch so smoke proves the build's own schema, not a separately-derived one.
   readonly ddl: CapabilityTableDdl;
   readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
-  // The build's generated item renderer. The structural rung type-checks
-  // it and the smoke/behavioral rungs bind it into the real `present` adapter the
-  // handlers render records through — so create and read cannot drift.
+  // The structural rung type-checks it; smoke and behavioral bind it into the real
+  // `present` adapter the handlers render through, so create and read cannot drift.
   readonly itemRenderer: string;
-  // The design-lint rung regenerates the item renderer through the provider when it
-  // rejects a composition (its bounded fix loop), the smoke rung repairs a failing Handler,
-  // and the behavioral rung repairs the Handler(s) a failing frozen assertion is attributed
-  // to. The behavioral rung never generates a *test* through it: its suite was
-  // authored and frozen before this Gate was called, and repair answers to that suite.
+  // Design lint, smoke, and behavioral all repair through it. Behavioral never generates a
+  // *test* through it: the suite was frozen before this Gate was called, and repair obeys it.
   readonly provider?: Provider;
-  // Global default comes from OMNI_BEHAVIORAL_TIER (default ON); tests and future
-  // orchestration can override explicitly without mutating process.env. When on, this
-  // also carries the frozen suite the behavioral rung executes.
+  // Defaults from OMNI_BEHAVIORAL_TIER (ON), overridable here without touching process.env.
+  // When on, it also carries the frozen suite the behavioral rung executes.
   readonly behavioralTier?: BehavioralTierInput;
   // Optional override for the design-lint rung's bounded fix loop (default
   // DEFAULT_UNIT_FIX_ATTEMPTS); tests set it to exercise fix-then-pass and cap exhaustion.
   readonly designLint?: DesignLintTierInput;
-  // The smoke rung reuses the same bounded unit-fix budget as generation/design lint.
-  // Attempt one executes the supplied snapshot; later attempts regenerate only the
-  // Handler attributed by the unchanged platform-owned fixture.
+  // The same bounded unit-fix budget as generation and design lint. Attempt one runs the
+  // supplied snapshot; later ones regenerate only the Handler the fixture attributes.
   readonly smoke?: SmokeGateInput;
   // Optional assertion hook for the real db: the gate snapshots capability tables
   // before and after smoke and fails if they changed.
   readonly realDatabase?: Database;
-  // Synthetic schemas/rows for every externally declared read dependency. The
-  // Gate derives their DDL and seeds them into its fresh in-memory catalog; live
-  // registry rows or live capability data never enter scratch execution.
+  // Synthetic schemas and rows for every declared read dependency, seeded into the Gate's
+  // fresh in-memory catalog. Live registry rows and capability data never enter scratch.
   readonly scratchCatalog?: readonly ScratchCatalogCapability[];
 }
 
@@ -304,9 +286,8 @@ export interface CapabilityGateResult {
 }
 
 /**
- * Provider work and execution evidence already completed when a Gate fails. A thrown verdict
- * still has to be measurable: otherwise every repair token and every passed provider-backed
- * rung before the failure disappears from the durable build row.
+ * The seal on a verdict this Gate itself returned: the result's JSON as it was issued. Compared
+ * on read, so a hand-built result and a rung outcome edited after the verdict both fail.
  */
 const issuedGateEvidence = new WeakMap<CapabilityGateResult, string>();
 
@@ -318,9 +299,8 @@ export function assertIssuedCapabilityGateResult(result: CapabilityGateResult): 
   }
 }
 
-// Re-exported so the public builder surface (src/builder/index.ts) and the gate's own
-// tests reach the behavioral prompt, the freeze stage, and the frozen-artifact shape
-// without depending on the rung files directly.
+// Re-exported so `src/builder/index.ts` and the gate's own tests reach the behavioral
+// prompt, freeze stage, and frozen-artifact shape without importing the rung files.
 export {
   type ActionTestInputs,
   actionTestInputDigest,
@@ -354,17 +334,8 @@ export {
 export { CapabilityGateError, type CapabilityGateFailureMeasurement };
 
 /**
- * Run the layered Gate and report outcomes in canonical order — structural, smoke, the
- * behavioral tier (when enabled, else skipped), then the always-on design-lint rung.
- * The first failing rung throws {@link CapabilityGateError}; a full pass returns the smoke,
- * behavioral, and design-lint results (the last carrying the final, possibly-fixed item
- * renderer the pipeline commits) alongside the per-rung outcomes. Design lint runs before
- * behavioral execution so the frozen suite runs exactly once against the final renderer.
- * When design lint changes bytes, they first re-enter smoke without Handler repair;
- * repeated smoke duration/usage is folded into the same public rung result.
- *
- * The Gate does not author behavioral tests. When the tier is on, the caller supplies the
- * suite it froze before generating any Handler (`behavioralTier.frozen`).
+ * Run the layered Gate — structural, smoke, behavioral (when on), design lint — throwing
+ * {@link CapabilityGateError} at the first failing rung. The caller supplies the frozen suite.
  */
 export async function runCapabilityGate(input: CapabilityGateInput): Promise<CapabilityGateResult> {
   const startedAt = performance.now();
@@ -394,12 +365,8 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   );
 
   if (designLint.fixed) {
-    // Design lint is the final rung and may replace item.ts. Its own fix loop proves the
-    // regenerated unit's structural shape/type and design contract, but those new bytes
-    // have not yet executed through presentation. Re-enter the executable rungs so the
-    // exact renderer the pipeline commits has cleared every active check. The revalidation
-    // gets no provider and one attempt: an item-renderer-caused failure must fail closed,
-    // never consume the Handler repair budget or rewrite an innocent Handler.
+    // Design lint's fix proved the new item.ts type-checks, not that it executes. Re-enter
+    // smoke with no provider: a renderer fault must fail closed, not rewrite a good Handler.
     const finalRendererInput = {
       ...repairedInput,
       itemRenderer: designLint.itemRenderer,
@@ -416,12 +383,8 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
     smokeRun = { ...finalSmokeRun, result: smoke };
   }
 
-  // Design has now fixed/frozen the renderer and smoke has executed its final bytes. Only
-  // now execute the frozen behavioral suite, once, against that exact snapshot. The suite
-  // itself was authored before any Handler existed, so running it last costs it
-  // nothing: what moved is the code under test, never the intent. Its outcome is inserted
-  // before design-lint to preserve the Gate's documented public rung order even though
-  // design preparation necessarily happened first.
+  // The frozen suite runs once against the final renderer, losing nothing by running last —
+  // it predates every Handler. Its outcome is spliced in first, restoring the public order.
   const designOutcome = outcomes.pop();
   if (designOutcome?.rung !== "design-lint") {
     throw new Error("Design-lint outcome was not recorded at the Gate boundary.");
@@ -520,12 +483,8 @@ interface BehavioralPhaseInput {
 }
 
 /**
- * Run the behavioral tier over the final snapshot and reconcile whatever its bounded repair
- * loop rewrote. A repair is Handler bytes that satisfy the frozen suite but have never
- * cleared the always-on rungs, so — exactly as design lint's own fix does for `item.ts` —
- * the repaired snapshot re-enters structural and smoke before it may be called cleared.
- * That revalidation gets no provider and one smoke attempt: a repair must fail closed here,
- * never trigger a second, unbudgeted round of Handler rewriting.
+ * Run the behavioral tier over the final snapshot. Repaired bytes satisfy the frozen suite
+ * but no always-on rung, so they re-enter structural and smoke with no provider to rewrite.
  */
 async function runBehavioralPhase(
   outcomes: GateRungOutcome[],
@@ -570,9 +529,8 @@ async function runBehavioralPhase(
     };
   } catch (error) {
     if (!(error instanceof CapabilityGateError)) throw error;
-    // The behavioral repair provider work is already spent even when its repaired bytes
-    // subsequently fail the always-on revalidation. Carry it through the later rung's error;
-    // the outer Gate boundary adds the smoke/design measurements available there.
+    // Repair tokens are spent even when the repaired bytes fail revalidation, so carry them
+    // through the later rung's error; the Gate boundary adds smoke and design measurements.
     throw new CapabilityGateError(error.failedRung, outcomes, error.cause, {
       smokeUsage:
         error.cause instanceof SmokeRungFailure
@@ -594,12 +552,8 @@ async function runBehavioralPhase(
 }
 
 /**
- * Fold the Gate's own bounded repairs into the impact statement the caller supplied. The
- * pipeline states which units it *planned* to regenerate, but a smoke repair rewrites a
- * Handler and a design-lint fix rewrites the item renderer after that plan was made —
- * bytes the caller could not have known about. Selection must answer to the code the Gate
- * is actually about to clear, so those repairs count as regeneration here. A caller that
- * stated no impact stays unstated: it already runs the complete frozen suite.
+ * Fold the Gate's own repairs into the caller's impact statement: smoke and design lint
+ * rewrite bytes after the plan was made. A caller that stated no impact stays unstated.
  */
 function withGateRepairImpact(
   tier: BehavioralTierInput,
@@ -628,9 +582,8 @@ function withGateRepairImpact(
   };
 }
 
-/** Fold the original and final-renderer smoke executions into the one public result. The
- * final run owns observable fixture values; attempts and provider cost cover both runs so
- * previews, commit-unit repair accounting, and metrics remain honest. */
+/** Fold both smoke executions into one public result. The final run owns the observable
+ * fixture values; attempts and provider cost cover both, keeping repair accounting honest. */
 function mergeSmokeResults(original: SmokeGateResult, final: SmokeGateResult): SmokeGateResult {
   const attemptOffset = original.attempts.length;
   return {

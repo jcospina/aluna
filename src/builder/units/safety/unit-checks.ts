@@ -34,9 +34,8 @@ import { checkItemRendererFieldAccess } from "./item-field-access.ts";
 import { checkSourceIsolation } from "./source-isolation.ts";
 
 /**
- * Check a generated unit's content against its kind's contract. Returns a
- * failure (the unit descriptor plus a fix message) when it does not conform, or
- * `undefined` when the unit passes.
+ * Check a generated unit's content against its kind's contract, returning the unit descriptor
+ * and a fix message when it does not conform.
  */
 export function checkGeneratedUnit(
   spec: CapabilitySpec,
@@ -91,10 +90,8 @@ function checkItemRendererUnit(spec: CapabilitySpec, content: string): string | 
 }
 
 /**
- * The complete static item-renderer contract, minus the isolated type-check — the mirror of
- * {@link checkHandlerSourceContract}. The export-shape rule comes first and stays first:
- * `checkItemRendererFieldAccess` locates the renderer by looking for the default *function
- * declaration*, so an unanalyzable export shape would otherwise read as a clean pass.
+ * The static item-renderer contract, mirroring {@link checkHandlerSourceContract}. Export shape
+ * comes first: field access finds the renderer by its declaration, so a bad shape reads clean.
  */
 export function checkItemRendererSourceContract(
   spec: CapabilitySpec,
@@ -106,10 +103,8 @@ export function checkItemRendererSourceContract(
   if (source.statements.some((statement) => ts.isImportDeclaration(statement))) {
     return "The item renderer must not import anything — it composes one record into markup and nothing else.";
   }
-  // The same ambient ban the handlers take. The renderer is executed by the platform on
-  // every rendered record *and* in-process by the design-lint rung, so leaving it free to
-  // reach `process`/`globalThis` made the Gate itself a place a generated unit could call
-  // out from.
+  // The same ambient ban the handlers take. The design-lint rung runs the renderer in-process,
+  // so a free `process`/`globalThis` made the Gate itself a place to call out from.
   const isolationMessage = checkSourceIsolation(ITEM_RENDERER_ISOLATION_SUBJECT, source);
   if (isolationMessage) return isolationMessage;
   return checkItemRendererFieldAccess(spec, content);
@@ -124,10 +119,8 @@ interface ExportShapeRules {
 }
 
 /**
- * Validate that a unit default-exports a single function of the required async-ness with
- * exactly one parameter — the shape both the handler contract and the item renderer share
- * (the item renderer is synchronous, the handler async). Returns a fix message or
- * `undefined`.
+ * Validate that a unit default-exports one function of the required async-ness with exactly one
+ * parameter — the shape the handler contract and the item renderer share.
  */
 function validateDefaultFunctionExport(
   source: ts.SourceFile,
@@ -181,10 +174,8 @@ function hasExportSurface(statement: ts.Statement): boolean {
 }
 
 /**
- * Type-check one generated unit in isolation: write the platform contract declarations,
- * the unit, and an assertion that binds the unit's default export to the contract type,
- * then run the strict compiler over the three. Returns a formatted diagnostic message or
- * `undefined` when it type-checks clean.
+ * Type-check one generated unit in isolation: the platform contract declarations, the unit, and
+ * an assertion binding its default export to the contract type, under the strict compiler.
  */
 function typeCheckUnit(
   content: string,
@@ -244,9 +235,8 @@ function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
 }
 
 /**
- * The query-result column types, derived from the registry pantry rather than restated.
- * A generated Handler is type-checked against this text, so a hand-written mirror missing
- * a new field type would reject a projection the runtime accepts.
+ * The query-result column types, derived from the registry pantry rather than restated: a
+ * mirror missing a new field type would reject a projection the runtime accepts.
  */
 const QUERY_RESULT_TYPE_UNION = fieldTypeSchema.options
   .map((type) => JSON.stringify(type))
@@ -271,9 +261,8 @@ interface CapabilityActionRecord {
 type PresentationAdapter = (record: CapabilityActionRecord) => string;
 `;
 
-// The handler contract, including ADR-0005 §2's injected `present` adapter — the same
-// shape src/runtime/router/contract.ts declares (CapabilityContext) and the gate's structural
-// rung re-checks against.
+// The handler contract, including ADR-0005 §2's injected `present` adapter — the shape
+// `src/runtime/router/contract.ts` declares and the gate's structural rung re-checks.
 const handlerContractDeclarations = `${RECORD_CONTRACT}
 type CapabilityInputValue = string | readonly string[];
 interface CapabilityInput {

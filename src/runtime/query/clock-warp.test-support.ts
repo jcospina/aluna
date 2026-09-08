@@ -7,11 +7,8 @@
 // by bun.
 
 /**
- * Make every clock this process can reach report a time that jumps forward on demand, so a
- * deadline built from any of them fires. `Bun.nanoseconds` is a non-configurable property and
- * cannot be replaced; a clock the warp cannot reach is left to the source sweep rather than
- * silently skipped, and `warped` records which ones were actually moved so this can never
- * become a harness that patches nothing.
+ * Make every reachable clock jump forward on demand, so a deadline built from any of them fires.
+ * The non-configurable `Bun.nanoseconds` is left to the source sweep; `warped` names what moved.
  */
 export function warpClocks() {
   const RealDate = globalThis.Date;

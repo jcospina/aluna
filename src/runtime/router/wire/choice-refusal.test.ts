@@ -119,10 +119,8 @@ describe("an undeclared choice value on the wire", () => {
     expect(createCapabilityDataTool(stagedNotesSpec(), conns).select()).toEqual([]);
   });
 
-  // Whether a value is one the field declares is a fact about the spec and the wire, so the
-  // router settles it before any generated code loads. What that buys is the *answer*: the
-  // 422, the retarget and the sentence are the platform's rather than whatever a Handler
-  // chose to do with a caught error.
+  // The router settles a declared value before any generated code loads, so the 422, the retarget
+  // and the sentence are the platform's rather than whatever a Handler did with a caught error.
   test("no capability code is even loaded to judge it", async () => {
     let loaded = 0;
     const app = appForStagedNotes(stagedNotesSpec(), () => {
@@ -159,11 +157,8 @@ describe("an undeclared choice value on the wire", () => {
     const html = await response.text();
     expect(html).toContain('data-error-code="choice_disabled"');
     expect(html).toContain('data-error-fields="stage"');
-    // The platform owns the answer: the Handler asked for the write and the platform
-    // refused it. This one stays inside the mutation port on purpose — whether a declared
-    // option is still open depends on the value the record is already standing on, which
-    // the router has not read. No capability code decides anything about the option set,
-    // and canonical state never moved.
+    // This refusal stays inside the mutation port: whether a declared option is still open
+    // depends on the value the record already stands on, which the router has not read.
     expect(createCapabilityDataTool(retired, conns).select()).toEqual([]);
   });
 

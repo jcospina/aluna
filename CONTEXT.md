@@ -265,6 +265,15 @@ proposal surface the same way; the pet is a delight feature that may never be bu
 and no plan should be written that waits on it.
 _Avoid_: orb (the superseded concept), mascot, avatar, assistant, bot, spinner
 
+**Step label**:
+The closed six-member vocabulary a question's tool call carries beside its SQL — looking at
+what things are called, counting, totalling, listing, checking dates, and a generic fallback
+(PLAN decision 14). The model picks which kind of step it is taking; the platform owns the one
+sentence Aluna says for each, so she cannot narrate in words that are not hers or report a
+number no step computed. The label itself is machinery and never reaches a person: what
+reaches them is the sentence.
+_Avoid_: step type, action kind, phase, progress message, status
+
 **Answer window**:
 The third window, and the second exception to there being one. It opens when a question
 is classified `data_query`, carries the loop's narration and then Aluna's spoken answer,

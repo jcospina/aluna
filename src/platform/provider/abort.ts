@@ -73,18 +73,16 @@ async function* stopStreamOnAbort<T>(
 }
 
 /**
- * Make every awaited provider result cooperatively abortable without leaking the
- * concrete SDK cancellation surface through the provider contract. Late provider
- * completion cannot resume the build after the wrapper rejects.
+ * Make every awaited provider result cooperatively abortable without leaking the SDK cancellation
+ * surface through the contract. Late completion cannot resume the build after the wrapper rejects.
  */
 export function abortableProvider(provider: Provider, signal?: AbortSignal): Provider {
   if (!signal) return provider;
 
   return {
     generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
-      // Do not start provider work after cancellation. `rejectOnAbort` protects awaited
-      // handles, but checking only after `provider.generate` would still initiate a network
-      // request that no build is allowed to publish.
+      // `rejectOnAbort` protects awaited handles, but checking only after `provider.generate`
+      // would still start a network request no build is allowed to publish.
       if (signal.aborted) throw abortError(signal);
       const result = provider.generate(prompt, schema);
       const object = rejectOnAbort(result.object, signal);

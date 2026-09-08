@@ -88,9 +88,8 @@ function formatActiveCapability(context: IntentPromptContext): string {
 }
 
 /**
- * The opening line of every classification prompt. Exported so a fake provider can
- * recognize the resolver's own call by its prompt rather than by queue position, and so a
- * rewording of the prompt cannot silently make that recognition stop matching.
+ * The opening line of every classification prompt. A fake provider matches the resolver's own
+ * call against this constant, so neither queue position nor a reworded copy can drift from it.
  */
 export const INTENT_RESOLVER_PROMPT_PREFIX = "You are Aluna's Intent Resolver.";
 

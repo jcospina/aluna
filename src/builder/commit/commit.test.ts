@@ -280,9 +280,8 @@ describe("commitCapability — the logo's inputs at birth", () => {
       database: conns.readwrite,
     });
 
-    // The seed is the record of what drew the artwork. It is stored rather than
-    // derived from the capability's name or its place on the desk, either of which
-    // can move without the drawing changing.
+    // The seed records what drew the artwork. It is stored, not derived from the capability's
+    // name or its place on the desk, either of which can move without the drawing changing.
     expect(logoSeedSchema.safeParse(result.row.seed).success).toBe(true);
     expect(result.row.subject).toBe("an open notebook");
     expect(result.row.ground).toBe("grass_green");

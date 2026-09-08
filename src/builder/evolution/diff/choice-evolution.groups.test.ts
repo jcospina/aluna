@@ -66,9 +66,8 @@ describe("the picker's groups, its presentation, and the facts together", () => 
   });
 
   test("a real restructure is admitted — only a rename in place is refused", () => {
-    // One group becoming two is not a rename, and neither is emptying one into another.
-    // The heuristic that recognizes a rename must not refuse either, or there is no
-    // admitted spelling of a change the spec gate is perfectly happy with.
+    // One group becoming two is not a rename, and neither is emptying one into another: the
+    // heuristic must admit both, or a change the spec gate is happy with has no spelling.
     const split = validate(oneGroupJournal(), (draft) => {
       const stage = stageOf(draft);
       stage.groups = [
@@ -141,9 +140,8 @@ describe("the control, and what the card can and cannot see", () => {
   });
 
   test("the two facts that move the card's value-to-label table regenerate it", () => {
-    // The item renderer is handed the value→label pairs and told to present the label, so
-    // a copied renderer that has not seen a wording change shows the old word, and one
-    // that has not seen an appended value shows the raw wire string.
+    // The renderer is handed value→label pairs and told to present the label, so a copied one
+    // shows the old word after a relabel and the raw wire string after an append.
     const shown = shownOnTheCard(journalWithChoice());
     const relabelled = workFor(shown, (draft) => {
       const option = stageOf(draft).values?.[0];

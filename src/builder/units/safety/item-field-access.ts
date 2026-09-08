@@ -3,9 +3,8 @@ import ts from "typescript";
 import type { CapabilitySpec } from "../../../registry/index.ts";
 
 /**
- * Statically enforce the item renderer's declared data boundary. Runtime
- * projection remains defense in depth, but undeclared reads must fail the Gate
- * so generated code cannot accidentally depend on a value it will never receive.
+ * Statically enforce the item renderer's declared data boundary. Runtime projection stays defense
+ * in depth, but an undeclared read must fail the Gate rather than depend on an absent value.
  */
 export function checkItemRendererFieldAccess(
   spec: CapabilitySpec,

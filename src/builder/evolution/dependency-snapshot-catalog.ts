@@ -25,9 +25,8 @@ export function buildVerifiedDependencySnapshotCatalog(
 }
 
 /**
- * Reverify the frozen dependency rows and require the exact evidence captured at
- * admission. Evolution calls this synchronously at the SQLite pre-COMMIT boundary, so
- * dependency bytes cannot change after provenance is authored yet still activate.
+ * Reverify the frozen dependency rows against the evidence captured at admission. Called at the
+ * pre-COMMIT boundary, so bytes cannot change after provenance is authored and still activate.
  */
 export function assertVerifiedDependencySnapshotCatalog(
   rows: readonly CapabilityRow[],

@@ -85,9 +85,8 @@ describe("resolver duplicate guard", () => {
     const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
 
     expect(events.map((event) => event.event)).toEqual(["metrics-preview", "fragment", "done"]);
-    // The name reaches the sentence escaped. It is a name a person could really choose;
-    // one shaped like markup is refused as a name outright now (`registry/labels.ts`) and
-    // falls back to the capability's own id, so it could not prove the escape.
+    // The name reaches the sentence escaped. One shaped like markup is refused as a name outright
+    // (`registry/labels.ts`) and falls back to the capability's id, so it could not prove this.
     expect(eventData(events, "fragment")).toContain("Tom &amp; Jerry");
     expect(eventData(events, "fragment")).not.toMatch(/Tom & Jerry/);
     expect(prompts).toEqual([]);

@@ -1,13 +1,12 @@
 // @ts-check
 
 /**
- * The shell's half of the count sidecar (CONTEXT.md, "Count sidecar").
- *
- * Three transports write the records region and all three come through here: htmx, for the
- * View's own one-shot load; the committed-records refresh, after a create; and the search
- * controller. Each hands its response to the same split.
+ * The shell's half of the count sidecar (CONTEXT.md, "Count sidecar"). Three transports write
+ * the records region — htmx's one-shot load, the post-create refresh, the search controller.
  */
 
+/* A comment, not markup: the fragment enforcer passes one straight through, so a generated
+   Handler could open a mutation's answer with a forged sidecar. `readsThisRegion` refuses it. */
 export const COLLECTION_COUNT_SIDECAR_PREFIX = "<!--aluna:count:";
 export const COLLECTION_COUNT_SIDECAR_SUFFIX = "-->";
 export const COLLECTION_COUNT_LABEL_ATTR = "data-capability-count-label";
@@ -19,7 +18,8 @@ const RECORDS_REGION_SELECTOR = '[data-content-region="records"]';
 const RECORDS_REGION_ID_SUFFIX = "-records";
 
 /**
- * The two routes the platform writes a sidecar on, asked of the region's own capability.
+ * The two routes the platform writes a sidecar on, asked of the region's own capability. A
+ * Handler picks its own `hx-target`, so only the verb and path can expose a forged sidecar.
  *
  * @param {{ verb?: string, path?: string } | undefined} requestConfig
  * @param {string} regionId
@@ -35,13 +35,8 @@ function readsThisRegion(requestConfig, regionId) {
 }
 
 /**
- * Take the count off the head of a records response.
- *
- * `sentence` is `undefined` when the response carries no sidecar — a fragment that is not
- * a records answer at all — and the label is left exactly as it was, which is what keeps a
- * failed refresh honest: the number stays stale for exactly as long as the records it
- * describes do. An empty string is a sidecar that says there is nothing to say, which is
- * what clears a label after the last record is deleted.
+ * Take the count off the head of a records response. `undefined` is no sidecar, so the label
+ * keeps its stale number; an empty string is a sidecar that clears the label.
  *
  * @param {string} html
  * @returns {{ sentence: string | undefined, records: string }}
@@ -51,9 +46,8 @@ export function splitCollectionCount(html) {
     return { sentence: undefined, records: html };
   }
   const end = html.indexOf(COLLECTION_COUNT_SIDECAR_SUFFIX, COLLECTION_COUNT_SIDECAR_PREFIX.length);
-  // An unterminated sidecar is the whole response: an open comment swallows everything
-  // after it anyway, so there are no records in there to render, and the label says
-  // nothing rather than keeping a number this answer did not confirm.
+  // An unterminated sidecar is the whole response: an open comment swallows everything after
+  // it, so there are no records to render and the label says nothing rather than a stale number.
   if (end === -1) return { sentence: "", records: "" };
   return {
     sentence: decodeSidecarPayload(html.slice(COLLECTION_COUNT_SIDECAR_PREFIX.length, end)),
@@ -76,11 +70,8 @@ function decodeSidecarPayload(payload) {
 }
 
 /**
- * Write one sentence into the count label of the collection this region belongs to.
- * `textContent`, so what lands is read as words and never as markup.
- *
- * Off a browser there is no label to write, which is how the pure refresh seam stays
- * executable in Bun.
+ * Write one sentence into this collection's count label. `textContent`, so it lands as words
+ * and never as markup; off a browser there is no label, which keeps the refresh seam in Bun.
  *
  * @param {Element} region
  * @param {string | undefined} sentence
@@ -104,22 +95,8 @@ export function applyCollectionCount(region, sentence) {
  */
 
 /**
- * Read one `htmx:beforeSwap` and, if it is a records answer, take the count off it.
- * `serverResponse` is rewritten in place, so htmx swaps the records alone and the comment
- * never reaches the DOM. Exported so the transport every collection's *first* load goes
- * through is executable without a browser.
- *
- * **Only the region's own read answers with a count.** The platform writes a sidecar on
- * `read` and `search` and nowhere else, so on a mutation's answer position zero belongs to
- * the generated Handler — and a comment is not executable markup, so the fragment enforcer
- * passes one straight through. Without a check here a Handler could author its create form
- * with `hx-target` on the records region and open that create's answer with a forged
- * sidecar, putting any sentence it liked into platform chrome.
- *
- * Aiming at the records region is therefore not enough, because the aim is the Handler's
- * to choose. What it cannot choose is the request: the sidecar is honoured only for a GET
- * of `/capability/<id>/read` or `/search` for the capability whose region this is. A
- * mutation is never that, and neither is another capability's read.
+ * Take the count off one `htmx:beforeSwap`, rewriting `serverResponse` in place so the comment
+ * never reaches the DOM. Exported so a collection's first load is executable without a browser.
  *
  * @param {SwapDetail | undefined} detail
  * @param {unknown} eventTarget

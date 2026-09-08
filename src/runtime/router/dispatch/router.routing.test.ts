@@ -322,9 +322,6 @@ describe("deterministic capability router — failures and complete inventory", 
     expect(body).not.toMatch(/internal|stack|\bError\b/);
   });
 
-  // No unit-boundary test over `__fixtures__` here: those files are hand-written
-  // test inputs, so asserting they contain no imports, SQL, or HTTP only restates
-  // how they were typed. The same boundary is enforced against real generated units
-  // by the structural gate — see gate.structural.test.ts, which additionally
-  // attributes each violation to the offending Action.
+  // No unit-boundary test over `__fixtures__`: those files are hand-written, so the assertion
+  // would restate how they were typed. The real boundary lives in gate.structural.test.ts.
 });

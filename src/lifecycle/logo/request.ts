@@ -1,20 +1,14 @@
 // The one generation request, assembled from the four things a claim hands back.
 //
-// [ADR-0007](../../docs/adr/0007-capability-logo-contract.md) fixes the whole request
-// except four values, and the shape of this module is that sentence in code: everything
-// held constant is a module-level constant with a literal type, and
-// {@link buildLogoGenerationRequest} takes *only* the claim's subject, its two colours
-// and its seed.
-// There is no options parameter, so "no caller may vary the constants" is a fact about
-// the signature rather than a rule someone has to remember.
+// [ADR-0007](../../../docs/adr/0007-capability-logo-contract.md) fixes the whole request except
+// four values: everything held constant is a module-level constant with a literal type, and
+// {@link buildLogoGenerationRequest} takes only the claim's subject, its two colours and its seed.
+// There is no options parameter, so "no caller may vary the constants" is a fact about the
+// signature rather than a rule someone has to remember.
 //
-// What varies is short: the two authored colours, ground first,
-// the background pinned to the first of them, the stored `random_seed`, and the prompt
-// block with its subject slot filled.
-//
-// The ground is named **twice** — once in `controls.background_color` and once in words
-// inside the prompt — because L2 records that naming it in only one of the two places
-// does not work: the control alone is ignored.
+// The ground is named twice — once in `controls.background_color` and once in words inside the
+// prompt — because L2 records that naming it in one place alone does not work: the control is
+// ignored.
 
 import type { LogoShade } from "../../registry/logo.ts";
 
@@ -42,20 +36,8 @@ export const LOGO_GENERATION_NO_TEXT = true;
 export const LOGO_GENERATION_PATH = "/images/generations";
 
 /**
- * The thirty-two shades as bytes. Recraft takes colour as an RGB triple, so the shade
- * *names* the ladder resolves to have to become numbers somewhere; this is the only place
- * they do.
- *
- * These are **not design tokens**, and no longer pretend to be. `ground` and `companion`
- * style nothing — the tile is a full-bleed SVG and the shell adds no colour of its own
- * (L8) — so the value here reaches exactly one destination, the request, and owes the
- * stylesheet nothing. The eight anchors this replaced were palette tokens, and the
- * cross-check against `design/styles/tokens.css` went with them; what `request.test.ts`
- * pins instead is the property that mattered all along, measured directly: every shade is
- * a daylight colour at high chroma, no near-blacks, no greys.
- *
- * Eight of the thirty-two are the old anchors at their exact former values — the ladder
- * strictly widened the vocabulary rather than restating it.
+ * The thirty-two shades as bytes, the only place shade names become numbers. Not design tokens:
+ * they reach the request alone (L8); `request.test.ts` measures daylight chroma, not tokens.css.
  */
 const LOGO_SHADE_RGB = {
   grass: [0x3f, 0xa6, 0x5b],
@@ -93,32 +75,8 @@ const LOGO_SHADE_RGB = {
 } as const satisfies Record<LogoShade, readonly [number, number, number]>;
 
 /**
- * The same thirty-two shades as ordinary English, for the half of L2 that lives inside
- * the prompt. A shade name means nothing to the service on its own, so the control's
- * value is restated as words the model can read.
- *
- * `golden` is fixed by the contract: `design/logo.html` shows the block with its second
- * slot filled as *"a flat warm golden yellow"*. The other thirty-one follow its shape — a
- * qualifier, then a hue — and two rules decide which qualifier and which hue:
- *
- *   - **Nothing that pulls against the block's closing sentence.** It asks for *"daylight
- *     colours at high chroma — no near-blacks, no dark backgrounds, no pastels, no
- *     greys"*, so *pale*, *muted*, *deep* and *soft* are out and *vivid*, *rich*, *clear*
- *     and *warm* are in. The six wording rules record that this model follows the words
- *     rather than reconciling them, which is why a phrase may not argue with a sentence
- *     three lines below it.
- *   - **Nothing that names a scene the block itself bans.** The block says *"no floor, no
- *     wall, no horizon, no ground line"*, and rule 4 records that spatial words do not
- *     stay where they were put — *"stacked"*, written about how shapes sit, returned a
- *     stack of books. The scene noun the old vocabulary carried — *sky* — is gone from
- *     both halves of the contract, because the spec model was picking it for what it
- *     depicts. Colour names drawn from plants, stones and materials stay: *grass green*,
- *     *forest green*, *coral*, *mustard*, *amethyst*, *jade* are colour names, and none
- *     of them is on the block's list.
- *
- * They may be reworded freely within those two rules: L7 makes a logo a one-time
- * drawing, so no retry is ever inconsistent with an earlier one and the block owes no
- * versioning. `request.test.ts` holds both ban lists.
+ * The same shades as English, the other half of L2, with both ban lists in `request.test.ts`: no
+ * wording against the daylight close, and no scene word — *stacked* returned a stack of books.
  */
 const LOGO_SHADE_IN_WORDS = {
   grass: "a flat vivid grass green",
@@ -184,20 +142,8 @@ export interface LogoGenerationInputs {
 }
 
 /**
- * The prompt block, with its three slots filled.
- *
- * The injected subject is **wrapped** rather than concatenated: it sits inside "A flat
- * colour square of …, drawn in …, on … background." That wrapping is the whole defence
- * recorded against the model lettering a raw description into the drawing, because
- * `controls.no_text` is documented as insufficient on its own. Do not move the slot to
- * the front or the end of the block, and do not let it become the whole prompt.
- *
- * **Both colours are named in words, not just the ground.** L2 records that naming a
- * colour in the control alone does not work — the control is ignored — and that
- * measurement was made on `background_color`. An authored companion that reached the
- * service only as `controls.colors[1]` would be a stored fact with nothing visible
- * behind it, which would make authoring it pointless. It is named on L2's evidence
- * rather than on its own; the four specimens on the contract page predate the slot.
+ * The subject is wrapped, not concatenated: that is the whole defence against lettering, since
+ * `controls.no_text` is not enough. Never move the slot to an edge. Both colours are named (L2).
  */
 export function buildLogoPrompt(subject: string, ground: LogoShade, companion: LogoShade): string {
   return [
@@ -221,7 +167,10 @@ export function logoShadeColorControl(shade: LogoShade): LogoColorControl {
   return { rgb: LOGO_SHADE_RGB[shade] };
 }
 
-/** The English the prompt names a shade with — exported for the contract's tests. */
+/**
+ * The English the prompt names a shade with — exported for the contract's tests. `golden` is fixed
+ * by `design/logo.html`; the other thirty-one follow its shape, a qualifier then a hue.
+ */
 export function logoShadeInWords(shade: LogoShade): string {
   return LOGO_SHADE_IN_WORDS[shade];
 }

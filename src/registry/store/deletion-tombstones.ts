@@ -42,10 +42,8 @@ interface StoredDeletionTombstone {
 const TOMBSTONE_COLUMNS =
   "id, incarnation_id, deletion_manifest, deletion_created_at, deletion_cleanup_attempts, deletion_cleanup_error";
 
-// No schema probing here. `lifecycle_state` arrives with the registry table itself
-// (platform migration 0010), and every active-row read in `store.ts` already filters on
-// it unconditionally — so a registry without the column cannot serve any request at all,
-// and guarding these four functions for it would only hide that.
+// No schema probing here. `lifecycle_state` arrives with the registry table (migration 0010) and
+// every active-row read already filters on it, so guarding for its absence would only hide that.
 
 function parseStoredTombstone(row: StoredDeletionTombstone): CapabilityDeletionTombstone {
   return deletionTombstoneSchema.parse({
@@ -87,13 +85,8 @@ export function listCapabilityDeletionTombstones(
 }
 
 /**
- * A build that reached a capability id a tombstone still reserves.
- *
- * Raised as early as the id is known rather than at the activation CAS. The lease-head
- * check can only test an id the *resolver* named, which it does not for an ordinary "build
- * me a notes app" — so a rebuild of a capability whose deletion cleanup is wedged used to
- * generate its spec, its six units, run the whole Gate and publish its artifacts, and only
- * then be refused by the CAS. Every time, for as long as the tombstone stood.
+ * A build that reached a capability id a tombstone still reserves, raised as early as the id is
+ * known: at the CAS it had already generated six units, run the Gate and published its artifacts.
  */
 export class CapabilityIdReservedError extends Error {
   override readonly name = "CapabilityIdReservedError";
@@ -150,9 +143,8 @@ export function removeCapabilityDeletionTombstone(
 }
 
 /**
- * Record that post-commit cleanup failed again. The tombstone itself is the durable
- * record, so the reason a capability id is still reserved survives the process that
- * discovered it — an operator can see a wedge instead of inferring one.
+ * Record that post-commit cleanup failed again. The tombstone is the durable record, so the reason
+ * an id is still reserved survives the process that discovered it and an operator sees a wedge.
  */
 export function recordCapabilityDeletionCleanupFailure(
   expectation: Pick<CapabilityDeletionTombstone, "capabilityId" | "incarnationId">,

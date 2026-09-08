@@ -11,10 +11,8 @@ export default async function read({ query, present }) {
     sql: 'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC',
   });
   if (notes.length === 0) {
-    // No records: return nothing so the platform region stays truly `:empty` and the
-    // platform-owned empty state shows. A handler that emits its own
-    // empty-state markup would fill the region — defeating that empty state and
-    // lingering below the first record once create prepends it.
+    // Return nothing so the region stays `:empty` and the platform empty state shows. A handler's
+    // own empty-state markup would defeat it and linger below the first record create prepends.
     return "";
   }
 

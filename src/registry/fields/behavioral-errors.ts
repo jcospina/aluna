@@ -62,9 +62,8 @@ export function defaultBehavioralErrorsForSchema(
 }
 
 /**
- * Structural failures the platform raises itself, before any generated Handler runs. A
- * capability may not author them: the one authored platform sentence is already written,
- * and a second copy in `behavioral_errors` would make the contract two contracts.
+ * Structural failures the platform raises itself, before any generated Handler runs. A capability
+ * may not author them: a second copy in `behavioral_errors` would make the contract two contracts.
  */
 const PLATFORM_OWNED_ERROR_CODES = [
   "record_not_found",

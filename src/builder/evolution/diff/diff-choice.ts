@@ -16,23 +16,8 @@ import {
 import type { ChangeFact, ChangeFactKind } from "./diff-engine.ts";
 
 /*
- * A choice fact is only the movement of a field that is a choice in *both* specs; a field
- * that gained or lost that status is already a new_active_field or field_lifecycle fact.
- *
- * The facts are independent rather than exclusive, because they buy different work and one
- * evolution can make several of them at once. Two change what the platform admits and what
- * the writing Handlers are tested against — an appended option, and an option that stops
- * being offered. The other five are the View's (ADR-0006): the wording of a label, the note
- * beside it, the order the options are drawn in, the groups they stand under, and which of
- * the three controls draws them. Four of those five buy platform work alone; a relabel
- * additionally reaches the card, because the item renderer is given the value→label pairs
- * and told to present the label (`diff-engine.ts` maps both).
- *
- * Every comparison is by *value*, never by position. Option order is presentation now, so
- * an index would report a reorder as a relabel of everything it moved past.
- *
- * Removing or renaming a committed option value never reaches here: candidate validation
- * refuses it before Diff, so a stored row can never become undeclared data.
+ * A choice fact is only the movement of a field that is a choice in both specs; anything else is
+ * already a new_active_field or field_lifecycle fact. Comparison is by value, never by position.
  */
 export function detectChoiceFacts(
   committed: CapabilitySpec,
@@ -60,11 +45,8 @@ function detectChoiceOptionFacts(
   const byValue = new Map(candidateOptions.map((option) => [option.value, option]));
   const committedValues = committedOptions.map(optionValue);
 
-  // Candidate validation refuses a removed or renamed value before the Diff ever runs, so
-  // every committed option is still here. Saying so out loud rather than letting the
-  // comparisons below read `undefined` off the map: a missing option would otherwise be
-  // reported as a relabel, a note change and a reorder all at once — three facts about a
-  // change that is not admitted at all.
+  // Validation refuses a removed or renamed value before the Diff runs, so every committed
+  // option is here. A missing one would read as a relabel, a note change and a reorder at once.
   for (const option of committedOptions) {
     if (byValue.has(option.value)) continue;
     throw new Error(

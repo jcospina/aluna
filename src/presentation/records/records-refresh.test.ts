@@ -31,9 +31,8 @@ describe("refreshCommittedRecords", () => {
   });
 
   test("takes the count off the answer, so only records reach the region", async () => {
-    // The count rides the read the region already asks for — one request, not two — and
-    // it is stripped before the swap. A sidecar left in the region would be a comment, so
-    // `:empty` would still match, but the region is for records and nothing else.
+    // The count rides the read the region already asks for — one request, not two — and is
+    // stripped before the swap: the region is for records and nothing else.
     const region = { innerHTML: "stale" };
     let requests = 0;
 
@@ -231,13 +230,8 @@ describe("records region request ownership", () => {
 });
 
 /**
- * The refresh takes the region before it claims it, and that order is the whole of
- * whether a mutation's aftermath renders at all: the release runs over everything the
- * region still holds, so a claim made first is the first thing it aborts.
- *
- * Executed rather than read, which means standing up just enough of a browser for the
- * module's own `region instanceof Element` question to have an answer. Both globals are
- * put back afterwards, so nothing else in the process sees them.
+ * The refresh takes the region before it claims it: the release runs over everything the region
+ * still holds, so a claim made first is the first thing it aborts.
  */
 class RegionElement extends EventTarget {
   innerHTML = "";

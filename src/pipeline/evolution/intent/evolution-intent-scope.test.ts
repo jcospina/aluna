@@ -55,9 +55,7 @@ describe("resolved evolution intent scope", () => {
       "capability_label",
       "field_label",
       "list_input_mode",
-      // A bigger box to write in and a line of guidance under a field are presentation in
-      // exactly the way a list's input mode is: nothing stored moves, and no generated
-      // unit is regenerated. A request for either is a ui_change, not an extension.
+      // Presentation, for the reason `UI_CHANGE_FACTS` gives in `evolution-intent.ts`.
       "long_text_input",
       "field_guidance",
       "item_presentation",
@@ -66,9 +64,8 @@ describe("resolved evolution intent scope", () => {
   });
 
   test("ui_change admits a changed record noun — it is platform copy, like the name", () => {
-    // A rename that changes what the thing *is* moves both together ("call these
-    // Recipes" → label Recipes, noun recipe). Admitting the label but not the noun
-    // would hard-fail the most ordinary rename there is.
+    // A rename that changes what the thing *is* moves both ("call these Recipes" → label Recipes,
+    // noun recipe), so admitting the label but not the noun hard-fails the most ordinary rename.
     const committed = committedSpecView(journalCapabilityRow());
     const diff = diffCapabilitySpec(committed, {
       ...committed,

@@ -27,14 +27,8 @@ import { buildItemRendererDesignInjection } from "./few-shot-gallery.ts";
 import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
 
 /**
- * The prompt for one unit: the kind-specific authoring contract plus the spec, with
- * the previous attempt's failure appended on a retry so the model returns a complete
- * corrected unit (not a patch).
- *
- * `priorSource` is an evolution regeneration's optional extra context. It is
- * appended only when the caller has already proven it admissible against *this* spec —
- * this builder never decides admissibility, it only places what it is given, so an
- * inadmissible unit's prompt is byte-for-byte the prompt a fresh unit would receive.
+ * The kind-specific authoring contract plus the spec, with a retry's failure appended so the
+ * model returns a whole unit, not a patch. This builder never decides `priorSource` admissibility.
  */
 export function buildUnitPrompt(
   spec: CapabilitySpec,
@@ -64,10 +58,8 @@ export function buildUnitPrompt(
 }
 
 /**
- * The prior committed source, framed as what it is: reference material that was proven to
- * reference nothing outside the contract stated above, and that the contract above still
- * outranks. Placed after the contract and before any failure feedback, so the last thing
- * the model reads on a retry is still the failure it has to fix.
+ * The prior committed source, framed as reference material the contract above still outranks.
+ * Placed before any failure feedback, so a retry still ends on the failure to fix.
  */
 function priorSourceSection(unit: UnitDescriptor, priorSource: string): string[] {
   return [
@@ -423,9 +415,8 @@ type MutationFieldProjection = Pick<SpecField, "name" | "type" | "required"> & {
 type SearchFieldProjection = Pick<SpecField, "name" | "type">;
 
 /**
- * Searchability, decided the same way the Diff Engine and the behavioral total inputs
- * decide it. All four must move together, or the Diff would select `search` for a field
- * this projection never names.
+ * Searchability, decided as the Diff Engine and the behavioral total inputs decide it. All four
+ * must move together, or the Diff selects `search` for a field this projection never names.
  */
 function isSearchableProjectionType(type: SpecField["type"]): boolean {
   return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
@@ -437,14 +428,8 @@ function handlerFieldProjection(
 ): readonly (MutationFieldProjection | SearchFieldProjection)[] {
   const active = activeSpecFields(spec.schema.fields);
   if (action === "create" || action === "update") {
-    // A choice carries the value strings it admits, so the Handler can read a stored
-    // selection and write behavior around it. It is context, not a validation duty: the
-    // platform has already refused anything undeclared before the Handler runs.
-    //
-    // The strings alone, in value order. A Handler never draws the control, so a label, a
-    // note, a heading, the authored order and whether an option is still on offer are all
-    // things it must not be able to go stale about — which is what lets the Diff matrix
-    // map those facts to platform work without copying a Handler that knew them.
+    // The value strings a choice admits, in value order: context for reading a stored selection,
+    // not a validation duty. A Handler never draws the control, so labels and order stay out.
     return active.map(({ name, type, required, values }) => ({
       name,
       type,

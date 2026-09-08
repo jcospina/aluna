@@ -159,9 +159,8 @@ describe("capability table DDL mapper", () => {
         { name: "created_at", type: "TEXT", notnull: 1, dflt_value: "datetime('now')" },
         { name: "extra", type: "TEXT", notnull: 1, dflt_value: "'{}'" },
       ]);
-      // Spelled out rather than read from SQLITE_TYPE_BY_FIELD_TYPE: the DDL builder
-      // indexes that same map, so sourcing the expectation from it would keep passing
-      // if a pantry type were remapped to the wrong storage class.
+      // Spelled out rather than read from SQLITE_TYPE_BY_FIELD_TYPE: the DDL builder indexes that
+      // same map, so sourcing the expectation from it would pass on a wrong storage class.
       expect(columns.slice(3)).toMatchObject([
         { name: "title", type: "TEXT", notnull: 0 },
         { name: "amount", type: "REAL", notnull: 0 },
