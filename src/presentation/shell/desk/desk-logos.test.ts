@@ -14,9 +14,8 @@ import { WINDOW_CONTENT_ID } from "#shell/desk-window.js";
 import { renderBuildSubscriber, renderProvisionalLogo } from "../../../server/http/fragments.ts";
 
 /**
- * A document small enough to run the tile's rules in Bun. They need four DOM facts and no
- * more — find a node by attribute, find one by id, remove one, and receive an event — so
- * this implements exactly those.
+ * A document small enough to run the tile's rules in Bun. They need four DOM facts: find a node
+ * by attribute, find one by id, remove one, and receive an event.
  */
 class Node {
   readonly children: Node[] = [];
@@ -150,9 +149,8 @@ describe("the tile an admitted build stands on the desk", () => {
   });
 
   test("a build id is matched as a value, never assembled into a selector", () => {
-    // A build id is a string this module did not author. Reading the attribute back
-    // compares two strings; building `[attr="…"]` out of one has to be escaped correctly
-    // to be safe, and there is no reason to take on that obligation.
+    // A build id is a string this module did not author, so the attribute is read back and
+    // compared rather than built into an `[attr="…"]` selector that would need escaping.
     const root = new FakeDocument();
     const tile = new Node({ [PROVISIONAL_LOGO_ATTRIBUTE]: 'b"1' });
     root.append(new Node({ id: "capability-logos" }).append(tile));
@@ -173,14 +171,8 @@ describe("the terminal cleanup path", () => {
   });
 
   test("a transient error leaves the tile alone, because the transport is still retrying", () => {
-    // `htmx:sseError` is not a terminal. The vendored extension fires it and then — when
-    // the connection node is still in the document — schedules a reconnect with backoff;
-    // a native EventSource fires `error` on every drop while it retries itself. The
-    // genuinely dead case never reaches here: `bodyContains` failing makes the extension
-    // fire `htmx:sseClose` with `nodeMissing` and close, which the row above covers.
-    //
-    // So taking the tile down here let an ordinary proxy blip orphan the tile of a build
-    // that is still running, and nothing puts it back — only activation appends a logo.
+    // `htmx:sseError` is not a terminal: the extension fires it and then schedules a reconnect, so
+    // taking the tile down here let a proxy blip orphan a running build, and nothing puts it back.
     const { root, tile, narration } = deskWithBuild("build-1");
     startDeskLogos(root);
 
@@ -188,12 +180,8 @@ describe("the terminal cleanup path", () => {
     expect(tile.parent).not.toBeNull();
   });
 
-  // The three `detail.type` values htmx's SSE extension actually closes with. `message` is
-  // the server-sent `done`; the other two are htmx closing a stream whose subscriber left
-  // the document, and they arrive without an `error` event, so nothing else would catch
-  // them. Pressing another capability's logo while a build runs swaps the region the
-  // subscriber lives in and produces exactly `nodeReplaced` — an ordinary gesture that
-  // used to strand a tile on the ground for the rest of the session.
+  // The three `detail.type` values htmx's SSE extension closes with. The two node ones arrive
+  // without an `error` event, and pressing another logo mid-build produces `nodeReplaced`.
   for (const type of ["message", "nodeReplaced", "nodeMissing"]) {
     test(`a stream closed as ${type} takes its tile down`, () => {
       const { root, tile, narration } = deskWithBuild("build-1");
@@ -205,11 +193,8 @@ describe("the terminal cleanup path", () => {
   }
 
   test("a run whose window holds its ending still takes its tile down at the close", () => {
-    // The window waits, the tile does not. A run that failed, was refused as stale or
-    // came back a measured no-op holds its story until it is dismissed (PLAN decision
-    // 25), but by then the run is over and there is no in-flight story left for a tile
-    // to be the way back to — and no capability for it to become. The close is the
-    // terminal cleanup, and it is the only ending this module needs to know about.
+    // The window waits, the tile does not: a failed or refused run holds its story until it is
+    // dismissed (PLAN decision 25), but by then there is no in-flight story to go back to.
     const { root, tile, narration } = deskWithBuild("build-1");
     startDeskLogos(root);
 
@@ -229,10 +214,8 @@ describe("the terminal cleanup path", () => {
   });
 
   test("activation replaces the tile rather than leaving both or neither", () => {
-    // The commit's out-of-band sidecar stands the registry-backed logo on the desk while
-    // the stream is still open; the close that follows takes the provisional one down.
-    // What the user sees is one logo becoming another, never two of the same capability
-    // and never a gap.
+    // The commit's out-of-band sidecar stands the registry-backed logo on the desk while the
+    // stream is open, and the close takes the provisional one down: one logo becoming another.
     const { root, layer, narration } = deskWithBuild("build-1");
     startDeskLogos(root);
 
@@ -302,9 +285,8 @@ describe("the module ships with the shell", () => {
   });
 
   test("what this module looks for is what the server writes", () => {
-    // The two halves are a classic script and a server renderer, so neither can import
-    // the other's constant. They are pinned against each other here instead — the same
-    // answer `region-scope.js` and `app.js` give for `RELEASE_REGION_EVENT`.
+    // The two halves are a classic script and a server renderer, so neither can import the
+    // other's constant and they are pinned against each other here instead.
     expect(renderProvisionalLogo("build-1")).toContain(`${PROVISIONAL_LOGO_ATTRIBUTE}="build-1"`);
     expect(renderBuildSubscriber("build-1")).toContain('data-build-job-id="build-1"');
     // The narration region is no longer in the shell: the window holds it, and the

@@ -1,6 +1,6 @@
 // What a generated unit is told about a length limit, and what the behavioral tier is.
 //
-// The asymmetry is the whole point. A limit is validation shape, so it belongs in the
+// The asymmetry is deliberate. A limit is validation shape, so it belongs in the
 // behavioral tier's total inputs — a suite written against a 240-character field is a suite
 // that goes stale when the field becomes a 64-character one. It is deliberately absent from
 // both Handler prompts, because a Handler receives an already-admitted string and never

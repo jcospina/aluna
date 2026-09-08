@@ -16,11 +16,8 @@ import {
 } from "#shell/desk-window.js";
 import { code as stripComments } from "../../safety/source.test-support.ts";
 
-// The window, checked where it is written down. It is created and destroyed by the
-// client, so most of what has to hold is a statement about a file rather than about a
-// served page: the shell ships a layer and a module and no content area of its own, the
-// module owns the frame the design draws, and the two lamps are the only life cycle the
-// chrome offers (PLAN decisions 1 and 2; design D1, D3, D12).
+// The window's gestures, checked where they are written down: one drag and one grip, shared by
+// the product and the design's own desk (PLAN decisions 1 and 2; design D1, D3, D12).
 
 const ROOT = resolve(import.meta.dir, "../../../..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -36,17 +33,15 @@ describe("dragging and resizing", () => {
   const gestures = code("design/scripts/window-gestures.js");
 
   test("the three gestures are written once and used by both desks", () => {
-    // The same rule the frame keeps: `window.js` draws every window and no surface
-    // gets a simpler one of its own. Two copies of a drag is how the design's grip
-    // and the product's came to disagree about being a button.
+    // The same rule the frame keeps: `window.js` draws every window and no surface gets a simpler
+    // one. Two copies of a drag is how the two grips came to disagree about being a button.
     for (const consumer of ["public/desk-window.js", "design/scripts/desk.js"]) {
       const source = code(consumer);
       expect(source, `${consumer} does not use the shared gestures`).toMatch(
         /addWindowDrag,\s*addWindowGrip,\s*setMaximised\s*}\s*from\s*"[^"]*window-gestures\.js"/,
       );
-      // No second implementation left behind in either caller. (The design's desk
-      // keeps a `pointerdown` of its own to bring a window to the front — that is
-      // stacking, not a gesture — so the test is what a gesture actually needs.)
+      // No second implementation left behind in either caller. The design's desk keeps a
+      // `pointerdown` to bring a window to the front, which is stacking rather than a gesture.
       expect(source, `${consumer} still tracks a drag of its own`).not.toContain("pointermove");
       expect(source, `${consumer} still builds a grip of its own`).not.toContain("window__grip");
       expect(source, `${consumer} still lists the gesture endings`).not.toContain("pointercancel");
@@ -62,10 +57,8 @@ describe("dragging and resizing", () => {
   });
 
   test("every way a gesture can end unbinds the move listener", () => {
-    // Without `pointercancel` and `lostpointercapture` the move listener stays
-    // attached, the window follows a pointer with no button held, and every later drag
-    // stacks another live listener. One `trackPointer` for both gestures, so the two
-    // cannot come apart.
+    // Without `pointercancel` and `lostpointercapture` the move listener stays attached and every
+    // later drag stacks another. One `trackPointer` for both gestures, so they cannot part.
     expect(gestures).toContain(
       'export const DRAG_ENDINGS = ["pointerup", "pointercancel", "lostpointercapture"]',
     );
@@ -79,9 +72,8 @@ describe("dragging and resizing", () => {
     expect(gestures.match(/trackPointer\(/g)).toHaveLength(3);
   });
 
-  // A device that reports both touch and mouse delivers two `pointerdown`s with different
-  // ids, and every listener answered both: two drags over one box, each writing what the
-  // other had just written.
+  // A device reporting both touch and mouse delivers two `pointerdown`s with different ids, and
+  // every listener answered both: two drags over one box, each writing over the other.
   test("one gesture answers one pointer, and nothing a second one sends", () => {
     const bound = new Map<string, (event: unknown) => void>();
     const handle = {
@@ -112,9 +104,8 @@ describe("dragging and resizing", () => {
     expect(bound.size).toBe(0);
   });
 
-  // The grip is inside the window, so the press that starts a resize also reaches the
-  // window's own raise listener — and stopping it there stopped the raise too, leaving the
-  // one window you are actively resizing behind the one you are not.
+  // The grip is inside the window, so the press starting a resize also reaches the raise listener,
+  // and stopping it there left the window being resized behind the one that was not.
   test("a press on the grip brings its window forward", () => {
     expect(gestures).toMatch(
       /grip\.addEventListener\("pointerdown",[\s\S]*?event\.stopPropagation\(\);[\s\S]*?host\.onStart\?\.\(\);/,
@@ -139,9 +130,8 @@ describe("dragging and resizing", () => {
 describe("who opens the window", () => {
   test("both openers run before htmx resolves the target they create", () => {
     const source = code("public/desk-window.js");
-    // Capture phase, on the document: htmx resolves `hx-target` from a listener on the
-    // element itself, which runs after every capture listener above it. The `true` is
-    // what makes the region exist by the time htmx looks for it.
+    // Capture phase, on the document: htmx resolves `hx-target` from a listener on the element
+    // itself, so the `true` is what makes the region exist by the time htmx looks for it.
     expect(source.match(/\n {4}true,\n {2}\);/g)).toHaveLength(2);
     expect(source).toContain(`form.id !== PROMPT_FORM_ID`);
     expect(PROMPT_FORM_ID).toBe("spec-build-form");
@@ -163,9 +153,8 @@ describe("the architecture says what the shell is now", () => {
   const architecture = read("docs/architecture.md");
 
   test("§6.1 draws the boundary in one sentence, with nothing to enumerate", () => {
-    // One sentence carries it, so future desk furniture needs no further amendment —
-    // and it still stands between the browser and any re-implementation of capability
-    // logic (PLAN decision 2).
+    // One sentence carries it, so future desk furniture needs no amendment, and it still stands
+    // between the browser and any re-implementation of capability logic (PLAN decision 2).
     expect(architecture).toContain(
       "> The shell may remember how things look to the user. It never decides what is",
     );

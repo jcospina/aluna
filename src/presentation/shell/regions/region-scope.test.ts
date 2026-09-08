@@ -204,9 +204,8 @@ describe("a records region's request is the scope entry", () => {
   });
 });
 
-// `app.js` is a classic script — it cannot import the module — so the one thing that
-// keeps the shell's own replacements inside the rule is that both sides spell the release
-// event the same way. Pin it, the way the item controller's open event is pinned.
+// `app.js` is a classic script and cannot import the module, so what keeps the shell's own
+// replacements inside the rule is that both sides spell the release event the same way.
 describe("the shell's classic-script glue speaks the release vocabulary", () => {
   const glue = readFileSync(join(import.meta.dir, "../../../../public/app.js"), "utf8");
   const shell = readFileSync(join(import.meta.dir, "../../../../public/index.html"), "utf8");
@@ -216,11 +215,8 @@ describe("the shell's classic-script glue speaks the release vocabulary", () => 
   });
 
   test("releases the content area before it replaces it wholesale", () => {
-    // Re-answering a severed deletion confirmation is the one place the shell replaces
-    // the whole region itself rather than leaving it to htmx, so it is the one place
-    // that releases the whole region. It is its own module now
-    // (`public/capability-deletion.js`), and it restates the vocabulary the way every
-    // module that cannot import the classic script's copy does.
+    // Re-answering a severed deletion confirmation is the one place the shell replaces the whole
+    // region itself, so `public/capability-deletion.js` restates the release vocabulary.
     const recovery = readFileSync(
       join(import.meta.dir, "../../../../public/capability-deletion.js"),
       "utf8",
@@ -230,20 +226,15 @@ describe("the shell's classic-script glue speaks the release vocabulary", () => 
   });
 
   test("promoting a build's ending releases through this rule and not around it", () => {
-    // The other replacement keeps something: a restoration's View may already be reading
-    // when the run ends, and releasing the region wholesale would abort it. So the ending
-    // is moved out first and the release runs over what is left, node by node — which is
-    // why nothing there re-fetches by hand. The whole ordering is pinned in
-    // `capability-swap.test.ts`, beside the rule it follows; what belongs here is that it
-    // is this rule it reaches for.
+    // The other replacement keeps something: a restoration's View may already be reading, so the
+    // ending is moved out first and the release runs node by node over what is left.
     expect(glue).toContain("releaseRegionContent(node)");
     expect(glue).not.toContain("reloadRestoredRecords");
   });
 
   test("the window marks the one region, and the shell starts the system", () => {
-    // The shell marks nothing: the region lives inside the window, which the client
-    // creates and destroys. That is what makes putting the window away the only way a
-    // region disappears, and why no window-scoped teardown exists beside this rule.
+    // The shell marks nothing: the region lives inside the window, which the client creates and
+    // destroys, so putting the window away is the only way a region disappears.
     expect(shell).not.toContain("data-content-region");
     expect(shell).toContain('<script type="module" src="/static/region-scope.js"></script>');
     expect(shell).toContain('<script type="module" src="/static/desk-window.js"></script>');
@@ -262,10 +253,8 @@ describe("the shell's classic-script glue speaks the release vocabulary", () => 
 });
 
 /*
- * The half the release rule's own suite could not reach. `abortTransportIn` used to sit
- * behind an `instanceof Element` guard, and every node here is a double — so the branch was
- * structurally excluded from every test, on the acquisition path that runs on every
- * capability open. It is a rule over two DOM facts now, and this exercises it.
+ * The half the release rule's own suite could not reach: `abortTransportIn` sat behind an
+ * `instanceof Element` guard, so a double excluded the branch from every test.
  */
 describe("the transport half: what an htmx request in flight is asked", () => {
   function aborting() {
@@ -294,9 +283,8 @@ describe("the transport half: what an htmx request in flight is asked", () => {
     expect(aborted).toEqual(["canonical read:htmx:abort", "search:htmx:abort"]);
   });
 
-  // The canonical read is the region's own content, and when the *region* is what carries
-  // the request there is no descendant to find — a walk that only looked downwards let the
-  // most ordinary abort of all through.
+  // The canonical read is the region's own content, so when the region carries the request there
+  // is no descendant to find and a downward-only walk let the most ordinary abort through.
   test("the released node's own request is aborted first", () => {
     const region = new Node("content", "content area");
     const child = new Node("child");

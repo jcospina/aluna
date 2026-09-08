@@ -1,22 +1,14 @@
-// The platform-owned migrations runner (ARCH §3, §6.3, §7,
-// §9.3). It applies an ordered list of migrations idempotently through the
-// read-write connection, records each applied migration in a tracking table, and
-// runs on boot (src/index.ts).
+// The platform-owned migrations runner (ARCH §3, §6.3, §7, §9.3). It applies an ordered list of
+// migrations idempotently through the read-write connection, records each in a tracking table,
+// and runs on boot.
 //
-// This is *platform* schema only: the ledger and the capability registry
-//, with metrics and the event log to follow. Capability *data*
-// tables (`cap_<id>`) never appear here — those are derived from specs and
-// created at runtime by the builder. The mechanism's guarantee holds for every
-// entry: a migration runs once, is recorded, and a second boot is a clean no-op.
+// Platform schema only. Capability data tables (`cap_<id>`) never appear here — the builder
+// derives those from specs at runtime.
 //
-// Two invariants, both straight from the unifying principle:
-//
-//   - Every migration runs through `db`, the single constrained write path.
-//   - Migrations are **additive-only**: they add or soft-hide
-//     structure and never `DROP`/destructively `RENAME`. The platform is thereby
-//     structurally incapable of destroying schema — a property later modules,
-//     which drive schema from AI output, lean on. This file is the place that
-//     property is established; keep new migrations additive.
+// Two invariants. Every migration runs through `db`, the single constrained write path. And
+// migrations are additive-only: they add or soft-hide structure and never `DROP` or
+// destructively `RENAME`, so the platform cannot destroy schema — a property later modules,
+// which drive schema from AI output, lean on. Keep new migrations additive.
 
 import type { Database } from "bun:sqlite";
 import { LOGO_BIRTH_STATUS, LOGO_STATUSES } from "../../registry/logo.ts";
@@ -30,17 +22,14 @@ import { GENERATION_METRICS_TABLE } from "../metrics/store.ts";
 import { db } from "./db.ts";
 
 /**
- * The bookkeeping table that records which migrations have been applied. Its name
- * is a fixed platform constant (never user input), so interpolating it into SQL
- * below is safe.
+ * The bookkeeping table recording which migrations have been applied. A fixed platform constant,
+ * never user input, so interpolating it into the SQL below is safe.
  */
 export const MIGRATIONS_TABLE = "schema_migrations";
 
 /**
- * One ordered, idempotently-applied unit of platform schema. `id` is a stable,
- * lexically-sortable identifier (the array order is the apply order; the id is
- * what the ledger records). `up` performs the additive change through the given
- * read-write connection.
+ * One ordered, idempotently-applied unit of platform schema. The array order is the apply order;
+ * `id` is what the ledger records, and `up` performs the additive change.
  */
 export interface Migration {
   readonly id: string;
@@ -48,17 +37,12 @@ export interface Migration {
 }
 
 /**
- * The ordered migration list. Append-only over the project's life — never reorder
- * or rewrite an applied migration, since the ledger keys on `id`.
- *
- * 0001 creates the ledger itself. That makes the very first migration both the
- * thing being recorded *and* the table it is recorded in: `up` creates the table
- * (IF NOT EXISTS), then the runner records `0001` into it within the same
- * transaction. It is the minimal honest migration that proves the runner without
- * inventing any domain table (ARCH §6.3 reserves the registry/event-log/metrics
- * stores for later modules).
+ * The ordered migration list. Append-only over the project's life — never reorder or rewrite an
+ * applied migration, since the ledger keys on `id`.
  */
 export const MIGRATIONS: readonly Migration[] = [
+  // 0001 creates the ledger it is itself recorded in: `up` creates the table, then the runner
+  // records `0001` into it within the same transaction.
   {
     id: "0001_platform_migrations_ledger",
     up: (database) => {
@@ -70,12 +54,8 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0002 creates the capability registry — the source of truth
-  // for everything Aluna has become. One row per capability, kept
-  // lean (spec + version + artifacts pointer) because the intent resolver scans
-  // every row on every classification. `schema`, `ui_intent`, and `tools` hold
-  // JSON text; the access module (src/registry/store/store.ts) owns the (de)serialization
-  // and validates rows against the Zod spec shape in both directions.
+  // 0002 creates the capability registry, one lean row per capability because the intent resolver
+  // scans every row on every classification. `src/registry/store/store.ts` owns the JSON columns.
   {
     id: "0002_capability_registry",
     up: (database) => {
@@ -94,9 +74,8 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0003 adds the stable behavioral error contract to the registry spec row.
-  // The default keeps already-created rows readable; the access layer backfills
-  // the standard missing-required-fields contract from their stored schema.
+  // 0003 adds the behavioral error contract. The default keeps already-created rows readable;
+  // the access layer backfills the missing-required-fields contract from their stored schema.
   {
     id: "0003_capability_registry_behavioral_errors",
     up: (database) => {
@@ -106,18 +85,8 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0004 creates the generation-metrics store — the experiment's
-  // measurements, one row per generation, recording what the *system* did to build
-  // itself (ARCH §6.3, distinct from M7's event log of what the *user* did). The
-  // PLAN step-8 fields: identity + intent classification, model + token counts, the
-  // timing breakdown (spec-gen, migration, code-gen, HTML-gen, test-gen, test-run,
-  // total wall-clock), the per-rung gate outcomes and per-unit fix-loop attempts as
-  // JSON, and the outcome — including which stage/rung a failure stopped at. Every
-  // build column past identity/intent/model is nullable so a deflection (intent only)
-  // or a failed build (everything up to the failing rung) writes with partial
-  // knowledge; absence is stored as NULL, never a fabricated zero. The metrics
-  // access module (src/platform/metrics/store.ts) owns the (de)serialization and validates
-  // rows against the Zod shape in both directions.
+  // 0004 records what the system did to build itself (ARCH §6.3, distinct from M7's event log of
+  // what the user did). Past model, every column is nullable: absence is NULL, never a fake zero.
   {
     id: "0004_generation_metrics",
     up: (database) => {
@@ -150,10 +119,8 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0005 gives Module 3's current presentation-generation stage its own accurately
-  // named column. The M2 `html_gen_ms` column remains historical data; migrations are
-  // additive-only, so current item-renderer timings write to `presentation_gen_ms`
-  // instead of overloading an HTML-specific name after the artifact-shape reset.
+  // 0005 names Module 3's presentation stage honestly. `html_gen_ms` stays M2 historical data,
+  // so item-renderer timings write to `presentation_gen_ms` rather than overload an M2 name.
   {
     id: "0005_generation_metrics_presentation_gen",
     up: (database) => {
@@ -163,12 +130,8 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0006 begins Module 4's greenfield incarnation cutover. Runtime reset removes
-  // every M3 row before this migration lands, so every subsequently registered
-  // capability has one platform-owned lifetime identity. The registry column is
-  // physically non-null (the temporary empty default only makes SQLite's additive
-  // ALTER legal; row validation rejects it), while metrics keep the column nullable
-  // for deflections and failures that happen before a capability identity exists.
+  // 0006's empty registry default only makes SQLite's additive ALTER legal — row validation
+  // rejects it. Metrics keep `incarnation_id` nullable for failures predating an identity.
   {
     id: "0006_incarnation_keyed_capabilities",
     up: (database) => {
@@ -182,8 +145,7 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0007 adds the per-Action read-dependency object. The column default carries the
-  // complete fixed five-Action inventory with every list empty; the
+  // 0007's default carries the complete fixed five-Action inventory with every list empty; the
   // registry validator rejects any row whose keys are not exactly that shape.
   {
     id: "0007_capability_registry_read_dependencies",
@@ -194,9 +156,8 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0008 adds the durable admitted-build lifecycle without rewriting the M2
-  // terminal metrics table. The terminal outcome is honestly nullable while a
-  // build runs, and the JSON measurement groups remain additive as M4 evolves.
+  // 0008 adds the admitted-build lifecycle beside the M2 terminal metrics table. `outcome` is
+  // nullable while a build runs, and the JSON measurement groups stay additive.
   {
     id: "0008_generation_metrics_lifecycle",
     up: (database) => {
@@ -237,9 +198,8 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0009 separates non-admitted resolution measurements from the durable build
-  // lifecycle. Rows are content-free and best-effort: the prompt stream never waits
-  // for this table, while admitted builds embed the same resolver measurement in 0008.
+  // 0009 holds non-admitted resolution measurements. Rows are content-free and best-effort: the
+  // prompt stream never waits for this table, and admitted builds embed the same one in 0008.
   {
     id: "0009_intent_resolution_metrics",
     up: (database) => {
@@ -291,23 +251,19 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // The logo's inputs and its durable state (ADR-0007; PLAN decision 42). Additive,
-  // like every migration here, but deliberately *not* compatible: `subject`, `ground`,
-  // `noun` and `seed` arrive without a default, so a row that predates the cut reads
-  // back as NULL and fails the row schema loudly at the read site. Nothing backfills
-  // them — a birth fact invented after birth would describe artwork that does not
-  // exist — so the pre-logo corpus is removed by `bun run reset` instead.
-  //
-  // The lifecycle pair is the exception, and honestly so: `absent`/0 is what every
-  // capability is born with, not a stand-in for a value someone forgot to write. Both
-  // are NOT NULL so the claim in `store.ts` can compare a status without a null case.
+  // The logo's inputs and its durable state (ADR-0007; PLAN decision 42). A row predating the
+  // cut reads these back as NULL and fails the row schema loudly at the read site.
   {
     id: "0012_capability_logo_inputs",
     up: (database) => {
+      // No default and nothing backfills them: a birth fact invented after birth would describe
+      // artwork that does not exist, so `bun run reset` removes the pre-logo corpus instead.
       for (const column of ["subject", "ground", "noun"]) {
         database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN ${column} TEXT;`);
       }
       database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN seed INTEGER;`);
+      // The lifecycle pair is the honest exception: `absent`/0 is what every capability is born
+      // with, so both are NOT NULL and the claim can compare without a null case.
       database.exec(
         `ALTER TABLE ${REGISTRY_TABLE}
          ADD COLUMN logo_status TEXT NOT NULL DEFAULT '${LOGO_BIRTH_STATUS}'
@@ -319,31 +275,16 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // The logo's second colour becomes a fourth authored key (ADR-0007, amended). It was
-  // derived from the ground by a closed four-pair lookup, which kept it from being an
-  // authored fact but also capped the product at four distinct colour pairs — a desk of
-  // five capabilities could not avoid two tiles wearing the same two colours.
-  //
-  // Additive and deliberately not compatible, for the same reason as 0012: no default,
-  // so a row born before the cut reads back NULL and fails the row schema loudly rather
-  // than claiming a colour nobody chose. Nothing backfills it — a birth fact invented
-  // after birth would describe artwork that already exists — so the pre-companion corpus
-  // is removed by `bun run reset`.
+  // The logo's second colour becomes a fourth authored key (ADR-0007, amended). Deriving it from
+  // the ground by a closed four-pair lookup capped a desk at four colours. No default, as 0012.
   {
     id: "0013_capability_logo_companion",
     up: (database) => {
       database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN companion TEXT;`);
     },
   },
-  // The one name the platform owns: what the user renamed this capability to, if they
-  // ever did. Nullable and defaultless, because absence is the honest reading — most
-  // capabilities are still called what they were authored as, and NULL says exactly that
-  // rather than restating the authored label in a second place that could then drift.
-  //
-  // The authored `label` beside it is never touched by a rename, so every immutable
-  // `spec.json` snapshot stays byte-for-byte truthful about what the model wrote. The
-  // effective name a person reads is `display_label_override ?? label`, resolved at the
-  // one place every display path already goes through (`canonicalCapabilityLabel`).
+  // 0014 is the one name the platform owns. NULL means "still called what it was authored as", so
+  // a rename never touches `label` and `spec.json` stays truthful (`canonicalCapabilityLabel`).
   {
     id: "0014_capability_display_label_override",
     up: (database) => {
@@ -352,9 +293,8 @@ export const MIGRATIONS: readonly Migration[] = [
   },
 ];
 
-// The set of migration ids already recorded in the ledger. Returns empty when the
-// ledger table does not exist yet (a fresh db, before 0001 has run) — that's the
-// bootstrap case, not an error.
+// The set of migration ids already recorded in the ledger. Empty when the ledger table does not
+// exist yet — a fresh db before 0001 has run is the bootstrap case, not an error.
 function appliedMigrationIds(database: Database): Set<string> {
   const ledgerExists = database
     .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
@@ -366,14 +306,8 @@ function appliedMigrationIds(database: Database): Set<string> {
 }
 
 /**
- * Apply every not-yet-recorded migration in order, through the read-write
- * connection, recording each in the ledger as it lands. Returns the ids applied
- * on this run — empty when everything is already up to date, which is what makes
- * a re-run (and every boot after the first) a no-op.
- *
- * Each migration's `up` and its ledger record commit together in one transaction:
- * a crash mid-migration rolls back both, so the ledger never claims a migration
- * that didn't fully apply, and the next boot retries it cleanly.
+ * Apply every not-yet-recorded migration in order, recording each in the ledger as it lands. A
+ * migration's `up` and its ledger record commit together, so a crash mid-migration rolls back both.
  */
 export function runMigrations(database: Database = db): string[] {
   const applied = appliedMigrationIds(database);

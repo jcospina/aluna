@@ -14,13 +14,8 @@ import {
 } from "../../safety/source.test-support.ts";
 import { document as desk, Node } from "./region-scope.test-support.ts";
 
-// Opening a second capability, and what the desk deliberately does *not* build behind it
-// (PLAN decision 15; ARCH §6.1 and §8; design D2).
-//
-// The frame is the one thing a swap may not touch, the content that leaves is the one
-// thing a swap must release, and cross-capability staleness gets no machinery at all:
-// one window means one visible capability, every open is a fresh read, and a second
-// browser tab is an accepted known edge rather than a hole to build a bus for.
+// Opening a second capability (PLAN decision 15; ARCH §6.1 and §8; design D2). A swap may not
+// touch the frame, must release the departing content, and gets no staleness machinery at all.
 
 const SAMPLE: RenderableCapability = {
   id: "tasks",
@@ -38,10 +33,8 @@ const SAMPLE: RenderableCapability = {
 /* ── the frame ─────────────────────────────────────────────────────────────── */
 
 /**
- * A window whose geometry and drawn hand cannot be written without saying so. Asking
- * afterwards whether they still hold their values proves nothing once the entry is known
- * to be the same object; refusing the assignment is what makes "the frame does not move"
- * a fact the rule has to earn.
+ * A window whose geometry and drawn hand cannot be written without saying so. Reading them back
+ * proves nothing once the entry is the same object; refusing the assignment is what proves it.
  */
 function frame(title: string) {
   const win = {
@@ -91,19 +84,16 @@ describe("opening a second capability swaps the contents, not the frame", () => 
     const first = windowForOpening(null, mount, "Tasks", logo);
     const second = windowForOpening(first, mount, "Journal", journalLogo);
 
-    // One frame, not two, and the same one — its position, its size, the region inside it
-    // and the hand it was drawn with are the ones it already had, and the rule would have
-    // thrown on its way through if it had reached for any of them.
+    // One frame, not two, and the same one: its position, size, region and drawn hand are the
+    // ones it had, and the rule would have thrown on its way through if it reached for any.
     expect(mounts).toBe(1);
     expect(second).toBe(first);
 
     // What does change: the title, because the window now frames something else.
     expect(second.win.title).toBe("Journal");
 
-    // And the way back, which is the *last* thing that filled the window rather than the
-    // first. Where focus goes is a fact about what you were doing, and after A → B → C
-    // that is C — returning to A dropped a keyboard user three moves back with nothing on
-    // screen to say why.
+    // And the way back is the last thing that filled the window, not the first: after A, B, C,
+    // returning to A dropped a keyboard user three moves back with nothing to say why.
     expect(second.openedBy).toBe(journalLogo);
 
     // A press that names no opener leaves whatever the window already had.
@@ -192,9 +182,8 @@ describe("the outgoing capability's work is released on the swap", () => {
 
     const released: string[] = [];
     registry.register(displaced, "records read", () => released.push("displaced read"));
-    // Where htmx's settle got there before the stream closed, the restored View's read is
-    // already in flight. Releasing the region wholesale aborts it and leaves the restored
-    // collection empty — which is what a hand-rebuilt second read used to paper over.
+    // Where htmx's settle got there before the stream closed, the restored View's read is already
+    // in flight, so releasing the region wholesale leaves the restored collection empty.
     registry.register(restoredRecords, "records read", () => released.push("restored read"));
 
     const promoted = [...subscriber.children];
@@ -212,12 +201,8 @@ describe("the outgoing capability's work is released on the swap", () => {
   });
 
   test("and the glue follows exactly that rule", () => {
-    // The rule above is stated against doubles; this is the glue held to it, statement by
-    // statement. It is a source pin because `app.js` is a classic script — it has to run
-    // before Alpine starts, so it can import nothing and export nothing, and every rule
-    // it owns is pinned this way (`region-scope.test.ts` pins the release vocabulary the
-    // same way). Pinned whole rather than by keyword, so inverting the skip, dropping the
-    // release or moving it back in front of the promotion each fail here.
+    // A source pin, because `app.js` is a classic script that runs before Alpine and can import
+    // nothing. Pinned whole, so inverting the skip or moving the release each fail here.
     const glue = flat(codeOf("public/app.js"));
 
     expect(glue).toContain(
@@ -250,9 +235,8 @@ describe("the outgoing capability's work is released on the swap", () => {
 
 describe("every open is a fresh read", () => {
   test("a committed collection is served with no records in it", () => {
-    // The chrome is data-free and its region loads through the capability's own `read`
-    // Handler, so opening a capability cannot show a collection anyone cached — even
-    // where the caller has records to hand.
+    // The chrome is data-free and its region loads through the capability's own `read` Handler,
+    // so opening one cannot show a cached collection even when the caller has records to hand.
     const collection = renderCollection({
       capability: SAMPLE,
       loadThroughRead: true,
@@ -265,16 +249,14 @@ describe("every open is a fresh read", () => {
   });
 
   test("the shell stores presentation and never a collection", () => {
-    // ARCH §6.1: the shell may remember how things look; it never decides what is true.
-    // Exactly two presentation records live in storage, one per allowed window, and the
-    // desk holds nothing else across a reload for a swap to put back.
+    // ARCH §6.1: the shell may remember how things look; it never decides what is true. Exactly
+    // two presentation records live in storage, and the desk holds nothing else across a reload.
     const keys = new Set<string>();
     for (const [name, source] of shellScripts()) {
       expect(source, name).not.toContain("sessionStorage");
       for (const match of source.matchAll(/"(aluna\.[a-z0-9.]+)"/g)) keys.add(String(match[1]));
-      // Nothing takes a copy of what a region is showing. The one snapshot the shell
-      // holds is a record's own inert `<template>`, which stands inside the collection
-      // and dies with it.
+      // Nothing takes a copy of what a region is showing. The one snapshot the shell holds is a
+      // record's own inert `<template>`, which stands inside the collection and dies with it.
       expect(source, name).not.toMatch(/=\s*[\w.]+\.innerHTML\b/);
     }
     expect([...keys].sort()).toEqual(["aluna.desk.dev.v1", "aluna.desk.window.v1"]);
@@ -323,9 +305,8 @@ describe("no invalidation bus, version stamp or refresh control exists anywhere"
 
   test("the version a surface carries is identity, never a staleness stamp", () => {
     for (const [name, source] of shellScripts()) {
-      // Comparing one version to another and acting on the *difference* is the question
-      // "has this gone out of date?", which nothing on the desk may ask. (A version
-      // compared to `undefined` is a presence check, and is not that question.)
+      // Comparing one version to another and acting on the difference asks "has this gone out of
+      // date?", which nothing on the desk may ask. A comparison to `undefined` checks presence.
       expect(source, name).not.toMatch(/version\s*!==?\s*[\w.]*version\b/);
     }
     // The one reader of a surface's version is the deterministic-duplicate no-op, which
@@ -354,9 +335,8 @@ describe("no invalidation bus, version stamp or refresh control exists anywhere"
   });
 
   test("a `load` trigger arms once per element, so no read re-fires behind the desk", () => {
-    // What lets search take the region without stripping the View's trigger, and what
-    // makes processing promoted content one read rather than two. Pinned in the vendored
-    // build, because it is a property of htmx and not of anything written here.
+    // What lets search take the region without stripping the View's trigger. Pinned in the
+    // vendored build, because it is a property of htmx and not of anything written here.
     const htmx = readSource("public/vendor/htmx.min.js");
     expect(htmx).toContain('!t.firstInitCompleted&&e.trigger==="load"');
     expect(htmx).toContain('if(e!=="firstInitCompleted")delete t[e]');

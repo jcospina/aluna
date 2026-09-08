@@ -9,18 +9,15 @@ import { incarnationIdSchema } from "./identifiers.ts";
 import { sameOrderedStrings, sqlNameText } from "./spec/spec-text.ts";
 
 /**
- * From the 4.4 steady-state cutover the five Actions are mandatory and fixed
- * every capability is born with the complete ordered inventory and
- * no evolution can drop one. There is no longer any narrower admitted shape.
+ * From the 4.4 steady-state cutover the five Actions are mandatory and fixed: every capability is
+ * born with the complete ordered inventory, and no evolution can drop one.
  */
 export const FULL_CAPABILITY_TOOLS = ["create", "read", "update", "delete", "search"] as const;
 export const capabilityToolSchema = z.enum(FULL_CAPABILITY_TOOLS);
 export type CapabilityTool = z.infer<typeof capabilityToolSchema>;
 
-// Model this as a homogeneous fixed-length array for provider JSON Schema: OpenAI
-// rejects tuple-style positional `items: [...]`. The refinement keeps the authored
-// contract narrow — only the exact ordered five-Action value crosses the local hard
-// gate — while the emitted wire schema uses one item object.
+// A homogeneous fixed-length array, because OpenAI rejects tuple-style positional `items: [...]`.
+// The refinement keeps the authored contract to the exact ordered five-Action value.
 export const capabilityToolsSchema = z
   .array(capabilityToolSchema)
   .length(FULL_CAPABILITY_TOOLS.length)

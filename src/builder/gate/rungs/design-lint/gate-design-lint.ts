@@ -1,31 +1,13 @@
 // The design-lint rung: the Gate's last, always-on verdict. It renders the generated item
-// renderer with **synthetic and hostile** field values, within the capability's declared
-// collection layout, and rejects anything outside the closed-value design contract —
-// off-token styling on the three closed axes (colour/type size/spacing), the four
-// never-declared properties (font family, `border`, `border-radius`, `box-shadow`),
-// forbidden style constructs (`url(...)`, item-escaping position), field
-// values interpolated into `style`, fabricated classes, executable markup, and unsafe field
-// interpolation. The axes and the bans are High Meadow's, re-derived in epic 5.1 against
-// `design/styles/` — the token *names* come from `presentation/design-tokens.ts`, so this
+// renderer against synthetic and hostile field values within the declared collection layout and
+// rejects anything outside the closed-value design contract. The axes and bans are High Meadow's,
+// re-derived in epic 5.1; token names come from `presentation/tokens/design-tokens.ts`, so this
 // rung restates neither a name nor a value.
 //
-// Detection reuses the *render-time* enforcer as the *build-time* rejecter: the
-// presentation adapter neutralizes off-contract markup on every rendered record, so a
-// renderer whose output the enforcer has to change emitted something off-contract. This
-// rung renders each probe record's inner markup and asks whether `enforceItemMarkup` left
-// it byte-identical; when it didn't, the difference *is* the violation. Two build-time scans
-// run ahead of that diff so the refusal reads in the contract's own words rather than as a
-// before/after diff: the inline-style scan names the first off-contract declaration and the
-// set it should have picked from, and closes the one enforcer residual — a *named* CSS colour
-// inside a mixed shorthand (`background: white`), inert at render time but still off-token.
-// Controlled benign contrasts also prove every declared item field affects perceivable
-// composition, which AST access alone cannot.
-//
-// On a violation the item renderer re-enters the *same* bounded fix loop as the type-check
-// rung: regenerate with the precise failure fed back, re-validate the fresh unit's
-// shape/type, then re-render and re-detect. The loop is capped by `DEFAULT_UNIT_FIX_ATTEMPTS`.
-// On exhaustion it throws; the Gate wraps that into a fail-closed `CapabilityGateError`, so
-// the build rolls back with no version bump and no pointer flip.
+// Detection reuses the render-time enforcer as the build-time rejecter: a renderer whose markup
+// `enforceItemMarkup` has to change emitted something off-contract, and that difference is the
+// violation. Two build-time scans run ahead of the diff so the refusal reads in the contract's
+// own words, and they close its one residual: a named CSS colour in a mixed shorthand.
 
 import {
   isProviderAbortError,
@@ -97,10 +79,8 @@ export class DesignLintRungError extends Error {
 }
 
 /**
- * Run the design-lint rung: render the item renderer against synthetic + hostile probes
- * within the declared collection layout and reject off-contract composition, regenerating
- * the renderer through the bounded fix loop on a violation. Returns the final (clean, or
- * fixed) item renderer; throws {@link DesignLintRungError} on exhaustion.
+ * Render the item renderer against the probes and regenerate it on a violation, up to
+ * `DEFAULT_UNIT_FIX_ATTEMPTS`. Exhaustion throws {@link DesignLintRungError}: no version bump.
  */
 export async function runDesignLintRung(input: CapabilityGateInput): Promise<DesignLintGateResult> {
   const knob = normalizeGateAttempts(
@@ -109,9 +89,8 @@ export async function runDesignLintRung(input: CapabilityGateInput): Promise<Des
     "design-lint",
   );
   const provider = input.provider;
-  // Without a provider the rung can only detect once — it cannot regenerate to fix. In the
-  // production pipeline a provider is always supplied; the no-provider path is the baseline
-  // gate run, where a clean renderer passes on the first look and a dirty one fails closed.
+  // Without a provider the rung detects once and cannot fix. That path is the baseline gate
+  // run: a clean renderer passes on the first look, a dirty one fails closed.
   const maxAttempts = provider ? knob : 1;
 
   const attempts: DesignLintAttempt[] = [];
@@ -121,10 +100,8 @@ export async function runDesignLintRung(input: CapabilityGateInput): Promise<Des
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const startedAt = performance.now();
-    // Attempt 1 reviews the renderer the gate was handed (already structural- and smoke-
-    // clean). Later attempts regenerate it with the prior failure fed back — the same write
-    // step the type-check loop runs — then re-validate the fresh unit's shape/type
-    // (structural's job, re-applied) before the design review.
+    // Attempt 1 reviews the renderer the gate was handed, already structural- and smoke-clean.
+    // Later ones regenerate with the failure fed back, then re-check shape and type first.
     const step = await designStep({
       attempt,
       candidate,
@@ -171,9 +148,8 @@ async function designStep(
   input: DesignStepInput,
 ): Promise<{ content: string; usage?: TokenUsage; failure?: string }> {
   if (input.attempt === 1) return { content: input.candidate };
-  // `maxAttempts` is 1 without a provider, so a later attempt implies one. A platform bug
-  // that broke that invariant used to fabricate a failure string and feed it to the fix
-  // loop as if the provider had answered.
+  // `maxAttempts` is 1 without a provider, so a later attempt implies one. A bug that broke
+  // that invariant fabricated a failure string and fed it to the loop as a provider answer.
   if (!input.provider) throw new Error("A design-lint fix attempt was scheduled with no provider.");
   try {
     return await regenerateItemRenderer(input.provider, input.spec, input.previousFailure);
@@ -197,10 +173,8 @@ function asDesignStepFailure(error: unknown, input: DesignStepInput): unknown {
   return new DesignLintRungError({ attempts: input.attempts, violation: error.message });
 }
 
-/** One regeneration step of the bounded fix loop: regenerate the item renderer through the
- *  shared write step with the prior failure fed back, then re-validate the fresh unit's
- *  shape/type. A structural failure comes back as `failure` so it feeds the next attempt
- *  exactly as a design violation does. */
+/** One regeneration step: rewrite the item renderer with the prior failure fed back, then
+ *  re-check its shape and type. A structural failure returns as `failure`, like a violation. */
 async function regenerateItemRenderer(
   provider: Provider,
   spec: CapabilitySpec,
@@ -230,10 +204,8 @@ function makeAttempt(
 }
 
 /**
- * Detect a design-contract violation in the item renderer by rendering it against the probe
- * records within the declared collection layout. Returns a precise, actionable message (fed
- * straight into the fix loop) or `undefined` when every probe renders clean. A renderer that
- * throws mid-render is itself a violation — a live view must never crash.
+ * Detect a design-contract violation by rendering the probe records in the declared layout.
+ * A renderer that throws mid-render is itself a violation — a live view must never crash.
  */
 export function findDesignViolation(
   spec: CapabilitySpec,
@@ -266,11 +238,8 @@ export function findDesignViolation(
   const contentViolation = findRecordContentViolation(spec, rendered);
   if (contentViolation) return contentViolation;
 
-  // Run the clean composition through the real adapter path — record → enforced inner →
-  // accessible wrapper → detail template — arranged in the declared container. Asserting
-  // the container's own class back would be a tautology: `renderCollection` writes it
-  // unconditionally and the item renderer cannot affect it. What a renderer *can* do here
-  // is throw, which used to escape the rung as a crash instead of a refusal.
+  // The real adapter path: record → enforced inner → wrapper → detail template. Asserting the
+  // container class back is a tautology; what a renderer can do here is throw, and once escaped.
   const present = createPlatformPresentationAdapter({ capability, renderItem });
   const layout = spec.ui_intent.collection.layout;
   try {
@@ -286,11 +255,8 @@ export function findDesignViolation(
 }
 
 /**
- * Review one probe's rendered markup. The declaration-level scans run first: they can name
- * the axis or the ban a declaration broke, where the enforcer diff can only show a before
- * and an after. Both read the *raw* attribute text, so an entity-encoded value slips past
- * them — the enforcer diff is the backstop, because the parser decodes before
- * `sanitizeStyle` sees the value.
+ * Review one probe's markup. The scans run first because they can name the axis a declaration
+ * broke; they read raw attribute text, so the enforcer diff backstops entity-encoded values.
  */
 function reviewProbe(
   probe: DesignProbe,
@@ -345,16 +311,8 @@ interface DesignProbe {
 }
 
 /**
- * Build the probe records the rung renders: one benign **synthetic** baseline plus one
- * benign contrast per declared item field. Each contrast changes only that field, proving
- * every `item.shows` value affects perceivable composition without prescribing its format.
- * Undeclared platform fields stay identical. These probes also catch hard-coded off-token
- * styling and fabricated classes. A **hostile** record per injection family stuffs every
- * user field with a payload
- * that probes a different interpolation context (HTML text, attribute breakout, event
- * handler, `style` injection, URL scheme, class smuggling). A correct renderer escapes every
- * value, so all probes render clean; an unsafe one lets a payload through, which the enforcer
- * then neutralizes — the difference the rung rejects on.
+ * One benign baseline, one benign contrast per declared item field, and one hostile record per
+ * injection family. A contrast moves only its field, proving that field reaches the composition.
  */
 function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
   const probes: DesignProbe[] = [
@@ -406,7 +364,8 @@ function recordWith(
   return record;
 }
 
-/** A benign, typed value for the synthetic probe — mirrors the smoke rung's sample shapes. */
+/** A benign, typed value for the synthetic probe — mirrors the smoke rung's sample shapes.
+ *  It is also what catches a renderer that hard-codes a dangerous URL. */
 function syntheticValue(field: SpecField): string | number | boolean | readonly string[] {
   switch (field.type) {
     case "string":
@@ -466,9 +425,8 @@ function findRecordContentViolation(
   spec: CapabilitySpec,
   rendered: readonly { readonly probe: DesignProbe; readonly inner: string }[],
 ): string | undefined {
-  // Selected by what each probe *is*, not by where it sits. Slicing by index made the
-  // probe ordering in `buildProbeRecords` an unwritten contract: reordering it would have
-  // silently compared the wrong records and blamed the wrong field.
+  // Selected by what each probe is, not where it sits: slicing by index made probe ordering an
+  // unwritten contract that silently compared the wrong records and blamed the wrong field.
   const baseline = rendered.find(({ probe }) => probe.kind === "baseline");
   const contrasts = rendered.filter(({ probe }) => probe.kind === "contrast");
   if (!baseline || contrasts.length !== spec.ui_intent.item.shows.length) {
@@ -495,18 +453,8 @@ function findRecordContentViolation(
 }
 
 /**
- * Hostile field values, one per injection family. Each is placed into *every* user field of
- * a probe record, so wherever the renderer interpolates a field — text node, attribute
- * value, `style` — the payload is present to break out if the renderer failed to escape it.
- * A renderer that escapes correctly renders each as inert text.
- *
- * These probe what the *renderer* controls: escaping (so a field can't become markup),
- * allow-listed structure, and on-token style. They deliberately carry **no** dangerous URL
- * scheme (`javascript:` / `vbscript:` / `data:`): a field flowing into an allow-listed URL
- * attribute (`<img src>`) is the intended media pattern, and sanitizing a hostile URL
- * *value* there per record is the runtime enforcer's job, not a renderer contract
- * violation — injecting one would wrongly reject a legitimate media renderer. A renderer
- * that *hard-codes* a dangerous URL is still caught, by the synthetic probe.
+ * One per injection family, placed in *every* user field. None carries a dangerous URL scheme —
+ * a field reaching `<img src>` is the runtime enforcer's to sanitize, not a renderer violation.
  */
 const HOSTILE_FIELD_VALUES: readonly string[] = [
   // Script/handler tag injection into a text or attribute context — must be escaped to text.

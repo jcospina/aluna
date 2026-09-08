@@ -143,11 +143,8 @@ describe("two-phase capability destruction", () => {
   test("a slow but well-behaved reader delays the deletion instead of failing it", async () => {
     const target = notesRow();
     install(conns, target);
-    // What this pins is the behaviour, not the numbers: a reader that has not yet reached
-    // a point where it could notice the close is waited for rather than refused. The
-    // production ordering the behaviour depends on — the drain deadline sitting above the
-    // longest a single Handler may run — is asserted in `src/runtime/concurrency/read-gates.test.ts`.
-    // The deadline here is far above the hold so the assertion can never turn into a race.
+    // A reader that cannot yet notice the close is waited for, not refused. The deadline here sits
+    // far above the hold so this cannot race; the production ordering is in `read-gates.test.ts`.
     const HELD_MS = 100;
     const DRAIN_MS = 5_000;
     const readGates = createReadGateCoordinator({ drainTimeoutMs: DRAIN_MS });
@@ -177,10 +174,8 @@ describe("two-phase capability destruction", () => {
   test("a long query is killed by the deletion instead of failing it", async () => {
     const target = notesRow();
     install(conns, target);
-    // Deliberately far under the statement it races. A whole-catalog question holds its
-    // token set for as long as its query runs and no deadline shortens it (PLAN decision 9),
-    // so before the query moved to a worker this drain had nothing to do but expire and
-    // report `deletion_drain_timeout` for a deletion the user had already confirmed.
+    // Far under the statement it races: a whole-catalog question holds its tokens as long as its
+    // query runs and no deadline shortens it (PLAN decision 9); pre-worker the drain only expired.
     const readGates = createReadGateCoordinator({ drainTimeoutMs: 200 });
     let destruction: Promise<CapabilityDestructionResult> | undefined;
 
@@ -200,9 +195,8 @@ describe("two-phase capability destruction", () => {
             readGates,
             adapters: [],
           });
-          // Nothing observes the deletion until the scope has unwound, and a failure in
-          // between would land as a process-level unhandled rejection rather than as this
-          // test's own failure. The assertion below still sees it.
+          // Nothing observes the deletion until the scope unwinds, so a failure in between
+          // would land as an unhandled rejection, not a test failure. The assertion below sees it.
           destruction.catch(() => undefined);
           return await runaway;
         },

@@ -2,12 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-// The logo layer, checked where it is declared. With no taskbar the logos are the only
-// standing list of what exists, so three things have to hold (PLAN decisions 3 and 4,
-// design D4): they flow down a column and wrap to the next, so the desk's own height
-// decides how many stand rather than a number written into a stylesheet; the phone form
-// resets to row flow explicitly rather than inheriting the column flow through the media
-// query; and nothing on the page gates an empty desk.
+// The logo layer, checked where it is declared. With no taskbar the logos are the only standing
+// list of what exists (PLAN decisions 3 and 4, design D4).
 
 const ROOT = resolve(import.meta.dir, "../../../..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -44,9 +40,8 @@ describe("the logo layer", () => {
   test("logos fill down a column and wrap to the next", () => {
     const desktop = LAYER[0] as string;
     expect(desktop).toMatch(/grid-auto-flow:\s*column/);
-    // The row count is derived from the layer's own bounded height rather than written
-    // down. `repeat(2, 96px)` was the mockup shortcut that put a ceiling of about eleven
-    // on a product whose premise is "make as many tools as you want".
+    // The row count is derived from the layer's own bounded height rather than written down:
+    // `repeat(2, 96px)` was the mockup shortcut that put a ceiling of about eleven on the desk.
     expect(desktop).toMatch(/grid-template-rows:\s*repeat\(\s*auto-fill/);
     expect(desktop).toMatch(/grid-auto-columns:\s*var\(--logo-cell-w\)/);
     expect(desktop).not.toMatch(/grid-template-columns:\s*repeat\(\s*\d/);
@@ -63,10 +58,8 @@ describe("the logo layer", () => {
   });
 
   test("the phone form resets to row flow explicitly, inside the phone query", () => {
-    // Not by omission. A media query that only narrows the box leaves `grid-auto-flow:
-    // column` in force, and the phone gets a sideways home screen. Located by the query it
-    // must live in rather than by being last in the file, so moving a rule cannot quietly
-    // turn this into an assertion about the desktop one.
+    // Not by omission: a media query that only narrows the box leaves `grid-auto-flow: column` in
+    // force. Located by the query it must live in, so moving a rule cannot repoint this.
     const query = /@media\s*\(max-width:\s*720px\)\s*\{([\s\S]*)\}/.exec(DESK)?.[1] ?? "";
     expect(query, "no phone breakpoint").not.toBe("");
     const phone = bodies(query, ".desk__logos")[0] as string;
@@ -77,18 +70,15 @@ describe("the logo layer", () => {
   });
 
   test("the layer takes no press of its own", () => {
-    // It is as tall as the desk holding one logo or twenty, and it is placed over the
-    // content region. Without this it is an invisible column-wide dead strip down the
-    // left of everything a capability shows.
+    // It is as tall as the desk holding one logo or twenty, and placed over the content region,
+    // so without this it is an invisible dead strip down the left of the capability.
     expect(LAYER[0] as string).toMatch(/pointer-events:\s*none/);
     expect(bodies(DESK, ".logo")[0] as string).toMatch(/pointer-events:\s*auto/);
   });
 
   test("the shipped page inherits the layout rather than restating it", () => {
-    // The rules above are the design's. This is what makes them the product's: the page
-    // loads the manifest they ship in, and the layer is inside the one positioned box on
-    // the page — without which `position: absolute` resolves against the viewport and the
-    // logos stop keeping to the ground.
+    // The rules above are the design's; this makes them the product's. The layer is inside the
+    // one positioned box, without which `position: absolute` resolves against the viewport.
     const shell = read("public/index.html");
     expect(shell).toContain('<link rel="stylesheet" href="/design/styles/index.css">');
     expect(read("design/styles/index.css")).toContain("./components/desk.css");
@@ -100,9 +90,8 @@ describe("the logo layer", () => {
   });
 
   test("the tile's size, corner, shadow and name are declared once, by the contract", () => {
-    // The shell adds the corner, the shadow, the size and the name and never anything
-    // inside the file (ADR-0007). One copy of those numbers, and the product loads the
-    // same file the specimens on `logo.html` stand on.
+    // The shell adds the corner, the shadow, the size and the name, never anything inside the
+    // file (ADR-0007), and the product loads the same file `logo.html`'s specimens stand on.
     const contract = rules("design/styles/components/logo-contract.css");
     const tile = bodies(contract, ".logo-tile")[0] as string;
     expect(tile).toMatch(/width:\s*64px/);
@@ -110,11 +99,8 @@ describe("the logo layer", () => {
     expect(tile).toMatch(/box-shadow:\s*3px 4px 0 /);
     expect(bodies(contract, ".logo-label")[0]).toMatch(/text-shadow:\s*var\(--shadow-desk-label\)/);
 
-    // And the shadow resolves where the tile actually stands. `ink.css` registers three
-    // names as non-inheriting `@property`s so a drawn boundary's shadow cannot reach what
-    // it encloses; below `:root` those names resolve to nothing, and a `box-shadow` built
-    // on one is invalid — which is to say the tile casts nothing at all. The tile is not a
-    // drawn boundary and must not read from that channel.
+    // `ink.css` registers three names as non-inheriting `@property`s, so below `:root` they
+    // resolve to nothing and a `box-shadow` built on one is invalid: the tile would cast nothing.
     const nonInheriting = [
       ...rules("design/styles/components/ink.css").matchAll(
         /@property\s+(--[a-z-]+)\s*\{[^}]*inherits:\s*false/g,
@@ -141,23 +127,18 @@ describe("the logo layer", () => {
     expect(DESK).toMatch(/\.logo-tile--pending\s*\{/);
     expect(bodies(DESK, ".logo-tile--pending")[0]).toMatch(/repeating-linear-gradient/);
     expect(DESK).toMatch(/\.logo-tile--working\s*\{/);
-    // The crawl runs for everyone. It happens inside a tile that does not move, so it is
-    // life rather than travel, and PLAN decision 44 leaves life alone: the guard that
-    // used to stand in front of it flattened the wait for the reader who most needed to
-    // see that something was still coming.
+    // The crawl happens inside a tile that does not move, so it is life rather than travel and
+    // PLAN decision 44 leaves it alone. The old guard flattened the wait for the reader.
     expect(DESK).not.toMatch(/prefers-reduced-motion/);
   });
 
   test("the working tile crawls without a joint in it", () => {
-    // The animation translates the stripes, and a translation shows every joint in the
-    // pattern it moves. Three facts together make it one unbroken loop, and each of them
-    // is a separate way to reintroduce the visible gap.
+    // The animation translates the stripes, and a translation shows every joint in the pattern.
+    // Three facts make it one unbroken loop, and each is a separate way to bring the gap back.
     const pending = bodies(DESK, ".logo-tile--pending")[0] as string;
 
-    // 1. The background tiles as a square whose side is the stripes' horizontal period,
-    //    so its edges meet its neighbours' in phase. At 45 degrees a band of width B
-    //    repeats every 2·B·√2 across, so the band that fits a whole number of times into
-    //    a square of side S is S / (2·√2).
+    // 1. The background tiles as a square whose side is the stripes' horizontal period, so its
+    //    edges meet in phase. At 45 degrees that band is S / (2·√2) for a square of side S.
     const side = Number(/--stripe-tile:\s*([\d.]+)px/.exec(pending)?.[1]);
     const band = Number(
       /--stripe-band:\s*calc\(var\(--stripe-tile\) \* ([\d.]+)\)/.exec(pending)?.[1],
@@ -166,29 +147,22 @@ describe("the logo layer", () => {
     expect(band).toBeCloseTo(1 / (2 * Math.SQRT2), 6);
     expect(pending).toContain("background-size: var(--stripe-tile) var(--stripe-tile)");
 
-    // 2. The start is stated, not inherited. `.logo-tile` centres its background for
-    //    artwork, and an animation left to start from that `50% 50%` snaps back across
-    //    half a tile on every repeat.
+    // 2. The start is stated, not inherited: `.logo-tile` centres its background for artwork, and
+    //    starting from that `50% 50%` snaps back across half a tile on every repeat.
     const contract = rules("design/styles/components/logo-contract.css");
     expect(body(contract, ".logo-tile")).toContain("background-position: center");
     expect(pending).toMatch(/background-position:\s*0 0/);
 
-    // 3. The travel is exactly one tile, so the keyframe ends pixel-for-pixel where it
-    //    began. Anything else — the old `17px` against a `200% 200%` tile, say — leaves a
-    //    step at the loop point.
+    // 3. The travel is exactly one tile, so the keyframe ends pixel-for-pixel where it began.
+    //    Anything else, such as the old `17px` against a `200% 200%` tile, steps at the loop.
     const frames = /@keyframes tile-working\s*\{([\s\S]*?)\n\}/.exec(DESK)?.[1] ?? "";
     expect(frames).toMatch(/from\s*\{\s*background-position:\s*0 0;\s*\}/);
     expect(frames).toMatch(/to\s*\{\s*background-position:\s*var\(--stripe-tile[^)]*\) 0;\s*\}/);
   });
 
   test("the crawl runs at the speed that was chosen, not at whatever falls out", () => {
-    // The seam pins the travel to exactly one band-period per cycle, so pace can
-    // never be bought by moving further — the duration is the whole of the speed.
-    // That coupling is easy to break silently, and it was: the travel shrank 5x
-    // while the duration stayed, and the crawl dropped to 12.6px/s without a
-    // single rule looking wrong. So the *speed* is what is pinned here, rather
-    // than either number on its own. Changing `--stripe-tile` without restating
-    // the duration fails, which is the point.
+    // The seam pins the travel to one band-period per cycle, so the duration is the whole of the
+    // speed. It broke silently once: the travel shrank 5x and the crawl dropped to 12.6px/s.
     const pending = bodies(DESK, ".logo-tile--pending")[0] as string;
     const side = Number(/--stripe-tile:\s*([\d.]+)px/.exec(pending)?.[1]);
     // Read straight out of the sheet, from the rule's own body: the crawl is in-place
@@ -197,10 +171,8 @@ describe("the logo layer", () => {
     expect(side).toBeGreaterThan(0);
     expect(ms).toBeGreaterThan(0);
 
-    // One stripe-tile of travel across is one band-period perpendicular, and that
-    // is the distance the eye actually reads. 7.5px/s was chosen by eye against
-    // the alternatives — deliberately at the slow end, because the tile stands
-    // there for the length of a build and should read as patience.
+    // One stripe-tile of travel across is one band-period perpendicular, which is the distance
+    // the eye reads. 7.5px/s was chosen by eye, at the slow end, to read as patience.
     const perpendicularPxPerSecond = (side * Math.SQRT1_2) / (ms / 1000);
     expect(
       perpendicularPxPerSecond,
@@ -212,8 +184,7 @@ describe("the logo layer", () => {
 describe("an empty desk needs no gate", () => {
   test("nothing on the shipped page hides itself until a capability appears", () => {
     // The rail is gone, and so is the state it hid behind: `hasCapabilities`, the
-    // `has-capabilities` class, and the `[data-capability-entry]` marker the shell used
-    // to infer "this user is new" from.
+    // `has-capabilities` class, and the `[data-capability-entry]` marker.
     const surfaces = [
       ...under("public", "*.html"),
       ...under("public", "*.js"),

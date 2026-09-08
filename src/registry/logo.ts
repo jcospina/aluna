@@ -1,30 +1,21 @@
-// The logo's colour vocabulary: the eight hue families a spec's two colours may name, the
-// shade ladder each family opens onto, and the durable lifecycle the registry keeps for
-// the artwork (ADR-0007 L2/L3/L9/L11; `modules/05-the-desk/PLAN.md` decisions 39 and 42).
+// The logo's colour vocabulary: the eight hue families a spec's two colours may name, the shade
+// ladder each family opens onto, and the durable lifecycle the registry keeps for the artwork
+// (ADR-0007 L2/L3/L9/L11; `modules/05-the-desk/PLAN.md` decisions 39 and 42).
 //
-// Two properties worth knowing before changing anything here:
+// The model names a hue and the platform names the shade. A spec authors `ground` and `companion`
+// as families, which must differ, and which of a family's four rungs a capability wears is
+// resolved from its incarnation seed by {@link resolveLogoShades}, which no caller may steer.
 //
-//   - **The model names a hue, the platform names the shade.** A spec authors `ground` and
-//     `companion` as families, for aptness, and they must differ. Which of the family's
-//     four rungs a capability wears is resolved from its incarnation seed by
-//     {@link resolveLogoShades}, which no caller may steer.
-//   - **The seed is the only entropy in the path.** A spec-authoring model collapses to a
-//     mode — each build is a stateless call that has never seen another capability — so
-//     four consecutive live capabilities came out the same colour. Drawing the shade from
-//     the seed is what turns a collapsed family choice back into visibly different tiles,
-//     which is why the rungs differ in hue nuance and not only in lightness.
-//
-// Validation stays a word-list check: the lists are chosen saturated, in daylight and
-// light enough for the tile, so nothing measures chroma or lightness at validation time.
-// L9 still permits two capabilities to look alike, and nothing here goes looking.
+// That seed is the only entropy in the path: a spec-authoring model collapses to a mode — each
+// build is a stateless call that has never seen another capability — so four consecutive live
+// capabilities came out the same colour. Validation stays a word-list check over lists chosen
+// saturated and light enough for the tile, and L9 still permits two capabilities to look alike.
 
 import { z } from "zod";
 
 /**
- * The eight hue families a spec's `ground` and `companion` may name — the entire authored
- * colour vocabulary. Hue words, not scene nouns: naming these after palette tokens put
- * `sky` in a list the model picked a *backdrop* from, and three of the first four live
- * capabilities took it.
+ * The eight hue families a spec's `ground` and `companion` may name. Hue words, not scene nouns:
+ * `sky` in the list made it a backdrop, and three of the first four live capabilities took it.
  */
 export const LOGO_HUE_FAMILIES = [
   "grass_green",
@@ -41,10 +32,8 @@ export const logoHueFamilySchema = z.enum(LOGO_HUE_FAMILIES);
 export type LogoHueFamily = z.infer<typeof logoHueFamilySchema>;
 
 /**
- * The ladder: the four shades each family opens onto, in no significant order. Rungs vary
- * in hue nuance as well as lightness, so four capabilities that all authored `cyan_blue`
- * read as varied rather than as four tints of one blue. `logo.test.ts` measures every rung
- * for daylight chroma — a test over this literal table, not a runtime validator.
+ * The four shades each family opens onto, varying in hue nuance as well as lightness so four
+ * `cyan_blue` capabilities are not four tints of one blue. `logo.test.ts` measures each for chroma.
  */
 export const LOGO_FAMILY_SHADES = {
   grass_green: ["grass", "emerald", "lime", "clover"],
@@ -80,13 +69,8 @@ export function logoShadeFamily(shade: LogoShade): LogoHueFamily {
 }
 
 /**
- * Resolve one capability's two concrete colours from its authored families and its seed.
- *
- * The two draws are decorrelated on purpose — the same remainder for both would lock every
- * capability to the same rung of each family, putting the mode straight back. The second
- * draw takes the quotient the first divided away, so it is independent for a uniform seed.
- *
- * Pure and stable: a retried attempt draws the same picture the first would have (L7).
+ * The two draws are decorrelated: one remainder for both would lock every capability to the same
+ * rung of each family. Pure and stable, so a retried attempt draws the same picture (L7).
  */
 export function resolveLogoShades(
   ground: LogoHueFamily,
@@ -102,9 +86,8 @@ export function resolveLogoShades(
 }
 
 /**
- * The durable logo lifecycle. `absent` is the birth state and the retry sweep's
- * only claimable one; `generating` is the won claim; `present` means accepted
- * artwork is installed; `abandoned` is terminal.
+ * The durable logo lifecycle. `absent` is the birth state and the retry sweep's only claimable one;
+ * `generating` is the won claim, `present` is installed artwork, `abandoned` is terminal.
  */
 export const LOGO_STATUSES = ["absent", "generating", "present", "abandoned"] as const;
 export const logoStatusSchema = z.enum(LOGO_STATUSES);
@@ -113,22 +96,14 @@ export type LogoStatus = z.infer<typeof logoStatusSchema>;
 export const LOGO_BIRTH_STATUS: LogoStatus = "absent";
 
 /**
- * Three claimed attempts and then never (ADR-0007, PLAN decision 38). It lives beside the
- * lifecycle rather than beside the sweep that spends them, because the only race-free
- * place to enforce it is the claim's own `WHERE` — the same conditional `UPDATE` that
- * wins the right to spend. A cap the caller checked first would be a read followed by a
- * write, and two desk loads arriving together would both read two and both write three.
- *
- * The guard that matters is the attempt cap rather than a spend ceiling: at ~$0.08 a call
- * the expensive failure is a retry loop, and a cap kills the loop where a budget only
- * bounds how long it runs.
+ * Three claimed attempts and then never (ADR-0007, decision 38); at ~$0.08 a call the expensive
+ * failure is a retry loop. Enforced in the claim's own `WHERE`, or two loads both write three.
  */
 export const LOGO_MAX_CLAIMED_ATTEMPTS = 3;
 
 /**
- * Status and attempts travel together: a status without its spend is not a
- * lifecycle, and reading them apart would let a caller decide one from a stale
- * view of the other.
+ * Status and attempts travel together: a status without its spend is not a lifecycle, and reading
+ * them apart lets a caller decide one from a stale view of the other.
  */
 export const capabilityLogoStateSchema = z.strictObject({
   status: logoStatusSchema,
@@ -137,10 +112,8 @@ export const capabilityLogoStateSchema = z.strictObject({
 export type CapabilityLogoState = z.infer<typeof capabilityLogoStateSchema>;
 
 /**
- * The provider's `random_seed` domain, and — since the shade ladder — the platform's one
- * source of colour entropy. Stored per incarnation rather than derived from a name or a
- * position on the desk: a name can be renamed and a position moves, and either would
- * silently re-describe artwork L7 forbids remaking.
+ * The provider's `random_seed` domain and the platform's one source of colour entropy. Stored per
+ * incarnation: a name can be renamed and a position moves, re-describing artwork L7 forbids.
  */
 export const MAX_LOGO_SEED = 2_147_483_647;
 export const logoSeedSchema = z.number().int().min(1).max(MAX_LOGO_SEED);

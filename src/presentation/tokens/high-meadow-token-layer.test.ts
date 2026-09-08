@@ -52,10 +52,8 @@ describe("High Meadow token-layer cutover", () => {
     const appCss = read("public/app.css");
     expect(appCss).not.toContain("tokens.css");
     for (const file of filesUnder("public/css", new Set([".css"]))) {
-      // A declaration the shell bridge makes, minus the three the ink system reads
-      // back off a component (design/styles/components/ink.css registers all three
-      // as non-inheriting). Those are a component handing its boundary over, not a
-      // token: they name no value the token layer could also be stating.
+      // A declaration the shell bridge makes, minus the three the ink system reads back off a
+      // component: those hand a boundary over and name no value the token layer could state.
       expect(read(file).replace(/^\s*--ink-(?:hand|shadow|weight)\s*:.*$/gim, "")).not.toMatch(
         /^\s*--[a-z0-9_-]+\s*:/im,
       );
@@ -102,9 +100,8 @@ describe("High Meadow token-layer cutover", () => {
     // area went with the window, and a window holding nothing does not exist.
     expect(demo).not.toContain(".content__active");
     expect(demo).not.toMatch(/:has\([^)]*:has\(/);
-    // The bar floats in the strip rather than padding its way clear of the bottom
-    // edge: it is anchored by the clearance less its own height, which is the
-    // composer's min-height stated from the same two tokens just below.
+    // The bar floats in the strip rather than padding clear of the bottom edge: it is anchored
+    // by the clearance less its own height, the composer's min-height from the same two tokens.
     expect(prompt).toMatch(
       /\.prompt\s*\{[\s\S]*?bottom:\s*calc\(var\(--prompt-clearance\) - var\(--control-h-lg\) - var\(--space-1\)\)/,
     );
@@ -140,9 +137,8 @@ describe("High Meadow token-layer cutover", () => {
 
 describe("the button set on the window surface", () => {
   test("every one of the seven reads on the window surface it stands on", () => {
-    // AC of 5.10/05: the set is expressive *and* legible. The pairs are read out of the
-    // manifest rather than restated here, so changing a fill re-measures rather than
-    // silently keeping a number that was true of the colour it replaced.
+    // AC of 5.10/05: the set is expressive and legible. The pairs are read out of the manifest
+    // rather than restated here, so changing a fill re-measures.
     const controls = read("design/styles/components/form-controls.css");
     const pairs = [...controls.matchAll(/\.btn--([a-z]+)\s*\{([^}]*)\}/g)]
       .map(([, name, body]) => ({
@@ -177,13 +173,8 @@ describe("the button set on the window surface", () => {
     ).toBeCloseTo(4.54, 1);
   });
 
-  // A button is small caps, and `design/styles/components/controls.css` is where that
-  // is said. The shell bridge loads after the manifest, so any size it states for
-  // `.btn` silently wins — which is how the app came to set its buttons at
-  // `--type-base` while the controls page specified `--caps-size`, three steps down.
-  // The rule is not "no type size in the bridge" (it sets plenty, on its own
-  // elements); it is that the bridge does not re-answer a question the design layer
-  // has already answered for the same selector.
+  // The shell bridge loads after the manifest, so a size it states for `.btn` silently wins:
+  // the app shipped `--type-base` where controls.css specifies `--caps-size`, three steps down.
   test("the shell bridge does not restate the button's type size", () => {
     const design = read("design/styles/components/controls.css");
     expect(design).toMatch(/\.btn\s*\{[^}]*font-size:\s*var\(--caps-size\)/);
@@ -220,10 +211,8 @@ describe("the button set on the window surface", () => {
 });
 
 test("one row height everywhere, and the prompt rail is the only thing above it", () => {
-  // The design gives a field and a button the same height so a control row aligns
-  // without a nudge. The shell bridge restated it as a literal — and reached for the
-  // large one — so a search field rendered as tall as the prompt rail beside a
-  // button twelve pixels shorter. It states no control height of its own now.
+  // The design gives a field and a button the same height so a control row aligns without a
+  // nudge. The bridge restated it as a literal, the large one, twelve pixels off the button.
   for (const file of filesUnder("public/css", new Set([".css"]))) {
     for (const literal of ["1.75rem", "2.25rem", "2.75rem"]) {
       expect(read(file), `${file} restates a control height as ${literal}`).not.toContain(literal);

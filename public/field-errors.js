@@ -1,50 +1,8 @@
 // @ts-check
 
 /**
- * Where a validation error is said, and what stops a submission before it is sent.
- *
- * **The sentence belongs in the field.** An outline says that something is wrong and a
- * sentence says *what*, so the two are said in different places: the field takes
- * `.is-invalid`, which recolours its well, and the words go into the guidance's own slot
- * (`design/controls.html`, "The states"). Every field carries a `[data-field-guidance]`
- * slot whether or not it declared a hint (`src/presentation/field-chrome.ts`) — one per
- * field, which is what tells it apart from the platform's own line about commas and from
- * the character count, both of which are guidance too. So there is always exactly one
- * element to write into, it is already named by `aria-describedby`, and putting the hint
- * back is putting one string back.
- *
- * **A refusal is relocated, never rewritten.** The platform's structural refusals arrive
- * marked with `data-error-fields`, and until now nothing read it: the sentence landed in
- * the form's error region and stopped there. This moves that same sentence — a generated
- * Handler's own product-voice wording, when the refusal is one a capability declared — out
- * of the region and into each field the marker names. It is moved rather than copied,
- * because two places saying the same thing is one of them being ignored.
- *
- * **The browser's own check keeps its refusal and loses its tooltip.** Native `required`
- * still does the work everywhere a real control carries it; all that is taken off it is
- * the foreign bubble it paints, replaced by the platform's sentence in the same slot a
- * server refusal uses. Only a *missing* value is claimed that way — the platform has
- * authored one sentence, for one failure, and inventing a second for a failure it has not
- * written copy for would be the second copy source this whole slice exists to avoid.
- *
- * **The drawn picker had given that up entirely.** Its value rides a hidden input, and a
- * hidden input is barred from constraint validation, so a required picker left empty used
- * to sail past the browser and be refused by the server a round trip later. The carrier
- * says `data-choice-required` now, and the submit below is where that word is enforced —
- * the same place, the same sentence and the same slot a native control would have used.
- *
- * **A repeatable list is the second field in that position, and takes the same answer.**
- * It wants one nonblank row, not a filled one in every row, so there is no single control
- * to put `required` on: doing it per row would refuse a list that is complete. The field
- * says `data-list-required` and is enforced beside the picker.
- *
- * **Every path that marks a field ends by standing on it.** Two things make that
- * load-bearing rather than a nicety. Cancelling `invalid` takes the browser's *focus and
- * scroll* along with its bubble — the UA acts only on the controls whose event survived —
- * so a form taller than its scroller would otherwise be refused entirely off screen. And
- * the sentence leaves the form's `aria-live` region in the same turn it arrives, which is
- * a turn too early to be announced; what a screen reader hears instead is the field's own
- * description, which is read on focus. The description is the announcement.
+ * Where a validation error is said, and what stops a submission before it is sent. The outline
+ * says that something is wrong and the sentence says what, so each is said in its own place.
  */
 
 const FIELD = ".field";
@@ -53,30 +11,34 @@ const ERROR_CLASS = "field__guidance--error";
 const INVALID_CLASS = "is-invalid";
 /** Where the declared hint waits while the error is standing in its place. */
 const STASH = "data-field-guidance-text";
+/**
+ * A picker's value rides this hidden input, which no browser validates, so a required picker left
+ * empty used to sail past the browser and be refused by the server a round trip later.
+ */
 const MISSING_CHOICE = "[data-choice-value][data-choice-required]";
-/** A `string[]` field the spec declares required, in the mode that draws rows. */
+/**
+ * A `string[]` field the spec declares required, in the mode that draws rows. `required` per row
+ * would refuse a list that is complete, so the field says the word and the submit enforces it.
+ */
 const REQUIRED_LIST = "[data-list-required]";
 const LIST_ROW_INPUT = "[data-list-field-row] input";
 const NOTICE = "[data-error-fields]";
-/** The live slot a refusal is retargeted into, in every form that has one. */
+/**
+ * The live slot a refusal is retargeted into, in every form that has one. The sentence leaves it
+ * in the turn it arrives — too early to be announced — so a reader hears the field on focus.
+ */
 const ERROR_REGION = '[aria-live="polite"]';
 
 /**
- * The elements a field's state is said on: the ones that take `aria-invalid`, the first of
- * which is where focus lands. Ordered by the document, not by the list — a field holds one
- * kind of these, and the picker's button is the only `.field__control` among them. A
- * repeatable list is the one field that answers with more than one, which is right: every
- * row of it is a control of the field the refusal is about.
+ * The elements a field's state is said on: the ones that take `aria-invalid`, the first of which
+ * is where focus lands. A repeatable list is the one field that answers with more than one.
  */
 const SPEAKS_FOR =
   ".listbox__button, .field__textarea, .field__input, .field__checkbox, .choice-set, .segmented";
 
 /**
- * What a field name is allowed to be, checked before it is spent in a selector.
- *
- * `data-error-fields` is read off a *generated* Handler's response. The spec validator
- * holds an authored capability to schema field names, but a Handler is code, and the one
- * thing a string interpolated into `querySelector` must never be is arbitrary.
+ * What a field name may be, checked before it is spent in a selector. `data-error-fields` is read
+ * off a generated Handler's response, and a Handler is code rather than an authored capability.
  */
 const FIELD_NAME = /^[a-z][a-z0-9_]*$/;
 
@@ -114,9 +76,8 @@ function focusTarget(field) {
 }
 
 /**
- * The one slot a field says things about itself in — and a rendering bug when it is
- * missing, said out loud rather than papered over, the way a length counter without its
- * limit is (`public/long-text-field.js`).
+ * The one slot a field says things about itself in, carried whether or not a hint was declared
+ * and already named by `aria-describedby`. Missing is a rendering bug, said rather than papered.
  *
  * @param {Element} field
  * @returns {HTMLElement}
@@ -130,11 +91,8 @@ function guidanceSlot(field) {
 }
 
 /**
- * Say one sentence in one field, in the guidance's place.
- *
- * The hint is stashed on the first marking only. A field marked twice without being
- * cleared in between — a server refusal landing on a field the browser had already
- * refused — would otherwise stash the error as if it were the hint and restore *that*.
+ * Say one sentence in one field, in the guidance's place. The hint is stashed on the first
+ * marking only, or a field marked twice would stash the error and restore that instead.
  *
  * @param {Element} field
  * @param {string} sentence
@@ -179,10 +137,8 @@ function clearFormErrors(form) {
 }
 
 /**
- * The field one name stands for. Every control the renderer draws — text, textarea,
- * checkbox, the datetime mirror's exact twin, both choice carriers, the radio inputs —
- * posts under the schema field's own name, which is the same token `data-error-fields`
- * names it by.
+ * The field one name stands for. Every control the renderer draws posts under the schema field's
+ * own name, which is the same token `data-error-fields` names it by.
  *
  * @param {Element} form
  * @param {string} name
@@ -194,10 +150,8 @@ function fieldNamed(form, name) {
 }
 
 /**
- * Move one marked refusal into the fields it names.
- *
- * The sentence is taken as text and written as text: whatever a Handler returned is what
- * the person reads, unrewritten, and nothing in it can become markup on the way.
+ * Move one marked refusal into the fields it names — moved, not copied, since two places saying
+ * the same thing is one being ignored. Taken as text and written as text, never as markup.
  *
  * @param {Element} form
  * @param {Element} notice
@@ -212,27 +166,16 @@ export function relocateFieldError(form, notice) {
     const field = fieldNamed(form, name);
     if (field) reached.push(field);
   }
-  // Every slot is found before any of them is written to. A field missing one is a
-  // rendering bug and still says so, but it says so with the sentence still standing in
-  // the region rather than half relocated — some fields marked, the rest not, and the
-  // region repeating what two of them are already saying.
+  // Every slot is found before any is written to: a field missing one is a rendering bug, and it
+  // says so with the sentence still in the region rather than half relocated.
   for (const field of reached) guidanceSlot(field);
   for (const field of reached) markFieldError(field, sentence);
   return reached;
 }
 
 /**
- * Every required field this form is holding nothing for, in document order — the two
- * checks the browser cannot run, because in neither case is there one native control
- * carrying the constraint.
- *
- * A picker's value rides a hidden input, and no browser validates one. A repeatable list
- * wants *one* nonblank row rather than a filled one in every row, so `required` on a row
- * would refuse a list that is complete — which is why the field says the word instead and
- * this is where it is enforced, exactly as the picker's is.
- *
- * Asked of the fields rather than of the carriers, so the answer comes back in the order
- * the document holds them. The first of them is where the person is put.
+ * Every required field this form is holding nothing for. Asked of the fields rather than the
+ * carriers, so they come back in document order, and the first is where the person is put.
  *
  * @param {Element} form
  * @returns {Element[]}
@@ -258,11 +201,8 @@ function holdsNothing(field) {
 }
 
 /**
- * The platform's sentence for an empty field, as the server wrote it onto this form.
- *
- * A capability form without it is a rendering bug and says so, the way a length counter
- * without its limit does: the alternative is a client quietly authoring copy of its own,
- * which is the one thing this module must never do.
+ * The platform's sentence for an empty field, as the server wrote it onto this form. A form
+ * without it is a rendering bug: the alternative is a client authoring copy of its own.
  *
  * @param {HTMLElement} form
  * @returns {string}
@@ -276,9 +216,8 @@ function requiredSentence(form) {
 }
 
 /**
- * Mark every required field the form is holding nothing for. Used by the `invalid`
- * handler alone: the submit handler needs the refusal to land before the words are looked
- * for, so it spells the same three steps out in its own order.
+ * Mark every required field the form is holding nothing for. Used by the `invalid` handler alone;
+ * the submit handler needs the refusal first, so it spells the steps out in its own order.
  *
  * @param {HTMLElement} form
  * @returns {Element[]} the fields marked
@@ -292,10 +231,8 @@ function markMissingRequired(form) {
 }
 
 /**
- * A refusal moves the person to the field it is about. That move is the product's,
- * not theirs, so the ring is asked for explicitly: a control that is not a text
- * input rings on keyboard focus only, and after a mouse-clicked submit the browser
- * would rightly call this focus non-keyboard and paint nothing.
+ * A refusal moves the person to the field it is about. That move is the product's, so the ring is
+ * asked for: a control that is not a text input rings on keyboard focus only.
  *
  * @param {Element | null} field
  */
@@ -308,18 +245,16 @@ function focusField(field) {
 let reporting = false;
 
 /**
- * Finish a pass of the browser's own validation by standing on the first field it marked.
- *
- * The UA does its own focusing and scrolling only for controls whose `invalid` survived,
- * and this module cancels every one, so without this a refusal happens off screen. It
- * waits a microtask because the pass is not over: `invalid` fires once per invalid
- * control, and the first field in the form is not always the first event.
+ * Finish a pass of the browser's own validation by standing on the first field it marked: the UA
+ * focuses only controls whose `invalid` survived, and this cancels every one.
  *
  * @param {HTMLElement} form
  */
 function endReportingPass(form) {
   if (reporting) return;
   reporting = true;
+  // A microtask, because the pass is not over: `invalid` fires once per invalid control, and the
+  // first field in the form is not always the first event.
   queueMicrotask(() => {
     reporting = false;
     focusField(form.querySelector(`${FIELD}.${INVALID_CLASS}`));
@@ -327,19 +262,14 @@ function endReportingPass(form) {
 }
 
 /**
- * Every listener the module installs, in one place and taking the document it listens on,
- * so the rules above can be exercised in Bun without a browser (the shipped page passes
- * its own, at the foot of this file). All of them are delegated: forms arrive by htmx
- * swap, by a record view cloning a template and by three modules assigning `innerHTML`,
- * and none of those announce themselves.
+ * Every listener the module installs, in one place and taking the document it listens on, so the
+ * rules run in Bun. All delegated: forms arrive by swap, by a clone and by three `innerHTML`s.
  *
  * @param {Document} root
  */
 export function startFieldErrors(root) {
-  // `invalid` does not bubble, so this has to capture. The default action of the event is
-  // the browser's own bubble, and cancelling it is what leaves the field free to say the
-  // sentence itself. Anything other than a missing value keeps the browser's words,
-  // because the platform has not authored any of its own for it.
+  // `invalid` does not bubble, so this captures. Cancelling the default action takes the browser's
+  // bubble away and leaves the field free to say the sentence itself.
   root.addEventListener(
     "invalid",
     (event) => {
@@ -347,18 +277,17 @@ export function startFieldErrors(root) {
       if (!(control instanceof HTMLElement)) return;
       const form = /** @type {{ form?: unknown }} */ (control).form;
       const validity = /** @type {{ validity?: ValidityState }} */ (control).validity;
+      // Anything but a missing value keeps the browser's words: the platform authored one
+      // sentence for one failure and none for the rest.
       if (!(form instanceof HTMLFormElement) || validity?.valueMissing !== true) return;
       const field = control.closest(FIELD);
       if (!field) return;
-      // Marked first, cancelled second, and in that order deliberately. Cancelling is what
-      // takes the browser's bubble away; a throw between the two would take the bubble
-      // away and put nothing in its place, which is a refusal with no author at all.
+      // Marked first, cancelled second: cancelling takes the browser's bubble away, and a throw
+      // between the two would leave a refusal with no author at all.
       markFieldError(field, requiredSentence(form));
       event.preventDefault();
-      // The browser's pass and this module's in the same press. Native validation refuses
-      // the submit below before it fires, so a form missing both a typed field and a
-      // picker would otherwise mark the typed one, be fixed, and only then admit that the
-      // picker was empty too — two refusals for one filling-in.
+      // The browser's pass and this module's in one press. Native validation refuses the submit
+      // below before it fires, so a form missing both kinds of field would refuse twice.
       markMissingRequired(form);
       endReportingPass(form);
     },
@@ -372,18 +301,13 @@ export function startFieldErrors(root) {
     (event) => {
       const form = event.target;
       if (!(form instanceof HTMLFormElement)) return;
-      // Somebody earlier in the same phase has already refused this submission. The one
-      // that does is the destructive question standing over a record form
-      // (`public/record-mutations.js`), and while it stands it owns both the screen and
-      // the focus — so nothing here may mark a field or take the person off its Cancel.
+      // Somebody earlier in the same phase already refused this: the destructive question over a
+      // record form (`public/record-mutations.js`) owns both the screen and the focus.
       if (event.defaultPrevented) return;
       const missing = missingRequiredValues(form);
       if (missing.length === 0) return;
-      // Refused first, said second — the opposite order to the `invalid` handler above,
-      // and for the same reason. There the browser has already refused and cancelling is
-      // the only thing left to lose; here this *is* the only refusal, because no browser
-      // validates a hidden input, so a throw while finding the words must not let an empty
-      // required field through as well as leaving it unexplained.
+      // Refused first, said second — the opposite order to `invalid` above. Here this is the only
+      // refusal, so a throw while finding the words must not let an empty field through as well.
       event.preventDefault();
       event.stopPropagation();
       const sentence = requiredSentence(form);
@@ -393,9 +317,8 @@ export function startFieldErrors(root) {
     true,
   );
 
-  // Correcting the field is what clears it, whatever correcting means for the control:
-  // typing, ticking, choosing a radio, or the bubbling `change` the drawn picker and the
-  // segmented row announce on their carrier (`public/choice-picker.js`).
+  // Correcting the field clears it, whatever correcting means: typing, ticking, choosing a radio,
+  // or the bubbling `change` the picker and the segmented row announce (`public/choice-picker.js`).
   const corrected = (/** @type {Event} */ event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
@@ -412,18 +335,15 @@ export function startFieldErrors(root) {
     if (form instanceof HTMLFormElement) clearFormErrors(form);
   });
 
-  // An answer has landed in the form's error region. Take it out of there and say it in
-  // the fields it names; leave it standing when it names none this form is drawing, since
-  // a sentence moved to a slot that does not exist is a person answered with silence.
+  // An answer landed in the form's error region. Take it out and say it in the fields it names;
+  // leave it standing when it names none this form draws, or the person is answered with silence.
   root.addEventListener("htmx:afterSwap", (event) => {
     const region = event.target;
     if (!(region instanceof HTMLElement) || !region.matches(ERROR_REGION)) return;
     const form = region.closest("form");
     if (!form) return;
-    // Cleared for every answer, marked or not. Half the refusals that land here name no
-    // field at all — a held mutation lease, a record already gone — and one of those
-    // arriving over a field still saying it is too long would leave that field describing
-    // a verdict the server has just not given.
+    // Cleared for every answer, marked or not: half the refusals here name no field at all, and
+    // one arriving over a field still saying it is too long would describe a verdict not given.
     clearFormErrors(form);
     const notice = region.querySelector(NOTICE);
     if (!notice) return;

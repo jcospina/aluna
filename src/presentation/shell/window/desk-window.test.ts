@@ -14,11 +14,8 @@ import {
 } from "#shell/desk-window.js";
 import { code as stripComments } from "../../safety/source.test-support.ts";
 
-// The window, checked where it is written down. It is created and destroyed by the
-// client, so most of what has to hold is a statement about a file rather than about a
-// served page: the shell ships a layer and a module and no content area of its own, the
-// module owns the frame the design draws, and the two lamps are the only life cycle the
-// chrome offers (PLAN decisions 1 and 2; design D1, D3, D12).
+// The window, checked where it is written down. It is created and destroyed by the client, so
+// most of this is a statement about a file (PLAN decisions 1 and 2; design D1, D3, D12).
 
 const ROOT = resolve(import.meta.dir, "../../../..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -82,9 +79,8 @@ describe("the shell ships a window layer and no content area", () => {
   });
 
   test("both openers listen in the capture phase", () => {
-    // htmx resolves `hx-target` from a listener on the element itself, which runs
-    // after every capture listener on the document. The capture flag is what makes
-    // the window — and the region every existing swap addresses — exist first.
+    // htmx resolves `hx-target` from a listener on the element itself, which runs after every
+    // capture listener, so the capture flag is what makes the window exist first.
     const captured: string[] = [];
     const bubbled: string[] = [];
     startDeskWindow(
@@ -124,11 +120,8 @@ describe("the window holds the one content region", () => {
   });
 
   test("the teardown releases, then lets htmx clean up, then detaches", () => {
-    // The order is the whole rule. The release is the only moment an htmx request
-    // inside the region can still be aborted, and htmx's cleanup only closes a build's
-    // EventSource while the node carrying it is still connected — which is why the
-    // window is swapped empty rather than removed with `htmx.remove`, which is
-    // `removeChild` and runs no cleanup at all.
+    // The release is the only moment an htmx request inside the region can be aborted, and htmx
+    // closes a build's EventSource only while the node carrying it is still connected.
     const order: string[] = [];
     const opener = { isConnected: true, focus: () => order.push("focus opener") };
     const entry = {
@@ -176,10 +169,8 @@ describe("the window holds the one content region", () => {
   });
 
   test("the classic-script glue and the window agree on both strings", () => {
-    // `app.js` is a classic script and cannot import a module, so it restates the
-    // region's id and the put-away event. Neither may drift from the module that
-    // owns them — the same answer `region-scope.js` and `app.js` give for the
-    // release event.
+    // `app.js` is a classic script and cannot import a module, so it restates the region's id and
+    // the put-away event. Neither may drift from the module that owns them.
     const glue = read("public/app.js");
     expect(glue).toContain(`const WINDOW_REGION_ID = "${WINDOW_CONTENT_ID}";`);
     expect(glue).toContain(`const PUT_WINDOW_AWAY_EVENT = "${PUT_WINDOW_AWAY_EVENT}";`);
@@ -187,9 +178,8 @@ describe("the window holds the one content region", () => {
   });
 
   test("a window left holding nothing is put away", () => {
-    // A deletion with nothing to restore empties the region: the capability is gone,
-    // its logo is gone, and an empty frame still titled with what was deleted is the
-    // one thing left saying otherwise.
+    // A deletion with nothing to restore empties the region: the capability is gone, and an empty
+    // frame still titled with what was deleted is the one thing left saying otherwise.
     const glue = code("public/app.js");
     expect(glue).toContain("function regionHoldsNothing(region)");
     expect(glue).toContain("putAwayEmptyWindow(output)");
@@ -197,11 +187,8 @@ describe("the window holds the one content region", () => {
   });
 
   test("the window is never detached with htmx's `remove`", () => {
-    // `htmx.remove` is `removeChild` and runs no cleanup at all, so detaching with it
-    // would leave the SSE extension holding an open EventSource for a build streaming
-    // into a node that is no longer anywhere — and the `htmx:sseClose` that unlocks
-    // the prompt bar would be fired from a detached node and never reach the document.
-    // The behavioural proof is the teardown test above; this keeps the trap shut.
+    // `htmx.remove` is `removeChild` and runs no cleanup, so detaching with it would leave the SSE
+    // extension holding an EventSource and fire `htmx:sseClose` from a detached node.
     expect(code("public/desk-window.js")).not.toMatch(/htmx\(\)\?\.remove/);
     expect(code("public/desk-window.js")).toContain('swapStyle: "innerHTML"');
   });
@@ -249,10 +236,8 @@ describe("two lamps, and there is no minimise", () => {
       /action === "putaway"\) \{\s*const away = \(\) => \{\s*dismissWindow\(\);/,
     );
     expect(source).toContain("if (!askBeforeLeaving(entry.el, away)) away();");
-    // The logo stays where it was and the same click brings the window back — centred,
-    // the way a first window opens. A dismissed window is over, so the box it stood in
-    // is not a preference every window after it inherits. The address moves too, to the
-    // bare desk (D14).
+    // The logo stays where it was and the same click brings the window back, centred. A dismissed
+    // window is over, so the box it stood in is not a preference the next one inherits.
     const putAway = /export function putAway\(\) \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? "";
     expect(putAway, "no `putAway`").not.toBe("");
     expect(putAway).not.toContain("savePresentation");
@@ -300,12 +285,8 @@ describe("the window's content region scrolls, and only when it should", () => {
   });
 
   test("it scrolls down and never sideways", () => {
-    // A collection is a vertical list, so a sideways scrollbar on one is always a bug
-    // — and it cannot be left to `auto`, because the drawn line makes the bug routine.
-    // The ink system sizes each layer in pixels when it draws, so a drawn element that
-    // has just been made narrower keeps a layer as wide as it used to be until the
-    // redraw lands. Resizing the window by its corner is that, every frame: under
-    // `overflow-x: auto` each one flicks a horizontal scrollbar in and out.
+    // A collection is a vertical list, so a sideways scrollbar is always a bug, and `auto` makes
+    // it routine: a drawn element keeps its old layer width until the redraw lands.
     const region = body(rules("public/css/shell.css"), ".desk-window__region");
     expect(region).toMatch(/overflow-x:\s*hidden/);
     expect(region).not.toMatch(/overflow:\s*auto/);
@@ -315,16 +296,11 @@ describe("the window's content region scrolls, and only when it should", () => {
   });
 
   test("a pressed or focused record does not grow a sideways scrollbar", () => {
-    // `:hover` and `:active` nudge a record 1–2px and `:focus-visible` rings it 5px
-    // out (3px outline at a 2px offset). The window body's padding is outside the
-    // scroller, so without a gutter of its own that nudge lands outside the scroller's
-    // box: a list that never wanted horizontal scrolling grows a horizontal scrollbar
-    // the moment a card is hovered, and the ring is clipped at both edges.
+    // `:hover` and `:active` nudge a record 1-2px and `:focus-visible` rings it 5px out. The
+    // window body's padding is outside the scroller, so that reach needs a gutter of its own.
     const collection = rules("public/css/collection.css");
-    // The press states its distance as a travel token rather than a number (PLAN
-    // decision 44), so the gutter is measured from the token the rule names — a press
-    // that gets deeper still sizes this, and one that is quieted for Reduce Motion does
-    // not shrink the gutter, because the scrollbar it prevents is the full-motion case.
+    // The press states its distance as a travel token (PLAN decision 44), so the gutter is
+    // measured from the token the rule names, and Reduce Motion does not shrink it.
     const token = /\.capability-item:active\s*\{[^}]*translate:\s*var\((--travel-[a-z-]+)\)/.exec(
       collection,
     );
@@ -344,9 +320,8 @@ describe("the window's content region scrolls, and only when it should", () => {
       Number(ring?.[1] ?? 0) + Number(ring?.[2] ?? 0),
     );
 
-    // The gutter is on a child of the scroller rather than on the scroller itself: a
-    // scroll container's own bottom padding has a long history of being left out of
-    // the scrollable overflow area, and where it is, the tail of a list is unreachable.
+    // The gutter is on a child of the scroller rather than the scroller itself: a scroll
+    // container's own bottom padding is often left out of the scrollable overflow area.
     const surface = body(rules("public/css/demo.css"), ".capability-surface");
     const gutter = /padding:\s*var\(--(space-\d)\)/.exec(surface)?.[1];
     expect(gutter, "the capability surface has no gutter").toBeDefined();
@@ -356,13 +331,8 @@ describe("the window's content region scrolls, and only when it should", () => {
   });
 
   test("the records region is a second scroller, and it is guttered on all four sides", () => {
-    // The window's region is not the only scroller in a collection: the records region
-    // scrolls the list under a search rail that stays put, so it needs the same two
-    // things the window's does — a gutter wide enough for everything a card reaches past
-    // its own box, and, sideways, a clip behind it. Every edge of that scrollport cut
-    // through the reach: hovering a card grew a horizontal scrollbar on a vertical list,
-    // and at the foot of a long list the last card's bottom line came out half-weight,
-    // its outer half clipped away.
+    // The records region is a second scroller and needs the same two things: a gutter as wide as
+    // a card's reach, and a sideways clip. Without them the last card's line came out half-weight.
     const region = body(rules("public/css/collection.css"), ".capability-records");
     expect(region).toMatch(/overflow-x:\s*hidden/);
     expect(region).not.toMatch(/overflow:\s*auto/);
@@ -375,9 +345,8 @@ describe("the window's content region scrolls, and only when it should", () => {
     // drawn line reaches ~2px and the press 2px, and both are inside that.
     expect(rem * 16).toBeGreaterThanOrEqual(5);
 
-    // Pulled back out by exactly as much, and on every side, so nothing moves: the cards
-    // keep their alignment with the rail above and the list keeps its height, and the
-    // gutter is spent on the surface's padding rather than on the list's own box.
+    // Pulled back out by exactly as much, and on every side, so nothing moves: the cards keep
+    // their alignment with the rail above and the list keeps its height.
     expect(region).toMatch(new RegExp(`margin:\\s*calc\\(-1 \\* var\\(--${gutter}\\)\\)`));
     for (const side of ["inline", "block", "top", "bottom", "left", "right"]) {
       expect(region, `a one-sided \`padding-${side}\` leaves an edge to clip against`).not.toMatch(
@@ -389,9 +358,8 @@ describe("the window's content region scrolls, and only when it should", () => {
 
 describe("the three gestures", () => {
   test("every way a gesture can end unbinds the move listener", () => {
-    // Without `pointercancel` and `lostpointercapture` the move listener stays
-    // attached, the window follows a pointer with no button held, and every later
-    // gesture stacks another live listener.
+    // Without `pointercancel` and `lostpointercapture` the move listener stays attached, the
+    // window follows a pointer with no button held, and every later gesture stacks another.
     for (const ending of ["pointerup", "pointercancel", "lostpointercapture"]) {
       const bound = new Map<string, () => void>();
       const handle = {
@@ -443,10 +411,8 @@ describe("the create form takes the window", () => {
   const fields = rules("public/css/fields.css");
 
   test("the height chain from the window to the action row is unbroken", () => {
-    // Only a definite height can put anything on the window's bottom edge. Every link
-    // states both halves — take the space, and be allowed to give it back — because a
-    // flex item that forgets `min-height: 0` refuses to shrink below its content and
-    // pushes the scroll one level up, which is where a sticky row starts drifting.
+    // Only a definite height can put anything on the window's bottom edge, and a flex item that
+    // forgets `min-height: 0` refuses to shrink below its content and pushes the scroll up.
     const links: [string, string][] = [
       ["public/css/shell.css", ".desk-window__region"],
       ["public/css/demo.css", ".capability-surface"],
@@ -490,9 +456,8 @@ describe("the create form takes the window", () => {
   });
 
   test("create and edit are one shape, not two", () => {
-    // They diverged while create was a panel above the list and edit filled a modal.
-    // Both fill the surface they arrive on now, and the modal's height override went
-    // with the modal — so the shape is stated once, in one rule, with no exception.
+    // They diverged while create was a panel above the list and edit filled a modal. Both fill the
+    // surface they arrive on now, so the shape is stated once, in one rule, with no exception.
     const form = body(fields, ".capability-create-form,\n.capability-edit-form");
     expect(form).toMatch(/flex:\s*1 1 auto/);
     expect(form).toMatch(/min-height:\s*0/);

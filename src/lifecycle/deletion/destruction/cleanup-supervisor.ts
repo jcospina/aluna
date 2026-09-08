@@ -1,26 +1,15 @@
 // Post-commit cleanup retry (ARCH §6.3 cross-store lifecycle recovery, PLAN decision 34).
 //
 // Deletion crosses its point of no return in one SQLite transaction and then owes durable
-// external work: delete the incarnation's artifacts and any other owned resource, then
-// remove the tombstone. Until that work is discharged the tombstone reserves the semantic
-// id, so the capability can be neither used nor rebuilt.
+// external work: delete the incarnation's artifacts and any other owned resource, then remove the
+// tombstone. Until that work is discharged the tombstone reserves the semantic id, so the
+// capability can be neither used nor rebuilt.
 //
-// Boot recovery alone is not enough. It made "I still have a little tidying up to do" a
-// promise the running process never kept — a cleanup that failed at 10:00 sat untouched
-// until the next restart, and a cleanup that fails for a *reproducing* reason (a
-// permission the process no longer has, an adapter this build does not carry) retried
-// identically forever, reserving the id with it and reporting nothing but a console line.
-//
-// So: retry here, on a bounded backoff, and when the retries are exhausted stop guessing
-// and leave the reason on the tombstone where `GET /` can show it. Every attempt runs
-// under a platform write lease — cleanup deletes the tombstone row, so it is a write on
-// the shared connection and must queue with every other one.
-//
-// "Stop guessing" is not "give up": `forceRetry` is how a person asks again, and a desk
-// load presses it. That matters because the tombstone reserving the id is what stops the
-// capability being rebuilt, and the build path now says so as soon as it knows the id
-// (`registry/deletion-tombstones.ts`, `CapabilityIdReservedError`) instead of paying for a
-// whole generation and being refused by the activation CAS.
+// Boot recovery alone left a cleanup that failed at 10:00 untouched until the next restart. So
+// cleanup retries here on a bounded backoff under a platform write lease, and when the retries are
+// exhausted it leaves the reason on the tombstone where `GET /` can show it. Past that only a
+// person asking again reaches it, through `forceRetry`, which a desk load presses. A rebuild of a
+// reserved id is refused as soon as the build path knows the id, not after a whole generation.
 
 import type { Database } from "bun:sqlite";
 import {
@@ -37,8 +26,7 @@ import {
 
 /**
  * Spread out rather than hammering: a transient cause (a file still held open) clears in
- * seconds, and anything still failing after the last delay is not going to clear on its
- * own. Attempts beyond this are an operator's call, not a timer's.
+ * seconds, and anything still failing after the last delay will not clear on its own.
  */
 export const DEFAULT_DELETION_CLEANUP_RETRY_DELAYS_MS: readonly number[] = [1_000, 5_000, 30_000];
 
@@ -75,7 +63,10 @@ export class DeletionCleanupSupervisor {
   private running = false;
   private scheduled = false;
   private stopped = false;
-  /** A retry asked for while a pass was in flight, to be honoured when that pass ends. */
+  /**
+   * A retry asked for while a pass is in flight, honoured when that pass ends. Scheduling one
+   * there instead spins at rung one: `runOnce` short-circuits on `running`, so no attempt counts.
+   */
   private retryOwed = false;
 
   constructor(options: DeletionCleanupSupervisorOptions) {
@@ -96,9 +87,8 @@ export class DeletionCleanupSupervisor {
   }
 
   /**
-   * Discharge every outstanding tombstone once, under a platform write lease. A failure
-   * is counted on the tombstone itself so the next pass — in this process or a later
-   * one — knows how much patience is left.
+   * Discharge every outstanding tombstone once, under a platform write lease. A failure is counted
+   * on the tombstone, so the next pass — here or in a later process — knows the patience left.
    */
   async runOnce(): Promise<readonly CapabilityDeletionRecoveryResult[]> {
     if (this.running) return [];
@@ -131,28 +121,16 @@ export class DeletionCleanupSupervisor {
   }
 
   /**
-   * Ask for another pass. The delay comes from the most patient outstanding tombstone,
-   * so one wedged deletion cannot starve a younger one of its early quick retries.
-   *
-   * A pass already in flight is not a reason to schedule a second one. It used to be: while
-   * a build held the coordinator, `runOnce` short-circuited on `running`, the chained
-   * `requestRetry` scheduled again, and — because no attempt had been counted — it scheduled
-   * at the *first* rung, so the supervisor spun at one pass a second for as long as the build
-   * ran. The ask is remembered instead and honoured when the running pass ends.
+   * Ask for another pass, at the rung of the most patient outstanding tombstone, so one wedged
+   * deletion cannot starve a younger one of its early quick retries.
    */
   requestRetry(): void {
     this.scheduleRetry(this.pending().filter((entry) => !entry.exhausted));
   }
 
   /**
-   * Ask for a pass over *everything* still owed, exhausted tombstones included.
-   *
-   * The backoff deliberately gives up: a cause that reproduces will reproduce again, and
-   * attempts past it are a person's call rather than a timer's. This is how a person makes
-   * that call. A desk load presses it, so refreshing the page is the recovery gesture — which
-   * matters because a tombstone reserves its capability id, and until it is discharged the
-   * capability can be neither used nor rebuilt. Before this, only a process restart tried
-   * again and nothing a user could do reached it.
+   * Ask for a pass over *everything* still owed, exhausted tombstones included. The backoff gives
+   * up on purpose, and a desk load presses this, so refreshing the page is the recovery gesture.
    */
   forceRetry(): void {
     this.scheduleRetry(this.pending());

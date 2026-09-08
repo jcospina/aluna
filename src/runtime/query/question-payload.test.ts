@@ -22,11 +22,8 @@ import {
   registeredSpecs,
   scriptedProvider,
 } from "./question.test-support.ts";
-import {
-  QUESTION_BUDGET_SPENT_SENTENCE,
-  QUESTION_STEP_BUDGET,
-  questionEndingNarration,
-} from "./question-loop.ts";
+import { QUESTION_STEP_BUDGET } from "./question-loop.ts";
+import { QUESTION_BUDGET_SPENT_SENTENCE, questionEndingNarration } from "./question-narration.ts";
 import {
   QUESTION_PAYLOAD_BUDGET_SPENT,
   QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
@@ -104,8 +101,8 @@ describe("the two numbers", () => {
 
     // More than one at-cap read fits, so the step cap is not secretly the whole budget.
     expect(QUESTION_RESULT_PAYLOAD_BUDGET_BYTES).toBeGreaterThan(QUESTION_STEP_RESULT_CAP_BYTES);
-    // And ten at-cap reads do not, which is the whole point: a per-step cap alone would let a
-    // question accumulate ten times what it is allowed, and this is what stops it.
+    // And ten at-cap reads do not: a per-step cap alone would let a question accumulate ten
+    // times what it is allowed, and the budget is what stops it.
     expect(QUESTION_RESULT_PAYLOAD_BUDGET_BYTES).toBeLessThan(
       QUESTION_STEP_RESULT_CAP_BYTES * QUESTION_STEP_BUDGET,
     );
@@ -165,9 +162,8 @@ describe("the two numbers", () => {
   });
 
   test("measure the very text the prompt renders", () => {
-    // Not a second serialization that happens to agree: what is counted is what is sent. The
-    // second assertion is the one that catches a measurement drifting off the rendering — a
-    // measure that dropped the column names would halve the cost and double the ceiling.
+    // What is counted is what is sent, not a second serialization that agrees: a measure dropping
+    // the column names would halve the cost and double the ceiling.
     const desk = bulkyDesk();
     const rows = [{ text: SHORT_TEXT }, { text: `${SHORT_TEXT}er` }];
     const step: QuestionStep = { call: null, result: { outcome: "rows", rows } };
@@ -306,9 +302,8 @@ describe("the loop narrows after a refusal", () => {
 
 describe("the cap bounds a whole ten-step question", () => {
   test("ten reads that each fit on their own do not, and the question stops accumulating", async () => {
-    // Every read is a legal one: five long notes render just under the per-step cap. A
-    // per-step cap alone would admit all ten of them, which is the n²/2 blowup 6.3/02
-    // measured at 2,653,692 characters for one question.
+    // Every read is legal: five long notes render just under the per-step cap, which alone would
+    // admit all ten — the n²/2 blowup 6.3/02 measured at 2,653,692 characters for one question.
     const desk = bulkyDesk();
     const oneRead = `${LONG_ROWS_SQL} LIMIT 5`;
     const rows = await desk.inScope((scope) => scope.read(oneRead, []));
@@ -347,9 +342,8 @@ describe("the cap bounds a whole ten-step question", () => {
   });
 
   test("and statements that never return a row are weighed too, before they run", async () => {
-    // The channel a row-only budget cannot see: a statement's own text and its bound values
-    // are re-rendered into every later prompt whether or not it produced anything, and bound
-    // values are the half of that a person's own data can reach.
+    // The channel a row-only budget cannot see: a statement's text and its bound values are
+    // re-rendered into every later prompt, and the values are where a person's own data reaches.
     const desk = bulkyDesk();
     const { result, steps, prompts } = await desk.run(
       scriptedProvider(reads(`SELECT text FROM ${NOTES_TABLE} WHERE text = ?`, [BULKY_PARAMETER])),
@@ -369,9 +363,8 @@ describe("the cap bounds a whole ten-step question", () => {
     }
     expect(desk.executed()).toBe(matchedNothing.length);
 
-    // Bounded, where before this budget existed the same fixture accumulated with the cap
-    // reading zero. A refused step still costs the statement the model wrote — refusing
-    // cannot unsay it — so the bound is the budget plus one statement per refused read.
+    // Bounded, where before this budget the same fixture accumulated with the cap reading zero. A
+    // refused step still costs the statement, so the bound is the budget plus one per refusal.
     expect(questionPayloadSpent(steps)).toBeLessThan(
       QUESTION_RESULT_PAYLOAD_BUDGET_BYTES + QUESTION_STEP_BUDGET * QUESTION_STEP_RESULT_CAP_BYTES,
     );

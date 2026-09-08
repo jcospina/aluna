@@ -1,16 +1,14 @@
 // The seam between a build and its logo, exercised through the real prompt → build →
 // commit path.
 //
-// The two properties [ADR-0007](../../docs/adr/0007-capability-logo-contract.md) puts
+// The two properties [ADR-0007](../../../../docs/adr/0007-capability-logo-contract.md) puts
 // here are about *ordering*, and neither can be seen from inside the logo module:
 //
-//   - **A build never pays.** The Gate, publication and SQLite activation all happen
-//     before anything is ordered, so a build that fails, goes stale or is cancelled costs
-//     nothing. What proves it is that the logo provider is not called at all during the
-//     build — the request only ever comes from the activated tile.
-//   - **A logo failure cannot relabel the build.** The build is already `success` /
-//     activated when the attempt runs, so provider trouble afterwards leaves the metrics
-//     row and the capability exactly as they were.
+//   - A build never pays. The Gate, publication and SQLite activation all happen before
+//     anything is ordered, so a build that fails, goes stale or is cancelled costs nothing:
+//     the logo provider is not called at all during the build.
+//   - A logo failure cannot relabel the build. The build is already `success` when the
+//     attempt runs, so provider trouble afterwards leaves the metrics row untouched.
 
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { readdirSync } from "node:fs";
@@ -164,19 +162,16 @@ describe("a build and the logo it does not pay for", () => {
     // And the desk shows it on the next load, with nothing left to claim.
     const desk = await (await app.request("/")).text();
     expect(desk).toContain(`/capability/notes/${row?.incarnation_id}/logo.svg`);
-    // Nothing left to claim. Named at the attempt route rather than at every POST on the
-    // desk: the logo's own menu carries a rename form, and the shell loads the attempt
-    // module's script on every page whether or not a tile has one to spend.
+    // Nothing left to claim. Named at the attempt route rather than at every POST on the desk:
+    // the logo's own menu carries a rename form, and the attempt script loads on every page.
     expect(desk).not.toContain('hx-post="/capability/notes');
   });
 });
 
 describe("a build that never activates", () => {
   test("orders nothing, and stands no armed tile on the desk", async () => {
-    // A structurally broken Handler fails the Gate, so publication and activation never
-    // happen. Nothing may be spent for a capability that can still be refused (L10), and
-    // the only thing that ever arms an attempt is a registry-backed tile — which a build
-    // that produced no row cannot have.
+    // A structurally broken Handler fails the Gate, so publication and activation never happen.
+    // Nothing may be spent for a capability that can still be refused (L10).
     const logoProvider = countingProvider(ARTWORK);
     const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC, undefined, {
       create: "export const create = (",
@@ -206,10 +201,8 @@ describe("a build that never activates", () => {
 
 describe("the artifact tree after a logo lands", () => {
   test("reconciliation accepts a real published tree that has grown a face", async () => {
-    // Reconciliation runs at boot (`src/index.ts`) and at the head of every new build and
-    // evolution. It enumerates the incarnation directory the logo now lives in, so it has
-    // to know the file by name: when it did not, the first capability to grow artwork made
-    // every later build fail and the platform unbootable.
+    // Reconciliation runs at boot (`src/index.ts`) and at the head of every build and evolution.
+    // It knows the file by name: when it did not, the first artwork made the platform unbootable.
     const logoProvider = countingProvider(ARTWORK);
     const { app } = buildingApp(logoProvider);
     await runPromptBuild(app, "track my notes");

@@ -170,9 +170,8 @@ describe("a narrowed limit is put to the committed column", () => {
   });
 
   test("a value carrying a NUL cannot hide behind it", () => {
-    // SQLite's `length(X)` over text counts characters *up to the first NUL*, so a scan
-    // built on it measures this value as 30 and admits any limit at all — then the write
-    // path, which counts the whole string, refuses every later edit of the row.
+    // SQLite's `length(X)` counts text up to the first NUL, so a scan built on it measures this
+    // as 30 and admits any limit — then the write path, counting the whole string, refuses edits.
     withStored({ title: `${"y".repeat(30)}\u0000${"z".repeat(500)}` }, (committed, database) => {
       expect(() =>
         assertStoredValuesFitMaxLengths(committed, withLimit(committed, "title", 64), database),

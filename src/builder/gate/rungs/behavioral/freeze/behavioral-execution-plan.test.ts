@@ -43,10 +43,8 @@ describe("coverage is one Handler per Action suite", () => {
 
 describe("a suite this build generated always runs", () => {
   test("every Action generated — everything runs, and it is not a fallback", () => {
-    // A first build, or an evolution whose every test input moved. Nothing is being
-    // skipped, so nothing is being narrowed, so this must not report as the full-suite
-    // fallback: "we ran everything" and "we could not prove anything safe" are different
-    // facts and the snapshot records which one happened.
+    // A first build, or an evolution whose every test input moved: nothing is skipped, so nothing
+    // is narrowed. "We ran everything" and "we proved nothing safe" are different facts.
     const result = plan(ALL_ACTIONS, {
       regeneratedHandlers: [...ALL_ACTIONS],
       regeneratedItemRenderer: true,

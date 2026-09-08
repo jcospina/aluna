@@ -61,9 +61,8 @@ describe("the generation context (decision 1, pinned)", () => {
     // The field-lifecycle catalog names every committed field with its state.
     expect(prompt).toContain("- archived_reason (string) — lifecycle inactive");
     expect(prompt).toContain("- title (string) — lifecycle active");
-    // Platform lifecycle values are never generation context: the committed
-    // spec JSON carries no lifecycle-metadata keys and no own-incarnation value.
-    // (The bare words appear only inside the "never return" instruction.)
+    // Platform lifecycle values are never generation context: the committed spec JSON carries no
+    // lifecycle-metadata key. (The bare words appear only in the "never return" instruction.)
     expect(prompt).not.toContain('"artifacts_path"');
     expect(prompt).not.toContain('"version"');
     expect(prompt).not.toContain(JOURNAL_INCARNATION_ID);
@@ -113,9 +112,8 @@ describe("the generation context (decision 1, pinned)", () => {
   });
 
   test("the logo's birth facts are quoted back as the exact values to return", () => {
-    // The contract the platform then enforces: the model is told the three values and
-    // told they cannot move, so a rejection is never a surprise about a rule it was
-    // never given.
+    // The contract the platform then enforces: the model is told the three values and told they
+    // cannot move, so a rejection is never a surprise about an unseen rule.
     const prompt = buildCandidateSpecPrompt(promptInput());
     expect(prompt).toContain(
       'subject, ground and companion are the logo\'s birth facts and are immutable. Return exactly "an open notebook", "grass_green" and "coral_orange".',

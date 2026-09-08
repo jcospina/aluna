@@ -65,10 +65,8 @@ export const unitProvenanceManifestSchema = z.strictObject({
 export type UnitProvenanceManifest = z.infer<typeof unitProvenanceManifestSchema>;
 
 /**
- * One active dependency snapshot after its committed bytes have passed complete
- * snapshot verification. This is deliberately narrower than the generation catalog:
- * prompts receive active authored context, while provenance records the immutable
- * identity of the exact bytes that context came from.
+ * One active dependency snapshot whose committed bytes passed verification. Narrower than the
+ * generation catalog: provenance records the identity of the exact bytes context came from.
  */
 export interface VerifiedDependencySnapshot {
   readonly capability_id: string;
@@ -78,10 +76,8 @@ export interface VerifiedDependencySnapshot {
 }
 
 /**
- * Provenance for a freshly generated complete inventory (a v1 build). Every unit's
- * bytes are new, so each records a fresh active-context digest. A v1 capability cannot
- * declare external dependencies; inventing dependency evidence here would be false, so
- * a non-empty `read_dependencies` fails closed.
+ * Provenance for a freshly generated inventory (a v1 build): every unit's bytes are new. A v1
+ * capability declares no dependency, so a non-empty `read_dependencies` fails closed.
  */
 export function unitProvenance(
   spec: CapabilitySpec,
@@ -125,18 +121,8 @@ export interface EvolutionUnitProvenanceInput {
 }
 
 /**
- * The per-unit provenance one evolution records. A
- * regenerated unit gets a fresh `active_context_digest` over the candidate context it
- * was actually generated from; a byte-copied unit carries its committed provenance
- * forward verbatim, because its bytes — and the context they were generated against —
- * did not change. Provenance is audit evidence only: it never feeds candidate equality,
- * a Diff fact, or a cascade, so carrying it forward keeps the record honest without
- * manufacturing a difference.
- *
- * Fresh provenance for a regenerated dependency-bearing Action resolves only through the
- * lease-frozen verified dependency snapshot catalog. Missing evidence fails closed rather
- * than inventing an incarnation, version, or digest. Copied dependency-bearing units are
- * unaffected — their provenance is carried, not recomputed.
+ * A regenerated unit gets a fresh `active_context_digest`; a copied one carries its committed
+ * provenance verbatim. Audit evidence only, and missing dependency evidence fails closed.
  */
 export function evolutionUnitProvenance(
   input: EvolutionUnitProvenanceInput,

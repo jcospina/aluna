@@ -13,9 +13,8 @@ import { renderBuildEnding, renderBuildSubscriber } from "../../http/index.ts";
 // A run that ends with something to tell you holds the window there, and the press is
 // what gives back what it displaced (PLAN decisions 23 and 25; ARCH §6.2).
 
-// htmx executes a `<script>` it finds in a swapped fragment, and evaluates `js:`/`hx-on`
-// expressions, because both default to on. Nothing this desk serves needs either, and a
-// generated Handler's fragment is markup the platform did not author.
+// htmx executes a `<script>` it finds in a swapped fragment and evaluates `js:`/`hx-on`, both on
+// by default. Nothing this desk serves needs either, and a Handler's fragment is not ours.
 describe("the shell turns off htmx's executable defaults", () => {
   test("script tags and expression evaluation are both off once the shell has run", () => {
     const scene = desk();
@@ -167,10 +166,8 @@ describe("what the next prompt finds standing in the window", () => {
 
     expect(submitPrompt(scene)).toBe(false);
 
-    // The run is gone and the window stayed up for the build about to fill it. What the
-    // run displaced was only ever covered, so it is already standing there — and the
-    // parked collection is dropped rather than placed, because placing it would start a
-    // records read for a surface the arriving subscriber covers again in the same frame.
+    // The run is gone and the window stayed up for the build about to fill it. The parked
+    // collection is dropped rather than placed: placing it starts a read the subscriber covers.
     expect(scene.subscriber.parent).toBeNull();
     expect(scene.region.childNodes).toEqual([scene.displaced]);
     expect(scene.processed).toHaveLength(0);

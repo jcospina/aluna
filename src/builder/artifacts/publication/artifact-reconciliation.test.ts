@@ -264,10 +264,8 @@ describe("reconcileCapabilityArtifacts", () => {
     }
   }, 20_000);
 
-  // The logo lands at the incarnation root and its temp lands in `.staging`, both after
-  // activation and both outside every `vN/` inventory (ADR-0007). This pass enumerates
-  // that exact directory, so it has to know them by name: when it did not, a capability
-  // that grew a face made the platform unbootable and failed every later build.
+  // The logo and its temp sit outside every `vN/` inventory (ADR-0007), in the directory this
+  // pass enumerates. Unnamed, a capability that grew a face made the platform unbootable.
   test("a capability's artwork is a known sibling of its version directories", () => {
     installActiveV2(conns, artifactsRoot);
     const logo = join(artifactsRoot, "notes", INCARNATION_ID, "logo.svg");
@@ -290,9 +288,8 @@ describe("reconcileCapabilityArtifacts", () => {
 
     const result = reconcileCapabilityArtifacts({ database: conns.readwrite, artifactsRoot });
 
-    // Not swept here on purpose: this pass also runs at the head of every build, where a
-    // logo attempt may be mid-write. Removing a live attempt's staging file would break
-    // the claim it has already paid for. Desk-load recovery owns the sweep.
+    // Not swept here: this pass runs at the head of every build, where a logo attempt may be
+    // mid-write. Desk-load recovery owns the sweep.
     expect(result.removed).toEqual([]);
     expect(existsSync(temp)).toBe(true);
   });

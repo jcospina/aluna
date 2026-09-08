@@ -80,9 +80,7 @@ const ACTIONS = ["create", "read", "update", "delete", "search"] as const;
 
 /**
  * Handler source that cannot even be prepared for execution. The rung loads every declared
- * Handler before its first case, so a run that passes with these in place demonstrably ran
- * nothing at all — the pin for "the tests were copied and not run", which has no separate
- * test process to observe the absence of.
+ * Handler before its first case, so a run that passes with these in place ran nothing at all.
  */
 const UNLOADABLE_HANDLERS = Object.fromEntries(
   ACTIONS.map((action) => [action, `const ${action} = "never loadable";`]),
@@ -127,11 +125,8 @@ describe("capability gate — behavioral execution selection", () => {
     const input = fullInput();
     const { result } = await runFullBehavioralRung({
       ...input,
-      // Every Handler but `update` throws if it is called. The update suite still passes,
-      // which is what makes "an Action's suite covers exactly its own Handler" a fact about
-      // the executor rather than a claim about the generated cases: setup rows are seeded
-      // through the platform mutation port and state is read back through the platform query
-      // port, so no other generated Handler is ever invoked.
+      // Every Handler but `update` throws if called, and the update suite still passes: setup and
+      // readback go through the platform ports, so no other generated Handler is invoked.
       handlers: { ...UNCALLABLE_HANDLERS, update: input.handlers.update ?? "" },
       behavioralTier: carriedTierInput(spec, { regeneratedHandlers: ["update"] }),
     });

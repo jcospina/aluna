@@ -1,67 +1,21 @@
-// Where a whole-catalog read actually executes: a Worker thread holding its own
-// SQLITE_OPEN_READONLY connection to the one documented database file.
+// Where a whole-catalog read executes: a Worker thread holding its own `SQLITE_OPEN_READONLY`
+// connection to the one documented database file. `bun:sqlite` is synchronous, so a clumsy join on
+// the main thread would freeze the desk for its whole duration; the move is admissible because the
+// safety seam survives it (ADR-0008, decisions 6 and 7).
 //
-// `bun:sqlite` is synchronous and `src/platform/persistence/db.ts` opens on the main
-// thread, so a clumsy join across three capabilities would block the event loop for
-// its whole duration — no request served, no stream advancing, the desk frozen —
-// while returning a single row that no result-size bound could ever catch. Moving
-// execution off the main thread is admissible only because the safety seam survives
-// the move (ADR-0008, decisions 6 and 7).
+// `SQLITE_OPEN_READONLY` means *cannot write this database*, which is narrower than it reads.
+// Measured on Bun 1.3.12 against a read-only connection: `VACUUM INTO` wrote a complete copy of the
+// catalog, `CREATE TEMP TABLE` spilled 293 MB to disk, and `ATTACH DATABASE` read any other SQLite
+// file on the machine. `PRAGMA query_only` and the `NOT_A_READ` refusals below close all three.
 //
-// **`SQLITE_OPEN_READONLY` alone is not that seam.** It means "cannot write *this*
-// database", which is narrower than it reads. Measured on Bun 1.3.12 against a read-only
-// connection: `VACUUM INTO '<path>'` wrote a complete copy of the catalog to an arbitrary
-// file, `CREATE TEMP TABLE` spilled 293 MB to disk, and `ATTACH DATABASE` opened and read
-// any other SQLite file on the machine. A question's SQL is model-written, so each of
-// those is one statement away. Three things close the gap, and all three are needed:
-//
-//   - `PRAGMA query_only` — refuses `VACUUM INTO` and the temp-table spill.
-//   - refusing `PRAGMA` from a caller — without it, `PRAGMA query_only = OFF` reopens
-//     everything the line above just closed.
-//   - refusing `ATTACH`/`DETACH` — which `query_only` does *not* stop, and which is how a
-//     statement reads a file the read gate never admitted.
-//
-// This bounds the connection to its own file. It does not bound *which capability tables*
-// a statement may touch: decision 6 has that generalise from `assertScopedQuery`, which
-// enumerates the tables an `EXPLAIN` says a statement actually opens rather than matching
-// strings. 6.3/01 built it, on the main thread where the catalog is, as
-// `assertWholeCatalogQuery` in `whole-catalog-query-scope.ts` — so a statement arriving here
-// has already been bounded, and this thread still assumes nothing about that. (An SQLite
-// authorizer would be the other way to do it and is not available here — `bun:sqlite`
-// exposes no authorizer API, only `Database.handle` for FFI — but it is not the mechanism
-// the plan names.)
-//
-// The thread holds no ownership. It never receives a read token, never learns which
-// incarnations it is reading and never decides whether a read is *allowed* — all of that
-// stays on the main thread beside the read gate. The request shapes below are the whole
-// of what crosses the boundary: a path, a statement, and that statement's parameters.
-//
-// The SQLite runtime is deliberately not configured here. `configureSqliteRuntime()` pins
-// Bun to an extension-capable libsqlite3, and that native library loads once per process
-// rather than once per thread: calling it from this side throws `SQLite already loaded`.
-// The main thread always pins it before this thread exists and this connection inherits
-// it. The `sqlite_version()` parity test asserts that the *library* carried over (on macOS
-// it has teeth: Bun ships 3.51.0, the pinned Homebrew build is 3.53.1).
-//
-// `platform_search_normalize` does **not** carry over, and cannot be installed here yet.
-// It is a per-connection registration, so this connection lacks it, and a question that
-// filters text the way a generated search filters it will fail with *no such function*
-// until 6.3 needs one. Registering it here segfaults the process, reproducibly: the guard
-// in `assertExtensionAbiMatchesRuntime` keys off `sqliteLibraryPath`, which
-// `configureSqliteRuntime` assigns *after* `setCustomSQLite` — and `setCustomSQLite`
-// throws `SQLite already loaded` on this thread. The path therefore stays unset here
-// whatever this thread does, the ABI check silently skips itself, and the extension
-// compiles against the system headers while Homebrew's library is loaded. That is the
-// exact mismatch that file's own comment warns takes the process down. Giving the thread
-// the pinned path without re-pinning it is the fix, and it belongs with the epic that
-// needs the function.
+// They bound the connection to its own file, not which tables — `assertWholeCatalogQuery` does
+// that on the main thread. This thread holds no token: a path, a statement, its parameters.
 
 import { Database } from "bun:sqlite";
 
 /**
- * Every value SQLite carries into or out of a statement through this thread. `bigint` is
- * absent deliberately: `safeIntegers` is off, so an integer past 2^53 arrives already
- * rounded and typing it as `bigint` would promise a precision no value here has.
+ * Every value SQLite carries through this thread. `bigint` is absent deliberately: `safeIntegers`
+ * is off, so an integer past 2^53 arrives rounded and `bigint` would promise precision it lacks.
  */
 export type QueryWorkerValue = string | number | boolean | null | Uint8Array;
 
@@ -78,13 +32,8 @@ export type QueryWorkerRequest =
     };
 
 /**
- * Which half of the read failed. `statement` is something a differently written statement
- * would fix — a parse error, an unknown column, the seam's own refusal of a write, one of
- * this thread's guard refusals. `connection` is not: busy, locked, interrupted, an I/O
- * error, a corrupt image, no connection at all. The distinction has to be drawn *here*,
- * because SQLite's result code does not survive the structured-clone boundary, and it has
- * to be drawn at all because a loop told to rewrite its SQL against a corrupt database will
- * do exactly that until its budget is gone.
+ * Which half of the read failed: `statement` is what a differently written statement would fix,
+ * `connection` is not. Drawn here because SQLite's result code cannot cross structured clone.
  */
 export type QueryWorkerFault = "statement" | "connection";
 
@@ -99,11 +48,8 @@ export type QueryWorkerResponse =
     };
 
 /**
- * Statement forms that leave this connection's own file behind, whatever else they do.
- * The list mirrors the tail of `RAW_MUTATION_SQL_PATTERN` in
- * `src/builder/units/safety/handler-source-safety.ts`, which already refuses exactly these
- * in generated handler source — mirrored rather than imported because that module pulls in
- * the TypeScript compiler, which has no business on this thread.
+ * Statement forms that leave this connection's own file behind. Mirrors the tail of
+ * `RAW_MUTATION_SQL_PATTERN` rather than importing it — that module pulls in the TS compiler.
  */
 const NOT_A_READ = /^\s*(?:ATTACH|DETACH|PRAGMA|VACUUM|REINDEX|ANALYZE)\b/i;
 
@@ -142,9 +88,8 @@ function handle(request: QueryWorkerRequest): QueryWorkerResponse {
   }
   assertOneReadStatement(request.sql);
 
-  // `prepare` rather than `query`: `query` caches the compiled statement on the
-  // connection, and a question's SQL is written once and never asked again, so that
-  // cache could only grow. Finalizing keeps the thread's memory flat across a loop.
+  // `prepare` rather than `query`: `query` caches the compiled statement, and a question's SQL is
+  // asked once, so the cache could only grow. Finalizing keeps the thread's memory flat.
   const statement = connection.prepare<QueryWorkerRow, QueryWorkerValue[]>(request.sql);
   try {
     return { kind: "rows", id: request.id, rows: statement.all(...request.parameters) };
@@ -154,10 +99,8 @@ function handle(request: QueryWorkerRequest): QueryWorkerResponse {
 }
 
 /**
- * SQLite's result codes for the statement rather than for the connection carrying it.
- * `SQLITE_ERROR` covers a parse failure and an unknown column or table; `SQLITE_READONLY`
- * is decision 6's own refusal of a write, which is emphatically something the model should
- * see. Anything not listed is the database's trouble, not the query's.
+ * SQLite's result codes for the statement rather than the connection. `SQLITE_READONLY` is among
+ * them, since decision 6's own refusal of a write is something the model should see.
  */
 const STATEMENT_RESULT_CODES: ReadonlySet<number> = new Set([1, 8, 18, 19, 20, 21, 23, 25]);
 
@@ -165,10 +108,8 @@ function faultOf(error: unknown): QueryWorkerFault {
   if (error instanceof RefusedStatement) return "statement";
   if (error instanceof NoConnection) return "connection";
   const errno = (error as { errno?: unknown } | null)?.errno;
-  // Bun reports a `?`/value count mismatch as a plain `Error` with no code at all, and that
-  // is the statement's problem as much as a syntax error is. An unrecognised failure with
-  // no result code is treated the same way: a refusal the model can read costs it a step,
-  // where ending the question costs it the whole question.
+  // Bun reports a `?`/value count mismatch as a plain `Error` with no code, and that is the
+  // statement's problem. An unrecognised failure costs the model a step; ending costs the question.
   if (typeof errno !== "number") return "statement";
   return STATEMENT_RESULT_CODES.has(errno) ? "statement" : "connection";
 }
@@ -183,16 +124,22 @@ class NoConnection extends Error {
   override readonly name = "NoConnection";
 }
 
+/**
+ * The SQLite runtime is pinned by the main thread before this one exists and inherited here;
+ * `configureSqliteRuntime()` loads once per process and throws `SQLite already loaded` from here.
+ */
 function open(path: string): Database {
   const opened = new Database(path, { readonly: true });
-  // The same contention allowance the platform's own connections carry (db.ts): WAL keeps
-  // this reader off the writer's back, and the timeout absorbs the brief lock a checkpoint
-  // takes instead of surfacing a spurious SQLITE_BUSY.
+  // The contention allowance the platform's own connections carry (db.ts): WAL keeps this reader
+  // off the writer's back, and the wait absorbs the brief lock a checkpoint takes.
   opened.exec("PRAGMA busy_timeout = 5000;");
   opened.exec("PRAGMA query_only = ON;");
   // Belt and braces under `query_only`, which already refuses a temp table outright: if
   // one is ever admitted again, it is bounded by RAM rather than by free disk.
   opened.exec("PRAGMA temp_store = MEMORY;");
+  // `platform_search_normalize` is per-connection and unregistered here: a question filtering text
+  // fails with *no such function*. On darwin, registering it is refused: this thread knows no
+  // pinned library path, so the ABI the extension would compile against cannot be checked.
   return opened;
 }
 
@@ -204,9 +151,8 @@ function assertOneReadStatement(sql: string): void {
       `The query worker refuses ${refused[0].trim().toUpperCase()}: it reads.`,
     );
   }
-  // SQLite compiles only the first statement of a multi-statement string and drops the
-  // rest silently, so anything after the first would be validated by a later gate and
-  // never run. Refusing is the only honest answer.
+  // SQLite compiles only the first statement of a multi-statement string and silently drops the
+  // rest, so anything after the first would be validated by a later gate and never run.
   if (body.replace(/;\s*$/, "").includes(";")) {
     throw new RefusedStatement("The query worker runs one statement at a time.");
   }

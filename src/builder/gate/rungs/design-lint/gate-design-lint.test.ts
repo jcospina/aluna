@@ -114,16 +114,14 @@ const CLEAN_RENDERER = renderer(
   '`<div class="stack gap-1"><span class="text-lg text-bold truncate">${text}</span></div>`',
 );
 
-// Token-disciplined inline style on the three closed axes (colour/type size/spacing) — the
-// escape hatch used correctly against High Meadow. No boundary: the ink system draws the
-// record's own on the platform's wrapper, and the fill is what separates a block here.
+// Token-disciplined inline style on the three closed axes — the escape hatch used correctly. No
+// boundary: the ink system draws the record's own on the wrapper, and the fill separates a block.
 const TOKEN_STYLE_RENDERER = renderer(
   '`<div class="stack" style="padding: var(--space-1); font-size: var(--type-lg); color: var(--ink); background-color: var(--surface-2);"><span class="text-bold">${text}</span></div>`',
 );
 
-// Structurally valid and clean for design lint's fixed probe id, but unusable for any real
-// record. This is the regression candidate that proves a design repair must re-enter the
-// executable Gate rungs before its bytes can be committed.
+// Structurally valid and clean for design lint's fixed probe id, but unusable for a real record:
+// the candidate proving a design repair must re-enter the executable rungs before it commits.
 const EXECUTABLY_BROKEN_RENDERER = [
   "export default function renderItem(record: Record<string, unknown>): string {",
   '  if (String(record.text ?? "").startsWith("gate ")) throw new Error("presentation exploded");',
@@ -268,10 +266,8 @@ describe("design-lint detector (findDesignViolation)", () => {
   });
 
   test("passes a media renderer that interpolates an escaped field into <img src>", () => {
-    // Flowing a user field into an allow-listed URL attribute is the intended media pattern
-    // (the photo-grid exemplar does exactly this). A hostile URL *value* is sanitized
-    // per-record by the runtime enforcer, not rejected here as a renderer violation
-    // — this guards the false-positive that once flagged that exemplar.
+    // Flowing a user field into an allow-listed URL attribute is the intended media pattern; a
+    // hostile value is sanitized per record at runtime. This guards that false positive.
     const media = renderer(
       '`<figure class="media-frame media-frame--square"><img src="${text}" alt="" loading="lazy" decoding="async"></figure>`',
     );

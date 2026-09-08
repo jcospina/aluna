@@ -61,9 +61,8 @@ describe("the behavioral-tier transition table (decision 24)", () => {
   });
 
   test("on → off is a different row from off → off, and neither copies", () => {
-    // Both end with no artifacts, but only one of them had frozen intent to leave behind.
-    // A reader of a tier-off version cannot tell those apart from the version alone, which
-    // is the whole reason the row is named rather than inferred from "no tests present".
+    // Both end with no artifacts, but only one had frozen intent to leave behind, and a tier-off
+    // version cannot tell them apart — so the row is named, not inferred from "no tests present".
     const disabled = behavioralTierTransition({ prior: "on", candidate: "off" });
     expect(disabled.rows).toEqual([
       { row: "tier_disabled", disposition: "absent; no copy or execution" },
@@ -173,11 +172,8 @@ describe("the transition table's on → on rows", () => {
   });
 
   test("a suite this build authored and never ran is refused, not reported as run", () => {
-    // The mirror of the off→on guard. `regenerated`'s disposition claims the suite was run;
-    // a version published on a freshly authored suite that judged no code is exactly what
-    // the frozen tier exists to prevent, and `assertBehavioralTestMetadataShape` rejects it
-    // at publication — so reporting it as an ordinary regeneration first would be the one
-    // surface telling a developer the opposite of what the boundary is about to say.
+    // The mirror of the off→on guard: `regenerated` claims the suite was run, and a freshly
+    // authored suite that judged no code is what `assertBehavioralTestMetadataShape` rejects.
     for (const prior of ["on", "off"] as const) {
       expect(() =>
         behavioralTierTransition({

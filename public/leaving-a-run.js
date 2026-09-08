@@ -1,64 +1,23 @@
 // @ts-check
 
 /**
- * Leaving a run, and the question that comes first.
- *
- * Three things on the desk remove a build or an evolution that is still going: putting
- * the window away, pressing another capability's logo, and Back or Forward. All three
- * are navigations, all three make the run unreachable, and until now all three took it
- * away without asking — the lamp by cancelling it outright, the other two by orphaning
- * it on a server nobody was watching. This module is the one place that asks, and the
- * one place a run the person is leaving actually ends (PLAN decision 17, amending
- * design D3).
- *
- * Three properties are the whole of the subject, and each is here for a reason:
- *
- *   - **The question does not swap anything.** It is a row that already ships hidden
- *     inside the run's own surface (`renderBuildSubscriber`, `src/web/fragments.ts`) and
- *     the desk only stops hiding it. A question fetched into the content region, or a
- *     surface opened over it, would be the very teardown it exists to ask about: the
- *     region rule releases whatever a region's content started the moment that content
- *     is replaced, so *asking* would cancel the run.
- *   - **One run ends one way.** `endRunIn` is that way — the run's own cancel route,
- *     pressed on the person's behalf, and then the story taken down through htmx's own
- *     cleanup so the stream closes, the prompt bar unlocks and the provisional tile
- *     comes down exactly as they do for every other ending. Nothing else in the desk
- *     may end a live run.
- *   - **The run is over before the navigation happens.** The person asked to leave, and
- *     what a cancelled run streams back is the surface they are leaving; promoting it
- *     first would paint the window they have already left. Closing the stream here is
- *     what stops that terminal from ever arriving.
- *
- * The primitives a run is recognised by live here too, because this is the module that
- * owns "there is a run, and leaving costs you it".
- *
- * Named for the act rather than for a thing, and deliberately: what it owns is not a part
- * of the desk but something a person does to one. `region-scope.js`, `swap-target.js` and
- * `logo-attempt.js` are the neighbours it keeps.
- *
- * Nothing here asks whether a node is an `Element`. Every rule is written against the
- * DOM facts it actually needs — the way the tile's and the release scope's are — so a
- * real document satisfies them and so does a plain object, which is what lets the whole
- * of this run in Bun without a browser.
+ * Leaving a run, and the question that comes first: putting the window away, pressing another
+ * logo, and Back or Forward each take a run away (PLAN decision 17, amending design D3).
  */
 
 import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
 import { releaseRegionContent } from "./region-scope.js";
 
 /**
- * What the desk says when a confirmed leave could not be carried out.
- *
- * The one path that reaches it is a run whose story cannot be detached — no htmx yet, a
- * subscriber already off the page. Nothing was cancelled and nothing moved, so the
- * sentence says exactly that and asks for the one thing that would clear it.
+ * What the desk says when a confirmed leave could not be carried out: a run whose story cannot be
+ * detached, with no htmx yet or a subscriber already off the page. Nothing was cancelled.
  */
 export const LEAVING_A_RUN_UNAVAILABLE =
   "I couldn’t stop that just yet. It’s still going — give it a moment and try again.";
 
 /**
- * The prompt bar's standing slot, reached the way every other desk module reaches it —
- * and injectable, the way every other effect in this module is, so the rule can be
- * exercised in Bun without a document.
+ * The prompt bar's standing slot, reached the way every other desk module reaches it, and
+ * injectable like every other effect here so the rule can be exercised without a document.
  * @param {string} sentence
  */
 function tellThePromptBar(sentence) {
@@ -71,32 +30,25 @@ function tellThePromptBar(sentence) {
 const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
 
 /**
- * The two things a run that is over is holding the window with, and neither is something
- * leaving can cost you: the ending it is waiting to have read (PLAN decision 25), and the
- * capability surface a successful activation committed into it.
- *
- * The commit is here for a reason a test would not have found. It lands one event before
- * the stream closes, and in that gap the run still carries a job id — while the stylesheet
- * has already taken the question out of the page along with the rest of the story
- * (`demo.css`). A question raised there is a question nobody can see, holding a navigation
- * nobody can answer: the lamp would simply stop working for as long as the gap lasted.
+ * The two things a run that is over holds the window with, neither of which leaving can cost you:
+ * the ending waiting to be read (PLAN decision 25), and the surface an activation committed.
  */
 const BUILD_ENDING_SELECTOR = "[data-build-ending]";
+/* The commit lands one event before the stream closes, and in that gap the run still carries a job
+   id while `demo.css` has taken the question out of the page — a question nobody can see. */
 const BUILD_COMMIT_SELECTOR = ".build-stream__commit";
 
 /** The run's own control, whose place the question takes while it stands. */
 const RUN_CONTROL_SELECTOR = ".build-stream__cancel";
 
 /**
- * Where the run's control goes once the run has something to tell you: the same place,
- * wearing the other face (`renderBuildEnding`, `src/web/fragments.ts`). It is where focus
- * lands when a question is retired by the run ending underneath it, because by then the
- * control the question replaced is the one thing no longer there.
+ * Where the run's control goes once the run has something to tell you: the same place, wearing
+ * the other face (`renderBuildEnding`, `src/server/http/fragments.ts`), and where focus lands.
  */
 const RUN_DISMISS_SELECTOR = "[data-build-dismiss]";
 
 /**
- * The question and its two answers, restated from `src/web/fragments.ts` the way this
+ * The question and its two answers, restated from `src/server/http/fragments.ts` the way this
  * shell restates every mark the server authors; a platform test pins the two copies.
  */
 export const LEAVING_WARNING_SELECTOR = "[data-run-leaving]";
@@ -110,7 +62,8 @@ export const LEAVING_GO_SELECTOR = "[data-run-leaving-go]";
 export const PROMPT_FIELD_ID = "spec-build-prompt";
 
 /**
- * The DOM facts these rules need, and no more.
+ * The DOM facts these rules need, and no more, so a plain object satisfies them as well as a
+ * document and the whole of this module runs in Bun without a browser.
  *
  * @typedef {{
  *   hidden?: boolean,
@@ -126,11 +79,8 @@ export const PROMPT_FIELD_ID = "spec-build-prompt";
  */
 
 /**
- * The one thing this module borrows from htmx, and the same call `tearDownWindow` makes
- * for the same reason: `swap` runs htmx's cleanup over the node *while it is still
- * connected*, which is what closes the run's `EventSource` and lets the `htmx:sseClose`
- * that unlocks the prompt bar and takes the build's tile down bubble to the document.
- * `remove` would be `removeChild` and would leak the stream.
+ * The one thing this module borrows from htmx: `swap` runs htmx's cleanup over the node while it
+ * is still connected, closing the `EventSource`. `remove` is `removeChild` and leaks the stream.
  *
  * @typedef {{
  *   swap?: (target: unknown, content: string, spec: { swapStyle: string, swapDelay: number, settleDelay: number }) => void,
@@ -153,19 +103,8 @@ export function buildRunIn(el) {
 }
 
 /**
- * Whether a run is *using* the window rather than only standing in it.
- *
- * The one line two guards have to draw the same way: the desk refuses a piece of desk
- * furniture that would take the window from a run (`public/app.js`), and the doorway
- * decides whether to stand a window up and rename it for the answer that press is about
- * to get (`public/desk-doorway.js`). Asked differently they disagree over a run that has
- * activated but not yet closed its stream — the refusal turns the press down while the
- * doorway has already renamed the window over the run's own content, which is the press
- * changing something after all.
- *
- * A run holding an ending is not using the window: it has stopped, and the desk lets it
- * be displaced. The line `buildJobIdIn` draws is a different one — work still in flight
- * — and it may not be borrowed for this.
+ * Whether a run is using the window rather than only standing in it — the one line `app.js` and
+ * `desk-doorway.js` must draw the same way, or they disagree over a run that has activated.
  *
  * @param {WindowNode} el
  * @returns {boolean}
@@ -176,14 +115,8 @@ export function runIsUsingWindow(el) {
 }
 
 /**
- * The build the window is narrating, if it is narrating one.
- *
- * A run that ended and is only waiting to be read does not count. Its subscriber stays
- * standing until the ending is dismissed (PLAN decision 25), and everything that asks
- * *this* question is asking about work in progress: what leaving has to cancel, and what
- * it has to warn about first. Neither is owed for a run that is already over, and a
- * warning about losing a build that finished minutes ago is worse than no warning at
- * all. Whether the window is *held* is `buildRunIn`.
+ * The build the window is narrating, if it is narrating one. A run that ended does not count:
+ * warning about losing a build that finished minutes ago is worse than no warning at all.
  *
  * @param {WindowNode} el
  * @returns {string | null}
@@ -196,9 +129,8 @@ export function buildJobIdIn(el) {
 }
 
 /**
- * Whether a surface has anything in it. Asked of the commit region, which is empty for
- * every run that has not activated and carries the capability's own collection for the
- * one that has.
+ * Whether a surface has anything in it. Asked of the commit region, which is empty until a run
+ * activates and then carries the capability's own collection.
  *
  * @param {Answerable | null} surface
  * @returns {boolean}
@@ -240,24 +172,8 @@ export function cancelBuildIn(el, post = postCancel) {
 }
 
 /**
- * The order an ending owes, stated on its own so it can be proved without a browser —
- * the way `tearDownWindow` states the window's.
- *
- *   1. The cancel route ({@link cancelBuildIn}), so the server stops making something
- *      nobody will see.
- *   2. The region rule, while the story is still connected — the only moment an htmx
- *      request underneath it can be aborted.
- *   3. htmx's own cleanup, which closes the stream. Nothing the run has left to say can
- *      arrive after this, which is what keeps a cancelled run's restoration from being
- *      painted into a window the person has already asked to leave.
- *
- * What comes next belongs to the navigation that asked, not to this: the window's name
- * and the address are the continuation's to write.
- *
- * A missing way to detach stops the whole thing before the cancel, rather than after it.
- * Ending a run halfway — stopped on the server, still narrating on screen — is the worst
- * of the three outcomes, and it is the one that would send the navigation on top of a run
- * that is still standing there to be asked about again.
+ * The order an ending owes, stated on its own so it can be proved without a browser: cancel
+ * ({@link cancelBuildIn}), release while still connected, then htmx's cleanup to close the stream.
  *
  * @template T
  * @param {{
@@ -269,6 +185,8 @@ export function cancelBuildIn(el, post = postCancel) {
  * @returns {boolean} whether there was a run and it ended
  */
 export function endTheRun({ run, cancel, release, detach }) {
+  // A missing way to detach stops this before the cancel, not after: a run stopped on the server
+  // and still narrating on screen is the outcome that sends a navigation on top of it.
   if (run === null || detach === null) return false;
   if (cancel() === null) return false;
   release(run);
@@ -298,18 +216,8 @@ export function endRunIn(el, how = {}) {
 /* ── the question ──────────────────────────────────────────────────────────── */
 
 /**
- * Show or hide the question, and put focus where the answer leaves it.
- *
- * The row takes the run's control out of the page rather than standing beside it, so
- * nothing moves and the story stays readable above the question — the shape the record
- * form's deletion confirmation has, for the same reason. Focus follows the same rule in
- * both directions: it enters on the back-out, which is the answer that loses nothing,
- * and it lands back on the control when the question goes, because that is the place the
- * question was standing.
- *
- * Neither half touches the content region, and that is the load-bearing part: a question
- * that swapped anything would fire the very cleanup it exists to ask about. Two `hidden`
- * flags and a focus are the whole of it.
+ * Show or hide the question, and put focus where the answer leaves it. Two `hidden` flags and a
+ * focus: a question that swapped anything would fire the very cleanup it exists to ask about.
  *
  * @template {{ hidden?: boolean }} T
  * @param {{
@@ -337,10 +245,8 @@ export function applyLeavingQuestion({ asking, control, warning, backOut, focus 
 function setQuestion(run, asking) {
   const warning = run.querySelector(LEAVING_WARNING_SELECTOR);
   if (warning === null) return false;
-  /* The control, or what has taken its place. A run that ended while the question was
-   * standing had its Cancel swapped out of band for the way back, under the same id — so
-   * the place the question was standing in is still there, wearing the other face, and
-   * focus goes to it rather than being dropped on `<body>`. */
+  /* The control, or what has taken its place: a run that ended mid-question had its Cancel
+   * swapped out of band under the same id, so focus goes there rather than onto `<body>`. */
   const control =
     run.querySelector(RUN_CONTROL_SELECTOR) ?? run.querySelector(RUN_DISMISS_SELECTOR);
   applyLeavingQuestion({
@@ -354,10 +260,8 @@ function setQuestion(run, asking) {
 }
 
 /**
- * The navigation the desk is holding while the person answers, or nothing.
- *
- * One at a time. A second press while the question stands is held and dropped rather
- * than queued: the person is being asked one thing, and answering it is what moves.
+ * The navigation the desk is holding while the person answers, or nothing. One at a time: the
+ * person is being asked one thing, and answering it is what moves.
  *
  * @type {{ el: WindowNode, run: RunNode, go: () => void } | null}
  */
@@ -378,9 +282,8 @@ export function leavingIsBeingAsked() {
  */
 export function askBeforeLeaving(el, go) {
   if (asking !== null) {
-    /* A second navigation while the question stands is held and dropped rather than
-     * queued — the person is being asked one thing, and answering it is what moves. Focus
-     * goes back to the question so the press is answered rather than looking broken. */
+    /* A second navigation while the question stands is dropped rather than queued. Focus goes
+     * back to the question, so the press is answered rather than looking broken. */
     asking.run
       .querySelector(LEAVING_WARNING_SELECTOR)
       ?.querySelector?.(LEAVING_BACK_SELECTOR)
@@ -389,9 +292,8 @@ export function askBeforeLeaving(el, go) {
   }
   if (el === null || buildJobIdIn(el) === null) return false;
   const run = buildRunIn(el);
-  /* No row to ask with is not a reason to trap the person in the window. A shell that
-   * served a run without one has a bug worth finding, and swallowing their navigation
-   * would hide it behind a control that looks broken. */
+  /* No row to ask with is not a reason to trap the person in the window: swallowing their
+   * navigation would hide the shell's bug behind a control that looks broken. */
   if (run === null || !setQuestion(run, true)) return false;
   asking = { el, run, go };
   return true;
@@ -428,19 +330,10 @@ export function goAheadAndLeave(root, how) {
   const held = asking;
   if (held === null) return false;
   asking = null;
-  /* The navigation happens only where the run actually ended. A detach that could not run
-   * — no htmx yet, a subscriber already off the page — leaves the run standing with its
-   * job id intact, and continuing would re-enter the question with the same continuation:
-   * one more cancel posted and one more question asked, for as long as the person kept
-   * saying yes.
-   *
-   * So the answer is refused, and refusing it has to leave the desk in a state a person
-   * can act on. Clearing `asking` and returning was not that: the question stayed on
-   * screen with nothing behind it, so **Keep making it** and **Stop and leave** both did
-   * nothing, and the navigation the person confirmed neither happened nor was reported.
-   * The question comes down — there is nothing being asked any more — the run is left
-   * exactly as it was, and the desk says so. */
+  /* The navigation happens only where the run actually ended: a detach that could not run leaves
+   * the job id intact, so continuing would re-ask for as long as the person said yes. */
   if (!endRunIn(held.el, how)) {
+    // The question comes down: clearing `asking` alone left it on screen with both answers dead.
     setQuestion(held.run, false);
     (how?.say ?? tellThePromptBar)(LEAVING_A_RUN_UNAVAILABLE);
     return false;
@@ -451,10 +344,8 @@ export function goAheadAndLeave(root, how) {
 }
 
 /**
- * A run that ended on its own while the question was standing takes the question with
- * it. There is nothing left to lose, and the person never said they were leaving — so
- * the navigation is dropped rather than taken, and they are left where they are with
- * whatever the run has to tell them.
+ * A run that ended on its own while the question stood takes the question with it. The person
+ * never said they were leaving, so the navigation is dropped rather than taken.
  *
  * @param {unknown} run
  * @returns {boolean} whether a question was standing for that run
@@ -468,10 +359,8 @@ export function standDownWith(run) {
 }
 
 /**
- * A confirmed navigation takes its own focus with it — the lamp hands it back to
- * whatever opened the window, a logo keeps it. Where it does not, focus was on the
- * answer the person just pressed and that node has gone with the run; the prompt bar is
- * where the desk puts a person it has nowhere better to put.
+ * A confirmed navigation usually takes its own focus with it. Where it does not, the answer the
+ * person pressed went with the run, and the prompt bar is where the desk has nowhere better.
  *
  * @param {{ activeElement?: unknown, body?: unknown, getElementById?: (id: string) => Answerable | null }} root
  */
@@ -490,10 +379,8 @@ const guarded = new WeakSet();
  * @param {Document} root
  */
 export function startLeavingGuard(root) {
-  /* Once per root. `startDeskWindow` is the one caller and runs once on a real desk, but
-   * the listeners here are fresh closures that `addEventListener` cannot dedupe, and the
-   * question they answer is module state shared by every root — so a second start would
-   * put a second answer behind every press. */
+  /* Once per root: these listeners are fresh closures `addEventListener` cannot dedupe, and the
+   * question they answer is module state, so a second start puts a second answer behind a press. */
   if (guarded.has(root)) return;
   guarded.add(root);
 
@@ -504,10 +391,8 @@ export function startLeavingGuard(root) {
     else if (pressed.closest(LEAVING_GO_SELECTOR) !== null) goAheadAndLeave(root);
   });
 
-  /* Escape is the back-out, the way it is for the record form's deletion confirmation:
-   * the exit a modal would have given for free, kept for a question that is not one.
-   * Asked of the document rather than of what has focus — a person who clicked away
-   * still means this question by Escape, because it is the only one standing. */
+  /* Escape is the back-out, the exit a modal would have given for free. Asked of the document
+   * rather than of what has focus, since it is the only question standing. */
   root.addEventListener("keydown", (event) => {
     if (/** @type {KeyboardEvent} */ (event).key === "Escape") backOutOfLeaving();
   });

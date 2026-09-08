@@ -1,20 +1,16 @@
 // The epic 4.9 deletion fault battery (PLAN decision 35, module acceptance).
 //
-// One file, one case per fault the plan names, so the acceptance list is checkable by
-// reading the test names:
+// One file, one case per fault the plan names, so the acceptance list reads off the test names:
 //
 //   1. failure before the database commit          6. read-token timeout and reopen
 //   2. failure after the database commit           7. late stale Event Log ingestion
 //   3. partial cleanup                             8. path traversal / symlink rejection
 //   4. restart                                        → `artifact-path-safety.test.ts`
 //   5. same-id recreation with a new incarnation   9. repeated (idempotent) cleanup
+// Case 8 needs no database, so it lives in its own file; everything else shares the runtime below.
 //
-// Case 8 needs no database, only a directory and the adapter, so it lives in its own file;
-// everything else shares the scratch-runtime lifecycle below.
-//
-// Generation metrics are asserted in every case here: they are content-free,
-// incarnation-keyed experiment data and are explicitly outside the cleanup seam
-// (ARCH §6.3, §9 principle 3).
+// Generation metrics are asserted in every case here: they are content-free, incarnation-keyed
+// experiment data and are explicitly outside the cleanup seam (ARCH §6.3, §9 principle 3).
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -190,10 +186,8 @@ describe("the capability-deletion fault battery", () => {
       adapters,
     });
 
-    // Restart: process-local state is gone. A cold object store knows nothing about the
-    // staged resources, which is exactly why cleanup treats absence as success. This runs
-    // the entrypoint's order — recover tombstones, then rebuild gates from the *current*
-    // active catalog, which no longer contains the deleted incarnation.
+    // Restart: a cold store knows nothing of the staged resources, so cleanup treats an absent one
+    // as success. Entrypoint order: recover tombstones, then rebuild gates from the live catalog.
     const rebootedStore = createFakeOwnedResourceStore();
     const rebootedGates = createReadGateCoordinator();
     const recovered = await recoverCapabilityDeletionTombstones({

@@ -1,14 +1,11 @@
-// The platform presentation layer. Module 3 introduces the capability-scoped
-// presentation surface: the runtime allow-list enforcer, the
-// centralized create/edit field renderer (deterministic from the
-// spec), the list container/item wrapper, the in-window record view
-// and the presentation adapter that composes them
-// into the record → safe wrapped item HTML the router injects into every Handler.
+// The platform presentation layer: the runtime allow-list enforcer, the centralized create/edit
+// field renderer, the list container and item wrapper, the in-window record view, and the
+// adapter that composes them into the safe wrapped item HTML the router injects into every
+// Handler.
 //
-// The enforcer is the render-time safety half of the closed-value design contract; the
-// vocabulary and the High Meadow token names it keys on are exported too, so the
-// design-lint gate rung (3.6, re-derived in 5.1) can share the one source of truth rather
-// than re-list it.
+// The enforcer is the render-time safety half of the closed-value design contract. The vocabulary
+// and High Meadow token names it keys on are exported too, so the design-lint gate rung shares
+// one source of truth rather than re-listing it.
 
 export {
   capabilityCreateErrorId,

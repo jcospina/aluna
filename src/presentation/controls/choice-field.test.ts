@@ -301,9 +301,8 @@ describe("an option note is a description, not visual-only text", () => {
   test("the picker's note rides the row and is named as the option's description", () => {
     const html = renderCreateForm(choiceCapability("picker", rich));
     expect(html).toContain('aria-describedby="cap-probe-value-note-2"');
-    // Hidden from the name, not from the description: the note sits inside the option, so
-    // without this it would be read once as part of what the option is called and again as
-    // its description. `aria-describedby` reaches a hidden node either way.
+    // Hidden from the name, not from the description: the note sits inside the option, so without
+    // this it is read twice. `aria-describedby` reaches a hidden node either way.
     expect(html).toContain(
       '<span class="listbox__note" id="cap-probe-value-note-2" aria-hidden="true">' +
         "still moving</span>",
@@ -321,9 +320,8 @@ describe("an option note is a description, not visual-only text", () => {
 
   test("an option with no note names no description", () => {
     const html = renderCreateForm(choiceCapability("picker"));
-    // The control itself is always described — by its guidance slot, which is where an
-    // error is said — so what is checked is that it is the *only* one described, whatever
-    // an option might have called its own description.
+    // The control itself is always described, by its guidance slot, so what is checked is that it
+    // is the only thing described, whatever an option called its own description.
     expect(html.match(/aria-describedby=/g)).toHaveLength(1);
     expect(html).toContain('aria-describedby="cap-probe-value-guidance"');
     expect(html).not.toContain("listbox__note");

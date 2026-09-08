@@ -1,21 +1,16 @@
-// The core-owned half of the Event Log payload-cleanup seam (PLAN decision 35,
-// ADR-0006 "Dependency-safe permanent deletion", ARCH §6.3).
+// The core-owned half of the Event Log payload-cleanup seam (PLAN decision 35, ADR-0006,
+// ARCH §6.3).
 //
-// Deletion's one SQLite transaction has to purge capability-owned Event Log payloads
-// at the same instant the registry row becomes a tombstone and the data table
-// disappears. That purge is *core-owned SQL over a fixed store* — not an adapter
-// callback — because a callback would put arbitrary generated or module code inside
-// deletion's point-of-no-return transaction.
+// Deletion's one SQLite transaction purges capability-owned Event Log payloads at the instant the
+// registry row becomes a tombstone and the data table goes. Core-owned SQL over a fixed store, not
+// an adapter callback, which would run generated code inside the point-of-no-return transaction.
 //
-// Module 7 installs the store for real. Until then the operation is conditional on the
-// store being present: a platform without an installed Event Log purges nothing and
-// reports zeroes, while the M7 seam fake (`seam-fakes/event-log.test-support.ts`) installs exactly
-// this fixed shape so the purge is proven now rather than assumed later.
+// Module 7 installs the store for real; until then a platform without one purges nothing and
+// reports zeroes, while the M7 seam fake installs this fixed shape so the purge is proven now.
 //
-// Purging redacts rather than deletes. ARCH §6.3 keeps "a content-free deletion fact"
-// available: the event row survives with its identity and timestamp, its payload is
-// irreversibly replaced, and its ownership rows for the deleted pair are released so a
-// later incarnation can never be joined back to purged content.
+// Purging redacts rather than deletes. ARCH §6.3 keeps a content-free deletion fact: the event
+// row survives with its identity and timestamp, its payload is irreversibly replaced, and its
+// ownership rows for the deleted pair are released, so no later incarnation joins purged content.
 
 import type { Database } from "bun:sqlite";
 

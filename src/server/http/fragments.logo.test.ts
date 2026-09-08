@@ -36,10 +36,8 @@ describe("the tile inside a logo", () => {
   const attemptUrl = "/capability/notes/11111111-1111-4111-8111-111111111111/logo-attempt";
   const artworkUrl = "/capability/notes/11111111-1111-4111-8111-111111111111/logo.svg";
 
-  // Two presses in one tick used to leave two requests running against the one content
-  // region with no ownership between them. If the first answered last, the window showed A
-  // while the bar said B — and the swap's own `HX-Replace-Url` then replaced the address
-  // with A, discarding the entry the person pushed for B.
+  // Two presses in one tick used to leave two requests running against the one content region.
+  // If the first answered last, `HX-Replace-Url` put A in the address, discarding B.
   test("a logo press owns the window's content region", () => {
     const html = renderCapabilityLogo(row);
 
@@ -70,16 +68,14 @@ describe("the tile inside a logo", () => {
     expect(html).toContain('hx-trigger="load"');
     expect(html).toContain('hx-target="#capability-logo-notes"');
     expect(html).toContain('hx-swap="outerHTML"');
-    // One at a time across the whole desk. N faceless tiles all arm on `load`, and N
-    // simultaneous 90-second provider calls earn a provider-side 429 that releases each
-    // claim with its attempt already spent — the 3-attempt budget destroyed from inside.
+    // One at a time across the whole desk. N faceless tiles all arm on `load`, and N simultaneous
+    // 90-second calls earn a 429 that releases each claim with its attempt already spent.
     expect(html).toContain(`hx-sync="#${DESK_LOGO_LAYER_ELEMENT_ID}:queue all"`);
     // And it works while it waits: the attempt it just armed answers with this very
     // element, so a picture really is on its way here.
     expect(html).toContain("logo-tile--working");
-    // But it does not probe the artwork route. The immutable response exists only in
-    // `present`, and a placeholder asking for it would collect a 404 for a picture that
-    // has not been drawn yet (ADR-0007, decision 34).
+    // But it does not probe the artwork route. The immutable response exists only in `present`,
+    // so a placeholder asking for it collects a 404 for a picture not yet drawn (ADR-0007).
     expect(html).not.toContain(artworkUrl);
   });
 
@@ -110,9 +106,8 @@ describe("the tile inside a logo", () => {
   test.each(["generating", "abandoned"] as const)("a %s tile claims nothing", (status) => {
     const html = renderCapabilityLogo({ ...row, logo: { status, attempts: 1 } });
 
-    // The plain placeholder and nothing else: no request of any kind on the tile, and no
-    // artwork address for bytes that are not there. Read off the button rather than the
-    // whole slot — the rename form beside it posts, and always has.
+    // The plain placeholder and nothing else: no request on the tile, and no artwork address for
+    // bytes that are not there. Read off the button, since the rename form beside it posts.
     expect(html).toContain('<span class="logo-tile logo-tile--pending"></span>');
     expect(logoButton(html)).not.toContain("hx-post");
     expect(html).not.toContain("logo.svg");

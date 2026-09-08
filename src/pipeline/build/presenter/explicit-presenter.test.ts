@@ -6,11 +6,10 @@
 // consequence the happy path never shows: delivery can stop part-way through the story.
 //
 // What the presenter may do about it is limited by the transport underneath. `sseTransport`
-// serializes every write through one chain, so a write that stalled is still at the head of
-// it and anything queued behind lands never. These cases pin the two decisions that follow:
-// a non-activating terminal is let go rather than retried behind the stall, and an
-// activation — the one outcome with something durable left to say — gets one more short
-// attempt, but only while somebody is still listening.
+// serializes every write through one chain, so a write that stalled is still at the head of it
+// and anything queued behind lands never. These cases pin the two decisions: a non-activating
+// terminal is let go rather than retried behind the stall, and an activation — the one outcome
+// with something durable left to say — gets one more short attempt, while somebody is listening.
 
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { CommitCapabilityResult } from "../../../builder/index.ts";
@@ -38,16 +37,12 @@ afterEach(() => {
   teardownScratchDbEnv(env);
 });
 
-// Deliberately generous. Every stall case asserts the presenter returns in well under
-// *two* bounds — the signature a second recovery window would leave — so the bound has to
-// be large enough that ordinary scheduler noise under a loaded shard stays far below it.
+// Deliberately generous: every stall case asserts a return well under *two* bounds, the signature
+// a second recovery window would leave, so scheduler noise on a loaded shard stays far below it.
 const TIMEOUT_MS = 150;
 /**
- * One write slow enough to overrun the bound on its own, and to still drain comfortably
- * inside the recovery's fresh window. Loading the whole delay onto a single event keeps the
- * case deterministic: with the delay spread across the sequence, which window's `done`
- * reaches the wire first is a race, and the test would be pinning the race rather than the
- * behaviour.
+ * One write slow enough to overrun the bound alone and still drain inside the recovery window.
+ * Spreading the delay would make which window's `done` lands first a race, and pin that instead.
  */
 const SLOW_WRITE_MS = 220;
 
@@ -70,10 +65,8 @@ const STALE_TERMINAL: CoreBuildTerminal = {
 };
 
 /**
- * An activated v1 as the Builder hands it over. Complete enough that the commit preview
- * and the View swap are both really rendered — a thinner stand-in would throw on the way
- * in and route these cases through `presentBuilt`'s catch instead of its delivery bound,
- * which is the branch under test.
+ * An activated v1 as the Builder hands it over, complete enough to render the commit preview and
+ * the View swap: a thinner stand-in throws into `presentBuilt`'s catch, missing the bound tested.
  */
 function builtTerminal(): CoreBuildTerminal {
   const row = notesCapabilityRow();
@@ -101,13 +94,8 @@ interface FakeTransport {
 }
 
 /**
- * A transport with the one property that decides this file's answers: writes are
- * **serialized**, exactly as `sseTransport` serializes them. A fake that let each event
- * resolve independently would make a follow-up write look deliverable while a stalled one
- * sat at the head of the real chain — and would report the opposite conclusion.
- *
- * `stall` names an event whose write never completes (a reader that stopped consuming);
- * `slow` names one whose write is merely slow, on a chain that still drains.
+ * A transport that serializes writes as `sseTransport` does: independent resolution would make a
+ * follow-up look deliverable behind a stall. `stall` never completes, `slow` drains eventually.
  */
 function serializedSend(options: { stall?: string; slow?: string } = {}): FakeTransport {
   const events: { event: string; data: string }[] = [];
@@ -167,10 +155,8 @@ test("a stale terminal whose restoration stalls is let go rather than retried be
   expect(completion).toBe("terminal-sent");
   // The warm line landed before the reader went quiet; nothing after it could.
   expect(transport.events.map((entry) => entry.event)).toEqual(["narration"]);
-  // The point of not retrying: mutation ownership is released after *one* bound, not two.
-  // A second window would have queued its `done` behind the stall and bought nothing while
-  // every queued build waited for it. The client is closed by the reconnect instead, which
-  // `BuildJobQueue.stream` answers with `done`/`missing` on a fresh chain.
+  // The point of not retrying: ownership is released after one bound, not two. A second window
+  // would queue its `done` behind the stall; the reconnect gets `done`/`missing` on a fresh chain.
   expect(elapsed).toBeLessThan(TIMEOUT_MS * 2);
 });
 
@@ -202,10 +188,8 @@ test("a failure whose restoration stalls is let go on the same terms", async () 
 });
 
 test("an activation that could not be shown still tells the person their version is live", async () => {
-  // A chain that is slow rather than blocked: preparing the View swap overruns the bound,
-  // but writes still drain, so the short recovery line genuinely reaches the wire. This is
-  // the one terminal worth a second attempt — the version is already durable, and saying
-  // nothing would leave them looking at an old View believing nothing happened.
+  // Slow rather than blocked: the View swap overruns the bound but writes still drain, so the
+  // recovery line lands. The version is durable, and silence leaves them on an old View.
   const transport = serializedSend({ slow: "commit" });
 
   const completion = await presenterOver(transport).present(builtTerminal());

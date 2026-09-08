@@ -8,19 +8,16 @@ import {
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 
 /**
- * The exact capability the menu opened on. Both halves are load-bearing: the incarnation
- * says this is the same lifetime (a delete-and-recreate under the same id is a different
- * one and must not inherit a name chosen for its predecessor), and the version says this
- * is the same spec the person was looking at when they typed.
+ * The exact capability the menu opened on. The incarnation pins the lifetime, so a recreation
+ * under the same id inherits no name; the version pins the spec the person was looking at.
  */
 export interface CapabilityRenameExpectation {
   readonly capabilityId: string;
   readonly incarnationId: string;
   readonly version: number;
   /**
-   * The override the menu opened on — the empty string when the capability had never been
-   * renamed. A rename does not bump the version, so without this two menus opened on the
-   * same version both matched and the second silently overwrote the first.
+   * The override the menu opened on, empty when never renamed. A rename does not bump the version,
+   * so without this two menus on the same version both matched and the second overwrote the first.
    */
   readonly previousLabel: string;
 }
@@ -46,18 +43,8 @@ export type CapabilityRenameOutcome =
   | { readonly status: "stale" };
 
 /**
- * Rename one capability, under the mutation coordinator, as a short platform write.
- *
- * A **platform write** and not a build: no generation row, no version, no artwork, no
- * route change. It queues where every other short platform write queues, so a rename
- * asked for while a build is already waiting goes behind it — the coordinator's FIFO
- * order is what it was, and renaming desk furniture is not a way past it.
- *
- * The name is checked before the queue is joined. A name that will not do costs nobody a
- * lease, and refusing it here rather than after admission is also what makes "no partial
- * update" trivially true: the only statement that touches the registry is the one
- * conditional UPDATE below, which either matches the exact incarnation and version or
- * matches nothing at all.
+ * A short platform write, not a build: no generation row, version, artwork or route change, and it
+ * queues FIFO behind one. The name is checked before the queue, so a bad name costs nobody a lease.
  */
 export async function renameCapabilityLabel(
   expectation: CapabilityRenameExpectation,
@@ -68,6 +55,8 @@ export async function renameCapabilityLabel(
   if (!isCapabilityNameLabel(name)) return { status: "refused" };
   if (!looksRenameable(expectation, deps)) return { status: "stale" };
 
+  // One conditional UPDATE touches the registry, matching the exact incarnation and version or
+  // nothing at all, so "no partial update" holds without a transaction around it.
   const write = deps.rename ?? renameCapability;
   const row = await deps.mutationCoordinator.withPlatformWrite(
     () => write({ ...expectation, previousOverride: overrideOf(expectation) }, name, deps.database),
@@ -77,18 +66,8 @@ export async function renameCapabilityLabel(
 }
 
 /**
- * A cheap readonly look, taken before the queue is joined.
- *
- * This cannot decide the rename — the conditional UPDATE still does that, under the lease,
- * and a row that moves in between is refused there. What it decides is whether a
- * submission that provably cannot match is allowed to cost a coordinator ticket.
- *
- * That matters more than it sounds. Short writes and deletion are non-queued try-acquires
- * that refuse while *anything* is queued, so a stream of submissions naming capabilities
- * that do not exist would hold the platform queue permanently non-empty and turn every
- * record write and every deletion on the desk into `mutation_busy` for as long as it ran.
- * The logo attempt guards its own paid claim the same way and for the same reason
- * (`looksClaimable`, `src/lifecycle/logo/generation/attempt.ts`).
+ * A cheap readonly look before the queue, like `looksClaimable`; the conditional UPDATE decides.
+ * Deletion and short writes refuse while anything is queued, so junk would mean `mutation_busy`.
  */
 function looksRenameable(
   expectation: CapabilityRenameExpectation,

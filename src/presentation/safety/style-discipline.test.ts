@@ -2,11 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import { describeStyleViolation, sanitizeStyle } from "./style-discipline.ts";
 
-// Unit coverage for the inline-`style` token discipline (ADR-0005 §4, amended 2026-07-01
-// and re-derived against High Meadow in epic 5.1). `sanitizeStyle` returns the value
-// unchanged when every declaration conforms (so the enforcer can leave the attribute
-// byte-identical), the surviving declarations when some are dropped, or "" when none
-// survive. `describeStyleViolation` reports the same verdict in words.
+// Unit coverage for the inline-`style` token discipline (ADR-0005 §4, amended 2026-07-01 and
+// re-derived against High Meadow in epic 5.1). Both surfaces report the same verdict.
 
 describe("sanitizeStyle — conforming values pass through unchanged", () => {
   test("palette colour and spacing", () => {
@@ -101,14 +98,11 @@ describe("sanitizeStyle — off-token declarations on the closed axes are droppe
     expect(sanitizeStyle("margin-left: 2rem")).toBe("");
   });
 
-  // The ways around the boundary ban that do not spell "border". A ban keyed on a property
-  // name is only as good as the list of ways to draw a line, so each of these is a line
-  // the ban would otherwise have pushed a generated record toward.
+  // The ways around the boundary ban that do not spell "border". A ban keyed on a property name
+  // is only as good as the list of ways to draw a line, and each of these draws one.
   test("an ink fill is a frame, so `--ink` never fills a box", () => {
-    // An `--ink` block wrapped round a `--surface` block is a border at whatever thickness
-    // the padding says — drawn beside the hand-drawn line rather than instead of it. The
-    // handbook already said `--ink` fills nothing; before the ban it cost nothing to leave
-    // that unenforced, because a record wanting a frame could just declare one.
+    // An `--ink` block wrapped round a `--surface` block is a border at whatever thickness the
+    // padding says, drawn beside the hand-drawn line rather than instead of it.
     for (const declaration of [
       "background-color: var(--ink)",
       "background: var(--ink)",
@@ -138,9 +132,8 @@ describe("sanitizeStyle — off-token declarations on the closed axes are droppe
   });
 
   test("a line has no weight left to name, whatever property asks for one", () => {
-    // Retiring the border-weight axis left no thickness token anywhere on the surface, so
-    // a property whose value *is* a thickness has no value it may take. Refusing it says
-    // that, rather than letting a raw length through on a property no axis happens to own.
+    // Retiring the border-weight axis left no thickness token anywhere, so a property whose
+    // value is a thickness has no value it may take, and refusing the property says so.
     for (const declaration of [
       "-webkit-text-stroke: 2px currentcolor",
       "-webkit-text-stroke: 2px black",
@@ -155,10 +148,8 @@ describe("sanitizeStyle — off-token declarations on the closed axes are droppe
     expect(sanitizeStyle("text-decoration: underline")).toBe("text-decoration: underline");
   });
 
-  // The fourth ban. Nothing about the value saves it: the one weight the retired axis
-  // named is refused beside a raw one, and so are the two edges that are a border under
-  // another name. `border-spacing` is a table metric that draws nothing and stays on the
-  // spacing axis, which is what keeps this a boundary ban rather than a prefix sweep.
+  // The fourth ban. Nothing about the value saves it, and the two edges that are a border under
+  // another name go too. `border-spacing` draws nothing and stays on the spacing axis.
   test("a boundary of any kind, at any weight", () => {
     for (const declaration of [
       "border: var(--line) solid var(--ink)",
@@ -217,10 +208,8 @@ describe("sanitizeStyle — the ways around a closed axis", () => {
     }
   });
 
-  // Colour is closed by reading the colour a declaration *names*. These reach a colour
-  // without naming one: a filter chain derives any hue from an on-token value, a blend
-  // mode derives one from whatever sits behind, and the bare `caret` shorthand carries a
-  // colour the way `background` does.
+  // Colour is closed by reading the colour a declaration names. These reach one without naming
+  // it: a filter chain, a blend mode, and the bare `caret` shorthand.
   test("a colour reached without naming one", () => {
     for (const declaration of [
       "caret: red",
@@ -235,9 +224,8 @@ describe("sanitizeStyle — the ways around a closed axis", () => {
     }
   });
 
-  // The radius ban keys on the `-radius` suffix, and a basic shape rounds a corner under
-  // a property name that never says radius. `inset()` without `round` is the one shape
-  // that mitres, so it is the one that stays.
+  // The radius ban keys on the `-radius` suffix, and a basic shape rounds a corner under a name
+  // that never says radius. `inset()` without `round` mitres, so it is the one shape that stays.
   test("a basic shape may not round or reshape a record", () => {
     for (const declaration of [
       "clip-path: circle(50%)",
@@ -456,10 +444,8 @@ describe("sanitizeStyle — legal CSS spellings of an on-token value", () => {
     expect(describeStyleViolation("color: var( --ink )")).toBeUndefined();
   });
 
-  // It changes who wins, not what value is named — which is exactly the problem. An inline
-  // `style` already outranks every stylesheet; `!important` on top of one outranks the
-  // platform's own `!important` too, so a record could win a specificity fight with the
-  // chrome that holds it inside its box.
+  // It changes who wins, not what value is named. An inline `style` already outranks every
+  // sheet; on top of one it outranks the platform's own `!important` that holds a record in.
   test("`!important` is refused even on a value that is entirely on token", () => {
     for (const declaration of [
       "color: var(--ink) !important",

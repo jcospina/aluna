@@ -42,9 +42,8 @@ function frozenActionCases(directory: string, action: string): unknown {
 }
 
 /**
- * Publish the tier-on base every narrowing test evolves from. v2 is decision 24's off→on
- * transition: the committed base carries no frozen tests, so every Action's suite is authored
- * from current intent and every one of them runs — nothing is narrowed and nothing is skipped.
+ * Publishes the tier-on base every narrowing test evolves from. v2 is decision 24's off→on row:
+ * no frozen tests are carried, so every Action's suite is authored fresh and every one runs.
  */
 async function publishTierOnBase(buildId: string): Promise<CapabilitySpec> {
   const neutral = behaviorNeutralDueDateCandidate();
@@ -80,10 +79,8 @@ describe("behavioral test execution under evolution", () => {
   test("a schema change runs the Actions it touched and leaves the untouched suites alone", async () => {
     const base = await publishTierOnBase("impact-base");
 
-    // v3 adds a second nullable non-text field. `create`/`update` inputs move, so their
-    // tests are authored fresh and must run; `read`/`delete`/`search` carry byte-identical
-    // suites over byte-identical Handlers, so those three do not run at all — the saving
-    // decision 23's execution clause exists to make.
+    // v3 adds a second nullable non-text field, so `create`/`update` tests are authored fresh and
+    // run while `read`/`delete`/`search` carry identical bytes — decision 23's saving.
     const candidate: CapabilitySpec = {
       ...base,
       schema: {
@@ -149,12 +146,8 @@ describe("behavioral test execution under evolution", () => {
   });
 
   test("changing which fields the item renderer shows runs the complete frozen suite", async () => {
-    // The renderer is not a Handler and covers no Action, so a narrowing that only watched
-    // Handlers would skip everything here. But every fragment assertion is rendered through
-    // it and may only name row values: drop a field from `item.shows` and a carried `read`
-    // assertion naming that field's value stops being satisfiable by *any* renderer, with
-    // no Handler moving and no test digest moving. That is coverage that cannot be narrowed,
-    // and decision 23 answers it with the full frozen suite.
+    // The renderer covers no Action, so Handler-only narrowing would skip it — but dropping a
+    // field from `item.shows` makes a carried `read` assertion unsatisfiable, so: full suite.
     const base = await publishTierOnBase("shows-base");
     const narrowedItem: CapabilitySpec = {
       ...base,
@@ -189,9 +182,8 @@ describe("behavioral test execution under evolution", () => {
   });
 
   test("a mutated copy of the frozen tests fails snapshot verification", async () => {
-    // Copy is byte-for-byte or it is nothing. The published suite is content-digested into
-    // the manifest, so editing an assertion after the fact — the one way code could ever
-    // "win" an argument with frozen intent — cannot survive a read of the snapshot.
+    // Copy is byte-for-byte or nothing: the published suite is content-digested into the manifest,
+    // so an assertion edited after the fact cannot survive a read of the snapshot.
     const outcome = activated(
       await evolve(env, behaviorNeutralDueDateCandidate(), "add a due date", {
         behavioralTierEnabled: true,

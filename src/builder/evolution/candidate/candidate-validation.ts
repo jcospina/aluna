@@ -1,25 +1,13 @@
-// Candidate-spec validation: the AI authors one complete candidate spec for an evolving
-// capability, and the platform validates it here — **before any DDL or unit generation** —
-// against the current committed spec and the lease-frozen dependency-generation catalog. A
-// candidate that fails never reaches the Diff stage: rejection is loud and total, never a
-// partial acceptance or a silent all-Handler fallback. A candidate that passes emerges as
-// the validated canonical value the Diff Engine compares against the committed spec.
+// Candidate-spec validation: the AI authors one complete candidate spec, and the platform
+// validates it here — before any DDL or unit generation — against the committed spec and the
+// lease-frozen dependency catalog. A failing candidate never reaches the Diff stage; rejection is
+// loud and total, never a partial acceptance or a silent all-Handler fallback.
 //
-// Three layers, in order:
-//
-//   1. The registry's own spec gate (`capabilitySpecSchema`) — structural shape, the
-//      fixed five-Action inventory, Action ownership in errors/dependencies, list-input
-//      coverage, reserved names, active-only presentation references. Its strict objects
-//      also reject every platform-owned lifecycle key (`incarnation_id`, `version`, build
-//      id, snapshot metadata, `artifacts_path`) and any patch/migration/regeneration shape
-//      — the AI authors a complete spec, nothing else.
-//   2. The cross-spec field-lifecycle contract: each committed field returns exactly once
-//      with immutable name and type; `inactive → inactive` is identical; `active →
-//      inactive` changes only lifecycle; reactivation may also change label/required; a new
-//      field is born active. Omission is invalid — it is never a soft hide.
-//   3. Frozen-catalog resolution: every declared dependency pair must be exactly one
-//      catalog entry. The catalog was captured under the build lease, so this cannot race a
-//      concurrent build.
+// Three layers, in order. The registry's own spec gate covers structural shape; its strict
+// objects also reject every platform-owned lifecycle key and any patch or migration shape,
+// because the AI authors a complete spec and nothing else. The cross-spec field-lifecycle
+// contract (decision 2) follows. Finally, every declared dependency pair must resolve to one
+// entry of the catalog captured under the build lease, so this cannot race a concurrent build.
 
 import type { ZodError } from "zod";
 import {
@@ -32,15 +20,8 @@ import {
 import type { DependencyGenerationCatalogEntry } from "../dependency-catalog.ts";
 
 /**
- * The committed row's authored-spec view, tolerating legacy labels. The row was
- * already validated by the registry's `capabilityRowSchema`, so this only strips
- * the platform-owned lifecycle metadata — it deliberately does NOT re-parse
- * through `capabilitySpecFromRow`. That helper's strict `capabilityNameText`
- * label would reject a committed capability whose stored label is narration-like
- * (older rows the row schema tolerates and every display path canonicalizes),
- * making such a capability impossible to evolve for a reason unrelated to the
- * candidate. Evolution only ever changes the label going forward — the strict
- * gate applies to the candidate, never to the already-committed input.
+ * The committed row's authored-spec view. It strips lifecycle metadata rather than re-parsing
+ * through `capabilitySpecFromRow`: that strict label would leave an older row unable to evolve.
  */
 export function committedSpecView(row: CapabilityRow): CapabilitySpec {
   return {
@@ -73,9 +54,8 @@ export interface CandidateValidationIssue {
 }
 
 /**
- * The total rejection: every violation found, never just the first. The
- * `diagnostic` mirrors the issues so the shared build-error preview
- * (`buildDemoErrorPreview`) surfaces them in the developer panel unchanged.
+ * The total rejection: every violation found, never just the first. `diagnostic` mirrors the
+ * issues so `buildDemoErrorPreview` surfaces them in the developer panel unchanged.
  */
 export class CandidateValidationError extends Error {
   override readonly name = "CandidateValidationError";
@@ -104,9 +84,8 @@ export interface ValidateCandidateSpecInput {
 }
 
 /**
- * Validate one authored candidate completely. Returns the validated canonical
- * candidate for the Diff stage, or throws {@link CandidateValidationError}
- * carrying every violation.
+ * Validate one authored candidate completely, returning the canonical value for the Diff
+ * stage or throwing {@link CandidateValidationError} with every violation.
  */
 export function validateCandidateSpec(input: ValidateCandidateSpecInput): CapabilitySpec {
   const parsed = capabilitySpecSchema.safeParse(input.candidate);
@@ -124,10 +103,8 @@ export function validateCandidateSpec(input: ValidateCandidateSpecInput): Capabi
       message: `capability id is immutable; expected "${committed.id}", got "${candidate.id}"`,
     });
   }
-  // The logo's birth facts. A logo is made once and never remade (ADR-0007 L7), so a
-  // candidate that moved either one would leave the spec describing artwork nothing is
-  // allowed to redraw. They are refused here by name rather than left to the Diff
-  // Engine's residual check, so the rejection says which fact moved and why.
+  // A logo is made once and never remade (ADR-0007 L7), so a moved birth fact would describe
+  // artwork nothing may redraw. Named here, not left to the residual check, so it says which.
   for (const fact of LOGO_BIRTH_FACTS) {
     if (candidate[fact] !== committed[fact]) {
       issues.push({
@@ -144,10 +121,8 @@ export function validateCandidateSpec(input: ValidateCandidateSpecInput): Capabi
   return candidate;
 }
 
-// Decision 2, field by field. Candidate field names are already unique (schema
-// gate), so per-name presence is the whole exactly-once story: a missing name is
-// an omission (or a rename-as-replacement, which also surfaces the impostor as a
-// new field), and a present name is compared attribute by attribute.
+// Decision 2, field by field. Candidate names are already unique (schema gate), so per-name
+// presence is the whole exactly-once story; a rename surfaces as an omission plus a new field.
 function validateFieldLifecycleContract(
   committed: CapabilitySpec,
   candidate: CapabilitySpec,
@@ -199,19 +174,8 @@ function committedFieldIssues(
 }
 
 /**
- * A committed choice value is stored data. Rows already hold it, so it may never be
- * removed or renamed — every committed value must still be there, and anything else is an
- * append. Refusing here, before the Diff, is what guarantees a stored row can never become
- * undeclared data.
- *
- * Everything an option carries *besides* its value is presentation and moves freely: its
- * label, its note, the group it stands under, whether it is still offered, and the order
- * the options are drawn in. Order in particular: it was frozen while a choice had only one
- * arrangement, and it is a View fact now that groups give a field a second one.
- *
- * A group id is stored data of a different kind — not a record's, but the options' own
- * reference. It may not be renamed, and a group may not be removed while an option still
- * names it; a heading is wording and changes like a label does.
+ * A committed choice value is stored data, so it may only be appended to — never removed or
+ * renamed, or a stored row would become undeclared data. Everything else moves freely.
  */
 function choiceOptionIssues(
   committedField: SpecField,
@@ -235,23 +199,8 @@ function choiceOptionIssues(
 }
 
 /**
- * A group id is fixed once committed. Its two halves are enforced in the two places that
- * can see them: dropping a group an option still stands under is refused by the spec gate,
- * which requires every named group to be declared, and *renaming* one is refused here.
- *
- * A rename is not a shape a candidate can state — it is a drop and an add — so it is
- * recognized by what it does: a committed group disappears and every option that stood
- * under it arrives, together and alone, under one id the committed spec never declared.
- * Anything else is a real restructure and is admitted. Splitting a group into two new ones
- * moves its options to more than one id; emptying one moves them to a group that already
- * existed, or out of grouping; merging two into one leaves that id holding more options
- * than either group had.
- *
- * This binds one evolution, which is the one a model authors. It cannot bind two: a group
- * id is not stored data — only this field's own options refer to it, and they move in the
- * same candidate — so any spec-valid arrangement stays reachable in two steps. What the
- * rule buys is that a heading reworded in place stays the same group, rather than becoming
- * a new one the Diff cannot tell from a restructure.
+ * A group id is fixed once committed, while its heading is wording. A rename has no shape of its
+ * own, so it is caught by what it does — the spec gate refuses a group an option still names.
  */
 function choiceGroupIssues(
   committedField: SpecField,
@@ -275,6 +224,8 @@ function choiceGroupIssues(
   return [];
 }
 
+// A rename, not a restructure: splitting lands options on more than one id, emptying on an
+// existing one. The rule binds one evolution — any arrangement stays reachable in two steps.
 function isRenamedGroup(
   committedField: SpecField,
   returned: SpecField,
@@ -306,9 +257,8 @@ function lifecycleTransitionIssue(
   if (
     returned.label === committedField.label &&
     returned.required === committedField.required &&
-    // A hidden field keeps its column and its values, so it keeps the bound they were
-    // written under. Letting a hide tighten one would put values a reactivation then
-    // reveals outside a limit nothing ever scanned for.
+    // A hidden field keeps its column and values, so it keeps their bound: a hide that
+    // tightened one would reveal values outside a limit nothing ever scanned for.
     returned.max_length === committedField.max_length &&
     sameChoiceOptions(committedField, returned)
   ) {
@@ -326,9 +276,7 @@ function lifecycleTransitionIssue(
 }
 
 /**
- * Soft-hide preserves a choice's declaration exactly — every option's value, label, note,
- * group and disabled state, in the authored order, and the group headings above them.
- * Hiding a field changes its lifecycle and nothing else, so reactivating it later brings
+ * Soft-hide preserves a choice's declaration exactly, so reactivating the field later brings
  * back the control that was there rather than a quietly different one.
  */
 function sameChoiceOptions(committedField: SpecField, returned: SpecField): boolean {
@@ -347,10 +295,8 @@ function frozenJson(collection: readonly object[] | undefined): string {
   );
 }
 
-// Decision 1: declared dependencies must come from the frozen catalog. The
-// registry gate already rejected self-dependency and non-canonical ordering;
-// here every remaining pair must be exactly one catalog entry — an unknown
-// capability or a stale incarnation is an undeclared pair, rejected.
+// Decision 1: declared dependencies must come from the frozen catalog. Every remaining pair
+// must be exactly one entry — an unknown capability or a stale incarnation is rejected.
 function validateDependenciesAgainstCatalog(
   candidate: CapabilitySpec,
   catalog: readonly DependencyGenerationCatalogEntry[],

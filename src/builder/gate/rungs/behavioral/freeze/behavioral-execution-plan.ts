@@ -1,18 +1,15 @@
-// Behavioral test execution selection (PLAN decision 23's
-// execution clause; ADR-0006 "frozen tests and immutable snapshots"; ARCH §6.2 step 5).
+// Behavioral test execution selection (PLAN decision 23's execution clause; ADR-0006; ARCH §6.2
+// step 5).
 //
-// Generation follows total per-Action inputs. *Execution* follows executable
-// impact, and this module is the whole of that decision:
+// Generation follows total per-Action inputs. Execution follows executable impact, and this
+// module is the whole of that decision: a suite this build generated has never run against any
+// code, so it runs; a suite copied byte-for-byte from the prior version runs whenever a Handler
+// it covers regenerates; only when no covered Handler changed may a copied suite skip; and when
+// coverage or runtime failure attribution cannot be narrowed, the complete frozen suite runs
+// rather than trusting a narrowing that is not sound.
 //
-//   - a suite this build generated has never run against any code, so it runs;
-//   - a suite copied byte-for-byte from the prior version runs whenever a Handler it
-//     covers regenerates;
-//   - only when no covered Handler changed may a copied suite skip execution;
-//   - and when coverage or runtime failure attribution cannot be narrowed, the complete
-//     frozen suite runs instead of trusting a narrowing that is not sound.
-//
-// The rule is stated once, here, over data the Gate already has, so a developer can read
-// the whole run/skip verdict — and its reason — without re-deriving it from the Diff.
+// The rule is stated once, here, over data the Gate already has, so a developer can read the
+// whole run/skip verdict and its reason without re-deriving it from the Diff.
 
 import type { CapabilityTool } from "../../../../../registry/index.ts";
 import type { HandlerUnitName } from "../../../../units/generation/units.ts";
@@ -22,37 +19,27 @@ import type {
 } from "../generation/gate-behavioral-full-schema.ts";
 
 /**
- * The executable impact of one build, as its caller knows it *before* the Gate runs.
- * Absent entirely, the Gate cannot prove any copied suite unaffected and runs everything —
- * failing safe is the only honest answer to "which Handlers moved?" when nobody said.
+ * The executable impact of one build, as its caller knows it *before* the Gate runs. Absent,
+ * nothing is provably unaffected and every suite runs — the safe answer when nobody said.
  */
 export interface BehavioralExecutionImpact {
   /** Handler units this build authors, rather than copying forward byte-for-byte. */
   readonly regeneratedHandlers: readonly HandlerUnitName[];
   /**
-   * Whether `item.ts` moved too. It is not a Handler and covers no Action on its own, but
-   * every fragment assertion renders through it — so a Handler failure alongside a moved
-   * renderer is not attributable to that Handler, and narrowing stops being sound.
+   * Whether `item.ts` moved too. Every fragment assertion renders through it, so a failure
+   * beside a moved renderer pins on no Handler and narrowing stops being sound.
    */
   readonly regeneratedItemRenderer?: boolean;
   /**
-   * Set when the caller's own change facts could not be scoped to Actions at all (PLAN
-   * decision 22's conservative fallback, e.g. a free-text `behavior` change). The sentence
-   * is shown as the run's reason, so the fallback reads as a decision, not as an accident.
+   * Set when the caller's change facts scope to no Action (PLAN decision 22). The sentence
+   * shows as the run's reason, so the fallback reads as a decision, not an accident.
    */
   readonly unnarrowableReason?: string;
 }
 
 /**
- * Why one Action's frozen suite ran, or did not. Closed, because the snapshot records it:
- * an audit of "was this version's intent re-proven?" is only worth reading if the grounds
- * come from a fixed vocabulary.
- *
- * - `generated_this_build` — authored from changed inputs; it has never judged any code.
- * - `covered_handler_regenerated` — copied forward, but a Handler it covers moved.
- * - `full_suite_fallback` — copied and unaffected on its own, run because narrowing was
- *   not sound.
- * - `no_covered_handler_change` — copied and nothing it covers moved: the only lawful skip.
+ * Why one Action's frozen suite ran, or did not — closed, because the snapshot records it.
+ * `no_covered_handler_change` is the only lawful skip; the rest all run (PLAN decision 22).
  */
 export const BEHAVIORAL_EXECUTION_REASONS = [
   "generated_this_build",
@@ -94,24 +81,16 @@ const ITEM_RENDERER_MOVED =
   "the shared item renderer changed alongside Handler bytes, so a failing fragment assertion could not be attributed to one Handler";
 
 /**
- * The Handlers one Action's frozen suite covers.
- *
- * Coverage is total and it is exactly one Handler, and that is a property of how the rung
- * executes rather than a claim about the generated cases: `runFullBehavioralCase` seeds
- * setup rows through the platform mutation port, invokes the single Handler named by the
- * case's Action, and reads state back through the platform query port. No other generated
- * Handler is loaded or called. That is what makes "run only the impacted suites" a fact
- * about the executor instead of an assumption about the model's output — and it is pinned
- * by a test that poisons every other Handler and watches the suite still pass.
+ * The Handlers one Action's frozen suite covers: exactly one, because `runFullBehavioralCase`
+ * loads no other. A test poisons every other Handler and watches the suite still pass.
  */
 export function behavioralSuiteCoverage(action: CapabilityTool): readonly HandlerUnitName[] {
   return [action];
 }
 
 /**
- * Decide which frozen Action suites this Gate executes. Pure: it reads the frozen artifact,
- * the freeze stage's generated/copied split, and the build's stated impact, and returns the
- * complete per-Action verdict with the reason for each.
+ * Decide which frozen Action suites this Gate executes. Pure, and total: every Action comes
+ * back with its verdict and the reason for it.
  */
 export function planBehavioralExecution(
   input: BehavioralExecutionPlanInput,
@@ -135,9 +114,8 @@ export function planBehavioralExecution(
     };
   });
 
-  // The fallback exists to stop an *unsound skip*. When the narrowed plan skips nothing, no
-  // narrowing is being relied on, so there is nothing to fall back from — a first build,
-  // where every suite is new, is not a "full-suite fallback" and must not report as one.
+  // The fallback stops an unsound skip, so a plan that skips nothing needs none: a first
+  // build, where every suite is new, must not report as a full-suite fallback.
   if (!narrowed.some((entry) => entry.execution === "skipped")) {
     return { actions: narrowed, fullSuite: false };
   }
@@ -155,10 +133,8 @@ export function planBehavioralExecution(
 }
 
 /**
- * Why this build may not narrow execution, or `undefined` when it may. Ordered from the
- * coarsest ignorance to the most specific: an unstated impact says nothing at all, a caller-
- * declared unscoped fact says "these facts name no Action", and a moved item renderer says
- * "these facts name Actions, but a failure could not be pinned to one".
+ * Why this build may not narrow execution, or `undefined` when it may. Ordered coarsest
+ * first: an unstated impact, then facts naming no Action, then a moved item renderer.
  */
 function unnarrowableReason(
   impact: BehavioralExecutionImpact | undefined,
@@ -171,9 +147,8 @@ function unnarrowableReason(
 }
 
 /**
- * The cases the rung executes, in the frozen artifact's canonical order — the same bytes
- * the artifact carries, filtered by Action, never rewritten. A plan that executes nothing
- * yields an empty list, and the rung runs no test at all.
+ * The cases the rung executes, in the frozen artifact's canonical order — the same bytes,
+ * filtered by Action, never rewritten. A plan that executes nothing yields an empty list.
  */
 export function selectedBehavioralCases(
   frozenTests: FrozenBehavioralTests,

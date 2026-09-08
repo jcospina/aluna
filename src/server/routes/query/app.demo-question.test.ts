@@ -20,9 +20,11 @@ import {
   QUESTION_BUDGET_SPENT_SENTENCE,
   QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
   QUESTION_STEP_BUDGET,
+  QUESTION_STEP_LABELS,
   QUESTION_STEP_RESULT_CAP_BYTES,
   QUESTION_STEP_RESULT_TOO_LARGE,
   QUESTION_TURN_PROMPT_PREFIX,
+  questionLabelNarration,
   READ_ONLY_QUERY_TOOL,
 } from "../../../runtime/query/index.ts";
 import {
@@ -32,7 +34,12 @@ import {
 } from "../../../runtime/query/question.test-support.ts";
 import { createApp } from "../../app.ts";
 import { escapeHtml } from "../../http/html.ts";
-import { BUDGET_SPENT_HEADING, DEMO_QUESTION_PATH } from "./demo-question.ts";
+import {
+  BUDGET_SPENT_HEADING,
+  DEMO_QUESTION_PATH,
+  STEP_NARRATION_HEADING,
+  VOCABULARY_HEADING,
+} from "./demo-question.ts";
 
 const DATA_QUERY_INTENT = {
   type: "data_query",
@@ -53,11 +60,8 @@ const NEW_CAPABILITY_INTENT = {
 };
 
 /**
- * One provider answering two different questions, told apart by the prompt each stage
- * builds rather than by call order — the seam both prefixes are exported for.
- *
- * `reads` is how many statements it runs before it stops reading. The default is one, and
- * `Infinity` is a question that never converges — the fixture the budget is proved against.
+ * One provider answering two different questions, told apart by the prompt each stage builds
+ * rather than by call order. `reads` is how many statements it runs; `Infinity` never converges.
  */
 function stagedProvider(intent: unknown, sql: string, reads = 1): Provider {
   let taken = 0;
@@ -68,7 +72,7 @@ function stagedProvider(intent: unknown, sql: string, reads = 1): Provider {
         taken += 1;
         return {
           next: "read",
-          read: { tool: READ_ONLY_QUERY_TOOL, sql, parameters: ["groceries"] },
+          read: { tool: READ_ONLY_QUERY_TOOL, sql, label: "counting", parameters: ["groceries"] },
         };
       };
       const answer = prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)
@@ -215,10 +219,8 @@ describe("the one-question exercise", () => {
   });
 
   test("a question that never converges stops at ten and says so", async () => {
-    // The living demo: drive a fixture that never stops reading and confirm the page ends
-    // with Aluna's own sentence rather than with whatever the last statement happened to
-    // return. The rows are on the page — it is a developer's instrument — but the *ending*
-    // is a sentence, and no total assembled from those steps is presented as an answer.
+    // The living demo: drive a fixture that never stops reading and confirm the page ends with
+    // Aluna's own sentence rather than with whatever the last statement returned.
     const response = await app(
       DATA_QUERY_INTENT,
       `SELECT count(*) AS total FROM ${NOTES_TABLE}`,
@@ -231,10 +233,8 @@ describe("the one-question exercise", () => {
     expect(html).not.toContain(`Step ${QUESTION_STEP_BUDGET + 1} of at most`);
     expect(html).not.toContain("She stopped reading");
 
-    // The ending is Aluna's sentence and *nothing else*. Asserting the sentence is merely
-    // present would stay green with a total assembled from the ten steps sitting beside it,
-    // which is precisely the half-answer decision 3 removed the table's ability to expose —
-    // so this pins the whole block, from its heading to its closing tag.
+    // The ending is Aluna's sentence and nothing else. Asserting mere presence would stay green
+    // with a total from the ten steps beside it, so this pins the whole block (decision 3).
     const ending = html.slice(html.indexOf(`<h2>${escapeHtml(BUDGET_SPENT_HEADING)}</h2>`));
     expect(ending).toBe(
       `<h2>${escapeHtml(BUDGET_SPENT_HEADING)}</h2><pre class="failure">${escapeHtml(
@@ -244,9 +244,8 @@ describe("the one-question exercise", () => {
   });
 
   test("a provider that cannot be built is read on the page, not a 500", async () => {
-    // The likeliest developer failure there is: no API key. `createProvider` resolves its
-    // config eagerly and throws, and this page's premise is that a failure is something you
-    // read on it rather than an Internal Server Error in somebody's terminal.
+    // The likeliest developer failure there is: no API key. `createProvider` resolves its config
+    // eagerly and throws, and this page's premise is that a failure is something you read on it.
     const app = createApp({
       getProvider: () => {
         throw new Error("Missing OMNI_API_KEY");
@@ -278,9 +277,8 @@ describe("what the page does with a hostile request", () => {
     ).request(DEMO_QUESTION_PATH, ask('</textarea><img src=x onerror="alert(1)">'));
     const html = await response.text();
 
-    // The question is user input reflected into markup; without the escape the textarea
-    // closes early and the tag is live. No test posted markup before this one, so deleting
-    // the escape left the whole suite green.
+    // The question is user input reflected into markup; without the escape the textarea closes
+    // early and the tag is live. No test posted markup before this one, so the suite stayed green.
     expect(html).not.toContain("</textarea><img");
     expect(html).toContain("&lt;/textarea&gt;&lt;img");
   });
@@ -335,5 +333,37 @@ describe("the developer gate", () => {
   test("answers outside production", async () => {
     process.env.NODE_ENV = "development";
     expect((await app(DATA_QUERY_INTENT, "SELECT 1").request(DEMO_QUESTION_PATH)).status).toBe(200);
+  });
+});
+
+describe("the words beside the machinery", () => {
+  test("a step shows what Aluna says for the kind of step the model labelled it", async () => {
+    const response = await app(
+      DATA_QUERY_INTENT,
+      `SELECT count(*) AS total FROM ${NOTES_TABLE} WHERE text = ?`,
+    ).request(DEMO_QUESTION_PATH, ask("how many grocery notes do I have?"));
+    const html = await response.text();
+
+    // The statement is on the page, and the sentence is the one keyed to the label. Asserted as
+    // the rendered pairing: every sentence appears in the vocabulary block, so containment passes.
+    expect(html).toContain("WHERE text = ?");
+    expect(html).toContain(
+      `<h2>${escapeHtml(STEP_NARRATION_HEADING)}</h2><pre>${escapeHtml(
+        questionLabelNarration("counting"),
+      )}</pre>`,
+    );
+  });
+
+  test("every sentence there is can be read before a question is asked", async () => {
+    // 6.3/04's sign-off gate: a human opens this page and reads the whole vocabulary,
+    // including the fallback and the sentence a spent budget ends on.
+    const response = await app(DATA_QUERY_INTENT, `SELECT 1`).request(DEMO_QUESTION_PATH);
+    const html = await response.text();
+
+    expect(html).toContain(escapeHtml(VOCABULARY_HEADING));
+    for (const label of QUESTION_STEP_LABELS) {
+      expect(html).toContain(escapeHtml(questionLabelNarration(label)));
+    }
+    expect(html).toContain(escapeHtml(QUESTION_BUDGET_SPENT_SENTENCE));
   });
 });

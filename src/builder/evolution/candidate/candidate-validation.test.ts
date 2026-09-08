@@ -259,10 +259,8 @@ describe("the invalid-candidate matrix row", () => {
   });
 
   test("a changed logo birth fact is rejected by name — subject, ground and companion", () => {
-    // The artwork was drawn from these three and is never redrawn (ADR-0007 L7), so a
-    // candidate that moved one would leave the spec describing a picture that does
-    // not exist. The rejection says which fact moved rather than surfacing as a
-    // generic unexplained difference downstream.
+    // The artwork was drawn from these three and never redrawn (ADR-0007 L7), so a moved fact
+    // would describe a picture that does not exist. The rejection says which fact moved.
     const changedSubject = candidateFrom(journalCapabilityRow());
     changedSubject.subject = "a brass telescope";
     expectRejected(changedSubject, "subject is a logo birth fact and is immutable");
@@ -493,10 +491,8 @@ describe("list-input intent entries", () => {
 });
 
 describe("a legacy narration-like committed label (registry tolerates it)", () => {
-  // The row schema admits older narration-like labels that the strict spec
-  // schema rejects; every display path canonicalizes them. Evolution must read
-  // such a committed capability without throwing — the strict label gate applies
-  // only to the candidate the model authors, never to the committed input.
+  // The row schema admits older narration-like labels the strict spec schema rejects, so
+  // evolution must read such a capability without throwing: the gate is on the candidate.
   function evolveWithCommittedLabel(committedLabel: string, candidate: unknown) {
     return validateCandidateSpec({
       committed: journalCapabilityRow({ label: committedLabel }),

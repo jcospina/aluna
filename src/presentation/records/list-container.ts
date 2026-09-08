@@ -1,20 +1,15 @@
-// The platform list scaffolding and item wrapper: the structural chrome a capability's
-// records land in. Platform-owned and presentational only — no capability rule, no
-// canonical state.
+// The platform list scaffolding and item wrapper: the structural chrome a capability's records
+// land in. Platform-owned and presentational only — no capability rule, no canonical state.
 //
-// A record is a `<button>`. Opening one is the only thing you can do with it, and a
-// button is what the keyboard already reaches, so the wrapper carries no `role`, no
-// `tabindex` and no key handling of its own (`design/design-system.md`, "The window and
-// the collection").
+// A record is a `<button>`. Opening one is the only thing you can do with it, and a button is
+// what the keyboard already reaches, so the wrapper carries no `role`, no `tabindex` and no key
+// handling of its own (`design/design-system.md`).
 //
-// The wrapper is platform chrome, not generated markup, so the runtime allow-list
-// enforcer never runs on it — its `data-item` payload is platform-authored and trusted.
-// The enforcer runs on the *inner* markup an item renderer emits, applied by the
-// presentation adapter before it reaches this wrapper. renderItemWrapper frames
-// already-safe markup; it does not re-parse or sanitize.
-//
-// The container is data-free: live records arrive through the `read` action into the
-// region `#<id>-records`, never baked into the chrome.
+// The wrapper is platform chrome rather than generated markup, so the runtime allow-list
+// enforcer never runs on it and its `data-item` payload is platform-authored. The enforcer runs
+// on the inner markup an item renderer emits, applied by the presentation adapter before it
+// reaches this wrapper: `renderItemWrapper` frames already-safe markup and never re-parses it.
+// The container is data-free — live records arrive through the `read` action.
 
 import { MAX_SEARCH_QUERY_LENGTH } from "../../runtime/data/index.ts";
 import { escapeHtml } from "../../server/http/html.ts";
@@ -29,13 +24,12 @@ import { capabilityCountLabelId, renderCollectionCountLabel } from "./collection
 import { inkSeedAttr } from "./ink-seed.ts";
 import { itemElementIdForTemplate, renderRecordFormBar } from "./record-view.ts";
 
-/**
- * The closed set of collection layouts. `table`/`masonry` are deliberately out of
- * scope: a true table dissolves the per-record creative surface. Kept as a `const`
- * tuple so a test can sweep every member and prove the map below is exhaustive.
- */
 export { itemElementIdForTemplate } from "./record-view.ts";
 
+/**
+ * The closed set of collection layouts. `table`/`masonry` are out of scope: a true table
+ * dissolves the per-record creative surface. A `const` tuple so a test can sweep every member.
+ */
 export const COLLECTION_LAYOUTS = ["feed", "grid"] as const;
 export type CollectionLayout = (typeof COLLECTION_LAYOUTS)[number];
 
@@ -43,24 +37,20 @@ export type CollectionLayout = (typeof COLLECTION_LAYOUTS)[number];
 export const DEFAULT_COLLECTION_LAYOUT: CollectionLayout = "feed";
 
 /**
- * The stable class the item wrapper carries — the record swap's click-to-open hook and
- * the item chrome's style anchor. Exported so those modules key on one constant rather
- * than a copied string.
+ * The stable class the item wrapper carries — the record swap's click-to-open hook and the item
+ * chrome's style anchor. Exported so those modules key on one constant, not a copied string.
  */
 export const ITEM_TRIGGER_CLASS = "capability-item";
 
 /**
- * The attribute the admitted client projection rides in on the wrapper. The
- * presentation adapter supplies only the record target, active fields and
- * `created_at`; server-only state never reaches this generic serializer.
+ * The attribute the admitted client projection rides in on the wrapper. The adapter supplies the
+ * record target, active fields and `created_at`; server-only state never reaches the serializer.
  */
 export const ITEM_PAYLOAD_ATTR = "data-item";
 
 /**
- * The attribute pointing at the record's inert view `<template>`, which the swap clones
- * on open. The click controller (public/record-view.js) reads it, so the record's form
- * comes from the centralized field renderer even when the item truncates — no
- * client-side field formatting, no read-single route.
+ * The attribute pointing at the record's inert view `<template>`, which the swap clones on open.
+ * The record's form comes from the field renderer: no client formatting, no read-single route.
  */
 export const ITEM_RECORD_VIEW_ATTR = "data-record-view-template";
 
@@ -75,9 +65,8 @@ export interface ItemRecordViewRef {
 }
 
 /**
- * Map a closed {@link CollectionLayout} to its platform layout class through a total
- * switch. Reaching `default` means a layout member has no case, which fails the
- * type-check, so an unrepresented layout can never render.
+ * Map a closed {@link CollectionLayout} to its platform layout class through a total switch.
+ * Reaching `default` fails the type-check, so an unrepresented layout can never render.
  */
 export function collectionLayoutClass(layout: CollectionLayout): string {
   switch (layout) {
@@ -97,15 +86,13 @@ export interface CollectionOptions {
   /** Which closed layout to arrange records in. Defaults to {@link DEFAULT_COLLECTION_LAYOUT}. */
   readonly layout?: CollectionLayout;
   /**
-   * Pre-rendered wrapped items to seed the records region with. Empty (the default)
-   * leaves the region childless, so the empty state shows via CSS `:empty`. Mutually
-   * exclusive with {@link loadThroughRead}.
+   * Pre-rendered wrapped items to seed the records region with. Empty leaves the region childless,
+   * so the empty state shows via CSS `:empty`. Exclusive with {@link loadThroughRead}.
    */
   readonly items?: string;
   /**
-   * Wire the records region to lazy-load through the capability's `read` action instead
-   * of seeding {@link items}. This is what keeps the platform View data-free: the chrome
-   * renders deterministically from the spec and htmx fetches the records afterward.
+   * Wire the records region to lazy-load through the capability's `read` action instead of seeding
+   * {@link items}. The chrome renders from the spec and htmx fetches the records afterward.
    */
   readonly loadThroughRead?: boolean;
 }
@@ -114,14 +101,12 @@ export interface CollectionOptions {
 export const SEARCH_DEBOUNCE_MS = 300;
 
 /**
- * The local, ephemeral search controls paired with one records region. Matching is the
- * generated `search` Handler's responsibility; this chrome owns only request timing and
- * the loading/clear/no-match presentation states.
+ * The local, ephemeral search controls paired with one records region. Matching belongs to the
+ * generated `search` Handler; this chrome owns request timing and the presentation states.
  */
 function renderSearchChrome(capability: RenderableCapability, regionId: string): string {
-  // Defensive: never advertise a route the View does not declare. Every registry-backed
-  // capability now carries the complete five-Action inventory, so this always renders in
-  // production; the guard keeps hand-built preview Views (which may omit an Action) honest.
+  // Never advertise a route the View does not declare. Every registry-backed capability carries
+  // the full five-Action inventory; the guard keeps hand-built preview Views honest.
   if (!capability.actions.includes("search")) return "";
   const label = escapeHtml(capability.label);
   const inputId = `${capability.id}-search`;
@@ -138,10 +123,8 @@ function renderSearchChrome(capability: RenderableCapability, regionId: string):
     ` stroke-linejoin="round" aria-hidden="true">` +
     `<circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>` +
     `<input class="capability-search__input" id="${inputId}" type="search" name="q"` +
-    // The browser stops the typing at the same length the wire protocol admits, so an
-    // over-long search is refused where the person can see why rather than as a failed
-    // request. The server's bound is the real one — it is what stands between a pasted
-    // wall of text and a synchronous FFI scan that stops the event loop.
+    // The browser stops the typing at the length the wire admits, so an over-long search is
+    // refused where the person can see why. The server's bound stops a paste blocking the loop.
     ` maxlength="${MAX_SEARCH_QUERY_LENGTH}"` +
     ` placeholder="Search ${label}" autocomplete="off" spellcheck="false"` +
     ` aria-label="Search ${label}" aria-controls="${regionId}" data-capability-search-input>` +
@@ -163,29 +146,8 @@ function renderSearchFeedback(capability: RenderableCapability): string {
 }
 
 /**
- * Render a capability's list scaffolding: the collection — search, the "New X" control,
- * the records region in the chosen layout and the empty state — and the create form.
- * Deterministic from the capability — never generated.
- *
- * **Two views of one surface, not a panel over a list (design D2).** Pressing "New X"
- * does not open a card above the records: it swaps the collection out and gives the
- * whole window to the form, which is the same thing opening a record does.
- * A list you can no longer see is a list the form is not competing with, and the form
- * gets the height it needs for its fields to be readable rather than a strip at the top.
- *
- * The records region carries `id="<id>-records"` ({@link capabilityRecordsRegionId}), so
- * the create form's `hx-target` and the empty-state CSS agree with it by construction. It
- * is also a content region: the read, search and refresh requests that write it are
- * released the moment its content is replaced or the region goes away.
- *
- * The form arrives under the same back control a record's does, because it is the same
- * surface reached the other way ("in a window it always arrives under a back control,
- * reached either from a record or from New record" — `design/index.html`). Cancel inside
- * the form is that exit from the other end, and both close the view the same way: a
- * create succeeds for *this* capability, or Cancel dispatches
- * {@link CREATE_CANCELLED_EVENT}. Every close gives focus back to the control that opened
- * the form, because a view swap that drops focus leaves a keyboard user at the top of the
- * desk.
+ * Render a capability's list scaffolding — search, New X, the records region, the empty state —
+ * and the create form. Two views of one surface, not a panel over a list (design D2).
  */
 export function renderCollection(options: CollectionOptions): string {
   const { capability } = options;
@@ -201,28 +163,15 @@ export function renderCollection(options: CollectionOptions): string {
     : "";
   const recordsContent = options.loadThroughRead ? "" : items;
 
-  // Local presentation state only. `capability.id` is spec-validated `[a-z][a-z0-9_]*`,
-  // so it cannot break out of the single-quoted Alpine expression. The event name is
-  // all-lowercase because HTML folds attribute names, so the `@….window` listener still
-  // matches the dispatched event.
-  // Every way the form view closes lands focus back on the control that opened it. A
-  // view swap that does not is a keyboard user dropped at the top of the desk, and the
-  // successful create is the path that used to do exactly that.
+  // Every close lands focus back on the control that opened the form; a view swap that does not
+  // leaves a keyboard user at the top of the desk.
   const backToTrigger = `createOpen = false; $nextTick(() => $refs.createTrigger.focus())`;
+  // `capability.id` is spec-validated `[a-z][a-z0-9_]*`, so it cannot break out of the
+  // single-quoted Alpine expression; the event name is lowercase because HTML folds names.
   const closeOnCreated = `if ($event.detail?.capabilityId === '${capability.id}') { ${backToTrigger} }`;
   const closeOnCancelled = backToTrigger;
-  // The form takes the window, so the first field is where the user now is. Without
-  // this the swap leaves focus on a control that is no longer on screen.
-  //
-  // `:not([type=hidden])` is the whole of why this works: every field is preceded by
-  // its own hidden `__aluna_present` marker, so the first `input` in the form is one
-  // that cannot be focused at all, and focusing it silently does nothing.
-  //
-  // The last two are the drawn choice controls, which are not form elements: a picker's
-  // closed control is a `button` and a segmented row is a set of them. A capability whose
-  // fields are all of that kind matched nothing here and opened onto no focus at all.
-  // Kept in step with `FIRST_FIELD_SELECTOR` in `public/record-view.js`, which is the same
-  // question asked of a record view.
+  // `:not([type=hidden])` because every field is preceded by its own `__aluna_present` marker;
+  // the last two are drawn choice controls, not form elements. Mirrors `public/record-view.js`.
   const firstField =
     "input:not([type=hidden]), textarea, select, .listbox__button, .segmented button:not([disabled])";
   const openCreate = `createOpen = true; $nextTick(() => $refs.createPanel.querySelector('${firstField}')?.focus())`;
@@ -240,25 +189,16 @@ export function renderCollection(options: CollectionOptions): string {
     ` @click="${openCreate}" :aria-expanded="createOpen ? 'true' : 'false'">` +
     `New ${label}</button>` +
     `</header>` +
-    // How many records this holds, directly under the search rail and directly above the
-    // first item. Empty in the chrome and filled from the same response the records arrive
-    // in, so the number is never the chrome's own stale copy of a fact the region already
-    // moved on from.
+    // How many records this holds, filled from the same response the records arrive in, so the
+    // number is never the chrome's stale copy of a fact the region has moved on from.
     renderCollectionCountLabel(capability) +
-    // No whitespace inside the region: it must stay truly `:empty` so the empty-state
-    // CSS fires, and so the first prepended record clears it.
-    // The count is named as the region's description, which is what gives the label's id a
-    // referent. What actually *speaks* it is the window's own content region, which is
-    // `aria-live="polite"` (`public/desk-window.js`), so a changed count is announced
-    // without a second live region here competing with the search's status line.
+    // No whitespace inside the region: it must stay truly `:empty` for the empty-state CSS. The
+    // count is its description; the window's own `aria-live` region is what speaks it.
     `<div id="${regionId}" class="capability-records ${layoutClass}"` +
     ` aria-describedby="${countLabelId}"` +
     ` data-content-region="records"${recordsLoad}>${recordsContent}</div>` +
-    // The search's status line sits under the records, not over them: nothing may come
-    // between the count and the first record, and this line is not always silent — it
-    // carries the spinner, and it is where a search that matched nothing says so. A live
-    // region is announced when it changes rather than when it is reached, so reading last
-    // costs a screen reader nothing.
+    // The search's status line sits under the records: nothing may come between the count and the
+    // first record, and a live region is announced when it changes, not when it is reached.
     renderSearchFeedback(capability) +
     `<p class="capability-empty">Nothing here yet — add your first ${escapeHtml(capability.noun)} above.</p>` +
     `</div>` +
@@ -271,24 +211,8 @@ export function renderCollection(options: CollectionOptions): string {
 }
 
 /**
- * Wrap one record's already-safe inner markup in the standardized trigger: a real
- * `<button>` carrying the caller-supplied client projection as an escaped `data-item`
- * payload. The presentation adapter owns that projection and excludes server-only
- * canonical state before calling this.
- *
- * Given an {@link ItemRecordViewRef} it also carries the hook the click controller reads
- * to swap this record's form into the window. `recordView` is optional so the frame alone
- * can render without click-to-open, and a capability that cannot be updated has no record
- * surface to open; the real read path always passes it.
- *
- * `innerHtml` is trusted — the presentation adapter has already run it through the
- * runtime enforcer. This function frames it; it does not sanitize.
- *
- * The wrapper also carries the record's drawn hand as `data-ink-seed`, derived from the
- * record's own id. That is the whole of the platform's ink work on a record: the
- * boundary itself is drawn on this wrapper, which the platform owns, so the spec, the
- * generator prompt and the registry are asked for nothing and generated markup never
- * learns the ink system exists.
+ * Wrap one record's already-safe inner markup in the standardized trigger, with the client
+ * projection as an escaped `data-item` payload. The caller has enforced `innerHtml`; this frames.
  */
 export function renderItemWrapper(
   innerHtml: string,
@@ -296,10 +220,11 @@ export function renderItemWrapper(
   recordView?: ItemRecordViewRef,
 ): string {
   const payload = escapeHtml(serializeItemPayload(record));
+  // `data-ink-seed` derives the record's drawn hand from its id, and the boundary is drawn on
+  // this wrapper, so generated markup never learns the ink system exists.
   const attributes = `class="${ITEM_TRIGGER_CLASS}" ${ITEM_PAYLOAD_ATTR}="${payload}"${inkSeedAttr(record.id)}`;
-  // Nothing to open is not a button. Opening one is the only thing a record does, so a
-  // frame with no record surface behind it is a card rather than a control that would
-  // take focus and then do nothing.
+  // Nothing to open is not a button: opening one is the only thing a record does, so a frame
+  // with no record surface behind it is a card rather than a control that does nothing.
   if (!recordView) return `<article ${attributes}>${innerHtml}</article>`;
   const itemId = escapeHtml(itemElementIdForTemplate(recordView.templateId));
   return (
@@ -309,16 +234,8 @@ export function renderItemWrapper(
 }
 
 /**
- * How many records a fragment actually rendered.
- *
- * This is the platform counting its own wrappers, which is the only honest way to say how
- * many a search matched: a capability's `search` Handler owns its filter, and the platform
- * cannot re-derive that number without re-running generated SQL it does not own (PLAN
- * decision 32). So the answer is not recomputed — it is read off the answer, and it equals
- * what the collection puts on screen by construction.
- *
- * Parsed rather than scanned: a record whose own text contains the class name would be
- * counted by any pass over the raw string, and record text is a string a person typed.
+ * How many records a fragment rendered: the platform counting its own wrappers, since it cannot
+ * re-derive a search's filter (PLAN decision 32). Parsed, since record text can name the class.
  */
 export function countRenderedItems(html: string): number {
   let items = 0;
@@ -335,13 +252,8 @@ export function countRenderedItems(html: string): number {
 }
 
 /**
- * Serialize a client-safe record projection for the `data-item` payload. The caller
- * HTML-escapes the JSON result for the attribute.
- *
- * A record value that is raw bytes (`Uint8Array`/`ArrayBuffer`, including Bun's `Buffer`
- * subclass) is neutralized to `null` rather than serialized: `file` fields carry a
- * reference, never bytes. It neutralizes instead of throwing so a stray value can never
- * crash a live render.
+ * Serialize a client-safe record projection for the `data-item` payload; the caller escapes the
+ * JSON. Raw bytes are neutralized to `null` rather than thrown, so a stray value cannot crash.
  */
 export function serializeItemPayload(record: Readonly<Record<string, unknown>>): string {
   return JSON.stringify(record, (_key, value) =>

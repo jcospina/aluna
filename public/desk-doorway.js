@@ -1,32 +1,21 @@
 // @ts-check
 
 /**
- * Desk furniture whose answer fills the window.
- *
- * The window is made by the client and does not exist until something asks for one, so a
- * control standing on the ground that swaps into `#spec-build-output` has to be answered
- * before htmx resolves its target — or the target is resolved against a desk that has no
- * window and the press raises instead of opening anything. That is the same reason a press
- * on a logo is answered in the capture phase (`public/desk-window.js`), and this is the
- * other half of it: the presses that are not on a logo.
- *
- * Today there is one, and it is the doorway 5.9 finally hangs — Delete on a capability's
- * context menu, whose confirmation fills the window (PLAN decision 20). The doorway is on
- * the logo and never on the window chrome, which is what leaves D3 standing.
- *
- * A module of its own rather than another few lines inside the window: the window owns
- * when a window exists and what is in it, and this owns which presses on the ground are
- * owed one. It reaches into the window through a small handful of named operations rather
- * than importing it, so the direction of the dependency stays what it is.
+ * The window does not exist until something asks for one, so a press on the ground must stand
+ * one up before htmx resolves its target, or the target resolves against a desk with none.
  */
 
 import { registerRegionRelease } from "./region-scope.js";
 
-/** A control on the ground whose answer needs a window to land in. */
+/**
+ * A control on the ground whose answer needs a window to land in. Today only Delete on a
+ * capability's context menu (PLAN decision 20), hung off the logo and never the chrome (D3).
+ */
 export const WINDOW_DOORWAY_SELECTOR = "[data-window-doorway]";
 
 /**
- * As much of the window as a doorway asks for, and no more.
+ * As much of the window as a doorway asks for, and no more, so this never imports the window
+ * and the dependency runs one way.
  *
  * @typedef {{
  *   isNarrating(): boolean,
@@ -39,22 +28,20 @@ export const WINDOW_DOORWAY_SELECTOR = "[data-window-doorway]";
  */
 
 /**
- * A press on desk furniture that is about to fill the window.
+ * A press on desk furniture that is about to fill the window; a press on a logo is answered in
+ * the capture phase instead (`public/desk-window.js`).
  *
  * @param {Document} root
  * @param {Element} doorway
  * @param {WindowForDoorways} window_
  */
 export function answerDoorway(root, doorway, window_) {
-  /* A run owns the window it is narrating into, and this press is about to be refused on
-   * the prompt bar for exactly that reason (`public/app.js`, PLAN decision 20). Renaming
-   * its frame for a request that never lands would be this press changing something after
-   * all, so the run is left holding everything it holds. */
+  /* A run owns the window it narrates into and the prompt bar refuses this press for that
+   * reason (`public/app.js`, PLAN decision 20); renaming its frame anyway would change it. */
   if (window_.isNarrating()) return;
   const logo = window_.logoFor(doorway.getAttribute("data-capability-id") ?? "");
-  /* A window that is already standing is renamed: the confirmation about to fill it is
-   * about *this* capability, and a destructive question under another capability's name is
-   * the one place a misattributed title is least affordable. */
+  /* A window already standing is renamed: a destructive question under another capability's
+   * name is where a misattributed title costs most. */
   const region = window_.openWindow(
     logo === null ? window_.fallbackTitle : window_.titleOf(logo),
     logo,
@@ -66,19 +53,7 @@ export function answerDoorway(root, doorway, window_) {
 
 /**
  * Run something once, if and only if the request this exact element made comes back
- * unsuccessful.
- *
- * Shared by the two presses that stand a window up before htmx has decided to fetch
- * anything, so neither can leave an empty one behind.
- *
- * **It has two ways to end, and it needs both.** The listener took itself off only when it
- * saw its own element's `htmx:afterRequest` — and htmx fires that *after* the swap, so a
- * swap that detached `asking` (a deletion's out-of-band `delete:` takes the whole logo
- * slot, and the doorway is inside it) left the event bubbling from a node that is no longer
- * in the document. It never reached `root`, so the listener stayed on the document for the
- * life of the page, holding the detached subtree with it. The element leaving the document
- * is therefore the other ending: the release scope runs on exactly that fact, by whichever
- * route the node left.
+ * unsuccessful — shared by the two presses that stand a window up before htmx fetches anything.
  *
  * @param {Document} root @param {Element} asking @param {() => void} stand
  */
@@ -96,6 +71,8 @@ export function whenTheRequestFails(root, asking, stand) {
     if (detail.successful === false) stand();
   };
   root.addEventListener("htmx:afterRequest", settle);
+  // The second ending: htmx fires `htmx:afterRequest` after the swap, so when a deletion's
+  // out-of-band `delete:` detaches the doorway the event never reaches `root` and this leaks.
   const release = registerRegionRelease(asking, "doorway settle", () =>
     root.removeEventListener("htmx:afterRequest", settle),
   );

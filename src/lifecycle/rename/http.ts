@@ -15,15 +15,8 @@ export interface CapabilityRenameHttpDeps {
 }
 
 /**
- * The whole of the rename route.
- *
- * Deliberately a top-level platform route rather than a generated capability Action, for
- * the reason permanent deletion is one: it never loads a Handler, asks the resolver, or
- * constructs a provider. Renaming desk furniture is a zero-AI path and stays one.
- *
- * The submission carries the incarnation and version the menu opened on. Nothing here
- * reads the row first to check them — the conditional UPDATE is the check, taken under
- * the lease, which is the only reading that cannot go stale between looking and writing.
+ * A top-level platform route, not a generated capability Action: it loads no Handler, asks no
+ * resolver, builds no provider. Renaming is zero-AI, and the conditional UPDATE is the check.
  */
 export async function handleCapabilityRename(
   c: Context,
@@ -35,9 +28,8 @@ export async function handleCapabilityRename(
     capabilityId: c.req.param("id") ?? "",
     incarnationId: singleFormValue(form, "incarnation_id"),
     version,
-    // The name the menu opened on. A rename does not bump the version, so this is the only
-    // thing that tells two submissions made against the same version apart: without it the
-    // second silently overwrote the first, and neither person was told.
+    // The name the menu opened on: a rename does not bump the version, so this is the only thing
+    // telling two submissions against the same version apart.
     previousLabel: singleFormValue(form, "previous_label"),
   };
 
@@ -50,10 +42,8 @@ export async function handleCapabilityRename(
   if (outcome.status === "renamed") {
     return c.html(renderRenamedCapabilityLogo(outcome.row), 200, { "cache-control": "no-store" });
   }
-  // Swapped nowhere, whatever the shell decides to do with it. A refusal is read on the
-  // prompt bar (PLAN decision 26) and the editor behind it keeps the typed value; the
-  // request's own target is the logo's whole slot, so a body that reached it would put a
-  // sentence where a capability used to be.
+  // Swapped nowhere: a refusal is read on the prompt bar (PLAN decision 26). The request targets
+  // the logo's whole slot, so a body reaching it would put a sentence where a capability was.
   return c.html(renderCapabilityRenameRefusal(outcome), outcome.status === "refused" ? 422 : 409, {
     "cache-control": "no-store",
     "HX-Reswap": "none",
@@ -61,12 +51,8 @@ export async function handleCapabilityRename(
 }
 
 /**
- * The write, and the one thing that can go wrong on the way to it that is not an outcome.
- *
- * A submission whose caller has gone leaves the queue rather than landing whenever it
- * eventually drains, on a desk nobody is looking at any more — and leaving is a rejection,
- * not a refusal. It is answered here rather than raised, because a 500 for a connection
- * that closed itself is a log line about nothing.
+ * The write, plus the one thing on the way to it that is not an outcome: a submission whose caller
+ * has gone leaves the queue, answered here because a 500 for a closed connection says nothing.
  */
 async function admit(
   expectation: Parameters<typeof renameCapabilityLabel>[0],
@@ -88,9 +74,8 @@ async function admit(
 }
 
 /**
- * One value, or none. A repeated field is a submission this form does not make, and
- * taking the first of several would let an injected duplicate decide which capability a
- * rename is bound to.
+ * One value, or none. A repeated field is a submission this form does not make, and taking the
+ * first of several would let an injected duplicate decide which capability a rename binds to.
  */
 function singleFormValue(form: { getAll(name: string): readonly unknown[] }, name: string): string {
   const values = form.getAll(name);

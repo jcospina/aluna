@@ -29,12 +29,8 @@ import { addedPaths, sweepPlatformStores } from "./store-sweep.test-support.ts";
 const HEARTBEAT_INTERVAL_MS = 20;
 const LIVENESS_WINDOW_MS = 1_000;
 /**
- * A floor, not a measurement. Decision 7 saw 39 ticks against an expected 40 during two
- * seconds of this query, but asserting anything near that would make a loaded machine's
- * timer drift look like a frozen event loop — and this test pins a core for its whole
- * window while the suite runs sharded in parallel. The question it has to answer is
- * frozen or live, and in-process the same window yields zero ticks, so a fifth of the
- * expected count settles it with an order of magnitude to spare.
+ * A floor, not a measurement. Decision 7 saw 39 ticks against an expected 40, but asserting near
+ * that reads a loaded machine's drift as a frozen loop; in-process the same window yields zero.
  */
 const MIN_HEARTBEATS = Math.floor(LIVENESS_WINDOW_MS / HEARTBEAT_INTERVAL_MS / 5);
 
@@ -93,9 +89,8 @@ describe("the query worker", () => {
   });
 
   test("opens the one documented database file when given no path", async () => {
-    // Importing `db.ts` for DB_PATH is also what makes that file openable: its module
-    // scope creates the file and the WAL `-shm` index a read-only connection can attach
-    // to but never create (db.ts's own hazard note).
+    // Importing `db.ts` for DB_PATH is what makes the file openable: its module scope creates the
+    // file and the WAL `-shm` index a read-only connection can attach to but never create.
     const [row] = await start().read("SELECT file FROM pragma_database_list WHERE name = 'main'");
 
     expect(realpathSync(String(row?.file))).toBe(realpathSync(DB_PATH));
@@ -173,10 +168,8 @@ describe("the query worker", () => {
       globalThis.Worker = RealWorker;
     }
 
-    // Everything that reaches the thread reaches it one of three ways, so all three are
-    // asserted: no read token or incarnation rode in on the constructor's options (an
-    // `env` or `argv` entry would land there), none rode in on a transfer list, and the
-    // messages carry only what a statement needs to run.
+    // Three ways reach the thread, so all three are asserted: the constructor's options (where an
+    // `env` or `argv` entry would land), the transfer list, and the messages themselves.
     expect(constructed.map((args) => args.length)).toEqual([1]);
     expect(String(constructed[0]?.[0])).toMatch(/query-worker-thread\.ts$/);
     expect(posted).toEqual([
@@ -275,11 +268,8 @@ describe("the query worker's lifetime", () => {
       globalThis.Worker = RealWorker;
     }
 
-    // Two claims one assertion apart. Every other assertion about `close()` in this file is
-    // satisfied by `end()` rejecting the pending reads, so a `close()` that stopped there and
-    // left the thread running would leave the suite green — and decision 10's kill is the
-    // `terminate()`. And a cancelled question closes through here twice by construction, so
-    // the second call must not reach a thread that may still be inside its statement.
+    // Every other `close()` assertion here is satisfied by `end()` rejecting the pending reads, so
+    // a `close()` leaving the thread running would still pass — decision 10's kill is `terminate`.
     expect(terminated).toBe(1);
   });
 

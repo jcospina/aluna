@@ -1,9 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-// Reading the repo's own source, for the questions a browser cannot be asked in Bun.
-// One helper rather than one per suite: the stripper below is load-bearing for every
-// negative assertion built on it, so it is worth having in one place and testing.
+// Reading the repo's own source, for the questions a browser cannot be asked in Bun. One helper
+// rather than one per suite: the stripper below is load-bearing for every negative assertion.
 
 const ROOT = resolve(import.meta.dir, "../../..");
 
@@ -11,13 +10,8 @@ const ROOT = resolve(import.meta.dir, "../../..");
 export const readSource = (path: string): string => readFileSync(join(ROOT, path), "utf8");
 
 /**
- * Source with its prose taken out, for questions about what the code does rather than
- * what it says about itself.
- *
- * Block comments go wholesale. Line comments go only where the `//` opens the line,
- * because a stripper that took any `//` would truncate every line holding a `https://`
- * — and since every caller asks a *negative* question, keeping too much text is the
- * direction that fails loudly rather than the direction that passes silently.
+ * Source with its prose taken out. A `//` is stripped only where it opens the line, because
+ * truncating a `https://` would make a negative assertion pass silently instead of failing.
  */
 export const code = (source: string): string =>
   source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/[^\n]*$/gm, "");
@@ -29,8 +23,7 @@ export const codeOf = (path: string): string => code(readSource(path));
 export const flat = (source: string): string => source.replace(/\s+/g, " ").trim();
 
 /**
- * Every shell script as shipped. All of them: the developer preview pages that used to be
- * excluded here came down with module 5, and an exclusion that matches nothing is a hole
+ * Every shell script as shipped. All of them: an exclusion that matches nothing is a hole
  * waiting for the next file to fall through it.
  */
 export const shellScripts = (): ReadonlyArray<readonly [string, string]> =>

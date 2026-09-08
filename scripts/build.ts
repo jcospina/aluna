@@ -2,20 +2,14 @@
 /**
  * The production bundle, and the one file that cannot be inside it.
  *
- * `bun build` is the whole of the bundle. What it does not do is follow
- * `new Worker(new URL("./query-worker-thread.ts", import.meta.url).href)` in
- * `src/runtime/query/query-worker.ts`: the specifier is emitted exactly as written, so a
- * bundled entry point looks for the query worker's thread *beside itself* rather than in
- * `src/`. 6.2/01 measured that and recorded it as a seam that stays open only while
- * nothing the server reaches imports the worker. 6.3/01 is what made the server reach it —
- * `/demo/question` reaches the worker, and 6.3/02 turned that one turn into the loop — so
- * the thread is copied beside the bundle here.
+ * `bun build` emits `new Worker(new URL("./query-worker-thread.ts", import.meta.url).href)`
+ * from `src/runtime/query/query-worker.ts` exactly as written, so the bundled entry point
+ * looks for the query worker's thread beside itself rather than in `src/`. 6.2/01 recorded
+ * that seam; 6.3/01 made the server reach the worker, so the thread is copied here.
  *
- * It is copied rather than bundled, and as TypeScript rather than as JavaScript, because
- * the URL in the bundle names `./query-worker-thread.ts` and Bun runs that file directly.
- * The copy is self-contained by construction: the thread imports `bun:sqlite` and nothing
- * else, which `build.test.ts` asserts rather than trusts — a relative import added to it
- * would arrive here as a module the copy cannot resolve.
+ * It is copied as TypeScript rather than bundled, because the URL in the bundle names
+ * `./query-worker-thread.ts` and Bun runs that file directly. The copy stays self-contained
+ * only while the thread imports `bun:sqlite` and nothing else, which `build.test.ts` asserts.
  */
 
 import { copyFileSync, mkdirSync, rmSync } from "node:fs";
@@ -40,9 +34,8 @@ export interface BuildResult {
 }
 
 export async function buildPlatform(outdir: string): Promise<BuildResult> {
-  // Cleared, not merged. `bun build` overwrites what it emits and leaves everything else, so
-  // a file from an older shape of this script — a stale chunk, a worker thread that moved —
-  // would sit in `dist/` looking shipped. What is deployed should be what this run produced.
+  // `bun build` overwrites what it emits and leaves everything else, so a stale chunk or a
+  // worker thread that moved would sit in `dist/` looking shipped.
   rmSync(outdir, { recursive: true, force: true });
   mkdirSync(outdir, { recursive: true });
 

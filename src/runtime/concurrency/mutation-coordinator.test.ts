@@ -138,9 +138,8 @@ describe("MutationCoordinator", () => {
 });
 
 describe("MutationCoordinator — reservation lifetimes", () => {
-  // The reservation TTL bounds *abandonment*, not queueing: a build reservation blocks the
-  // head of the queue until its owner asks for the lease, so one whose owner never comes
-  // back has to time out. An owner that is waiting is not abandonment.
+  // The reservation TTL bounds *abandonment*, not queueing: a build reservation blocks the head
+  // of the queue until its owner asks for the lease, so one whose owner never returns must expire.
   test("an abandoned reservation expires and stops blocking the queue", async () => {
     const coordinator = createMutationCoordinator({
       buildReservationTtlMs: 20,
@@ -168,10 +167,8 @@ describe("MutationCoordinator — reservation lifetimes", () => {
     expect(coordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
   });
 
-  // The defect this replaced: the clock started at `reserveBuild()` and kept running while
-  // the ticket waited, so the second of two concurrent builds always died at 30s with
-  // `MutationReservationExpiredError` — shown to the person as "Hmm, that didn't work" after
-  // they had waited and paid for a resolver call. A real build takes minutes.
+  // The defect this replaced: the clock started at `reserveBuild()` and ran while the ticket
+  // waited, so the second of two concurrent builds always died at 30s. A real build takes minutes.
   test("a queued build waits for the lease however long the holder takes", async () => {
     const coordinator = createMutationCoordinator({
       buildReservationTtlMs: 20,

@@ -1,40 +1,21 @@
+/*
+ * The focus ring, and the split PLAN decision 45 settles: a text input rings on any focus,
+ * every other control on keyboard focus only. Both halves are declared in CSS and checked
+ * there; the browser is not — `:focus-visible`'s modality heuristic is the user agent's, and
+ * this repo has no DOM to run it in. The behavioural half is a procedure, confirmed 2026-09-02:
+ *
+ *   1. Click into the prompt field: `.prompt__composer` computes `outline: 3px solid
+ *      var(--focus-ring)` at offset `3px`, and the field itself `outline-style: none`.
+ *   2. Click a logo: it is `document.activeElement`, `:focus` matches, `:focus-visible` does
+ *      not, and it computes `outline-style: none`.
+ *   3. Press Tab: the next control, a window lamp, matches `:focus-visible` and computes
+ *      `outline: 3px solid` at offset `0`.
+ */
+
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { type Declaration, declarations } from "./contrast.js";
 import { AUDITED_SHEETS } from "./contrast-audit.js";
-
-/*
- * The focus ring, and the split PLAN decision 45 settles.
- *
- * A text input shows the ring on any focus, because a ring on a clicked field
- * tells you where typing will land. Every other control shows it on keyboard
- * focus only, because a ring on a clicked button tells you nothing you did not
- * just do. Both halves are declared in CSS, so both are checked there — and so is
- * the thing that made the shipped ring wrong in the first place, which was not a
- * selector at all but a second file restating the global two pixels thinner.
- *
- * **What this file proves, and what it cannot.** Every rule here is read out of the
- * shipped stylesheets: which selectors paint a ring, that no second file overrides
- * one, that nothing draws a ring as a shadow instead, and that only the named
- * text-input shells ask for a bare `:focus`. That is what catches the regressions
- * this ring has actually had. What it is *not* is the browser: the cascade, and
- * `:focus-visible`'s own modality heuristic, are the user agent's, and there is no
- * DOM environment in this repo to run them in. Adding one is a dependency decision
- * this file may not take on its own.
- *
- * So the behavioural half is a **stated procedure**, run against the live desk, and
- * repeatable by anyone in a minute:
- *
- *   1. Click into the prompt field. `.prompt__composer` computes
- *      `outline: 3px solid var(--focus-ring)` at offset `3px`, and the field itself
- *      computes `outline-style: none` — the shell carries the ring.
- *   2. Click a logo. It is `document.activeElement`, `:focus` matches,
- *      `:focus-visible` does not, and it computes `outline-style: none`.
- *   3. Press Tab. The next control — a window lamp — matches `:focus-visible` and
- *      computes `outline: 3px solid` at offset `0`.
- *
- * Confirmed on 2026-09-02 against the running dev server, exactly as written.
- */
 
 const RING = "3px solid var(--focus-ring)";
 
@@ -154,12 +135,9 @@ describe("the focus ring", () => {
   });
 
   test("no two-file override survives", () => {
-    // `public/css/a11y.css` restated the global at 2px. It loads after the manifest, so
-    // the app shipped a ring the design does not draw — and the mechanism, not the
-    // number, is what had to go: a second file that wins by loading later. The sheet
-    // itself is gone now: its other half was the blanket reduced-motion reset, which
-    // PLAN decision 44 replaced with the travel axis, and a file whose whole purpose
-    // was beating the ones above it had nothing left to hold.
+    // `public/css/a11y.css` (absent) restated the global at 2px and won by loading after the
+    // manifest. The mechanism had to go, not the number; PLAN decision 44 took its
+    // reduced-motion half.
     expect(
       existsSync(new URL("../../../public/css/a11y.css", import.meta.url)),
       "the accessibility layer is back, and it wins by loading last again",
@@ -202,6 +180,8 @@ describe("the focus ring", () => {
   });
 
   test("a text input rings on any focus; everything else waits for the keyboard", () => {
+    // A ring on a clicked field tells you where typing will land; a ring on a clicked button
+    // tells you nothing you did not just do.
     const anyFocus = rings().filter(({ selector }) => paintsOnAnyFocus(selector));
     expect(
       anyFocus.map(({ sheet, selector }) => `${sheet} § ${selector}`).sort(),
@@ -218,9 +198,8 @@ describe("the focus ring", () => {
   });
 
   test("an any-focus shell has to name the text control it rings for", () => {
-    // The list above is not a licence: a shell earns its place by saying, in the
-    // selector itself, that what it is ringing for is somewhere a reader types.
-    // `:focus-within` never says that — it matches the shell, and every button in it.
+    // A shell earns its place by saying, in the selector itself, that it rings for somewhere a
+    // reader types. `:focus-within` never says that: it matches the shell and every button in it.
     for (const { shell } of TEXT_INPUT_SHELLS) {
       const [, selector] = shell.split(" § ");
       expect(selector, `${shell} rings for anything focused inside it`).not.toContain(

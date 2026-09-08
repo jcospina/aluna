@@ -42,9 +42,8 @@ export interface UnitPreviewStream {
 }
 
 /**
- * Open a live units view over `send`. The returned observer owns the whole generation
- * lifecycle; `record` and `flush` let a caller seed units it assembled by other means
- * (a copy) and mark the inventory complete.
+ * Opens a live units view over `send`. The observer owns the generation lifecycle; `record` and
+ * `flush` let a caller seed units assembled by other means (a copy) and close the inventory.
  */
 export function createUnitPreviewStream(
   send: Send,

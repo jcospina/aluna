@@ -56,14 +56,8 @@ function onlyTags(base: typeof El, tags: readonly string[]) {
 }
 
 /**
- * Stand the DOM constructors the module guards with up as globals, for the length of one
- * suite.
- *
- * `Node`, `Element` and `HTMLElement` really do match every element. The three in
- * `ELEMENT_CLASSES` do not, and binding them all to one class would make every
- * `instanceof` in the module a tautology — the picker's own "a picker needs a
- * .listbox__button" refusal could never fire under test. Each gets a constructor that only
- * its own tags are.
+ * Stand the DOM constructors the module guards with up as globals, for one suite. Each class in
+ * `ELEMENT_CLASSES` gets its own, so an `instanceof` guard is not a tautology under test.
  */
 export function installDomGlobals(): void {
   const installed: (string | null)[] = [];
@@ -103,9 +97,8 @@ export async function openPicker(stored?: string) {
 }
 
 /**
- * An open picker whose list is a real scroller: 200px of scrollport over 400px of rows, so
- * there is somewhere to scroll to and a ceiling it cannot pass. `visible` sits inside the
- * scrollport and `hidden` 56px below its bottom edge, which is how far revealing it moves.
+ * An open picker whose list is a real scroller: 200px of scrollport over 400px of rows. `visible`
+ * sits inside it and `hidden` 56px below its bottom edge, which is how far revealing moves.
  */
 export async function longList() {
   const picker = await openPicker();
@@ -120,9 +113,8 @@ export async function longList() {
 }
 
 /**
- * The desk chrome a panel hangs inside: a window dragged by `transform` (so it is the
- * containing block), a body that clips and starts below the title bar, and a static
- * scroller between them that the panel is fixed precisely to escape.
+ * The desk chrome a panel hangs inside: a window dragged by `transform` (so it is the containing
+ * block), a body that clips below the title bar, and a static scroller the panel escapes.
  */
 export function deskChrome() {
   const chrome = new El("div");

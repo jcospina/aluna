@@ -2,15 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import { code, readSource, shippedStylesheets } from "../../safety/source.test-support.ts";
 
-// The button set, as a closed set.
-//
-// Seven variants, one of them unfilled, three heights and a full-width modifier. The
-// design layer owns every number and every fill (`design/styles/components/form-controls.css`)
-// and the product's own sheet restates the colours on top of it, because it loads after
-// the manifest. What is pinned here is that the two agree on the same seven names, that
-// no eighth face exists in either direction — a dropped name still spelled, or a bare
-// `.btn` relying on the absence of a class — and that the sizes resolve from the one
-// control-height token a field and a button share.
+// The button set, as a closed set: seven variants, three heights and a full-width modifier. The
+// product's sheet restates the colours on top, so what is pinned is that no eighth face exists.
 
 const VARIANTS = ["primary", "secondary", "info", "feature", "warm", "danger", "outline"] as const;
 
@@ -18,10 +11,8 @@ const VARIANTS = ["primary", "secondary", "info", "feature", "warm", "danger", "
 const SIZES = ["sm", "lg", "block"];
 
 /**
- * Every `.btn--x` a stylesheet names anywhere in a selector, sizes aside.
- *
- * Unanchored on purpose. Reading only the rules that open a line let `.card .btn--muted`
- * declare an eighth face the closure check below could not see.
+ * Every `.btn--x` a stylesheet names anywhere in a selector, sizes aside. Unanchored on purpose:
+ * reading only the rules that open a line let `.card .btn--muted` declare an unseen eighth face.
  */
 function variantsIn(css: string): string[] {
   return [...new Set([...css.matchAll(/\.btn--([a-z]+)/g)].map((found) => found[1] ?? ""))].filter(
@@ -40,9 +31,8 @@ describe("the button set", () => {
   });
 
   test("is a closed set across every stylesheet that ships, not just those two", () => {
-    // A variant may be *used* by any sheet; what none of them may do is introduce an
-    // eighth. Asked of every shipped sheet, because a rule in a layout file is as much a
-    // button face as one in the manifest.
+    // A variant may be used by any sheet; what none may do is introduce an eighth. Asked of every
+    // shipped sheet, because a rule in a layout file is as much a button face as one anywhere.
     for (const [path, css] of shippedStylesheets()) {
       for (const variant of variantsIn(css)) {
         expect(VARIANTS as readonly string[], `${path} names .btn--${variant}`).toContain(variant);
@@ -81,9 +71,8 @@ describe("the button set", () => {
     expect(MANIFEST).toMatch(/\.btn--sm\s*\{[^}]*min-height:\s*var\(--control-h-sm\)/);
     expect(MANIFEST).toMatch(/\.btn--lg\s*\{[^}]*min-height:\s*var\(--control-h-lg\)/);
     expect(MANIFEST).toMatch(/\.btn--block\s*\{[^}]*width:\s*100%/);
-    // The product states none of the four. It loads after the manifest, so restating one
-    // would not duplicate it — it would silently defeat the modifier. Asked of the rules
-    // rather than the file, because the comment there explains exactly this.
+    // The product states none of the four: it loads after the manifest, so restating one would
+    // silently defeat the modifier rather than duplicate it.
     const shellRules = code(SHELL);
     for (const size of SIZES) {
       expect(shellRules, `public/css/components.css restates .btn--${size}`).not.toContain(
@@ -107,8 +96,7 @@ describe("every button the product renders", () => {
       ...under("design", "*.html"),
     ].filter((path) => !path.endsWith(".test.ts") && !path.includes(".test-support."));
     // `\bbtn\b` anywhere in the list rather than `btn` at the front: `class="field-list__action
-    // btn"` is the same button, and matching only the leading token meant the row actions
-    // this epic adds could drop every modifier with nothing failing.
+    // btn"` is the same button, and matching the leading token let row actions drop modifiers.
     return sources.flatMap((path) =>
       [...readSource(path).matchAll(/class="([^"]*\bbtn\b[^"]*)"/g)].map((found) => found[1] ?? ""),
     );

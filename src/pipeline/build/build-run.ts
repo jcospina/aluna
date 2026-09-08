@@ -64,10 +64,8 @@ import {
 } from "./admission/overlap-identity.ts";
 
 /**
- * An aborted stream mid-build, thrown before activation. Distinct from a build
- * failure: the caller finalizes the admitted lifecycle as cancelled without an
- * apology because the client is already gone. If publication already landed, the
- * complete candidate remains for guarded reconciliation.
+ * An aborted stream mid-build, thrown before activation. The caller finalizes the lifecycle as
+ * cancelled with no apology (the client is gone); a published candidate awaits reconciliation.
  */
 export class AbortedBuildError extends Error {
   override readonly name = "AbortedBuildError";
@@ -79,24 +77,15 @@ export function throwIfAborted(isAborted: () => boolean): void {
 }
 
 /**
- * Developer-preview provider decorator: as the spec streams in, it forwards each
- * partial snapshot to the shell as a `spec-preview` event so the developer watches the
- * spec assemble live. This deliberately surfaces internals — that is the whole point of
- * a liveness view. `generateSpec` only awaits `object` (self-driven by the spine), so
- * consuming `partialStream` here for previews doesn't starve the stage. The returned
- * `flushPreviews` lets the route drain every preview before the warm confirmation,
- * keeping the wire order narration → preview* → confirmation.
- *
- * It is a function rather than a promise because a stage can throw *before* it ever calls
- * the provider (a rejected candidate, a failed prompt build). A promise settled only by
- * the streaming loop would never resolve on that path, and a caller draining it in a
- * `finally` would hang forever — holding the exclusive build lease and the SSE connection
- * with it. With nothing started there is nothing to drain, so this resolves immediately.
+ * Decorates the provider so each partial spec snapshot reaches the shell as a `spec-preview`.
+ * `flushPreviews` drains them before the warm confirmation: narration → preview* → confirmation.
  */
 export function previewingProvider(
   real: Provider,
   send: Send,
 ): { provider: Provider; flushPreviews: () => Promise<void> } {
+  // `flushPreviews` is a function, not the promise itself: a stage can throw before the provider
+  // is ever called, and awaiting a promise nothing settles hangs on the build lease and the SSE.
   let streaming = false;
   let settle!: () => void;
   const settled = new Promise<void>((resolve) => {
@@ -108,6 +97,7 @@ export function previewingProvider(
       // A throw here means no stream was ever opened — leave `streaming` false.
       const result = real.generate(prompt, schema);
       streaming = true;
+      // `generateSpec` awaits only `object`, so draining `partialStream` here cannot starve it.
       void (async () => {
         try {
           for await (const partial of result.partialStream) {
@@ -168,16 +158,8 @@ async function authorInitialSpec(input: {
 }
 
 /**
- * Run the builder stages, streaming the developer previews and filling `acc` with the
- * metrics measurements. Returns the commit result on success, or `undefined` when the
- * stream was aborted mid-build (the transaction having rolled back). Throws on a build
- * failure; the caller records the failure metrics row and surfaces the warm apology.
- *
- * Unit generation and the fail-closed Gate finish before publication. Only after the
- * complete snapshot is atomically published does one short SQLite transaction apply
- * DDL, CAS the registry, and finalize success metrics. Its COMMIT is the sole point of
- * no return; any earlier throw leaves the prior registry state live plus, at most, a
- * complete never-activated candidate for reconciliation.
+ * Runs the builder stages, filling `acc` with metrics. `undefined` means the stream aborted
+ * mid-build with the transaction rolled back; a throw is a build failure the caller apologizes for.
  */
 export async function runSpecBuildStages(
   send: Send,
@@ -194,9 +176,7 @@ export async function runSpecBuildStages(
   onActivated: () => void,
   targetExpectation: CapabilityRegistryExpectation = { state: "absent" },
 ): Promise<CommitCapabilityResult | undefined> {
-  // `generateSpec` narrates the intent's `user_facing_label` over `send` and returns
-  // the validated spec plus the build's measurements. Spec generation runs before the
-  // transaction opens — a spec failure has nothing to roll back.
+  // Spec generation runs before the transaction opens, so a spec failure has nothing to roll back.
   const { spec, durationMs, usage } = await authorInitialSpec({
     send,
     provider,
@@ -210,19 +190,14 @@ export async function runSpecBuildStages(
   // Admission assigns the incarnation before Builder provider work. Once the
   // validated authored spec supplies the semantic id, enrich the same durable row.
   onCapabilityIdentified(spec.id);
-  // And the moment the id exists is the moment a tombstone reserving it can be seen. The
-  // lease-head check can only test an id the *resolver* named, which it does not for an
-  // ordinary "build me a notes app" — so this used to be discovered by the activation CAS,
-  // after the units, the Gate and the artifacts had all been generated and paid for.
+  // The lease-head check tests only an id the resolver named, which "build me a notes app" is not,
+  // so a tombstone used to surface at the activation CAS with the whole build already paid for.
   if (isCapabilityIdReservedByDeletion(spec.id, buildDatabases.readonly)) {
     throw new CapabilityIdReservedError(spec.id);
   }
   if (isAborted()) return;
-  // And the same moment supplies the name. The tile admission stood on the desk has been
-  // blank until now — there was no name to write on it — so this is the first point at
-  // which the ground can say which capability is being made. Sent as `fragment` so it
-  // rides the same guarded listener the tile itself arrived on, and it addresses the
-  // label span alone: the tile beside it is mid-crawl and must not be replaced.
+  // The first point at which a name exists for the blank tile on the desk. Sent as `fragment` to
+  // ride the tile's own guarded listener, and it addresses the label span: the tile is mid-crawl.
   await send("fragment", renderProvisionalLogoName(buildId, spec.label));
 
   // Preview the deterministic migration plan against scratch SQLite. The real data
@@ -240,9 +215,8 @@ export async function runSpecBuildStages(
   }
   throwIfAborted(isAborted);
 
-  // Behavioral intent is frozen here, before the first Handler byte exists (PLAN decision
-  // 23, ADR-0006). Tests authored after code could only describe it; authored before, they
-  // are the contract the Gate holds the code to.
+  // Behavioral intent freezes before the first Handler byte (PLAN decision 23, ADR-0006): tests
+  // authored after code only describe it, authored before they are the contract the Gate enforces.
   const frozenTests = resolveBehavioralTierEnabled()
     ? await freezeBehavioralTests({ provider, spec })
     : undefined;
@@ -301,8 +275,8 @@ export async function runSpecBuildStages(
 
   logBuildVerification(spec, durationMs, usage, commitUnits, gateResult);
 
-  // Publish first. Activation then keeps only DDL + registry CAS + lifecycle success
-  // inside SQLite's short transaction.
+  // Publish first, then one short transaction: DDL, registry CAS, lifecycle success. Its COMMIT is
+  // the sole point of no return; until it the old registry stays live and the candidate inert.
   acc.publicationAttempted = true;
   const publication = publishCapabilitySnapshot({
     buildId,
@@ -330,31 +304,28 @@ export async function runSpecBuildStages(
 }
 
 /**
- * A first build authors every unit, so no suite is copied and none can be skipped. Stating
- * that plainly — rather than leaving impact unstated — keeps "the complete suite ran" a
- * reported consequence of the work, not the Gate's fallback for a caller that said nothing.
+ * A first build authors every unit, so stating the whole inventory makes "the complete suite ran"
+ * a consequence of the work rather than the Gate's fallback for a caller that said nothing.
  */
 function firstBuildImpact(spec: CapabilitySpec): BehavioralExecutionImpact {
   return { regeneratedHandlers: [...spec.tools], regeneratedItemRenderer: true };
 }
 
 /**
- * Hand a run's frozen behavioral tests to the Gate. The tier is decided — and the suite
- * authored — before Handler generation, so by here the answer is simply
- * whether a frozen suite exists. Shared with the evolution assembler so both pipelines
- * report the same generated/carried split into the same metrics columns.
- *
- * `impact` states which Handlers this build authors, which is what lets the Gate skip a
- * copied suite nothing touched. A v1 build states the whole inventory; an
- * evolution states its Diff work plan. Omitted, the Gate runs the complete frozen suite.
+ * Hands a run's frozen behavioral tests to the Gate. Shared with the evolution assembler, so a v1
+ * build and an evolution report the same generated/carried split into the same metrics columns.
  */
 export function behavioralTierInput(
   frozen: FrozenBehavioralTestsResult | undefined,
   impact?: BehavioralExecutionImpact,
 ): BehavioralTierInput {
+  // The tier is decided and the suite authored before Handler generation, so by here a frozen
+  // suite's existence is the whole answer.
   if (!frozen) return { enabled: false };
   return {
     enabled: true,
+    // `impact` names the Handlers this build authors — the whole inventory for a v1 build, the
+    // Diff work plan for an evolution — so the Gate can skip a copied suite nothing touched.
     ...(impact ? { impact } : {}),
     frozen: {
       frozenTests: frozen.frozenTests,
@@ -405,10 +376,8 @@ function logBuildVerification(
 }
 
 /**
- * Run unit generation with the live preview observer. The observer streams a
- * `units-preview` snapshot as each unit starts, streams partials, fixes, and lands —
- * the developer watches the item renderer and handlers assemble. The evolution
- * assembler drives the same stream for the units it regenerates.
+ * Runs unit generation with the live preview observer: a `units-preview` snapshot as each unit
+ * starts, streams, is fixed and lands. The evolution assembler drives the same stream.
  */
 function generateUnitsWithPreview(
   send: Send,
@@ -421,12 +390,8 @@ function generateUnitsWithPreview(
 }
 
 /**
- * Fold Gate repairs back into the units the pipeline commits. Smoke may replace exactly
- * one failing Handler per bounded turn, design lint may replace item.ts, and the
- * behavioral rung may replace the Handler(s) a failing frozen assertion is attributed to
- * — all of which land in `gate.handlers`, the bytes that actually cleared every
- * rung. Shared with the evolution assembler so a v1 build and an evolution reconcile Gate
- * repairs identically.
+ * Folds Gate repairs into the committed units. Smoke, design lint and the behavioral rung each
+ * replace units into `gate.handlers`, which holds the bytes that actually cleared every rung.
  */
 export function applyGateFixes(
   units: readonly GeneratedUnit[],
@@ -489,11 +454,8 @@ function gateRepairAttempts(
 }
 
 /**
- * The behavioral rung's own repairs of one Handler, shaped like the smoke/design
- * attempts this function already folds. Each turn contributes at most one entry per
- * Handler, carrying that Handler's own cost rather than the whole conservative round's, and
- * the failing frozen assertion as the attempt's error so the unit's history reads as
- * "rewritten because this test said so".
+ * The behavioral rung's repairs of one Handler, shaped like the smoke and design attempts. An
+ * entry carries that Handler's own cost, not the round's, and the assertion that forced it.
  */
 function behavioralRepairAttempts(
   name: HandlerUnitName,
@@ -527,9 +489,8 @@ function sumOptional(values: readonly (number | undefined)[]): number | undefine
 }
 
 /**
- * Whether folding the Gate's repairs changed the bytes (or attempt record) a developer is
- * looking at. Both pipelines re-send their units view when it does, so the panel never
- * shows a "complete" unit whose source is not the one the candidate actually carries.
+ * Whether folding the Gate's repairs changed the bytes or attempt record on screen. Both
+ * pipelines re-send the units view then, so no "complete" unit shows source the candidate lacks.
  */
 export function unitsChanged(
   before: readonly GeneratedUnit[],

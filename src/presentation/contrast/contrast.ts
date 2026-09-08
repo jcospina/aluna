@@ -1,17 +1,15 @@
 /**
  * WCAG contrast, and the colours to measure it between.
  *
- * The audit this serves is affordable because High Meadow is closed: the palette
- * is a fixed list and every place the product puts one colour on another is
- * declared in a stylesheet we own. So the measurement never has to render a page
- * — it resolves the tokens the stylesheets name and does the arithmetic.
+ * The audit this serves is affordable because High Meadow is closed: the palette is a fixed list
+ * and every place the product puts one colour on another is declared in a stylesheet we own, so
+ * the measurement resolves the tokens the stylesheets name and does the arithmetic rather than
+ * rendering a page.
  *
- * Three shapes of colour reach a surface. A token, straight from
- * `design/styles/tokens.css`; a token at partial opacity over another, which is
- * how a menu bar dims a link and how a drawn shadow haloes a label on the
- * wallpaper; and a `color-mix()` of two tokens, which is how a hover fill and the
- * developer well's faint punctuation are derived rather than declared. All three
- * resolve to one hex before anything is compared.
+ * Three shapes of colour reach a surface: a token straight from `design/styles/tokens.css`; a
+ * token at partial opacity over another, which is how a menu bar dims a link and how a drawn
+ * shadow haloes a label; and a `color-mix()` of two tokens, which is how a hover fill is derived
+ * rather than declared. All three resolve to one hex before anything is compared.
  */
 
 import { readFileSync } from "node:fs";
@@ -90,9 +88,8 @@ function fromOklab([lightness, a, b]: readonly [number, number, number]): Rgb {
 }
 
 /**
- * `in oklch`: lightness and chroma interpolate straight, hue takes the shorter arc —
- * which is what CSS does, and it is not the same result as `in oklab`. Both spaces
- * are in use, so both are resolved rather than one standing in for the other.
+ * `in oklch` as CSS does it: lightness and chroma interpolate straight, hue takes the shorter
+ * arc. The result differs from `in oklab`, and both spaces are in use, so both are resolved.
  */
 function mixRectangular(
   a: readonly [number, number, number],
@@ -123,8 +120,7 @@ function mixPolar(
 
 /**
  * Every token the layer declares, resolved to a hex. A token may name another —
- * `--focus-ring: var(--violet)` is the whole reason the ring is one colour — so
- * aliases are followed rather than skipped.
+ * `--focus-ring: var(--violet)` is why the ring is one colour — so aliases are followed.
  */
 export function paletteTokens(): ReadonlyMap<string, string> {
   const css = readFileSync(join(ROOT, "design/styles/tokens.css"), "utf8");
@@ -206,17 +202,8 @@ export interface Declaration {
 }
 
 /**
- * A stylesheet's own text, comments stripped.
- *
- * A page or a served template carries its stylesheet in `<style>` rather than being one.
- * Those blocks land after everything the manifest ships, so they are the last word on
- * anything they name, and a check over the shipped surface has to see them.
- *
- * So does markup that carries no `<style>` block at all and paints entirely through the
- * inline `style` attribute — which is what the few-shot gallery does, and how a live AA
- * failure sat in a file being taught to the model as an approved exemplar. Each attribute
- * is lifted into a synthetic rule keyed by the element it sits on, so a site key stays
- * stable when the file is reordered and two identical chips collapse to one row.
+ * A stylesheet's own text, comments stripped. A page's `<style>` blocks land after everything
+ * the manifest ships; markup with none paints through inline `style`, lifted to synthetic rules.
  */
 export function styleSource(sheet: string): string {
   const source = readFileSync(join(ROOT, sheet), "utf8");
@@ -230,11 +217,8 @@ function stripComments(source: string): string {
 }
 
 /**
- * Every inline `style` attribute in a source file, as a synthetic CSS rule.
- *
- * The selector names the element and its classes rather than a line number: the file this
- * exists for is a table of exemplars that is reordered and added to, and a site key that
- * moved with every edit would be an inventory nobody could keep.
+ * Every inline `style` attribute in a source file, as a synthetic CSS rule. The selector names
+ * the element and its classes, not a line number, so a site key survives reordering the file.
  */
 function inlineStyleRules(source: string): string[] {
   const rules = new Set<string>();
@@ -256,11 +240,8 @@ function inlineStyleRules(source: string): string[] {
 }
 
 /**
- * Every rule in a stylesheet, comments stripped.
- *
- * Flat by construction: an `@media` or `@supports` wrapper is stepped over, but CSS
- * nesting is refused outright rather than mis-parsed — a nested block would take its
- * parent's declarations out of the audit's sight, which is worse than a failure.
+ * Every rule in a stylesheet, comments stripped. An `@media` or `@supports` wrapper is stepped
+ * over; CSS nesting is refused rather than mis-parsed, which would hide a parent's declarations.
  */
 export function declarations(sheet: string, properties: readonly string[]): Declaration[] {
   return styleSource(sheet)
@@ -289,10 +270,8 @@ export function declarations(sheet: string, properties: readonly string[]): Decl
 }
 
 /**
- * A declaration that puts no colour on the surface and dims nothing: `outline: none`
- * suppressing a ring, `border-color: transparent` handing an edge to the ink system,
- * `color: inherit`, `opacity: 1`. `0.42` is not one of these — a fade is a pairing,
- * which is why the test is exact rather than a prefix.
+ * A declaration that adds no colour and dims nothing: `none`, `inherit`, `transparent`, `0`, `1`.
+ * A fade like `0.42` is a pairing, so the test matches the whole value rather than a prefix.
  */
 export function statesNoColour({ value }: Declaration): boolean {
   return /^(?:none|inherit|transparent|0|1)$/.test(value);
@@ -304,14 +283,8 @@ export function siteKey({ sheet, selector, property }: Declaration): string {
 }
 
 /**
- * Every hex a colour could legitimately resolve to.
- *
- * One for a token, an alpha composite or an `in oklab` mix — those are arithmetic
- * and a browser reproduces them exactly, byte for byte, which was checked against
- * Chrome. An `in oklch` mix does not: the spec interpolates hue linearly, and
- * Chrome — measured, not assumed — returns the chromatic side's hue unchanged when
- * the other side is as close to grey as `--surface` is. Rather than take a side on
- * which is right, both readings are produced and the audit measures the worse.
+ * Every hex a colour can resolve to: one for a token, an alpha composite or an `in oklab` mix.
+ * An `in oklch` mix gives two, because Chrome keeps the chromatic hue the spec interpolates.
  */
 export function resolveCandidates(
   colour: Colour,

@@ -13,17 +13,13 @@ export const NEVER_RENAMED = { version: 1, display_label_override: null } as con
 // on. Kept in sync with fragments.ts.
 export const LOGO_PLACEHOLDER = "          <!-- Capability logos render here. -->";
 
-// The prompt bar's one live slot, spelled exactly as the shipped shell spells it — a
-// page-assembly anchor is only as good as the fixture agreeing with `public/index.html`,
-// and the real shell is held to this same string every time `/` renders.
+// The prompt bar's one live slot, spelled exactly as the shipped shell spells it: a page-assembly
+// anchor is only as good as the fixture agreeing with `public/index.html`.
 export const NOTICE_SLOT =
   '<div id="prompt-notice" class="prompt__notice" aria-live="polite"></div>';
 
-// A minimal stand-in for the shell file: the one anchor the shell composition keys off —
-// the logo-layer placeholder comment, with its 10-space indent — wrapped in just enough
-// markup to be inspectable. Neither the window layer nor the record holds an anchor: the
-// window is created by the client and a record opens by a view swap inside it, so nothing
-// else is composed into the page.
+// A minimal stand-in for the shell file: the logo-layer placeholder comment with its 10-space
+// indent. Neither the window layer nor the record holds an anchor; nothing else is composed in.
 export const SHELL_FIXTURE = [
   '<div class="shell" x-data="shell">',
   '  <div class="desk__logos" id="capability-logos">',

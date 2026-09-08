@@ -41,8 +41,7 @@ describe("what happens around the control", () => {
 
   test("a form put in place by hand mounts too, with no landing announced", async () => {
     // What `record-view.js` does to open a record: it clones the view out of a template and
-    // replaces the collection with it, so htmx announces nothing. The edit form's picker
-    // used to stand there dead — it opened on a fresh record and on nothing after.
+    // replaces the collection, so htmx announces nothing and the edit form's picker stood dead.
     const picker = await scene(form("picker"));
     const template = parseHtml(form("picker", "second"), new El("div"));
     const outgoing = new El("div");
@@ -120,10 +119,8 @@ describe("what happens around the control", () => {
 
 describe("the box a fixed panel is painted inside", () => {
   test("it is the clipping ancestor, not the containing block and not the scroller", async () => {
-    // Three boxes, and conflating any two of them is a bug that shipped: the window is the
-    // containing block but does not clip (hang into it and the first rows land over the
-    // title bar); the body clips and starts below the title bar; the form's own scroller is
-    // static, which is the whole reason the panel is fixed rather than absolute.
+    // Three boxes, and conflating any two shipped a bug: the window is the containing block but
+    // does not clip, the body clips below the title bar, and the form's scroller is static.
     const { clipBounds } = await import("#shell/choice-picker.js");
     const picker = await scene(form("picker"));
     const { chrome, body, scroller } = deskChrome();
@@ -193,9 +190,8 @@ describe("where the panel hangs", () => {
   });
 
   test("scrolling the form the picker stands in keeps the panel on its control", async () => {
-    // The panel is positioned against the viewport so the form's scroller cannot clip it,
-    // which means it does not travel with the button on its own. The watch is a capturing
-    // listener because an inner scroller's `scroll` does not bubble.
+    // The panel is positioned against the viewport, so it does not travel with the button on its
+    // own. The watch captures, because an inner scroller's `scroll` does not bubble.
     const picker = await openPicker();
     const before = picker.panel?.getAttribute("style");
     expect(before).toContain("top:");
@@ -227,9 +223,8 @@ describe("where the panel hangs", () => {
   });
 
   test("the placeholder survives a chosen value, so an emptied control reads right", async () => {
-    // Read off the field, not off the rendered value: with a value chosen, the rendered
-    // value IS the label, and a control that recovered its placeholder from there would
-    // put that label back the next time it was emptied.
+    // Read off the field, not off the rendered value: with a value chosen the rendered value is
+    // the label, which would come back the next time the control was emptied.
     const picker = await scene(form("picker", "second"));
     expect(picker.field.getAttribute("data-choice-placeholder")).toBe("Choose Value…");
     picker.field.setAttribute("data-choice-initial", "");
@@ -244,14 +239,12 @@ describe("putting a finished form back", () => {
     picker.press(picker.button as El);
     picker.press(picker.options().find((o) => labelOf(o) === "fourth") as El);
     expect(picker.valueEl?.textContent).toBe("Fourth");
-    // Left standing open, the way a form finished from anywhere but the panel leaves it:
-    // put back has to mean closed too, or an active row and an `aria-expanded` outlive the
-    // thing they described.
+    // Left standing open, the way a form finished from anywhere but the panel leaves it: put back
+    // has to mean closed too, or an active row outlives the thing it described.
     picker.press(picker.button as El);
     expect(picker.panel?.hidden).toBe(false);
-    // A hidden input's value *is* its content attribute, so choosing rewrote the very
-    // default `form.reset()` would restore. That is why the server writes the truth once,
-    // on the field, where nothing later moves it.
+    // A hidden input's value is its content attribute, so choosing rewrote the default
+    // `form.reset()` restores. The server writes the truth once, on the field.
     expect(picker.carrier?.getAttribute("value")).toBe("fourth");
     expect(picker.field.getAttribute("data-choice-initial")).toBe("");
 

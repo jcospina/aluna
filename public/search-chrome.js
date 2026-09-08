@@ -14,9 +14,8 @@ import { registerRegionRelease, releaseRegionContent } from "./region-scope.js";
 export const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
 
 /**
- * Create the request/state core for one capability search field. The browser adapter
- * below supplies the DOM work; keeping timing and race handling here makes debounce,
- * canonical-read restoration, and route isolation executable without a browser DOM.
+ * Create the request/state core for one capability search field. The browser adapter below does
+ * the DOM work, so debounce, canonical-read restoration and route isolation run without a DOM.
  *
  * @param {{
  *   readUrl: string,
@@ -88,10 +87,8 @@ export function createDebouncedCapabilitySearch(options) {
   /** @param {string} html @param {string} query @param {import("./records-region-requests.js").RecordsRegionRequestClaim} claim @param {number} ownGeneration */
   function acceptResponse(html, query, claim, ownGeneration) {
     if (requestIsObsolete(claim, ownGeneration)) return;
-    // A search answers with both numbers — how many matched and how many there are — so
-    // the label never presents a filtered number as the whole truth, and a search that
-    // matched nothing says so beside a total that is not zero. Restoring the canonical
-    // read brings the plain count back.
+    // A search answers with both numbers, matched and total, so the label never presents a
+    // filtered number as the whole truth; the canonical read brings the plain count back.
     const { sentence, records } = splitCollectionCount(html);
     options.render(records);
     options.count?.(sentence);
@@ -205,6 +202,8 @@ function controllerFor(form) {
     claimRequest: recordsRegionRequestCoordinator(region).claim,
     render: (html) => {
       region.innerHTML = html;
+      // `process` cannot re-arm the View's `hx-trigger="load"`: htmx arms `load` only where
+      // `firstInitCompleted` is unset, the one key `deInitNode` keeps, and a test pins that.
       htmx?.process(region);
     },
     count: (sentence) => applyCollectionCount(region, sentence),
@@ -213,23 +212,14 @@ function controllerFor(form) {
       if (clear instanceof HTMLButtonElement) clear.hidden = rawQuery.length === 0;
     },
     cancelExternalRead: () => {
-      // The data-free View starts one read into this region when it lands. Once a person
-      // searches, that read is content the region no longer wants, so it leaves the way
-      // every other piece of a region's work leaves — through the region rule.
-      //
-      // Nothing hand-strips the View's `hx-trigger="load"` any more, and nothing has to:
-      // htmx arms a `load` trigger only where `firstInitCompleted` is unset, and that is
-      // the one key `deInitNode` keeps. So the trigger arms once per element lifetime,
-      // and the `htmx.process(region)` each rendered result runs cannot re-arm it into a
-      // second writer. A platform test pins that guard in the vendored build.
+      // The data-free View starts one read into this region when it lands; once a person
+      // searches, that read leaves the way every other piece of a region's work leaves.
       releaseRegionContent(region);
     },
   });
   controllers.set(form, controller);
-  // The controller is the region's, not the form's: its debounce timer and its in-flight
-  // request outlive the swap that takes the form away unless the region releases them.
-  // Dropping the WeakMap entry with it means a re-rendered form gets a fresh controller
-  // rather than a disposed one.
+  // The debounce timer and the in-flight request outlive the swap that takes the form away,
+  // and dropping the entry means a re-rendered form gets a fresh controller, not a disposed one.
   registerRegionRelease(form, "search controller", () => {
     controllers.delete(form);
     controller.dispose();

@@ -97,12 +97,8 @@ export interface FakeWorkerLog {
 }
 
 /**
- * Workers that answer from a fixed row set and count what was asked of them.
- *
- * `hold` makes a read stay outstanding until something closes the worker, which is the only
- * way a fake can stand in for the one thing the real worker is here to do: reject the read
- * a cancel arrived in the middle of. Without it a `close()` count is a count of calls, not
- * evidence that anything was killed.
+ * Workers that answer from a fixed row set and count what was asked. `hold` keeps a read
+ * outstanding until close, or a `close()` count is a count of calls rather than evidence of a kill.
  */
 export function fakeWorkers(
   rows: readonly QueryWorkerRow[] = [],

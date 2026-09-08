@@ -2,11 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-// The seam between the stylesheet and the ink runtime, checked where it is declared
-// rather than where it is drawn. Four things have to hold for a drawn surface: the
-// runtime ships with the page; `ink.css` stays last; nothing outranks `.is-ink` from a
-// heavier selector; and no rule asks a question — `:empty`, `:only-child` — that the
-// two SVG layers have already answered.
+// The seam between the stylesheet and the ink runtime, checked where it is declared: the
+// runtime ships, `ink.css` stays last, nothing outranks `.is-ink`, no rule re-asks `:empty`.
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -47,12 +44,8 @@ function inlineRules(path: string): Rule[] {
 }
 
 /**
- * The shell bridge, plus every inline stylesheet a page of ours carries.
- *
- * The inline half currently contributes nothing: `SHELL_PAGES` globs `public/*.html`, and
- * since the developer preview pages came down the one page left there carries no `<style>`
- * block. It stays because the list is a glob rather than a hand-written set — the next page
- * added under `public/` is measured the day it arrives, inline rules included.
+ * The shell bridge, plus every inline stylesheet a page of ours carries. The inline half is
+ * empty today; `SHELL_PAGES` globs `public/*.html`, so the next page added there is measured.
  */
 function shellRules(): Rule[] {
   const sheets = SHELL_SHEETS.map((path) => rules(path, read(path)));
@@ -113,10 +106,8 @@ const RULED_ON_PURPOSE = new Set([
   // this page's own furniture, deliberately named apart from the drawn `.swatch`
   "preview-item",
   "preview-swatch",
-  // the gallery preview's layout chip and its raw source/prompt readouts. Same shape as
-  // the two above: a developer surface's own furniture, declared in a page-local `<style>`
-  // that lands after the seam, so a drawn line there would sit beside a true edge rather
-  // than replace it. The record wrappers on that page are drawn, which is what it shows.
+  // the gallery preview's layout chip and raw readouts: a developer page's own furniture in a
+  // page-local `<style>` after the seam, so a drawn line there would sit beside a true edge.
   "gallery-example__layout",
   "gallery-code",
 ]);

@@ -37,9 +37,8 @@ const platforms = createScratchPlatforms();
 const { catalogued, migrated } = platforms;
 
 /**
- * A cache — the state decision 2 most wants excluded — is by definition keyed to a stable
- * path, so a per-test before/after can already contain the file the scope under test wrote
- * on an earlier test. This baseline is taken before any scope in this file has opened.
+ * A cache — the state decision 2 most wants excluded — is keyed to a stable path, so a per-test
+ * before/after can already hold a file an earlier test wrote. This baseline predates them all.
  */
 beforeAll(() => {
   artifactsAtStart = sweepPlatformArtifacts();
@@ -335,9 +334,8 @@ describe("what a whole-catalog read scope takes back", () => {
       process.off("unhandledRejection", collect);
     }
 
-    // Closing the worker rejects the abandoned read. Without a subscriber of the scope's
-    // own that lands as a process-level event, which is a caller's bug taking the server
-    // down with it.
+    // Closing the worker rejects the abandoned read. Without a subscriber of the scope's own that
+    // lands as a process-level event, which is a caller's bug taking the server down with it.
     expect(unhandled.filter((reason) => reason instanceof QueryWorkerClosedError)).toEqual([]);
   });
 
@@ -365,10 +363,8 @@ describe("what a whole-catalog read scope takes back", () => {
         ) ?? "never started"),
       );
 
-      // Ownership ends a microtask after the worker closes, and a read arriving in that gap
-      // used to pass the signal check and start a thread nobody would ever close — running
-      // SQL for a scope the gate had already counted as drained. Which hop falls on which
-      // side is an implementation detail; that no worker outlives the scope is not.
+      // A read arriving after the worker closes but before ownership ends used to start a thread
+      // nobody would close, running SQL for a scope the gate had already counted as drained.
       expect([hops, log.created]).toEqual([hops, log.closed]);
       expect(readerCounts(readGates)).toEqual([0, 0]);
     }
@@ -400,9 +396,8 @@ describe("what a whole-catalog read scope hands the worker, and what it leaves b
     expect(after.stores).toEqual(before.stores);
     expect(addedPaths(before, after)).toEqual([]);
 
-    // The sweep has to be able to see the thing it claims is absent. `read_dependencies` is
-    // a column on `capability_registry`, not a table of its own, so a persisted read
-    // dependency would land inside an existing row and move no row count at all.
+    // The sweep has to see the thing it claims is absent: `read_dependencies` is a column on
+    // `capability_registry`, so a persisted dependency lands in a row and moves no count.
     database.readwrite.run(`UPDATE capability_registry SET read_dependencies = ? WHERE id = ?`, [
       JSON.stringify({ list: [{ capability_id: "tasks", incarnation_id: TASKS.incarnationId }] }),
       "notes",

@@ -1,27 +1,19 @@
-// The pluggable AI provider contract (ARCH §4 "Model
-// strategy", ADR-0003).
+// The pluggable AI provider contract (ARCH §4, ADR-0003).
 //
-// This is the single seam the orchestrator depends on. It does NOT depend on any
-// specific SDK: the spine that realizes this contract is the Vercel AI SDK behind
-// a baseURL-keyed registry, but that lives behind `generate` and never
-// leaks through it. Swapping the spine — or the whole provider — is invisible to
-// every caller of this interface. The only third-party type that appears here is
-// the Zod schema, which is a schema/validation library, not a provider SDK: it is
-// what makes "structured object validated against the schema" both a compile-time
-// type (`z.infer`) and a runtime guarantee (`schema.parse`).
+// The single seam the orchestrator depends on, and it depends on no specific SDK: the spine that
+// realizes this contract is the Vercel AI SDK behind a baseURL-keyed registry, but that lives
+// behind `generate` and never leaks through it. Swapping the spine, or the whole provider, is
+// invisible to every caller. The only third-party type here is the Zod schema, which is what
+// makes *a structured object validated against the schema* both a compile-time type and a runtime
+// guarantee.
 //
-// The concrete provider call lands in issue 02 and must be implementable behind
-// this exact shape. This file ships the shape and nothing else — no network, no
-// SDK, no domain logic (Module 1's "zero domain logic" line, modules.md §1).
+// This file ships the shape and nothing else — no network, no SDK, no domain logic.
 
 import type { ZodType } from "zod";
 
 /**
- * A recursive partial: every field optional, all the way down, arrays included.
- * This mirrors the shape an object takes *mid-stream*, before the model has
- * emitted every field — exactly what `streamObject`'s partial stream yields
- * Defined locally rather than imported so no SDK type leaks into the
- * contract.
+ * A recursive partial: every field optional, all the way down, arrays included — the shape an
+ * object takes mid-stream. Defined locally so no SDK type leaks into the contract.
  */
 export type DeepPartial<T> =
   T extends Array<infer U>
@@ -31,13 +23,8 @@ export type DeepPartial<T> =
       : T;
 
 /**
- * Token counts for a single `generate` call — the measurement the build's metrics
- * row records (ARCH §6.2 "Every generation writes a metrics record … tokens"). A
- * contract-local shape, defined here rather than imported, so no SDK usage type
- * leaks past this seam (same discipline as `DeepPartial`). Counts are
- * `number | undefined` because not every provider reports every figure: the
- * contract is honest about absence rather than fabricating a zero, and the metrics
- * writer decides how to store a missing count.
+ * Token counts for a single `generate` call, the measurement the metrics row records (ARCH §6.2).
+ * A count is `number | undefined`: not every provider reports every figure, and absence is honest.
  */
 export interface TokenUsage {
   readonly inputTokens: number | undefined;
@@ -46,34 +33,24 @@ export interface TokenUsage {
 }
 
 /**
- * The result of a single `generate` call. Streaming is first-class: `partialStream`
- * exposes the object as it is built (for build narration → Hono SSE, ADR-0002/0003),
- * and `object` resolves to the final value once it is complete *and* validated
- * against the schema. Returned synchronously — the stream is available immediately
- * and the network round-trip happens lazily behind these handles (the `streamObject`
- * shape, ADR-0003).
+ * The result of a single `generate` call, returned synchronously: the stream is available at once
+ * and the network round-trip happens lazily behind these handles (ADR-0002/0003).
  */
 export interface GenerateResult<T> {
-  // Successive deep-partial snapshots of the object as it streams in. Iterating to
-  // completion is optional; a caller that only wants the final value can await
-  // `object` directly.
+  // Successive deep-partial snapshots as the object streams in. Iterating to completion is
+  // optional; a caller that only wants the final value can await `object` directly.
   readonly partialStream: AsyncIterable<DeepPartial<T>>;
-  // The final object, parsed and validated against the schema passed to `generate`.
-  // Rejects if the model's output never conforms — non-conformance surfaces here
-  // rather than silently returning a malformed object (issue 02 leans on this).
+  // The final object, validated against the schema passed to `generate`. Rejects when the model's
+  // output never conforms, rather than silently returning a malformed object.
   readonly object: Promise<T>;
-  // Token usage for the call, resolved once the response is finished (same lifetime
-  // as `object`). A required handle: measurement is part of the contract, not an
-  // optional extra — every build stage that calls `generate` can record what the
-  // generation cost (the spec-gen stage is the first, Module 2 §2.5).
+  // Token usage, resolved once the response is finished (same lifetime as `object`). Required,
+  // not optional: measurement is part of the contract, so every stage can record what it cost.
   readonly usage: Promise<TokenUsage>;
 }
 
 /**
- * The contract. One method: stream a structured object that conforms to `schema`
- * in response to `prompt`. There is deliberately **no model parameter** — the
- * model is configured globally in exactly one place (see ./config.ts, ARCH §4);
- * callers never select a model per call.
+ * One method: stream a structured object conforming to `schema`. There is no model parameter — the
+ * model is configured globally in exactly one place (./config.ts, ARCH §4).
  */
 export interface Provider {
   generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T>;

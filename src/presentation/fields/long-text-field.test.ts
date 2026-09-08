@@ -2,16 +2,13 @@
 // actually emits: a box that grows to what was typed and then scrolls, and a counter that
 // says what is left of a declared limit.
 //
-// Both are the client half of one declaration. The limit lives on the field, and the
-// server already spent it three times before this script runs — on `maxlength`, on the
-// sentence painted under the control, and on the validation that refuses an over-long
-// value however it arrived. So the tests that matter are the ones about *agreement*: the
-// opening paint has to be the sentence already on screen, and the wording has to be the
-// same wording, which is why both implementations are put side by side over a table.
+// Both are the client half of one declaration. The server already spent the limit three times
+// before this script runs — on `maxlength`, on the sentence under the control, and on the
+// validation — so the tests that matter are about agreement: the opening paint has to be the
+// sentence already on screen, in the same wording.
 //
-// The scene is parsed from `renderCreateForm`/`renderEditForm` output rather than typed
-// out here, for the reason the DOM double's own header gives: a hand-assembled fixture
-// proves the module against a second author's idea of the markup.
+// The scene is parsed from `renderCreateForm`/`renderEditForm` output rather than typed out here:
+// a hand-assembled fixture proves the module against a second author's idea of the markup.
 
 import { describe, expect, test } from "bun:test";
 import { installDomGlobals } from "../controls/choice-picker.fixture.test-support.ts";
@@ -26,9 +23,8 @@ installDomGlobals();
 const LIMIT = 20;
 
 /**
- * One rendered long-text field: declared `long_text`, carrying a limit and a line of
- * guidance. `name` distinguishes two forms in one document — every id the counter is
- * found by is derived from it, so two forms sharing a name share a counter.
+ * One rendered long-text field: declared `long_text`, carrying a limit and a line of guidance.
+ * Every id the counter is found by derives from `name`, so two forms sharing one share a counter.
  */
 function longTextForm(stored?: string, name = "value"): string {
   const capability = oneField(
@@ -79,7 +75,7 @@ const tick = () => new Promise((done) => setTimeout(done, 0));
 
 /**
  * A form reset in the browser's order: the event goes out first and the values go back
- * after it, which is the whole reason the repaint waits a turn.
+ * after it, which is why the repaint waits a turn.
  */
 async function resetForm(one: Scene): Promise<void> {
   one.doc.fire("reset", one.form);
@@ -143,10 +139,8 @@ describe("the box grows to fit what is typed, and then scrolls", () => {
   });
 
   test("a field with no layout yet is left alone, not measured at zero and pinned there", async () => {
-    // The create form is mounted inside a panel that is `display: none` until "New" is
-    // pressed, so every measurement it answers is 0. Writing that answer set the height to
-    // zero and left it there once the panel opened: a control that looked like an empty
-    // single-line input and could not be clicked into. Found in use, on a real capability.
+    // The create form is mounted inside a panel that is `display: none` until "New" is pressed,
+    // so every measurement answers 0. Writing that left a control nobody could click into.
     const one = await scene(longTextForm());
     one.area.scrollHeight = 0;
     one.type("three paragraphs the panel has not shown yet");
@@ -200,9 +194,8 @@ describe("the box grows to fit what is typed, and then scrolls", () => {
   });
 
   test("and it comes back down when the text goes", async () => {
-    // The half that needs the measurement taken at `height: auto`. A box measured while
-    // it still holds yesterday's height reports that height, and a field emptied of three
-    // paragraphs would stay three paragraphs tall for the rest of the session.
+    // The half that needs the measurement taken at `height: auto`. A box measured while it still
+    // holds yesterday's height reports it, so an emptied field would stay three paragraphs tall.
     const one = await scene(longTextForm());
     one.area.scrollHeight = 400;
     one.type("a long paragraph");
@@ -232,9 +225,8 @@ describe("the counter says what is left", () => {
   });
 
   test("a value opening with a newline reaches the control whole, and counts whole", async () => {
-    // HTML drops one U+000A right after `<textarea>`, so the renderer writes one of its
-    // own. Without it the control would hold a character less than the sentence beside it
-    // was written for — and saving an unrelated field would resubmit the shortened text.
+    // HTML drops one U+000A right after `<textarea>`, so the renderer writes one of its own.
+    // Without it, saving an unrelated field would resubmit the shortened text.
     const stored = "\n\nHello";
     const one = await scene(longTextForm(stored));
     expect(one.area.value).toBe(stored);
@@ -349,9 +341,8 @@ describe("how a control gets its script", () => {
   });
 
   test("a control naming a counter that is not there refuses, and stays unmounted", async () => {
-    // A control that looks right and describes nothing is worse than one that says so:
-    // the refusal is loud, and the flag goes on *after* the mount, so the control is
-    // offered a script again rather than being marked done on its way out.
+    // A control that looks right and describes nothing is worse than one that says so, and the
+    // flag goes on after the mount, so the control is offered a script again rather than marked.
     const one = await scene(longTextForm());
     const broken = parseHtml(longTextForm(undefined, "broken"), new El("div"));
     broken.querySelector(".field__guidance--count")?.remove();
@@ -361,10 +352,8 @@ describe("how a control gets its script", () => {
   });
 
   test("a refusal at load still leaves every later form a script", async () => {
-    // The opening scan is where a bad control is most likely to be, and its throw goes all
-    // the way out. If the watch were installed after that scan rather than before it, the
-    // page would lose its observer at load and every form htmx landed afterwards would
-    // stand there dead for the rest of the session.
+    // The opening scan is where a bad control is most likely to be, and its throw goes all the
+    // way out. Installed after that scan, the watch would be lost and every later form dead.
     const { startLongTextFields } = await import("#shell/long-text-field.js");
     const doc = new Doc();
     const root = new El("html");

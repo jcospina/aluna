@@ -182,12 +182,8 @@ describe("activatePublishedSnapshot — point of no return", () => {
       finalizeMetrics: () => finalizeSuccess(conns, buildId, INCARNATION_ID),
     });
 
-    // The evolution kept the capability's label, and the slot still comes back — it
-    // carries the version a rename is bound to, and a desk left holding the old one
-    // refuses every rename of this capability until the page is reloaded (5.9/01).
-    // `src/server/http/fragments.test.ts` pins the same property on the renderer in isolation;
-    // proving it here keeps it true downstream of a *real* activation, where
-    // `previousLabel` comes off the pointer swap rather than a test argument.
+    // The slot carries the version a rename binds to; a desk holding the old one refuses every
+    // rename until reload (5.9/01). Here it comes off a real pointer swap, not an argument.
     expect(commit.previousLabel).toBe("Notes");
     expect(commit.row.label).toBe("Notes");
     const swap = renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel);

@@ -1,24 +1,12 @@
-// Spec generation (ARCH §6.2 "Capability Builder" step 1,
-// §9.1, PLAN decision 8 & flow step 3).
+// Spec generation (ARCH §6.2 step 1, §9.1; PLAN decision 8 and flow step 3).
 //
-// The first real stage of the build job's pipeline: prompt + resolved intent → the
-// capability **spec** (`schema + ui_intent + behavior` plus identity and resolver
-// context), authored by the model through the provider contract and validated
-// against the registry's Zod spec shape. The spec is the diffable source of truth
-// everything downstream derives from (ARCH §9.1: "Spec is the source of truth;
-// handlers, HTML, and tests always follow"), so this stage is the single gate it
-// must clear before anything else sees it.
+// The first real stage of the pipeline: prompt plus resolved intent becomes the capability spec
+// — `schema + ui_intent + behavior`, plus identity and resolver context — authored by the model
+// and validated against the registry's Zod shape. Everything downstream derives from that spec.
 //
-// Validation is the gate into the pipeline. A non-conforming model output is never
-// a silently accepted malformed spec flowing downstream — it surfaces as a thrown
-// error here, which the build job maps onto its failure path (the warm apology,
-// nothing committed). The provider contract already rejects non-conforming objects
-// on `.object`; re-parsing here makes the gate this stage's own, not merely the
-// spine's, so even a lax provider cannot smuggle a bad spec past it.
-//
-// The field/action pantry and M3 presentation intent contract are enforced twice
-// over: the prompt steers the model inside them (the fixed five Actions, the field
-// types, reshaped `ui_intent`, platform-owned columns excluded) and
+// The provider contract already rejects non-conforming objects on `.object`; re-parsing here
+// makes the gate this stage's own, so even a lax provider cannot smuggle a bad spec past it.
+// The pantry is enforced twice over: the prompt steers the model inside it, and
 // `capabilitySpecSchema` is the hard wall that rejects anything outside it.
 
 import type { IntentClassification } from "../../pipeline/intent/index.ts";
@@ -53,19 +41,16 @@ export interface GenerateSpecInput {
   readonly provider: Provider;
   // The prompt bar text — what the user wants Aluna to keep track of.
   readonly prompt: string;
-  // The resolved intent. In M2 the builder only acts on `new_capability`; the
-  // stage reads `proposed_action` and `user_facing_label` for context and
-  // narration. Carried as the existing classification type so wiring the resolver
-  // in front is a pass-through, no shape change here.
+  // The resolved intent, read for `proposed_action` and `user_facing_label`. Carried as the
+  // existing classification type, so wiring the resolver in front is a pass-through.
   readonly intent: IntentClassification;
   // The job's stream. Narration rides it in product voice while the spec generates.
   readonly send: SendBuildEvent;
 }
 
 /**
- * What the stage hands the rest of the pipeline: the validated spec plus the two
- * measurements the build's metrics row records. The metrics *writer* is
- * epic 2.7; this stage's job is to produce the numbers, not persist them.
+ * The validated spec plus the two measurements the build's metrics row records. This stage
+ * produces the numbers; epic 2.7 owns the writer that persists them.
  */
 export interface SpecGenResult {
   readonly spec: CapabilitySpec;
@@ -74,11 +59,8 @@ export interface SpecGenResult {
 }
 
 /**
- * The instructions the model authors the spec from. Engineering language is fine
- * here — this prompt is model-facing, never user-visible (CONTEXT.md / ARCH §9.7's
- * hard rule governs only what the *user* sees; that is the narration, not this).
- * The pantry lists are read off the registry's own enums so the prompt can never
- * drift from the schema that ultimately gates the output.
+ * The instructions the model authors the spec from. Model-facing, never user-visible, so
+ * engineering language is fine; the pantry lists come off the registry's own enums.
  */
 export function buildSpecPrompt(input: GenerateSpecInput): string {
   const fieldTypes = fieldTypeSchema.options.join(" | ");
@@ -166,10 +148,8 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
 }
 
 /**
- * Run the stage. Narrate in product voice (driven by the intent's
- * `user_facing_label` — never internals: no "spec", no "schema" reaches the user),
- * generate the spec through the contract, validate it as the gate into the
- * pipeline, and capture how long it took and what it cost.
+ * Run the stage: narrate in product voice from the intent's `user_facing_label` — no "spec" or
+ * "schema" reaches the user — then generate, validate, and measure.
  */
 export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenResult> {
   // The one user-visible line for this stage. The label is the intent's warm
@@ -179,9 +159,8 @@ export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenRes
   const startedAt = performance.now();
 
   const result = input.provider.generate(buildSpecPrompt(input), promptCapabilitySpecSchema);
-  // The gate. `await result.object` already rejects on non-conformance (the
-  // contract's guarantee); re-parsing makes the refusal this stage's own so a
-  // malformed spec can never continue downstream regardless of the provider.
+  // The gate. `await result.object` already rejects non-conformance; re-parsing makes the
+  // refusal this stage's own, whatever the provider does.
   const spec = capabilitySpecSchema.parse(await result.object);
   const usage = await result.usage;
 

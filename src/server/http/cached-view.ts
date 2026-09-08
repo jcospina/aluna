@@ -36,26 +36,21 @@ import {
 } from "./fragments.ts";
 import { escapeHtml } from "./html.ts";
 
-// Matched by id rather than as an exact tag copy: an attribute added to that element in
-// index.html used to make this silently return the shell unchanged, killing the developer
-// panel's version history with no error anywhere.
+// Matched by id rather than as an exact tag copy: an added attribute in index.html used to make
+// this return the shell unchanged, killing the panel's version history with no error anywhere.
 const METRICS_SEED_TARGET = /<div\b[^>]*\bid="dev-stage-seed"[^>]*><\/div>/;
 
 /**
- * The collection layout the container arranges a capability's records in. The
- * registry spec already validated this as the closed `feed | grid` enum, so the
- * platform container can read it directly and still fail closed at spec-generation
- * time if the model invents another value.
+ * The collection layout the container arranges a capability's records in. The registry spec
+ * validated it as the closed `feed | grid` enum, so the container can read it directly.
  */
 function collectionLayoutForRow(row: CapabilityRow): CollectionLayout {
   return row.ui_intent.collection.layout;
 }
 
 /**
- * Render a committed capability's platform list scaffolding live from its spec: the
- * "New X" create disclosure, the records region wired to load through `read`, and the
- * empty state — deterministic, no AI, and data-free. The label is
- * canonicalized so a legacy sentence label never leaks into the chrome.
+ * Render a capability's list scaffolding from its spec: the "New X" disclosure, the records region
+ * wired through `read`, and the empty state. Deterministic, data-free, label canonicalized.
  */
 function renderCapabilityCollection(row: CapabilityRow): string {
   const capability: RenderableCapability = {
@@ -79,25 +74,16 @@ export function renderCachedCapabilitySurface(row: CapabilityRow): string {
 }
 
 /**
- * Seed the developer panel's lifecycle stage into a full-shell page: the latest
- * generation lifecycles plus the committed-version list per capability. Both
- * full-page paths (`GET /` and direct `GET /capability/:id`) share this, so the
- * version history the developer panel shows survives a refresh on either URL.
- *
- * Written as a payload on the page rather than into the panel, because the panel is a
- * window the client creates and may not be standing at all. It is pretty-printed where
- * it is shown rather than here: the panel formats every stage the same way, and one
- * stage arriving pre-indented would be the only one it could not.
+ * Seed the developer panel's lifecycle stage into a full-shell page, shared by both full-page
+ * paths. A payload on the page, not into the panel: the panel may not be standing at all.
  */
 function withLifecycleMetricsPreview(
   shellHtml: string,
   database: Database,
   catalog?: readonly CapabilityRow[],
 ): string {
-  // The payload is developer furniture, and the last thing the guard holds back now that
-  // nothing is served under `/demo`: it carries model ids, token counts, stage timings,
-  // catalog fingerprints and cleanup-failure strings holding absolute filesystem paths,
-  // and it was embedded in every page a user loads.
+  // The payload is developer furniture: it carries model ids, token counts, stage timings,
+  // catalog fingerprints and cleanup-failure strings holding absolute filesystem paths.
   if (!developerSurfacesEnabled()) return shellHtml;
   const lifecycleReady = database
     .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
@@ -119,32 +105,15 @@ function withLifecycleMetricsPreview(
   if (!METRICS_SEED_TARGET.test(shellHtml)) {
     throw new Error("The shell developer-stage seed target is missing.");
   }
-  // A replacer function, not a replacement string: the payload carries free-text cleanup
-  // errors and model-authored ids, and `$&`, `$\`` and `$'` in a replacement *string* are
-  // substitution patterns that would splice the surrounding document into the panel.
+  // A replacer function, not a replacement string: the payload carries free-text cleanup errors
+  // and model-authored ids, and `$&`, `$\`` and `$'` would splice the document into the panel.
   const seed = `<div id="dev-stage-seed" data-dev-stage-seed="metrics" hidden>${escapeHtml(JSON.stringify({ lifecycles: latest, committedVersions, pendingDeletions }))}</div>`;
   return shellHtml.replace(METRICS_SEED_TARGET, () => seed);
 }
 
 /**
- * The on-load page, for both addresses that serve one: the fixed shell with its logo
- * layer rehydrated from the registry (one logo per row), read through the given
- * read-only connection. An uninitialized registry — a brand-new platform db, before
- * the first migration — yields an empty desk rather than a missing-table error, so the
- * page always renders. No AI and no regeneration: the logos point at the spec-rendered
- * view a click serves.
- *
- * `/capability/:id` renders exactly this page rather than one with that capability
- * composed into it. The window is created by the client, so there is nowhere on the
- * served page to compose a collection into; the client opens the window over the logo
- * the address names and asks for the same fragment a click on that logo asks for. What
- * a direct navigation still owes is the *whole* desk — every sibling logo, not just the
- * addressed one — which is why the caller may hand in the catalog it already read
- * rather than this reading the registry a second time under different tokens.
- *
- * `notice` is the one thing a load can arrive already having to say: an address naming a
- * capability that is not on the desk gets this same page with that sentence in the prompt
- * bar's slot, and no window (PLAN decision 21).
+ * The on-load page for both addresses that serve one. An uninitialized registry yields an empty
+ * desk rather than a missing-table error, and `notice` speaks in the prompt bar (PLAN decision 21).
  */
 export function renderRehydratedShellPage(
   database: Database,

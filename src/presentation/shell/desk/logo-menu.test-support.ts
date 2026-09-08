@@ -1,14 +1,8 @@
 import { LONG_PRESS_MS, startLogoMenu } from "#shell/logo-menu.js";
 
 /**
- * A document small enough to run the menu's rules in Bun, and no smaller.
- *
- * The rules ask a handful of things of the DOM — find by attribute, walk up, move a node,
- * take the focus, receive an event — so this implements exactly those, the way the desk's
- * other client rules take their doubles. A rule proved against a double that has stopped
- * resembling the DOM is proved against nothing, so every operation here is the one the
- * browser performs: `append` moves a node out of wherever it was, `focus` is what
- * `activeElement` then answers, and `closest` walks the real parent chain.
+ * A document small enough to run the menu's rules in Bun. Every operation is the one the browser
+ * performs: `append` moves a node out of wherever it was, and `closest` walks the parent chain.
  */
 export class Node {
   readonly children: Node[] = [];
@@ -90,9 +84,8 @@ export class Node {
   select(): void {}
 
   /**
-   * A box, so placement can be asked for and answered. Fixed rather than measured: what
-   * these rules decide is *where* a floating panel goes, and a stand-in box is enough to
-   * see them decide it.
+   * A box, so placement can be asked for and answered. Fixed rather than measured: these rules
+   * decide where a floating panel goes, and a stand-in box is enough to see them decide.
    */
   box = { left: 12, top: 34, right: 112, bottom: 74, width: 100, height: 40 };
 
@@ -169,14 +162,12 @@ export class Doc extends Node {
   }
 
   /**
-   * Dispatch one event the way the browser does: outermost capture first, then the
-   * listeners on the document in the order they registered, and nothing after a listener
-   * that stops it.
+   * Dispatch one event the way the browser does: outermost capture first, then the document's
+   * listeners in registration order, and nothing after a listener that stops it.
    */
   fire(type: string, target: Node, extra: Record<string, unknown> = {}) {
-    // A press moves the focus before the click is dispatched, and onto the body when what
-    // was pressed cannot hold it. Rules that decide whether to *take* focus back read
-    // `activeElement`, so a double that skipped this would prove them against nothing.
+    // A press moves the focus before the click is dispatched, and onto the body when what was
+    // pressed cannot hold it. Rules that decide whether to take focus back read `activeElement`.
     if (type === "click") this.activeElement = target.focusable ? target : this.body;
     let stopped = false;
     let prevented = false;

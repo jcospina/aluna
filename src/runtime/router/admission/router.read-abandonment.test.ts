@@ -36,10 +36,8 @@ describe("a read is abandoned when its reader goes away", () => {
     teardownRouterTest(dir, conns);
   });
 
-  // The server half of the content region's release rule. The browser aborts the request
-  // when the region's content is replaced or the region is put away; the read token has
-  // to come back then, not at whatever the handler deadline happens to be — otherwise a
-  // deletion drain waits on a reader who has already navigated away.
+  // The browser aborts when the region's content is replaced or put away, and the read token has
+  // to come back then, or a deletion drain waits on a reader who has already navigated away.
   test("the read token comes back at the abort, not at the handler deadline", async () => {
     install(conns, notesRow());
     const readGates = createReadGateCoordinator();
@@ -71,8 +69,8 @@ describe("a read is abandoned when its reader goes away", () => {
     expect(Date.now() - startedAt).toBeLessThan(handlerTimeoutMs);
     expect(readGates.snapshot()).toMatchObject([{ capabilityId: "notes", readerCount: 0 }]);
 
-    // Which is the whole point: a deletion drain started right now succeeds instead of
-    // waiting out a handler nobody is listening to.
+    // So a deletion drain started right now succeeds instead of waiting out a handler nobody
+    // is listening to.
     const lease = await readGates.closeAndDrain(
       { capabilityId: "notes", incarnationId: notesRow().incarnation_id },
       { timeoutMs: 50 },

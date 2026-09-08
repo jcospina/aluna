@@ -34,9 +34,8 @@ function blockingWrite(events: string[]) {
 }
 
 /**
- * Drain everything the released write schedules. Once it settles the rest of the
- * sequence is pure microtask work, so a single macrotask tick runs it to
- * completion — no duration is being guessed.
+ * Drains everything the released write schedules. The rest of the sequence is pure microtask
+ * work, so one macrotask tick runs it to completion — no duration is being guessed.
  */
 function drainPendingWrites(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -79,9 +78,8 @@ describe("deliverActivatedPresentation", () => {
   });
 
   test("bounds a presenter that never settles after durable activation", async () => {
-    // Resolving at all is the assertion: a presenter that never settles must not
-    // hold the sequence open. An unbounded implementation hangs here until bun's
-    // own per-test timeout fails the test.
+    // Resolving at all is the assertion: a presenter that never settles must not hold the
+    // sequence open, and an unbounded implementation hangs here until bun's own timeout fires.
     const delivered = await deliverActivatedPresentation(
       () => new Promise(() => undefined),
       "preview",
@@ -139,9 +137,8 @@ describe("deliverFailedPresentation", () => {
     expect(events[1]?.data).toMatch(/mind trying again/i);
     expect(events[1]?.data).toContain("data-build-ending");
     expect(events[1]?.data).not.toMatch(/behavioral|gate|internal/i);
-    // The window holds on the ending, so the line is not also left behind as a notice
-    // on the desk: the log is the live region and is where the person is already
-    // looking (PLAN decision 23).
+    // The window holds on the ending, so the line is not also left on the desk as a notice: the
+    // log is the live region and where the person is already looking (PLAN decision 23).
     expect(events[2]?.data).not.toContain("prompt-notice");
     expect(events[2]?.data).toBe('<div data-build-restoration="neutral"></div>');
     expect(events[3]?.data).toBe("error");
@@ -149,12 +146,8 @@ describe("deliverFailedPresentation", () => {
 });
 
 /**
- * The three terminals that have something to tell you (PLAN decisions 23 and 25).
- *
- * Each one says its own thing — a failure, a refusal and a measured no-op are three
- * different pieces of news and get three authored lines, not one generic apology. Each
- * says it as the last thing the narration says, and each streams the restoration it is
- * not yet placing: the shell parks it until the ending is dismissed.
+ * The three terminals that have something to tell you (PLAN decisions 23 and 25). A failure, a
+ * refusal and a no-op get three authored lines, each last, each streaming a parked restoration.
  */
 describe("a terminal the window holds", () => {
   /** @returns the events one held terminal wrote, in order. */

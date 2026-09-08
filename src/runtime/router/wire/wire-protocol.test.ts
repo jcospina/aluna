@@ -201,10 +201,8 @@ describe("reserved capability wire protocol — input parsing", () => {
 
 describe("reserved capability wire protocol — the rendered form, round-tripped", () => {
   test("round-trips a rendered form into the same ordered array, in either mode", async () => {
-    // The claim 5.10/05 makes is a round trip, so it is proved end to end rather than
-    // against the normalizer alone: the renderer writes the form, the form is posted the
-    // way a browser posts it — every control in document order, under its own name — and
-    // the parser is asked what the Handler will be given.
+    // 5.10/05 claims a round trip, so this proves one end to end: the renderer writes the form, a
+    // browser posts every control in document order, and the parser says what the Handler gets.
     const stored = ["one", "two", "three"];
     const renderable = (mode: "comma_separated" | "repeatable") => {
       const built = listSpec(false, mode);
@@ -261,10 +259,8 @@ describe("reserved capability wire protocol — the rendered form, round-tripped
   });
 });
 
-// The generated search shape runs the FFI normalizer once per (row × term × field), and
-// `bun:sqlite` runs it synchronously — so the 10s handler deadline cannot fire, its timer
-// callback being unable to run while the query is on the stack. The key of a search
-// parameter was validated and the value never was.
+// The search shape runs the FFI normalizer once per (row × term × field), synchronously under
+// `bun:sqlite`, so the 10s deadline cannot fire: the key was validated and the value never was.
 describe("reserved capability wire protocol — the search value is bounded", () => {
   test("refuses a query longer than the admitted length", async () => {
     const long = "a".repeat(MAX_SEARCH_QUERY_LENGTH + 1);

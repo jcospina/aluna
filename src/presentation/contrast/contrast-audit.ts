@@ -1,24 +1,16 @@
 /**
  * The contrast audit: every foreground/background pairing the product declares.
  *
- * PLAN decision 43 commits to WCAG AA for text and controls and narrows the rest
- * of D8 to best-effort. That commitment is affordable because High Meadow is
- * closed — a fixed palette, and a fixed set of places one of its colours is put
- * on another. This file is that set. It does not claim every palette colour
- * passes against every other; it claims that each pairing the stylesheets
- * actually declare has been measured and passes the threshold that applies to it.
+ * PLAN decision 43 commits to WCAG AA for text and controls and narrows the rest of D8 to
+ * best-effort. Enumerating the pairings is affordable because High Meadow is closed. The audit
+ * claims each declared pairing has been measured against the threshold that applies to it, not
+ * that every palette colour passes against every other.
  *
- * Two things make it an audit rather than a note. Every row is measured from the
- * live token values, so changing `--ink-3` re-measures rather than leaving a
- * number that was true of the colour it replaced. And every `color`, `outline`
- * and `opacity` declaration in every shipped stylesheet has to be claimed by a
- * row: a new one fails the audit until it is classified, which is what stops the
- * inventory going quietly out of date.
- *
- * `opacity` is here because it changes what a pairing measures. A link dimmed to
- * 0.66 on the menu bar was 3.67 against the bar behind it while its declared
- * colour, ink, was 8.13 — the failure lived in a property that names no colour
- * at all.
+ * Every row is measured from the live token values, so changing `--ink-3` re-measures. Every
+ * `color`, `outline` and `opacity` declaration in a shipped stylesheet has to be claimed by a
+ * row, so a new one fails until it is classified. `opacity` is here because it changes what a
+ * pairing measures: a link dimmed to 0.66 on the menu bar was 3.67 against the bar behind it
+ * while its declared colour was 8.13.
  */
 
 import type { Colour } from "./contrast.js";
@@ -27,12 +19,8 @@ import { EXEMPLAR_PAIRINGS } from "./contrast-pairings-exemplars.js";
 import { SURFACE_PAIRINGS } from "./contrast-pairings-surface.js";
 
 /**
- * Which threshold a pairing answers to.
- *
- * `text` is WCAG 2.2 §1.4.3 at 4.5:1. `large-text` is the same criterion's 3:1
- * for type at 24px, or 18.66px bold. `non-text` is §1.4.11 at 3:1, for the parts
- * of a control you need to see to know it is there — a focus ring, a glyph, a
- * grip. `exempt` names one of §1.4.3's own exceptions and says which.
+ * Which threshold a pairing answers to: `text` is WCAG 2.2 §1.4.3 at 4.5:1, `large-text` the same
+ * criterion's 3:1 at 24px or 18.66px bold, `non-text` §1.4.11 at 3:1, `exempt` a §1.4.3 exception.
  */
 export type Threshold = "text" | "large-text" | "non-text" | "exempt";
 
@@ -54,18 +42,16 @@ export interface Pairing {
   /** Every declaration this pairing accounts for, as `sheet § selector [property]`. */
   readonly sites: readonly string[];
   /**
-   * Fills this row measures on behalf of, because the one it names is the tightest
-   * of the set and the rest can only read better. The audit checks that claim
-   * rather than taking it, so a fill that stopped being lighter would fail here.
+   * Fills this row measures on behalf of, because the one it names is the tightest of the set.
+   * The audit checks that claim rather than taking it, so a fill that stopped being lighter fails.
    */
   readonly alsoCovers?: readonly Colour[];
 }
 
 /** The stylesheets the product loads: the manifest, then the temporary shell bridge. */
 export const AUDITED_SHEETS: readonly string[] = [
-  // The token layer states no rule of its own, so it contributes no site — it is here
-  // because the manifest imports it, and a list that skipped it would be a list with
-  // an exception in it.
+  // The token layer states no rule of its own, so it contributes no site. It is here because
+  // the manifest imports it, and a list that skipped it would be a list with an exception in it.
   "design/styles/tokens.css",
   "design/styles/base.css",
   "design/styles/layout.css",
@@ -88,18 +74,14 @@ export const AUDITED_SHEETS: readonly string[] = [
   "public/css/prompt.css",
   "public/css/record-view.css",
   "public/css/shell.css",
-  // The gallery's exemplars. They carry no `<style>` block — every colour is an inline
-  // `style` attribute — and they are fed verbatim into the item-renderer prompt as
-  // approved examples. An unaudited failure here is a failure the platform *teaches*.
+  // The gallery's exemplars paint through inline `style` attributes and are fed verbatim into
+  // the item-renderer prompt as approved examples, so a failure here is one the platform teaches.
   "src/builder/units/generation/few-shot-gallery.ts",
 ];
 
 /**
- * Every property that can put a colour in front of a reader, or change what one is
- * read against. `color` is the obvious one and was nearly the only one: a UA-drawn
- * checkbox takes its colour from `accent-color`, a spinner from `border-top-color`,
- * and `-webkit-text-fill-color` overrides `color` outright wherever it is supported.
- * A property missing from this list is a pairing the audit cannot see.
+ * Every property that can put a colour in front of a reader: `accent-color` draws a checkbox,
+ * `-webkit-text-fill-color` overrides `color`. One missing here is a pairing the audit misses.
  */
 export const AUDITED_PROPERTIES: readonly string[] = [
   "color",

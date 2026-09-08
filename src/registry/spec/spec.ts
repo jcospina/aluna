@@ -1,36 +1,12 @@
 // The capability spec shape: the structured object the AI authors and the platform derives
-// everything else from — DDL, handlers, presentation intent, behavioral tests. It is the
-// only artifact that cannot be reconstructed from something else, so this shape is the
-// single gate every generated spec must clear before anything downstream sees it.
-// Validation is loud on purpose: a non-conforming spec throws here rather than flowing
-// onward malformed, and the spec-gen stage maps that throw onto the build's failure path.
+// everything else from — DDL, handlers, presentation intent, behavioral tests. It is the only
+// artifact that cannot be reconstructed from something else, so this shape is the single gate
+// every generated spec must clear, and the spec-gen stage maps its throw onto the failure path.
 //
-// The pantry is deliberately tiny:
-//
-//   - Field types: `string | number | boolean | datetime | date | choice | string[]`, each
-//     with `required`. (`date` is a calendar day, distinct from the `datetime` instant.)
-//     `choice` is the one type that carries data of its own: the ordered `values` it admits.
-//     No other list types, no `file`/`file[]`, and no relations — there are no foreign keys.
-//     Every object is strict, so any extra key fails validation.
-//   - `ui_intent` records only capability-specific presentation choices: item direction,
-//     the closed collection layout (`feed | grid`), one closed input mode for every active
-//     `string[]`, and one closed presentation for every active `choice`. It never stores
-//     `views` or how a record opens — the view swap into the window is the platform's.
-//     `tools` is the fixed five-Action tuple;
-//     `read_dependencies` carries exactly one array per Action; `behavior` is free text the
-//     behavioral tier generates tests from; `behavioral_errors` is the stable validation
-//     error contract product copy must not stand in for.
-//   - The platform trio — `id`, `created_at`, `extra` — is platform-owned, never a spec
-//     field, and a spec naming one of them is rejected. Making the trio platform-owned is
-//     what removes the `auto` concept from the spec entirely.
-//   - `subject`, `ground` and `companion` are the logo's birth facts and `noun` is the
-//     desk's empty-state word. Both colours are validated by naming one of eight hue
-//     families — the whole of colour validation — plus the one thing a per-field schema
-//     cannot see: they have to differ. Which shade of a named family the capability
-//     actually wears is not in the spec at all: the platform resolves it from the
-//     incarnation seed. Users never steer any of the four: the subject
-//     comes from what the capability is for, and a prompt reaching for art direction is
-//     refused by the intent resolver where every other presentation-steering prompt is.
+// The pantry is deliberately tiny: seven field types, each with `required`; no `file`, no
+// relations, and every object strict, so an extra key fails validation. `ui_intent` records only
+// capability-specific presentation choices and never stores `views` or how a record opens. The
+// platform trio `id`/`created_at`/`extra` is never a spec field, which removes `auto` entirely.
 
 import { z } from "zod";
 import {
@@ -70,10 +46,8 @@ import {
 } from "./spec-text.ts";
 
 /**
- * Columns every capability data table gets from the platform, never from the
- * spec: `id` (PK), `created_at` (uniform — pre-pays M5's
- * NL→SQL catalog), `extra` (the JSON escape-hatch column, present from birth).
- * Exported for the 2.2 spec→DDL mapper, which emits them on every table.
+ * Columns every capability data table gets from the platform, never from the spec: `id` (PK),
+ * `created_at` (uniform, pre-paying M5's NL→SQL catalog), `extra` (the JSON escape hatch).
  */
 export const PLATFORM_COLUMNS = ["id", "created_at", "extra"] as const;
 
@@ -166,9 +140,8 @@ export const SCALAR_FIELD_TYPES = [
 export const LIST_FIELD_TYPES = ["string[]"] as const;
 
 /**
- * The closed field pantry. A new scalar type extends SCALAR_FIELD_TYPES and a new list
- * type extends LIST_FIELD_TYPES first, which makes every exhaustive FieldType consumer
- * fail type-check until it handles the new storage, Gate, and presentation behavior.
+ * The closed field pantry. `date` is a calendar day, distinct from the `datetime` instant; a new
+ * type extends these arrays first, so every exhaustive consumer fails type-check until it lands.
  */
 export const fieldTypeSchema = z.enum([...SCALAR_FIELD_TYPES, ...LIST_FIELD_TYPES]);
 export type FieldType = z.infer<typeof fieldTypeSchema>;
@@ -182,17 +155,8 @@ export const fieldLifecycleSchema = z.enum(["active", "inactive"]);
 export type FieldLifecycle = z.infer<typeof fieldLifecycleSchema>;
 
 /**
- * One user field: name, type, required, plus the two collections only a choice field
- * carries. Strictness is what rejects ARCH §6.3's `auto` example key, per the PLAN's
- * recorded deviation.
- *
- * `values` and `groups` are absent on every non-choice field and present on every choice
- * field; `validateChoiceFields` enforces both directions. `max_length` is the third
- * optional key, and unlike those two it is optional in both directions: a scalar `string`
- * may or may not declare a limit, and every other type is refused one
- * (`validateMaxLength`). A provider's strict structured-output schema cannot express an
- * absent key, so the wire shape ({@link promptCapabilitySpecSchema}) spells absence `null`
- * and normalizes it away on the way in — the shape stored, diffed and rendered is this one.
+ * One user field. Strictness is what rejects ARCH §6.3's `auto` example key, per the PLAN's
+ * recorded deviation; the wire spelling of absence is {@link promptCapabilitySpecSchema}.
  */
 const specFieldShape = {
   name: z
@@ -220,21 +184,13 @@ export const specFieldSchema = z.strictObject({
 });
 export type SpecField = z.infer<typeof specFieldSchema>;
 
-/** The `schema` key of a spec, over whichever spelling of the field shape is in play. */
 /**
- * The most fields one capability may declare.
- *
- * Nothing bounded this, and everything downstream is linear or worse in it: the DDL, the
- * form the platform draws, every probe the design-lint rung renders, the behavioral suite,
- * and the per-(row × term × field) work a search does. A model that authored a hundred
- * fields would author a build nobody could afford and a form nobody could fill.
- *
- * Well above anything a real capability needs — the largest the gallery, the fixtures and
- * the live builds have produced is a handful — and well below where the cost stops being
- * linear in anything that matters.
+ * The most fields one capability may declare. Everything downstream is linear or worse in it: the
+ * DDL, the form, every design-lint probe, the behavioral suite, and search's row × term × field.
  */
 export const MAX_SPEC_FIELDS = 40;
 
+/** The `schema` key of a spec, over whichever spelling of the field shape is in play. */
 function specSchemaShapeOf(fieldSchema: z.ZodType<SpecField, unknown>) {
   return z.strictObject({
     fields: z
@@ -256,12 +212,8 @@ export const CREATED_AT_DESCRIPTOR = {
 } as const;
 
 /**
- * One option as the item renderer needs it, and no more: the value a row stores and the
- * wording to show for it. The group it stands under, the note beside it and whether it is
- * still on offer are all form facts — the card presents one record's own value, never the
- * list it came from — so they stay out of the renderer's generation context. What is not
- * in the context cannot go stale in a copied unit, which is what lets the Diff matrix map
- * those three facts to platform work alone.
+ * One option as the item renderer needs it: the value a row stores and the wording to show for it.
+ * What is not in the generation context cannot go stale in a copied unit.
  */
 export interface PresentationChoiceOption {
   readonly value: string;
@@ -275,9 +227,8 @@ export type PresentationFieldDescriptor =
   | typeof CREATED_AT_DESCRIPTOR;
 
 /**
- * Closed collection-layout values the platform list container knows how to map
- * to presentation classes. Unknown values fail here, symmetric with unknown field
- * types failing the spec gate.
+ * Closed collection-layout values the platform list container maps to presentation classes. An
+ * unknown value fails here, symmetric with an unknown field type failing the spec gate.
  */
 export const uiCollectionLayoutSchema = z.enum(["feed", "grid"]);
 export type UiCollectionLayout = z.infer<typeof uiCollectionLayoutSchema>;
@@ -293,22 +244,8 @@ export const listInputIntentSchema = z.strictObject({
 export type ListInputIntent = z.infer<typeof listInputIntentSchema>;
 
 /**
- * The form's declared presentation.
- *
- * The four collections split into two kinds. `list_inputs` and `choice_inputs` are
- * **total** over their field type — every active `string[]` has a mode and every active
- * choice has a presentation, because neither can be drawn at all without one.
- * `long_text` and `guidance` are **subsets**: a string field renders perfectly well as a
- * single-line input and a field is complete without a hint, so naming one is opting it in.
- * Both kinds are ordered by schema-field order, and both refuse an unknown, inactive,
- * duplicate or wrong-type entry.
- *
- * `long_text` is a bare name list because there is nothing else to say: a field either
- * gets the multi-line control or it does not. Which of the two a string field wants is not
- * something its type can decide — a title and three paragraphs of notes are both a
- * `string` — so it is a presentation choice and belongs here, beside `collection.layout`
- * and `item.shows`, rather than in the schema (`design/controls.html`, "What decides
- * between an input and a textarea").
+ * The form's declared presentation. `list_inputs` and `choice_inputs` are total over their field
+ * type; `long_text` and `guidance` are subsets, so naming a field is opting it in.
  */
 export const uiFormIntentSchema = z.strictObject({
   list_inputs: z.array(listInputIntentSchema),
@@ -333,41 +270,27 @@ export const uiIntentSchema = z.strictObject({
 });
 export type UiIntent = z.infer<typeof uiIntentSchema>;
 
-// The spec proper — everything the AI authors (ARCH §2: schema + ui_intent +
-// behavior, plus the identity and resolver context the registry row carries,
-// §6.3). `version` and `artifacts_path` are deliberately absent: the platform
-// assigns those at commit, the AI never does.
+// The spec proper — everything the AI authors (ARCH §2, §6.3). `version` and `artifacts_path` are
+// deliberately absent: the platform assigns those at commit, the AI never does.
 const commonSpecShape = {
   // Engineering identity — becomes the `cap_<id>` table name and the artifacts
   // directory; never user-facing (CONTEXT.md "Engineering language").
   id: sqlNameText,
-  // The three logo birth facts. They are authored once, at birth, and evolution
-  // preserves them byte-for-byte: artwork is made once and never remade (ADR-0007
-  // L7), so a spec that drifted from its drawing would be describing a picture
-  // nothing is allowed to redraw. Both colours validate against the eight hue families
-  // by name — the whole of colour validation (decision 39) — and `validateLogoColours`
-  // adds the one thing a per-field schema cannot see: they have to differ, or the
-  // request carries one colour where the contract says exactly two.
-  //
-  // The spec names a *hue*, not a colour: `resolveLogoShades` draws the concrete shade
-  // from the incarnation seed. Two capabilities that both authored `cyan_blue` are two
-  // different blues, which is the only thing in the path that survives a spec model
-  // collapsing to one modal answer for a whole neighbourhood of prompts.
+  // The three logo birth facts, authored once and preserved byte-for-byte by evolution: artwork is
+  // made once and never remade (ADR-0007 L7). No user steers them; the intent resolver refuses.
   subject: logoSubjectSchema,
   ground: logoHueFamilySchema,
   companion: logoHueFamilySchema,
-  // The singular common noun for one record, used in the desk's empty-state copy
-  // ("add your first note above"). A platform-View fact: it may evolve, and it never
-  // selects logo generation.
+  // The singular common noun for one record, used in the desk's empty-state copy. A platform-View
+  // fact: it may evolve, and it never selects logo generation.
   noun: singleLinePhrase(MAX_CAPABILITY_NOUN_LENGTH),
   schema: specSchemaShapeOf(specFieldSchema),
   ui_intent: uiIntentSchema,
   // Free text. The behavioral tier generates tests from this — from stated
   // intent, never from handler code.
   behavior: nonBlankText,
-  // Stable validation-error behavior that the generated handler and independent
-  // behavioral tests both consume. User-facing copy can vary; this contract is
-  // made of semantic markers and affected fields.
+  // Stable validation-error behavior the generated handler and the behavioral tests both consume.
+  // User-facing copy varies; this contract is made of semantic markers and affected fields.
   behavioral_errors: z.array(behavioralErrorCaseSchema).max(MAX_BEHAVIORAL_ERRORS),
   tools: capabilityToolsSchema,
   read_dependencies: readDependenciesSchema,
@@ -386,16 +309,8 @@ export const capabilitySpecSchema = z
 export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 
 /**
- * The provider wire shape — the only schema handed to `provider.generate`, and the only
- * place the spec is written any way but the one `capabilitySpecSchema` defines.
- *
- * It is not looser. Every rule is the same one, run by the same `validateSpecSemantics`;
- * the single difference is how a choice field's absent collections are spelled. A strict
- * structured-output schema (OpenAI's, and any provider that mirrors it) requires every
- * declared property to be required, so "this field carries no options" has to arrive as
- * an explicit `null` rather than a missing key. The transform drops those nulls, so what
- * comes back out is the domain spec exactly — nothing downstream ever sees the wire
- * spelling, and a spec already in hand is validated with `capabilitySpecSchema`.
+ * The provider wire shape, and not a looser one: the same `validateSpecSemantics` runs. A strict
+ * structured-output schema requires every property, so absence arrives as `null` and is dropped.
  */
 const promptSpecFieldSchema = z
   .strictObject({
@@ -421,13 +336,8 @@ export const promptCapabilitySpecSchema = z
   })
   .superRefine(validateSpecSemantics);
 
-// The spec plus the platform-assigned incarnation, version, artifact pointer, and
-// logo seed. The opaque incarnation identifies one complete capability lifetime and
-// is deliberately absent from the AI-authored spec, as are `version` (bumped per
-// regeneration; keys the derived-artifact caches), `artifacts_path` (the version
-// directory holding the item renderer and handlers), and `seed`. The row stays lean
-// because the intent resolver scans every row on every classification; nothing bulky
-// lives here, and the artwork itself is a file rather than a column.
+// The spec plus the platform-assigned incarnation, version, artifact pointer and logo seed — none
+// of them AI-authored. The row stays lean: the intent resolver scans every row on every call.
 const capabilityRegistryShape = {
   ...commonSpecShape,
   // Existing rows may contain older narration-like labels; display paths
@@ -442,11 +352,8 @@ const capabilityRegistryShape = {
 };
 
 /**
- * What a write puts into the registry: the row without its logo lifecycle. The
- * lifecycle is absent here on purpose — evolution never reads or writes the logo
- * (ADR-0007), and a write shape that could carry a status is a write that could
- * overwrite a claim some other desk load has already won and spent an attempt on.
- * Only the claim and transition functions in `store.ts` move that value.
+ * The row without its logo lifecycle. A write shape that could carry a status could overwrite a
+ * claim another desk load has already won and spent an attempt on (ADR-0007); `store.ts` owns it.
  */
 export const capabilityRegistryWriteSchema = z
   .strictObject(capabilityRegistryShape)
@@ -461,29 +368,16 @@ export const capabilityRowSchema = z
   .strictObject({
     ...capabilityRegistryShape,
     logo: capabilityLogoStateSchema,
-    // What the user renamed this capability to, and `null` while they have not. Row-only
-    // for the same reason the logo lifecycle is: a write shape that could carry it is a
-    // write that could wipe a rename, and an evolution builds its write from a row read
-    // seconds earlier. Only `renameCapability` in `store.ts` moves this value.
+    // Row-only for the reason the logo lifecycle is: a write carrying it could wipe a rename, and
+    // an evolution builds its write from a row read seconds earlier. `renameCapability` owns it.
     display_label_override: z.string().nullable(),
   })
   .superRefine(validateSpecSemantics);
 export type CapabilityRow = z.infer<typeof capabilityRowSchema>;
 
 /**
- * Fill this Module's newly added form-intent collections on a value read back from durable
- * storage. A registry row or a published `spec.json` written before the choice cut carries
- * no `choice_inputs`, and no reset is available this late in the module — logo credits and
- * user records already exist. Absence is canonically the empty collection, so an older
- * shape parses without rewriting an immutable historical snapshot or manufacturing a
- * version, and absence therefore compares equal to explicit empty wherever the Diff and
- * canonical equality look.
- *
- * A pre-choice field needs nothing: `values` and `groups` are absent on a non-choice field
- * by contract, which is exactly how history already stored it.
- *
- * Only the storage read boundaries call this. Anything the model authors goes to the
- * strict schema unchanged, so a generated spec that omitted a collection still fails.
+ * A row written before the choice cut carries no `choice_inputs`, and no reset is available this
+ * late; absence is canonically empty. Only storage reads call this — authored specs go strict.
  */
 export function canonicalizeStoredCapabilityShape(value: unknown): unknown {
   if (!isPlainRecord(value)) return value;
@@ -550,11 +444,8 @@ function validateSpecSemantics(
 }
 
 /**
- * The logo's two hues have to be two. Each field already validates against the eight
- * families on its own; only the whole object can see that they are the same one, and a
- * request built from a spec that named one hue twice would ask for a drawing of a thing
- * in the colour of the thing it sits on. Two different families share no shade, so this
- * is also what guarantees the resolved pair differs.
+ * The logo's two hues have to be two: one hue twice asks for a drawing of a thing in the colour of
+ * the thing it sits on. Two different families share no shade, so the resolved pair differs too.
  */
 function validateLogoColours(
   spec: Pick<CapabilitySpec, "ground" | "companion">,
@@ -696,12 +587,8 @@ export function presentationFieldDescriptors(
     if (!field) {
       throw new Error(`Presentation field "${name}" is not active.`);
     }
-    // A choice brings its options so the item renderer can present the label a person
-    // reads rather than the wire value the row stores. Without them a status card says
-    // "in_progress", which is the whole point of the value/label split defeated. It brings
-    // nothing else, and it brings them in value order rather than authored order, so that
-    // reordering, noting, grouping or retiring an option leaves this byte-identical — see
-    // {@link PresentationChoiceOption}.
+    // Options come in value order, not authored order, so reordering or retiring one leaves this
+    // byte-identical — {@link PresentationChoiceOption}. Without them a card says "in_progress".
     return {
       name: field.name,
       label: field.label,

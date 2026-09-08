@@ -97,10 +97,8 @@ describe("capability gate — validation-error markers", () => {
 
 describe("capability gate — datetime instant matching", () => {
   test("datetime fields match by instant, not by literal string form", async () => {
-    // Regression: a real model produced a handler that canonicalizes the datetime
-    // through a Date round-trip ("2025-06-01T12:00:00Z" → "2025-06-01T12:00:00.000Z")
-    // while authoring the behavioral test with the raw input form. The row is the same
-    // instant, so the rung must pass — not fail on a representational difference.
+    // Regression: a real model canonicalized the datetime through a Date round-trip while
+    // authoring the test in the raw input form. Same instant, so the rung must pass.
     const eventsSpec = notesSpec({
       id: "events",
       label: "Events",

@@ -2,17 +2,16 @@
 /**
  * The platform's test runner: shards `bun test` across worker processes.
  *
- * `bun test` runs every file sequentially inside one process, which made the
- * suite slow and — worse — let files leak state into each other through module
- * singletons and the SQLite runtime. Sharding fixes both: each worker is a fresh
- * process, so cross-file order dependence becomes impossible rather than merely
- * unlikely, and the wall clock drops to roughly the longest shard.
+ * `bun test` runs every file sequentially inside one process, which made the suite slow and
+ * let files leak state into each other through module singletons and the SQLite runtime. Each
+ * shard is a fresh process, so cross-file order dependence becomes impossible rather than
+ * merely unlikely, and the wall clock drops to roughly the longest shard.
  *
- * Determinism is the point. Given the same files and the same `--shards`, the
- * assignment is identical on every machine: files are sorted, then packed
- * longest-first using the recorded durations in `test-durations.json`. Nothing
- * consults wall-clock time, PIDs, or filesystem iteration order.
+ * Given the same files and the same `--shards`, the assignment is identical on every machine:
+ * files are sorted, then packed longest-first using the recorded durations in
+ * `test-durations.json`. Nothing consults wall-clock time, PIDs, or filesystem order.
  *
+ * @example
  *   bun run test                  # sharded, deterministic, merged report
  *   bun run test --shards=1       # one process (matches plain `bun test`)
  *   bun run test src/router       # only files under a path
@@ -32,12 +31,8 @@ const DURATIONS_PATH = join(REPO_ROOT, "scripts", "test-durations.json");
 /** Weight for a file with no recorded duration: assume it is on the slow side. */
 const UNKNOWN_FILE_WEIGHT_MS = 1_000;
 /**
- * A per-test timeout should catch a hang, not double as a performance assertion.
- * Bun's 5s default does the latter: the heaviest gate tests really do spend ~7s
- * compiling TypeScript, so on a loaded machine they failed as `TimeoutError`
- * while passing on an idle one — the single largest source of "it passes for me"
- * disagreements. Bound the hang generously and let wall-clock cost show up in the
- * slowest-tests table instead.
+ * The heaviest gate tests spend ~7s compiling TypeScript, so Bun's 5s default failed them as
+ * `TimeoutError` on a loaded machine and passed them on an idle one. This catches a hang only.
  */
 const DEFAULT_TEST_TIMEOUT_MS = 30_000;
 
@@ -175,10 +170,8 @@ function parseOptions(argv: readonly string[]): Options {
 }
 
 /**
- * Leave headroom: each worker holds its own SQLite runtime and JSC heap, and the
- * Gate-heavy files fan out to TypeScript compiler processes of their own. More than
- * two top-level shards oversubscribes common development and CI hosts, turning the
- * 30-second hang guard into an accidental load-dependent performance assertion.
+ * Each worker holds its own SQLite runtime and JSC heap, and Gate-heavy files fan out to their
+ * own TypeScript compiler processes; past two shards a CI host oversubscribes into the guard.
  */
 function defaultShardCount(): number {
   return Math.max(1, Math.min(2, availableParallelism() - 1));
@@ -205,9 +198,8 @@ function loadDurations(): Record<string, number> {
 }
 
 /**
- * Longest-processing-time bin packing: place the slowest file into the shard
- * that is currently cheapest. Ties break on file name, so the result depends
- * only on the inputs.
+ * Longest-processing-time bin packing: the slowest file goes to the cheapest shard. Ties break
+ * on file name, so the result depends only on the inputs.
  */
 function packShards(
   files: readonly string[],
@@ -271,9 +263,8 @@ function execute(
 }
 
 /**
- * Bun's JUnit output nests `<testsuite>` by describe block and emits `<testcase>`
- * either self-closing or wrapping a `<failure>`. Only those two shapes matter,
- * so a scan beats pulling in an XML parser.
+ * Bun emits `<testcase>` either self-closing or wrapping a `<failure>`. Only those two shapes
+ * matter, so a scan beats pulling in an XML parser.
  */
 function parseJunit(xml: string): readonly TestCase[] {
   const cases: TestCase[] = [];
@@ -281,9 +272,8 @@ function parseJunit(xml: string): readonly TestCase[] {
   for (const match of xml.matchAll(pattern)) {
     const attributes = match[1] ?? "";
     const body = match[3] ?? "";
-    // Bun emits a bare `<failure type="TimeoutError"/>` with no message for
-    // timeouts, so fall back to the type and then to the element text rather than
-    // reporting a failure with nothing said about it.
+    // Bun emits a bare `<failure type="TimeoutError"/>` with no message for timeouts, so
+    // fall back to the type and then to the element text.
     const failure = /<(failure|error)\b/.test(body)
       ? decodeXml(
           body.match(/<(?:failure|error)\b[^>]*message="([^"]*)"/)?.[1] ||

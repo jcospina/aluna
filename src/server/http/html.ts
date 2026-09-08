@@ -9,10 +9,8 @@ const HTML_ESCAPES: Record<string, string> = {
 };
 
 /**
- * Escape interpolated text before it is placed into HTML. Used wherever
- * provider-authored or user-derived text rides inside an HTML fragment (the SSE
- * `fragment` events, the build-subscriber markup). Streamed plain-text narration is
- * safe by construction on the client and is not escaped here.
+ * Escape interpolated text before it is placed into HTML: provider-authored or user-derived text
+ * inside a fragment. Streamed plain-text narration is safe on the client and is not escaped here.
  */
 export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch] ?? ch);

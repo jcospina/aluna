@@ -1,15 +1,10 @@
 /**
- * The pairings inside the few-shot gallery's exemplars.
+ * The pairings inside the few-shot gallery's exemplars — the last rows that are not a stylesheet
+ * of ours.
  *
- * These are the last rows that are not a stylesheet of ours. The exemplars carry no
- * `<style>` block at all — every colour is an inline `style` attribute — and they are fed
- * verbatim into the item-renderer prompt as approved examples, so a failure here is one
- * the platform *teaches* rather than one a reader merely meets. Read with
- * `contrast-audit.ts`.
- *
- * The developer preview pages this file used to measure came down with module 5, and
- * their rows went with them: they styled no product surface, and nothing renders them
- * any more.
+ * The exemplars carry no `<style>` block at all: every colour is an inline `style` attribute, and
+ * they are fed verbatim into the item-renderer prompt as approved examples, so a failure here is
+ * one the platform *teaches* rather than one a reader merely meets. Read with `contrast-audit.ts`.
  */
 
 import type { Pairing } from "./contrast-audit.js";

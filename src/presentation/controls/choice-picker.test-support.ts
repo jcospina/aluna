@@ -1,15 +1,13 @@
 // A document small enough to run the drawn choice controls in Bun, and no smaller.
 //
-// The scene is built by parsing the markup the field renderer actually emits, rather than
-// by hand-assembling nodes: the picker's whole contract is that a script finds what the
-// server wrote, so a double whose shape was typed out separately would prove the module
-// against a second author's idea of the markup. Parse the real thing and the two can
-// never drift.
+// The scene is built by parsing the markup the field renderer actually emits rather than by
+// hand-assembling nodes: the picker's whole contract is that a script finds what the server
+// wrote, so a double whose shape was typed out separately would prove the module against a
+// second author's idea of the markup.
 //
-// Everything here is the operation the browser performs — `append` moves a node out of
-// wherever it was, `focus` is what `activeElement` then answers, `closest` walks the real
-// parent chain, and an event dispatched on a node runs that node's listeners and then
-// every ancestor's, in order.
+// Everything here is the operation the browser performs — `append` moves a node out of wherever
+// it was, `focus` is what `activeElement` then answers, `closest` walks the real parent chain,
+// and an event dispatched on a node runs that node's listeners and then every ancestor's.
 
 /** One parsed selector step: a tag, some classes, and some attribute tests. */
 interface Step {
@@ -27,10 +25,8 @@ function parseSelector(selector: string): Step[] {
     .trim()
     .split(/\s+(?![^[]*\])/)
     .map((part) => {
-      // A pseudo-class is refused rather than ignored. Skipping one silently turned
-      // `button:not([disabled])` into `button[disabled]` — the exact inverse — and a
-      // double that answers the opposite of the browser is worse than one that cannot
-      // answer at all.
+      // A pseudo-class is refused rather than ignored: skipping one turned
+      // `button:not([disabled])` into `button[disabled]`, the exact inverse.
       if (/:/.test(part)) throw new Error(`Unsupported selector in the DOM double: ${selector}`);
       return {
         tag: /^[a-zA-Z][a-zA-Z0-9-]*/.exec(part)?.[0] ?? null,
@@ -61,11 +57,8 @@ export const ELEMENT_CLASSES = {
 } as const;
 
 /**
- * The input types whose `value` IDL property *reflects* the content attribute rather than
- * shadowing it (HTML's "default" value mode). It is the reason a hidden input cannot be
- * cleared by `form.reset()` once anything has written through it, which is exactly the
- * trap the drawn controls' carrier falls into — so the double models it rather than
- * letting a test pass on a property a real browser does not have.
+ * The input types whose `value` IDL property reflects the content attribute rather than shadowing
+ * it. It is why a hidden input cannot be cleared by `form.reset()` once written through.
  */
 const REFLECTED_VALUE_TYPES = new Set(["hidden", "submit", "reset", "button", "image"]);
 
@@ -87,10 +80,8 @@ export class El {
   }
 
   /**
-   * A textarea's default value is its *content*, and its `value` shadows that content the
-   * moment anything writes through it — the markup keeps saying what the server rendered
-   * however much has since been typed. A double that answered the content either way would
-   * let a counter read the wrong number and still be green.
+   * A textarea's default value is its content, and its `value` shadows that content the moment
+   * anything writes through it: the markup keeps saying what the server rendered.
    */
   get value(): string {
     if (this.reflectsValue) return this.getAttribute("value") ?? "";
@@ -149,12 +140,8 @@ export class El {
   scrollWidth = 200;
 
   /**
-   * The height the content needs, floored at the box the element has been *given* —
-   * which is what a browser reports, since a box taller than its content scrolls
-   * nothing. Modelled rather than fixed because that floor is the entire reason a
-   * growing textarea measures itself at `height: auto`: with a height already written,
-   * a shrinking one would measure the box it is trying to shrink and never come back
-   * down. A constant here would let that line be deleted with every test still green.
+   * The height the content needs, floored at the box the element has been given, which is what a
+   * browser reports. That floor is why a growing textarea measures itself at `height: auto`.
    */
   get scrollHeight(): number {
     const given = Number.parseFloat(this.ownStyle.height ?? "");
@@ -166,8 +153,7 @@ export class El {
     this.ownContentHeight = next;
   }
   /**
-   * The scrollport, which is the border box less its scrollbars — the distinction the
-   * reveal turns on, so the double keeps them apart rather than letting one stand for both.
+   * The scrollport, the border box less its scrollbars — the distinction the reveal turns on.
    * Defaulted from `box` and settable by a fixture that wants a scrollbar.
    */
   clientTop = 0;
@@ -192,11 +178,8 @@ export class El {
   }
 
   /**
-   * What the reveal moves, clamped the way a real scroller clamps it. Unclamped, a fixture
-   * could assert a scroll position no browser would ever report.
-   *
-   * There is deliberately no `scrollIntoView` here: it is what the picker gave up, because
-   * it scrolls every ancestor and not only the list. A stub would let it back in silently.
+   * What the reveal moves, clamped the way a real scroller clamps it. There is no
+   * `scrollIntoView` here: the picker gave it up, because it scrolls every ancestor.
    */
   private ownScrollTop = 0;
   private ownScrollLeft = 0;
@@ -220,9 +203,8 @@ export class El {
   }
 
   /**
-   * The box this element reports, and the few computed properties the placement walk asks
-   * about. Both are settable by a fixture, because what the walk decides depends entirely
-   * on them: which ancestors clip a fixed panel, and how much room each side has.
+   * The box this element reports, and the few computed properties the placement walk asks about.
+   * Both are settable by a fixture, since the walk's decisions depend entirely on them.
    */
   box: { top: number; bottom: number; left: number; right: number; width: number; height: number } =
     { top: 100, bottom: 136, left: 0, right: 200, width: 200, height: 36 };
@@ -238,10 +220,8 @@ export class El {
     overflowX: "visible",
     overflowY: "visible",
     position: "static",
-    // The four properties that make a containing block for a fixed panel. A browser
-    // computes each of them to `none` when nothing sets it, and the surface states its
-    // motion in the individual three, so a double that only carried `transform` would
-    // let the panel walk past the element it is really positioned against.
+    // The four properties that make a containing block for a fixed panel. The surface states its
+    // motion in the individual three, so a double carrying only `transform` would miss it.
     transform: "none",
     translate: "none",
     scale: "none",
@@ -275,9 +255,8 @@ export class El {
   cloneNode(deep = false): El {
     const copy = new El(this.tag, { ...this.attributes });
     copy.ownText = this.ownText;
-    // The raw value and the dirty flag both travel, which is what the cloning steps for a
-    // value-carrying control say: a clone of an untouched control is untouched too, and so
-    // still resets to what its markup declares.
+    // The raw value and the dirty flag both travel, as the cloning steps for a value-carrying
+    // control say: a clone of an untouched control still resets to what its markup declares.
     copy.ownValue = this.ownValue;
     copy.checked = this.checked;
     copy.box = { ...this.box };
@@ -310,9 +289,8 @@ export class El {
   }
 
   /**
-   * A control's form owner. Every control the shell renders is inside the form it posts
-   * through, so the ancestor walk is the whole of it — there is no `form=""` attribute in
-   * any markup this parses, and answering one that was not there would be an invention.
+   * A control's form owner. Every control the shell renders is inside the form it posts through,
+   * so the ancestor walk is the whole of it — no markup this parses uses `form=""`.
    */
   get form(): El | null {
     return this.closest("form");
@@ -527,13 +505,8 @@ export class Doc extends El {
       innerWidth: 1200,
       innerHeight: 900,
       /**
-       * Synchronous where the browser's is a microtask. The difference does not reach the
-       * picker — nothing it does between an arrival and the mount that follows depends on
-       * the order — and it lets a test insert a form and read what mounted on the next line.
-       *
-       * `observe` keeps what it was asked to watch. A watch configured for anything but
-       * `childList` over the subtree is a watch that hears nothing in a real browser, and a
-       * stub that shrugged at its own arguments would let exactly that ship green.
+       * Synchronous where the browser's is a microtask; nothing the picker does depends on the
+       * order. `observe` keeps its arguments: a watch that is not `childList` hears nothing.
        */
       MutationObserver: class {
         constructor(private readonly run: (records: { addedNodes: El[] }[]) => void) {}
@@ -543,14 +516,8 @@ export class Doc extends El {
         }
       },
       /**
-       * A box watch. The browser fires one callback on `observe` and again whenever the
-       * element's box changes — including the change from *no box at all*, which is what a
-       * control inside an unopened panel has and what makes this observer necessary rather
-       * than decorative.
-       *
-       * The double cannot see layout, so a fixture moves a size and calls
-       * {@link Doc.resize}; the initial fire is modelled here because a watcher that only
-       * heard later changes would let a mount-time measurement go unproven.
+       * A box watch. The browser fires on `observe` and again on every box change, including the
+       * change from no box at all, which a control inside an unopened panel has.
        */
       ResizeObserver: class {
         constructor(private readonly run: () => void) {}
@@ -573,10 +540,8 @@ export class Doc extends El {
   }
 
   /**
-   * The document's one element child — `<html>` in a browser, and the root a scene parses
-   * into here. A module that boots over the whole page starts from this rather than from
-   * the document, so a scene that parsed its markup straight into the document would hand
-   * one `undefined` and mount nothing.
+   * The document's one element child — `<html>` in a browser. A module that boots over the whole
+   * page starts from this, so a scene parsing straight into the document would mount nothing.
    */
   get documentElement(): El | null {
     return this.children[0] ?? null;
@@ -588,11 +553,8 @@ export class Doc extends El {
   }
 
   /**
-   * Dispatch one event the way the browser does: capturing listeners from the document
-   * down, then bubbling ones from the target up, and nothing after a listener that stops
-   * it. Capture is modelled because the placement watch depends on it — an inner
-   * scroller's `scroll` does not bubble, so a non-capturing document listener never hears
-   * it, and a double that ignored the flag would prove that watch against nothing.
+   * Dispatch one event the way the browser does: capture from the document down, then bubble from
+   * the target up. Capture matters because an inner scroller's `scroll` does not bubble.
    */
   fire(type: string, target: El, extra: Record<string, unknown> = {}) {
     let prevented = false;
@@ -670,10 +632,8 @@ function openElement(
   selfClosed: boolean,
 ): void {
   const node = new El(tag, parseAttributes(rawAttributes));
-  // An input's `value` attribute is what the browser seeds the property from, and the
-  // property is what a form posts and what a carrier is written through. A textarea is
-  // seeded from its content instead, which is not parsed yet — its `value` falls back to
-  // that content until something writes through it.
+  // An input's `value` attribute is what the browser seeds the property from, and the property is
+  // what a form posts. A textarea is seeded from its content, which is not parsed yet.
   if (tag !== "textarea") node.value = node.getAttribute("value") ?? "";
   node.checked = node.hasAttribute("checked");
   top.append(node);
@@ -690,14 +650,8 @@ function parseAttributes(raw: string): Record<string, string> {
 }
 
 /**
- * Text before a child becomes the element's own text; text after it becomes a text node.
- *
- * A `<textarea>`'s *first* text drops one leading U+000A, which is what HTML's tree
- * construction does ("A start tag whose tag name is textarea… if the next token is a
- * U+000A LINE FEED, ignore that token"). Modelled rather than skipped because the renderer
- * writes that newline deliberately, and a double without the rule would let a value
- * beginning with a newline round-trip in a test while a browser handed the control one
- * character less.
+ * Text before a child becomes the element's own text; text after it becomes a text node. A
+ * `<textarea>`'s first text drops one leading U+000A, the way HTML's tree construction does.
  */
 function appendText(parent: El, text: string): void {
   const first = parent.children.length === 0 && parent.ownText === "";

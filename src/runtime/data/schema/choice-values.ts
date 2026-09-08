@@ -22,21 +22,8 @@ import {
 type ChoiceField = Pick<SpecField, "name" | "type" | "values">;
 
 /**
- * Refuse the whole submission if any choice field carries a value it may not.
- *
- * `held` is what the record already stores. It matters for exactly one case: a row that
- * was standing on an option before that option was disabled keeps it. Saving an unrelated
- * field resubmits that value, and refusing it would either clear the row or block the
- * edit; the controls draw the same line from the other side by never marking a record's
- * own value unchoosable.
- */
-/**
- * The half of the choice contract that depends on the submission alone.
- *
- * Split out because it can be answered *before* a generated Handler runs: whether a value
- * is one the field declares is a fact about the spec and the wire, with nothing held about
- * the record. The other half — whether a declared option is still open — has to know what
- * the row is already standing on, so it stays with the mutation port.
+ * The half of the choice contract that depends on the submission alone, so it can be answered
+ * before a generated Handler runs. Whether a declared option is still open stays with the port.
  */
 export function assertDeclaredChoiceValues(
   capabilityId: string,
@@ -70,9 +57,8 @@ export function assertAdmittedChoiceValues(
 }
 
 /**
- * Whether a submitted value names something this choice field never declared. A blank
- * submission is "no selection", not an undeclared value: an optional choice normalizes it
- * to `null`, and a required one has already failed the missing-required check.
+ * Whether a submitted value names something this choice field never declared. A blank submission
+ * is "no selection": an optional choice normalizes it to `null`, a required one already failed.
  */
 function isUndeclaredChoiceValue(field: ChoiceField, value: unknown): boolean {
   if (!isChoiceFieldType(field.type)) return false;
@@ -83,9 +69,8 @@ function isUndeclaredChoiceValue(field: ChoiceField, value: unknown): boolean {
 }
 
 /**
- * Whether a submitted value names an option this field no longer offers. Everything that
- * is not a declared choice value has already been answered above, so what is left is only
- * whether the option is still open — and whether this record was already standing on it.
+ * Whether a submitted value names an option this field no longer offers. Everything not a declared
+ * value was answered above, so what is left is whether the option is open for this record.
  */
 function isRefusedDisabledValue(field: ChoiceField, value: unknown, held: unknown): boolean {
   if (!isChoiceFieldType(field.type)) return false;
@@ -96,10 +81,8 @@ function isRefusedDisabledValue(field: ChoiceField, value: unknown, held: unknow
 }
 
 /**
- * A choice stores one declared value or nothing at all: an empty submission is the
- * absence of a selection, which is the same `null` an unfilled text field stores. The
- * admitted-set check has already run over the whole submission, so anything arriving here
- * that is not blank is a value the field declares.
+ * A choice stores one declared value or nothing: an empty submission is the same `null` an
+ * unfilled text field stores. The admitted-set check has already run over the whole submission.
  */
 export function normalizeChoiceValue(field: ChoiceField, value: unknown): string | null {
   if (typeof value !== "string") {
@@ -107,11 +90,8 @@ export function normalizeChoiceValue(field: ChoiceField, value: unknown): string
   }
   if (value.trim().length === 0) return null;
   if (!admittedChoiceValues(field).has(value)) {
-    // Reached only through the platform's own fixture encoder — the live write path
-    // refuses the whole submission before it gets here. A plain validation error rather
-    // than the typed one: nothing on this path has a capability id to name, and nothing
-    // is answering a request, so the shape the router turns into a 422 has no business
-    // being thrown from inside a build.
+    // Reached only through the platform's own fixture encoder. A plain validation error rather
+    // than the typed one: nothing here has a capability id to name or a request to answer.
     throw new CapabilityDataValidationError(
       `Field "${field.name}" cannot store the undeclared choice value "${value}".`,
     );

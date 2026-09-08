@@ -285,9 +285,8 @@ describe("the groups and the retirements fail closed", () => {
   });
 
   test("both choice refusals are platform-owned and cannot be authored", () => {
-    // The platform raises each of these itself, before canonical state moves. A capability
-    // authoring one would be claiming an error it never gets to see — and the behavioral
-    // tier would then generate a suite asserting a Handler emits it, which no Handler can.
+    // A capability authoring one would claim an error it never gets to see, and the behavioral
+    // tier would generate a suite asserting a Handler emits it, which no Handler can.
     for (const code of [INVALID_CHOICE_ERROR_CODE, CHOICE_DISABLED_ERROR_CODE]) {
       const spec = specWithChoice();
       const authored = {
@@ -439,9 +438,8 @@ describe("the render order a control walks", () => {
   });
 
   test("an option naming a group nobody declared fails loudly rather than vanishing", () => {
-    // Unreachable through the gate, which refuses that spec. It matters because the run
-    // walk is the one helper a renderer trusts: silently dropping the option would take it
-    // off the control with nothing said.
+    // Unreachable through the gate, which refuses that spec. It matters because the run walk is
+    // the one helper a renderer trusts: dropping the option would take it off the control.
     expect(() =>
       choiceOptionRuns({
         name: "status",

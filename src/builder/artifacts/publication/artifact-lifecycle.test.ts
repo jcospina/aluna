@@ -219,9 +219,8 @@ describe("capability artifact lifecycle — snapshot shape", () => {
  */
 describe("capability artifact lifecycle — behavioral tier metadata", () => {
   test("tier-on records the per-Action run/skip verdict as durable tier metadata", () => {
-    // The snapshot answers "was this version's frozen intent re-proven against these
-    // bytes?" — a question the frozen tests alone cannot answer, since they are identical
-    // whether they ran or not.
+    // The snapshot answers "was this version's frozen intent re-proven against these bytes?" —
+    // which the frozen tests cannot, being identical whether they ran or not.
     const publication = publish({ gate: tierOnGate });
     if (tierOnGate.behavioral.tier !== "on") throw new Error("Expected tier-on Gate evidence.");
 
@@ -237,11 +236,8 @@ describe("capability artifact lifecycle — behavioral tier metadata", () => {
   });
 
   test("a carried suite re-run over a regenerated Handler is recorded with its narrow reason", async () => {
-    // Decision 24's fourth row in its *narrowed* form: the suite was copied byte-for-byte and
-    // still executed, because one Handler it covers moved. It cannot arise from the Diff —
-    // every change fact that regenerates a Handler also regenerates that Action's tests
-    // (`evolution-matrix.test.ts`) — so it reaches a published version only through the
-    // Gate's own repair. That makes this the one place the durable record of it is asserted.
+    // Decision 24's fourth row, narrowed: a copied suite that still executed. The Diff cannot
+    // produce it (`evolution-matrix.test.ts`), so only the Gate's own repair reaches it here.
     const spec = notesSpec();
     const frozen = frozenTestsInput(spec);
     const carried = {
@@ -275,9 +271,8 @@ describe("capability artifact lifecycle — behavioral tier metadata", () => {
   });
 
   test("verification rejects tier metadata that claims a suite was authored but never run", () => {
-    // `snapshot.json` carries no self-digest, so the metadata's own invariants are what make
-    // it tamper-evident: a suite this build authored has judged no code until it executes,
-    // and a version published on that claim would be trusting tests that never ran.
+    // `snapshot.json` carries no self-digest, so its own invariants make it tamper-evident: a
+    // suite authored this build has judged no code until it executes.
     const publication = publish({ gate: tierOnGate });
     const behavioralTests = publication.manifest.behavioral_tests;
     if (!behavioralTests) throw new Error("Expected tier-on behavioral test metadata.");

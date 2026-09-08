@@ -150,11 +150,8 @@ describe("capability gate — structural rung", () => {
     }
   });
 
-  // The renderer is executed by the platform on every rendered record, and in-process by
-  // the design-lint rung during the Gate itself — so an ambient reach here fires *while the
-  // build is being judged*. This rung used to check only field access and export shape,
-  // which let a renderer reading `process.env` and calling `fetch` through `globalThis`
-  // through all three checks with its calls already made.
+  // The renderer runs in-process during the design-lint rung, so an ambient reach fires while the
+  // build is being judged. Checking only field access let `process.env` and `fetch` through.
   test("structural checks reject an item renderer reaching the ambient runtime", async () => {
     for (const bypass of [
       "void globalThis;",

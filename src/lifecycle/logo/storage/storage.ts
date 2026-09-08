@@ -1,21 +1,15 @@
 // Where a logo lives, and how it gets there without ever overwriting one.
 //
-// `capabilities/<id>/<incarnation_id>/logo.svg` — beside the immutable `vN/` directories
-// rather than inside one ([ADR-0007](../../docs/adr/0007-capability-logo-contract.md)).
-// That position is the whole reason retry is possible: artwork arrives *after* the
-// snapshot is published and activated, and a file inside `v1/` would either mutate a
-// published snapshot or falsify `snapshot.json`'s exact inventory. Deletion already
-// removes the incarnation tree, so the artwork's lifetime is the capability's with no
-// second cleanup path.
+// `capabilities/<id>/<incarnation_id>/logo.svg` — beside the immutable `vN/` directories rather
+// than inside one ([ADR-0007](../../../../docs/adr/0007-capability-logo-contract.md)). That position
+// is what makes retry possible: artwork arrives after the snapshot is published, and a file inside
+// `v1/` would mutate a published snapshot or falsify `snapshot.json`'s inventory. Deletion already
+// removes the incarnation tree, so there is no second cleanup path.
 //
-// Two properties the installer holds:
-//
-//   - **No overwrite, ever.** `link` + `unlink` rather than `rename`, because `rename`
-//     clobbers silently and L7 says an accepted drawing is never remade. A second
-//     installer losing the race fails loudly and the first drawing survives.
-//   - **No untracked staging artifact.** The temporary file is named for the incarnation
-//     and the attempt that made it and is removed in `finally`, so recovery never has to
-//     guess what a crashed claim left behind.
+// The installer never overwrites: `link` + `unlink` rather than `rename`, which clobbers silently
+// against L7, so a second installer fails loudly and the first drawing survives. The temp is named
+// for the incarnation and attempt and removed in `finally`, so recovery can recognise what a
+// crashed claim left.
 
 import {
   existsSync,
@@ -61,14 +55,8 @@ export function capabilityLogoPath(
 }
 
 /**
- * Whether this incarnation has an artifact tree at all.
- *
- * Asked before a *loss* is believed. A `present` row whose file is not there is either one
- * drawing that went or a root pointing somewhere the platform's artifacts are not, and the
- * two are indistinguishable from the file alone — while the answer to loss is terminal:
- * `abandoned`, which L7 forbids ever redrawing. An incarnation whose whole directory is
- * absent has not lost its logo; it has lost everything, and that is not this pass's news
- * to act on.
+ * Asked before a loss is believed: a `present` row with no file is one drawing gone or a root
+ * pointing elsewhere, and the answer to loss is terminal `abandoned`, which L7 forbids redrawing.
  */
 export function capabilityIncarnationTreeExists(
   artifactsRoot: string,
@@ -79,13 +67,8 @@ export function capabilityIncarnationTreeExists(
 }
 
 /**
- * The accepted bytes, or `null` when this incarnation has no artwork to serve.
- *
- * One syscall rather than an `exists` followed by a read, and every failure is `null`
- * rather than a throw. The route that calls this has to answer "no picture" with an
- * explicit `no-store` 404: an unreadable file surfacing as an exception would leave the
- * cache policy to whatever the framework does with a raised error, which is the one
- * outcome the fail-closed rule exists to prevent.
+ * The accepted bytes, or `null` when there is nothing to serve. Every failure is `null`, never a
+ * throw: the route must answer with an explicit `no-store` 404, not whatever a raised error caches.
  */
 export function readCapabilityLogo(
   artifactsRoot: string,
@@ -111,22 +94,8 @@ export type StoredCapabilityLogo =
   | "unknown";
 
 /**
- * What is on disk for this incarnation — the fact recovery reconciles an interrupted
- * claim from.
- *
- * One `stat`, never a read: the file only ever arrives by `link` from bytes already
- * written whole, so its presence *is* its completeness and a crash mid-write leaves a
- * temp rather than a short final file. Zero bytes is the one shape that cannot be a
- * drawing — nothing validates an empty document — and it is exactly the shape the route
- * already refuses to serve, so the two answer the same question the same way. Reading the
- * contents to decide would load every logo on the desk to learn what `stat` already says.
- *
- * **`missing` is proven, never assumed.** A `catch` that answered "missing" for every
- * errno would let one EACCES, EIO or descriptor exhaustion — a busy desk is the realistic
- * way in — reconcile a `present` row whose accepted drawing is intact and readable to the
- * permanent placeholder, which L7 then forbids ever redrawing. Only the errnos that mean
- * *there is nothing at this path* answer `missing`; every other failure, and anything at
- * the path that is not a regular file, is `unknown` and reconciles nothing.
+ * A `stat`, never a read: the file arrives by `link` from whole bytes, so presence is completeness
+ * and zero bytes is a truncation. `missing` is proven — one EACCES would abandon an intact drawing.
  */
 export function inspectCapabilityLogoFile(
   artifactsRoot: string,
@@ -138,31 +107,16 @@ export function inspectCapabilityLogoFile(
     if (!file.isFile()) return "unknown";
     return file.size > 0 ? "accepted" : "truncated";
   } catch (error) {
-    // ENOENT is "no such file"; ENOTDIR is "no such file, and a path component is not a
-    // directory either" — both are *candidates* for the incarnation having no artwork.
-    // Nothing else is.
+    // ENOENT is "no such file"; ENOTDIR is that plus a path component that is not a directory.
+    // Both are candidates for the incarnation having no artwork. Nothing else is.
     const code = (error as NodeJS.ErrnoException).code;
     return code === "ENOENT" || code === "ENOTDIR" ? "missing" : "unknown";
   }
 }
 
 /**
- * Remove a zero-byte file sitting at an incarnation's logo path, and say whether one went.
- *
- * **This is not the accepted-artwork rule's case; it is its opposite.** Recovery never
- * deletes an *accepted* final file — ADR-0007 is explicit, and after a loss the row is
- * reconciled to `abandoned` rather than redrawn. A truncated file was never accepted: no
- * lifecycle said `present` over it, the route refuses to serve it, and nothing this
- * platform writes can produce it, since bytes are validated before they are written and
- * installed whole by `link`.
- *
- * Left in place it is worse than untracked state. The installer refuses to overwrite, so
- * every remaining attempt would fail on EEXIST — the capability would spend its last paid
- * calls to be told the path is occupied, and reach the permanent placeholder holding a
- * file with nothing in it.
- *
- * Only ever called for an incarnation with no attempt running, and only after the same
- * `stat` that named it truncated.
+ * Remove a zero-byte file at the logo path. A truncated file was never accepted, and left in place
+ * it fails every remaining paid attempt on EEXIST. Called only when no attempt is running.
  */
 export function discardTruncatedCapabilityLogo(
   artifactsRoot: string,
@@ -179,9 +133,8 @@ export function discardTruncatedCapabilityLogo(
     console.log(`omni-crud removed a logo file holding no drawing at ${path}`);
     return true;
   } catch (error) {
-    // Not silent, for the same reason `removeLogoAttemptTemps` is not: a truncated file
-    // that survives refuses every remaining paid attempt the installer's EEXIST, and the
-    // capability reaches its permanent placeholder with no line explaining why.
+    // Not silent: a truncated file that survives fails every remaining paid attempt on EEXIST, and
+    // the capability reaches its permanent placeholder with no line explaining why.
     if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
       console.error(`omni-crud could not remove a logo file holding no drawing at ${path}:`, error);
     }
@@ -190,17 +143,8 @@ export function discardTruncatedCapabilityLogo(
 }
 
 /**
- * Remove every logo attempt temp left in this incarnation's `.staging`, and answer with
- * what went.
- *
- * Only ever called by recovery, and only for an incarnation with no attempt running in
- * this process — which is what makes "every one of them" safe: the ordinary path removes
- * its own temp in `finally`, so anything still here belongs to a claim that died, and no
- * live claim can be mid-write. The name pattern is the second guard: it matches nothing
- * but an attempt temp, so a build's staging directory beside it is not even looked at.
- *
- * Nothing here can touch an accepted final file. It sits one directory up, and this reads
- * only `.staging` and only its matching entries.
+ * Remove every logo attempt temp in this incarnation's `.staging`. Safe to take all of them because
+ * no attempt is running, and the name pattern matches nothing else; the final file is one level up.
  */
 export function removeLogoAttemptTemps(
   artifactsRoot: string,
@@ -257,9 +201,8 @@ export interface InstalledLogo {
 }
 
 /**
- * Install accepted bytes at the incarnation's logo path, atomically and without
- * overwriting. Throws {@link LogoInstallError} if artwork is already there — which is
- * the correct answer to two attempts landing at once, not a case to smooth over.
+ * Install accepted bytes at the incarnation's logo path, atomically and without overwriting. Throws
+ * {@link LogoInstallError} if artwork is there: the right answer to two attempts landing at once.
  */
 export function installCapabilityLogo(input: InstallCapabilityLogoInput): InstalledLogo {
   const { artifactsRoot, capabilityId, incarnationId, attempt, bytes } = input;
@@ -269,9 +212,8 @@ export function installCapabilityLogo(input: InstallCapabilityLogoInput): Instal
   createSafeStagingParent(root, capabilityId, incarnationId);
 
   const incarnationRoot = capabilityIncarnationRoot(artifactsRoot, capabilityId, incarnationId);
-  // Scoped to the incarnation by where it sits and to the attempt by what it is called,
-  // so a crashed claim leaves something recovery can recognize and sweep rather than an
-  // anonymous staging artifact.
+  // Scoped to the incarnation by where it sits and to the attempt by what it is called, so a
+  // crashed claim leaves something recovery can recognize and sweep.
   const temporaryPath = join(incarnationRoot, ".staging", capabilityLogoStagingName(attempt));
   const finalPath = join(incarnationRoot, CAPABILITY_LOGO_FILENAME);
 
@@ -295,20 +237,8 @@ export function installCapabilityLogo(input: InstallCapabilityLogoInput): Instal
 }
 
 /**
- * Take back bytes this attempt installed but never got acknowledged.
- *
- * Only ever called when the finalizing write moved nothing — the row was deleted or had
- * already been settled by something else while the drawing was being made. Those bytes
- * were never *accepted*: no lifecycle ever said `present`, the route refuses to serve
- * them, and reconciliation would admit them forever. Left in place they would also make
- * every later attempt fail on EEXIST, since the installer refuses to overwrite. This is
- * therefore not the "never delete an accepted final file" case; it is its opposite.
- *
- * **The inode is the proof, not the path.** "Only this attempt could have written here"
- * would be an invariant of a single-claim lifecycle alone, and the retry sweep is exactly
- * the code that added a second writer. Removing accepted artwork is
- * unrecoverable — the route refuses a missing file and L7 forbids redrawing — so the
- * discard identifies what it installed rather than trusting who else might have.
+ * Take back bytes installed but never acknowledged: no lifecycle said `present`, and left in place
+ * they fail every later attempt on EEXIST. The inode is the proof — the sweep is a second writer.
  */
 export function discardUnacknowledgedLogo(installed: InstalledLogo): void {
   let present: ReturnType<typeof statSync>;

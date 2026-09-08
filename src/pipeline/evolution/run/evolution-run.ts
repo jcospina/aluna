@@ -1,22 +1,14 @@
-// The evolution engine's one run (ARCH §6.2 "Capability Builder"
-// steps 2–7; PLAN decisions 1, 2, 4, 21, 22, 24, 27, 37; ADR-0006).
+// The evolution engine's one run (ARCH §6.2 steps 2–7; PLAN decisions 1, 2, 4, 21, 22, 24, 27, 37;
+// ADR-0006), and the only evolution path in the platform: freeze the dependency-generation catalog,
+// author one candidate spec, validate it totally, diff it into typed change facts and a unioned
+// work plan, then derive additive DDL, regenerate the proven impact set with admissibility-gated
+// prior source, byte-copy the rest, Gate the snapshot, publish without overwrite, and activate.
 //
-// This is the whole engine end to end, and it is the *only* evolution
-// path in the platform: freeze the dependency-generation catalog, author one complete
-// candidate spec, validate it totally, diff it into typed change facts and a unioned
-// work plan, then — for a real change — derive additive DDL, regenerate the proven
-// impact set with admissibility-gated prior source, byte-copy everything else, Gate the
-// assembled snapshot, publish it without overwrite, and activate it in one SQLite
-// transaction that applies the additive DDL, compare-and-swaps the registry pointer, and
-// finalizes `success/activated` together. Only after that commit may the caller swap the
-// complete View.
+// A zero-fact candidate is the canonical no-op: no DDL, no unit work, no snapshot, no version, no
+// `commit`, just a measured `success/no_change` row.
 //
-// A zero-fact candidate is the canonical no-op: no DDL, no unit work, no
-// snapshot, no version, no `commit` — just a measured `success/no_change` row.
-//
-// Every run carries the resolver's classification of the typed prompt — there is no
-// hand-supplied stand-in any more. The caller holds the exclusive build lease
-// while this runs, so the dependency-generation catalog captured here is the immutable
+// Every run carries the resolver's classification of the typed prompt. The caller holds the
+// exclusive build lease while this runs, so the catalog captured here is the immutable
 // lease-frozen catalog decision 1 requires.
 
 import {
@@ -94,11 +86,8 @@ export interface RunCapabilityEvolutionInput {
   /** The typed text the resolver classified, retained for previews and narration. */
   readonly intentText: string;
   /**
-   * The resolver's classification of {@link intentText}. Required, and narrowed to the two
-   * intent types an evolution can answer: a run that reached the engine without a
-   * classification — or under one that was never about changing an existing capability —
-   * would be acting on nobody's judgment, and neither is representable. Only the
-   * pairing with {@link active} is left to check at runtime.
+   * The resolver's classification of {@link intentText}, narrowed to the two intent types an
+   * evolution answers, so only the pairing with {@link active} is left to check at runtime.
    */
   readonly resolvedIntent: EvolutionIntentClassification;
   /** Resolver measurement carried into the durable running row. */
@@ -111,17 +100,14 @@ export interface RunCapabilityEvolutionInput {
   readonly artifactsRoot: string;
   readonly recordMetrics: RecordMetrics;
   /**
-   * When the caller started measuring this build, so the row's `totalMs` covers the whole
-   * wait a person actually experienced — resolution and the queue behind the exclusive
-   * lease included, as it is for a v1 build. Defaults to the moment the run itself begins,
-   * which is the only honest answer for a caller that had no earlier clock of its own.
+   * When the caller started measuring, so `totalMs` covers resolution and the queue behind the
+   * lease as a v1 build's does. Defaults to the run's own start, for a caller with no clock.
    */
   readonly builtAt?: number;
   readonly send: SendBuildEvent;
   /**
-   * True once the subscriber is gone or the run was cancelled. The liveness stream goes
-   * quiet on it, exactly as a v1 build's does — the work itself is unwound by the
-   * abortable provider rejecting its in-flight call.
+   * True once the subscriber is gone or the run was cancelled: the liveness stream goes quiet, and
+   * the abortable provider rejecting its in-flight call unwinds the work.
    */
   readonly isAborted?: () => boolean;
   /** Override the global `OMNI_BEHAVIORAL_TIER` toggle (tests pin both tiers). */
@@ -131,10 +117,8 @@ export interface RunCapabilityEvolutionInput {
   /** Test-only activation fault seams around the point of no return. */
   readonly faults?: ActivationFaultHooks;
   /**
-   * Test-only seam: force one regenerated Handler's first pass to be deliberately wrong, so
-   * the Gate has a real behavioral failure to repair. It is how the Gate's bounded repair is
-   * proven deterministically (`evolution-frozen-repair.test.ts` with
-   * `hard-evolution-fixture.test-support.ts`); no composition root supplies it.
+   * Test-only seam forcing one regenerated Handler's first pass wrong, so the Gate has a real
+   * failure to repair (`evolution-frozen-repair.test.ts`). No composition root supplies it.
    */
   readonly firstPassHandlerFixture?: AssembleEvolutionCandidateInput["firstPassHandlerFixture"];
 }
@@ -153,9 +137,8 @@ interface EvolutionRunBase {
 }
 
 /**
- * The three terminal shapes of one evolution run. `cancelled` may arrive before the
- * candidate exists, so it carries nothing; `no_change` is the measured no-op; only
- * `activated` has a new live version, and therefore only it swaps the View.
+ * The three terminal shapes of one evolution run. `cancelled` may arrive before the candidate
+ * exists, so it carries nothing; only `activated` has a new live version, and only it swaps.
  */
 export type CapabilityEvolutionOutcome =
   | { readonly kind: "cancelled" }
@@ -190,26 +173,18 @@ function openEvolutionRunState(input: RunCapabilityEvolutionInput): EvolutionRun
 }
 
 /**
- * Run one complete evolution under the caller-held build lease, from resolved intent to
- * activated version. Streams the authoring preview (`spec-preview`), the
- * derived work plan and regenerated units (`candidate-preview`/`units-preview`), and the
- * Gate verdict (`gate-preview`) as they land; the caller owns the terminal presentation.
- *
- * Throws `CandidateValidationError` on a rejected candidate (the warm rejection) and
- * `UnmappedChangeFactError` on a difference the matrix cannot map (fails closed,
- * decision 21) — both upward to the route, both after finalizing the durable failure
- * row. A throw from anywhere before the activation transaction commits leaves the prior
- * version live; a throw after it is rethrown without rewriting the authoritative
- * `success/activated` row.
+ * Runs one complete evolution under the caller-held build lease, streaming `spec-preview`,
+ * `candidate-preview`/`units-preview` and `gate-preview`; the caller owns the terminal.
  */
 export async function runCapabilityEvolution(
   input: RunCapabilityEvolutionInput,
 ): Promise<CapabilityEvolutionOutcome> {
+  // `CandidateValidationError` (a rejected candidate) and `UnmappedChangeFactError` (decision 21's
+  // fail-closed) both go up to the route, after the durable failure row is finalized.
   const { active, recordMetrics } = input;
   const isAborted = input.isAborted ?? (() => false);
-  // Freeze the immutable active dependency-generation catalog — every other
-  // capability's { capability_id, incarnation_id, label, prompt_context,
-  // active_schema } — while mutation ownership is held.
+  // Freeze the active dependency-generation catalog — every other capability's id, incarnation,
+  // label, prompt_context and active_schema — while mutation ownership is held.
   const activeRows = listCapabilities(input.database.readonly);
   const dependencyRows = activeRows.filter((row) => row.id !== active.id);
   const dependencyCatalog = buildDependencyGenerationCatalog(activeRows, active.id);
@@ -268,10 +243,8 @@ async function runEvolutionStages(
   state.stage = "diff";
   const diff = diffCapabilitySpec(committedSpecView(active), generated.candidate);
   validateEvolutionIntentScope(intent, diff);
-  // The one check that reads committed data rather than a spec. It sits here, under the
-  // same held lease, so a candidate whose limits the stored rows cannot fit is refused
-  // before an assembly is spent on it — and no record write can land between here and the
-  // activation below (`length-scan.ts`).
+  // The one check reading committed data rather than a spec (`length-scan.ts`). Under the held
+  // lease, so no write lands before activation and no assembly is spent on a doomed candidate.
   assertStoredValuesFitMaxLengths(
     committedSpecView(active),
     generated.candidate,
@@ -286,9 +259,8 @@ async function runEvolutionStages(
   };
   if (isAborted()) return cancel(input, state);
   if (diff.isNoop) {
-    // The measured no-op's durable effect: its own `success/no_change` row. It runs
-    // under the held lease, before presentation, so the record survives a dropped
-    // client exactly like an activation does.
+    // The measured no-op's one durable effect: a `success/no_change` row written under the held
+    // lease, before presentation, so it survives a dropped client exactly as an activation does.
     finalizeMeasuredNoChange(input.recordMetrics, {
       buildId: input.buildId,
       incarnationId: active.incarnation_id,
@@ -308,9 +280,8 @@ async function runEvolutionStages(
     dependencyRows,
     dependencySnapshots,
   );
-  // Initial unit generation was measured inside the assembler before the Gate ran, so a
-  // thrown rung keeps it. Refresh the final per-unit history here without adding the same
-  // provider usage again; Gate repair usage is recorded by `recordGateMetrics`.
+  // The assembler measured initial unit generation before the Gate, so a thrown rung keeps it.
+  // Refresh the history without re-adding that usage; `recordGateMetrics` takes repair usage.
   refreshUnitMetrics(state.acc, assembly.units);
   state.acc.copiedUnits = new Set(assembly.copiedUnits);
   recordGateMetrics(state.acc, assembly.gate);
@@ -360,11 +331,8 @@ async function authorCandidate(
 }
 
 /**
- * Publish the Gate-cleared snapshot without overwrite, then activate it. One SQLite
- * transaction applies the additive DDL, compare-and-swaps the registry pointer, and
- * finalizes `success/activated`; its COMMIT is the sole point of no return, so an
- * earlier throw leaves the prior version live plus a complete never-activated candidate
- * for guarded reconciliation (ARCH §6.2 steps 6–7, decision 27).
+ * Publishes the Gate-cleared snapshot without overwrite, then activates it (ARCH §6.2 steps 6–7,
+ * decision 27). One transaction: DDL, registry CAS, success. Its COMMIT is the point of no return.
  */
 async function publishAndActivate(
   input: RunCapabilityEvolutionInput,
@@ -376,9 +344,8 @@ async function publishAndActivate(
   const { active } = input;
   const { acc } = state;
   state.stage = "publication";
-  // Verify every committed v1..vN before treating the selected pointer as an evolution
-  // base. A damaged historical version is authoritative corruption, not a reason to try
-  // publishing another candidate.
+  // Verify every committed v1..vN before treating the pointer as an evolution base: a damaged
+  // historical version is authoritative corruption, not a reason to publish another candidate.
   reconcileCapabilityArtifacts({
     database: input.database.readwrite,
     artifactsRoot: input.artifactsRoot,
@@ -408,9 +375,8 @@ async function publishAndActivate(
     artifactsRoot: input.artifactsRoot,
     ...(input.beforePublish ? { beforePublish: input.beforePublish } : {}),
   });
-  // Publication is still before the point of no return. A cancellation observed after
-  // the atomic rename leaves a complete never-activated candidate for reconciliation,
-  // but must not apply DDL, move the registry pointer, or finalize activated success.
+  // Publication is still before the point of no return: a cancellation after the atomic rename
+  // leaves a candidate for reconciliation but applies no DDL and moves no registry pointer.
   if (input.isAborted?.()) return undefined;
 
   state.stage = "activation";
@@ -483,9 +449,8 @@ function finalizeFailure(
 }
 
 /**
- * Assemble the Gate-cleared candidate with the panel's liveness wiring. A failed unit, a
- * failed Gate, or a cancel leaves a running plan on the panel that nothing is working on
- * any more — close it out before the terminal presentation replaces the View.
+ * Assembles the Gate-cleared candidate with the panel's liveness wiring. A failed unit, a failed
+ * Gate or a cancel leaves a running plan nothing is working on: close it out before the terminal.
  */
 async function assembleCandidate(
   input: RunCapabilityEvolutionInput,
@@ -501,17 +466,14 @@ async function assembleCandidate(
       committed: input.active,
       candidate,
       diff,
-      // The durable measurement of the freeze stage, recorded by the assembler the moment it
-      // authors the suite. It deliberately does not ride on `progress.onTestsFrozen`: that
-      // hook exists for the developer panel and is optional, so a future headless evolution
-      // would silently stop measuring the tokens the tier costs.
+      // The freeze stage's durable measurement, taken by the assembler. Not on the optional
+      // `progress.onTestsFrozen`, or a headless evolution would stop measuring the tier's tokens.
       measurement: acc,
       // The raw provider (not the spec-preview wrapper) generates regenerated units so
       // their partials are not mislabeled as spec previews.
       provider: input.provider,
-      // The same freeze the candidate's catalog uses, minus this capability: a
-      // self-dependency is implicit and is never declared, so the row the freeze
-      // deliberately drops must not reappear in unit-generation context either.
+      // The same freeze the candidate's catalog uses, minus this capability: a self-dependency is
+      // implicit and never declared, so the dropped row must not reappear in unit context either.
       dependencyCatalog: dependencyRows,
       dependencySnapshots,
       // Absent, the assembled snapshot follows the global `OMNI_BEHAVIORAL_TIER` toggle,
@@ -525,15 +487,13 @@ async function assembleCandidate(
         : {}),
       ...stream.hooks,
     });
-    // The Gate is not abortable, so a cancel raised during it lets the assembly *resolve*
-    // — the caller then discards the result and restores the View. Close the plan out
-    // here too, or a developer who cancels mid-Gate is left staring at a running plan.
+    // The Gate is not abortable, so a cancel raised during it still lets the assembly resolve.
+    // Close the plan out here too, or a developer who cancels mid-Gate stares at a running plan.
     if (input.isAborted?.()) await stream.reportAbandoned();
     return assembly;
   } catch (error) {
-    // A failed rung is evidence, and it is the only evidence of what this run actually
-    // gated. Without it the row would report every rung as skipped while its own failure
-    // names the rung that failed — the v1 build path records the same thing the same way.
+    // A failed rung is the only evidence of what this run gated. Without it the row reports every
+    // rung skipped while its own failure names the one that failed, as the v1 path also records.
     if (error instanceof CapabilityGateError) recordGateFailureMetrics(acc, error);
     await stream.reportAbandoned();
     throw error;
@@ -541,10 +501,8 @@ async function assembleCandidate(
 }
 
 /**
- * The developer-panel previews for an assembled candidate: the Gate block, then the
- * complete plan carrying that verdict — the terminal `candidate-preview` replacing the
- * running one. Both land before publication, so the panel already shows the whole
- * candidate while the snapshot is written.
+ * The developer-panel previews for an assembled candidate: the Gate block, then the complete plan
+ * replacing the running `candidate-preview`. Both land before publication.
  */
 async function sendAssembledPreviews(
   input: RunCapabilityEvolutionInput,
@@ -600,11 +558,8 @@ interface AssemblyStream {
 }
 
 /**
- * The assembly stage's liveness wiring: the same `units-preview` stream a v1 build drives,
- * plus a `candidate-preview` carrying the running plan. A byte-copied unit is `record`ed
- * straight into the live inventory — it lands complete because it *was* complete, never
- * having entered a generation prompt — so the developer sees the copy/regenerate split as
- * bytes rather than only as a list at the end.
+ * The assembly stage's liveness wiring: a v1 build's `units-preview` stream plus a
+ * `candidate-preview` carrying the running plan. A byte-copied unit is `record`ed complete.
  */
 function streamAssembly(
   input: RunCapabilityEvolutionInput,
@@ -624,9 +579,8 @@ function streamAssembly(
           regeneratedUnits: plan.regeneratedUnits,
           copiedUnits: plan.copiedUnits,
           additiveMigration: plan.additiveMigration.statements,
-          // Already final in the `running` plan: admissibility is deterministic and is
-          // decided before the first regeneration, so the developer watching the units
-          // assemble already knows which of them are seeing their old source.
+          // Already final in the `running` plan: admissibility is deterministic and decided
+          // before the first regeneration, so the developer knows which units see old source.
           priorSource: plan.priorSource,
           ...(behavioralTests ? { behavioralTests } : {}),
           gate: [],
@@ -658,9 +612,8 @@ function streamAssembly(
             JSON.stringify(buildBehavioralTestProgressPreview(progress, "running")),
           );
         },
-        // Frozen intent lands between the plan and the first generated byte, so the panel
-        // shows which Actions' tests this evolution wrote — and from which inputs — before
-        // any Handler it will judge exists.
+        // Frozen intent lands between the plan and the first generated byte, so the panel shows
+        // which Actions' tests this evolution wrote, and from which inputs, before any Handler.
         onTestsFrozen: async (frozen) => {
           behavioralTests = frozen.report;
           if (planned) await sendPlan(planned, "running");

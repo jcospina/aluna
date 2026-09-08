@@ -92,11 +92,8 @@ async function inspectLogoOob(fragment: string): Promise<OobInspection> {
 }
 
 describe("prompt notice", () => {
-  // This renderer is the *only* place `#prompt-notice` text is escaped, and the text is
-  // not always ours: the deflection path puts the provider's `user_facing_label` through
-  // it (`src/pipeline/build/admission/deflection.ts`). Without this case, deleting `escapeHtml`
-  // from the renderer leaves the whole suite green — every other notice assertion only
-  // checks for the id and swap mode.
+  // This renderer is the only place `#prompt-notice` text is escaped, and the deflection path
+  // puts the provider's label through it. Without this case, deleting `escapeHtml` stays green.
   test("escapes interpolated text, so provider-authored copy cannot inject markup", () => {
     expect(renderPromptNotice(`<img src=x onerror=alert(1)> "quoted" & 'single'`)).toBe(
       '<div id="prompt-notice" hx-swap-oob="innerHTML">' +
@@ -143,9 +140,8 @@ describe("web fragments", () => {
     // logo's included, and snapshot the body under the address it left (design D14).
     expect(fragment).not.toContain('hx-push-url="');
     expect(fragment).toContain('aria-label="Open Notes"');
-    // The placeholder tile, and it keeps working: this one is armed, so its own logo
-    // request is in flight and the artwork is on its way to this very element. The
-    // provisional tile comes down in the same beat, and the ground never goes still.
+    // The placeholder tile, and it keeps working: this one is armed, so its own logo request is
+    // in flight. The provisional tile comes down in the same beat, so the ground never goes still.
     expect(fragment).toContain('class="logo-tile logo-tile--pending logo-tile--working"');
     // Deletion's doorway is the logo's context menu and nothing else — never a second
     // control riding on the tile, and never anything in the window's chrome (design D3).
@@ -194,9 +190,8 @@ describe("web fragments", () => {
     expect(changed).toContain('aria-label="Open Journal"');
     expect(changed).not.toContain('aria-label="Open Notes"');
 
-    // And it comes back even when the name did not move. The slot carries the version a
-    // rename is bound to, so a desk left holding the old one refuses every rename of this
-    // capability until the page is reloaded (5.9/01).
+    // And it comes back even when the name did not move. The slot carries the version a rename is
+    // bound to, so a desk holding the old one refuses every rename until reload (5.9/01).
     const unchanged = renderCapabilityCommitSwap(evolved, collection, "Journal");
     expect(await inspectLogoOob(unchanged)).toMatchObject({ logoCount: 1, oobCount: 1 });
     expect(unchanged).toContain('name="version" value="2"');
@@ -267,12 +262,8 @@ describe("on-load logo rehydration", () => {
   });
 
   test("a label carrying a `$` substitution pattern is spliced in literally", () => {
-    // `$&`, `` $` `` and `$'` are replacement *patterns* when the second argument of
-    // `String.replace` is a string, and labels are model-authored. `` $` `` substitutes
-    // everything before the match — the whole document head — into the `aria-label` it
-    // lands in, whose quotes and `>` then break out of the attribute and re-emit the
-    // shell's own `<script>` tags into the body. Escaping manufactures the hazard rather
-    // than avoiding it: `escapeHtml` turns a label's `'` into `&#39;`, so `$'` becomes `$&`.
+    // `$&`, `` $` `` and `$'` are replacement patterns when `String.replace` takes a string, and
+    // labels are model-authored: `` $` `` splices the document head into the `aria-label`.
     const plain = renderRehydratedShell(
       [
         {
@@ -356,11 +347,8 @@ describe("on-load logo rehydration", () => {
     expect(html).not.toContain("capability-surface");
   });
 
-  // Every page-assembly anchor, removed one at a time from a shell that is otherwise
-  // whole, so each case isolates the anchor it names. The removals come from
-  // `PAGE_ASSEMBLY_ANCHORS` itself rather than from copies of the strings, so this cannot
-  // drift from what the assembly actually matches. Since the developer preview came down
-  // this is the only place every anchor is forced.
+  // Every page-assembly anchor, removed one at a time from an otherwise whole shell. The removals
+  // come from `PAGE_ASSEMBLY_ANCHORS` itself, so this cannot drift from what the assembly matches.
   const anchorRaises: Record<string, RegExp> = {
     "the logo-layer placeholder": /logo-layer placeholder/i,
     "the prompt bar's notice slot": /notice slot/i,
@@ -394,9 +382,8 @@ describe("on-load logo rehydration", () => {
   }
 
   test("an empty desk holds the shell to the same anchors it will need on the first commit", () => {
-    // An empty registry inserts nothing, so nothing here would have noticed a lost
-    // anchor. That made the loudest failure the one a fresh user was least likely to
-    // reach: the page would render, and start failing at the first commit.
+    // An empty registry inserts nothing, so nothing here would have noticed a lost anchor: the
+    // page would render for a fresh user and start failing at the first commit.
     for (const anchor of PAGE_ASSEMBLY_ANCHORS) {
       expect(() => renderRehydratedShell([], anchor.remove(SHELL_FIXTURE))).toThrow(
         anchorRaises[anchor.name] as RegExp,
@@ -412,9 +399,8 @@ describe("the sentence a page load arrives already having", () => {
   });
 
   test("a link to a capability that is not there loads the desk with its sentence spoken", () => {
-    // The bare desk plus one sentence in the slot the prompt bar already has: no window is
-    // composed in for the address that named nothing, and no second notice element appears
-    // anywhere on the page (PLAN decision 21).
+    // The bare desk plus one sentence in the slot the prompt bar already has: no window composed
+    // in for the address that named nothing, and no second notice element (PLAN decision 21).
     const html = renderRehydratedShell([], SHELL_FIXTURE, NOT_FOUND_NOTICE);
 
     expect(html).toContain(
@@ -428,9 +414,7 @@ describe("the sentence a page load arrives already having", () => {
 
   test("an attribute added to the shell's slot is kept, and does not break the seeding", () => {
     // The mistake `METRICS_SEED_TARGET` already paid for once (`src/server/http/cached-view.ts`):
-    // an exact tag copy turns a harmless attribute on a real, styled, scripted element
-    // into a page that will not assemble — and this element is the one in the shell most
-    // likely to gain one.
+    // an exact tag copy turns a harmless attribute into a page that will not assemble.
     const shell = SHELL_FIXTURE.replace(
       'id="prompt-notice"',
       'id="prompt-notice" data-testid="notice"',
@@ -444,10 +428,8 @@ describe("the sentence a page load arrives already having", () => {
   });
 
   test("the seeded sentence is escaped, and its `$` patterns are spliced in literally", () => {
-    // The same hazard the logo injection guards: `$&`, `` $` `` and `$'` are substitution
-    // patterns in a replacement *string*, and escaping manufactures them — `escapeHtml`
-    // turns `'` into `&#39;`, so `$'` becomes `$&`. Nothing model-authored reaches here
-    // today, and the guard is what keeps that from being the only reason it is safe.
+    // The same hazard the logo injection guards: escaping manufactures it — `escapeHtml` turns `'`
+    // into `&#39;`, so `$'` becomes `$&`. Nothing model-authored reaches here today.
     const html = renderRehydratedShell([], SHELL_FIXTURE, '$` $& $\' <b>x</b> "q"');
 
     expect(html).toContain("$` $&amp; $&#39; &lt;b&gt;x&lt;/b&gt; &quot;q&quot;</div>");

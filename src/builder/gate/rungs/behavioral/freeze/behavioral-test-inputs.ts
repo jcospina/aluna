@@ -1,25 +1,14 @@
-// Canonical per-Action behavioral test inputs: the *total* input set one Action's
-// behavioral tests may be generated from — free-text `behavior`, that Action's own
-// `behavioral_errors` plus their stable markers, its declared dependency identities, and a
-// closed schema projection:
+// Canonical per-Action behavioral test inputs: the *total* set one Action's behavioral tests may
+// be generated from — free-text `behavior`, that Action's own `behavioral_errors` and their
+// stable markers, its declared dependency identities, and the closed schema projection tabulated
+// in modules/04 PLAN.md. Handler source is never an input, nor is anything presentational —
+// labels, field order, `ui_intent`, `prompt_context` — nor a dependency's schema: a dependency
+// contributes its identity only.
 //
-//   | Action           | Canonical schema test input                                |
-//   | ---------------- | ---------------------------------------------------------- |
-//   | create, update   | active field name/type/required + a choice's admitted values|
-//   | search           | active string/choice/string[] field names/types             |
-//   | read, delete     | none; canonical-row/delete mechanics stay in always-on smoke|
-//
-// Handler source is never an input. Neither is anything presentational — field labels,
-// field order, `ui_intent`, the capability label, `prompt_context` — nor a dependency's
-// schema: a dependency contributes its *identity* only.
-//
-// This module is the one place that projection is computed, and it computes it
-// *canonically*: active fields sorted by name, each error case's fields sorted, error cases
-// and dependency identities sorted by their own stable identity, and every object key
-// sorted at serialization. Two specs differing only in a label or a field's position
-// therefore serialize to identical bytes and hash to the same digest — which is what makes
-// "a label-only or field-order-only change regenerates no tests" a mechanical fact about a
-// content address rather than a claim about a prompt.
+// This module is the one place that projection is computed, and it computes it canonically:
+// everything sorted, and every object key sorted at serialization. Two specs differing only in a
+// label or a field's position hash to the same digest, so *a label-only change regenerates no
+// tests* is a fact about a content address rather than a claim about a prompt.
 
 import {
   activeSpecFields,
@@ -41,10 +30,8 @@ import { contentDigest } from "../../../../artifacts/inventory/artifact-digests.
 const SEARCH_QUERY_INPUT = { name: "q", type: "string" } as const;
 
 /**
- * create/update: the writable contract — name, type, requiredness, and, for a choice, the
- * values it admits. The admitted set is part of the *validation shape* these Actions are
- * tested against (ADR-0006), so appending an option moves the digest and the suite
- * regenerates; a label or a group is presentation and stays out.
+ * create/update: the writable contract — name, type, requiredness, and a choice's admitted
+ * values. The admitted set is validation shape (ADR-0006); a label or a group stays out.
  */
 export interface ActionSchemaField {
   readonly name: string;
@@ -53,10 +40,8 @@ export interface ActionSchemaField {
   /** Declared option values, in authored order; absent on every non-choice field. */
   readonly values?: readonly string[];
   /**
-   * The declared length bound, absent on every field that has none. It is validation
-   * shape: the platform refuses a longer write before the Handler runs, exactly as it
-   * refuses an undeclared option, so adding or lowering a limit changes what a submission
-   * earns and has to carry a prior suite's reuse with it (ADR-0006).
+   * The declared length bound, absent when a field has none. Validation shape: the platform
+   * refuses a longer write before the Handler runs, so the limit moves the digest (ADR-0006).
    */
   readonly max_length?: number;
 }
@@ -76,9 +61,8 @@ export interface ActionSearchSchemaInput {
 export type ActionSchemaTestInput = readonly ActionSchemaField[] | ActionSearchSchemaInput;
 
 /**
- * The complete, closed input set for one Action's behavioral tests. Everything a test
- * generation prompt is allowed to see is reachable from this object — and nothing else
- * is, because the prompt builder takes this and never the spec.
+ * The complete, closed input set for one Action's behavioral tests: the prompt builder takes
+ * this object and never the spec, so nothing outside it can reach a generation prompt.
  */
 export interface ActionTestInputs {
   readonly action: CapabilityTool;
@@ -92,21 +76,8 @@ export interface ActionTestInputs {
 }
 
 /**
- * The synthetic-row vocabulary a generated case may build fixtures from: every active
- * field, whatever the Action is. This is **scratch-fixture context, never a versioned
- * equality input** — it reaches the prompt and is deliberately absent
- * from {@link ActionTestInputs} and therefore from the digest.
- *
- * It has to be said out loud because `read` and `delete` project no schema at all, so
- * their prompts would otherwise name no legal row field while still requiring a setup
- * row — leaving the model to either seed an empty row (proving nothing) or invent a
- * field name (failing the build). A capability's rows are the same rows for every
- * Action; only the *contract* differs per Action, and that is what `schema` carries.
- *
- * A choice field brings its admitted values here for the same reason it brings its name:
- * a value is as much a fixture mechanic as a field is, and a row can be made of nothing
- * else. Without them a `read` case has no legal status to seed and invents one, which the
- * platform then refuses.
+ * The synthetic-row vocabulary a case builds fixtures from: scratch-fixture context that
+ * reaches the prompt but is absent from {@link ActionTestInputs}, and so from the digest.
  */
 export interface ActionFixtureVocabulary {
   readonly row_fields: readonly ActionFixtureField[];
@@ -155,19 +126,16 @@ export function specActionTestInputs(spec: CapabilitySpec): readonly ActionTestI
 }
 
 /**
- * The content address of one Action's total test inputs. Equal digests mean the Action's
- * generation inputs are byte-identical, which is the sole criterion decision 23 admits
- * for reusing a prior tier-on suite instead of regenerating it.
+ * The content address of one Action's total test inputs. Byte-identical inputs are the sole
+ * criterion decision 23 admits for reusing a prior tier-on suite.
  */
 export function actionTestInputDigest(inputs: ActionTestInputs): string {
   return contentDigest(canonicalTestInputJson(inputs));
 }
 
 /**
- * Deterministic serialization: object keys sorted at every depth, arrays left in the
- * order this module already canonicalized. Key order is never allowed to be an accident
- * of construction or of a schema's field declaration order, because these bytes are both
- * hashed into the snapshot and handed to the model verbatim.
+ * Deterministic serialization: keys sorted at every depth, arrays left as canonicalized here.
+ * These bytes are both hashed into the snapshot and handed to the model verbatim.
  */
 export function canonicalTestInputJson(value: unknown): string {
   return JSON.stringify(sortObjectKeysDeep(value), null, 2);
@@ -198,22 +166,8 @@ function canonicalSchemaInput(spec: CapabilitySpec, action: CapabilityTool): Act
 }
 
 /**
- * A choice field's admitted set, split the way create/update validation splits it: the
- * values a generated test may write, and the ones the platform now refuses on a new
- * selection.
- *
- * Both belong in the digest because both are validation shape — appending an option and
- * retiring one each change what a submission earns, so each has to carry a prior suite's
- * reuse with it (ADR-0006). `retired_values` is absent rather than empty on a field that
- * has retired nothing, so a capability built before any of this digests exactly as it did.
- *
- * It is named for what it is because these bytes are also read: the behavioral prompt
- * hands this object to the model as its closed source material, so a second list of
- * legal-looking strings beside `values` has to say on its face that it is not one to draw
- * from. `gate-behavioral-full-prompt.ts` says so in prose as well.
- *
- * Sorted, not authored order: which order the options are drawn in is View work and must
- * never make a suite look stale.
+ * A choice's admitted set, split as create/update validation splits it; both halves are digest
+ * input (ADR-0006). `retired_values` is absent, not empty, so an older capability digests same.
  */
 function choiceSchemaInput(field: SpecField): {
   values: readonly string[];
@@ -230,12 +184,8 @@ function choiceSchemaInput(field: SpecField): {
 }
 
 /**
- * The choice values a generated test may write, sorted.
- *
- * Only the *selectable* ones: a disabled option is one the platform refuses on a new
- * selection, so a fixture that seeded it would author a test the capability can never
- * pass. Sorted rather than left in authored order, because the order options are drawn in
- * is View work and must not make a suite look stale.
+ * The selectable choice values a generated test may write, sorted: seeding a disabled option
+ * would author a test the capability can never pass, and draw order is View work.
  */
 function choiceTestValues(field: SpecField): readonly string[] {
   return [...selectableChoiceValues(field)].sort();
@@ -278,11 +228,8 @@ function canonicalReadDependencies(
 }
 
 /**
- * Searchability, decided the same way the Diff Engine decides it (`diff-engine.ts`). Both
- * must move together or a new list type would make the Diff select `search` tests for a
- * field this projection ignores — a stale carried suite, silently. Going through
- * `isListFieldType` is what makes `LIST_FIELD_TYPES` the one place that changes. A choice
- * stores a string in a TEXT column, so it searches exactly as a `string` field does.
+ * Searchability, decided as the Diff Engine decides it (`diff-engine.ts`). They must move
+ * together: a new list type would otherwise leave this projection carrying a stale suite.
  */
 function isSearchableTextType(type: FieldType): boolean {
   return type === "string" || isChoiceFieldType(type) || isListFieldType(type);

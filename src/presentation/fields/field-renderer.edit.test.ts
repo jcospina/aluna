@@ -96,9 +96,8 @@ describe("edit form — committed update wiring", () => {
   });
 
   test("carries no region-refresh wiring and no item marker: back is the fresh read", () => {
-    // The record replaced the collection, so there is no records region on screen to
-    // refresh into. Leaving the record asks for the collection again instead, and the
-    // record view above the form is what names the item to give focus back to.
+    // The record replaced the collection, so there is no records region on screen to refresh
+    // into. Leaving asks for the collection again, and the record view above names the item.
     expect(form).not.toContain("data-post-mutation-refresh");
     expect(form).not.toContain("data-records-target-id");
     expect(form).not.toContain("data-read-url");
@@ -174,9 +173,8 @@ describe("edit form — committed update wiring", () => {
   });
 });
 
-// Record deletion changes container and nothing else (PLAN decision 22). The trigger is
-// part of the row this renderer draws; the confirmation it opens is the record view's, and
-// is proved there.
+// Record deletion changes container and nothing else (PLAN decision 22). The trigger is part of
+// the row this renderer draws; the confirmation it opens is the record view's, proved there.
 describe("the record form's action row — the destructive control", () => {
   test("carries Delete after Save and Cancel, and it does not submit", () => {
     // Only the separately submitted confirmation can invoke the Action, so a misfired

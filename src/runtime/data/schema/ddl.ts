@@ -62,24 +62,14 @@ export function applyCapabilityTableDdl(
 /** The additive-only DDL one evolution derives from the committed→candidate spec. */
 export interface AdditiveCapabilityMigration {
   readonly tableName: string;
-  // One `ALTER TABLE … ADD COLUMN` per genuinely new field, in candidate schema
-  // order. Empty when nothing changed the physical column set (hide, reactivate,
-  // label, requiredness, presentation, behavior — none of which touch DDL).
+  // One `ALTER TABLE … ADD COLUMN` per genuinely new field, in candidate schema order. Empty
+  // when nothing changed the physical column set (hide, reactivate, label, requiredness).
   readonly statements: readonly string[];
 }
 
 /**
- * Derive the additive migration for one evolution (ARCH §3, §6.3 "Data Tables",
- * §9.3; PLAN decisions 2, 21 + the change-fact matrix's `new_active_field` row;
- * ADR-0006). Platform-derived DDL is additive-only: a genuinely new field derives a
- * nullable `ADD COLUMN` (no `NOT NULL`, so every historical row reads it back as
- * `null`), while hide/reactivate touch no DDL — a soft-hidden column is never
- * dropped, so reactivation reuses the original column and its stored values.
- *
- * Existing field identity/type is immutable (candidate validation froze it upstream),
- * and this stage fails closed if a committed column is missing or re-typed rather than
- * ever emitting a destructive or in-place-altering statement: the additive-only
- * guarantee is a platform invariant, not a downstream hope.
+ * Derive the additive migration for one evolution (ARCH §3, §6.3, §9.3; PLAN decisions 2, 21;
+ * ADR-0006). A new field derives a nullable `ADD COLUMN`; hide and reactivate touch no DDL.
  */
 export function deriveAdditiveCapabilityMigration(
   committed: CapabilitySpec,
@@ -92,9 +82,8 @@ export function deriveAdditiveCapabilityMigration(
   const tableName = `${CAPABILITY_TABLE_PREFIX}${parsed.id}`;
   const committedTypes = new Map(committed.schema.fields.map((field) => [field.name, field.type]));
 
-  // Defense in depth: every committed column must survive unchanged. A missing or
-  // re-typed column is a destructive difference the platform never performs, even
-  // though validation should already have rejected it before this stage.
+  // Defense in depth: every committed column must survive unchanged, though validation should
+  // already have rejected a missing or re-typed one before this stage.
   for (const [name, type] of committedTypes) {
     const candidateField = parsed.schema.fields.find((field) => field.name === name);
     if (!candidateField) {
@@ -145,11 +134,8 @@ function columnDefinition(name: string, fieldType: FieldType): string {
       `CHECK (${sqlIdentifier(name)} IS NULL OR (json_valid(${sqlIdentifier(name)}) AND json_type(${sqlIdentifier(name)}) = 'array'))`,
     );
   }
-  // A choice gets plain TEXT and deliberately no `IN (…)` CHECK. Option values are
-  // append-only through evolution, and SQLite cannot alter a column constraint, so a
-  // CHECK written at birth would freeze the vocabulary the design says may grow. The
-  // admitted set is enforced by platform mutation validation instead, which reads the
-  // live spec on every write.
+  // A choice gets plain TEXT and deliberately no `IN (…)` CHECK: option values are append-only
+  // and SQLite cannot alter a column constraint, so a CHECK at birth would freeze the vocabulary.
   return parts.join(" ");
 }
 

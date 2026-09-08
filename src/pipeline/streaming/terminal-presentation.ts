@@ -9,12 +9,8 @@ export const DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS = 2_000;
 export const FAILED_BUILD_ENDING = "Hmm, that didn't work. Mind trying again?";
 
 /**
- * The one failure with a truer sentence than the generic one.
- *
- * A capability id a deletion tombstone still reserves cannot be rebuilt until that
- * deletion's cleanup is discharged, and "that didn't work, mind trying again?" invites
- * exactly the retry that cannot succeed. This says what is actually true, in the same voice
- * the deletion's own "I still have a little tidying up to do" uses.
+ * A capability id a deletion tombstone still reserves cannot be rebuilt until that deletion's
+ * cleanup is discharged, so the generic "mind trying again?" invites a retry that cannot succeed.
  */
 export const RESERVED_ID_BUILD_ENDING =
   "I'm still tidying up after the last one of those. Give me a moment, then ask me again.";
@@ -57,18 +53,16 @@ export async function runBoundedTerminalPresentation(
     );
     return false;
   } finally {
-    // A timed-out in-flight write cannot be forcibly cancelled through the generic
-    // transport Promise, but it must never unlock the rest of the terminal sequence.
-    // Closing this gate prevents any later commit/fragment/done write after teardown.
+    // A timed-out in-flight write cannot be cancelled through the generic transport Promise, so
+    // closing this gate stops any later commit/fragment/done write after teardown.
     active = false;
     if (timeout) clearTimeout(timeout);
   }
 }
 
 /**
- * Deliver the post-activation developer preview and complete View swap without
- * letting a disconnected presenter hold mutation ownership indefinitely.
- * Activation is already durable, so delivery timeout/failure is observational.
+ * Delivers the post-activation preview and View swap without letting a disconnected presenter
+ * hold mutation ownership. Activation is already durable, so a delivery failure is observational.
  */
 export async function deliverActivatedPresentation(
   send: Send,
@@ -90,10 +84,8 @@ export async function deliverActivatedPresentation(
 }
 
 /**
- * Present a pre-activation failure completely while the build lease is held.
- * The narration ends with the failure line and the window holds there: the restoration
- * is streamed with everything else, and the shell keeps it until the person says they
- * have read the ending (PLAN decision 25).
+ * Presents a pre-activation failure while the build lease is held. The narration ends on the
+ * failure line, and the shell holds the streamed restoration until dismissed (PLAN decision 25).
  */
 export async function deliverFailedPresentation(
   send: Send,
@@ -145,12 +137,8 @@ export async function deliverRestoredPresentation(
 }
 
 /**
- * An evolution's two non-activating terminal outcomes, in product voice
- * with zero internals. Neither changes anything durable beyond its own
- * metrics row: the developer preview carries the total rejection or the zero-fact Diff,
- * and the displaced View waits behind the ending until it is dismissed. An accepted
- * candidate is no longer a terminal shape of its own — an accepted
- * candidate goes on to publish and activate, and ends in `commit`.
+ * An evolution's two non-activating terminals, in product voice. Neither changes anything durable
+ * beyond its metrics row; an accepted candidate publishes, activates and ends in `commit`.
  */
 export const CANDIDATE_REJECTED_ENDING =
   "Hmm, I couldn't quite shape that change safely. Mind telling me again, a little differently?";
@@ -158,9 +146,8 @@ export const CANDIDATE_NO_CHANGE_ENDING =
   "That's already exactly how this works — nothing to change.";
 
 /**
- * Deliver the warm rejection: the developer-panel candidate preview carrying every
- * validation issue, the warm line the narration ends on, and the restoration the shell
- * holds until it is dismissed.
+ * Delivers the warm rejection: the candidate preview carrying every validation issue, the line
+ * the narration ends on, and the restoration the shell holds until it is dismissed.
  */
 export async function deliverCandidateRejectedPresentation(
   send: Send,
@@ -182,11 +169,8 @@ export async function deliverCandidateRejectedPresentation(
 }
 
 /**
- * Deliver the measured no-op: the developer-panel candidate preview
- * carrying the zero-fact Diff, the `success/no_change` metrics row's preview, the warm
- * line the narration ends on, the committed View streamed through `fragment` for the
- * shell to hold until it is dismissed, and a warm `done=ok`. No version bumped, no unit
- * or DDL work ran — the candidate was semantically identical.
+ * Delivers the measured no-op: the zero-fact Diff's candidate preview, the `success/no_change`
+ * row, the committed View through `fragment`, and `done=ok`. No version bumped, no unit or DDL.
  */
 export async function deliverCandidateNoChangePresentation(
   send: Send,
@@ -210,20 +194,15 @@ export async function deliverCandidateNoChangePresentation(
 }
 
 /**
- * The lease-head stale refusal, in product voice with zero internals.
- * The user is not told about catalogs, fingerprints, incarnations or leases; they are told
- * the true thing, which is that the world moved while Aluna was queued and their words were
- * about the older one. Nothing durable changed except this build's own refusal row.
+ * The lease-head stale refusal in product voice: no catalogs, fingerprints or leases, just that
+ * the world moved while Aluna was queued and their words were about the older one.
  */
 export const STALE_BUILD_ENDING =
   "That changed while I was getting to it, so I stopped rather than guess. Have a look and tell me again?";
 
 /**
- * Deliver a refused admission: the direct `failed/stale` row's metrics preview, the warm
- * line the narration ends on, and the then-current canonical View streamed through
- * `fragment` with no desk sidecar — which the shell holds until the ending is dismissed —
- * then `done=error`. No provider work ran and no product state moved, so there is
- * nothing else to say.
+ * Delivers a refused admission: the `failed/stale` row's preview, the ending line, the current
+ * canonical View through `fragment` with no desk sidecar, then `done=error`.
  */
 export async function deliverStalePresentation(
   send: Send,

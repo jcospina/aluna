@@ -86,10 +86,8 @@ export const MATRIX: readonly MatrixCase[] = [
     tests: ["create", "update", "search"],
   },
   {
-    // Requiredness and its error contract are coupled by candidate validation: the
-    // `missing_required_fields` cases must name exactly the active required fields. So a
-    // requiredness change is always at least a two-fact evolution, and its unioned effect
-    // is what the matrix's two rows add up to.
+    // Candidate validation couples requiredness to its error contract — `missing_required_fields`
+    // must name exactly the active required fields — so requiredness is always a two-fact change.
     row: "new active choice field → ADD COLUMN, create/update, plus search like any text",
     intent: "let me mark each note with a stage",
     candidate: () => {

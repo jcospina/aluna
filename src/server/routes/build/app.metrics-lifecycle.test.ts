@@ -54,10 +54,8 @@ describe("admitted generation lifecycle ordering", () => {
     let builderCalls = 0;
     const provider: Provider = {
       generate(prompt, schema) {
-        // The resolver runs before admission by design, so only Builder-owned calls
-        // carry the "the running row already exists" guarantee. Matched against the
-        // resolver's own exported prefix, so a rewording cannot silently reclassify
-        // every call as Builder-owned.
+        // The resolver runs before admission by design, so only Builder-owned calls carry the
+        // "row already exists" guarantee. Matched on the resolver's exported prefix, not wording.
         if (!prompt.includes(INTENT_RESOLVER_PROMPT_PREFIX)) {
           builderCalls += 1;
           const durable = env.conns.readonly
@@ -118,14 +116,8 @@ describe("admitted generation lifecycle ordering", () => {
       () => false,
     );
 
-    // The whole conversation, in order: the resolver's one narration, the `fragment`
-    // carrying the tile admission stands on the desk, then the admitted row's opening preview — nothing else may slip
-    // in between, which is what makes "closed as cancelled before any Builder work" a
-    // statement about admission rather than luck — and then the cancellation terminal's
-    // own preview attempt, which the bounded presenter swallows when it fails too. The
-    // tile itself needs no undoing here: the same dead subscriber that closed the row is
-    // the one that never received it.
-    // Two `fragment`s at admission: the tile on the ground, and the window's own name.
+    // The whole conversation in order: the resolver's one narration, the `fragment` carrying the
+    // admission tile, the window's name, then the admitted row's opening preview — nothing between.
     expect(seen).toEqual([
       "narration",
       "fragment",
@@ -146,9 +138,8 @@ describe("admitted generation lifecycle ordering", () => {
     const metrics = makeMetricsRecorder();
     const buildJobs = promptQueue(provider, metrics);
     const { job } = buildJobs.create("track my notes");
-    // The route hands `stream` an AbortController signal alongside `isAborted` (app.ts),
-    // and that signal is what `abortableProvider` watches. Pass both, so this covers the
-    // real disconnect mechanism and not just the polling half of it.
+    // The route hands `stream` an AbortController signal alongside `isAborted` (app.ts), and that
+    // signal is what `abortableProvider` watches. Pass both, so this covers the real mechanism.
     const abortController = new AbortController();
     let aborted = false;
 

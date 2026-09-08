@@ -1,26 +1,14 @@
-// The Diff Engine: one total, monotone change-fact contract. Given the committed spec and
-// the already-validated candidate, it converts every admitted committed→candidate
-// difference into a typed change fact and projects the union of those facts onto the four
-// kinds of downstream work — schema/platform work, generated-unit selection,
-// behavioral-test effect, and Gate work. Admitting a new spec fact requires extending both
-// the normative change-fact matrix and this module.
+// The Diff Engine (ADR-0006): every admitted committed→candidate difference becomes a typed
+// change fact, and the union of those facts projects onto platform work, unit selection,
+// behavioral-test effect, and Gate work. A new spec fact means extending the normative
+// change-fact matrix and this module together.
 //
-// Three invariants hold this contract together:
-//
-//   - **Monotone union.** Multiple facts union every column; one fact can never subtract
-//     work another fact requires. A unit is copied only when *no* fact selects it — the
-//     matrix positively proving it unaffected.
-//   - **Fails closed on the unknown.** After accounting for every region a change fact
-//     covers, the residual of the two canonical specs must be identical. Any leftover
-//     difference — a future admitted fact without a matrix row, or an immutable region
-//     validation should have frozen — throws {@link UnmappedChangeFactError} before any
-//     publication, never a silent no-op or an unproven copy.
-//   - **Canonical, not raw.** Equality is over the validated semantic value: object-key
-//     order is ignored and set-like facts (dependency arrays, error cases, error-field
-//     sets) use a defined canonical order, while ordered product facts (`schema.fields`,
-//     item `shows` and `direction`) preserve order and therefore diff. A
-//     zero-fact candidate is the canonical no-op: the caller performs no work and
-//     finalizes `success/no_change`.
+// Three invariants hold the contract. The union is monotone — facts only add work, so a unit is
+// copied only when no fact selects it. It fails closed: once every fact-covered region is
+// accounted for, the residual of the two canonical specs must be identical, and any leftover
+// difference throws {@link UnmappedChangeFactError} before publication rather than becoming a
+// silent no-op or an unproven copy. Equality is canonical — key order is ignored, set-like facts
+// use a defined order, and ordered product facts preserve order and therefore diff.
 
 import {
   type CapabilitySpec,
@@ -39,11 +27,7 @@ import { assertTotalCoverage } from "./diff-totality.ts";
 export { UnmappedChangeFactError } from "./diff-totality.ts";
 
 // ── The typed change facts ──────────────────────────────────────────────────
-// One variant per matrix row that produces a fact. The invalid-candidate row and
-// the two terminal rows (no-op, unmapped) are not facts: invalidity is rejected
-// upstream, the no-op is the empty fact set, and the unmapped case
-// throws. Field- and Action-scoped facts carry their subject so the union and the
-// dev preview can name exactly what changed.
+// One variant per matrix row that makes a fact; the no-op, invalid and unmapped rows make none.
 
 export type ChangeFact =
   | { readonly kind: "capability_label" }
@@ -77,10 +61,8 @@ export type ChangeFact =
 
 export type ChangeFactKind = ChangeFact["kind"];
 
-// The canonical fact order the result and the dev preview present — schema
-// identity first, then platform presentation, then behavior. Deterministic so two
-// runs over the same difference emit byte-identical facts (and metrics stay
-// comparable in M8).
+// The order the result and dev preview present: schema identity, platform presentation, then
+// behavior. Deterministic, so two runs over the same difference emit byte-identical facts.
 const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
   "capability_label",
   "empty_state_noun",
@@ -118,9 +100,8 @@ export const GENERATED_UNITS = ["create", "read", "update", "delete", "search", 
 export type GeneratedUnitName = (typeof GENERATED_UNITS)[number];
 
 /**
- * The closed vocabulary of platform/schema work the matrix's first column names.
- * Each tag is one cell's worth of platform-owned work — no generated units, no
- * model context. Extending the matrix extends this list.
+ * The closed vocabulary of platform work the matrix's first column names — one tag per cell,
+ * no generated units and no model context. Extending the matrix extends this list.
  */
 export const PLATFORM_WORK_KINDS = [
   "registry_and_view_copy", // capability label → registry row + logo/View copy
@@ -183,13 +164,8 @@ export interface CapabilityDiff {
 }
 
 /**
- * Diff one committed spec against one validated candidate. Returns the typed
- * facts, the unioned work plan, and the no-op flag; throws
- * {@link UnmappedChangeFactError} if any difference is left unexplained.
- *
- * Both inputs are the validated canonical value (the committed row's authored view
- * and the validated candidate), so this never re-checks the invalid-candidate
- * row — it only classifies admitted differences and proves totality.
+ * Diff a committed spec against a validated candidate; an unexplained difference throws
+ * {@link UnmappedChangeFactError}. Both inputs are already valid, so nothing is re-checked.
  */
 export function diffCapabilitySpec(
   committed: CapabilitySpec,
@@ -206,20 +182,16 @@ export function diffCapabilitySpec(
 function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): readonly ChangeFact[] {
   const facts: ChangeFact[] = [];
 
-  // Authored labels, canonicalized. The override a rename writes is deliberately not in
-  // this comparison: a diff is over what the model wrote, and renaming desk furniture is
-  // not a change to a spec — it makes no version and it reaches no candidate.
+  // Authored labels, canonicalized. The override a rename writes stays out: it makes no
+  // version and reaches no candidate, so a diff stays over what the model wrote.
   const authored = (spec: CapabilitySpec) => ({ ...spec, display_label_override: null });
   if (
     canonicalCapabilityLabel(authored(committed)) !== canonicalCapabilityLabel(authored(candidate))
   ) {
     facts.push({ kind: "capability_label" });
   }
-  // `noun` is a platform-View fact: it moves one sentence of platform copy and
-  // nothing else. `subject`, `ground` and `companion` are deliberately absent from this function —
-  // they are birth facts, so they never become change facts, and a candidate that
-  // moved one is rejected upstream by validation and caught here by the residual
-  // totality check if it somehow were not.
+  // `noun` moves one sentence of platform copy. `subject`, `ground` and `companion` are birth
+  // facts: validation rejects a candidate that moved one, and the residual check catches it.
   if (committed.noun !== candidate.noun) {
     facts.push({ kind: "empty_state_noun" });
   }
@@ -245,10 +217,8 @@ function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): read
   return sortFacts(facts);
 }
 
-// schema.fields is the busiest region: order is an ordered product fact, new
-// fields, label/required/lifecycle each map to their own fact. Name and type are
-// immutable (validated upstream), so they never diff here — they anchor the
-// residual totality check instead.
+// schema.fields is the busiest region. Name and type are immutable (validated upstream), so
+// they never diff here — they anchor the residual totality check instead.
 function detectSchemaFacts(
   committed: CapabilitySpec,
   candidate: CapabilitySpec,
@@ -272,9 +242,8 @@ function detectSchemaFacts(
   }
 }
 
-// The per-field facts of one candidate field: a new field, or the union of the
-// attribute changes over a returned committed field. Name and type never diff
-// (validation), so they are absent from this set by construction.
+// One candidate field's facts: a new field, or the union of attribute changes over a
+// returned committed field. Name and type never diff (validation), so they are absent.
 function fieldFacts(
   committedField: SpecField | undefined,
   candidateField: SpecField,
@@ -307,9 +276,8 @@ function fieldFacts(
   return facts;
 }
 
-// A list-input mode fact is only the mode change of a field that is an active
-// string[] in *both* specs; a field that gained or lost that status is already a
-// new_active_field or field_lifecycle fact.
+// Only a field that is an active string[] in *both* specs makes this fact; one that gained
+// or lost that status is already a new_active_field or field_lifecycle fact.
 function detectListInputModeFacts(
   committed: CapabilitySpec,
   candidate: CapabilitySpec,
@@ -343,9 +311,8 @@ function detectPresentationFacts(
   }
 }
 
-// read_dependencies is one fact per Action whose declared dependency identities
-// changed. The arrays are validated canonical-ordered, but compare as sets so a
-// serialization reorder could never manufacture a fact.
+// One fact per Action whose declared dependency identities changed. The arrays are validated
+// canonical-ordered but compare as sets, so a serialization reorder manufactures no fact.
 function detectReadDependencyFacts(
   committed: CapabilitySpec,
   candidate: CapabilitySpec,
@@ -360,10 +327,8 @@ function detectReadDependencyFacts(
   }
 }
 
-// The behavioral_errors fact names every Action whose error contract changed —
-// the union of the Actions owning each added or removed canonical case. Cases are
-// compared as a set with canonical-ordered fields, so reordering the array or an
-// error's fields is not a change.
+// Every Action owning an added or removed canonical case. Cases compare as a set with
+// canonical-ordered fields, so reordering the array or an error's fields is not a change.
 function changedBehavioralErrorActions(
   committed: CapabilitySpec,
   candidate: CapabilitySpec,
@@ -430,10 +395,8 @@ type FieldScopedFact = Extract<
 >;
 type GlobalScopedFact = Exclude<ChangeFact, FieldScopedFact>;
 
-// Each fact contributes only additions to the sink — the union is monotone by
-// construction, so no fact can ever remove work another fact required.
-// Field-scoped facts split out because their work depends on the field's type and
-// its place in the candidate's item.shows.
+// Each fact only adds to the sink, so the union is monotone by construction. Field-scoped
+// facts split out: their work depends on the field's type and its place in item.shows.
 function contributeFact(fact: ChangeFact, candidate: CapabilitySpec, sink: WorkSink): void {
   switch (fact.kind) {
     case "new_active_field":
@@ -471,24 +434,15 @@ function contributeFieldFact(
       if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
       return;
     case "choice_values":
-      // The admitted set is create/update validation shape (ADR-0006), so it selects both
-      // writing Handlers and their behavioral suites alongside the platform's own
-      // validation and the control's option list. Storage is untouched — an appended
-      // option is not a column change — and search matches stored text either way.
-      //
-      // It also reaches the card, for the same reason a relabel does: the item renderer is
-      // given the value→label pairs and told to present the label (`unit-prompts.ts`), so
-      // a renderer copied across an append has no wording for the new value and would fall
-      // back to showing the raw wire string.
+      // Create/update validation shape (ADR-0006); storage and search are untouched. It
+      // reaches the card too: a copied renderer has no label and shows the raw wire string.
       sink.platform.add("choice_admitted_values");
       selectWrites(sink);
       if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
       return;
     case "choice_option_labels":
-      // The control's wording, and — where the field is on the card — the card's too. The
-      // item renderer is told to present the matching option label rather than the stored
-      // value, so it has the old wording written into it and has to be regenerated for
-      // exactly the reason a field label does.
+      // The control's wording, and the card's where the field is shown: the renderer has the
+      // old option label written into it, exactly as a field relabel leaves it stale.
       sink.platform.add("choice_option_presentation");
       if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
       return;
@@ -499,21 +453,14 @@ function contributeFieldFact(
 }
 
 /**
- * Hiding or reactivating one field. The Module 4 matrix row names list-input intent for
- * every lifecycle change; a choice field additionally owns an entry in `choice_inputs`,
- * which the same hide/reactivate adds or removes; and any field may own an entry in the
- * form's two subset collections, which follow it the same way. The union only ever grows.
- *
- * The item renderer follows the required `item.shows` change (`item_presentation`), never
- * this fact.
+ * Hiding or reactivating one field, following the Module 4 matrix row. The item renderer
+ * follows the required `item.shows` change (`item_presentation`), never this fact.
  */
 function contributeLifecycleFact(name: string, candidate: CapabilitySpec, sink: WorkSink): void {
   sink.platform.add("platform_form_detail");
   sink.platform.add("list_input_intent");
-  // The two subset collections follow the lifecycle the same way the two total ones do: a
-  // hidden field loses whatever entry it had in `long_text` and `guidance`, and a
-  // reactivated one may take either back. Unconditional, like `list_input_intent` beside
-  // it — the work is "settle this field's form intent", not "this field had a hint".
+  // A hidden field loses its `long_text` and `guidance` entries, a reactivated one may take
+  // them back. Unconditional: the work is settling form intent, not "this field had a hint".
   sink.platform.add("form_subset_intent");
   selectWrites(sink);
   const field = candidate.schema.fields.find((entry) => entry.name === name);
@@ -528,9 +475,8 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
       sink.platform.add("registry_and_view_copy");
       return;
     case "empty_state_noun":
-      // The empty state is platform copy rendered from the row. No generated unit
-      // reads the noun — a handler never emits its own empty state — so nothing
-      // regenerates and every unit is copied.
+      // Platform copy rendered from the row. No generated unit reads the noun — a handler
+      // never emits its own empty state — so every unit is copied.
       sink.platform.add("platform_empty_state_copy");
       return;
     case "prompt_context":
@@ -543,15 +489,9 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
       sink.platform.add("list_input_form_normalization");
       return;
     case "max_length":
-      // What the platform admits on the way in, which is create/update validation shape
-      // exactly as a required change is — so it moves both writing suites' total-input
-      // digests and they are generated again.
-      //
-      // The Handlers themselves are not. They are given the already-admitted string and
-      // told never to re-implement the bound (`units/unit-prompts.ts`), and the limit is
-      // deliberately absent from their generation context, so the fact provably cannot
-      // have reached either prompt — the positive proof ADR-0006 requires before a unit is
-      // copied rather than rewritten.
+      // Validation shape, so both writing suites' digests move. The Handlers are not: the
+      // limit never enters their prompt (`builder/units/generation/unit-prompts.ts`), the
+      // proof ADR-0006 wants.
       sink.platform.add("max_length_validation");
       selectWriteTests(sink);
       return;
@@ -566,26 +506,16 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
       sink.platform.add("field_guidance_copy");
       return;
     case "choice_option_disabled":
-      // An option that stops being offered narrows what a new selection may name, which is
-      // create/update validation shape exactly as an appended option is — and it moves the
-      // same behavioral total-input digests, so both writing suites are generated again.
-      // Storage is untouched: a row already holding the value keeps it.
-      //
-      // The Handlers themselves are not. They are given the values a choice *admits*, and
-      // a retired option is still admitted — a row holding one is valid data a Handler may
-      // read. So the fact provably cannot have reached either prompt, which is the
-      // positive proof ADR-0006 requires before a unit is copied rather than rewritten
-      // (`units/choice-prompt.test.ts` pins it from the other side).
+      // Validation shape, like an appended option; a row already holding the value keeps it.
+      // A retired option is still admitted, so no Handler prompt moves (`choice-prompt.test.ts`).
       sink.platform.add("choice_admitted_values");
       selectWriteTests(sink);
       return;
     case "choice_option_notes":
     case "choice_option_order":
-      // The note beside a row, and the order the rows are drawn in. Neither is stored, and
-      // neither reaches a generated unit: the item renderer is given value→label pairs in
-      // value order and the writing Handlers the admitted strings in value order, so
-      // nothing generated can have either fact written into it
-      // (`registry/spec.ts`, `units/unit-prompts.ts`).
+      // The note beside a row and the order rows are drawn in: not stored, and every unit is
+      // handed values in value order (`registry/spec/spec.ts`,
+      // `builder/units/generation/unit-prompts.ts`).
       sink.platform.add("choice_option_presentation");
       return;
     case "choice_option_groups":

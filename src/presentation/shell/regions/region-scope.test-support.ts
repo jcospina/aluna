@@ -5,10 +5,8 @@
 // nothing.
 
 /**
- * A node small enough to run the release rule in Bun. The rule needs three DOM facts and
- * no more — is this anchor still in the document, does that node hold it, and which
- * content region is it in — so this implements exactly those and the tree operations a
- * test performs on them.
+ * A node small enough to run the release rule in Bun. The rule needs three DOM facts: is this
+ * anchor still in the document, does that node hold it, and which content region is it in.
  */
 export class Node {
   readonly children: Node[] = [];
@@ -48,9 +46,8 @@ export class Node {
   }
 
   /**
-   * The two facts the transport abort reads off a node: whether this one is mid-request,
-   * and which of its descendants are. `htmx-request` is the class htmx puts on an element
-   * while its request is in flight, and the abort's rule is written against exactly these.
+   * The two facts the transport abort reads off a node: whether this one is mid-request, and
+   * which descendants are. `htmx-request` is the class htmx puts on an element in flight.
    */
   requesting = false;
 

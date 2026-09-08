@@ -165,9 +165,8 @@ function updateBoundTarget(
     merged[field.name] = submittedUpdateValue(field, values);
   }
 
-  // `current` is what the row already holds, which is the one thing that makes a disabled
-  // choice value admissible: a record standing on an option before it was retired keeps it
-  // through an edit that never touched that field.
+  // `current` is what the row already holds, the one thing that makes a disabled choice value
+  // admissible: a record standing on an option before it was retired keeps it through an edit.
   const normalized = normalizeSpecFieldValues(
     authority.capabilityId,
     authority.fields,

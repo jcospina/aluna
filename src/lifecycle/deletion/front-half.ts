@@ -35,11 +35,8 @@ export type CapabilityDeletionAdmission =
   | { readonly status: "admitted"; readonly target: CapabilityRow };
 
 /**
- * Atomically admit the dependency-safe front half of permanent capability deletion.
- *
- * The preflight the deletion doorway shows is deliberately absent from this function: only
- * this lease-held read is authoritative. The continuation is invoked before
- * ownership releases so destructive work cannot race a newly queued build or write.
+ * Admit deletion's front half. Only this lease-held read is authoritative, not the doorway's
+ * preflight; the continuation runs before ownership releases, so no queued build or write races it.
  */
 export async function admitCapabilityDeletion(
   expectation: CapabilityDeletionExpectation,

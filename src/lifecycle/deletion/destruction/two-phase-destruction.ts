@@ -58,12 +58,8 @@ export interface DestroyCapabilityInput {
 }
 
 /**
- * The drain outdid its deadline, so nothing was destroyed and the gate is open again.
- *
- * It is deliberately its own outcome rather than a throw: a deletion refused because
- * active work would not finish in time is a different thing to tell the user than a
- * deletion that failed, and collapsing the two leaves them looking at a sentence that
- * cannot explain what happened. ADR-0006 names it `deletion_drain_timeout`.
+ * The drain outdid its deadline, so nothing was destroyed and the gate is open again. ADR-0006
+ * names it `deletion_drain_timeout`: refused because work was still running is not failed.
  */
 export interface CapabilityDrainTimeoutResult {
   readonly status: "deletion_drain_timeout";
@@ -172,12 +168,7 @@ function commitDeletionTombstone(
   return payloads;
 }
 
-/**
- * Discharge every durable obligation the tombstone carries, recording each entry's
- * outcome. The first failure stops the run and leaves the tombstone intact with its
- * complete manifest, so a retry re-runs entries that already succeeded — which is why
- * every adapter must treat an already-absent resource as success.
- */
+/** An adapter must treat an absent resource as success: `cleanTombstone`'s retry re-runs it. */
 async function cleanOwnedResource(
   entry: OwnedResourceEntry,
   tombstone: CapabilityDeletionTombstone,
@@ -196,6 +187,10 @@ async function cleanOwnedResource(
   await adapter.clean(entry, tombstone);
 }
 
+/**
+ * The first failure leaves the tombstone intact with its complete manifest, so a retry starts at
+ * the top and re-runs every entry an earlier attempt already discharged.
+ */
 async function cleanTombstone(
   tombstone: CapabilityDeletionTombstone,
   database: Database,
@@ -242,11 +237,8 @@ export async function destroyCapability(
     input.faults?.afterManifestCollected?.();
     payloads = commitDeletionTombstone(input, manifest);
     committed = true;
-    // Past the point of no return, so the gate has to go whatever state it is in. The
-    // ordinary finalize refuses unless the gate is still the drained one at zero readers —
-    // right before the commit, and protecting nothing after it, since the row is a
-    // tombstone and the table is dropped. Refusing there left the cell in `closing` for the
-    // life of the process. Only a lease this coordinator has never heard of is still a bug.
+    // Past the point of no return, so the gate goes whatever state it is in: refusing left the cell
+    // in `closing` for the life of the process. Only a lease this coordinator never saw is a bug.
     if (
       !input.readGates.finalizeClose(closeLease) &&
       !input.readGates.retireAfterCommit(closeLease)
@@ -311,10 +303,8 @@ export function createArtifactCleanupAdapter(
 }
 
 /**
- * The adapter name the capability-owned object store will answer to when Module 6
- * installs it. Nothing registers it yet: M4's acceptance fake claims it in tests only, and
- * a manifest naming an adapter this process does not have is deliberately a hard failure
- * rather than a silent skip — a real M6 obligation must never be discharged by accident.
+ * The adapter name the object store will answer to when Module 6 installs it; nothing registers it
+ * yet. An unknown adapter fails hard, so no real M6 obligation is ever discharged by accident.
  */
 export const OWNED_RESOURCE_ADAPTER = "owned_files";
 
@@ -326,24 +316,16 @@ export function createProductionCapabilityDeletionAdapters(
 }
 
 /**
- * Take the capability's own directory with the last incarnation inside it.
- *
- * The adapter removes `capabilities/<id>/<incarnation>/` and used to stop there, so every
- * capability built once and deleted left `capabilities/<id>/` behind, empty, for ever —
- * nothing else on the deletion path or in artifact reconciliation removes an id-level
- * directory. Only when it is empty: an evolution keeps earlier incarnations beside the live
- * one, and a deletion of one of them must not take the others with it.
- *
- * Failure is not an error. The directory is not owned state — the incarnation inside it was,
- * and it is gone — so a permission or a race here must not turn a completed deletion into
- * an owed cleanup that retries for ever.
+ * Take the capability's own directory when the last incarnation leaves it empty; nothing else on
+ * the deletion path removes an id-level directory, and an evolution keeps earlier incarnations.
  */
 function removeEmptyCapabilityDirectory(artifactsRoot: string, capabilityId: string): void {
   const directory = assertSafeArtifactPath(artifactsRoot, [capabilityId]);
   try {
     if (readdirSync(directory).length === 0) rmdirSync(directory);
   } catch {
-    // Gone already, never there, or not empty: all three are the state this wanted.
+    // Gone already, never there, or not empty: all three are the wanted state. The directory is not
+    // owned state, so a failure here must not turn a completed deletion into an owed cleanup.
   }
 }
 

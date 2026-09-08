@@ -1,8 +1,8 @@
 // Frozen-intent bounded repair, end to end through the evolution engine — Module 4,
 // (ADR-0003 bounded per-unit loop; ADR-0006).
 //
-// The rung's own battery (`builder/gate/behavioral/gate-behavioral-repair.test.ts`) pins
-// who gets rewritten and how often. This one pins what that means for a *product*: an
+// The rung's own battery (`builder/gate/rungs/behavioral/repair/gate-behavioral-repair.test.ts`)
+// pins who gets rewritten and how often. This one pins what that means for a *product*: an
 // evolution whose regenerated Handler contradicts the frozen suite either repairs itself
 // and ships, or fails closed with the previous version still live, still holding every
 // record, and still routable — and in neither case does a single frozen byte move.
@@ -70,10 +70,8 @@ afterEach(() => {
 });
 
 /**
- * Swap the committed base for one published **tier-on**, then evolve it. Most cases here
- * only need a tier-on *candidate*, which the global toggle already gives them; these need a
- * tier-on **prior version**, because only a version that froze intent has intent to carry
- * forward. The replacement env is torn down by the shared `afterEach`.
+ * Swaps the committed base for one published tier-on, then evolves it. Most cases need only a
+ * tier-on candidate; these need a tier-on prior, since only a frozen version has intent to carry.
  */
 async function evolveTierOn(
   candidate: CapabilitySpec,
@@ -85,9 +83,8 @@ async function evolveTierOn(
 }
 
 /**
- * An `update` Handler that lets a required field be blanked. It type-checks, it clears the
- * platform smoke fixture (which updates with a valid value), and it contradicts exactly one
- * frozen case: the one that says blanking `text` must emit `missing_required_fields`.
+ * An `update` Handler that lets a required field be blanked. It clears the platform smoke fixture
+ * and contradicts one frozen case: blanking `text` must emit `missing_required_fields`.
  */
 function permissiveUpdate(candidate: CapabilitySpec): string {
   const good = updateHandlerFor(candidate);
@@ -100,10 +97,8 @@ function permissiveUpdate(candidate: CapabilitySpec): string {
 }
 
 /**
- * A `create` Handler whose validation fragment names the wrong fields. It writes no bad row
- * and drops no presented item, so it clears the platform smoke fixture; what it contradicts
- * is one frozen case's *fragment* markers — the surface the shared item renderer is also
- * capable of breaking, and therefore the surface attribution cannot always narrow.
+ * A `create` Handler whose validation fragment names the wrong fields: it clears smoke but breaks
+ * a frozen case's fragment markers, a surface the shared renderer breaks too, so it cannot narrow.
  */
 function misattributingCreate(candidate: CapabilitySpec): string {
   const good = createHandlerFor(candidate);
@@ -113,10 +108,8 @@ function misattributingCreate(candidate: CapabilitySpec): string {
 }
 
 /**
- * The same new nullable column, plus the item surfaces that show it, with the behavior text
- * left exactly as it was. `read`, `delete` and `search` project no schema into their test
- * inputs, so their digests do not move and their v1 suites carry forward — which is what
- * puts pre-column rows in front of post-column code.
+ * The same new nullable column and the item surfaces showing it, behavior text untouched. `read`,
+ * `delete` and `search` digests do not move, so their v1 suites carry pre-column rows forward.
  */
 function showsDueDateCandidate(): CapabilitySpec {
   const base = committedSpec();
@@ -190,17 +183,15 @@ describe("a repairable evolution ships", () => {
       outcome: "activated",
     });
     const lifecycle = durableLifecycle(env, "repaired");
-    // The same nine deterministic calls as the exhausted case, counted once apiece. A
-    // passing repair must not disappear, and its usage must not be counted both through
-    // the reconciled unit and through the Gate.
+    // The same nine deterministic calls as the exhausted case, counted once apiece: a passing
+    // repair must not disappear, nor be counted through both the reconciled unit and the Gate.
     expect(lifecycle?.measurement?.usage?.totalTokens).toBe(48 * 9);
     expect(
       lifecycle?.measurement?.unitAttempts?.find((unit) => unit.name === "update")?.attempts,
     ).toBe(2);
 
-    // The repair is in the unit's own history, not just the Gate's. A rewrite that cost a
-    // provider call and does not appear in what that unit is recorded as having taken is a
-    // build whose provenance understates what wrote it.
+    // The repair is in the unit's own history, not just the Gate's: a rewrite that cost a provider
+    // call and is missing from the unit's record understates what wrote the build.
     const update = outcome.assembly.units.find((unit) => unit.name === "update");
     const repairAttempt = update?.attempts.at(-1);
     expect(repairAttempt?.error).toContain("update emits missing_required_fields");
@@ -221,9 +212,8 @@ describe("a repairable evolution ships", () => {
     const behavioral = outcome.assembly.gate.behavioral;
     if (behavioral.tier !== "on") throw new Error("expected a tier-on Gate result");
 
-    // A repair happened, and the artifact the snapshot digest covers still matches the
-    // frozen intent the rung executed. Publication verifies that digest, so a test rewritten
-    // to fit the code could not have reached disk unnoticed.
+    // A repair happened, and the digested artifact still matches the frozen intent the rung ran.
+    // Publication verifies that digest, so a test rewritten to fit the code cannot reach disk.
     expect(behavioral.repair.fixed).toBe(true);
     expect(JSON.parse(publishedFrozenTests(2))).toEqual(behavioral.frozenTests);
     const frozenEntry = outcome.publication.manifest.files.find(
@@ -234,8 +224,7 @@ describe("a repairable evolution ships", () => {
 
   test("a fragment failure beside a regenerated renderer rewrites the conservative set", async () => {
     // `dueDateCandidate` moves the free-text behavior *and* the item renderer, so a failing
-    // fragment assertion cannot be pinned to one Handler without assuming the frozen
-    // assertion is wrong. Decision 22's answer is to widen the code, never the test.
+    // fragment assertion pins to no one Handler. Decision 22 widens the code, never the test.
     const candidate = dueDateCandidate();
     const result = await evolve(env, candidate, "add a due date and make it stand out", {
       buildId: "conservative",
@@ -250,9 +239,8 @@ describe("a repairable evolution ships", () => {
       reason: "fragment_with_regenerated_item_renderer",
       handlers: ["create", "read", "update", "delete", "search"],
     });
-    // Every declared Handler was *asked* — that is what conservative means. Only the one
-    // whose bytes actually came back different is recorded as repaired: a rewrite that
-    // returned the input verbatim is not a rewrite, and must not enter a unit's provenance.
+    // Every declared Handler was asked — that is what conservative means — but only the one whose
+    // bytes came back different is recorded: a verbatim return is not a rewrite.
     expect(behavioral.repair.repairedHandlers).toEqual(["create"]);
     // Widening the repair does not widen what proves it: every rewritten Handler was
     // judged by its own frozen suite on the run that passed.
@@ -268,11 +256,8 @@ describe("a repairable evolution ships", () => {
 
 describe("behavior over existing records", () => {
   test("a repair is re-proven over frozen cases whose rows predate the new column", async () => {
-    // v1 was built tier-on, so `read`, `delete` and `search` carry their suites forward
-    // byte-for-byte — and those cases seed rows written against v1's schema. After the
-    // additive migration the new column is `null` in every one of them. A repair that only
-    // satisfied this build's own freshly-generated cases would be judging the new code
-    // exclusively on rows that could not exist yet.
+    // The carried `read`/`delete`/`search` cases seed rows written against v1's schema, so after
+    // the migration the new column is `null` in each — rows this build's fresh cases never make.
     const candidate = showsDueDateCandidate();
     const result = await evolveTierOn(candidate, {
       buildId: "existing-records",
@@ -300,10 +285,8 @@ describe("behavior over existing records", () => {
   });
 
   test("code that assumes every row has the new column fails closed against historical nulls", async () => {
-    // The renderer is the unit that most easily forgets: it is written knowing the *new*
-    // shape. Here it throws on a row that has no due date — and the only rows like that are
-    // the ones the carried frozen intent describes. The renderer runs inside the Handler
-    // call, so this is also the case that must not be blamed on the read Handler.
+    // The renderer is written knowing the *new* shape and throws on a row with no due date — the
+    // only such rows are the carried ones. It runs inside the Handler call, so `read` is not it.
     const candidate = showsDueDateCandidate();
     const run = evolveTierOn(candidate, {
       buildId: "null-hostile",
@@ -324,9 +307,8 @@ describe("behavior over existing records", () => {
 
 describe("the living demo", () => {
   test("the hard-path fixture forces a real first-pass failure and a real repair", async () => {
-    // Exactly what a developer gets from enabling the hard-path control: the fixture writes
-    // the first `update.ts`, and nothing else about the run is staged — the failure is a
-    // frozen case's verdict, and the rewrite comes from the provider.
+    // What enabling the hard-path control gets a developer: the fixture writes the first
+    // `update.ts` and nothing else is staged — the failure is a verdict, the rewrite a provider's.
     const result = await evolve(env, behaviorNeutralDueDateCandidate(), "add a due date", {
       buildId: "hard-demo",
       firstPassHandlerFixture: hardEvolutionHandlerFixture,
@@ -348,10 +330,8 @@ describe("the living demo", () => {
   });
 
   test("the hard-path fixture forces the same story on a realistic request", async () => {
-    // "add a due date and make it stand out" moves the free-text behavior and the item
-    // renderer too — a much bigger evolution. The forced failure still lands where the
-    // platform mutation port rejects the blank required field, so attribution stays total
-    // and the demo does not become a five-Handler rewrite by accident.
+    // A much bigger evolution: the free-text behavior and the item renderer move too. The forced
+    // failure still lands on the mutation port's rejection, so attribution stays total.
     const result = await evolve(env, dueDateCandidate(), "add a due date and make it stand out", {
       buildId: "hard-demo-realistic",
       firstPassHandlerFixture: hardEvolutionHandlerFixture,
@@ -371,9 +351,8 @@ describe("the living demo", () => {
   });
 
   test("the fixture cannot widen the Diff plan to displace a copied Handler", async () => {
-    // The spec-derived cache owns the copy/regenerate boundary. A guided-repair request
-    // whose Diff does not select update leaves those committed bytes untouched and performs
-    // no synthetic repair.
+    // The spec-derived cache owns the copy/regenerate boundary: a guided-repair request whose Diff
+    // does not select `update` leaves those committed bytes untouched and repairs nothing.
     const candidate = structuredClone(committedSpec());
     candidate.ui_intent.item.direction = "A text-forward card with a little more breathing room.";
     const result = await evolveTierOn(candidate, {
@@ -448,10 +427,8 @@ describe("an unrepairable evolution fails closed", () => {
     const lifecycle = durableLifecycle(env, "exhausted");
     expect(lifecycle).toMatchObject({ lifecycleStatus: "failed", outcome: "gate_failed" });
     expect(lifecycle?.measurement?.failure).toMatchObject({ stage: "gate", rung: "behavioral" });
-    // Every fake-provider call costs exactly 48 tokens: candidate authoring, five freshly
-    // frozen Action suites, the two units selected by the Diff, and the attempted behavioral
-    // repair. A failed Gate must retain that final call rather than reporting the 8-call
-    // pre-repair subtotal.
+    // Every fake-provider call costs 48 tokens: authoring, five frozen suites, the two selected
+    // units, and the attempted repair. A failed Gate keeps the ninth call, not an 8-call subtotal.
     expect(lifecycle?.measurement?.usage?.totalTokens).toBe(48 * 9);
     expect(
       lifecycle?.measurement?.unitAttempts?.find((unit) => unit.name === "update")?.attempts,
@@ -480,10 +457,8 @@ describe("an unrepairable evolution fails closed", () => {
   });
 
   test("a build interrupted mid-repair reconciles to interrupted at boot", async () => {
-    // A real interruption, not a simulated row: the run is stopped *inside* the Gate's
-    // repair loop, with the provider mid-rewrite, and never allowed to finalize. That is
-    // exactly the state a killed process leaves behind — a durable `running` row, no
-    // published candidate, and the previous version still live.
+    // A real interruption, not a simulated row: the run stops inside the Gate's repair loop with
+    // the provider mid-rewrite, leaving a `running` row, no candidate, and the old version live.
     const candidate = behaviorNeutralDueDateCandidate();
     const permissive = permissiveUpdate(candidate);
     let repairing: (() => void) | undefined;

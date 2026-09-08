@@ -127,10 +127,8 @@ describe("the ink system draws the surface's own boundaries", () => {
   });
 
   test("a control mounted before it can be measured costs nothing until it is drawn", () => {
-    // Anything mounted inside a `display: none` subtree measures zero, so the first draw
-    // is the resize watch's. Until then the element must keep its own border and its
-    // layers must take no room: an `<svg>` with no size of its own is 300 by 150, which
-    // in flow widens its host and out of flow overflows whatever holds it.
+    // Anything inside a `display: none` subtree measures zero, so the first draw is the resize
+    // watch's. An `<svg>` with no size of its own is 300 by 150, which would widen its host.
     const bar = dom.element("div", "desk__logos");
     const toggle = drawn("button", "btn", bar);
     toggle.box = { w: 0, h: 0 };
@@ -200,9 +198,8 @@ describe("the ink system draws the records the platform hands it", () => {
     mountAllInk(list);
 
     expect(cards.every((card) => card.classes.has("is-ink"))).toBe(true);
-    // Two hundred cards, one observation — the region, never a card. This is the whole
-    // cost argument: the children of a list resize together, so watching each one buys
-    // nothing and is what would show up on a long list.
+    // Two hundred cards, one observation — the region, never a card. The children of a list
+    // resize together, so watching each one buys nothing and shows up on a long list.
     expect(dom.resizeObservations()).toContain(list);
     expect(dom.resizeObservations().length).toBe(before + 1);
     for (const card of cards) expect(dom.resizeObservations()).not.toContain(card);
@@ -242,22 +239,12 @@ describe("the ink system draws the records the platform hands it", () => {
   });
 });
 
-// Where the two layers sit, which is a different question from what they draw.
-//
-// They are absolutely positioned, so the drawn element has to be their containing block.
-// Get that wrong and the boundary is drawn at the right size, in the right shape, in some
-// ancestor's corner — a button's line painted at the top-left of the window while the
-// button stands at the bottom-right.
+// Where the two layers sit, which is a different question from what they draw. Get the
+// containing block wrong and a button's line is painted in the window's top-left corner.
 describe("the box the layers sit in", () => {
   test("a control mounted off-document still gets the box its layers sit in", () => {
-    // The layers are absolutely positioned, so the element they belong to has to be the
-    // containing block. A detached element has no computed style — every property is the
-    // empty string, `position` included — so the ask at mount cannot be answered, and an
-    // element mounted before it is in the document is exactly what an out-of-band swap
-    // produces. Unanswered, its layers belong to whatever containing block is above it
-    // and are drawn in *that* element's corner: right size, right shape, nowhere near
-    // the thing they are the boundary of. Seen in a browser as a button's boundary
-    // painted at the top-left of the window while the button sat at the bottom-right.
+    // A detached element has no computed style — `position` included is the empty string — so
+    // the ask at mount cannot be answered, and an out-of-band swap mounts exactly that element.
     const loose = dom.element("button", "btn");
     loose.box = { w: 84, h: 36 };
     loose.remove(); // off-document, the way an out-of-band swap's element arrives

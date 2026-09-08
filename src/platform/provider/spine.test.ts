@@ -1,16 +1,12 @@
-// Tests for the real provider spine (Epic 1.5, issue 02). Deterministic and
-// network-free on purpose: the wire is selected off the endpoint, and a missing
-// key fails loudly at construction.
+// Tests for the real provider spine (Epic 1.5, issue 02). Deterministic and network-free on
+// purpose: the wire is selected off the endpoint, and a missing key fails loudly at construction.
 //
-// There is deliberately **no test here that calls a real AI provider** — that
-// would spend money on every `bun test` run. The real streamed, structured
-// round-trip is proven by *running the app*: type a prompt into the shell's prompt
-// bar and watch the spec stream in (`POST /prompt` → `GET /build/:id/stream`,
-// src/server/app.ts). That path's own wiring is covered without spend in the
-// src/app/app.*.test.ts files, which drive it through a fake `Provider` — the same
-// fakeability the contract was built for (contract.test.ts). Non-conforming output
-// surfacing on `.object` is the contract's guarantee (contract.test.ts), inherited here
-// because `generate` maps straight onto `streamObject`.
+// No test here calls a real AI provider — that would spend money on every `bun test` run. The
+// real streamed, structured round-trip is proven by running the app: type a prompt into the
+// prompt bar and watch the spec stream in (`POST /prompt` → `GET /build/:id/stream`). That path's
+// wiring is covered without spend in src/app/app.*.test.ts, through a fake `Provider`.
+// Non-conforming output on `.object` is the contract's guarantee (contract.test.ts), inherited
+// here because `generate` maps straight onto `streamObject`.
 
 import { describe, expect, test } from "bun:test";
 import type { streamObject as aiStreamObject } from "ai";
@@ -29,9 +25,8 @@ describe("selectWire (the registry, keyed by baseURL)", () => {
   });
 
   test("routes every other endpoint to the generic OpenAI-compatible wire", () => {
-    // The open Chinese coding models are first-class targets: they reach
-    // the compatible wire — Chat Completions, not OpenAI's Responses API — by
-    // endpoint alone, no code path of their own.
+    // The open Chinese coding models reach the compatible wire — Chat Completions, not OpenAI's
+    // Responses API — by endpoint alone, with no code path of their own.
     expect(selectWire("https://api.moonshot.cn/v1")).toBe("openai-compatible"); // Kimi
     expect(selectWire("https://open.bigmodel.cn/api/paas/v4")).toBe("openai-compatible"); // GLM
     expect(selectWire("https://api.deepseek.com/v1")).toBe("openai-compatible"); // DeepSeek
@@ -55,10 +50,8 @@ describe("createProvider (failure modes surface clearly)", () => {
   });
 
   test("constructs without a network call once a key is present", () => {
-    // Building the provider is pure wiring; nothing is sent until `generate` runs.
-    // `not.toThrow` alone would not notice a request going out, and this is the
-    // test standing between a refactor and a billed call on every suite run — so
-    // count the requests rather than trusting the construction to be quiet.
+    // `not.toThrow` alone would not notice a request going out, and this test stands between a
+    // refactor and a billed call on every suite run, so count the requests instead.
     const originalFetch = globalThis.fetch;
     let requests = 0;
     globalThis.fetch = ((...args: Parameters<typeof originalFetch>) => {
@@ -165,11 +158,8 @@ describe("createProvider (stage deadlines)", () => {
 });
 
 describe("pumpStream (self-driving partial stream)", () => {
-  // `streamObject` is pull-based: its `object`/`usage` only settle once the partial
-  // stream is consumed. `pumpStream` is what makes the contract's "await `object`
-  // directly" promise true — it drains the source itself. These guard that, without a
-  // live provider: the regression (awaiting object hangs) would resurface silently
-  // otherwise, since every fake provider's `object` resolves eagerly.
+  // `pumpStream` makes the contract's "await `object` directly" promise true by draining the
+  // source itself. Every fake provider's `object` resolves eagerly, so the hang hides otherwise.
   test("drives the source to completion even when nothing iterates the result", async () => {
     let resolveDone!: () => void;
     const done = new Promise<void>((resolve) => {
@@ -223,14 +213,8 @@ describe("pumpStream (self-driving partial stream)", () => {
 });
 
 /**
- * The fault the SDK reports to `onError` and nowhere else.
- *
- * Verified against a live 401 before this existed: `partialObjectStream` ended cleanly
- * at 915ms and `object`/`usage` were still pending at 45s, so the resolver awaiting
- * `object` never returned and the build narrated work that had already stopped. Every
- * provider fault behaved that way — a rejected key, a rate limit, a dropped connection —
- * because none of them is model non-conformance, which is the only thing the SDK rejects
- * `object` for.
+ * Verified against a live 401: `partialObjectStream` ended cleanly at 915ms while `object`/`usage`
+ * were still pending at 45s. Model non-conformance is the only thing the SDK rejects `object` for.
  */
 describe("providerFault (the fault the SDK swallows)", () => {
   const pending = () => new Promise<never>(() => undefined);

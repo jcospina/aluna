@@ -87,27 +87,12 @@ interface DeferredLease {
 }
 
 /**
- * How long a reservation may sit with *no owner waiting on it*.
- *
- * It bounds abandonment, not queueing. A ticket is reserved and then acquired a moment
- * later on the same call path, so the only thing this window covers is a caller that
- * reserved and then went away — and a build reservation blocks the head of the queue until
- * its owner asks for the lease, so an abandoned one has to time out or nothing behind it
- * ever runs.
- *
- * It deliberately does **not** bound how long a queued build waits for the lease. It used
- * to: the clock started at `reserveBuild()` and kept running, so a second build queued
- * behind a real one — which takes minutes — always died at 30 seconds with
- * `MutationReservationExpiredError`, rendered to the person as "Hmm, that didn't work.
- * Mind trying again?" after they had waited and paid for a resolver call. The documented
- * bounded FIFO queue could not hold anyone at depth ≥ 2. What bounds a genuinely stuck
- * queue is the holder's own whole-build lease expiry below.
+ * How long a reservation may sit with no owner waiting: it bounds abandonment, not queueing, since
+ * a build reservation blocks the head of the queue. A stuck queue is bounded by the lease below.
  */
 const DEFAULT_BUILD_RESERVATION_TTL_MS = 30_000;
-// A build may legally spend the five-minute provider budget across spec generation,
-// behavioral freezing, twelve sequential unit attempts, and bounded Gate repairs. The
-// whole-owner failsafe therefore sits well above that roughly two-hour maximum path; it is
-// independent of the short per-call deadline, not a competing normal build budget.
+// A build may legally spend the five-minute provider budget across spec generation, freezing,
+// twelve unit attempts and Gate repairs, so this failsafe sits above that two-hour maximum path.
 export const DEFAULT_BUILD_LEASE_TTL_MS = 4 * 60 * 60_000;
 
 function deferredLease(): DeferredLease {
@@ -190,9 +175,8 @@ export class MutationCoordinator {
         ),
       );
     }
-    // From here the ticket has an owner waiting on it, so the abandonment clock stops —
-    // both the timer and the deadline `pruneExpiredReservations` reads. Waiting in the
-    // queue is what a queue is for.
+    // From here the ticket has an owner waiting on it, so the abandonment clock stops — both the
+    // timer and the deadline `pruneExpiredReservations` reads.
     if (entry.expiryTimer) clearTimeout(entry.expiryTimer);
     entry.expiryTimer = undefined;
     entry.expiresAt = null;
@@ -248,14 +232,8 @@ export class MutationCoordinator {
   }
 
   /**
-   * Deletion is an atomic non-queued try-acquire.
-   *
-   * Ordering invariant: deletion takes this lease *then* closes the read gate, while a
-   * record route takes read tokens *then* asks for a lease. That inversion is only safe
-   * because every acquisition made while holding read tokens is non-blocking
-   * ({@link tryAcquireRecordWrite}). Never `await` a queued acquisition — `withBuildLease`,
-   * `withPlatformWrite` — inside a read-token scope, or the two will deadlock until
-   * deletion's drain deadline expires.
+   * Deletion takes this lease *then* closes the read gate, while a record route takes read tokens
+   * *then* asks for one. Never `await` a queued acquisition inside a read-token scope: deadlock.
    */
   tryAcquireDeletion(): MutationLease | undefined {
     return this.tryAcquireShort("deletion");

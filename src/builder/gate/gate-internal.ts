@@ -16,11 +16,13 @@ import {
   type PresentationAdapter,
   type RenderableCapability,
 } from "../../presentation/index.ts";
-import type {
-  CapabilitySpec,
-  CapabilityTool,
-  FieldType,
-  ReadDependency,
+import {
+  type CapabilityRow,
+  type CapabilitySpec,
+  type CapabilityTool,
+  type FieldType,
+  LOGO_BIRTH_STATUS,
+  type ReadDependency,
 } from "../../registry/index.ts";
 import type { CapabilityCreateValues, CapabilityTableDdl } from "../../runtime/data/index.ts";
 import {
@@ -58,19 +60,8 @@ export interface LoadedHandlers {
 }
 
 /**
- * Build the real `present` adapter the gate hands handlers alongside the scratch data
- * tool — the `present` half of ADR-0004's practice toolbox, extended by ADR-0005 §2. It
- * loads the build's generated item renderer and binds it to the capability, so the smoke
- * and behavioral rungs exercise handlers through the *exact same* adapter the router
- * injects at runtime. Because create and read both render records through this one adapter,
- * the smoke rung proves their item markup is identical by construction. A renderer
- * that fails to load throws here and fails the rung loudly rather than rendering blank.
- */
-/**
- * A throw from inside the generated item renderer, marked so a rung can tell it apart from
- * a Handler's own failure. It matters for runtime failure attribution: the renderer
- * executes *inside* the Handler call, so without this marker a renderer defect would look
- * like a Handler defect and license rewriting an innocent unit.
+ * A throw from inside the generated item renderer, marked so a rung can tell it from a Handler's
+ * own failure: the renderer runs inside the Handler call and would license an innocent rewrite.
  */
 export class ItemRendererExecutionError extends Error {
   override readonly name = "ItemRendererExecutionError";
@@ -80,6 +71,10 @@ export class ItemRendererExecutionError extends Error {
   }
 }
 
+/**
+ * The real `present` adapter the gate hands handlers (ADR-0004 toolbox, ADR-0005 §2), bound to the
+ * build's own item renderer: create and read render through it, and a load failure throws.
+ */
 export function buildGatePresent(spec: CapabilitySpec, itemRenderer: string): PresentationAdapter {
   const capability: RenderableCapability = {
     id: spec.id,
@@ -122,6 +117,25 @@ export function applyDdl(ddl: CapabilityTableDdl, database: Database): void {
   for (const statement of ddl.statements) {
     database.exec(statement);
   }
+}
+
+// Scratch dependency rows never reach the registry, so their logo values are the
+// birth state a real row would be inserted with rather than anything meaningful.
+const SCRATCH_DEPENDENCY_SEED = 1;
+
+/** The dependency rows a rung reads through, shaped as the registry would have stored them. */
+export function scratchDependencyRows(
+  catalog: readonly ScratchCatalogCapability[] | undefined,
+): CapabilityRow[] {
+  return (catalog ?? []).map((fixture) => ({
+    ...fixture.spec,
+    incarnation_id: fixture.incarnationId,
+    version: 1,
+    artifacts_path: `scratch/${fixture.spec.id}`,
+    seed: SCRATCH_DEPENDENCY_SEED,
+    logo: { status: LOGO_BIRTH_STATUS, attempts: 0 },
+    display_label_override: null,
+  }));
 }
 
 /** Build one isolated scratch catalog containing the target plus every declared dependency. */
@@ -240,12 +254,8 @@ export function loadItemRenderer(content: string): ItemRenderer {
   return loadDefaultExport("item renderer", "item", content) as ItemRenderer;
 }
 
-// Prepare a generated unit's default-exported function for in-process execution. The
-// default export (async for handlers, synchronous for the item renderer) is rewritten to
-// a locally-named function the factory returns.
-//
-// Do not dynamic-import a temporary .ts file here. In `bun --watch`, imported temp files
-// join the watch set; deleting them restarts the dev server mid-SSE.
+// Prepare a generated unit's default export for in-process execution, rewritten to a locally
+// named function. Never dynamic-import a temp .ts file: in `bun --watch` it restarts the server.
 function loadDefaultExport(label: string, fileStem: string, content: string): unknown {
   const transpiled = ts.transpileModule(content, {
     compilerOptions: {
@@ -322,14 +332,8 @@ export function assertFragment(
 }
 
 /**
- * Compare a stored field value to a behavioral/smoke expected value *by the field's
- * spec type*. This is the success-path analogue of the validation tier's stable error
- * codes: assert on semantic content, not on a byte-identical representation the model
- * can't be made to emit deterministically. Datetimes compare as instants — a handler
- * may legitimately canonicalize "2025-06-01T12:00:00Z" to "2025-06-01T12:00:00.000Z"
- * (a `new Date(...).toISOString` round-trip) while the model authors the test in the
- * raw input form; the same *moment* is a match. Strings, numbers, and booleans are
- * already normalized by the split data ports, so a value comparison is exact for them.
+ * Compare a stored value to an expected one *by the field's spec type*. Datetimes compare as
+ * instants: a handler may canonicalize what the model authored raw, and the moment is the match.
  */
 export function fieldValueMatches(type: FieldType, stored: unknown, expected: unknown): boolean {
   if (type === "datetime") return sameInstant(stored, expected);

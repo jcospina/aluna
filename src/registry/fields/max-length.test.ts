@@ -98,9 +98,8 @@ describe("a limit has to be a limit", () => {
   });
 
   test("the floor clears the longest text the Gate writes into a string field", () => {
-    // `gate-smoke-search.ts` seeds `percent% underscore_ apostrophe'o double"quote`, which
-    // is the longest fixture value any string column receives. A capability may not author
-    // a field its own Gate could not fill.
+    // `gate-smoke-search.ts` seeds the longest fixture value any string column receives. A
+    // capability may not author a field its own Gate could not fill.
     expect(MIN_DECLARED_MAX_LENGTH).toBeGreaterThanOrEqual(
       "percent% underscore_ apostrophe'o double\"quote".length,
     );

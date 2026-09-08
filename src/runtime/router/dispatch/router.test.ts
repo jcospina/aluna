@@ -1,18 +1,15 @@
 // Tests for the deterministic capability router — the tracer bullet.
 //
-// The headline proof: a *hand-written* fixture capability — registry row + handler
-// files written by hand to the ADR-0004 contract (src/router/__fixtures__) —
-// round-trips `create` + `read` end to end, BEFORE any AI exists. That pins the
-// whole runtime contract: registry -> router -> injected toolbox -> data table ->
-// HTML fragment back. The rest assert the router's guarantees: actions are
-// validated against the row's declared tools before any code loads, and any
-// failure surfaces in product voice, never as internals.
+// The headline proof: a hand-written fixture capability, registry row and handler files written
+// by hand to the ADR-0004 contract, round-trips `create` and `read` end to end before any AI
+// exists. That pins the whole runtime contract — registry, router, injected toolbox, data table,
+// HTML fragment back. The rest assert the router's guarantees: actions are validated against the
+// row's declared tools before any code loads, and any failure surfaces in product voice.
 //
-// This file carries the create/persistence, build-lease concurrency, and
-// presence/requiredness slices; view and routing slices live in the sibling
-// router.views.test.ts / router.routing.test.ts files. Shared setup and fixtures
-// live in router.test-support.ts. Each case runs against a throwaway file db so the
-// real data file is never touched, mirroring the registry and data-tool tests.
+// This file carries the create/persistence, build-lease concurrency and presence/requiredness
+// slices; view and routing slices live in the sibling router.views.test.ts and
+// router.routing.test.ts. Each case runs against a throwaway file db, so the real data file is
+// never touched.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";

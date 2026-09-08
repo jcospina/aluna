@@ -8,9 +8,8 @@
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
 
-// A deadlock detector, not a latency budget: the failure it catches is a flush
-// that never settles at all. Generous enough that event-loop starvation under a
-// loaded sharded run cannot masquerade as a hang.
+// A deadlock detector, not a latency budget: it catches a flush that never settles, and is
+// generous enough that event-loop starvation under a loaded sharded run cannot look like a hang.
 const HANG_BUDGET_MS = 5_000;
 
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";

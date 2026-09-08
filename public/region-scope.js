@@ -1,34 +1,15 @@
 // @ts-check
 
 /**
- * The content region owns everything its content started.
- *
- * A region is any element marked `data-content-region`. Whatever its content starts —
- * an in-flight fetch, a search controller's debounce timer, an htmx read holding a
- * server read token — registers a release here, anchored to the node that started it.
- * There are exactly two ways that release runs: the content is **replaced**, or the
- * region is **removed**. Both are the same fact seen from the DOM — the anchor left the
- * document — so there is one rule and no third path, and putting a window away is a
- * `releaseRegionContent(region)` call rather than a lifecycle of its own.
- *
- * Aborting the request is what releases the server's read token, so the client-side
- * release and the server-side release are one act rather than two mechanisms that have
- * to agree.
- *
- * Two moments report that one fact. htmx announces a node it is about to detach
- * (`htmx:beforeCleanupElement`), which is the only moment an htmx request can still be
- * aborted — htmx's own abort listener sits on `body` and reads the event as it bubbles
- * from a connected node. The MutationObserver is the guarantee behind it: an anchor that
- * has left the document is released whether or not anyone announced it. An entry runs at
- * most once, so the two can never disagree.
+ * The content region owns everything its content started: a fetch, a debounce timer, an htmx
+ * read holding a server read token, each anchored to the node that started it.
  */
 
 export const CONTENT_REGION_SELECTOR = "[data-content-region]";
 
 /**
- * Release a region's content from a script that cannot import this module — the shell's
- * classic-script glue in `app.js` replaces the window's content directly. Dispatch
- * it on the region itself, before the replacement.
+ * Release a region's content from a script that cannot import this module — `app.js`'s
+ * classic-script glue. Dispatch it on the region itself, before the replacement.
  */
 export const RELEASE_REGION_EVENT = "aluna:release-region";
 
@@ -42,9 +23,8 @@ const HTMX_DISABLE_SELECTOR = "[hx-disable], [data-hx-disable]";
 const UNNAMED_REGION = "—";
 
 /**
- * The DOM facts a release scope needs, and nothing else. Structural on purpose: a real
- * `Element` satisfies it and so does a test double, which is what makes the rule
- * executable in Bun without a browser DOM.
+ * The DOM facts a release scope needs, and nothing else. Structural on purpose, so a test double
+ * satisfies it as well as an `Element` and the rule runs in Bun without a browser DOM.
  *
  * @typedef {{
  *   readonly isConnected: boolean,
@@ -82,9 +62,8 @@ function regionNameOf(anchor) {
 }
 
 /**
- * The release scopes of every content region, as one registry. Keeping the entries in
- * one set rather than one set per region is what lets a removal be answered from a node
- * that is already detached, where walking up to find the region no longer works.
+ * The release scopes of every content region as one registry, so a removal can be answered from
+ * a node already detached, where walking up to find the region no longer works.
  */
 export function createRegionReleaseRegistry() {
   /** @type {Set<ScopeEntry>} */
@@ -97,9 +76,8 @@ export function createRegionReleaseRegistry() {
   }
 
   /**
-   * Register one release against the node that owns it. The anchor decides when it runs:
-   * anchor the work to the content that started it, and anchor it to the region itself
-   * only when it should outlive every swap the region holds.
+   * Register one release against the node that owns it: anchor it to the content that started
+   * the work, or to the region itself when it should outlive every swap the region holds.
    *
    * @param {ScopeAnchor} anchor
    * @param {string} label what the developer preview shows
@@ -124,9 +102,8 @@ export function createRegionReleaseRegistry() {
   }
 
   /**
-   * Everything anchored at or under `node`. This is the replace-or-remove path taken
-   * while the content is still connected, which is the only moment an htmx request can
-   * be aborted.
+   * Everything anchored at or under `node`, taken while the content is still connected — the
+   * only moment an htmx request can be aborted.
    *
    * @param {ScopeAnchor} node
    */
@@ -136,7 +113,10 @@ export function createRegionReleaseRegistry() {
     }
   }
 
-  /** The guarantee: an anchor that has left the document took its work with it. */
+  /**
+   * The guarantee: an anchor that has left the document took its work with it, announced or
+   * not. An entry runs at most once, so this and `releaseUnder` can never disagree.
+   */
   function sweep() {
     // The common case by far: the page mutates constantly — every ink redraw is a child
     // list change — and holds nothing to release.
@@ -185,14 +165,8 @@ export function regionScopeReport() {
 }
 
 /**
- * Which nodes under `node` have an htmx request in flight, `node` itself included, and the
- * abort each of them is owed.
- *
- * Stated as a rule over the DOM facts it needs rather than inside the browser call, and
- * that is not tidiness. The transport half used to be reached only past an
- * `instanceof Element` guard, and the release rule's whole test suite runs on a DOM-free
- * double that is never an `Element` — so this branch was structurally excluded from every
- * test, on the most-exercised acquisition path there is: it runs on every capability open.
+ * Which nodes under `node` have an htmx request in flight, `node` included. Stated as a rule
+ * because an `instanceof Element` guard once hid this branch from a DOM-free test suite.
  *
  * @template {{ classList: { contains(name: string): boolean }, querySelectorAll(selector: string): Iterable<T> }} T
  * @param {T} node
@@ -207,15 +181,8 @@ export function abortTransportUnder(node, trigger) {
 }
 
 /**
- * Abort every htmx request in flight under `node`. htmx's abort listener is on `body`
- * and reads the event as it bubbles, so this only works while `node` is still connected —
- * which is exactly what `htmx:beforeCleanupElement` and an explicit pre-replacement
- * release provide.
- *
- * The guard is structural rather than `instanceof Element`: what the abort needs is a
- * class list and a descendant query, and asking for those is both the true precondition
- * and the thing a test can satisfy. Where there is no htmx there is no transport to abort,
- * which is what keeps this inert outside a browser.
+ * Abort every htmx request in flight under `node`. htmx's abort listener sits on `body` and
+ * reads the event as it bubbles, so this works only while `node` is still connected.
  *
  * @param {ScopeAnchor} node
  */
@@ -230,7 +197,8 @@ function abortTransportIn(node) {
 }
 
 /**
- * Whether a node carries the two DOM facts the abort reads off it.
+ * Whether a node carries the two DOM facts the abort reads off it. Structural rather than
+ * `instanceof Element`, so a test can satisfy it; no htmx means no transport to abort.
  * @param {{ classList?: unknown, querySelectorAll?: unknown }} node
  */
 function canBeAborted(node) {
@@ -245,13 +213,8 @@ function htmxDisableSelector() {
 }
 
 /**
- * Release a region's content: run every scope entry anchored at or under `node`, and
- * abort whatever transport that content still has open. Call it *before* replacing the
- * content or removing the region; the observer below catches anything that skipped it.
- *
- * The transport half only runs where there is an htmx to run it, which is what keeps this
- * inert outside a browser — and `abortTransportUnder` states that half as a rule, so it is
- * exercised rather than merely stepped over.
+ * Release a region's content: run every entry anchored at or under `node` and abort its
+ * transport, which is also what frees the server's read token. Call it before the replacement.
  *
  * @param {ScopeAnchor} node
  */
@@ -271,15 +234,13 @@ export function startRegionScopes(root) {
     if (event.target instanceof Element) releaseRegionContent(event.target);
   });
 
-  // htmx cleans an element up while it is still connected, and recurses into its
-  // children. The first call releases the whole subtree, so the recursion that follows
-  // costs a lookup and nothing more.
+  // htmx cleans an element up while it is still connected and recurses into its children; the
+  // first call releases the whole subtree, so the recursion costs a lookup and nothing more.
   document.addEventListener("htmx:beforeCleanupElement", (event) => {
     const node = event.target;
     if (!(node instanceof Element)) return;
-    // Not every cleanup is a removal. htmx also cleans an element it is *keeping* — one
-    // inside an `hx-disable` subtree, as it processes it — and releasing there would
-    // abort a request whose region is still on screen.
+    // Not every cleanup is a removal: htmx also cleans an element it is keeping — one inside an
+    // `hx-disable` subtree — and releasing there would abort a request still on screen.
     if (node.closest(htmxDisableSelector()) !== null) return;
     releaseRegionContent(node);
   });

@@ -42,15 +42,8 @@ export interface ScratchDbEnv {
 export { makeMetricsRecorder } from "../platform/metrics/metrics-test-recorder.ts";
 
 /**
- * A fake provider: streams `greeting` one character at a time (like the real
- * partialStream building up), then resolves the validated object carrying both
- * fields. No SDK, no network — it satisfies the same `Provider` contract the real
- * spine does.
- *
- * The greeting/invitation shape is a leftover of the Module 1 liveness route removed
- * No surviving caller reads the values — `app.build-jobs.test.ts` passes
- * `"unused", "unused"` and only needs *a* `Provider`. Read it as "a generic provider
- * stub that streams then resolves", not as content.
+ * A fake provider: streams `greeting` a character at a time, then resolves the validated object.
+ * The greeting/invitation shape is a Module 1 leftover; no surviving caller reads the values.
  */
 export function makeFakeProvider(greeting: string, invitation: string): Provider {
   return {
@@ -126,9 +119,8 @@ export function eventData(events: SseEvent[], name: string): string {
 }
 
 /**
- * The data of the *last* event of one type — the terminal snapshot of a preview that
- * streams repeatedly (units, and the evolution candidate). Joining those
- * with `eventData` yields concatenated JSON no test can parse.
+ * The data of the last event of one type — the terminal snapshot of a preview that streams
+ * repeatedly. Joining those with `eventData` yields concatenated JSON no test can parse.
  */
 export function lastEventData(events: SseEvent[], name: string): string {
   return events.filter((event) => event.event === name).at(-1)?.data ?? "";
@@ -169,9 +161,8 @@ export interface PromptBuildRun {
 }
 
 /**
- * The production build in one call: submit the prompt, take the job id off the
- * subscriber fragment, then drain that job's stream. Every builder-stage suite drives
- * the platform this way — there is one admission path, and it starts at `/prompt`.
+ * The production build in one call: submit the prompt, take the job id off the subscriber
+ * fragment, then drain that job's stream. There is one admission path and it starts at `/prompt`.
  */
 export async function runPromptBuild(
   app: ReturnType<typeof createApp>,
@@ -183,9 +174,8 @@ export async function runPromptBuild(
 }
 
 /**
- * The scratch db + temp artifacts lifecycle the build/rehydration describes share.
- * setup/teardown preserve the exact temp-dir + database lifecycle the original
- * describes' beforeEach/afterEach established, per test.
+ * The scratch db + temp artifacts lifecycle the build and rehydration describes share, keeping
+ * the per-test beforeEach/afterEach lifecycle those describes established.
  */
 export function createScratchDbEnv(prefix: string): ScratchDbEnv {
   const dir = mkdtempSync(join(tmpdir(), prefix));
@@ -201,9 +191,8 @@ export function teardownScratchDbEnv(env: ScratchDbEnv): void {
 }
 
 /**
- * Build the prompt app wired to commit against the scratch db + temp artifacts root,
- * sharing the scratch pair with the router so a committed capability is immediately
- * routable in the same test.
+ * Build the prompt app wired to commit against the scratch db and temp artifacts root, sharing
+ * the scratch pair with the router so a committed capability is routable in the same test.
  */
 export function makeScratchApp(
   env: ScratchDbEnv,
@@ -521,11 +510,8 @@ export interface PromptBuildUnits {
 }
 
 /**
- * A fake provider for the whole production build: the resolver's classification first,
- * then the capability spec, then the complete generated inventory (item renderer, then
- * all five handlers), recording each prompt — so `POST /prompt` runs end-to-end without
- * a real call. The intent leads because the resolver sits in front of every build; there
- * is no way to reach the Builder without one.
+ * A fake provider for the whole production build: classification, then the capability spec, then
+ * the generated inventory, recording each prompt. The intent leads; no build starts without one.
  */
 export function makePromptBuildProvider(
   intent: IntentClassification,
@@ -550,9 +536,8 @@ export function makePromptBuildProvider(
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
       prompts.push(prompt);
-      // Behavioral tests are generated per Action and *before* the units, so they
-      // are answered by prompt rather than by queue position; the queue keeps the spec and
-      // unit order it always had.
+      // Behavioral tests are generated per Action and before the units, so they are answered by
+      // prompt rather than by queue position; the queue keeps the spec and unit order it had.
       const response = prompt.startsWith("Generate deterministic black-box behavioral tests")
         ? behavioralResponseFor(prompt, behavioralSuite)
         : responses.shift();

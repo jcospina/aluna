@@ -250,9 +250,8 @@ describe("an option taken out of use", () => {
   });
 
   test("a submission wrong in both ways earns the undeclared refusal first", () => {
-    // Two refusals cannot both be the answer. The undeclared one runs first because it is
-    // the stronger statement — that value is not data this capability knows at all — and
-    // the disabled one is asked only of what is left.
+    // Two refusals cannot both be the answer. The undeclared one runs first because it is the
+    // stronger statement, and the disabled one is asked only of what is left.
     const twoChoices = invoicesSpec(false, [
       { value: "draft", label: "Draft" },
       { value: "sent", label: "Sent", disabled: true },

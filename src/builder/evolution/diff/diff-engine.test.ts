@@ -18,9 +18,8 @@ import {
   journalCapabilityRow,
 } from "../candidate/candidate.test-support.ts";
 
-// Diff a candidate — the committed journal spec after `mutate` — against its
-// committed baseline. `base` overrides the committed row for the few rows that
-// need a different starting shape (an active field outside item.shows, extra deps).
+// Diff a candidate — the committed journal spec after `mutate` — against its baseline. `base`
+// overrides the committed row for the few cases needing a different starting shape.
 function diffOf(
   mutate: (draft: CandidateDraft) => void,
   base: CapabilityRow = journalCapabilityRow(),

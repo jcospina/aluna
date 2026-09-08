@@ -1,38 +1,15 @@
-// The main thread's side of the query worker. Why the work is on a thread at all, and
-// why the thread is given no ownership, are in `query-worker-thread.ts`.
+// The main thread's side of the query worker. Why the work is on a thread, and why the thread is
+// given no ownership, are in `query-worker-thread.ts`.
 //
-// One read at a time, because that is all the thread can do. `bun:sqlite` is
-// synchronous, so a second statement posted mid-read would only queue behind the first,
-// and a caller believing it has two reads in flight is wrong about the one thing that
-// matters here. The loop that will use this (epic 6.3) takes one step per turn, so the
-// refusal costs nothing and keeps the contract legible.
+// One read at a time, because that is all the thread can do: `bun:sqlite` is synchronous, so a
+// second statement posted mid-read would only queue behind the first.
 //
-// `close()` ends the worker's life, and the caller owns that lifetime: an unclosed worker
-// keeps the process alive on its own.
-//
-// It does **not** stop a statement already running, and 6.2/03 did not inherit the belief
-// that it does. Measured on Bun 1.3.12: after `terminate()` returned, the thread went on
-// burning 2.98s of CPU over the next 3s of a runaway query, and a `process.exit` issued
-// during one waited for the statement to finish. `terminate()` reclaims the thread when the
-// statement ends; interrupting the statement itself needs `sqlite3_interrupt` through FFI
-// against `Database.handle`.
-//
-// What `close()` does reclaim immediately is the *caller*: `end()` rejects every pending
-// read on this side, synchronously, whatever the thread is still doing. That is
-// the whole of decision 10's kill — `whole-catalog-read-scope.ts` cancels by closing, and
-// the read gate's drain waits on the released token rather than on the statement's cycles.
-// There is no second `terminate()` entry point here because there would be nothing in it
-// this one does not already do.
-//
-// The packaging seam 6.2/01 left open is closed, because 6.3/01 is what opened it for real.
-// Bun's bundler emits the specifier below exactly as written — dropping `.href` does not
-// make it follow the worker either — so a bundled entry point looks for the thread *beside
-// itself* rather than in `src/`. That was harmless while nothing the server reached
-// imported this file; `/demo/question` reaches it now. `scripts/build.ts` therefore copies
-// `query-worker-thread.ts` beside the bundle, which works because the thread imports
-// `bun:sqlite` and nothing else and Bun runs the TypeScript file directly. `build.test.ts`
-// asserts both halves: the copy is there, and the thread still has no relative import that
-// the copy could not resolve.
+// `close()` ends the worker's life, which the caller owns — an unclosed worker keeps the process
+// alive. It does not stop a running statement. Measured on Bun 1.3.12: after `terminate()`
+// returned, the thread burned 2.98s of CPU over the next 3s of a runaway query, and a
+// `process.exit` issued during one waited for the statement to finish. Interrupting the statement
+// needs `sqlite3_interrupt` through FFI against `Database.handle`. What `close()` reclaims at once
+// is the caller: `end()` rejects every pending read synchronously, the whole of decision 10's kill.
 
 import { DB_PATH } from "../../platform/persistence/db.ts";
 import type {
@@ -48,9 +25,8 @@ export class QueryWorkerError extends Error {
   override readonly name: string = "QueryWorkerError";
 }
 
-/** The statement itself was refused, carrying its own message — a write reaches the caller
- * as *attempt to write a readonly database*, and a bad column as *no such column*. The
- * worker stays open, and a different statement is what fixes it. */
+/** The statement itself was refused, carrying its own message — a write reaches the caller as
+ * *attempt to write a readonly database*. The worker stays open; a different statement fixes it. */
 export class QueryWorkerStatementError extends QueryWorkerError {
   override readonly name = "QueryWorkerStatementError";
 }
@@ -66,12 +42,8 @@ export class QueryWorkerClosedError extends QueryWorkerError {
 }
 
 /**
- * The database failed, not the statement: busy, locked, interrupted, an I/O error, a corrupt
- * image, no connection at all. Distinct from `QueryWorkerStatementError` because the two ask
- * for opposite things — a statement failure is something to rewrite, and this is not. A
- * caller that folded them together would hand a loop *try a better query* about a database
- * that is not answering, and the loop would keep trying until its budget was gone. The
- * thread draws the line, because SQLite's result code does not cross the message boundary.
+ * The database failed, not the statement: busy, locked, interrupted, an I/O error, a corrupt image.
+ * Folding it into `QueryWorkerStatementError` would tell a loop to rewrite SQL at a dead database.
  */
 export class QueryWorkerConnectionError extends QueryWorkerError {
   override readonly name = "QueryWorkerConnectionError";
@@ -79,15 +51,13 @@ export class QueryWorkerConnectionError extends QueryWorkerError {
 
 export interface QueryWorker {
   /**
-   * The rows one parameterized read produced. Rejects with `QueryWorkerStatementError`
-   * when SQLite refuses the statement, `QueryWorkerBusyError` while another read is
-   * running, and `QueryWorkerClosedError` once the thread is gone.
+   * The rows one parameterized read produced. Rejects with `QueryWorkerStatementError` when SQLite
+   * refuses it, `QueryWorkerBusyError` during another read, `QueryWorkerClosedError` once gone.
    */
   read(sql: string, parameters?: readonly QueryWorkerValue[]): Promise<readonly QueryWorkerRow[]>;
   /**
-   * End the thread and its connection. Pending and later reads reject with
-   * `QueryWorkerClosedError` at once, which is also how a question is cancelled.
-   * Idempotent: the thread is terminated once however many times this is called.
+   * End the thread and its connection; pending and later reads reject with `QueryWorkerClosedError`
+   * at once, which is how a question is cancelled. Idempotent: the thread is terminated once.
    */
   close(): void;
 }
@@ -99,11 +69,12 @@ interface PendingRequest {
 }
 
 /**
- * Start a query worker against `path`, defaulting to the one documented database file.
- * Exported with the path as a parameter for the same reason `openDatabase` is: tests
- * drive it against a throwaway file, while the platform runs it against DB_PATH.
+ * Start a query worker against `path`, defaulting to the one documented database file. The path is
+ * a parameter for the reason `openDatabase`'s is: tests drive it against a throwaway file.
  */
 export function createQueryWorker(path: string = DB_PATH): QueryWorker {
+  // Bun's bundler emits this specifier as written, so `scripts/build.ts` copies the thread beside
+  // the bundle and `build.test.ts` asserts the copy and the thread's lack of relative imports.
   const worker = new Worker(new URL("./query-worker-thread.ts", import.meta.url).href);
   const pending = new Map<number, PendingRequest>();
   let nextRequestId = 1;
@@ -202,10 +173,8 @@ export function createQueryWorker(path: string = DB_PATH): QueryWorker {
 
     close() {
       end(new QueryWorkerClosedError("The query worker is closed."));
-      // A second `terminate()` goes to a thread that may still be inside its statement, and
-      // a cancelled question closes through here twice by construction — once to kill the
-      // read, once from the scope's `finally`. Ending the bookkeeping is what stays
-      // repeatable; killing the thread happens once.
+      // A cancelled question closes through here twice by construction — once to kill the read,
+      // once from the scope's `finally` — and a second `terminate()` would hit a live statement.
       if (terminated) return;
       terminated = true;
       worker.terminate();

@@ -1,16 +1,11 @@
-// Tests for the capability spec shape (Epic 2.1 plus Module 3.3's presentation
-// intent reshape). The headline guarantees: the pantry is the five scalar types
-// plus M4's one list type, each with `required`; `ui_intent` records only item,
-// closed collection layout, and detail order; and anything outside the contract —
-// list types, files, relations, the `auto` concept, old `views`, platform-owned
-// column names — fails validation loudly instead of flowing downstream into DDL or
-// generation.
+// Tests for the capability spec shape (Epic 2.1 plus Module 3.3's presentation intent reshape).
+// The headline guarantee: anything outside the contract — list types, files, relations, the `auto`
+// concept, old `views`, platform-owned column names — fails validation loudly rather than flowing
+// downstream into DDL or generation.
 //
-// This file covers field-type and field-name shape. Presentation (`ui_intent`,
-// labels, lifecycle) lives in `spec.presentation.test.ts`; the Action tuple,
-// behavioral errors, top-level strictness, and rows live in
-// `spec.behavior.test.ts`. The shared `validSpec` fixture lives in
-// `spec.test-support.ts`.
+// This file covers field-type and field-name shape. Presentation lives in
+// `spec.presentation.test.ts`; the Action tuple, behavioral errors, top-level strictness and rows
+// live in `spec.behavior.test.ts`. The shared `validSpec` fixture lives in `spec.test-support.ts`.
 
 import { describe, expect, test } from "bun:test";
 import { validSpec } from "./spec.test-support.ts";
@@ -204,10 +199,8 @@ describe("capability spec shape — rejected types & relations", () => {
 });
 
 describe("capability spec shape — rejected & reserved field names", () => {
-  // The pattern said what characters an id may use and nothing about how many. SQLite takes
-  // an identifier of any length, so an enormous id produced valid DDL and then a
-  // `capabilities/<id>/…` path whose first component is past every filesystem's limit — the
-  // two validators disagreeing about what an id is, discovered at publication.
+  // SQLite takes an identifier of any length, so an enormous id produced valid DDL and then a
+  // path component past every filesystem's limit — discovered at publication, after the build.
   test("rejects an id or a field name longer than a path component may be", () => {
     const longest = `a${"b".repeat(MAX_SQL_NAME_LENGTH - 1)}`;
     expect(capabilitySpecSchema.safeParse(validSpec({ id: longest })).success).toBe(true);

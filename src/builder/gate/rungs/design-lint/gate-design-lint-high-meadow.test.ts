@@ -142,9 +142,8 @@ describe("design-lint — the three closed axes, re-derived", () => {
 
 describe("design-lint — the three never-declared properties", () => {
   test("does not mistake an escaped payload that reads like a style attribute for one", () => {
-    // The hostile probes carry `<b style="color: #ff0000">`. A renderer that escapes it
-    // correctly renders those characters as inert text — refusing it would punish the
-    // right behaviour, so the scan parses the record rather than pattern-matching it.
+    // The hostile probes carry `<b style="color: #ff0000">`, which a correct renderer escapes
+    // to inert text. The scan parses the record rather than pattern-matching those characters.
     const escaping = renderer('`<div class="stack">${text}</div>`');
     expect(findDesignViolation(spec, escaping)).toBeUndefined();
   });
@@ -170,9 +169,8 @@ describe("design-lint — the three never-declared properties", () => {
     );
     expect(family).toContain("font family is never declared");
 
-    // The fourth ban. The weight the retired axis named is refused like any other: the
-    // record's boundary is drawn on the platform's own wrapper, and a CSS edge inside it
-    // would sit beside a drawn one.
+    // The fourth ban. The record's boundary is drawn on the platform's own wrapper, so a CSS
+    // edge inside it would sit beside a drawn one.
     for (const declaration of [
       "border: var(--line) solid var(--ink)",
       "border: 1px solid red",
@@ -198,9 +196,8 @@ describe("design-lint — the three never-declared properties", () => {
   });
 
   test("rejects the silently-invalid `box-shadow: var(--shadow-*)`", () => {
-    // The shadow tokens are bare `<x> <y> <alpha>` triples, so this paints nothing and
-    // reports nothing. The enforcer leaves the whole declaration alone unless the ban
-    // exists, which makes the ban the only thing that catches this case at all.
+    // The shadow tokens are bare `<x> <y> <alpha>` triples, so this paints and reports
+    // nothing. The enforcer leaves the declaration alone, so only the ban catches it.
     const shadow = findDesignViolation(
       spec,
       renderer('`<div style="box-shadow: var(--shadow-md);">${text}</div>`'),
@@ -232,10 +229,8 @@ describe("design-lint — the three never-declared properties", () => {
   });
 
   test("holds the decoration shorthands to their own axis rather than to the residual", () => {
-    // `text-decoration` and `text-emphasis` mix a line, a colour and a thickness in one
-    // value. A named colour there is *not* inert — every engine paints it — and the
-    // thickness slips the ban the longhand carries, so the declaration scan owns both
-    // rather than leaving them to the residual.
+    // `text-decoration` and `text-emphasis` mix a line, colour and thickness in one value. The
+    // named colour paints in every engine and the thickness slips the longhand's ban.
     for (const bad of [
       "text-decoration: underline thistle",
       "text-decoration: underline 3px",
@@ -257,10 +252,8 @@ describe("design-lint — the three never-declared properties", () => {
   });
 
   test("catches `caret: red` on the colour axis rather than as a residual", () => {
-    // `caret` takes a colour without saying so in its name, which is what the residual scan
-    // was backstopping. The `-color` suffix already carried `caret-color`; the bare
-    // shorthand now sits on the axis beside it, so the refusal names the palette instead of
-    // reporting a raw colour after the fact.
+    // `caret` takes a colour without saying so in its name, where the `-color` suffix already
+    // carried `caret-color`. On the axis, the refusal names the palette rather than the colour.
     const bad = renderer('`<div style="caret: red;">${text}</div>`');
     expect(findDesignViolation(spec, bad)).toContain(
       "colour is picked from the High Meadow set and never written as a value",
@@ -276,10 +269,8 @@ describe("design-lint — the three never-declared properties", () => {
 });
 
 describe("the few-shot exemplars the generator is shown", () => {
-  // What the deleted `/demo/few-shot-gallery` preview did, minus the page: each exemplar's
-  // samples composed through the real platform adapter and the real collection container.
-  // The exemplars declare create + read only, so no record opens here — there is no read
-  // view to fall back on, and nothing to open one in.
+  // What the deleted `/demo/few-shot-gallery` preview did, minus the page. The exemplars
+  // declare create + read only, so no record opens here and nothing falls back to a read view.
   function renderedExample(example: FewShotDesignExample): string {
     const capability = { ...example.capability, actions: ["create", "read"] as const };
     let sampleIndex = 0;
@@ -341,9 +332,8 @@ describe("the few-shot exemplars the generator is shown", () => {
     expect(injection).not.toContain("var(--radius-");
   });
 
-  // Re-homed from the deleted `/demo/few-shot-gallery` preview, which was the only place
-  // these two read. They are what stops the exemplars being received as a template: the
-  // framing that asks for variation, and the one layout this capability was given.
+  // Re-homed from the deleted `/demo/few-shot-gallery` preview, the only place these two read.
+  // They stop the exemplars reading as a template: framing asks for variation, not a copy.
   test("the exemplars arrive framed as variation, under the layout that was chosen", () => {
     for (const layout of ["feed", "grid"] as const) {
       const injection = buildItemRendererDesignInjection(layout);
@@ -357,10 +347,8 @@ describe("the few-shot exemplars the generator is shown", () => {
     expect(buildItemRendererDesignInjection("feed")).toContain('style="grid-template-columns');
   });
 
-  // Re-homed from the deleted preview, which was the only thing composing the exemplars
-  // through the platform's own presentation path. It is also what keeps each example's
-  // `capability` and each sample's `record` honest: the samples are authored as a pair
-  // with their `previewInnerHtml`, and nothing else reads either half.
+  // Re-homed from the deleted preview, the only thing composing exemplars through the real
+  // presentation path. Nothing else reads a sample's `record` or its `previewInnerHtml`.
   test("every exemplar composes through the real adapter and container", () => {
     const rendered = FEW_SHOT_DESIGN_EXAMPLES.map(renderedExample);
     const all = rendered.join("");

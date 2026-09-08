@@ -237,9 +237,8 @@ describe("prior-source admissibility", () => {
     expect(reasonFor(CREATE, marker)).toContain("legacy_note");
   });
 
-  // Whole-token matching: a hidden field's name *inside* a longer identifier is a derived
-  // name, not a reference — the generated search Handler builds `<field>_element` aliases
-  // exactly this way, and treating those as references would withhold every clean one.
+  // Whole-token matching: a hidden field's name inside a longer identifier is a derived name.
+  // The search Handler builds `<field>_element` aliases, and those would withhold every clean one.
   test("does not mistake a longer identifier for a hidden field reference", () => {
     const derived = (identifier: string) =>
       CLEAN_CREATE.replace(
@@ -325,9 +324,8 @@ describe("runtime prior-source name assembly", () => {
   });
 
   test("withholds hidden names assembled for reflective property access", () => {
-    // Assembled through a computed member write rather than through `Reflect`, which the
-    // shared isolation ban now refuses outright as an ambient runtime root — the point
-    // here is that the *assembled name* is seen, whatever expression carries it.
+    // Assembled through a computed member write rather than `Reflect`, which isolation now
+    // refuses outright: the point is that the assembled name is seen, whatever carries it.
     const source = CLEAN_CREATE.replace(
       "  return present",
       '  const key = ["leg", "acy_note"].join("");\n  values[key] = true;\n  return present',
@@ -364,9 +362,8 @@ describe("prior-source admissibility beyond the target's fields", () => {
     expect(reasonFor(READ, source)).toContain("cap_journals");
   });
 
-  // The executable-SQL check only inspects `query` call sites. A dropped dependency's table
-  // surviving in a comment or a dead constant is stale context just the same, so the sweep
-  // reads the whole source.
+  // The executable-SQL check only inspects `query` call sites, but a dropped dependency's table
+  // in a comment or dead constant is stale context too, so the sweep reads the whole source.
   test("withholds a dropped dependency's table left behind in a comment or dead constant", () => {
     const commented = READ_SOURCE.replace(
       "  const rows",
@@ -395,10 +392,8 @@ describe("prior-source admissibility beyond the target's fields", () => {
     expect(reasonFor(READ, assembled)).toContain("cap_journals");
   });
 
-  // An *active* field of the target is neither inactive nor undeclared: the spec's behavior
-  // text reaches every Action's prompt, and read/search may query the target table. Treating
-  // "not in this Action's field list" as out of contract withheld nearly every unit of a
-  // behavior-change evolution — which regenerates all five Handlers.
+  // An active field of the target is neither inactive nor undeclared. Treating "not in this
+  // Action's list" as out of contract withheld nearly every unit of a behavior-change evolution.
   test("admits an active field named outside this Action's own field list", () => {
     const orderedRead = READ_SOURCE.replace(
       'ORDER BY "created_at" DESC',
@@ -475,9 +470,8 @@ describe("prior-source admissibility beyond the target's fields", () => {
     expect(verdict(ITEM, `import { escape } from "html";\n${CLEAN_ITEM}`).admitted).toBe(false);
   });
 
-  // The field-access check finds the renderer by looking for a default *function
-  // declaration*. An arrow-const default export would leave it with nothing to inspect, so
-  // the export-shape rule has to run first — an unanalyzable shape is doubt, not a pass.
+  // The field-access check finds the renderer by its default *function declaration*, so an
+  // arrow-const export leaves nothing to inspect: an unanalyzable shape is doubt, not a pass.
   test("withholds an item renderer whose export shape cannot be analyzed", () => {
     const arrowExport = [
       "const renderItem = (record: Record<string, unknown>): string =>",
@@ -583,9 +577,8 @@ describe("prior source in the regeneration prompt", () => {
 });
 
 /**
- * A provider that records every prompt and answers with content that fails the very first
- * static check — the loop then exhausts without paying for an isolated type-check, and the
- * recorded prompts are the whole point of the call.
+ * A provider that records every prompt and answers with content failing the first static check,
+ * so the loop exhausts without paying for a type-check. The prompts are the point of the call.
  */
 function recordingProvider(): { provider: Provider; prompts: string[] } {
   const prompts: string[] = [];

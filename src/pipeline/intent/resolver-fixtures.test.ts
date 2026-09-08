@@ -167,10 +167,8 @@ const fixtures: readonly Fixture[] = [
     },
   },
   {
-    // Presentation is not the user's to set. This prompt and the one below travel the
-    // same road out: nothing in the resolver knows what a logo is, and nothing needs
-    // to — "the icon" lands outside the closed ui_change scope exactly the way a pixel
-    // offset does, so both fall to reject with no target and no resolution.
+    // Nothing in the resolver knows what a logo is: "the icon" lands outside the closed ui_change
+    // scope exactly the way a pixel offset does, so both fall to reject with no target.
     name: "art direction aimed at a logo is refused as ordinary presentation steering",
     prompt: "make the notes icon blue and bigger",
     activeCapabilityId: "notes",
@@ -262,9 +260,8 @@ describe("intent resolver fixture catalog", () => {
   }
 
   test("no logo-specific rule was added — the closed ui_change scope is the whole defence", () => {
-    // The two refusal fixtures above are refused by the general rule, not by a rule
-    // about logos. If a logo-specific branch ever appears in this prompt, that is the
-    // second rule the contract says is not owed, and this fails.
+    // The two refusal fixtures above are refused by the general rule, not one about logos. A
+    // logo-specific branch in this prompt is the second rule the contract does not owe.
     const prompt = buildIntentPrompt({
       prompt: "make the notes icon blue and bigger",
       activeCapabilityId: "notes",
@@ -274,9 +271,8 @@ describe("intent resolver fixture catalog", () => {
     // context sit after this marker and are not the classifier's instructions.
     const rules = prompt.slice(0, prompt.indexOf("Registry context:")).toLowerCase();
 
-    // The rule that refuses is about presentation in general, so it names ordinary
-    // presentation words. What must never appear is the logo's own vocabulary — that
-    // would be the second, logo-specific rule the contract says is not owed.
+    // The refusing rule is about presentation in general, so it names ordinary presentation words.
+    // The logo's own vocabulary would be the second, logo-specific rule the contract never owes.
     for (const word of [
       "logo",
       "icon",

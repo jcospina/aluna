@@ -1,7 +1,7 @@
 // Every change-fact matrix row, end to end (the normative "Total Diff
 // Engine change-fact matrix" in the Module 4 PLAN; decisions 21, 22; ADR-0006).
 //
-// The fact→work *mapping* is table-tested pure in `builder/evolution/diff-engine.test.ts`.
+// The fact→work *mapping* is table-tested pure in `builder/evolution/diff/diff-engine.test.ts`.
 // This battery proves the mapping's consequences: for each row, one complete run of the
 // engine over a real committed capability, asserting the DDL the live table actually got,
 // which units entered a generation prompt, which units' published bytes are identical to
@@ -103,9 +103,8 @@ describe("every change-fact matrix row, end to end", () => {
       // Every row activates exactly one version, and the record written under v1 survives
       // — evolution is additive, so no row here may cost the user data.
       expect(getCapability("notes", env.conns.readonly)?.version).toBe(2);
-      // No matrix row moves a birth fact, the seed that drew the artwork, or the
-      // logo's own state: evolution never reads or writes the logo. `companion` is one of
-      // the birth facts and was the one this claimed and never read.
+      // No matrix row moves a birth fact, the seed that drew the artwork, or the logo's state:
+      // evolution never reads or writes the logo. `companion` is the birth fact this claimed.
       const { subject, ground, companion, seed, logo } = born;
       expect(committedRow()).toMatchObject({ subject, ground, companion, seed, logo });
       expect(tableColumns(env, "cap_notes")).toContain("pinned");
@@ -116,10 +115,8 @@ describe("every change-fact matrix row, end to end", () => {
   }
 
   test("reactivating a hidden field reuses its column and the values still in it", async () => {
-    // The reactivate direction needs a hidden field to reactivate, so it is two runs:
-    // hide (v2), then bring it back (v3). Soft-hide drops no column, so neither run
-    // emits DDL and the value written under v1 is still there at v3 — that is the whole
-    // point of "evolution never destroys".
+    // Reactivating needs a hidden field, so it is two runs: hide (v2), bring it back (v3).
+    // Soft-hide drops no column, so no DDL, and the value written under v1 is still there at v3.
     const hidden = withFields(
       committedSpec().schema.fields.map((field) =>
         field.name === "pinned" ? { ...field, lifecycle: "inactive" as const } : field,
@@ -355,10 +352,8 @@ describe("the read_dependencies row", () => {
   });
 });
 
-// A property of the whole matrix, and the reason decision 24's fourth row ("unchanged
-// inputs, Handler impacted") cannot be reached from the Diff alone. One test, not one per
-// row: the file's `beforeEach` publishes and activates a committed v1, and this assertion
-// needs none of it — running the real Diff over each row's candidate is pure.
+// A property of the whole matrix, and why decision 24's fourth row ("unchanged inputs, Handler
+// impacted") is unreachable from the Diff alone. One test, not one per row: the Diff is pure.
 describe("the Diff never regenerates a Handler without selecting that Action's tests", () => {
   test("every matrix row couples its Handler selection to its test selection", () => {
     const committed = committedSpec();
@@ -367,11 +362,8 @@ describe("the Diff never regenerates a Handler without selecting that Action's t
       const handlers = workPlan.regeneratedUnits.filter(
         (unit): unit is CapabilityTool => unit !== "item",
       );
-      // Every Handler this fact rewrites is an Action whose suite the same fact selects for
-      // regeneration — so a regenerated Handler always arrives with freshly authored tests,
-      // and a *carried* suite re-run over changed bytes can only come from the Gate's own
-      // bounded repair (pinned at the rung in `gate-behavioral-selection.test.ts`) or the
-      // full-suite fallback. A future fact that broke that coupling fails here first.
+      // A fact rewriting a Handler also selects that Action's suite, so a carried suite over
+      // changed bytes needs bounded repair (`gate-behavioral-selection.test.ts`) or the fallback.
       const selected = workPlan.gate.behavioral.fullSuite
         ? [...FULL_CAPABILITY_TOOLS]
         : workPlan.gate.behavioral.actions;

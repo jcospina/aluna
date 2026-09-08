@@ -95,9 +95,8 @@ describe("renaming a capability from its logo", () => {
     expect(html).not.toContain("logo-attempt");
   });
 
-  // Every label sink escapes, and that is what makes this safe — but a copy rule that
-  // admits `<img src=x onerror=alert(1)>` (three words, twenty-eight characters, no
-  // sentence punctuation) is a copy rule not looking at what it admits.
+  // Every label sink escapes, and that is what makes this safe — but a copy rule that admits
+  // `<img src=x onerror=alert(1)>` (three words, no punctuation) is not looking at what it admits.
   test("a markup-shaped name is not a name, and nothing is written", async () => {
     const response = await app().request(
       "/capability-rename/notes",
@@ -190,9 +189,8 @@ describe("what a rename costs the rest of the platform", () => {
   test("the name survives an evolution, which cannot write it and does not clear it", async () => {
     await app().request("/capability-rename/notes", renameNotes("Journal"));
 
-    // What an evolution does: a CAS built from a row read a moment ago, carrying the whole
-    // row back in. The override is not on the write shape, so it cannot ride along — and
-    // the update's own `SET` list does not name it, so it is not cleared either.
+    // What an evolution does: a CAS built from a row read a moment ago, carrying the whole row
+    // back in. The override is not on the write shape and not in the `SET` list, so it survives.
     const before = row();
     if (!before) throw new Error("the renamed row is the fixture this test needs");
     compareAndSwapCapability(
@@ -243,10 +241,8 @@ describe("what a rename costs the rest of the platform", () => {
     expect(row()?.display_label_override).toBe(longest);
   });
 
-  // A rename does not bump the version, so the version alone cannot tell two submissions
-  // made against the same one apart: both matched, and the second overwrote the first with
-  // no conflict signal anywhere. The name each submission *replaces* is what distinguishes
-  // them, and it is a fact the menu already holds.
+  // A rename does not bump the version, so version alone cannot tell two submissions against the
+  // same one apart: the name each replaces is what distinguishes them, and the menu holds it.
   test("a second rename made against a name that has since changed is refused, not applied", async () => {
     expect((await app().request("/capability-rename/notes", renameNotes("Journal"))).status).toBe(
       200,

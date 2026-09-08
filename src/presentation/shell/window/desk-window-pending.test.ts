@@ -4,20 +4,14 @@ import { join, resolve } from "node:path";
 
 import { startDeskWindow } from "#shell/desk-window.js";
 
-// A window a prompt stood up before anything was known waits out of sight for the first
-// thing worth showing. A build earns it a moment later, when the narration starts; a
-// prompt that never becomes a build — one restating a capability the desk already has —
-// earns it never, and a frame that appears and vanishes reads as a fault rather than as
-// an answer. What that prompt gets instead is a sentence on the prompt bar (PLAN
-// decision 24).
+// A window a prompt stood up before anything was known waits out of sight for the first thing
+// worth showing, because a frame that appears and vanishes reads as a fault (PLAN decision 24).
 
 const ROOT = resolve(import.meta.dir, "../../../..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 
-// A window a prompt stood up before anything was known waits out of sight for the first
-// thing worth showing. A prompt that never becomes a build earns it never, so an answer
-// that belongs on the prompt bar does not also flash an empty frame across the desk
-// (PLAN decision 24).
+// A prompt that never becomes a build earns a window never, so an answer belonging on the prompt
+// bar does not also flash an empty frame across the desk.
 describe("a window stood up before anything is known", () => {
   /** Every rule `startDeskWindow` registers, by the event it listens for. */
   function wiring() {

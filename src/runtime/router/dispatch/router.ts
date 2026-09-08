@@ -1,27 +1,14 @@
-// The deterministic capability router (ARCH §6.2 router,
-// ADR-0004 consequences). The generated UI never invents routes: it targets the
-// one fixed convention `/capability/:id/:action`, and the router loads and runs
-// the matching handler. **Routing is never an AI concern**.
+// The deterministic capability router (ARCH §6.2, ADR-0004). The generated UI invents no
+// routes: it targets the one convention `/capability/:id/:action`, and the router loads and
+// runs the matching handler. Routing is never an AI concern.
 //
-// For each request the router, in order:
-//
-//   1. Looks up the registry row and validates `:action` against the row's
-//      declared `tools` — an unknown capability or an undeclared action fails
-//      cleanly, in product voice, **before any handler code is loaded**.
-//   2. Parses the closed Action-specific wire contract, including the reserved
-//      record target for update/delete, before generated code loads.
-//   3. Builds the platform context: parsed input (form/query — the
-//      handler never touches raw HTTP), the capability- or record-bound mutation
-//      port for write Actions, and the physically read-only free-query port.
-//   4. Loads the handler for that action from the version directory the row's
-//      `artifacts_path` points to.
-//   5. Invokes the handler's single default-exported async function and wraps the
-//      returned HTML fragment in the HTTP response — the platform owns headers,
-//      status, and routing.
-//
-// A handler that throws (or any internal slip) surfaces a warm, product-voice
-// failure; the precise cause is logged for the developer, never leaked to the UI
-// (CONTEXT.md "Product voice", ARCH §9.7).
+// The router validates `:action` against the registry row's declared `tools` before any handler
+// code loads, so an unknown capability or an undeclared action fails cleanly in product voice. It
+// then parses the closed per-Action wire contract, builds the platform context — parsed input,
+// the mutation port, the physically read-only free-query port — loads the handler from the version
+// directory `artifacts_path` names, invokes its default export, and wraps the fragment in the
+// response. A handler that throws surfaces a warm failure; the cause is logged for the developer
+// and never leaked to the UI (CONTEXT.md, ARCH §9.7).
 
 import type { Context, Hono } from "hono";
 import { db, dbReadonly, type PlatformDatabase } from "../../../platform/persistence/db.ts";
@@ -128,19 +115,13 @@ export interface CapabilityRouterDeps {
   readonly handlerTimeoutMs?: number;
 }
 
-// The fixed route and complete M4 method/Action matrix. Every capability declares
-// the complete fixed five-Action inventory, and this matrix admits
-// exactly the method/Action pairs below; any other pair fails before code loads.
+// The fixed route and the complete five-Action method/Action matrix. Every capability declares
+// all five, and a pair outside this matrix fails before any code loads.
 const CAPABILITY_ROUTE = "/capability/:id/:action";
 const CAPABILITY_VIEW_ROUTE = "/capability/:id";
 /**
- * The same address with a trailing slash, which is the same place.
- *
- * The desk has always said so — `capabilityIdFromAddress` (`public/desk-address.js`) reads
- * the id straight through one — and the server had not, so a hand-typed or bookmarked
- * `/capability/notes/` fell past every route in this file to Hono's own bare-text 404:
- * no shell, no styles, nothing to go back to, whether or not the capability existed. One
- * address that names a capability, spelled two ways (design D14).
+ * The same address with a trailing slash, which is the same place (design D14). Without this
+ * route `/capability/notes/` fell past every route here to Hono's bare-text 404: no shell.
  */
 const CAPABILITY_VIEW_TRAILING_SLASH_ROUTE = "/capability/:id/";
 const METHOD_BY_ACTION = {
@@ -194,9 +175,8 @@ function handleCapabilityViewRequest(
   readGates: ReadGateCoordinator,
 ): Response {
   const id = c.req.param("id");
-  // Hono routes no empty segment onto `:id`, so this is a guard rather than a path — and
-  // it answers the way the `!row` branch below does, because an address with nothing where
-  // the name goes names nothing, exactly as an address naming something gone does.
+  // Hono routes no empty segment onto `:id`, so this guards rather than paths. It answers the
+  // way the `!row` branch does: an address with nothing where the name goes names nothing.
   if (!id) {
     return missingCapabilityView(c, databases, []);
   }
@@ -221,15 +201,8 @@ function handleCapabilityViewRequest(
 
   try {
     if (c.req.header("HX-Request") === "true") return c.html(renderCachedCapabilitySurface(row));
-    // A direct navigation renders the whole desk and nothing composed into it: the window
-    // is the client's to create, so it opens over the logo this address names and asks for
-    // the fragment above. The row is still read first, because a 404 has to be a 404
-    // before a desk is drawn for it.
-    //
-    // The full page names every logo's incarnation-keyed address, and those addresses are
-    // served `immutable` for a year. A cached copy of this page is the one way that
-    // guarantee is defeated without the logo route being wrong, so it is never stored —
-    // the same reason `/` sets it.
+    // A direct navigation renders the desk alone; the client opens the window over the logo this
+    // address names. `no-store`: the page names logo addresses served `immutable` for a year.
     return c.html(renderRehydratedShellPage(databases.readonly, catalog), 200, {
       "cache-control": "no-store",
     });
@@ -241,25 +214,8 @@ function handleCapabilityViewRequest(
 }
 
 /**
- * An address that no longer names anything — a bookmark, a second tab, a reload after the
- * capability it named was deleted, or a link that was never right (PLAN decision 21).
- *
- * A direct navigation loads the bare desk and says why on the prompt bar, in the slot the
- * bar already has. It opens no window: the served desk carries no logo for that id, and
- * `addressAsks` (`public/desk-window.js`) answers an address naming nothing that is
- * standing with the bare desk. So this case adds no window state and no third notice
- * component — there is nothing to design inside a window for a capability that is gone.
- *
- * An `HX-Request` is a different question and keeps a fragment: it is a press on a tile in
- * a desk that is already up, and answering it with a whole page would swap a document into
- * a window. That fragment says the same sentence and carries `data-error-code`, so the
- * shell lifts it onto the same prompt bar the page above seeds — a second tab's press on a
- * tile the other tab deleted is answered rather than swallowed.
- *
- * Still a 404. The status is about the capability the address names, which is genuinely
- * not there; the desk in the body is what the person gets *instead*, not a claim that the
- * address was good. `no-store` for the same reason `/` sets it: the page names every
- * logo's incarnation-keyed address, and those are served `immutable` for a year.
+ * An address that no longer names anything (PLAN decision 21). A direct navigation loads the bare
+ * desk and opens no window; an `HX-Request` gets a `data-error-code` fragment for the prompt bar.
  */
 function missingCapabilityView(
   c: Context,
@@ -308,21 +264,14 @@ async function handleCapabilityRequest(
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
 
-  // The whole request body is read here — before a read token, before the write lease, and
-  // before `BEGIN IMMEDIATE`. It used to be read from inside the handler scope, which meant
-  // a client that opened a POST and dribbled its body held the record-write lease, an open
-  // immediate transaction and a read token for as long as it cared to: every record write on
-  // every capability refused, every build queued, and the capability undeletable, because the
-  // drain waits for a reader that is waiting for a socket. Nothing is held while this awaits.
+  // The body is read here — before a read token, the write lease and `BEGIN IMMEDIATE`. Read in
+  // the handler scope, a client dribbling a POST body held all three for as long as it cared to.
   const spec = capabilitySpecFromRow(row);
   let parsedRequest: ParsedCapabilityRequest;
   try {
     parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
-    // The two structural refusals the platform owns the answer to — an undeclared choice
-    // value and an over-long string — are settled here, before any generated code loads.
-    // They used to be reachable only through the mutation port, so a Handler that caught
-    // one could have answered 200 where the platform authored a 422; three documents said
-    // this ran before the Handler and none of it did.
+    // The two refusals the platform owns — an undeclared choice value, an over-long string —
+    // settle before any generated code loads, so a Handler cannot catch one and answer 200.
     if (action === "create" || action === "update") {
       assertSubmittedFieldValues(
         row.id,
@@ -359,9 +308,8 @@ async function handleCapabilityRequest(
         handlerTimeoutMs,
       );
     }
-    // A read is abandoned the moment its reader goes away. That is the server half of
-    // the content region's release rule: the client's abort *is* the read-token release,
-    // rather than a second mechanism that has to agree with one.
+    // A read is abandoned the moment its reader goes away: the client's abort *is* the read-token
+    // release, rather than a second mechanism that has to agree with one.
     return await executeCapabilityHandler(
       c,
       databases,
@@ -424,12 +372,8 @@ async function handleRecordMutation(
     if (transactionOpen) databases.readwrite.exec("ROLLBACK");
     throw error;
   } finally {
-    // Ownership first, then the lease — and in that order for a reason. A Handler the
-    // deadline abandoned is still running, and its mutation port only refuses once this
-    // route's read ownership is revoked. Handing the lease back first opened a window in
-    // which the next request's `BEGIN IMMEDIATE` was live and the abandoned write, seeing
-    // `database.inTransaction`, joined *that* transaction instead of being refused. The
-    // outer scope releases the same tokens again; release is by identity and idempotent.
+    // Ownership first, then the lease: an abandoned Handler's mutation port refuses only once read
+    // ownership is revoked, and lease-first let its write join the next request's transaction.
     releaseOwnership();
     mutationCoordinator.release(mutationLease);
   }
@@ -450,9 +394,8 @@ async function executeCapabilityHandler(
   abandonOn: AbortSignal | undefined,
 ): Promise<Response> {
   const { id } = row;
-  // Everything past validation is the build-and-run path: a throw anywhere in it —
-  // handler loading, handler execution, or a contract violation — becomes one warm,
-  // internals-free failure. The request itself was already parsed, before anything was held.
+  // Everything past validation is the build-and-run path: a throw in it — handler loading,
+  // handler execution, a contract violation — becomes one warm, internals-free failure.
   try {
     assertReadOwnership(signal);
     // Bounded: a Handler that never settles must not pin this route's read tokens,
@@ -527,18 +470,16 @@ function capabilityHandlerFailure(
   if (error instanceof ReadGateClosingError) {
     return readUnavailable(c, id, action);
   }
-  // Nobody is listening for this one. Answering at all is a formality; what matters is
-  // that the route stopped waiting, so its `finally` has already handed the read tokens
-  // back. 499 is the conventional "client closed request".
+  // Nobody is listening. What matters is that the route stopped waiting, so its `finally` has
+  // already handed the read tokens back; 499 is the conventional "client closed request".
   if (error instanceof CapabilityReadAbandonedError) {
     return new Response(null, { status: 499 });
   }
   return internalFailure(c, id, action, error);
 }
 
-// Whether the action is one the capability actually declares it can do. `tools` is
-// the validated allow-list (registry spec); a request for anything outside it is
-// refused the same as a request for a capability that doesn't exist.
+// Whether the capability declares this action. `tools` is the validated allow-list; a request
+// outside it is refused the same as one for a capability that doesn't exist.
 function isDeclaredAction(row: CapabilityRow, action: string): boolean {
   return (row.tools as readonly string[]).includes(action);
 }

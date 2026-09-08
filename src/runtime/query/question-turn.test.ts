@@ -53,7 +53,7 @@ const ARTIFACTS_BEFORE_ANY_TURN = sweepPlatformArtifacts();
 let platforms: ScratchPlatforms;
 
 function call(sql: string, parameters: QuestionToolCall["parameters"] = []): QuestionToolCall {
-  return { tool: READ_ONLY_QUERY_TOOL, sql, parameters };
+  return { tool: READ_ONLY_QUERY_TOOL, sql, label: "other", parameters };
 }
 
 interface Desk {
@@ -118,10 +118,8 @@ describe("one turn", () => {
     expect(step.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toStartWith(QUESTION_TURN_PROMPT_PREFIX);
-    // The prompt is where the offer is actually made, so this counts the tool headings it
-    // renders rather than checking that the one we know about is among them. A second
-    // member in `QUESTION_TOOLS` shows up here as a second heading, which is the failure
-    // the weaker "does it contain the name" form of this assertion could not produce.
+    // The prompt is where the offer is made, so this counts the tool headings it renders rather
+    // than checking the known one is among them: a second member shows up as a second heading.
     expect(prompts[0]?.match(/^- \w+$/gm)).toEqual([`- ${READ_ONLY_QUERY_TOOL}`]);
     expect(QUESTION_TOOLS).toHaveLength(1);
   });
@@ -171,10 +169,8 @@ describe("one turn", () => {
   });
 
   test("refuses every disguise a read outside the scope can wear", async () => {
-    // Each of these is a read of `capability_registry`, and each one is a read the worker
-    // would run without complaint: its own refusals are about its *file*. The bound fails
-    // closed on anything it cannot see as one clean read, which is what keeps a leading
-    // comment or a stray paren from being a way around the catalog.
+    // Each is a read of `capability_registry` the worker would run without complaint — its own
+    // refusals are about its *file* — so the bound fails closed on anything it cannot read plainly.
     for (const sql of [
       "/* just looking */ SELECT id FROM capability_registry",
       "-- just looking\nSELECT id FROM capability_registry",
@@ -193,10 +189,8 @@ describe("one turn", () => {
   });
 
   test("failing closed also refuses a harmless read behind a comment, and says so", async () => {
-    // The cost of the rule above, paid where it is visible. A comment-prefixed read of a
-    // collection that IS in scope is refused too, because the bound will not try to decide
-    // what a statement means once it stops looking like one clean read. It costs the model
-    // a step and a rewrite, and the prompt tells it the shape up front so it rarely pays.
+    // The cost of the rule above: a comment-prefixed read of a collection that IS in scope is
+    // refused too. It costs the model a step, and the prompt gives the shape up front.
     const { step } = await desk().run(
       call(`/* counting */ SELECT count(*) AS total FROM ${NOTES_TABLE}`),
     );
@@ -282,10 +276,8 @@ describe("a failed statement is a turn, not an ending", () => {
   });
 
   test("a DDL statement is refused too, by the bound rather than by the seam", async () => {
-    // The narrower pass-through's cost, pinned so it is a decision rather than a drift.
-    // `DROP`/`CREATE` do not reach `SQLITE_OPEN_READONLY`; they are refused one step
-    // earlier, because a bound that skipped every non-read by leading keyword would let
-    // `(SELECT ...)` past. The refusal is still a step, and the table still stands.
+    // `DROP`/`CREATE` never reach `SQLITE_OPEN_READONLY`: they are refused a step earlier, because
+    // a bound skipping every non-read by leading keyword would let `(SELECT ...)` past.
     for (const sql of [`DROP TABLE ${NOTES_TABLE}`, "CREATE TABLE sneak (a TEXT)"]) {
       const { step } = await desk().run(call(sql));
       expect({ sql, outcome: step.result.outcome }).toEqual({ sql, outcome: "failed" });
@@ -311,13 +303,8 @@ describe("a failed statement is a turn, not an ending", () => {
 
 describe("the platform's own columns", () => {
   test("are refused on every capability in the scope, not just the nominated one", async () => {
-    // `assertScopedQuery` protects `extra` and retired fields on the scope's *target*, and a
-    // whole-catalog scope nominates a target only because the shape demands one. Left as it
-    // was, that meant `extra` and every field the user had removed stayed readable on all
-    // but one collection — data the user asked to have taken out of the schema, answerable
-    // by a component whose entire job is writing arbitrary SQL. `wholeCatalog: true` widens
-    // the protection to the whole scope; this asserts it in both positions, so a change to
-    // `protectedTargetColumns` cannot narrow it back under a green suite.
+    // `assertScopedQuery` protected `extra` and retired fields on the scope's *target* only, so
+    // they stayed readable on every other collection; `wholeCatalog: true` widens it to the scope.
     const scratch = desk();
 
     await scratch.inScope(async (scope) => {
@@ -342,9 +329,8 @@ describe("the platform's own columns", () => {
   });
 
   test("a virtual table is refused outright", async () => {
-    // The table bound counts `OpenRead`; a virtual table opens with `VOpen` and would not
-    // appear in the set at all. Nothing in the schema is virtual today, so this is the guard
-    // standing before the first one is added rather than after.
+    // The table bound counts `OpenRead`, and a virtual table opens with `VOpen` instead. Nothing
+    // is virtual today, so this guard stands before the first one is added rather than after.
     const { step } = await desk().run(call("SELECT * FROM pragma_function_list"));
 
     expect(step.result.outcome).toBe("failed");
@@ -414,9 +400,8 @@ describe("the worker reads the same desk the catalog came from", () => {
 
 describe("the mistakes a model actually makes", () => {
   test("a ? count that does not match the values comes back as words, both ways round", async () => {
-    // The likeliest error a model makes with a parameterized tool, and the one that used to
-    // end the question outright: Bun reports it as a plain `Error`, not a `SQLiteError`, so
-    // it travelled past every classification and out of the turn.
+    // The likeliest error a model makes with a parameterized tool, and one that used to end the
+    // question: Bun reports it as a plain `Error`, so it travelled past every classification.
     const tooFew = await desk().run(
       call(`SELECT count(*) AS n FROM ${NOTES_TABLE} WHERE text = ? AND text = ?`, ["a"]),
     );
@@ -455,11 +440,8 @@ describe("the mistakes a model actually makes", () => {
   });
 
   test("a decision the provider did not validate never reaches the worker", async () => {
-    // The scripted provider parses, so the turn's own re-parse is otherwise never exercised
-    // — and it is the only thing standing between a non-conforming object and the worker. It
-    // comes back as a step the model can act on rather than as a throw: 6.3/02 made that the
-    // rule, because ending a ten-read question over one badly shaped object charges the
-    // question for the model's typo. Nothing non-conforming is executed either way.
+    // The scripted provider parses, so the turn's own re-parse is otherwise never exercised — and
+    // it is the only thing between a non-conforming object and the worker (6.3/02 made it a step).
     const scratch = desk();
     const rogue = providerResolving({ tool: "write_anything", sql: 7 });
 
@@ -477,9 +459,8 @@ describe("the mistakes a model actually makes", () => {
   });
 
   test("a generation that faulted still ends the question", async () => {
-    // The other half of the rule, and the reason it is not "every generation failure is a
-    // turn": a rejected handle is a connection that is not there, and asking the model to
-    // decide again over it is the shape 6.3/01 refused for a database that is not answering.
+    // Why the rule is not "every generation failure is a turn": a rejected handle is a connection
+    // that is not there, and asking the model to decide again over it fixes nothing.
     const scratch = desk();
     const broken = providerFaulting(new Error("the connection went away"));
 
@@ -496,9 +477,8 @@ describe("the mistakes a model actually makes", () => {
 
 describe("what the prompt promises the model", () => {
   test("carries the two rules the bound and the binding depend on", async () => {
-    // Both lines are load-bearing and neither is enforced by anything the model can see:
-    // the bound refuses a statement that does not start with SELECT or WITH, and a value
-    // written into the SQL instead of bound is the one thing this tool must never do.
+    // Both lines are load-bearing and neither is enforced where the model can see: the bound
+    // refuses a statement not starting with SELECT or WITH, and a value must never be inlined.
     const { prompts } = await desk().run(call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
 
     expect(prompts[0]).toContain("start it with SELECT or WITH");
@@ -532,11 +512,8 @@ describe("the user's own words in the prompt", () => {
 
 describe("a database that is not answering is not a bad query", () => {
   test("a connection fault ends the question instead of asking the model to rewrite", async () => {
-    // A file that opens but is not a database: SQLite answers SQLITE_NOTADB (26) at query
-    // time, which is a fault of the connection and not of the statement. Folded together
-    // with a syntax error — as they were, since only the message crossed the thread — a
-    // loop would be told to write a better query against a database no query can fix, and
-    // would keep writing them until its budget was gone.
+    // A file that opens but is not a database: SQLite answers SQLITE_NOTADB (26) at query time,
+    // a fault of the connection. Folded in with a syntax error, a loop rewrites SQL until spent.
     const platform = platforms.migrated();
     // Catalogued, or the scope is empty and refuses before the worker is ever reached.
     catalogueWithRecords(platform.database.readwrite);
@@ -639,10 +616,8 @@ describe("a turn creates nothing", () => {
   });
 
   test("and the sweep would see it if it did", () => {
-    // The claim above is only worth as much as the sweep's ability to fail. It used to be
-    // handed the database *file* and walk it, which enumerates nothing — so a copy of the
-    // catalog written beside the desk passed in silence. This is that mutation, made
-    // permanent: write the file the sweep is supposed to catch, and watch it get caught.
+    // The sweep used to be handed the database *file* and walk it, which enumerates nothing, so a
+    // copy of the catalog beside the desk passed in silence. This writes that file and catches it.
     const platform = platforms.migrated();
     const before = sweepPlatformStores(platform.database.readonly, platform.path);
     const leaked = join(dirname(platform.path), "leaked-copy.db");

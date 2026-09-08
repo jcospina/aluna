@@ -1,21 +1,13 @@
-// Registry commit boundary for one already-published immutable snapshot.
+// Registry commit boundary for one already-published immutable snapshot — the pipeline's
+// terminal stage, and the atomic moment a build becomes real.
 //
-// The pipeline's terminal stage: the atomic moment a build becomes real. By the
-// time commit runs, the migration, unit generation, and the full fail-closed gate
-// have all run inside one open write transaction on the platform db (db.ts
-// `withWriteTransaction`, opened by the migration stage). Commit is what closes
-// that transaction's purpose:
+// Migration, unit generation and the fail-closed gate have all run inside the write transaction
+// the migration stage opened. Commit reverifies the published snapshot evidence, then inserts the
+// registry row pointing at that directory, in the same transaction. For a new capability the
+// insert is the pointer flip; for an evolution an incarnation/version CAS replaces the live row.
 //
-//   1. Reverify the artifact-lifecycle module's published snapshot evidence.
-//   2. Insert the registry row pointing at that directory (`artifacts_path`), at
-//      the candidate version, *inside the same transaction*. For a brand-new
-//      capability the insert is the pointer flip; for evolution an exact
-//      incarnation/version compare-and-swap replaces the live row.
-//
-// Atomicity is the SQLite transaction's, not the filesystem's: a failed registry
-// insert rolls back the table/row and leaves a complete verified, never-activated
-// published candidate for later reconciliation. It can never leave a live partial
-// snapshot because publication precedes this boundary.
+// Atomicity is the SQLite transaction's, not the filesystem's: a failed insert rolls back table
+// and row, leaving a verified never-activated candidate for reconciliation, never a live partial.
 
 import type { Database } from "bun:sqlite";
 
@@ -50,9 +42,8 @@ export interface CommitCapabilityInput {
   // The sole artifact input: a complete final snapshot that the lifecycle module
   // staged, digested, verified, and atomically published without overwrite.
   readonly publication: VerifiedPublishedSnapshot;
-  // The read-write connection carrying the migration's open transaction. The
-  // registry insert rides this so the row and the `cap_<id>` table commit together
-  // (and roll back together on any failure).
+  // The read-write connection carrying the migration's open transaction, so the registry row
+  // and the `cap_<id>` table commit — and roll back — together.
   readonly database: Database;
   /** New v1 expects absence; evolution binds the exact active incarnation/version. */
   readonly expected?: CapabilityRegistryExpectation;
@@ -100,13 +91,8 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
     throw new Error("Published snapshot identity does not match the capability registry commit.");
   }
 
-  // The CAS runs inside activation's open transaction. A stale target changes
-  // nothing; any later failure rolls this back with DDL and lifecycle success.
-  // The seed is minted with the incarnation's first row and carried forward
-  // untouched by every later version: it is the record of what drew the logo, and
-  // the logo is made once (ADR-0007 L7). An evolution that cannot find its
-  // predecessor is not an evolution — a fresh seed here would silently claim the
-  // artwork was drawn from something it was not.
+  // The seed is minted with the incarnation's first row and carried forward untouched: the logo
+  // is made once (ADR-0007 L7), so a fresh seed would misname what drew the artwork.
   if (expected.state === "active" && !previous) {
     throw new Error(
       `Capability registry commit found no active row to evolve for ${expected.capabilityId}.`,
@@ -148,10 +134,8 @@ function isExpectedNextVersion(
   );
 }
 
-// The registry write the platform assembles at commit: the AI-authored spec plus the
-// platform-owned incarnation, version, `artifacts_path` pointer, and logo seed. The AI
-// never authors these (registry/spec.ts). The logo's lifecycle is not here at all — it
-// is born `absent` with the row and moves only through the registry's claim.
+// The AI-authored spec plus the platform-owned incarnation, version, pointer and seed, which
+// the AI never authors. The logo lifecycle is born `absent` and moves only via the claim.
 function registryWriteFromSpec(
   spec: CapabilitySpec,
   incarnationId: string,

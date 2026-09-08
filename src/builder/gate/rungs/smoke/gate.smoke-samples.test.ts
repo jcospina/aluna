@@ -179,9 +179,8 @@ describe("capability gate — choice samples", () => {
     const search = specActionTestInputs(spec).find((entry) => entry.action === "search");
     const schema = search?.schema;
     if (!schema || !isSearchSchemaInput(schema)) throw new Error("search projects no schema");
-    // The Diff agrees that a new choice selects `search` — the matrix row in
-    // `evolution-matrix.cases.ts` proves that half, and these two must never disagree or a
-    // regenerated search Handler would be told nothing about the field that caused it.
+    // The Diff agrees that a new choice selects `search` (`evolution-matrix.cases.ts` proves that
+    // half); disagreeing, a regenerated search Handler would hear nothing about the field.
     expect(schema.searchable_fields.map((field) => field.name)).toContain("stage");
     expect(schema.searchable_fields.every((field) => !("values" in field))).toBe(true);
   });

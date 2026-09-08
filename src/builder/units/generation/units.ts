@@ -1,19 +1,15 @@
-// Unit generation (ARCH §6.2
-// "Capability Builder" step 3, ADR-0003 bounded tool-loop, ADR-0004 generated
-// artifact contract as amended by ADR-0005 §2).
+// Unit generation (ARCH §6.2 step 3; ADR-0003 bounded tool-loop; ADR-0004 generated artifact
+// contract as amended by ADR-0005 §2).
 //
-// Module 4.4 extends Module 3's one item renderer + Handler model to the complete
-// fixed Action inventory. The item renderer turns one record into the capability-specific inner
-// markup, generated **knowing** the chosen `collection.layout`; the Handlers receive
-// the presentation adapter through their injected toolbox and call it instead
-// of emitting their own row markup — so create and read render identical item markup by
-// construction, and the list/create Views are gone (the platform renders them
-// deterministically from the spec). Generation is agentic only inside one unit at a
-// time: write -> check -> feed back the failure -> fix, capped by a small config knob.
-// Across units the order and scope are fixed.
+// Module 4.4 extends Module 3's one item renderer plus Handler model to the complete fixed Action
+// inventory. The item renderer turns one record into capability-specific inner markup, generated
+// knowing the chosen `collection.layout`; the Handlers call the injected presentation adapter
+// instead of emitting row markup, so create and read render identically by construction.
+// Generation is agentic only inside one unit at a time — write, check, feed back, fix — and
+// across units the order and scope are fixed.
 //
-// This file owns the public contract and the orchestration; the per-unit prompts live
-// in `unit-prompts.ts` and the static checks in `unit-checks.ts`.
+// This file owns the public contract and the orchestration; the per-unit prompts live in
+// `unit-prompts.ts` and the static checks in `unit-checks.ts`.
 
 import { z } from "zod";
 import {
@@ -86,9 +82,8 @@ export interface GenerateCapabilityUnitsInput {
 export interface GenerateCapabilityUnitsResult {
   readonly units: readonly GeneratedUnit[];
   readonly handlers: Readonly<Partial<Record<HandlerUnitName, string>>>;
-  // The one generated presentation surface — the composition input the router binds
-  // into each Handler's presentation adapter, and the content the commit
-  // stage writes to `item.ts`.
+  // The one generated presentation surface: the router binds it into each Handler's
+  // presentation adapter, and the commit stage writes it to `item.ts`.
   readonly itemRenderer: string;
 }
 
@@ -153,13 +148,8 @@ export class UnitGenerationError extends Error {
 export { buildUnitPrompt } from "./unit-prompts.ts";
 
 /**
- * Generate the complete unit inventory declared by `spec`, in fixed order — the item
- * renderer first (the creative surface, generated knowing `collection.layout`), then
- * each canonical Action Handler through its bounded write→check→fix loop. Every spec
- * declares the fixed five Actions, so this always generates item.ts plus
- * all five Handlers. Returns the generated units plus the handler map and item-renderer
- * content the gate and commit consume. Throws {@link UnitGenerationError} if any unit
- * never passes its checks.
+ * Generate the complete unit inventory in fixed order: the item renderer first, knowing
+ * `collection.layout`, then all five Handlers. Throws {@link UnitGenerationError} on a failure.
  */
 export async function generateCapabilityUnits(
   input: GenerateCapabilityUnitsInput,
@@ -204,28 +194,20 @@ export interface GenerateCapabilityUnitInput {
   readonly observer?: UnitGenerationObserver;
   readonly dependencyCatalog?: readonly CapabilityRow[];
   /**
-   * An evolution's prior committed source for this unit. Optional regeneration
-   * context, never an entitlement: it is re-proven against `spec` here and dropped unless
-   * it references nothing outside this unit's current generation contract.
+   * An evolution's prior committed source for this unit: regeneration context, never an
+   * entitlement. It is re-proven against `spec` here and dropped unless it stays in contract.
    */
   readonly priorSource?: string;
 }
 
 /**
- * Generate exactly one unit through the same bounded write→check→fix loop
- * {@link generateCapabilityUnits} drives, in isolation. Evolution regenerates only
- * the units the Diff work plan selects (copying the rest byte-for-byte), so it needs
- * per-unit generation rather than the whole fixed inventory. The projected `spec` and
- * `dependencyCatalog` are the unit's generation context — the caller passes the
- * candidate spec so the regenerated unit sees only the candidate's active projection.
- * Throws {@link UnitGenerationError} if the unit never passes its checks.
+ * Generate one unit in isolation, through the loop {@link generateCapabilityUnits} drives.
+ * Evolution regenerates only the units the Diff selects, so it needs this rather than all six.
  */
 export function generateCapabilityUnit(input: GenerateCapabilityUnitInput): Promise<GeneratedUnit> {
   if (input.unit.kind === "handler") assertHandlerSpec(input.spec);
-  // Decision 21's proof, re-run at the prompt boundary. The assembler decides and records
-  // the same verdict from the same pure function, so this never disagrees with what a
-  // developer is shown — it is here so that no caller, present or future, can hand stale
-  // source into a prompt by forgetting to ask.
+  // Decision 21's proof, re-run at the prompt boundary from the same pure function the
+  // assembler records. It is here so no caller can hand stale source into a prompt.
   const priorSource =
     input.priorSource === undefined
       ? undefined
@@ -269,10 +251,8 @@ async function generateUnit(run: UnitGenerationRun): Promise<GeneratedUnit> {
       buildUnitPrompt(spec, unit, previousFailure, dependencyCatalog, priorSource),
       generatedUnitSchema,
     );
-    // Previews are observational: `result.object` is the authoritative outcome and
-    // reports the same failure. Handle the stream's rejection the moment the promise
-    // exists — on abort, `await result.object` below throws and would otherwise leave
-    // this one unobserved, surfacing as an unhandled rejection at the `abort` call.
+    // Previews are observational; `result.object` reports the same failure. Handle the stream's
+    // rejection as it appears: on abort it is otherwise unobserved and surfaces as unhandled.
     const partialsSettled = observeUnitPartials(
       unit,
       attempt,
@@ -313,9 +293,8 @@ export interface UnitGenerationPass {
 }
 
 /**
- * A provider generation that failed after returning a result handle. Usage may already be
- * available even when the structured object rejects; carrying it keeps failed Gate work
- * measurable without parsing provider error text.
+ * A provider generation that failed after returning a result handle. Usage may already be there
+ * when the structured object rejects, and carrying it keeps failed Gate work measurable.
  */
 export class UnitGenerationPassError extends Error {
   override readonly name = "UnitGenerationPassError";
@@ -331,15 +310,8 @@ export class UnitGenerationPassError extends Error {
 }
 
 /**
- * Run one generation pass for a unit — build its prompt (feeding a prior failure back
- * when present, exactly as {@link generateUnit} does), stream a structured object, and
- * return the parsed `content` with its usage and wall time. This is the write step of the
- * bounded fix loop factored out for callers that drive their own loop rather than the
- * observer-driven `generateUnit`: the design-lint gate rung (3.6) reuses it to regenerate
- * the item renderer when it rejects the composition, so a design violation re-enters the
- * *same* mechanism the type-check rung uses. Awaits `object` (and `usage`) without draining
- * the partial stream — the spine self-drives, the established pattern for the non-preview
- * call sites (`generateBehavioralTests`).
+ * The write step of the bounded fix loop, for callers that drive their own loop instead of the
+ * observer-driven {@link generateUnit}. It awaits `object` without draining the partial stream.
  */
 export async function generateUnitContent(
   provider: Provider,

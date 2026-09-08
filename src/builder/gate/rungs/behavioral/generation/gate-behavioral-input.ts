@@ -18,12 +18,8 @@ interface BehavioralInputValue {
 }
 
 /**
- * Materialize model-authored field/value pairs into a record, normalized by the
- * spec's field types the same way {@link inputValuesToHandlerInput} shapes the
- * handler input: a `string[]` field collects every entry into one list (a single
- * scalar becomes a one-element list), so setup seeding and expected-row matching
- * compare against the same list representation the data ports store. A `null`
- * stays `null` — it asserts the field's absence, not an empty list.
+ * Materialize model-authored field/value pairs into a record, normalized as
+ * {@link inputValuesToHandlerInput} shapes handler input. A `null` asserts absence, not a list.
  */
 export function fieldValuesToRecord(
   fields: readonly SpecField[],

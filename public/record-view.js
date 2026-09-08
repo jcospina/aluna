@@ -1,29 +1,8 @@
 // @ts-check
 
 /**
- * Opening a record, and going back.
- *
- * A record is a `<button>` in the collection. Pressing it swaps the collection out for
- * that record's form and the back control above it; back swaps the collection in again.
- * Nothing opens over anything else, so there is no modal, no focus trap and no page-wide
- * inertness — the window is the whole surface and this is an ordinary view swap in it
- * (design D2).
- *
- * The form travels with its record. Each item is emitted beside an inert `<template>`
- * holding the record's view, so opening one is a DOM clone rather than a round-trip and
- * there is still no read-single route. The clone is taken *before* the collection is
- * released, because the template goes out with the content it was standing in.
- *
- * Cleanup belongs to the content, not to the window: `releaseRegionContent` runs on the
- * way in and on the way out, so the collection's read, its search controller and the
- * server read token they hold are released when the record replaces them, and the
- * record's own in-flight work is released on the way back. A window-scoped hook would
- * leak on every swap.
- *
- * Back is a fresh read of the collection, not a restored snapshot — the same request a
- * capability logo makes, aimed at the same content region. The collection comes back the
- * way it opens: unfiltered, with an empty search rail. A search term is DOM-only state
- * that lived in the collection this swap took away, and every open is a fresh read.
+ * Opening a record: a DOM clone of the item's inert `<template>`, so there is no read-single
+ * route, no modal, no focus trap and no page-wide inertness — an ordinary view swap (design D2).
  */
 
 import { releaseRegionContent } from "./region-scope.js";
@@ -36,6 +15,8 @@ const COLLECTION_SELECTOR = ".capability-collection";
 const SURFACE_SELECTOR = "[data-active-capability-id]";
 const RECORDS_REGION_SELECTOR = "[data-content-region='records']";
 const CONTENT_REGION_SELECTOR = "[data-content-region]";
+/* Hidden inputs are excluded because every field is preceded by its own `__aluna_present`
+   marker and focusing one silently does nothing; the last two are buttons, not form elements. */
 const FIRST_FIELD_SELECTOR =
   "input:not([type=hidden]), textarea, select," +
   " .listbox__button, .segmented button:not([disabled])";
@@ -69,13 +50,8 @@ function recordViewFor(item) {
 }
 
 /**
- * The form takes the window, so the first field is where the user now is. Every field is
- * preceded by its own hidden `__aluna_present` marker, which is why the selector excludes
- * hidden inputs: focusing one silently does nothing.
- *
- * Two of the drawn choice controls are not form elements at all — a picker's closed control
- * is a `button` and a segmented row is a set of them — and a record whose fields are all of
- * that kind matched nothing here, so opening it dropped focus on the floor.
+ * The form takes the window, so the first field is where the user now is. A record whose fields
+ * are all pickers or segmented rows once matched nothing and dropped focus on the floor.
  *
  * @param {HTMLElement} view
  */
@@ -87,10 +63,8 @@ function focusFirstField(view) {
 }
 
 /**
- * The order the swap depends on, stated once and on its own so it can be proved without a
- * browser. The clone is already taken by the time this runs — the template stands inside
- * the content about to go — and nothing is released until there is something to put in
- * its place, so a record that cannot open leaves the collection exactly as it was.
+ * The order the swap depends on, provable without a browser: nothing is released until there is
+ * something to put in its place, so a record that cannot open leaves the collection as it was.
  *
  * @template T
  * @param {{
@@ -115,6 +89,7 @@ function openRecord(item) {
   const collection = item.closest(COLLECTION_SELECTOR);
   if (!(collection instanceof HTMLElement)) return;
   // Cloned first: the template is a sibling of the item, inside the content being released.
+  // Cleanup belongs to the content, not the window, which would leak on every swap.
   const view = recordViewFor(item);
   const swapped = swapInRecordView({
     outgoing: collection,
@@ -127,9 +102,8 @@ function openRecord(item) {
 }
 
 /**
- * Claim the one exit a record view gets at a time. A second press while the collection is
- * on its way would issue a second read at the same region, swap twice and restore focus
- * twice; the claim is released when the request ends, however it ends.
+ * Claim the one exit a record view gets at a time: a second press while the collection is on
+ * its way would read twice, swap twice and restore focus twice.
  *
  * @param {{ hasAttribute(name: string): boolean, setAttribute(name: string, value: string): void }} view
  * @returns {boolean} whether this caller may leave
@@ -146,10 +120,8 @@ export function releaseRecordExit(view) {
 }
 
 /**
- * Whether focus is still where the swap left it — on nothing in particular. The
- * collection arrives before its records do, so restoring focus means waiting out a round
- * trip, and in that time the user may have reached for the prompt bar or a search field.
- * Taking focus back off them then would be worse than not restoring it at all.
+ * Whether focus is still where the swap left it — on nothing in particular. Restoring focus
+ * means waiting out a round trip, and taking it back off a prompt bar would be worse.
  *
  * @returns {boolean}
  */
@@ -159,9 +131,8 @@ function focusIsUnclaimed() {
 }
 
 /**
- * Give focus back to the record that was open. A view swap that drops focus leaves a
- * keyboard user at the top of the desk, and the collection arrives before its records do,
- * so this waits for the region's own read to settle rather than looking too early.
+ * Give focus back to the record that was open: a view swap that drops focus leaves a keyboard
+ * user at the top of the desk, and the collection arrives before its records do.
  *
  * @param {Element} region the window's content region, holding the restored collection
  * @param {string | undefined} itemTargetId
@@ -183,10 +154,8 @@ function focusReturnedRecord(region, itemTargetId) {
     "htmx:afterSettle",
     () => {
       if (focusItem() || !focusIsUnclaimed()) return;
-      // The record is gone from the collection it came back to. The create trigger is
-      // where the collection's own keyboard order starts. Asked of the region rather than
-      // the document, so a window that has since taken another capability is not answered
-      // with that capability's control.
+      // The record is gone from the collection. The create trigger starts the collection's
+      // keyboard order, asked of the region so another capability's control cannot answer.
       const trigger = records
         .closest(".capability-collection")
         ?.querySelector(".capability-collection__new");
@@ -197,16 +166,8 @@ function focusReturnedRecord(region, itemTargetId) {
 }
 
 /**
- * Leave the record: release what the record view still holds, then ask for the
- * collection again. Exported because a committed update ends the same way a press on
- * back does — the record is done and the collection is what comes next.
- *
- * Asking is the whole of it, so asking can fail. A read the server refuses while it is
- * mid-change answers 409 and htmx swaps nothing, and a severed connection rejects; either
- * way the record view is still standing, and leaving it standing with the control dead
- * would be the silent swallow this replaced. The view is marked busy for the length of
- * the request instead, and unmarked when it ends however it ends — so a refusal leaves
- * the user exactly where they were, with a control that still works.
+ * Leave the record: release what it holds, then ask for the collection again — a fresh read, so
+ * it comes back unfiltered. Exported because a committed update ends the same way back does.
  *
  * @param {HTMLElement} view
  */
@@ -226,6 +187,8 @@ export function leaveRecordView(view) {
       target: region,
       swap: "innerHTML",
     })
+    // A read refused mid-change answers 409 and htmx swaps nothing; a severed connection
+    // rejects. Either way the view is still standing, so the busy mark comes off regardless.
     .catch(() => undefined)
     .then(() => {
       releaseRecordExit(view);
@@ -233,9 +196,8 @@ export function leaveRecordView(view) {
     });
 }
 
-// Delegated and document-level, so it covers records present at load and records htmx
-// swaps in later without re-binding. A record is a real button, so there is no key
-// handling here: Enter and Space already activate it.
+// Delegated and document-level, so it covers records htmx swaps in later without re-binding.
+// A record is a real button, so Enter and Space already activate it and no key handling is here.
 function installRecordView() {
   document.addEventListener("click", (event) => {
     const target = event.target;

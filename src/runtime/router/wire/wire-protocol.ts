@@ -19,9 +19,8 @@ export class WireProtocolError extends Error {
 }
 
 /**
- * Parse and validate the closed capability HTTP protocol before generated code
- * loads. This function deliberately supports the final M4 Action vocabulary so
- * 4.2 can bind the already-validated record target without re-parsing raw HTTP.
+ * Parse and validate the closed capability HTTP protocol before generated code loads. It supports
+ * the final M4 Action vocabulary so 4.2 can bind the record target without re-parsing raw HTTP.
  */
 export async function parseCapabilityRequest(
   request: Request,

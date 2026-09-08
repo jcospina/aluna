@@ -25,12 +25,8 @@ import {
   type ScriptedProvider,
   scriptedProvider,
 } from "./question.test-support.ts";
-import {
-  QUESTION_BUDGET_SPENT_SENTENCE,
-  QUESTION_STEP_BUDGET,
-  questionEndingNarration,
-  runQuestionLoop,
-} from "./question-loop.ts";
+import { QUESTION_STEP_BUDGET, runQuestionLoop } from "./question-loop.ts";
+import { QUESTION_BUDGET_SPENT_SENTENCE, questionEndingNarration } from "./question-narration.ts";
 import { READ_ONLY_QUERY_TOOL } from "./question-tool.ts";
 import { type QuestionStep, UNREADABLE_DECISION } from "./question-turn.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
@@ -112,20 +108,16 @@ describe("the budget is ten steps", () => {
 
     expect(result).toEqual({ ending: "budget_spent", stepsTaken: QUESTION_STEP_BUDGET });
     expect(steps).toHaveLength(QUESTION_STEP_BUDGET);
-    // Eleven generations for ten reads. The last one is the model being shown its tenth
-    // result and asked once more; asking for an eleventh read there is what spends the
-    // budget, and no twelfth turn exists to run it.
+    // Eleven generations for ten reads: the last shows the model its tenth result and asks once
+    // more, and asking for an eleventh read there is what spends the budget.
     expect(prompts).toHaveLength(QUESTION_STEP_BUDGET + 1);
     expect(prompts[QUESTION_STEP_BUDGET]).toContain(`0 of ${QUESTION_STEP_BUDGET}`);
     expect(prompts[QUESTION_STEP_BUDGET]).toContain("no reads left");
   });
 
   test("and the eleventh read is decided but never executed", async () => {
-    // Counting steps is counting what was *recorded*. The last turn asks the model to answer
-    // from its tenth result, and a model that asks to read again instead must not have that
-    // statement run: with no timeout it is an unbounded wait whose rows nobody ever sees, and
-    // it would make the budget report ten while eleven ran — skewing the one number 6.6/04
-    // exists to collect. So this counts what reached the worker.
+    // This counts what reached the worker, not what was recorded: an eleventh statement would be
+    // an unbounded wait nobody sees, and would report ten while eleven ran (6.6/04's number).
     const scratch = desk();
 
     const { result, steps } = await scratch.run(
@@ -167,18 +159,13 @@ describe("the budget is ten steps", () => {
 
 describe("no timeout exists on a step or on the loop", () => {
   test("a clock that jumps years between reads changes nothing", async () => {
-    // The pin that matters. A deadline has to read a clock, whichever clock it reads, so this
-    // makes every clock on the main thread report a time years further on at each step and
-    // watches a whole budget run to its ordinary ending anyway. `new Date()`, `Date.now()`,
-    // `performance.now()`, `Bun.nanoseconds()` and `process.hrtime()` are all warped, so a
-    // deadline built from any of them fires — and the question still finishes, which is what
-    // "slow is allowed" means when it is stated as a test rather than as a comment.
+    // A deadline has to read a clock, so every clock on the main thread is warped years forward at
+    // each step and a whole budget still runs to its ordinary ending: slow is allowed.
     const clocks = warpClocks();
     const { YEAR_MS } = clocks;
 
-    // Time passes in two places a deadline could measure: while the model thinks, and
-    // between one read and the next. Both are warped, so a deadline held *across* the loop
-    // and one held *within* a single turn are each caught.
+    // Time passes in two places a deadline could measure — while the model thinks, and between one
+    // read and the next — so a deadline across the loop and one within a turn are both caught.
     const scripted = scriptedProvider(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
     const ticking: ScriptedProvider = {
       prompts: scripted.prompts,
@@ -203,10 +190,8 @@ describe("no timeout exists on a step or on the loop", () => {
   });
 
   test("and nothing on the path arms a timer while a whole budget is spent", async () => {
-    // The clock pin catches a deadline that measures; this catches one that schedules, in
-    // this module's own code and in everything it calls with a scripted provider in place. It
-    // says nothing about a real question, which arms one `setTimeout` per generation inside
-    // ADR-0003's provider spine — the inherited deadline the loop's header records.
+    // The clock pin catches a deadline that measures; this catches one that schedules. It says
+    // nothing about a real question, which arms ADR-0003's per-generation deadline in the spine.
     const armed: string[] = [];
     const realSetTimeout = globalThis.setTimeout;
     const realSetInterval = globalThis.setInterval;
@@ -240,10 +225,8 @@ describe("no timeout exists on a step or on the loop", () => {
   });
 
   test("and no source on the path holds a construct a deadline is built from", () => {
-    // The sweep behind the two pins. They prove nothing fired for these fixtures; this proves
-    // there is no code to fire for any other. Every file a question passes through is swept,
-    // the worker's thread included — a deadline applied inside the Worker is a timeout on a
-    // step, and it runs on a global object the spies above cannot reach.
+    // The pins prove nothing fired for these fixtures; the sweep proves there is no code to fire
+    // for any other. The worker's thread is swept too: its globals are out of the spies' reach.
     const source = [
       "question-loop.ts",
       "question-turn.ts",
@@ -295,9 +278,8 @@ describe("a spent budget says so and never answers half", () => {
       scriptedProvider(reads(`SELECT sum(amount) AS spent FROM ${EXPENSES_TABLE}`)),
     );
 
-    // Structural, not a rule anybody has to remember: the rows an answer would be written
-    // from are the one thing this ending does not carry, so nothing downstream can compose
-    // a total out of a question that never finished.
+    // Structural rather than a rule to remember: this ending does not carry the rows, so nothing
+    // downstream can compose a total out of a question that never finished.
     expect("steps" in result).toBe(false);
     // 12.5 is what every one of those ten reads returned; none of it is in the ending.
     expect(JSON.stringify(result)).not.toContain("12.5");
@@ -438,9 +420,8 @@ describe("the scope and its tokens go back on every ending", () => {
           question: "how many notes?",
           onStep: () => {
             steps += 1;
-            // The gate closing under a running question is 6.2/03's kill; from the loop's
-            // side it arrives as a read that rejects, and that must leave the loop rather
-            // than become a failed step the model gets to reason about.
+            // The gate closing under a running question is 6.2/03's kill: it arrives as a read
+            // that rejects, and must leave the loop rather than become a step to reason about.
             scope.cancel();
           },
         },
@@ -455,13 +436,15 @@ describe("the scope and its tokens go back on every ending", () => {
 
 describe("a decision that will not parse is a turn, not an ending", () => {
   test("comes back to the model as words, and the loop carries on", async () => {
-    // The likeliest real shape of it: an answer still carrying the read it just said it did
-    // not need, which the schema's own refinement rejects. Before this it threw a raw
-    // validation error out of the whole question, discarding every unspent read.
+    // The likeliest real shape: an answer still carrying the read it said it did not need. Before
+    // this it threw a raw validation error out of the question, discarding every unspent read.
     const rogue = providerResolving(
       // An answer still carrying the read it just said it did not need: the schema's own
       // refinement rejects it, and it is one of the likeliest shapes a real model sends.
-      { next: "answer", read: { tool: READ_ONLY_QUERY_TOOL, sql: "SELECT 1", parameters: [] } },
+      {
+        next: "answer",
+        read: { tool: READ_ONLY_QUERY_TOOL, sql: "SELECT 1", label: "counting", parameters: [] },
+      },
       reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`),
       answers(),
     );

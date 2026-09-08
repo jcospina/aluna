@@ -6,10 +6,8 @@ import {
   whenTheRequestFails,
 } from "#shell/desk-doorway.js";
 
-// The presses on the ground that are owed a window before htmx resolves their target.
-// Today there is one — Delete on a capability's context menu, whose confirmation fills
-// the window (PLAN decision 20) — and everything it decides is decided here, so it is
-// asked directly rather than only through the markup that carries its mark.
+// The presses on the ground that are owed a window before htmx resolves their target. Today there
+// is one: Delete on a capability's context menu, whose confirmation fills it (PLAN decision 20).
 
 /** As much of a document as the doorway reaches for: one listener list, one dispatch. */
 function documentDouble() {
@@ -59,9 +57,8 @@ function windowDouble(overrides: { narrating?: boolean; logo?: object | null } =
 }
 
 /**
- * The pressed control, with the three DOM facts the release scope reads off it. It is
- * connected while it is on the desk and reports itself gone once the swap that answers the
- * press has taken the logo slot it sits in.
+ * The pressed control, with the three DOM facts the release scope reads off it. It is connected
+ * while on the desk and gone once the swap answering the press takes its logo slot.
  */
 function doorwayItem() {
   return {
@@ -105,9 +102,8 @@ describe("a press on desk furniture that is about to fill the window", () => {
 
     answerDoorway(root.root as never, deleteItem, win.api as never);
 
-    // The press is about to be refused on the prompt bar (5.8/03's desk-furniture rule).
-    // Renaming its frame for a request that never lands would be this press changing
-    // something after all — and nothing is left listening for an answer that never comes.
+    // The press is about to be refused on the prompt bar (5.8/03), so renaming its frame for a
+    // request that never lands would be this press changing something after all.
     expect(win.opened).toEqual([]);
     expect(root.listening).toBe(0);
   });
@@ -157,10 +153,8 @@ describe("a press on desk furniture that is about to fill the window", () => {
     expect(root.listening).toBe(0);
   });
 
-  // htmx fires `htmx:afterRequest` *after* the swap, so a swap that detached the pressed
-  // control left the event bubbling from a node no longer in the document — it never
-  // reached the listener, which stayed on the document for the life of the page holding the
-  // detached subtree with it.
+  // htmx fires `htmx:afterRequest` after the swap, so a swap that detached the pressed control
+  // left the event bubbling from a detached node and the listener on the document for good.
   test("the listener goes when the control that made the request leaves the document", async () => {
     const { releaseRegionContent } = await import("#shell/region-scope.js");
     const root = documentDouble();

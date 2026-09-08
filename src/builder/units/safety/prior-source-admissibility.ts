@@ -1,35 +1,13 @@
-// Prior-source admissibility: prior source is optional regeneration context, not an
-// entitlement. Before an affected Handler or `item.ts` receives its old source in a
-// regeneration prompt, deterministic checks must prove that source references nothing
-// outside the candidate unit's **current** generation contract. If the proof fails, the
-// unit regenerates *without* old source.
+// Prior-source admissibility: prior source is optional regeneration context, not an entitlement.
+// Before an affected unit receives its old source in a prompt, deterministic checks must prove
+// that source references nothing outside the candidate unit's current generation contract; a
+// failed proof regenerates the unit without it. Both halves run against the candidate spec and
+// its frozen dependency catalog, never the committed ones the source was written for.
 //
-// The proof is two halves, both run against the **candidate** spec and the candidate's
-// frozen dependency catalog — never the committed ones the source was written for:
-//
-//   - **The unit's static contract.** The same checks a freshly generated unit must pass,
-//     catching an import, raw HTTP, raw mutation SQL, direct connection access, an item
-//     renderer reading outside `ui_intent.item.shows`, or query SQL against a table this
-//     Action no longer declares.
-//   - **The hidden-name boundary.** No *inactive* field name and no *undeclared capability
-//     table* may appear anywhere in the source — identifier, property name, object key,
-//     string literal, SQL text, or comment. A dead string or a leftover comment smuggles
-//     those names into the prompt exactly as a live read would.
-//
-// An **active** field the Action's field list happens not to project is deliberately not
-// forbidden: the spec's `behavior` text reaches every Action's prompt verbatim and the
-// read/search prompts authorize SQL over the target table, so a `read` Handler naming an
-// active column in an ORDER BY is inside its contract. Where that boundary is real it is
-// already enforced structurally.
-//
-// Two deliberate properties:
-//
-//   - **It withholds on doubt, never admits on doubt.** The name scan is over raw source
-//     text, so a capability hiding a field named after a common token (`text`, `value`,
-//     `code`) can lose an admission it deserved. That direction is free — the unit
-//     regenerates from the contract alone, as a v1 build does. The other direction leaks.
-//   - **It is not a process sandbox.** It governs what enters *model context*; execution
-//     safety remains the Gate's, the router's and the toolbox's job.
+// The hidden-name boundary refuses an inactive field name or undeclared capability table anywhere
+// in the source, a dead string included: it smuggles the name into the prompt as a live read
+// would. An active field the Action's list does not project is deliberately allowed — `behavior`
+// reaches every prompt and read/search authorize SQL over the target table.
 
 import ts from "typescript";
 import {
@@ -50,9 +28,8 @@ export type PriorSourceAdmissibility =
   | { readonly admitted: false; readonly reason: string };
 
 /**
- * One unit's recorded admissibility decision — the audit line a developer reads in the
- * evolution work plan. Recorded for every unit the work plan regenerates; a copied unit
- * has none, because copy never enters model context at all.
+ * One unit's recorded admissibility decision — the audit line in the evolution work plan.
+ * A copied unit has none, because copy never enters model context at all.
  */
 export interface PriorSourceDecision {
   readonly unit: GeneratedUnitName;
@@ -149,10 +126,8 @@ function withheld(reason: string): PriorSourceAdmissibility {
 }
 
 /**
- * Every field name whose data the candidate unit may not see: the capability's own inactive
- * fields, plus the inactive fields of each dependency this Action declares. A dependency's
- * *active* fields are in the catalog projection a regenerated Handler is given, so naming
- * one is inside the contract, not outside it.
+ * Every field name whose data the candidate unit may not see: its own inactive fields plus each
+ * declared dependency's. A dependency's active fields are in the projection, so inside contract.
  */
 function inactiveFieldNames(
   spec: CapabilitySpec,
@@ -174,12 +149,8 @@ function hiddenFieldNamesOf(spec: CapabilitySpec): readonly string[] {
 }
 
 /**
- * Capability tables this source names that are outside the unit's declared query scope.
- * The shared Handler check already rejects an undeclared table in *executable* SQL; this
- * sweeps the raw bytes, so a dropped dependency's table surviving in a comment or a dead
- * SQL constant is caught too. Field-level dependency scope needs no equivalent sweep: a
- * dependency's data is reachable only through its table, and a bare column name from a
- * capability this Action cannot query carries none of it.
+ * Capability tables this source names outside the unit's declared query scope. The Handler check
+ * covers executable SQL; this sweeps raw bytes, so a dropped table in a comment is caught too.
  */
 function undeclaredCapabilityTables(
   spec: CapabilitySpec,
@@ -222,9 +193,8 @@ function declaredDependencySpecs(
 }
 
 /**
- * Which of the given names this source mentions, either in raw bytes or in the decoded
- * and statically assembled meanings TypeScript gives those bytes. Whole-token matching
- * (`_` and `$` count as token characters) keeps `text_element` distinct from `text`.
+ * Which of the given names this source mentions, in raw bytes or in the meanings TypeScript
+ * gives them. Whole-token matching (`_` and `$` count) keeps `text_element` distinct from `text`.
  */
 function namesPresent(
   sourceMeanings: readonly string[],
@@ -307,10 +277,8 @@ function reflectivePropertyKey(node: ts.Node): ts.Expression | undefined {
 }
 
 /**
- * The shared evaluator intentionally stays small. For prior-source admission, make its
- * global binding map sound by accepting only uniquely named immutable bindings. A
- * shadow, destructuring collision, `let`/`var`, or assignment makes the proof
- * conservative: old source is withheld and generation proceeds from the contract alone.
+ * For prior-source admission the global binding map is sound only for uniquely named immutable
+ * bindings: a shadow, `let`, or assignment withholds old source and generation uses the contract.
  */
 function sourceHasUnstableBindings(source: ts.SourceFile): boolean {
   const names = new Set<string>();

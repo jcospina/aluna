@@ -1,45 +1,15 @@
-// The core Builder: everything between "a request has been resolved" and "the platform
-// has changed" — the bounded build ticket, the exclusive lease, the lease-head
-// revalidation, the durable admission row, and the run itself, for a brand-new capability
-// or an evolution of a committed one. Mutation, staging, Gate, activation and metrics all
-// live behind this one entry point and behave identically no matter who called it.
+// The core Builder: everything between *a request has been resolved* and *the platform has
+// changed* — the bounded ticket, the exclusive lease, lease-head revalidation, the durable
+// admission row, and the run itself, for a new capability or an evolution of a committed one.
 //
-// # The reuse seam
+// It owns no prompt route, no DOM and no SSE vocabulary: it takes a resolved request and a
+// presenter and emits the run's one terminal lifecycle event, so a test drives it with a fake.
+// The split is real for the terminal only — `send` still carries SSE names authored in the
+// stages, a failing `send` reads as *cancelled*, and the wording is the stages', not a presenter's.
 //
-// This module owns no prompt route, no active DOM and no SSE vocabulary. It takes an
-// already-classified {@link ResolvedBuildRequest} and a {@link CoreBuilderPresenter}, and
-// emits the run's terminal lifecycle event into that presenter. Because the presenter is
-// an interface rather than an SSE call, the Builder is invocable from a test with a
-// recording fake, which is how identical mutation/Gate/activation behavior is proven
-// without a transport.
-//
-// The split is real for the **terminal** and only the terminal. Three things still assume
-// the explicit loop's shape:
-//
-//   - `send` is a liveness sink carrying SSE event names authored inside the stages, so a
-//     non-browser presenter receives vocabulary it can only ignore.
-//   - A `send` that fails is read as *the build was cancelled* — right for a person who
-//     closed their tab, wrong for a background loop that never had a listener.
-//   - The product-voice wording is written by the stages, not the presenter, so a quieter
-//     presenter cannot reword or suppress it.
-//
-// # Staleness
-//
-// A resolved request binds a target expectation and the fingerprint of the one active
-// registry catalog the resolver classified against. Both are revalidated *after* the lease
-// is acquired, because only then is the registry stable. Any mismatch — a moved target, a
-// colliding expected-absent id, or a catalog that has since changed — is a **stale
-// refusal**: it starts no provider work, never opens a `running` row, and is never
-// silently rebased, retargeted or reclassified against the newer catalog. While ownership
-// is still held it writes one direct terminal `failed/stale` admission row with every
-// generation stage skipped, and hands the presenter a `stale` terminal.
-//
-// The fingerprint covers *every* active row, not just the target's, so a queued build is
-// refused even when the change that landed was about some other capability. That is
-// intended: the resolver's answer is a judgment about the whole catalog, so a catalog that
-// has moved invalidates the judgment, not merely the target. The price is false refusals
-// under concurrency, paid deliberately, because the alternative is acting on a
-// classification of a world that is gone.
+// The catalog fingerprint covers every active row, not the target's, so a queued build is refused
+// even when the change that landed was about something else: false refusals under concurrency,
+// paid deliberately against acting on a classification of a world that is gone.
 
 import {
   type CommitCapabilityResult,
@@ -110,9 +80,8 @@ export interface StaleBuildRefusal {
 }
 
 /**
- * The terminal lifecycle event of one core build. Exactly one is emitted per run, always
- * while the build lease is still held, so a presenter's work is bounded by the same
- * ownership the build had.
+ * The terminal lifecycle event of one core build. Exactly one per run, emitted while the build
+ * lease is still held, so a presenter's work is bounded by the ownership the build had.
  */
 export type CoreBuildTerminal =
   | { readonly kind: "stale"; readonly refusal: StaleBuildRefusal }
@@ -130,12 +99,8 @@ export type CoreBuildTerminal =
   | { readonly kind: "failed"; readonly error: unknown; readonly incarnationId: string | null };
 
 /**
- * How a caller watches a build. `send` is the Builder's transport-agnostic liveness sink
- * (the developer previews and in-flight narration the stages already emit); `present`
- * receives the one terminal lifecycle event and owns everything user-facing about it.
- *
- * A presenter returns `"terminal-sent"` when it has delivered a complete terminal
- * response, or `undefined` when there is no longer anyone to deliver it to.
+ * How a caller watches a build. `send` is the transport-agnostic liveness sink the stages emit
+ * into; `present` takes the one terminal event and returns `undefined` when nobody is left.
  */
 export interface CoreBuilderPresenter {
   readonly send: SendBuildEvent;
@@ -157,35 +122,22 @@ export interface CoreBuildInput {
   readonly artifactsRoot: string;
   readonly mutationCoordinator: MutationCoordinator;
   /**
-   * When the caller started measuring the job — for `/prompt`, before classification —
-   * so `totalMs` is the whole wait the person actually experienced: resolution, the queue
-   * behind the exclusive lease, and the build itself.
+   * When the caller started measuring — for `/prompt`, before classification — so `totalMs` is
+   * the whole wait: resolution, the queue behind the exclusive lease, and the build.
    */
   readonly builtAt: number;
   readonly signal?: AbortSignal;
 }
 
 /**
- * How long one mid-build write may take before the reader is treated as gone.
- *
- * The terminal presentation has always been bounded, with a written rationale about not
- * letting a stalled reader hold mutation ownership; every mid-build `await send(…)` had no
- * bound at all, so a client that opened the stream and never drained it held the exclusive
- * build lease behind it — every other build queued, indefinitely, on one unread socket.
- *
- * Longer than the terminal's two seconds on purpose. A terminal write happens once, when
- * everything durable is already done; these happen throughout, some of them carrying whole
- * developer-preview payloads, and cutting a slow-but-real reader off mid-build would end a
- * build that was going to succeed. Ten seconds is far past any live connection's write and
- * far short of "for ever".
+ * How long one mid-build write may take before the reader is treated as gone. Unbounded, a
+ * client that opened the stream and never drained it held the exclusive build lease behind it.
  */
 export const DEFAULT_BUILD_EVENT_TIMEOUT_MS = 10_000;
 
 /**
- * The build's own `send`: bounded by the lease's signal *and* by a per-write deadline.
- *
- * A rejection here is read by the stages as "the build was cancelled", which is what a
- * reader who has stopped reading is.
+ * The build's own `send`, bounded by the lease's signal and a per-write deadline. The stages read
+ * a rejection as *the build was cancelled*, which is what a reader who stopped reading is.
  */
 function sendBeforeAbort(
   send: SendBuildEvent,
@@ -200,6 +152,8 @@ function sendBeforeAbort(
       return Promise.reject(signal.reason);
     }
     return new Promise<void>((resolve, reject) => {
+      // Ten seconds, over the terminal write's two: these run throughout carrying preview
+      // payloads, so cutting off a slow-but-real reader would end a build about to succeed.
       const timer = setTimeout(() => {
         cleanup();
         reject(new Error(`Build event "${event}" was not read within ${timeoutMs}ms.`));
@@ -245,14 +199,8 @@ function proposedCapabilityIdIsUnavailable(
 }
 
 /**
- * Revalidate a resolved request against the registry as it stands right now.
- *
- * All three bindings must hold and any one of them failing is the same refusal, so the
- * order affects only which reason the durable row records. The target expectation is
- * therefore checked first: "the capability you aimed at moved to v3" and "the id you
- * proposed was taken" are precise stories, while a catalog mismatch is the broad one —
- * the classification was made against a registry that no longer exists, whether or not
- * anything about this particular target changed.
+ * Revalidates a resolved request against the registry, stable only once the lease is held. Order
+ * picks only the recorded reason, and the target expectation goes first because it is precise.
  */
 export function revalidateResolvedRequest(
   request: ResolvedBuildRequest,
@@ -289,9 +237,8 @@ export function revalidateResolvedRequest(
   const target = request.targetExpectation;
   const current = getCapability(target.capabilityId, database);
   if (!current || current.incarnation_id !== target.incarnationId) return refusal("target_missing");
-  // The expected-version comparison lives here, before any candidate is authored, so a
-  // request aimed at a superseded version is refused as stale rather than reaching the
-  // Diff Engine and being mistaken for a semantic no-op.
+  // Compared before any candidate is authored, so a request aimed at a superseded version is
+  // refused as stale instead of reaching the Diff Engine and reading as a semantic no-op.
   if (current.version !== target.version) return refusal("target_version");
   if (catalog.fingerprint !== request.catalogFingerprint) return refusal("catalog_revision");
   return { kind: "existing_capability", active: current };
@@ -302,10 +249,8 @@ export function revalidateResolvedRequest(
  * terminal lifecycle event to the presenter while that lease is still held.
  */
 export async function runCoreBuild(input: CoreBuildInput): Promise<BuildPipelineCompletion> {
-  // "Exactly one terminal event per run" is a promise this module makes to every
-  // presenter, and nested error paths would otherwise each be entitled to emit their own —
-  // a presenter that threw while delivering a failure would be handed a second failure
-  // describing its own delivery. The guard makes the promise structural.
+  // One terminal event per run, structurally: without the guard a presenter that threw while
+  // delivering a failure would be handed a second failure describing its own delivery.
   const presenter = emitOnce(input.presenter);
   const guarded: CoreBuildInput = { ...input, presenter };
   const reservation = input.mutationCoordinator.reserveBuild();
@@ -329,12 +274,8 @@ export async function runCoreBuild(input: CoreBuildInput): Promise<BuildPipeline
       input.signal ? { signal: input.signal } : {},
     );
   } catch (error) {
-    // Reservation expiry or cancellation before the lease was ever granted. No durable
-    // generation guarantee is claimed here — there is no row to close.
-    //
-    // A queued build the user cancelled is a cancellation, not a failure. Telling them it
-    // failed would be false, and it is precisely the moment they are most likely to press
-    // Cancel: nothing is visibly happening because another build owns the lease.
+    // Expiry or cancellation before the lease was granted: no row to close. A queued build the
+    // user cancelled is a cancellation, and they cancel while another build is holding the lease.
     const cancelled = error instanceof MutationReservationCancelledError || presenter.isAborted();
     return presenter.present(
       cancelled
@@ -345,9 +286,8 @@ export async function runCoreBuild(input: CoreBuildInput): Promise<BuildPipeline
 }
 
 /**
- * Forward only the first terminal event; later ones resolve to the first delivery's own
- * result. A presenter whose delivery *rejects* keeps rejecting, so the failure surfaces to
- * the job queue's own safety net rather than being swallowed here.
+ * Forwards only the first terminal event; later ones resolve to the first delivery's result. A
+ * rejecting delivery keeps rejecting, so the failure reaches the job queue's safety net.
  */
 function emitOnce(presenter: CoreBuilderPresenter): CoreBuilderPresenter {
   let delivery: Promise<BuildPipelineCompletion> | undefined;
@@ -363,9 +303,8 @@ function emitOnce(presenter: CoreBuilderPresenter): CoreBuilderPresenter {
 }
 
 async function runUnderBuildLease(input: CoreBuildInput): Promise<BuildPipelineCompletion> {
-  // Everything here runs inside the try, the refusal included: a store failure while
-  // writing the refusal row must still be presented under the ownership this run holds,
-  // not after `withBuildLease`'s `finally` has already released it.
+  // The refusal is inside the try too: a store failure writing the refusal row must be presented
+  // under this run's ownership, not after `withBuildLease`'s `finally` released it.
   try {
     const revalidation = revalidateResolvedRequest(input.request, input.buildDatabases);
     if (revalidation.kind === "stale")
@@ -387,9 +326,8 @@ async function runUnderBuildLease(input: CoreBuildInput): Promise<BuildPipelineC
 }
 
 /**
- * Decision 28's direct terminal admission row. It is written while ownership is held, so
- * it survives a dropped client exactly as an activation does — and it is written *instead
- * of* `running`, never as an update to it, because nothing ever ran.
+ * Decision 28's direct terminal admission row, written while ownership is held so it survives a
+ * dropped client. It replaces `running` rather than updating it, because nothing ever ran.
  */
 async function refuseStaleAdmission(
   input: CoreBuildInput,
@@ -398,22 +336,8 @@ async function refuseStaleAdmission(
   input.recordMetrics.refuseStale({
     buildId: input.buildId,
     incarnationId: refusal.incarnationId,
-    // The row's `capability_id` names a capability *this build owned*, because that is what
-    // every per-capability reading of the lifecycle table means.
-    //
-    // An evolution owned its target and is named — including the reborn case, where the id
-    // is live again under a different incarnation. That looks like the collision below, but
-    // it is not: this build really did aim at that id, and the row carries the *expected*
-    // incarnation, which says precisely which one it meant. Grouped by capability it reads
-    // "a build of notes/incarnation-A was refused", which is true and complete.
-    //
-    // A new capability owned none. The id on its refusal is the one it asked to be *absent*,
-    // which either does not exist or — on a collision — belongs to somebody else's committed
-    // capability that this build never touched. And its incarnation is null, so there is no
-    // disambiguator to save it: the row would read "a build of notes failed", charging a
-    // capability whose own history is spotless. So it stays null exactly as the incarnation
-    // does, and the id survives on the refusal itself, where it is a fact about the request
-    // rather than a claim about the registry.
+    // `capability_id` names a capability this build owned. A new capability owned none, and the
+    // id it asked to be absent may be someone else's, so naming it charges a spotless history.
     capabilityId: input.request.kind === "existing_capability" ? refusal.capabilityId : null,
     resolver: input.request.resolver,
     measurement: staleAdmissionMeasurement(input.builtAt),
@@ -447,9 +371,8 @@ async function runAdmittedNewCapability(
     resolver: request.resolver,
     stages: [],
   });
-  // From here the row is open, so every exit must close it and must carry this
-  // incarnation — a terminal filed under "no incarnation" would strand the `running` row
-  // for boot reconciliation to find, and would show the presenter an empty measurement.
+  // From here the row is open, so every exit closes it carrying this incarnation: a terminal
+  // filed under "no incarnation" strands the `running` row for boot reconciliation to find.
   try {
     return await runOpenNewCapability(input, request, incarnationId, acc);
   } catch (error) {
@@ -480,9 +403,8 @@ async function runOpenNewCapability(
       JSON.stringify(input.recordMetrics.get(input.buildId, incarnationId)),
     );
   } catch (error) {
-    // The subscriber is gone before the first provider call. Close the admitted row
-    // rather than leaving it running, then let the presenter decide whether anyone is
-    // still there to tell.
+    // The subscriber is gone before the first provider call, so close the admitted row rather
+    // than leaving it running and let the presenter decide whether anyone is left to tell.
     finalizeCancelled(input, incarnationId, acc);
     if (input.presenter.canPresent()) {
       return input.presenter.present({ kind: "cancelled", incarnationId });
@@ -571,10 +493,8 @@ async function runAdmittedEvolution(
       database: input.buildDatabases,
       artifactsRoot: input.artifactsRoot,
       recordMetrics: input.recordMetrics,
-      // Measured on the caller's clock rather than the moment the engine happened to start,
-      // so the row covers the resolution and queue wait that preceded it. That time is time
-      // the person spent watching; a v1 build has always counted it, and an evolution must
-      // not disagree. (The resolver's own leg stays separately visible on the row.)
+      // The caller's clock, not the engine's start, so the row covers the resolution and queue
+      // wait the person spent watching — as a v1 build has always counted it.
       builtAt: input.builtAt,
       send: input.presenter.send,
       isAborted: input.presenter.isAborted,

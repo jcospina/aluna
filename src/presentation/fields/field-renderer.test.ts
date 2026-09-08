@@ -12,14 +12,8 @@ import {
   renderEditForm,
 } from "./field-renderer.ts";
 
-// The centralized field renderer is the one platform module that turns a spec into
-// create and edit controls — exhaustive over the pantry (string | number | boolean |
-// datetime | date | string[]). These tests cover every pantry type in both modes from one
-// fixture, the platform-owned create-form wiring + close-on-success, and the data-safety
-// invariants (escaping). The schema-driven sweep ties the renderer to `fieldTypeSchema`,
-// so a future pantry type that isn't handled here breaks a test, not a live view.
-// Edit-form wiring lives in field-renderer.edit.test.ts; shared fixtures in
-// field-renderer.test-support.ts.
+// Every pantry type in both modes from one fixture, the create-form wiring, and the escaping. The
+// sweep ties the renderer to `fieldTypeSchema`, so a new type breaks a test, not a live view.
 
 describe("create form — platform wiring + close-on-success", () => {
   const form = renderCreateForm(SAMPLE);
@@ -88,23 +82,20 @@ describe("create form — platform wiring + close-on-success", () => {
   });
 
   test("holds no record data — the create surface is data-free", () => {
-    // The arity alone proves nothing: a form could still bake values in over a
-    // closure. Assert the rendered markup instead — no control arrives pre-filled
-    // and no checkbox arrives pre-checked.
+    // The arity alone proves nothing: a form could still bake values in over a closure. Assert
+    // the rendered markup instead — nothing arrives pre-filled and no checkbox pre-checked.
     const form = renderCreateForm(SAMPLE);
     const prefilled = [...form.matchAll(/<(?:input|option)\b[^>]*>/g)]
       .map(([element]) => element)
-      // The `__aluna_present` markers legitimately carry a value: it is the field's
-      // own name, telling the server which controls the form submitted. Everything
-      // else arriving with a value would be record data.
+      // The `__aluna_present` markers legitimately carry a value: the field's own name, telling
+      // the server which controls the form submitted. Anything else with a value is record data.
       .filter((element) => !element.includes('name="__aluna_present"'))
       .filter((element) => /\svalue="[^"]+"/.test(element) || /\schecked\b/.test(element));
 
     expect(prefilled).toEqual([]);
 
-    // Every control is an input today, but a textarea would carry its value as a
-    // text node rather than an attribute and slip past the sweep above. Guard that
-    // shape now so adding one later cannot quietly reintroduce record data.
+    // Every control is an input today, but a textarea carries its value as a text node rather
+    // than an attribute and would slip past the sweep above.
     const textareaBodies = [...form.matchAll(/<textarea\b[^>]*>([\s\S]*?)<\/textarea>/g)].map(
       ([, body]) => body,
     );
@@ -178,10 +169,8 @@ describe("create form — one control per pantry type — scalar and list contro
     expect(listForm).toContain("data-list-field-add>Add another</button>");
     expect(listForm).toContain("data-list-field-remove");
     expect(listForm).not.toContain('name="tags" required');
-    // A cross-file contract, not decoration: `syncListFieldRows` (list-field.js) reads
-    // both attributes to re-key every row's `input.id` and `aria-label` after an add or
-    // remove. Drop or rename either and the rows silently fall back to the generic
-    // "Value 1 / Value 2" accessible names and collide on `list-value-N` ids.
+    // `syncListFieldRows` (list-field.js) reads both attributes to re-key every row's `input.id`
+    // and `aria-label`. Drop either and rows fall back to "Value 1" and collide on their ids.
     expect(listForm).toContain('data-list-field-label="Tags"');
     expect(listForm).toContain('data-list-input-id="cap-probe-tags"');
   });
@@ -259,17 +248,14 @@ describe("create form — one control per pantry type — labels, lifecycle, and
 
   /**
    * Everything the form draws, without the `<form>` open tag itself. The tag carries
-   * `data-required-message` — the platform's own sentence for a field left empty — so a
-   * question about whether a *control* says "required" has to be asked past it.
+   * `data-required-message`, so a question about a control saying "required" is asked past it.
    */
   const withoutFormTag = (html: string) => html.slice(html.indexOf(">") + 1);
 
   test("required fields carry the required attribute; optional ones do not", () => {
     expect(form).toContain('name="title" aria-describedby="cap-tasks-title-guidance" required>');
-    // The lone optional field renders without the word anywhere on any control — not
-    // `required`, not `aria-required`, not `data-choice-required`. The form's own open tag
-    // is cut off first, because it now carries `data-required-message`: the sentence a
-    // *missing* field is refused with, which says nothing about this one.
+    // The lone optional field renders without the word on any control. The form's open tag is cut
+    // off first, because `data-required-message` says nothing about this field.
     expect(
       withoutFormTag(
         renderCreateForm(
@@ -303,9 +289,8 @@ describe("create form — one control per pantry type — labels, lifecycle, and
 });
 
 describe("centralization — exhaustive over the admitted pantry", () => {
-  // Drives straight off the registry enum: if the pantry gains a type, this sweep
-  // renders it in both modes and fails loudly unless the renderer's two total
-  // switches handle it — proof that adding a type is a single-location change.
+  // Drives straight off the registry enum: a new pantry type is rendered in both modes here and
+  // fails loudly unless the renderer's two total switches handle it.
   test("every fieldTypeSchema option renders a create control and an edit control", () => {
     for (const type of fieldTypeSchema.options) {
       const probe = oneField(probeField(type));

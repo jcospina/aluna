@@ -1,24 +1,14 @@
-// Candidate-spec generation (PLAN decisions 1, 2, 4, 22;
-// ADR-0006 candidate ownership; ARCH §6.2 evolution steps 1–2).
+// Candidate-spec generation (PLAN decisions 1, 2, 4, 22; ADR-0006 candidate ownership; ARCH §6.2
+// evolution steps 1–2).
 //
-// Evolution's first stage: the AI authors one complete candidate spec for an
-// existing capability. It receives exactly four inputs — the
-// current committed spec *including every inactive field*, the resolved intent,
-// the full field-lifecycle catalog, and the lease-frozen dependency-generation
-// catalog — and returns the same canonical authored shape a new capability
-// uses. The platform owns lifecycle metadata (incarnation, version, build id,
-// snapshot metadata, artifacts_path) and computes every consequence; the AI
-// never returns those, nor a patch, migration, or regeneration list.
+// Evolution's first stage: the AI authors one complete candidate spec from four inputs — the
+// committed spec including every inactive field, the resolved intent, the field-lifecycle
+// catalog, and the lease-frozen dependency catalog — and returns the same canonical shape a new
+// capability uses. The platform owns lifecycle metadata; the AI returns no patch or migration.
 //
-// The two context exclusions are contractual: the capability's own
-// inactive fields ARE present (so the model can preserve or reactivate them),
-// while inactive *external* fields are NOT (the catalog carries active fields
-// only). The context test pins both directions.
-//
-// Validation is this stage's own gate, exactly like v1 spec-gen: the provider's
-// schema conformance is re-checked by `validateCandidateSpec`, which also
-// enforces the cross-spec field-lifecycle contract and frozen-catalog
-// resolution before anything downstream sees the candidate.
+// The two context exclusions are contractual: the capability's own inactive fields are present so
+// the model can reactivate them, while inactive external fields are not. Validation is this
+// stage's own gate — `validateCandidateSpec` runs before anything downstream sees the candidate.
 
 import type { IntentClassification } from "../../../pipeline/intent/index.ts";
 import type { SendBuildEvent } from "../../../pipeline/jobs/build-jobs.ts";
@@ -68,10 +58,8 @@ export interface CandidateSpecGenResult {
 }
 
 /**
- * The instructions the model authors the candidate from. Engineering language is
- * fine here — model-facing, never user-visible (ARCH §9.7 governs narration
- * only). Pantry lists are read off the registry's own enums so the prompt can
- * never drift from the schema that gates the output.
+ * The instructions the model authors the candidate from. Model-facing, never user-visible, so
+ * engineering language is fine; the pantry lists come off the registry's own enums.
  */
 export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): string {
   const committed = committedSpecView(input.committed);
@@ -163,10 +151,8 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
 }
 
 /**
- * Run the stage: narrate in product voice, author the candidate through the
- * provider contract, and validate it completely — structural shape, cross-spec
- * field lifecycle, and frozen-catalog resolution — before anything downstream
- * sees it. Throws `CandidateValidationError` on rejection.
+ * Run the stage: narrate in product voice, author the candidate through the provider contract,
+ * then validate it completely. Throws `CandidateValidationError` on rejection.
  */
 export async function generateCandidateSpec(
   input: GenerateCandidateSpecInput,

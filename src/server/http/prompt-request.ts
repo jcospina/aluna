@@ -44,37 +44,27 @@ async function readPromptFromJson(c: Context): Promise<PromptSubmission> {
 }
 
 async function readPromptFromForm(c: Context): Promise<PromptSubmission> {
-  // A malformed multipart body is the form equivalent of malformed JSON: it contains no
-  // usable prompt. Hono's parser throws on a missing/invalid boundary; letting that escape
-  // would turn an admission refusal into a 500 that HTMX does not swap, leaving the person
-  // with no visible answer. Normalize parser failures to the same empty submission shape
-  // every other unusable body takes.
+  // A malformed multipart body contains no usable prompt. Hono's parser throws on a bad boundary,
+  // and letting that escape turns an admission refusal into a 500 htmx does not swap.
   const body = await c.req.parseBody().catch(() => ({}));
   return submissionFromRecord(body);
 }
 
 /**
- * Whether a prompt contains something a person can actually see or hear as content.
- *
- * `String.trim` removes ordinary surrounding whitespace but deliberately leaves Unicode
- * format/default-ignorable characters and most controls. A body made only from those bytes
- * looks empty while still reaching the resolver and spending a provider call. Remove them
- * only for this admission predicate: meaningful prompts retain their original text, including
- * internal joiners used by emoji and scripts.
+ * Whether a prompt contains something a person can see or hear. `String.trim` leaves Unicode
+ * format and control characters, so a body of those alone still spends a call. Stripped only here.
  */
 export function hasMeaningfulPromptContent(prompt: string): boolean {
   return prompt.replace(/[\p{White_Space}\p{Default_Ignorable_Code_Point}\p{Cc}]/gu, "").length > 0;
 }
 
 /**
- * Read the typed prompt from the request body, dispatching on `content-type`: JSON,
- * form (urlencoded or multipart), or — as a fallback — the raw request text. Always
- * returns a trimmed string, empty when no usable `prompt` is present.
+ * Read the typed prompt from the request body, dispatching on `content-type`: JSON, form, or the
+ * raw request text. Always a trimmed string, empty when no usable `prompt` is present.
  */
 export async function readPromptSubmission(c: Context): Promise<PromptSubmission> {
-  // Media types are case-insensitive. Compare the normalized type itself rather than using
-  // substring checks, which could misclassify an unrelated type whose parameter happened to
-  // contain one of these strings.
+  // Media types are case-insensitive. Compare the normalized type itself: a substring check could
+  // misclassify an unrelated type whose parameter happened to contain one of these strings.
   const contentType = c.req.header("content-type") ?? "";
   const mediaType = (contentType.split(";", 1)[0] ?? "").trim().toLowerCase();
   if (mediaType === "application/json") {

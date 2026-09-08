@@ -10,10 +10,8 @@ import { startPromptBar } from "#shell/prompt-bar.js";
 import { NOT_FOUND_NOTICE } from "../../../server/http/index.ts";
 
 /**
- * As much of a document as this rule reaches for, over one recording slot. Every write to
- * the slot is kept, because what is being proved is not the words that end up there — they
- * never change — but that the slot was *written*, which is the whole of what an
- * `aria-live` region announces.
+ * As much of a document as this rule reaches for, over one recording slot. Every write is kept,
+ * because what is proved is that the slot was written, which is what `aria-live` announces.
  */
 function pageArrivingWith(standing: string, readyState = "loading") {
   const writes: string[] = [];
@@ -75,9 +73,8 @@ describe("a sentence served with the page", () => {
   });
 
   test("the next keystroke retires it, the way it retires every other sentence here", () => {
-    // The acceptance criterion the seeded sentence has to meet as well as every sentence
-    // that arrives by swap: it does not outlive the next thing the person does. It gets
-    // that for free by living in the one slot — and free is not proved, so it is proved.
+    // The criterion the seeded sentence meets as well as every sentence arriving by swap: it does
+    // not outlive the next thing the person does. It gets that free by living in the one slot.
     const page = pageArrivingWith(NOT_FOUND_NOTICE);
     startPromptBar(page.root as never);
     page.fire("DOMContentLoaded");

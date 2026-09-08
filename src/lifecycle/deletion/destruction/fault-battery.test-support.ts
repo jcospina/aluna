@@ -71,9 +71,8 @@ export function incarnationOf(row: CapabilityRow): CapabilityIncarnation {
 }
 
 /**
- * Narrow a destruction outcome to the one that crossed the commit. A drain timeout is a
- * refusal with nothing behind it, so a test that goes on to read the tombstone or the
- * purge counts is asserting the drain succeeded whether it says so or not — this says so.
+ * Narrow a destruction outcome to the one that crossed the commit. A drain timeout is a refusal
+ * with nothing behind it, so a test reading the tombstone asserts the drain succeeded; say so.
  */
 export function expectDestroyed(result: CapabilityDestructionResult): CapabilityDestroyedResult {
   expect(result.status).not.toBe("deletion_drain_timeout");

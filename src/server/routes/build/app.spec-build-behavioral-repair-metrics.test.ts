@@ -53,9 +53,8 @@ describe("v1 behavioral repair metrics", () => {
     const { events } = await runPromptBuild(app, "track notes");
 
     expect(events.at(-1)).toMatchObject({ event: "done", data: "ok" });
-    // intent + spec + five Action suites + six initial units + one update repair. Every
-    // fake call costs 53 tokens; 15 would expose a double count and 13 would expose a
-    // dropped repair.
+    // intent + spec + five Action suites + six initial units + one update repair. Every fake call
+    // costs 53 tokens; 15 would expose a double count and 13 a dropped repair.
     expect(prompts).toHaveLength(14);
     expect(rows[0]?.usage?.totalTokens).toBe(53 * 14);
     expect(rows[0]?.unitAttempts?.find((unit) => unit.name === "update")?.attempts).toBe(2);

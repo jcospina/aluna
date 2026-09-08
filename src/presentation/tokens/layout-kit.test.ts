@@ -4,13 +4,8 @@ import { extname, join, resolve } from "node:path";
 
 import { ALLOWED_CLASSES } from "../safety/vocabulary.ts";
 
-// The layout kit is the class vocabulary generated capability markup speaks. It ships
-// as a real stylesheet under design/styles/ so a generated screen arranges correctly
-// wherever the High Meadow manifest is loaded — the desk, the standalone documents and
-// the developer previews alike — without reaching for inline `style` (ADR-0005 §4).
-//
-// The two control stylesheets stay two files. What this pins is the thing that made
-// them look mergeable: rules in the earlier file that the later one silently overrode.
+// The layout kit is the class vocabulary generated capability markup speaks, shipped as a real
+// stylesheet so a screen arranges wherever High Meadow loads, with no inline style (ADR-0005 §4).
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const KIT = "design/styles/layout-kit.css";
@@ -88,9 +83,8 @@ describe("the layout kit ships under design/styles", () => {
   });
 
   test("gives every allowed class a rule of its own", () => {
-    // vocabulary.test.ts already pins the two sets equal. What it cannot see is a class
-    // that only ever appears qualified — `.media-frame > img` and nothing else — which
-    // would satisfy set equality while the class itself returned nothing on its own.
+    // vocabulary.test.ts already pins the two sets equal. What it cannot see is a class that
+    // only ever appears qualified — `.media-frame > img` — and returns nothing on its own.
     const standalone = new Set(
       selectorsOf(KIT).flatMap((selector) => selector.split(",").map((part) => part.trim())),
     );
@@ -100,10 +94,8 @@ describe("the layout kit ships under design/styles", () => {
   });
 
   test("every component sheet is reached from the manifest", () => {
-    // A sheet under `components/` that nothing imports is a component with no CSS at all,
-    // and it fails silently: the markup renders, the rules simply are not there. The full
-    // suite stayed green with the repeated-value list's own stylesheet orphaned, which is
-    // exactly the shape of defect this closes.
+    // A sheet under `components/` that nothing imports is a component with no CSS, and it fails
+    // silently: the suite stayed green with the repeated-value list's stylesheet orphaned.
     const manifest = read("design/styles/index.css");
     for (const path of stylesheetsUnder("design/styles/components")) {
       const name = path.slice(path.lastIndexOf("/") + 1);
@@ -155,10 +147,8 @@ describe("the two control stylesheets", () => {
   });
 
   test("move a button from exactly one rule, which excludes disabled itself", () => {
-    // Deleting controls.css's `.btn:active` left form-controls.css's `.btn:disabled:active`
-    // with nothing to suppress. One rule owns the press, and it opts disabled out. The
-    // property is `translate` because the press travels, and travel is the axis Reduce
-    // Motion turns off (PLAN decision 44) — `transform` would take the press off it.
+    // Deleting `.btn:active` from controls.css left `.btn:disabled:active` with nothing to
+    // suppress. `translate`, because travel is the axis Reduce Motion turns off (PLAN 44).
     const pressing = [...rules(read(CONTROLS)), ...rules(read(FORM_CONTROLS))].filter(
       (rule) =>
         rule.selector.startsWith(".btn") &&
@@ -168,9 +158,8 @@ describe("the two control stylesheets", () => {
   });
 
   test("keep no control rule the later file overrides outright", () => {
-    // The dead-code defect was `.btn--*`, `.field*` and `.form*` blocks in the earlier
-    // file whose every declaration the later one restated or replaced. Only the button
-    // base and the chevron may name a control here now; the rest is page chrome.
+    // The dead-code defect was `.btn--*`, `.field*` and `.form*` blocks in the earlier file
+    // whose declarations the later one restated. Only the base and the chevron name one here.
     const named = classesNamedIn(CONTROLS).filter((className) =>
       /^(btn|field|form|choice|listbox)($|[-_])/.test(className),
     );

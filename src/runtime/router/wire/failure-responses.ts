@@ -27,10 +27,8 @@ import type { WireProtocolAction } from "./wire-protocol.ts";
 
 type MutationAction = "create" | "update" | "delete";
 
-// Carries `data-error-code` for the same reason the mutation branch below does: htmx
-// refuses to swap any 4xx by default, so the shell's rescue in `public/app.js` needs a
-// structured marker to recognise this as a refusal worth showing. Without it the copy
-// below is written but never reaches a screen.
+// Carries `data-error-code` because htmx refuses to swap a 4xx by default: the rescue in
+// `public/app.js` needs the marker, or this copy is written and never reaches a screen.
 export const READ_UNAVAILABLE_FRAGMENT =
   '<p class="notice" data-role="error" data-error-code="read_unavailable">I’m making a careful change here. Give me a moment, then try that again.</p>';
 
@@ -78,13 +76,8 @@ function isMutationAction(action: WireProtocolAction): action is MutationAction 
 }
 
 /**
- * A capability's *own* declared validation refusal, delivered exactly as the platform's
- * typed ones are: 422, retargeted into the form's error region, and swapped there.
- *
- * The Handler wrote the sentence and the fragment is passed through unchanged — the
- * capability owns the copy, the platform owns the status and the placement. Without this
- * the fragment was a bare 200 against a form declaring `hx-swap="none"`, so a declared
- * refusal was swapped nowhere and read by the client as a committed write.
+ * A capability's own declared refusal, delivered as the platform's typed ones are: 422, retargeted
+ * into the form's error region. A bare 200 under `hx-swap="none"` read to the client as a commit.
  */
 export function declaredRefusal(
   c: Context,
@@ -97,23 +90,8 @@ export function declaredRefusal(
 }
 
 /**
- * Product-voice failures (CONTEXT.md). The not-found copy is deliberately the same
- * for an unknown capability and an undeclared action — the user need not, and must
- * not, learn which internal check failed. Neither names an internal (no "handler",
- * "action", "capability", "route").
- *
- * It carries `data-error-code` for the reason the header of this file gives: htmx will
- * not swap a 4xx unaided, so an unmarked refusal body is one nobody ever sees. This one
- * had gone unmarked, and the press it answers is the second tab's — a tile still standing
- * for a capability the other tab deleted. Unmarked, that press mounted a window, got
- * nothing, and took the window back down without a word (5.9/03).
- *
- * The sentence itself is `NOT_FOUND_NOTICE`, shared with the page a link to the same
- * capability loads, because the shell lifts this one onto the prompt bar when the desk is
- * what asked — the same slot that page seeds. Two sentences there would be one voice
- * saying the same thing two ways. "It might be something I haven't made yet" is what the
- * sharing cost: it was written when this only answered a name Aluna had never heard of,
- * and it is false of the case that now reaches it most often.
+ * Product-voice failures (CONTEXT.md). One copy for an unknown capability and an undeclared
+ * action, so nobody learns which check failed.
  */
 export const NOT_FOUND_FRAGMENT = `<p class="notice" data-role="error" data-error-code="not_found">${NOT_FOUND_NOTICE}</p>`;
 export const INTERNAL_ERROR_FRAGMENT =
@@ -147,9 +125,8 @@ export function missingRequiredFieldsFailure(
 }
 
 /**
- * An undeclared choice value, refused with the affected field named. The picker only ever
- * offers admitted options, so reaching this means the submission did not come from the
- * form the platform drew — the answer stays warm and says nothing about internals.
+ * An undeclared choice value, refused with the affected field named. The picker only offers
+ * admitted options, so reaching this means the submission did not come from the platform's form.
  */
 export function invalidChoiceFailure(
   c: Context,
@@ -171,9 +148,8 @@ export function invalidChoiceFailure(
 }
 
 /**
- * A newly chosen option the field no longer offers. Distinct from the undeclared-value
- * refusal beside it: the value is real and a record already holding it is untouched, so
- * the sentence says the option has closed rather than that the value is wrong.
+ * A newly chosen option the field no longer offers. Unlike the undeclared-value refusal beside it
+ * the value is real, so the sentence says the option closed rather than that the value is wrong.
  */
 export function choiceDisabledFailure(
   c: Context,
@@ -195,9 +171,8 @@ export function choiceDisabledFailure(
 }
 
 /**
- * A string longer than the field said it had room for. The native attribute stops this on
- * a form that was filled in, so the sentence is written for the case that gets here: a
- * value that arrived past the control, and a field that says how much it holds.
+ * A string longer than the field said it had room for. The native attribute stops this on a filled
+ * form, so the sentence is written for a value that arrived past the control.
  */
 export function maxLengthExceededFailure(
   c: Context,

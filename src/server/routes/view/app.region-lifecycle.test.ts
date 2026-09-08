@@ -7,9 +7,8 @@ describe("the shipped shell owns the release rule", () => {
     const app = createApp();
     const html = await (await app.request("/")).text();
 
-    // The shell marks no region of its own any more. The one region there is lives
-    // inside the window, and the window is created and destroyed by the client — which
-    // is what makes putting the window away the only way a region disappears.
+    // The shell marks no region of its own any more. The one region there is lives inside the
+    // window, and the client creates and destroys it, so putting the window away is the only way.
     expect(html).not.toContain("data-content-region");
     expect(html).toContain('<script type="module" src="/static/region-scope.js"></script>');
     expect(html).toContain('<script type="module" src="/static/desk-window.js"></script>');

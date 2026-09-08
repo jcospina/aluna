@@ -18,14 +18,8 @@ import {
   textOf,
 } from "./list-field.test-support.ts";
 
-// Repeated-value rows: the server renders them, and the control makes them behave.
-//
-// The control itself is `design/scripts/list-rows.js` and ships as it stands, the way
-// `design/styles/` and `design/scripts/ink.js` do — a row, how it moves, and what every
-// row is called once it has. `public/list-field.js` is the product's half of the seam:
-// the delegation, and the two ways a create form finishes. What is asserted here is what
-// a file is the right place to assert: the seam is wired, the shell loads it, the hooks
-// the control queries by are the ones the server writes, and the glue owns none of it.
+// Repeated-value rows: the server renders them, and the control makes them behave. The control
+// is `design/scripts/list-rows.js` and `public/list-field.js` is the product's half of the seam.
 
 const MODULE = codeOf("public/list-field.js");
 const MECHANICS = codeOf("design/scripts/list-rows.js");
@@ -104,9 +98,8 @@ describe("the rows a list field is typed into", () => {
     // a region added and filled in the same turn is one no screen reader is yet watching.
     expect(form).toContain("data-list-field-live");
     expect(MECHANICS).toContain("[data-list-field-live]");
-    // And the two it reads through `dataset` to re-key every row's id and accessible
-    // name after an add or a remove. Drop or rename either and the rows fall back to a
-    // generic "Value 1 / Value 2" and collide on `list-value-N` ids.
+    // And the two it reads through `dataset` to re-key every row's id and accessible name. Drop
+    // either and the rows fall back to "Value 1" and collide on `list-value-N` ids.
     expect(form).toContain('data-list-field-label="Tags"');
     expect(MECHANICS).toContain("dataset.listFieldLabel");
     expect(form).toContain('data-list-input-id="cap-tasks-tags"');
@@ -114,10 +107,8 @@ describe("the rows a list field is typed into", () => {
   });
 
   test("the order can be changed without dragging, because the grip is a button", () => {
-    // A drag is what people already know, and it is also unavailable to a keyboard and
-    // invisible until you try it — so it may not be the only way in. What makes the other
-    // way possible is that the grip is a `<button>`: that is what puts it in the tab order
-    // and what lets space, the arrows and escape reach it at all.
+    // A drag is unavailable to a keyboard and invisible until you try it, so it may not be the
+    // only way in. The grip is a `<button>`, which is what puts it in the tab order.
     const form = editFormFor("repeatable", { tags: ["green", "slow"] });
     expect(form).toContain('<button class="field-list__grip" type="button" data-list-field-grip');
     expect(form).not.toContain("draggable");
@@ -138,10 +129,8 @@ describe("the rows a list field is typed into", () => {
 });
 
 /**
- * The controls on each row, as the facts that have to agree about them.
- *
- * Asserted together and not one at a time. Checked separately, the hook, what the label
- * says and whether the control can act can each be right while the button is wrong.
+ * The controls on each row, as the facts that have to agree about them. Checked separately, the
+ * hook, the label and whether the control can act can each be right while the button is wrong.
  */
 function rowControls(form: string) {
   return [...form.matchAll(/<button class="([^"]*)" type="button" ([^>]*)>/g)]
@@ -184,9 +173,8 @@ describe("what the server writes on a row", () => {
   });
 
   test("a required list says so on the field, because no one control can carry it", () => {
-    // One nonblank row is what it wants, so `required` on a row would refuse a list that is
-    // complete. The field says the word and `public/field-errors.js` enforces it, exactly
-    // as the drawn picker's is enforced.
+    // One nonblank row is what it wants, so `required` on a row would refuse a complete list.
+    // The field says the word and `public/field-errors.js` enforces it.
     const required = renderCreateForm(listCapability("repeatable", true));
     expect(required).toContain("data-list-required");
     expect(required).not.toContain(" required>");
@@ -247,9 +235,8 @@ describe("what the rows actually do", () => {
     pressListRow(middle.querySelector("[data-list-field-remove]") as never);
     expect(textOf(field)).toEqual(["one", "two", "three"]);
 
-    // A real press lands on the glyph inside the button, never the button itself — so the
-    // dispatcher has to climb out of it before it can refuse or act on anything. Both
-    // halves: the glyph of a control that can act, and the glyph of one that cannot.
+    // A real press lands on the glyph inside the button, never the button itself, so the
+    // dispatcher has to climb out of it before it can refuse or act on anything.
     const glyphIn = (button: Node | undefined) => button?.querySelector("[aria-hidden]") as Node;
     pressListRow(glyphIn(middle.querySelector("[data-list-field-remove]") as Node) as never);
     expect(textOf(field)).toEqual(["one", "two", "three"]);
@@ -260,9 +247,8 @@ describe("what the rows actually do", () => {
   });
 
   test("a structural edit says the field changed, so a standing refusal clears", async () => {
-    // Removing the duplicate row a refusal named is the correction it asked for, but a
-    // removed node fires nothing. `public/field-errors.js` clears a marked field on
-    // `input`, and every mutation announces one so that reaches it.
+    // Removing the duplicate row a refusal named is the correction it asked for, but a removed
+    // node fires nothing, so every mutation announces an `input` for the clearing to reach.
     const { addListRow, removeListRow, syncListRows } = await import("#shell/list-field.js");
     const { keyListRow } = await import("#design/list-rows.js");
     const { field, add } = listField("one", "two");
@@ -297,10 +283,8 @@ describe("what the rows actually do", () => {
 
     addListRow(add);
 
-    // The clone carries the layers *and* the seed of the row it copied. Both have to go:
-    // the layers because the ink system would not recognise them and would draw a second
-    // pair, and the seed because `mountInk` takes one if it finds one — leaving two rows
-    // wearing the same squiggle.
+    // The clone carries the layers and the seed of the row it copied. The layers would be drawn
+    // a second time, and `mountInk` takes a seed it finds, leaving two rows in the same hand.
     const copy = rowsOf(field)[1] as Node;
     expect(copy.querySelectorAll("[data-ink-seed]")).toHaveLength(0);
     expect(copy.querySelectorAll(".ink__ground")).toHaveLength(0);
@@ -430,9 +414,8 @@ describe("finishing with a form", () => {
   });
 
   test("the row that survives a collapse is the first one, whatever order it ended in", async () => {
-    // The count and the labels come back either way — `syncListRows` restates both — so a
-    // collapse that kept the *last* row read identically. What tells them apart is which
-    // value is left standing, and whether the survivor is at both boundaries.
+    // The count and the labels come back either way, since `syncListRows` restates both, so a
+    // collapse keeping the last row read identically. Which value survives tells them apart.
     const { collapseListFieldRows, syncListRows } = await import("#shell/list-field.js");
     const { keyListRow } = await import("#design/list-rows.js");
     const { field } = listField("one", "two", "three");
@@ -462,9 +445,8 @@ describe("finishing with a form", () => {
     Reflect.deleteProperty(field.dataset, "listFieldLabel");
     Reflect.deleteProperty(field.dataset, "listInputId");
 
-    // `mountListRows` is the design page's entry point: every list field *under* a root,
-    // put into the state its row count implies. It is what puts an authored row right, and
-    // it takes the document rather than the field, which is why it is handed a container.
+    // `mountListRows` is the design page's entry point: every list field under a root, put into
+    // the state its row count implies. It takes the document, which is why it gets a container.
     const page = el("div");
     page.append(field);
     mountListRows(page);
@@ -494,12 +476,8 @@ describe("finishing with a form", () => {
 });
 
 /**
- * The other absence in the design, and the one that is not a gap: a file field has nowhere
- * to live until Files arrives in Module 7, so nothing is built for one here.
- *
- * A standing rule rather than a behaviour, and it is worth being plain about which: there
- * is nothing to exercise, so this asserts that four traces of a file input are absent and
- * claims no more than that.
+ * A file field has nowhere to live until Files arrives in Module 7, so nothing is built for one.
+ * A standing rule rather than a behaviour: this asserts four traces are absent, and no more.
  */
 describe("file fields", () => {
   test("are not a type, and no trace of one reaches the form renderer", () => {

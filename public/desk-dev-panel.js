@@ -1,25 +1,8 @@
 // @ts-check
 
 /**
- * The developer panel — the one second window, and the last one.
- *
- * D13 is a single, named exception to D1's one window, not the first step towards a
- * window manager. It is furniture rather than a capability: it never appears in the
- * capability list, it is never addressed (`/capability/:id` names a capability and
- * nothing else — design D14), it opens from its own tile, and it is allowed to sit
- * beside the capability being watched, because reading a build and watching it run is
- * one activity. Module 9's experimenter surface lands *in this window* for the same
- * reason, which is what keeps the exception at one.
- *
- * It is read-only in the strongest sense available: nothing in this file has ever
- * heard of a record, a schema or a capability's state. The only thing it writes
- * anywhere is its own presentation record — box, maximised flag, and whether it was
- * open — which is the second and last thing `localStorage` holds (design D9).
- *
- * The stage payloads it shows arrive from `app.js` as events rather than being fetched
- * here, and are kept whether or not the panel is open. A developer who starts a build
- * and *then* thinks to open the panel would otherwise find an empty one: the interesting
- * stages are over by the time the tile is pressed.
+ * The developer panel — the one second window, and the last one. D13 is a single named exception
+ * to D1: furniture, never a capability, never addressed, and never in the capability list.
  */
 
 import {
@@ -44,16 +27,18 @@ import {
   windowLayer,
 } from "./desk-window.js";
 
-/** The tile on the desk that opens the panel. Not a capability logo, and never one. */
+/**
+ * The tile on the desk that opens the panel. Not a capability logo, and never one: the panel sits
+ * beside the capability it reports on, because reading a build and watching it run is one thing.
+ */
 export const DEV_TILE_SELECTOR = "[data-dev-tile]";
 
 /** A stage the served page already carried, for the panel to file at start. */
 export const DEV_SEED_SELECTOR = "[data-dev-stage-seed]";
 
 /**
- * The second presentation record, and the last. It carries what the capability
- * window's carries — one normal box and the maximised flag, never a maximised size —
- * plus the one thing only this window has: whether it should be standing on next load.
+ * The second presentation record, and the last (design D9). It carries the capability window's
+ * box and maximised flag, plus the one thing only this window has: whether it was open.
  */
 export const DEV_STORAGE_KEY = "aluna.desk.dev.v1";
 
@@ -71,10 +56,8 @@ export const STAGES_CLEARED_EVENT = "aluna:stages-cleared";
 const WALL_SHADOW = 0.4;
 
 /**
- * How much of the desk the panel takes when nothing is remembered: a tall, narrow
- * column against the right edge. Narrow because a payload is read a line at a time and
- * a wide one is worse; against the edge because the whole point of the exception is
- * that it sits *beside* what it is reporting on rather than over it.
+ * How much of the desk the panel takes when nothing is remembered: a tall, narrow column against
+ * the right edge. Narrow because a payload is read a line at a time; at the edge to stay beside.
  */
 const DEV_FILL = { w: 0.3, h: 0.78 };
 
@@ -96,9 +79,8 @@ let watching = false;
 let titleCount = 0;
 
 /**
- * The latest payload per stage, kept whether the panel is open or not, and replayed
- * into it whenever it opens. Presentation only: this is a copy of what already came
- * down a stream, never a source anything reads back as truth.
+ * The latest payload per stage, kept whether the panel is open or not, so a developer who starts
+ * a build and then opens the panel does not find an empty one. A copy of a stream, never truth.
  *
  * @type {Map<string, string>}
  */
@@ -119,14 +101,8 @@ export function devDefaultBox(bounds) {
 }
 
 /**
- * This panel's box, remembered with its own extra flag — and only once there is a
- * desk to have authored it against.
- *
- * The `sized` guard is the difference between a preference and an accident. On a
- * cold load the desk measures zero until its stylesheets apply, and a box fitted to
- * a 0×0 desk is `MIN_SIZE` in the corner; written down, that becomes the box this
- * panel opens on for good. `fitBox` sets `sized` only where there were edges to fit
- * to, so this asks it rather than guessing.
+ * This panel's box, remembered only once there is a desk to have authored it against. A cold load
+ * measures zero until stylesheets apply, and a box fitted to 0×0 is `MIN_SIZE` in the corner.
  */
 function remember() {
   if (!mounted?.sized) return;
@@ -134,20 +110,14 @@ function remember() {
 }
 
 /**
- * Remember only whether the panel should be standing next time, leaving whatever box
- * is written down exactly as it is — including none at all.
- *
- * Two things follow, and both matter. Opening the panel no longer authors a box on
- * the user's behalf: until they move or resize it, the record carries the flag alone
- * and every load recomputes the default for the screen it is actually on. And this
- * runs on a phone, where `savePresentation` correctly refuses — the phone rule is
- * about not letting a narrow browser author a *desktop box*, and a flag is not one.
- * Without that, a panel put away on a phone came back on the next phone load with no
- * way at all to stop it.
+ * Remember only whether the panel should be standing next time, leaving the stored box alone —
+ * so opening authors no box, and every load recomputes the default for the screen it is on.
  *
  * @param {boolean} open
  */
 function rememberOpen(open) {
+  // Runs on a phone, where `savePresentation` correctly refuses: that rule is about a narrow
+  // browser authoring a desktop box, and a flag is not one. Without this a phone could not close.
   const store = localStore();
   try {
     const stored = JSON.parse(store?.getItem(DEV_STORAGE_KEY) ?? "null");
@@ -161,9 +131,8 @@ function rememberOpen(open) {
 }
 
 /**
- * Whether the panel was standing when the tab was last closed. Read on its own rather
- * than through `loadPresentation`, which answers about geometry: a record whose box is
- * nonsense may still carry a good flag, and the panel should still open.
+ * Whether the panel was standing when the tab was last closed. Read on its own rather than
+ * through `loadPresentation`: a record whose box is nonsense may still carry a good flag.
  *
  * @param {import("./desk-window-store.js").Store | null} store
  * @returns {boolean}
@@ -191,11 +160,8 @@ function refit(entry) {
 }
 
 /**
- * Build the panel. Same frame, same two lamps and same gestures as the capability
- * window — one implementation of a window, so the exception cannot drift into a
- * second kind of thing — with `window--dev` for the one difference that is real: what
- * is inside it is set in a monospace face, because it is a payload rather than a
- * sentence.
+ * Build the panel: same frame, lamps and gestures as the capability window, so the exception
+ * cannot drift into a second kind of thing. `window--dev` sets a payload in a monospace face.
  *
  * @param {ParentNode} root
  * @param {boolean} front whether this opening is one the user just asked for
@@ -251,9 +217,8 @@ function addLamps(entry) {
   entry.el.addEventListener("window:lamp", (event) => {
     const { action } = /** @type {CustomEvent<{ action?: string }>} */ (event).detail;
     if (action === "maximise") toggleMaximise(entry);
-    /* The clay lamp is the one put-away action, exactly as it is for a capability
-     * window — and unlike one, it changes no address, because the panel was never in
-     * the address to leave. Pressing the tile again focuses; only this closes. */
+    /* The clay lamp is the one put-away action, and unlike a capability window's it changes no
+     * address, because the panel was never in the address to leave. */
     if (action === "putaway") closePanel();
   });
 }
@@ -275,14 +240,8 @@ function toggleMaximise(entry) {
 }
 
 /**
- * Tell the panel which form it is in — the capability window's rule, applied to the
- * second window.
- *
- * Deliberately its own copy rather than the capability window's `syncForm`: that one
- * binds gestures whose finished drag is remembered under the *capability* window's key,
- * and a panel that quietly wrote its box into the other window's record would strand
- * both. One implementation of a window, two records, and each window writes only its
- * own.
+ * Tell the panel which form it is in. Its own copy rather than `syncForm`, whose gestures write
+ * a finished drag under the capability window's key — one window each, and each writes its own.
  *
  * @param {DevWindow} entry
  * @param {boolean} isPhone
@@ -311,12 +270,8 @@ function bindGestures(entry) {
 /* ── opening, focusing and putting away ────────────────────────────────────── */
 
 /**
- * Open the panel, or bring it to the front if it is already up.
- *
- * The tile is not a toggle. A second press on an open panel focuses it, which is what
- * every desk does and what a developer pressing it while reading a build actually
- * wants; the clay lamp is the one way it goes away. That is the same contract the
- * capability window's logo keeps.
+ * Open the panel, or bring it to the front if it is already up. The tile is not a toggle: a
+ * second press focuses, and the clay lamp is the one way the panel goes away.
  *
  * @param {ParentNode} [root]
  * @param {Element | null} [openedBy]
@@ -377,13 +332,9 @@ export function clearRecordedStages() {
 }
 
 /**
- * The stages the served page already knew — lifecycle metrics and committed versions,
- * which are what the platform has already done rather than anything a stream will say.
- * Taken off the page once, at start, so a refresh finds the panel carrying the same
- * history it had before (`src/web/cached-view.ts`).
- *
- * An empty seed is skipped rather than filed: a desk with nothing behind it should show
- * a resting stage, not an empty payload dressed as one.
+ * The stages the served page already knew, taken off it once at start so a refresh finds the same
+ * history (`src/server/http/cached-view.ts`). An empty seed is skipped, so nothing behind means
+ * resting.
  *
  * @param {ParentNode} root
  */
@@ -398,9 +349,8 @@ export function seedStagesFromPage(root) {
 /* ── the desk changing size ────────────────────────────────────────────────── */
 
 /**
- * The panel answers a resize the way the capability window does: the screen is clamped
- * every tick, and the record is written only where the user authored something — here,
- * the moment a phone becomes a desk again. A clamp is not a preference.
+ * The panel answers a resize the way the capability window does: the screen is clamped every
+ * tick, and the record is written only where the user authored something. A clamp is not one.
  *
  * @param {ParentNode} root
  */
@@ -416,10 +366,8 @@ function watchViewport(root) {
       const wasSized = mounted.sized;
       syncDevForm(mounted, phone);
       refit(mounted);
-      /* Two authored moments, and no others. A phone becoming a desk is the user
-       * changing the form the panel is in; the desk arriving at a real size for the
-       * first time is the first moment the box on screen is a box at all, and the
-       * one that finally makes the remembered flag safe to write beside it. */
+      /* Two authored moments, and no others: a phone becoming a desk, and the desk arriving at
+       * a real size, which is the first moment the box on screen is a box at all. */
       if (was !== phone || (!wasSized && mounted.sized)) remember();
     }
   };

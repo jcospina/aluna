@@ -12,10 +12,8 @@ import {
   syncForm,
 } from "#shell/desk-window.js";
 
-// Below the breakpoint the window is the screen, and the script is told so (PLAN
-// decisions 47 and 48; design D9). Two halves: what the script does when it is told,
-// run against a window double, and the two numbers the stylesheets are allowed to
-// break on, swept off disk.
+// Below the breakpoint the window is the screen, and the script is told so (PLAN decisions 47 and
+// 48; design D9). What the script does when told, plus the two widths sheets may break on.
 
 const ROOT = resolve(import.meta.dir, "../../../..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -69,12 +67,8 @@ function fakeWindow() {
 }
 
 /**
- * `addWindowGrip` builds its handle with `document`, which Bun does not have.
- *
- * The property is put back exactly as it was found, descriptor and all — deleted again
- * where there was none. A stand-in left behind is not this file's problem but every
- * later one's: the shell's classic scripts self-start on `typeof document !== "undefined"`,
- * so a leaked fake makes each of them run against it as the suite loads them.
+ * `addWindowGrip` builds its handle with `document`, which Bun does not have. The property is put
+ * back exactly as found, because the shell's classic scripts self-start on a `document` they see.
  */
 function withDocument<T>(run: () => T): T {
   const before = Reflect.getOwnPropertyDescriptor(globalThis, "document");
@@ -137,10 +131,8 @@ describe("below the breakpoint the window is the screen, and the script is told 
   });
 
   test("the title bar stops claiming a phone's touches when it stops being draggable", () => {
-    // `.window__bar--draggable` is not cosmetic: it carries `touch-action: none`. Left
-    // on a phone — where the window is the screen and its title bar is the top strip of
-    // it — the browser hands every touch starting there to a drag that stands itself
-    // down, so a scroll begun on the title bar does nothing at all.
+    // `.window__bar--draggable` carries `touch-action: none`. Left on a phone, the browser hands
+    // every touch starting on the title bar to a drag that stands itself down.
     const draggable = /\.window__bar--draggable\s*\{([^}]*)\}/.exec(
       rules("design/styles/components/desk.css"),
     )?.[1];
@@ -155,9 +147,8 @@ describe("below the breakpoint the window is the screen, and the script is told 
   });
 
   test("no dead maximise lamp on a phone, and it comes back above the breakpoint", () => {
-    // The window already is the screen, so the leaf lamp has nothing to toggle — and a
-    // tab stop whose Enter does nothing is worse than no tab stop. `hidden` takes it out
-    // of the focus order rather than leaving it there inert.
+    // The window already is the screen, so the leaf lamp has nothing to toggle, and `hidden`
+    // takes it out of the focus order rather than leaving a tab stop whose Enter does nothing.
     const { entry, lamp } = fakeWindow();
     withDocument(() => syncForm(entry as never, true));
     expect(lamp.attrs.has("hidden")).toBe(true);
@@ -187,9 +178,8 @@ describe("below the breakpoint the window is the screen, and the script is told 
   });
 
   test("the crossing up restores and clamps the box the phone was handed", () => {
-    // Desk → phone → a narrower desk, in one sequence. The box survives the phone and
-    // meets the new desk's edges on the way back, rather than either being lost or
-    // returning to a screen that is no longer there.
+    // Desk to phone to a narrower desk, in one sequence: the box survives the phone and meets the
+    // new desk's edges on the way back, rather than returning to a screen that is gone.
     const state = { box: { x: 900, y: 18, w: 794, h: 462 }, maximised: false, sized: true };
     fitBox(state, desk(1600, 900), false);
     expect(state.box.x).toBe(806);
@@ -217,9 +207,8 @@ describe("below the breakpoint the window is the screen, and the script is told 
   });
 
   test("a box a phone authored does not become the desktop's on the way back up", () => {
-    // A window opened below the breakpoint with nothing remembered was fitted to a
-    // screen it filled entirely, so it is not a preference — the desk is asked for a
-    // first box the first time there is a desk to ask.
+    // A window opened below the breakpoint with nothing remembered was fitted to a screen it
+    // filled, so it is no preference: the desk is asked for a first box when there is one.
     const el = fakeEl();
     const state = openingGeometry(el as never, { box: null, max: false }, desk(390, 800), true);
     expect(state.sized, "a phone authored a desktop preference").toBe(false);
@@ -256,9 +245,8 @@ describe("the focus order advertises nothing it cannot do", () => {
   });
 
   test("what is left in the window's focus order is two real buttons", () => {
-    // The lamps are the whole of the window's chrome, and both are operable by Enter or
-    // Space because both are `<button>`. The leaf lamp is the size change a keyboard can
-    // make, which is what lets the grip stay out of the order entirely.
+    // The lamps are the whole of the window's chrome and both are `<button>`. The leaf lamp is the
+    // size change a keyboard can make, which lets the grip stay out of the order entirely.
     const windowScript = code("design/scripts/window.js");
     expect(windowScript).toContain('const button = document.createElement("button")');
     expect(windowScript).toContain('button.type = "button"');
@@ -267,9 +255,8 @@ describe("the focus order advertises nothing it cannot do", () => {
   });
 
   test("the design page's own desk keeps the same two promises", () => {
-    // `design/scripts/desk.js` is the other consumer of the shared gestures, and PLAN
-    // decision 47 is written about it by name. It had bound both gestures on a phone
-    // and left the maximise lamp in the focus order with nothing to do.
+    // `design/scripts/desk.js` is the other consumer of the shared gestures (PLAN decision 47).
+    // It bound both gestures on a phone and left the maximise lamp in the focus order.
     const deskScript = code("design/scripts/desk.js");
     expect(deskScript).toContain('toggleAttribute("hidden", phone)');
     expect(deskScript).toContain('classList.toggle("window__bar--draggable", !phone)');
@@ -299,9 +286,8 @@ describe("the desk breaks at 720px and forms at 620px", () => {
   });
 
   test("every media query on the shipped surface is one of those two numbers", () => {
-    // The built app's 768 and 480 were derived for the sidebar-and-modal layout being
-    // deleted, so nothing is owed to them — and neither is the 639.98 that stood beside
-    // them. Two numbers, both the design's.
+    // The built app's 768 and 480 were derived for the sidebar-and-modal layout being deleted, as
+    // was the 639.98 beside them. Two numbers now, both the design's.
     for (const path of SHEETS) {
       for (const [, width] of rules(path).matchAll(
         /@media[^{]*?(?:max|min)-width:\s*([\d.]+)px/g,
@@ -317,9 +303,8 @@ describe("the desk breaks at 720px and forms at 620px", () => {
       "@media (max-width: 620px)",
     );
 
-    // `layout.css` and `doc.css` ship with the token layer and carry 900px and 760px.
-    // They are the handbook's own document furniture, and the shell renders none of it —
-    // so those numbers are the handbook's page, not a third breakpoint on the desk.
+    // `layout.css` and `doc.css` ship with the token layer and carry 900px and 760px, which is
+    // the handbook's own document furniture and not a third breakpoint on the desk.
     const shell = read("public/index.html") + read("src/server/http/fragments.ts");
     for (const selector of ["cols", "numbers", "gallery"]) {
       expect(shell, `the shell renders \`.${selector}\``).not.toMatch(
@@ -329,18 +314,13 @@ describe("the desk breaks at 720px and forms at 620px", () => {
   });
 
   test("the surfaces that carried a retired breakpoint now carry a live one", () => {
-    // Named individually, because a sweep that quietly dropped a rule instead of moving
-    // it would satisfy the query test above and lose the layout it was holding.
-    // The rail the developer panel used to be is gone; the panel is the second window
-    // now, and what the breakpoint owes it is the one rule two windows need. Below it
-    // the window is the screen, so the one behind is not behind anything and is taken
-    // out of the page rather than stacked underneath the surface.
+    // Named individually, because a sweep dropping a rule would satisfy the query test above.
+    // Below the breakpoint the window is the screen, so the one behind is taken out of the page.
     expect(rules("design/styles/components/desk.css")).toMatch(
       /@media \(max-width: 720px\)[\s\S]*?\.window--desk\.is-unfocused \{\s*display: none;/,
     );
-    // The modal's own three width rules left with the modal. A record fills the window it
-    // opened in, so its width is the window's and no sheet restates it — which is the
-    // assertion worth keeping: no shipped sheet sizes a record against the screen.
+    // The modal's own three width rules left with the modal. A record fills the window it opened
+    // in, so no shipped sheet sizes a record against the screen.
     for (const path of SHEETS) {
       for (const [query] of rules(path).matchAll(/@media[^{]*\{[^@]*?\}/gs)) {
         expect(query, `${path} sizes the record against the viewport`).not.toContain(
@@ -351,10 +331,8 @@ describe("the desk breaks at 720px and forms at 620px", () => {
   });
 
   test("what is inside the window asks the window, not the screen behind it", () => {
-    // The window is dragged and resized to any width from `--window-min-w` up, on a
-    // viewport of any width at all. A rule inside it that asks the *viewport* how much
-    // room it has is asking the wrong box — a 276px-wide window on a 1920px screen kept
-    // a layout meant for 1920px, and no viewport breakpoint could ever have fixed it.
+    // The window is resized to any width on a viewport of any width, so a rule inside it that
+    // asks the viewport is asking the wrong box: a 276px window on 1920px kept the 1920px layout.
     expect(rules("public/css/shell.css")).toMatch(
       /\.desk-window__region \{[^}]*container: window \/ inline-size/,
     );

@@ -11,51 +11,26 @@ import type { ItemRenderer } from "../../../presentation/index.ts";
 import type { CapabilityHandler } from "../contract.ts";
 
 /**
- * How the router turns a row's `artifacts_path` + an action into a runnable
- * handler. Injectable so the gate (2.5) and tests can substitute loading without
- * touching disk; the default loads the real version-keyed file.
+ * How the router turns a row's `artifacts_path` and an action into a runnable handler.
+ * Injectable so the gate (2.5) and tests can substitute loading without touching disk.
  */
 export type HandlerLoader = (artifactsPath: string, action: string) => Promise<CapabilityHandler>;
 
 /**
- * How the router turns a row's `artifacts_path` into that capability's item renderer —
- * the composition input for its presentation adapter. One
- * renderer per capability, so this takes no action. Injectable for the same reasons as
- * {@link HandlerLoader}; the default loads the version-keyed file unit generation writes.
+ * A row's `artifacts_path` to that capability's item renderer, the composition input for its
+ * presentation adapter. One per capability, so no action; injectable like {@link HandlerLoader}.
  */
 export type ItemRendererLoader = (artifactsPath: string) => Promise<ItemRenderer>;
 
 /**
- * The version-directory filename the item renderer is generated to and
- * loaded from here — the seam that lets the router build a capability's presentation
- * adapter without knowing how the renderer was written. A sibling of the handler files
- * under the same `artifacts_path`.
+ * The version-directory filename the item renderer is generated to and loaded from, a sibling
+ * of the handler files under the same `artifacts_path`.
  */
 export const ITEM_RENDERER_FILE = "item.ts";
 
 /**
- * How long one generated Handler may run before the router abandons it.
- *
- * A Handler that never settles is not merely a slow request: it pins its read tokens
- * forever, so the incarnation's read gate can never drain and that capability can never
- * be deleted again. It also holds a record route's `BEGIN IMMEDIATE` transaction open,
- * blocking every other write on the shared connection. JavaScript cannot cancel the
- * orphaned promise, but abandoning it lets the route's `finally` release read ownership —
- * which aborts the token signal, so the orphan's next query or mutation port call fails
- * closed rather than writing after the rollback.
- *
- * Handlers do local SQLite work, so this is a stuck-code deadline, not a budget. It sits
- * *below* the read-gate drain deadline on purpose (`DEFAULT_READ_DRAIN_TIMEOUT_MS` in
- * `src/runtime/concurrency/read-gates.ts`): a route abandoned here hands its read tokens back before a
- * deletion gives up waiting for them, so a merely slow Handler can never fail a deletion
- * for a reason the user cannot see. The gap is closed from the drain side, never by
- * capping this one downward — reads are what the user is doing.
- *
- * The route's token scope is slightly wider than this deadline: reading the request body
- * happens inside the tokens and outside the deadline. That is not a hole, because a
- * record mutation takes its coordinator lease before it parses and deletion's own lease
- * is a non-queued try-acquire — so a deletion racing a slow upload is refused as busy at
- * the front half rather than left waiting at the drain.
+ * How long a generated Handler may run before the router abandons it. Unbounded it would pin its
+ * read tokens forever and nothing could delete the capability; set below the read-gate drain.
  */
 export const DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS = 10_000;
 
@@ -64,28 +39,16 @@ export class CapabilityHandlerTimeoutError extends Error {
 }
 
 /**
- * The reader went away before its answer did.
- *
- * This is not a failure. It is the server half of the content region's release rule: the
- * browser aborts the request when the region's content is replaced or the region is put
- * away, and abandoning the route here is what lets its `finally` hand the read tokens
- * back — immediately, rather than at whatever the handler deadline happens to be. A
- * deletion drain waiting on those readers therefore waits for the person who navigated
- * away, not for a deadline they cannot see.
+ * The reader went away before its answer did — not a failure. The browser aborts when the content
+ * region is replaced or put away, and abandoning here hands the read tokens back immediately.
  */
 export class CapabilityReadAbandonedError extends Error {
   override readonly name = "CapabilityReadAbandonedError";
 }
 
 /**
- * Resolve with the Handler, or reject when this route stops waiting on it. The Handler's
- * own promise is not cancellable — the point is that *this route* stops waiting, so its
- * read ownership can be released.
- *
- * Two things end the wait: the deadline, and `abandonOn` aborting. Reads pass the
- * request's own signal there, which Bun aborts when the client disconnects. Mutations
- * pass nothing: a write that a person walked away from still has to finish or roll back
- * on its own terms, and releasing read ownership under it would fail it closed midway.
+ * Resolve with the Handler, or reject when the deadline or `abandonOn` ends this route's wait; the
+ * Handler's promise is not cancellable. Mutations pass no signal so a write can still roll back.
  */
 export async function withHandlerDeadline<T>(
   work: Promise<T>,
@@ -136,10 +99,8 @@ export async function withHandlerDeadline<T>(
 }
 
 /**
- * The default loader: import the incarnation/version-keyed handler file and confirm it honors
- * the export half of the contract — a single default-exported function. A file URL
- * keeps the absolute path importable across platforms; dynamic import caches by
- * path, which is exactly right when `artifacts_path` is incarnation/version-namespaced.
+ * The default loader: import the incarnation/version-keyed handler file and confirm it
+ * default-exports a function. A file URL is portable, and import caches by that unique path.
  */
 export const defaultLoadHandler: HandlerLoader = async (artifactsPath, action) => {
   const file = resolve(process.cwd(), artifactsPath, `${action}.ts`);
@@ -151,11 +112,8 @@ export const defaultLoadHandler: HandlerLoader = async (artifactsPath, action) =
 };
 
 /**
- * The default item-renderer loader: import the version-keyed {@link ITEM_RENDERER_FILE}
- * and confirm it default-exports a function (the record → inner-markup renderer). Mirrors
- * {@link defaultLoadHandler} — same file-URL import, same cache-by-path behavior, which is
- * right when `artifacts_path` is incarnation/version-namespaced. Rejects when the file is absent or
- * malformed. M3 requires this file for every committed capability.
+ * The default item-renderer loader: import the version-keyed {@link ITEM_RENDERER_FILE} and
+ * confirm it default-exports a function. Mirrors {@link defaultLoadHandler}; M3 requires the file.
  */
 export const defaultLoadItemRenderer: ItemRendererLoader = async (artifactsPath) => {
   const file = resolve(process.cwd(), artifactsPath, ITEM_RENDERER_FILE);

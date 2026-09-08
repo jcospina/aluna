@@ -90,10 +90,8 @@ async function readCapabilityDeletionConfirmation(
 }
 
 /**
- * A target that is already gone lands on the neutral home state, never a dead URL — and
- * never on a *bare* desk when the confirmation displaced somebody else. The capability
- * that was open comes back and the address goes with it; only with nothing behind it
- * does this leave the region empty for the window to put itself away.
+ * A target already gone lands on the neutral home state, never a dead URL, and never on a *bare*
+ * desk: whatever the confirmation displaced comes back, address and all, unless there was nothing.
  */
 export function alreadyGoneResponse(
   c: Context,
@@ -240,21 +238,16 @@ function capabilityDeletionRefusalResponse(
 }
 
 /**
- * An ending fills the window and stays there until the person dismisses it, so nothing
- * has moved yet: no restored surface rides along, and the address is left exactly where
- * the confirmation left it. The restoration route the dismissal presses answers with its
- * own `HX-Replace-Url` naming where the window actually lands, which is the one moment
- * the address is allowed to change (design D14).
+ * An ending holds the window until dismissed, so nothing moves yet: no restored surface, and the
+ * address stays put. The dismissal's restoration route sends the one `HX-Replace-Url` (D14).
  */
 function heldCapabilityDeletionEnding(c: Context, ending: string): Response {
   return c.html(ending, 200, { "cache-control": "no-store" });
 }
 
 /**
- * The data-free evidence a held ending carries forward, so its dismissal re-resolves the
- * restoration against the then-current registry rather than against a row read here — a
- * capability that goes while the ending is standing must give back the bare desk, not a
- * surface rendered before it went.
+ * The data-free evidence a held ending carries, so its dismissal re-resolves the restoration
+ * against the then-current registry: a capability that goes meanwhile gives back the bare desk.
  */
 function deletionRestorationEvidence(
   restoration: CapabilityDeletionRestoration,

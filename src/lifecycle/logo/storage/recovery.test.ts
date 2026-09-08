@@ -33,9 +33,8 @@ import { createRunningLogoClaims, type RunningLogoClaims } from "../generation/c
 import { recoverCapabilityLogos } from "./recovery.ts";
 import { capabilityLogoPath, installCapabilityLogo } from "./storage.ts";
 
-// Recovery makes no provider call at all, so nothing here needs one injected: every case
-// is a durable row and an artifact tree that disagree, and the reconciliation between
-// them.
+// Recovery makes no provider call, so nothing here needs one injected: every case is a durable
+// row and an artifact tree that disagree, and the reconciliation between them.
 
 const ARTWORK = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
 const TARGET = { capabilityId: "notes", incarnationId: NOTES_INCARNATION_ID };
@@ -194,9 +193,8 @@ describe("an interrupted claim", () => {
     expect(logoState()?.status).toBe("present");
   });
 
-  // Nothing this platform writes can produce a zero-byte logo, and the installer refuses
-  // to overwrite — so leaving one would spend the remaining attempts on EEXIST and reach
-  // the permanent placeholder holding a file with nothing in it.
+  // Nothing this platform writes can produce a zero-byte logo, and the installer refuses to
+  // overwrite, so leaving one spends the remaining attempts on EEXIST and abandons the row.
   test("removes a final file holding no drawing rather than releasing the row over it", async () => {
     claimedAndAbandonedByACrash();
     mkdirSync(join(artifactsRoot, "notes", NOTES_INCARNATION_ID), { recursive: true });
@@ -223,9 +221,8 @@ describe("a claim that is still running", () => {
       ticket.end();
     }
 
-    // A live claim and a crashed one leave the same durable row; only the in-process
-    // registry can tell them apart, and being wrong here means releasing a paid call's
-    // row and deleting the bytes it is in the middle of writing.
+    // A live claim and a crashed one leave the same durable row, and only the in-process registry
+    // tells them apart: being wrong releases a paid call's row and deletes bytes mid-write.
     expect(logoState()).toEqual({ status: "generating", attempts: 1 });
     expect(existsSync(temp)).toBe(true);
   });
@@ -295,9 +292,8 @@ describe("rows recovery has nothing to say about", () => {
   });
 });
 
-// Everything recovery does, it decides from a snapshot taken before it asked for mutation
-// ownership. What it does when that snapshot has gone stale, or when the tree cannot
-// answer at all, is where a paid drawing gets thrown away.
+// Recovery decides from a snapshot taken before it asked for mutation ownership. A stale snapshot,
+// or a tree that cannot answer, is where a paid drawing gets thrown away.
 describe("what recovery refuses to decide from", () => {
   test("a tree it could not read leaves a present row exactly as it is", async () => {
     claimedAndAbandonedByACrash();
@@ -310,9 +306,8 @@ describe("what recovery refuses to decide from", () => {
     try {
       const recovered = await recover();
 
-      // The drawing is there, readable, paid for. A `catch` that read every errno as "the
-      // file is gone" would reconcile it to the permanent placeholder, and L7 then forbids
-      // ever drawing another.
+      // The drawing is there, readable, paid for. A `catch` reading every errno as "the file is
+      // gone" would reconcile it to the permanent placeholder, which L7 forbids redrawing.
       expect(recovered).toEqual([]);
       expect(logoState()).toEqual({ status: "present", attempts: 1 });
     } finally {

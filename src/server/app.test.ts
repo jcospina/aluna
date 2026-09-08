@@ -35,12 +35,8 @@ describe("platform security headers", () => {
 });
 
 describe("developer surfaces", () => {
-  // The lifecycle payload is the last thing the guard holds back, now that the `/demo/*`
-  // pages are gone. It is not a page anyone opens: it is embedded in `GET /` and in every
-  // direct capability address, and it carries model ids, token counts, stage timings,
-  // catalog fingerprints and cleanup-failure strings holding absolute filesystem paths. It
-  // is escaped, so this is disclosure rather than XSS — and none of it is a user's
-  // business.
+  // The lifecycle payload is not a page anyone opens: it is embedded in `GET /` and every direct
+  // capability address, and carries model ids, timings and absolute paths. Escaped, so disclosure.
   test("a production bundle carries the shell without the lifecycle payload", async () => {
     const previous = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
@@ -80,10 +76,8 @@ describe("GET / (shell)", () => {
     expect(html).not.toContain('value="I want to keep track of my notes"');
     expect(html).toContain('id="spec-build-trigger"');
     expect(html).toContain("Make it");
-    // The developer panel's eight readouts left the page with the rail that held
-    // them: they are code blocks in the panel's own window now, built client-side
-    // (public/desk-dev-panel.js). What the page still carries is the way in — the
-    // tile — and the one stage the server already knows the answer to.
+    // The developer panel's eight readouts left the page with the rail; they are code blocks in
+    // the panel's own window now (public/desk-dev-panel.js). The page still carries the tile.
     expect(html).toContain("data-dev-tile");
     expect(html).toContain('id="dev-stage-seed"');
     expect(html).toContain('data-dev-stage-seed="metrics"');
@@ -102,9 +96,8 @@ describe("GET / (shell)", () => {
     const app = createApp();
     const html = await responseText(await app.request("/"));
 
-    // The extension is vendored locally and its <script> is loaded after htmx's
-    // (it calls htmx.defineExtension at load). Compare the full src attributes so
-    // prose mentions of the filenames in nearby comments can't skew the order.
+    // The extension is vendored locally and its <script> loads after htmx's (it calls
+    // htmx.defineExtension at load). Full src attributes, so nearby prose cannot skew the order.
     expect(html).toContain('src="/static/vendor/htmx-ext-sse.min.js"');
     expect(html.indexOf('src="/static/vendor/htmx.min.js"')).toBeLessThan(
       html.indexOf('src="/static/vendor/htmx-ext-sse.min.js"'),
@@ -115,9 +108,8 @@ describe("GET / (shell)", () => {
     const app = createApp();
     const html = await responseText(await app.request("/"));
 
-    // app.js registers the Alpine `shell` component on `alpine:init`, so it MUST load
-    // before alpine.min.js — the cdn build initializes on load and would fire the event
-    // before the component existed. Both are `defer`, so document order is run order.
+    // app.js registers the Alpine `shell` component on `alpine:init`, so it must load before
+    // alpine.min.js, which initializes on load. Both are `defer`, so document order is run order.
     expect(html).toContain('<script defer src="/static/app.js"></script>');
     expect(html).toContain('<script defer src="/static/vendor/alpine.min.js"></script>');
     expect(html.indexOf('src="/static/app.js"')).toBeLessThan(
@@ -211,9 +203,8 @@ describe("GET / (shell) — the window layer", () => {
     const app = createApp();
     const html = await responseText(await app.request("/"));
 
-    // The target the prompt form and every logo name is created by the client, inside
-    // the window. The served page carries the ground that window stands on, the module
-    // that stands it there, and nothing else where the content area used to be.
+    // The target the prompt form and every logo name is created by the client, inside the window.
+    // The page carries the ground it stands on and the module that stands it there, nothing else.
     expect(html).toContain('<div class="desk__windows"></div>');
     expect(html).toContain('<script type="module" src="/static/desk-window.js"></script>');
     expect(html).not.toContain('id="spec-build-output"');
@@ -259,15 +250,13 @@ describe("GET / (shell) — browser glue", () => {
     expect(js).toContain("htmx.process(node)");
     expect(js).toContain("commit.childNodes.length > 0");
     expect(js).toContain('subscriber.querySelector(".build-stream__narration")');
-    // The window has no refresh verb, so the glue has no hand-rebuilt read: the
-    // restoration's own View read is kept alive by promoting before releasing, and
-    // every open is one fresh read (PLAN decision 15; ARCH §8).
+    // The window has no refresh verb, so the glue has no hand-rebuilt read: the restoration's own
+    // View read is kept alive by promoting before releasing (PLAN decision 15; ARCH §8).
     expect(js).not.toContain("reloadRestoredRecords");
     expect(js).not.toContain('.ajax("GET"');
     expect(js).not.toContain('removeAttribute("hx-trigger")');
-    // Both closes are asked the same question, and only a stream the server finished is a
-    // run with something to say: `nodeReplaced`/`nodeMissing` are the desk taking a run
-    // down, and the navigation that did it owns focus and the field from there.
+    // Both closes are asked the same question, and only a stream the server finished is a run
+    // with something to say: `nodeReplaced`/`nodeMissing` are the desk taking a run down.
     expect(js.match(/closeTypeOf\(event\) !== "message"/g)).toHaveLength(2);
     expect(js).toContain("window.history.replaceState");
     // The address is the desk's to write: the glue reports what happened and never pushes.
@@ -291,9 +280,8 @@ describe("GET / (shell) — browser glue", () => {
     // the glue neither owns them nor knows they exist.
     expect(js).not.toContain("collapseListFieldRows");
     expect(js).not.toContain("data-list-field");
-    // Recovering a severed capability deletion is a module of its own too
-    // (`public/capability-deletion.js`), and it took its half of `htmx:configRequest`
-    // with it — the glue's copy now only captures what a *prompt* displaces.
+    // Recovering a severed capability deletion is its own module (`public/capability-deletion.js`)
+    // and took its half of `htmx:configRequest` with it; the glue captures only a prompt's.
     expect(js).not.toContain("focusCapabilityDeletion");
     expect(js).not.toContain("[data-capability-deletion-focus]");
     expect(js).not.toContain("restore_surface");
@@ -337,9 +325,8 @@ describe("GET / (shell) — browser glue", () => {
       "HTMLInputElement",
       "Element",
       appScript,
-      // `Element` because the rescue asks *which surface asked* before it decides where
-      // the refusal lands. Nothing was recorded for this request, so the answer is the
-      // window it was already aimed at.
+      // `Element` because the rescue asks which surface asked before it decides where the refusal
+      // lands. Nothing was recorded for this request, so the answer is the window it was aimed at.
     )(documentStub, windowStub, () => undefined, class InputStub {}, class ElementStub {});
 
     for (const [code, status] of [
@@ -374,9 +361,8 @@ test("keeps a pending stream dormant until foreground narration begins", async (
   expect(css).toContain(".build-stream__narration:not(:empty)");
   expect(css).toContain("#spec-build-output:has(> .build-stream");
 
-  // The shell's own content area is gone with the window: a window that holds nothing
-  // does not exist, so there is no longer a surface to keep quiet until it does. Every
-  // rule that hid one is retired rather than ported.
+  // The shell's own content area is gone with the window: a window that holds nothing does not
+  // exist, so every rule that kept a surface quiet until it did is retired rather than ported.
   expect(css).not.toContain(".content__active");
   expect(css).not.toContain(".intro__output");
   expect(css).not.toMatch(/:has\([^)]*:has\(/);
@@ -450,7 +436,8 @@ describe("GET / (shell) — prompt admission", () => {
       return detail.shouldSwap;
     };
 
-    // The exact bodies src/router/read-refusal.ts returns for a closing incarnation.
+    // The exact bodies src/runtime/router/wire/failure-responses.ts returns for a closing
+    // incarnation.
     const readRefusal =
       '<p class="notice" data-role="error" data-error-code="read_unavailable">I’m making a careful change here. Give me a moment, then try that again.</p>';
 
@@ -484,10 +471,8 @@ describe("GET / (shell) — stream close glue", () => {
       getElementById(id: string) {
         return id === "spec-build-prompt" ? promptField : null;
       },
-      // The close asks the prompt bar whether it was still saying anything about the run.
-      // No bar is standing in this scene, so nothing answers and nothing is cancelled —
-      // which is the same as "there was nothing to retire", and the prompt wakes and
-      // clears as it always has.
+      // The close asks the prompt bar whether it was still saying anything about the run. No bar
+      // stands in this scene, so nothing is cancelled and the prompt wakes and clears as always.
       dispatchEvent: () => true,
     };
     const windowStub = {
@@ -508,9 +493,8 @@ describe("GET / (shell) — stream close glue", () => {
       "HTMLInputElement",
       "HTMLElement",
       appScript,
-      // `HTMLElement` because the close first asks whether the window is holding an
-      // ending; a window with nothing in it answers no, and the prompt wakes as it always
-      // has. What it does when the answer is yes is `app.build-ending.test.ts`.
+      // `HTMLElement` because the close first asks whether the window is holding an ending; a
+      // window with nothing in it answers no. The yes case is `app.build-ending.test.ts`.
     )(documentStub, windowStub, (callback: () => void) => callback(), InputStub, class {});
 
     listeners.get("alpine:init")?.();
@@ -519,9 +503,8 @@ describe("GET / (shell) — stream close glue", () => {
     state.init();
     state.promptBusy = true;
 
-    // A close the desk caused — a run left at 5.8/04's question, a logo switch — is not a
-    // run finishing with something to say. The navigation that caused it has already put
-    // focus where it belongs, and the words in the field were never sent.
+    // A close the desk caused — a run left at 5.8/04's question, a logo switch — is not a run
+    // finishing with something to say. The navigation that caused it has already placed focus.
     listeners.get("htmx:sseClose")?.(
       new CustomEvent("htmx:sseClose", { detail: { type: "nodeReplaced" } }),
     );
@@ -538,11 +521,8 @@ describe("GET / (shell) — stream close glue", () => {
   });
 });
 
-// Every surface these three tests name came down, and none of them answers in any
-// environment. `/demo` itself is not empty: ADR-0002 reserves it for throwaway
-// scaffolding, and 6.3/01's one-question-turn exercise is standing in it now behind the
-// same developer gate, with `6.5-the-answer-window/issues/05-the-scaffolding-comes-down.md`
-// owning its removal. What is asserted here is that the *retired* ones stayed retired.
+// Every surface these three tests name came down, and none of them answers in any environment.
+// `/demo` itself is reserved for throwaway scaffolding (ADR-0002); 6.5/05 owns its removal.
 describe("the retired /demo surfaces are gone", () => {
   const previous = process.env.NODE_ENV;
   afterEach(() => {
@@ -551,13 +531,8 @@ describe("the retired /demo surfaces are gone", () => {
   });
 
   test("module 5's inspection surfaces are unregistered in every environment", async () => {
-    // All three came down, and none took evidence with it. The gallery's injected prompt
-    // section is asserted against `buildItemRendererDesignInjection` in
-    // gate-design-lint-high-meadow.test.ts; the release rule the region preview slowed
-    // down is covered by router.read-gates.test.ts and router.read-abandonment.test.ts,
-    // with the raised drain deadline measured directly in read-gates.test.ts; the swap
-    // target's two halves are covered by fragments.test.ts (every page-assembly anchor)
-    // and swap-target.test.ts (a delivery to a region that has gone).
+    // All three came down, none taking evidence with it: gate-design-lint-high-meadow.test.ts,
+    // router.read-gates.test.ts, fragments.test.ts and swap-target.test.ts now hold it.
     for (const nodeEnv of ["production", "development"]) {
       process.env.NODE_ENV = nodeEnv;
       const app = createApp();
@@ -579,10 +554,8 @@ describe("the retired /demo surfaces are gone", () => {
   });
 
   test("epic 4.9's previews are unregistered in every environment", async () => {
-    // Both came down. A demo is scaffolding for work in progress: the read
-    // gates' atomic token sets and drain/reopen are covered by
-    // src/runtime/router/admission/router.read-gates.test.ts, and the cleanup seam by the deletion fault
-    // battery and the two seam-fake suites, so neither removal took evidence with it.
+    // Both came down. The read gates' atomic token sets and drain/reopen are covered by
+    // router.read-gates.test.ts, and the cleanup seam by the deletion fault battery.
     for (const nodeEnv of ["production", "development"]) {
       process.env.NODE_ENV = nodeEnv;
       const app = createApp();
@@ -605,10 +578,8 @@ describe("the retired /demo surfaces are gone", () => {
   });
 
   test("the retired build surfaces are unregistered in every environment", async () => {
-    // The evolution tracer's content-area control and its routes retired together
-    // and the legacy spec-build demo followed, so `/prompt` is the
-    // single admission path for every build. Nothing answers here any more — 404 is
-    // Hono's "no such route", not a route reporting an unknown capability.
+    // The evolution tracer's routes retired together with the legacy spec-build demo, so `/prompt`
+    // is the single admission path. 404 here is Hono's "no such route", not an unknown capability.
     for (const nodeEnv of ["production", "development"]) {
       process.env.NODE_ENV = nodeEnv;
       const app = createApp();

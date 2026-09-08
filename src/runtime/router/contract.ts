@@ -14,9 +14,8 @@ import type {
 } from "../data/index.ts";
 
 /**
- * Parsed request input. Multiplicity survives parsing, while the submitted-field
- * set carries presence separately from values (an unchecked checkbox has presence
- * but no value). Reserved platform markers never enter either collection.
+ * Parsed request input. Multiplicity survives parsing; the submitted-field set carries presence
+ * apart from values (an unchecked checkbox has presence, no value). Reserved markers enter neither.
  */
 export type CapabilityInputValue = string | readonly string[];
 export interface CapabilityInput {
@@ -25,11 +24,8 @@ export interface CapabilityInput {
 }
 
 /**
- * The platform-built contexts keep write authority separate from free reads. Every
- * current Action receives the physically read-only query port. Create receives
- * capability-bound insert authority; update/delete receive record-target-bound
- * authority. Record-rendering Actions also receive the presentation adapter
- * The Handler never imports platform modules.
+ * The platform-built contexts keep write authority apart from free reads: create is
+ * capability-bound, update and delete record-bound. The Handler never imports platform modules.
  */
 export interface CapabilityContext {
   readonly input: CapabilityInput;
@@ -52,9 +48,8 @@ export interface CapabilityDeleteContext {
 }
 
 /**
- * One handler: a single default-exported async function returning an HTML fragment
- * string. The platform owns the HTTP response — headers, status, routing; the
- * handler owns only the fragment.
+ * One handler: a single default-exported async function returning an HTML fragment string. The
+ * platform owns headers, status and routing; the handler owns only the fragment.
  */
 export type CapabilityCreateHandler = (context: CapabilityCreateContext) => Promise<string>;
 export type CapabilityReadHandler = (context: CapabilityContext) => Promise<string>;

@@ -82,9 +82,8 @@ function acquirePublishLock(rootLockPath: string): PublishLock {
         unlinkSync(ownerPath);
         throw error;
       }
-      // Never delete or replace a stale lock. Every contender derives the same
-      // content-addressed successor and races on one atomic link. A live successor
-      // is therefore stable even when many processes observe the same dead owner.
+      // Never delete or replace a stale lock: every contender derives the same content-addressed
+      // successor and races on one atomic link, so a live successor is stable.
       staleAncestors.push(generationPath);
       generationPath = `${rootLockPath}.next-${contentDigest(existing.raw).slice("sha256:".length)}`;
     }

@@ -1,26 +1,14 @@
-// Evolution candidate assembly: the stage that turns the Diff Engine's work plan into
-// executed work. It derives the additive DDL, projects each unit's generation context, and
-// assembles the complete candidate inventory — regenerating only the units the matrix
-// positively selected and byte-copying the rest — then runs the fail-closed Gate over the
-// *assembled* snapshot. It stops at a Gate-cleared candidate; publication, atomic
-// activation and the View swap belong to the closing engine stage.
+// Evolution candidate assembly: the stage turning the Diff Engine's work plan into executed work.
+// It derives the additive DDL, projects each unit's generation context, assembles the candidate
+// inventory — regenerating only what the matrix selected, byte-copying the rest — then runs the
+// fail-closed Gate. It stops at a Gate-cleared candidate; publication and activation come later.
 //
-// Three guarantees carry the matrix's promises into bytes:
-//
-//   - **Copy is proof, not model context.** A unit the work plan did not select is read
-//     verbatim from the committed snapshot on disk and never enters a generation prompt, so
-//     it was never exposed to the changed facts it is claimed not to depend on. Its
-//     dependency-generation provenance carries forward unchanged.
-//   - **Regeneration sees only the active projection.** A selected unit is regenerated
-//     against the candidate spec through the same per-unit prompt a v1 build uses, which
-//     projects only active fields and each dependency's active schema. Its provenance is
-//     refreshed.
-//   - **Prior source is proven, not assumed.** A regenerated unit's old committed source is
-//     offered to its prompt only when deterministic admissibility checks prove it
-//     references nothing outside that unit's *candidate* contract. The proof runs before any
-//     model call, so the whole copy/regenerate/admit/withhold shape of an evolution is
-//     decided with zero spend, and a withheld unit regenerates from the contract alone
-//     exactly as a v1 build does.
+// Three guarantees carry the matrix's promises into bytes. Copy is proof rather than model
+// context: an unselected unit is read verbatim from the committed snapshot and never enters a
+// prompt, so it was never exposed to the changed facts it is claimed not to depend on.
+// Regeneration sees only the active projection, through a v1 build's per-unit prompt. And prior
+// source is proven: a regenerated unit's old source reaches its prompt only when deterministic
+// checks pass, before any model call, so the whole shape is decided with zero spend.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -98,18 +86,13 @@ export interface AssembleEvolutionCandidateInput {
   /** Override the global `OMNI_BEHAVIORAL_TIER` toggle; omitted, the Gate resolves it. */
   readonly behavioralTierEnabled?: boolean;
   /**
-   * The run's measurement accumulator. The freeze stage's timing and tokens are recorded
-   * into it here, where the freeze happens — not by the caller after this returns, because
-   * an assembly that dies in unit generation or at the Gate has already paid for the suites
-   * it authored, and not through `progress`, which exists for the developer panel and may be
-   * absent. A caller that measures nothing simply omits it.
+   * The run's measurement accumulator. The freeze stage's timing and tokens are recorded here,
+   * where the freeze happens, and not through the optional `progress`: a dying assembly has paid.
    */
   readonly measurement?: DemoBuildAccumulator;
   /**
-   * True once the trace is cancelled or its subscriber is gone. Checked between units and
-   * before the Gate so a cancel stops the work rather than only unwinding whatever model
-   * call happens to be in flight — an evolution that regenerates nothing (a label or
-   * ordering change) would otherwise run the whole Gate under a lease nobody is waiting on.
+   * True once the trace is cancelled or its subscriber is gone. Checked between units and before
+   * the Gate, so an evolution regenerating nothing does not run the whole Gate for nobody.
    */
   readonly isAborted?: () => boolean;
   readonly maxAttempts?: number;
@@ -118,13 +101,8 @@ export interface AssembleEvolutionCandidateInput {
   /** Assembly-stage liveness: the derived plan, each byte-copy, and the Gate handover. */
   readonly progress?: EvolutionAssemblyProgress;
   /**
-   * Test-only seam (the bounded-repair battery): substitute the first-pass bytes of
-   * one Handler the Diff already selected for regeneration, so the Gate has a real
-   * behavioral failure to repair. Returning `undefined` keeps whatever the provider wrote.
-   * It cannot widen the Diff plan, reach a copied unit, alter a frozen test, or touch the
-   * Gate's own provider repair. The assembly fails closed unless those synthetic bytes
-   * produce a frozen behavioral failure and an actual repair. No composition root supplies
-   * it — see `hard-evolution-fixture.test-support.ts`.
+   * Test-only seam substituting one already-selected Handler's first-pass bytes so the Gate has a
+   * real failure to repair (`hard-evolution-fixture.test-support.ts`); fails closed without one.
    */
   readonly firstPassHandlerFixture?: (
     spec: CapabilitySpec,
@@ -133,19 +111,16 @@ export interface AssembleEvolutionCandidateInput {
 }
 
 /**
- * The executed work, decided before a single model call runs: the additive DDL derives
- * deterministically from the two specs and the copy/regenerate split comes straight from
- * the Diff work plan. Reporting it up front is what lets a developer see the whole shape
- * of an evolution immediately, while the regenerated units are still being written.
+ * The executed work, decided before a single model call: the DDL derives from the two specs and
+ * the copy/regenerate split comes from the Diff work plan, so it reports while units are written.
  */
 export interface EvolutionAssemblyPlan {
   readonly regeneratedUnits: readonly GeneratedUnitName[];
   readonly copiedUnits: readonly GeneratedUnitName[];
   readonly additiveMigration: AdditiveCapabilityMigration;
   /**
-   * Per regenerated unit, whether its prior committed source was admitted into the
-   * regeneration prompt and — when it was not — why. Copied units are absent:
-   * they never enter model context at all, so there is nothing to admit or withhold.
+   * Per regenerated unit, whether its prior committed source was admitted into the prompt, and if
+   * not why. Copied units are absent: they never enter model context, so nothing is admitted.
    */
   readonly priorSource: readonly PriorSourceDecision[];
 }
@@ -154,15 +129,13 @@ export interface EvolutionAssemblyProgress {
   /** The derived plan, before any unit work — the first thing an observer can show. */
   readonly onPlanned?: (plan: EvolutionAssemblyPlan) => void | Promise<void>;
   /**
-   * Live, canonical-order progress while changed Action suites are generated with bounded
-   * concurrency. This is observational only: no test bytes cross the hook, and all suites
-   * still finish admission before the first Handler byte is authored.
+   * Live, canonical-order progress while changed Action suites generate with bounded concurrency.
+   * Observational only: no test bytes cross the hook, and admission still precedes any Handler.
    */
   readonly onTestsProgress?: (progress: BehavioralTestFreezeProgress) => void | Promise<void>;
   /**
-   * Behavioral intent is frozen — per Action, generated or carried forward, and
-   * from which closed inputs. Reported before any unit is written, because that is the
-   * guarantee: the tests existed before the code they judge.
+   * Behavioral intent is frozen — per Action, generated or carried, and from which closed inputs.
+   * Reported before any unit is written, because that is the guarantee.
    */
   readonly onTestsFrozen?: (frozen: FrozenBehavioralTestsResult) => void | Promise<void>;
   /**
@@ -182,39 +155,31 @@ export interface AssembledEvolutionCandidate {
   /** The complete six-unit inventory in canonical order: copied + regenerated. */
   readonly units: readonly GeneratedUnit[];
   /**
-   * The units this evolution wrote, and the units that are byte-identical to the committed
-   * snapshot. Settled against the final bytes rather than the work plan, so a unit the Gate
-   * repaired is reported as written even if the plan had copied it — "copied" is a claim
-   * about bytes, and it stays true.
+   * The units this evolution wrote, and those byte-identical to the committed snapshot. Settled
+   * against final bytes, not the plan: a Gate-repaired unit reads as written. "Copied" is bytes.
    */
   readonly regeneratedUnits: readonly GeneratedUnitName[];
   readonly copiedUnits: readonly GeneratedUnitName[];
   /** The nullable ADD COLUMN(s) this evolution derives (empty for a no-DDL change). */
   readonly additiveMigration: AdditiveCapabilityMigration;
   /**
-   * The prior-source admissibility decision recorded for each unit the work plan
-   * regenerated, in canonical unit order — the audit trail for what entered model context.
-   * Audit-only, exactly like unit provenance: it never feeds equality, the Diff, or a
-   * unit's `active_context_digest`, which stays a digest of the *contract* prompt.
+   * The prior-source admissibility decision per regenerated unit, in canonical order: the audit
+   * trail for model context. It never feeds equality, the Diff, or `active_context_digest`.
    */
   readonly priorSource: readonly PriorSourceDecision[];
   /**
-   * Per Action, whether this evolution generated that Action's behavioral tests or carried
-   * the prior frozen ones forward on byte-identical inputs. Empty when the tier is
-   * off, in which case the candidate carries no test artifact at all.
+   * Per Action, whether this evolution generated the behavioral tests or carried the prior frozen
+   * ones on byte-identical inputs. Empty when the tier is off, where there is no test artifact.
    */
   readonly behavioralTests: readonly BehavioralTestActionReport[];
   /**
-   * Per Action, whether that frozen suite executed against this candidate's bytes or was
-   * skipped because no Handler it covers moved — and why. Undefined when the tier
-   * is off. Generation is about intent; this is about impact, and they are separate answers.
+   * Per Action, whether that frozen suite ran against this candidate's bytes or was skipped, and
+   * why. Undefined when the tier is off. Generation is intent; this is impact.
    */
   readonly behavioralExecution?: BehavioralExecutionPlan;
   /**
-   * Which row of decision 24's transition table this version landed on, read off the
-   * committed snapshot's tier and the two answers above. Always present — the
-   * tier-off rows are exactly the ones a reader most needs named, since a tier-off version
-   * carries nothing else to say why its behavioral artifacts are absent.
+   * Which row of decision 24's transition table this version landed on, read off the committed
+   * tier and the two answers above. Always present: a tier-off version says nothing else.
    */
   readonly behavioralTierTransition: BehavioralTierTransition;
   /** The fail-closed Gate result over the assembled snapshot (structural + smoke, …). */
@@ -226,11 +191,8 @@ export interface AssembledEvolutionCandidate {
 }
 
 /**
- * Assemble one evolution candidate from the Diff work plan and Gate it. Reads the
- * committed snapshot from disk to copy unaffected units, regenerates the selected units
- * against the candidate's active projection, derives the additive migration, computes
- * carry-forward/fresh provenance, and runs the Gate over the assembled snapshot.
- * Performs no publication, DDL application, activation, or View swap.
+ * Assembles one evolution candidate from the Diff work plan and Gates it, reading the committed
+ * snapshot from disk. It performs no publication, DDL application, activation or View swap.
  */
 export async function assembleEvolutionCandidate(
   input: AssembleEvolutionCandidateInput,
@@ -239,9 +201,8 @@ export async function assembleEvolutionCandidate(
   const verified = verifyEvolutionBase(committed);
   const additiveMigration = deriveAdditiveCapabilityMigration(verified.spec, candidate);
   const regenerated = new Set<GeneratedUnitName>(diff.workPlan.regeneratedUnits);
-  // The proof runs before the plan is reported, and therefore before any model call: a
-  // developer sees which units will be regenerated *with* their old source and which
-  // without, at the same moment they see the copy/regenerate split.
+  // The proof runs before the plan is reported, and so before any model call: the with/without
+  // old-source split reaches the developer at the same moment as the copy/regenerate split.
   const priorSource = proveRegenerationPriorSource(input, verified.directory, regenerated);
   await input.progress?.onPlanned?.({
     regeneratedUnits: diff.workPlan.regeneratedUnits,
@@ -250,11 +211,8 @@ export async function assembleEvolutionCandidate(
     priorSource: priorSource.decisions,
   });
 
-  // Freeze behavioral intent before a single Handler byte is written or repaired (PLAN
-  // decision 23). An Action whose total inputs are byte-identical to the committed
-  // version's carries its frozen cases forward untouched; only an Action whose own inputs
-  // changed is regenerated. A label rename or a field reorder therefore regenerates no
-  // tests at all — not by policy, but because it moves no digest.
+  // Freeze behavioral intent before a Handler byte is written or repaired (PLAN decision 23).
+  // Only an Action whose own inputs changed is regenerated: a rename moves no digest.
   const frozenTests = await freezeEvolutionTests(input, verified);
   await reportFrozenTests(input, frozenTests);
   throwIfAborted(input.isAborted ?? NEVER_ABORTED);
@@ -267,9 +225,8 @@ export async function assembleEvolutionCandidate(
     priorSource.admitted,
     fixtureUnits,
   );
-  // Record the assembled inventory before the Gate can throw. Evolution used to wait until
-  // the whole assembler returned, which made a failed Gate look as though no unit had been
-  // generated or copied and dropped every unit-generation token from the durable row.
+  // Record the assembled inventory before the Gate can throw. Waiting for the assembler to return
+  // made a failed Gate look as though no unit ran, and dropped its tokens from the durable row.
   if (input.measurement) {
     recordUnitMetrics(input.measurement, units);
     input.measurement.copiedUnits = new Set(copiedUnitNames(regenerated));
@@ -289,19 +246,15 @@ export async function assembleEvolutionCandidate(
     ),
   });
 
-  // Fold any bounded Gate repair back into the assembled bytes, exactly as a v1 build
-  // does. A correctly-copied unit is behavior-neutral against the candidate schema, so
-  // the Gate does not repair it and its bytes stay byte-identical to the committed snapshot.
+  // Fold any bounded Gate repair back into the assembled bytes, as a v1 build does. A correctly
+  // copied unit is behavior-neutral against the candidate schema, so its bytes stay identical.
   const finalUnits = applyGateFixes(units, gate);
   assertFixtureRepairsProven(fixtureUnits, units, finalUnits, gate);
-  // A repair rewrote bytes an observer is already showing as final. Report the reconciled
-  // inventory so what a developer reads is the source the candidate actually carries —
-  // the same refresh a v1 build sends after its own Gate (`runSpecBuildStages`).
+  // A repair rewrote bytes an observer already shows as final, so report the reconciled inventory
+  // — the same refresh a v1 build sends after its own Gate (`runSpecBuildStages`).
   if (unitsChanged(units, finalUnits)) await input.progress?.onUnitsFinalized?.(finalUnits);
-  // The Gate's own bounded repairs — a smoke Handler fix, a design-lint item rewrite — are
-  // model work over the assembled snapshot, and they can in principle land on a unit the
-  // work plan copied. "Copied" is a byte claim, so it is settled against the final bytes,
-  // not the plan: a repaired unit is reported as regenerated and gets fresh provenance.
+  // A Gate repair — a smoke fix, a design-lint item rewrite — can land on a unit the plan copied.
+  // "Copied" is a byte claim, so a repaired unit reads as regenerated and gets fresh provenance.
   const written = writtenUnitNames(regenerated, units, finalUnits);
   const unitProvenance = evolutionUnitProvenance({
     candidateSpec: candidate,
@@ -335,21 +288,8 @@ export async function assembleEvolutionCandidate(
 }
 
 /**
- * State this evolution's executable impact for behavioral execution selection. The work
- * plan already names exactly which units this build authors, so the
- * run/skip verdict is read off the same plan the copy/regenerate split came from — a copied
- * Handler is bytes the prior version's frozen suite already passed against.
- *
- * Two things widen it beyond the Handler list, and both are stated in words rather than by
- * silently growing the set:
- *
- *   - A change fact that names no Action at all (a free-text `behavior` edit, decision 22).
- *   - A change to the fields the item renderer may show. The renderer is not a Handler and
- *     covers no Action, but every fragment assertion is rendered through it and may only
- *     name row values, so shrinking `ui_intent.item.shows` can make a carried assertion
- *     unsatisfiable by construction — with no Handler moving and no test digest moving. That
- *     is precisely "a valid test's Handler coverage cannot be narrowed", and it runs the full
- *     frozen suite. A rename or a reordering leaves the shown fields alone and still skips.
+ * States this evolution's executable impact for behavioral execution selection. The run/skip
+ * verdict reads off the work plan: a copied Handler is bytes the prior frozen suite already passed.
  */
 function evolutionImpact(
   input: AssembleEvolutionCandidateInput,
@@ -366,6 +306,8 @@ function evolutionImpact(
   };
 }
 
+// The two widenings past the Handler list, stated in words rather than by silently growing the
+// set. Both make a carried suite unprovable, so both run the full frozen one.
 function unnarrowableEvolutionReason(
   input: AssembleEvolutionCandidateInput,
   committedSpec: CapabilitySpec,
@@ -376,6 +318,8 @@ function unnarrowableEvolutionReason(
         "a changed fact scoped to no single Action (PLAN decision 22's conservative fallback), so no copied suite can be proven unaffected",
     };
   }
+  // The renderer covers no Action, but every fragment assertion renders through it, so shrinking
+  // `shows` breaks a carried assertion with no Handler and no digest moving. A rename still skips.
   if (!sameOrderedStrings(committedSpec.ui_intent.item.shows, input.candidate.ui_intent.item.shows))
     return {
       unnarrowableReason:
@@ -389,9 +333,8 @@ function sameOrderedStrings(left: readonly string[], right: readonly string[]): 
 }
 
 /**
- * Record and report the freeze the moment it lands. The measurement comes first and does not
- * depend on `progress`: an assembly that dies in unit generation or at the Gate has already
- * paid for the suites it authored, and the panel hook is optional.
+ * Records and reports the freeze the moment it lands. The measurement comes first and does not
+ * depend on the optional `progress`: an assembly that dies later has already paid for the suites.
  */
 async function reportFrozenTests(
   input: AssembleEvolutionCandidateInput,
@@ -403,19 +346,15 @@ async function reportFrozenTests(
 }
 
 /**
- * Author this candidate's frozen behavioral intent, or nothing when the tier is off. The
- * committed snapshot's own frozen tests are offered as the carry-forward source; they are
- * absent when the prior version was built tier-off, in which case every Action generates
- * from the current candidate inputs (decision 24's off→on row).
- *
- * The tier resolves here rather than inside the Gate because generation now happens before
- * the Gate exists — but it resolves through the same global `OMNI_BEHAVIORAL_TIER` toggle a
- * v1 build uses, since the tier is one experiment-wide knob, not a per-path default.
+ * Authors this candidate's frozen behavioral intent, or nothing when the tier is off. The committed
+ * snapshot's frozen tests are the carry-forward source, absent on a tier-off prior (decision 24).
  */
 function freezeEvolutionTests(
   input: AssembleEvolutionCandidateInput,
   verified: ReturnType<typeof verifyCapabilitySnapshot>,
 ): Promise<FrozenBehavioralTestsResult> | undefined {
+  // The tier resolves here rather than in the Gate, because generation now precedes the Gate — but
+  // through the same global toggle a v1 build reads, since the tier is one experiment-wide knob.
   const enabled = input.behavioralTierEnabled ?? resolveBehavioralTierEnabled();
   if (!enabled) return undefined;
   const priorFrozenTests = readFrozenBehavioralTests(verified);
@@ -443,9 +382,8 @@ function dependencyScratchCatalog(spec: CapabilitySpec, catalog: readonly Capabi
 }
 
 /**
- * The units this evolution actually wrote: the ones the work plan regenerated, plus any the
- * Gate repaired on top. Everything else is byte-identical to the committed snapshot and is
- * the honest `copiedUnits` set.
+ * The units this evolution actually wrote: the work plan's regenerated set plus any the Gate
+ * repaired. Everything else is byte-identical to the committed snapshot — the `copiedUnits` set.
  */
 function writtenUnitNames(
   regenerated: ReadonlySet<GeneratedUnitName>,
@@ -475,9 +413,8 @@ function verifyEvolutionBase(
 }
 
 /**
- * Assemble the complete inventory in canonical snapshot order (item first): a selected
- * unit is regenerated against the candidate's active projection; an unaffected unit is
- * copied verbatim from the committed snapshot and never enters a generation prompt.
+ * Assembles the inventory in canonical snapshot order (item first): a selected unit regenerates
+ * against the candidate's projection, an unaffected one is copied and never enters a prompt.
  */
 async function assembleUnits(
   input: AssembleEvolutionCandidateInput,
@@ -521,9 +458,8 @@ async function regenerateUnit(
   fixtureUnits: Set<GeneratedUnitName> | undefined,
 ): Promise<GeneratedUnit> {
   const generated = await generateCapabilityUnit(unitGenerationInput(input, filename, priorSource));
-  // Test-only seam: substitute deliberately wrong first-pass bytes so the
-  // Gate has a real behavioral failure to repair. It reaches only what this build *writes* —
-  // copied units, frozen tests, and the Gate's own repair regeneration are all past it.
+  // Test-only seam substituting deliberately wrong first-pass bytes. It reaches only what this
+  // build writes: copied units, frozen tests and the Gate's own repair are all past it.
   const forced = fixtureUnits
     ? input.firstPassHandlerFixture?.(input.candidate, generated.name)
     : undefined;
@@ -532,10 +468,8 @@ async function regenerateUnit(
 }
 
 /**
- * Synthetic first-pass bytes are useful only as a trigger for the real frozen-intent
- * repair loop. They are never eligible candidate bytes in their own right: every injected
- * Handler must be named by the passing rung's repair evidence and must finish with
- * provider-authored bytes different from the fixture.
+ * Synthetic first-pass bytes only trigger the real repair loop; they are never eligible candidate
+ * bytes. Every injected Handler must be named in the repair evidence and end on provider bytes.
  */
 function assertFixtureRepairsProven(
   fixtureUnits: ReadonlySet<GeneratedUnitName>,
@@ -593,10 +527,8 @@ interface RegenerationPriorSource {
 }
 
 /**
- * Decide, for each unit the work plan regenerates, whether its committed source may be
- * offered back to the model — deterministically, against the *candidate* contract, with no
- * model call and no execution. A unit whose source fails the proof is
- * simply absent from `admitted`, and its recorded decision carries the reason.
+ * Decides, per regenerated unit, whether its committed source may go back to the model —
+ * deterministically, against the candidate contract, with no model call and no execution.
  */
 function proveRegenerationPriorSource(
   input: AssembleEvolutionCandidateInput,
@@ -632,11 +564,8 @@ function proveRegenerationPriorSource(
 }
 
 /**
- * Complete the record for a unit the *Gate* rewrote. A repair can land on a unit the work
- * plan copied, which makes it a written unit with no admissibility decision — and the
- * record has to cover every unit that entered model context. It always reads as withheld,
- * and truthfully: the repair rungs regenerate from the contract plus the failure through
- * `generateUnitContent`, which has no prior-source parameter at all.
+ * Completes the record for a unit the Gate rewrote, which the plan may have copied and so left
+ * with no decision. It reads as withheld truthfully: `generateUnitContent` takes no prior source.
  */
 function withGateRepairDecisions(
   decisions: readonly PriorSourceDecision[],
@@ -665,9 +594,8 @@ function inCanonicalUnitOrder(
 }
 
 /**
- * Read one committed unit off the verified snapshot. The snapshot was verified before this
- * point, so a failure here is not expected — but prior source is optional context, and
- * losing it is a withheld admission, never a failed evolution.
+ * Reads one committed unit off the verified snapshot. A failure here is unexpected, but prior
+ * source is optional context: losing it is a withheld admission, never a failed evolution.
  */
 function readPriorSource(directory: string, filename: DerivedUnitFile): string | undefined {
   try {
@@ -724,11 +652,8 @@ function copiedUnitNames(
 }
 
 /**
- * The given units in the Diff's canonical unit order — deliberately `GENERATED_UNITS` and
- * not the snapshot's file order, which puts `item` first. Both halves of one preview (the
- * plan the Diff work plan supplies, and the reconciled result computed here) must list the
- * same units the same way, or an evolution touching `item` alongside another unit reads as
- * if the plan changed under the developer.
+ * The given units in the Diff's canonical order — `GENERATED_UNITS`, not the snapshot's file
+ * order, which puts `item` first. Both halves of a preview must list them the same way.
  */
 function orderedUnitNames(names: ReadonlySet<GeneratedUnitName>): readonly GeneratedUnitName[] {
   return GENERATED_UNITS.filter((name) => names.has(name));

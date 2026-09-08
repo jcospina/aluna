@@ -32,9 +32,8 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
       | { items?: unknown; minItems?: number; maxItems?: number }
       | undefined;
 
-    // OpenAI rejects tuple-style positional `items: [...]`. The provider-facing
-    // schema must be a homogeneous fixed-length array; the Zod refinement remains
-    // the hard gate for the exact ordered five-Action value.
+    // OpenAI rejects tuple-style positional `items: [...]`, so the provider-facing schema is a
+    // homogeneous fixed-length array; the Zod refinement stays the gate on the ordered value.
     expect(Array.isArray(tools?.items)).toBe(false);
     expect(tools?.minItems).toBe(FULL_CAPABILITY_TOOLS.length);
     expect(tools?.maxItems).toBe(FULL_CAPABILITY_TOOLS.length);
@@ -201,9 +200,8 @@ describe("spec generation stage — authored prompt", () => {
     // refusing is left to the intent classifier (ADR-0007).
     expect(prompt).toContain("not a second refusal");
     expect(prompt).toContain("chosen once, at birth, and can never be changed afterwards");
-    // Each colour is asked for by what it does, so the model has something to choose
-    // against: the ground is the field, the companion is the object. This is the whole
-    // of the presentation the model touches — no size, no style, no composition.
+    // Each colour is asked for by what it does, so the model has something to choose against.
+    // This is the whole of the presentation it touches — no size, no style, no composition.
     expect(prompt).toContain("It is the hue of the flat colour the whole square is filled with");
     expect(prompt).toContain("It is the hue the object itself is drawn in");
     // The model names a hue, not a colour: it is told so, because a model asked for a
@@ -215,17 +213,8 @@ describe("spec generation stage — authored prompt", () => {
     expect(prompt).toContain("noun is the singular common noun for one stored record");
   });
 
-  // A worked example is the most concrete thing in an instruction, so an anchor named in
-  // one is a thumb on the scale — the first pass at this balanced the mentions so that no
-  // colour was named more often than another. That was not enough. Five probe builds
-  // against the balanced prompt came back with the same companion three times, on a
-  // vocabulary where every value was named exactly once: the model collapses to a mode
-  // whatever the examples say, and an even scale only moves which value it collapses on.
-  //
-  // So the colour instructions carry no worked examples at all. The scale cannot lean if
-  // there is nothing on it, and variety is bought where it can actually be bought — the
-  // seed, in `resolveLogoShades`. This is the stronger invariant and it cannot rot: a
-  // future example naming one hue fails here whatever the counts are.
+  // Balancing the mentions was not enough: five probe builds against the balanced prompt came
+  // back with the same companion three times, so variety is bought by seed in `resolveLogoShades`.
   test("the colour instructions name no hue at all outside the vocabulary list", () => {
     const provider = makeSpecProvider(notesSpec());
     const { send } = recordingSend();
@@ -256,9 +245,8 @@ describe("spec generation stage — authored prompt", () => {
     }
   });
 
-  // The failure mode the four live capabilities showed, named out loud. A subject with no
-  // colour of its own is where the mode bites, and "what a background usually looks like"
-  // is the answer it kept reaching for.
+  // The failure mode the four live capabilities showed: a subject with no colour of its own,
+  // where "what a background usually looks like" is the answer it kept reaching for.
   test("tells the model there is no default hue", () => {
     const provider = makeSpecProvider(notesSpec());
     const { send } = recordingSend();

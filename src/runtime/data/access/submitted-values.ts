@@ -1,20 +1,16 @@
-// The platform validation that runs *before* a generated Handler, not inside it.
+// The platform validation that runs before a generated Handler rather than inside it.
 //
-// Two of the platform's structural refusals depend on the submission alone: whether a
-// choice value is one the field declares, and whether a string is longer than the field
-// said it holds. Neither needs the stored row, and neither is a capability's business —
-// the platform authored the sentence, the status and the retarget for both.
+// Two of the platform's structural refusals depend on the submission alone: whether a choice value
+// is one the field declares, and whether a string is longer than the field said it holds. Neither
+// needs the stored row, and the platform authored the sentence, status and retarget for both.
 //
-// They used to be reachable only from `normalizeSpecFieldValues`, which runs from inside
-// the mutation port — i.e. from inside the Handler, when it chooses to call it. Canonical
-// state was safe either way, because the port is the only way to write; what was at the
-// generated code's discretion was the *answer*: a Handler that caught the error and
-// returned its own 200 would have turned a platform refusal into a silent success. Three
-// documents said this ran before the Handler. Now it does.
+// They used to be reachable only from `normalizeSpecFieldValues`, which runs from inside the
+// mutation port and so from inside the Handler. Canonical state was safe either way; what was at
+// the generated code's discretion was the answer, since a Handler catching the error and returning
+// its own 200 would have turned a platform refusal into a silent success.
 //
-// What stays with the port is what cannot be answered here: the missing-required check
-// needs the Handler's coercion (a submitted boolean arrives as `"on"`), and the
-// disabled-option check needs the value the record is already standing on.
+// What stays with the port is what cannot be answered here: the missing-required check needs the
+// Handler's coercion, and the disabled-option check needs the value the record already holds.
 
 import type { SpecField } from "../../../registry/index.ts";
 import { assertDeclaredChoiceValues } from "../schema/choice-values.ts";

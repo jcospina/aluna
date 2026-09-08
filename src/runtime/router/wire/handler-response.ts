@@ -1,26 +1,15 @@
-// How a generated Handler's returned fragment becomes an HTTP answer.
+// How a generated Handler's returned fragment becomes an HTTP answer. Two things happen to it.
 //
-// Two things happen between the string a Handler returns and `c.html(...)`.
+// It is scrubbed. The enforcer runs on the item renderer's output inside `present()`, and nothing
+// looked at the wrapper markup a Handler composes around those items, which htmx swaps into a live
+// page with `allowScriptTags` on. `enforceHandlerFragment` is that wrapper's render-time last line.
 //
-// **It is scrubbed.** The enforcer runs on the item renderer's output inside `present()`;
-// nothing looked at the wrapper markup a Handler composes around those items, which htmx
-// swaps into a live page with `allowScriptTags` on. `enforceHandlerFragment` is that
-// wrapper's render-time last line (src/presentation/safety/fragment-safety.ts).
-//
-// **A declared refusal is read as one.** A capability authors its validation errors in
-// `behavioral_errors`, and a Handler signals one by returning a fragment carrying the
-// spec's own markers — `data-role="error"` plus a `data-error-code` the spec declared for
-// this Action. Until now that fragment was answered as a bare 200 with `hx-swap="none"` on
-// the form, so the browser could not tell a capability-declared refusal from a committed
-// write: `record-mutations.js` reads htmx's `detail.successful`, true for any 2xx. The
-// platform's own typed refusals escape that only because the router catches their error
-// *classes* and answers 422 + `HX-Retarget` — a path a Handler's plain return value never
-// entered.
-//
-// So a declared refusal is delivered the way the platform's own are, which also means the
-// mutation's transaction rolls back: the router commits on `response.ok`, and a refusal is
-// not a commit. The code must be one the *spec* declared for the *running Action* — a
-// Handler cannot invent a refusal, and record data cannot spell one by accident.
+// And a declared refusal is read as one. A Handler signals a `behavioral_errors` refusal by
+// returning a fragment carrying the spec's markers; answered as a bare 200 under `hx-swap="none"`,
+// `record-mutations.js` could not tell it from a commit, reading htmx's `detail.successful`.
+// Delivering it as the platform's own 422 also rolls the mutation back, because the router commits
+// on `response.ok`. The code must be one the spec declared for the running Action, so a Handler
+// cannot invent a refusal and record data cannot spell one by accident.
 
 import type { Context } from "hono";
 
@@ -62,12 +51,8 @@ function declaredErrorCodes(spec: CapabilitySpec, action: WireProtocolAction): R
 }
 
 /**
- * The first element carrying both markers with a declared code, or `undefined`.
- *
- * Parsed rather than pattern-matched: the two markers have to be on the *same element* for
- * the shell to read them as one refusal, and a regex over the whole fragment cannot say
- * that — a record whose text happened to contain `data-role="error"` would answer for a
- * `data-error-code` written somewhere else entirely.
+ * The first element carrying both markers with a declared code, or `undefined`. Parsed rather
+ * than pattern-matched: a regex cannot say the two markers sit on the *same* element.
  */
 function findDeclaredRefusal(html: string, declared: ReadonlySet<string>): string | undefined {
   let found: string | undefined;
@@ -90,15 +75,8 @@ function findDeclaredRefusal(html: string, declared: ReadonlySet<string>): strin
 }
 
 /**
- * Deliver a Handler's fragment: scrubbed of executable markup, and — when it carries one of
- * the capability's own declared behavioral-error markers — delivered the way the platform's
- * typed refusals are, so the browser can tell a refusal from a commit.
- *
- * `countSidecar` is built from the scrubbed fragment and prefixed to it, in that order and
- * for two reasons: the enforcer's subject is what the *model* wrote, so platform-authored
- * markup is trusted by construction and never re-parsed here; and the count reports on the
- * records a search matched, so it must read the answer actually being sent rather than the
- * one the enforcer was handed.
+ * Deliver a Handler's fragment, scrubbed, and as a platform refusal when it carries a declared
+ * marker. `countSidecar` reads the scrubbed fragment; the enforcer's subject is the model's markup.
  */
 export function answerWithHandlerFragment(
   c: Context,
@@ -110,9 +88,8 @@ export function answerWithHandlerFragment(
 ): Response {
   const outcome = readHandlerFragment(fragment, spec, action);
   if (outcome.neutralized) {
-    // Precise for the developer, invisible to the user: the fragment still renders, minus
-    // whatever executed. A generated Handler emitting this is a contract violation the fix
-    // loop should have caught.
+    // Precise for the developer, invisible to the user: the fragment still renders minus whatever
+    // executed. A Handler emitting this is a contract violation the fix loop should have caught.
     console.error(
       `Capability ${id}/${action} returned executable markup; it was neutralized before the response.`,
     );

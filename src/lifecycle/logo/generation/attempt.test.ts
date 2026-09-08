@@ -215,10 +215,8 @@ describe("a failed attempt", () => {
 
 describe("an attempt that could never have succeeded", () => {
   test("an unconfigured service spends nothing, however many times the desk loads", async () => {
-    // The harm this closes: `requireRecraftApiKey` throws inside `generate`, which the
-    // attempt swallows as an ordinary failure. Without the preflight, three page loads on
-    // a machine with no key permanently abandoned every capability's logo — and nothing
-    // ever decrements an attempt.
+    // `requireRecraftApiKey` throws inside `generate`, which the attempt swallows as an ordinary
+    // failure, so without the preflight three loads on a keyless machine abandoned every logo.
     const unconfigured: LogoGenerationProvider = {
       isConfigured: () => false,
       generate: () => Promise.reject(new LogoGenerationError("unconfigured", "no key")),
@@ -306,9 +304,8 @@ describe("the coordinator and the read gate", () => {
 
     expect(outcome).toBe("unclaimed");
     expect(provider.calls).toHaveLength(0);
-    // Nothing is decremented, ever — so an attempt that could not reach the provider must
-    // never have been claimed. Three of these would otherwise reach the permanent
-    // placeholder for a capability nobody deleted.
+    // Nothing is decremented, ever, so an attempt that could not reach the provider must never have
+    // been claimed: three of these reach the permanent placeholder for a capability nobody deleted.
     expect(logoState()).toEqual({ status: "absent", attempts: 0 });
     expect(existsSync(capabilityLogoPath(artifactsRoot, "notes", NOTES_INCARNATION_ID))).toBe(
       false,
@@ -317,11 +314,8 @@ describe("the coordinator and the read gate", () => {
   });
 
   test("finalization does not run inside the read-token scope", async () => {
-    // The hazard the coordinator's own doc comment names: awaiting a queued acquisition
-    // while holding read tokens deadlocks against deletion, which takes its lease and
-    // *then* closes the gate. So the observation that matters is not "a token was held
-    // during the call" but "no token was still held when mutation ownership was asked
-    // for again".
+    // Awaiting a queued acquisition while holding read tokens deadlocks against deletion, which
+    // takes its lease and *then* closes the gate: no token may still be held at the second write.
     const readGates = createReadGateCoordinator();
     const mutationCoordinator = createMutationCoordinator();
     const readersAtEachWrite: number[] = [];
@@ -362,11 +356,8 @@ describe("the coordinator and the read gate", () => {
 
 describe("bytes that were never acknowledged", () => {
   test("a discard removes only the file this attempt installed", async () => {
-    // The safety here is the inode, not the path. "Only this attempt could have written
-    // here" is an invariant of today's single-claim lifecycle, and the retry sweep is
-    // exactly the code that could add a second writer — while removing *accepted*
-    // artwork is unrecoverable, because the route refuses a missing file and L7 forbids
-    // redrawing.
+    // The safety is the inode, not the path: the retry sweep is exactly the code that could add a
+    // second writer, and removing *accepted* artwork is unrecoverable — L7 forbids redrawing.
     const other = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><circle/></svg>');
     const provider: LogoGenerationProvider = {
       async generate() {

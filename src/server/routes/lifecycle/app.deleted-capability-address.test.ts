@@ -55,12 +55,8 @@ function readLoader(body: (context: CapabilityContext) => Promise<string>): Hand
 }
 
 /**
- * Let the parked handler go and let both requests settle, whatever happened above.
- *
- * Without this a single failed assertion leaves a capability handler suspended on a
- * promise nobody will resolve, and `afterEach` then closes the database and removes the
- * directory out from under it — so one readable failure arrives as a pile of unhandled
- * rejections from a shared `bun test` process instead.
+ * Let the parked handler go and let both requests settle, whatever happened above. Without it a
+ * failed assertion leaves a handler suspended and `afterEach` closes the database under it.
  */
 async function settle(
   release: { resolve: () => void },
@@ -71,9 +67,8 @@ async function settle(
 }
 
 /**
- * Wait until the deletion's drain has actually taken the gate, rather than sleeping and
- * hoping. The coordinator is the one thing both the route and this test can see, so the
- * test asks it instead of guessing how many turns of the loop the confirm route takes.
+ * Wait until the deletion's drain has actually taken the gate, rather than sleeping and hoping.
+ * The coordinator is the one thing both the route and this test can see, so the test asks it.
  */
 async function whenClosing(
   readGates: ReturnType<typeof createReadGateCoordinator>,
@@ -138,9 +133,8 @@ describe("a second tab held open while its capability is deleted", () => {
       await whenClosing(readGates, "notes");
       releaseHandler.resolve();
 
-      // The read that was cut off is answered as what it is. Nothing is invented in its
-      // place — no empty collection standing in for records nobody read, and not the
-      // handler's own body, which never ran to the end.
+      // The read that was cut off is answered as what it is. Nothing is invented in its place —
+      // no empty collection, and not the handler's own body, which never ran to the end.
       const refused = await inFlight;
       const body = await refused.text();
       expect(refused.status).toBe(409);
@@ -247,9 +241,8 @@ describe("the address a deleted capability leaves behind", () => {
     expect(page).toContain(
       `<div id="prompt-notice" class="prompt__notice" aria-live="polite">${NOT_FOUND_NOTICE}</div>`,
     );
-    // The desk without the capability that is gone. What the window does with this page is
-    // the client's answer and is proved where it lives (`addressAsks`,
-    // `src/presentation/shell/window/desk-window-address.test.ts`).
+    // The desk without the capability that is gone. What the window does with this page is the
+    // client's answer (`src/presentation/shell/window/desk-window-address.test.ts`).
     expect(page).not.toContain("capability-logo-notes");
     expect(reloaded.status).toBe(404);
   });

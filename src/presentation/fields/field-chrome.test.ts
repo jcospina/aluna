@@ -92,10 +92,8 @@ describe("long text is what the form declared, never what the type implied", () 
   });
 
   test("a value starting with a newline survives, because HTML eats one after the tag", () => {
-    // The parser drops a single U+000A immediately after `<textarea>`. Without the
-    // renderer's own newline this value would reach the control a character short — the
-    // counter would disagree with the sentence beside it, and saving any other field would
-    // resubmit the shortened text and quietly rewrite the record.
+    // The parser drops a single U+000A immediately after `<textarea>`. Without the renderer's own
+    // newline this value would reach the control short, and a later save would rewrite the record.
     const html = editFieldHtml("\n\nHello", probeField("string"), { longText: true });
     expect(html).toContain(">\n\n\nHello</textarea>");
   });
@@ -118,10 +116,8 @@ describe("guidance sits under the field and survives typing", () => {
   });
 
   test("a field the form said nothing about still carries the slot, empty and hidden", () => {
-    // The slot is not the hint's; it is where the field says one thing about itself at a
-    // time, and a validation error is the other thing it says (`public/field-errors.js`).
-    // Rendering it always is what lets the client find one element and put one string
-    // back — and an empty one is `hidden`, describes nothing, and occupies no line.
+    // The slot is not the hint's; it is where the field says one thing about itself at a time,
+    // and a validation error is the other thing it says (`public/field-errors.js`).
     const html = createFieldHtml();
     expect(html).toContain('aria-describedby="cap-probe-value-guidance"');
     expect(html).toContain(
@@ -140,9 +136,8 @@ describe("guidance sits under the field and survives typing", () => {
   });
 
   test("a repeatable list references its hint from every row, not from nothing", () => {
-    // A repeatable list has no single control to hang a description on: what a screen
-    // reader reaches is a row's input. A hint referenced by nothing is the visual-only
-    // text this module exists not to emit.
+    // A repeatable list has no single control to hang a description on: what a screen reader
+    // reaches is a row's input, and a hint referenced by nothing is visual-only text.
     const html = renderCreateForm(
       oneField(probeField("string[]", { required: false }), "repeatable", "picker", {
         guidance: "One per row.",
@@ -242,9 +237,7 @@ describe("the counter's words", () => {
 });
 
 // Small caps is a role the design system owns, and the sheet used to copy all five of its
-// declarations out under `.field__label` — the same "restate instead of reuse" duplication
-// this epic removed for `.field__control`, and the one `choice-control.ts` had already
-// avoided by applying the class.
+// declarations out under `.field__label` — the restate-instead-of-reuse this epic removed.
 describe("a field label takes the shared caps role rather than restating it", () => {
   test("every label carries it, whatever shape the control is", () => {
     for (const type of ["string", "number", "boolean", "date", "choice"] as const) {

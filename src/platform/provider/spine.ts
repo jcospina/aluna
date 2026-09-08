@@ -1,25 +1,13 @@
-// The one concrete implementation of the `Provider` contract (./contract.ts): a thin,
-// in-process provider spine. The Vercel AI SDK's `streamObject` does the streaming and
-// structured-output validation, behind a small registry that picks the wire shape off the
-// configured endpoint. We hand-roll none of that — no streaming client, no retry/routing,
-// no schema validation. What stays ours is exactly this seam: mapping the SDK's result onto
-// the contract the orchestrator depends on.
+// The one concrete implementation of the `Provider` contract: a thin, in-process provider spine.
+// The Vercel AI SDK's `streamObject` does the streaming and structured-output validation, behind a
+// small registry that picks the wire shape off the configured endpoint. We hand-roll no streaming
+// client, no retry or routing, no schema validation.
 //
-// Three wires, each a baseURL-configurable SDK provider:
-//   - `openai`            — first-party `@ai-sdk/openai` for OpenAI's own endpoint
-//                           (Responses API, native structured outputs, tunable reasoning
-//                           effort).
-//   - `openai-compatible` — `@ai-sdk/openai-compatible` (Chat Completions) for every
-//                           *other* OpenAI-compatible endpoint — the path the open Chinese
-//                           coding models take (Qwen, GLM/Zhipu, Kimi/Moonshot, MiniMax,
-//                           DeepSeek). They are first-class targets, identical to
-//                           GPT/Claude.
-//   - `anthropic`         — `@ai-sdk/anthropic` for the Anthropic Messages endpoint.
-//
-// The SDK types live *only* in this file. Everything upstream imports the `Provider`
-// contract, never the SDK, so swapping the spine is invisible to every caller. The default
-// is `gpt-5.6-terra` at medium reasoning effort; the configured trio (key + model +
-// endpoint, ./config.ts) makes any provider a one-env swap.
+// Three wires, each a baseURL-configurable SDK provider: `openai` for OpenAI's own endpoint
+// (Responses API, native structured outputs, tunable reasoning effort); `openai-compatible`
+// (Chat Completions) for every other OpenAI-compatible endpoint, which is the path the open
+// Chinese coding models take and they are first-class targets; and `anthropic` for the Anthropic
+// Messages endpoint. The SDK types live only in this file, so swapping the spine is invisible.
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -30,10 +18,8 @@ import type { ZodType } from "zod";
 import { type ProviderConfig, resolveProviderConfig } from "./config.ts";
 import type { DeepPartial, GenerateResult, Provider } from "./contract.ts";
 
-// The SDK's own input type, the single place its surface touches ours. Deriving
-// from `streamObject` rather than importing named types keeps this resilient to the
-// SDK renaming internals across versions, and keeps those types from leaking past
-// this file.
+// The SDK's own input type, the single place its surface touches ours. Derived from `streamObject`
+// rather than imported by name, so an SDK rename across versions does not reach this file.
 type StreamObjectInput = Parameters<typeof streamObject>[0];
 
 export const DEFAULT_PROVIDER_GENERATION_TIMEOUT_MS = 5 * 60_000;
@@ -70,45 +56,33 @@ function openStageDeadline(
 }
 
 /**
- * The wire shapes the de-facto coding-model ecosystem has converged on.
- * Every provider the registry targets — GPT, Claude, Gemini, and the open Chinese
- * models (Qwen3-Coder, GLM, Kimi, MiniMax, DeepSeek) — speaks one of these. OpenAI's
- * own endpoint gets the first-party provider; every *other* OpenAI-compatible
- * endpoint (where the Chinese models live) gets the generic compatible provider,
- * which speaks Chat Completions rather than OpenAI's proprietary Responses API.
+ * The wire shapes the coding-model ecosystem has converged on. The generic compatible provider,
+ * where the Chinese models live, speaks Chat Completions rather than the Responses API.
  */
 export type Wire = "openai" | "openai-compatible" | "anthropic";
 
-// A registry entry: how to build the SDK model for a wire, plus that wire's
-// provider options (reasoning tuning). Every factory is baseURL-configurable, so a
-// single `OMNI_BASE_URL` reaches any compatible endpoint without an adapter we own.
+// A registry entry: how to build the SDK model for a wire, plus that wire's provider options. Every
+// factory is baseURL-configurable, so one `OMNI_BASE_URL` reaches any compatible endpoint.
 interface WireAdapter {
   // The AI SDK language model for `config`, fed straight to `streamObject`.
   readonly model: (config: ProviderConfig) => StreamObjectInput["model"];
-  // Per-wire request tuning (reasoning effort), forwarded to `streamObject`.
-  // Undefined for wires with no universal knob (the compatible wire spans many
-  // vendors) or whose default serving already fits.
+  // Per-wire request tuning (reasoning effort), forwarded to `streamObject`. Undefined for a wire
+  // with no universal knob — the compatible wire spans many vendors.
   readonly providerOptions?: StreamObjectInput["providerOptions"];
 }
 
-// The registry, keyed by wire shape. Adding a provider is adding an endpoint, not
-// code: the open Chinese models reach the `openai-compatible` entry by `OMNI_BASE_URL`
-// alone (ADR-0003: "the registry treats them identically to Claude/GPT/Gemini").
+// The registry, keyed by wire shape. Adding a provider is adding an endpoint, not code: the open
+// Chinese models reach `openai-compatible` by `OMNI_BASE_URL` alone (ADR-0003).
 const REGISTRY: Record<Wire, WireAdapter> = {
   openai: {
     model: ({ apiKey, baseURL, model }) => createOpenAI({ apiKey, baseURL })(model),
-    // Reasoning effort for the OpenAI wire: `medium` trades some latency
-    // for reasoning quality on gpt-5.6-terra — the serving-tier knob the config
-    // comment defers to the call site. OpenAI-specific (keyed `openai`), which is
-    // exactly why it lives only on the first-party wire.
+    // `medium` trades latency for reasoning quality on gpt-5.6-terra. Keyed `openai`, so it is
+    // OpenAI-specific and lives only on the first-party wire.
     providerOptions: { openai: { reasoningEffort: "medium" } },
   },
   "openai-compatible": {
-    // Chat Completions, the wire the open Chinese models (and most other
-    // OpenAI-compatible endpoints) actually implement. `name` only labels the
-    // provider in error/telemetry; `baseURL` + key + model are the swap trio. No
-    // reasoning option: there is no knob common across these vendors, and assuming
-    // an OpenAI-only one would be presumptuous — per-endpoint tuning lands if needed.
+    // Chat Completions, the wire the open Chinese models actually implement. `name` only labels
+    // the provider in telemetry, and no reasoning knob is common across these vendors.
     model: ({ apiKey, baseURL, model }) =>
       createOpenAICompatible({ name: "openai-compatible", apiKey, baseURL })(model),
   },
@@ -119,11 +93,8 @@ const REGISTRY: Record<Wire, WireAdapter> = {
 };
 
 /**
- * Pick the wire shape off the endpoint — the registry "keyed by baseURL".
- * Anthropic Messages hosts get the Anthropic wire; OpenAI's own host gets the
- * first-party OpenAI wire; everything else is treated as a generic OpenAI-compatible
- * endpoint (the path for the open Chinese models). A pure function so the routing is
- * unit-testable without a network call.
+ * Pick the wire shape off the endpoint — the registry "keyed by baseURL". Every host that is
+ * neither Anthropic's nor OpenAI's is treated as a generic OpenAI-compatible endpoint.
  */
 export function selectWire(baseURL: string): Wire {
   if (/(^|\.)anthropic\.com/i.test(baseURL)) return "anthropic";
@@ -131,20 +102,6 @@ export function selectWire(baseURL: string): Wire {
   return "openai-compatible";
 }
 
-/**
- * `streamObject` is **pull-based**: its `object` and `usage` promises only settle
- * once the partial stream is consumed (verified against a live provider — awaiting
- * `object` without reading the stream hangs indefinitely). The contract promises the
- * opposite: a caller may iterate `partialStream`, await `object` directly, or both
- * (./contract.ts). This bridges the two with a single background pump that drains the
- * SDK stream as fast as it arrives — which drives `object`/`usage` to resolve even
- * with no consumer — while replaying each snapshot to a caller that *does* iterate,
- * preserving the live timing build narration depends on. The pump never applies
- * backpressure, so a slow or absent consumer can't starve it; snapshots buffer (a
- * spec is ~100 small objects), and the buffer is drained or dropped with the result.
- * Exported for a network-free unit test (spine.test.ts), like `selectWire`. Single
- * consumer by construction — the contract's `partialStream` is read at most once.
- */
 function nextBeforeAbort<U>(
   next: Promise<IteratorResult<U>>,
   signal?: AbortSignal,
@@ -171,6 +128,10 @@ function nextBeforeAbort<U>(
   });
 }
 
+/**
+ * `streamObject` is pull-based: awaiting `object` without reading the partial stream hangs for
+ * ever. This pump drains it so `object`/`usage` resolve with no consumer. Single consumer.
+ */
 export function pumpStream<U>(
   source: AsyncIterable<U>,
   abortSignal?: AbortSignal,
@@ -228,15 +189,8 @@ export function pumpStream<U>(
 }
 
 /**
- * Somewhere for the fault the SDK swallows to go.
- *
- * `streamObject` reports a transport fault — a rejected key, a rate limit, a dropped
- * connection — to `onError` and nowhere else. Its `partialObjectStream` ends as though
- * the model produced nothing, and `object` and `usage` never settle at all, so a caller
- * awaiting one of them waits for ever. This is the small piece that turns that one
- * callback back into the three handles the contract promises.
- *
- * Exported for a network-free unit test, like `pumpStream` and `selectWire`.
+ * `streamObject` reports a transport fault — a rejected key, a rate limit, a dropped connection —
+ * to `onError` alone, leaving `object` and `usage` pending for ever (spine.test.ts measures it).
  */
 export function providerFault() {
   let report: (fault: unknown) => void = () => undefined;
@@ -257,16 +211,14 @@ export function providerFault() {
     },
 
     /**
-     * A handle the SDK may leave pending for ever, settled by the fault if one lands.
-     * Raced rather than replaced: a fault settles a handle the SDK left open, and never
-     * overrides one the SDK settled itself.
+     * Raced rather than replaced: a fault settles a handle the SDK left open, and never overrides
+     * one the SDK settled itself.
      */
     settle: <T>(handle: Promise<T>): Promise<T> => Promise.race([handle, raised]),
 
     /**
-     * The stream with the fault put back where the SDK dropped it. A caller that only
-     * iterates would otherwise read a clean, empty stream and conclude the model said
-     * nothing at all.
+     * The stream with the fault put back where the SDK dropped it. A caller that only iterates
+     * would otherwise read a clean, empty stream and conclude the model said nothing at all.
      */
     async *surface<U>(source: AsyncIterable<U>): AsyncGenerator<U> {
       const iterator = source[Symbol.asyncIterator]();
@@ -285,11 +237,8 @@ export function providerFault() {
 }
 
 /**
- * Build the one real provider behind the contract. Resolves the config trio eagerly
- * (key + model + endpoint), so a missing key fails *here*, loudly, with the
- * actionable message from `requireApiKey` — never as a confusing mid-stream error
- * (issue 02: "missing key surfaces clearly"). The returned `Provider` is reusable
- * across calls; the network round-trip happens lazily inside each `generate`.
+ * Build the one real provider behind the contract. The config trio resolves eagerly, so a missing
+ * key fails here with `requireApiKey`'s message rather than as a confusing mid-stream error.
  */
 export function createProvider(
   env: NodeJS.ProcessEnv = process.env,
@@ -303,28 +252,8 @@ export function createProvider(
 
   return {
     generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
-      // `streamObject` returns synchronously; the request streams lazily as the
-      // caller drains `partialObjectStream` or awaits `object`. It validates the
-      // final value against `schema` and *rejects* `object` if the model's output
-      // never conforms — so the contract's "non-conformance surfaces on .object"
-      // guarantee (issue 02) is the SDK's, realized, not re-implemented here.
-      //
-      // # A transport fault reaches none of the SDK's three handles
-      //
-      // Model non-conformance rejects `object`. A *transport* fault — a rejected key,
-      // a rate limit, a dropped connection — does not, and this was verified against
-      // a live 401: `partialObjectStream` **ends cleanly**, as though the model simply
-      // produced nothing, and `object` and `usage` are left permanently pending. The
-      // SDK's only report of it is the default `onError`, which logs to the console
-      // and returns. A caller awaiting `object` therefore waits for ever: the build's
-      // resolver never throws, its pipeline never reaches its failure presenter, and
-      // the window keeps narrating work that stopped minutes ago.
-      //
-      // Taking `onError` is what closes that. It replaces the SDK's console logging
-      // with the one thing the contract needs — a fault that settles the handles the
-      // contract says will settle — so a provider fault comes out of `generate` the
-      // same way a malformed object already does, as a rejection the caller can
-      // present. Nothing else in the codebase learns a new failure mode.
+      // `streamObject` validates the final value against `schema` and rejects `object` when the
+      // model's output never conforms, so the non-conformance guarantee is the SDK's, not ours.
       const fault = providerFault();
       const deadline = openStageDeadline(generationTimeoutMs, (error) => fault.onError({ error }));
 
@@ -343,13 +272,8 @@ export function createProvider(
         throw error;
       }
 
-      // The SDK's partial-object stream, final-object promise, and usage promise *are*
-      // the contract's three handles. `partialStream` goes through `pumpStream` so the
-      // request self-drives: `object`/`usage` resolve even when the caller only awaits
-      // them (the SDK won't otherwise — it is pull-based). The casts cross the one seam
-      // where the SDK's structurally identical `DeepPartial`/object types meet ours;
-      // nothing else in the codebase sees them. `usage` is narrowed to our three-count
-      // `TokenUsage`, dropping SDK-only figures (reasoning/cached tokens) M2 omits.
+      // The casts cross the one seam where the SDK's structurally identical `DeepPartial`/object
+      // types meet ours. `usage` narrows to `TokenUsage`, dropping SDK-only reasoning counts.
       const object = fault.settle(result.object as Promise<T>);
       const usage = fault.settle(
         result.usage.then(({ inputTokens, outputTokens, totalTokens }) => ({

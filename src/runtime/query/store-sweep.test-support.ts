@@ -1,21 +1,16 @@
 // The store sweep both query-side suites prove their no-state claim with.
 //
-// A read through the worker and a whole-catalog scope around it are the module's single
-// exception to *everything is cached*, and it is an exception in the direction of less
-// state (PLAN decision 2). The deterministic form of that claim is this: everything a run
-// could have added — the database's own objects, their row counts and their contents, the
-// database file's directory, and the platform's artifact roots — captured before and after,
-// and compared.
+// A read through the worker and a whole-catalog scope around it are the module's single exception
+// to *everything is cached*, in the direction of less state (PLAN decision 2). The deterministic
+// form of that claim: everything a run could have added — the database's objects, their row counts
+// and contents, the file's directory, the platform's artifact roots — captured before and after.
 //
-// The contents digest is not redundant beside the row count. `read_dependencies` is a
-// column on `capability_registry`, not a table of its own, so a persisted read dependency
-// would land as an edit inside an existing row and leave every count untouched.
+// The contents digest is not redundant beside the row count: `read_dependencies` is a column on
+// `capability_registry` rather than a table, so a persisted read dependency would land as an edit
+// inside an existing row and leave every count untouched.
 //
-// The roots are absolute so the sweep cannot silently degrade to nothing when the process
-// runs from another directory, and the walk is recursive so a file written one level in is
-// still seen. Table names come from `sqlite_master` on a database the caller created, never
-// from user input, so quoting them here rather than reaching into `runtime/data`'s
-// internals costs nothing. This module is not run as a test by bun.
+// The roots are absolute so the sweep cannot degrade to nothing from another directory, and the
+// walk is recursive so a file written one level in is still seen. Not run as a test by bun.
 
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
@@ -42,20 +37,14 @@ export interface PlatformStoreSweep {
 }
 
 /**
- * SQLite's own sidecars. They appear and disappear as a connection opens, checkpoints and
- * closes, and none of them is state a question created — but a `VACUUM INTO` output, a temp
- * spill or any other file written beside the desk is, which is the whole reason the walk
- * below exists.
+ * SQLite's own sidecars, which appear and disappear as a connection opens and closes. A `VACUUM
+ * INTO` output or a temp spill is not one of them, and is what the walk below exists to catch.
  */
 const SQLITE_SIDECAR = /-(?:wal|shm|journal)$/;
 
 /**
- * Everything beside the desk, which is not what this used to look at.
- *
- * Callers pass the *database file*, and `entries()` on a file returns nothing — so the walk
- * enumerated an empty list and any file written next to the scratch database passed the
- * sweep in silence. Resolving to the containing directory is what makes the claim testable;
- * proved by writing a file beside the desk and watching `addedPaths` report it.
+ * Everything beside the desk. Callers pass the *database file*, and `entries()` on a file returns
+ * nothing, so the walk once enumerated an empty list and every file beside it passed in silence.
  */
 function deskEntries(target: string): readonly string[] {
   const directory = existsSync(target) && statSync(target).isDirectory() ? target : dirname(target);

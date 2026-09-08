@@ -100,9 +100,8 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
 }
 
 /**
- * The handlers render records through the injected `present` adapter, so
- * the smoke and behavioral rungs exercise the real adapter path — create and read cannot
- * drift. `text: input.values.text,` is kept verbatim so the trim test can patch it.
+ * The handlers render through the injected `present` adapter, so smoke and behavioral exercise
+ * the real path. `text: input.values.text,` stays verbatim so the trim test can patch it.
  */
 export const CREATE_HANDLER = [
   "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
@@ -143,11 +142,8 @@ export function itemRendererFor(spec: CapabilitySpec): string {
 }
 
 /**
- * Generic five-Action Handler builders. From the 4.4 cutover every capability is
- * five-Action, so a gate test composes a complete Handler set: a per-test create/read
- * plus these deterministic update/delete/search Handlers derived from the spec. The
- * search Handler mirrors the frozen normalized-substring, AND-across-terms contract the
- * smoke rung's adversarial baseline asserts.
+ * Generic five-Action Handler builders: a per-test create/read plus these deterministic ones.
+ * The search Handler mirrors the normalized-substring, AND-across-terms contract smoke asserts.
  */
 export const DELETE_HANDLER = [
   "export default async function remove({ mutation }: CapabilityDeleteContext): Promise<string> {",
@@ -157,9 +153,8 @@ export const DELETE_HANDLER = [
 ].join("\n");
 
 /**
- * A generic create Handler over the spec's active fields — required active fields are
- * validated, every submitted active field is written. Mirrors `updateHandlerFor` for
- * specs the constant CREATE_HANDLER (notes-shaped) does not fit.
+ * A generic create Handler over the spec's active fields, mirroring `updateHandlerFor` for
+ * specs the notes-shaped `CREATE_HANDLER` constant does not fit.
  */
 export function createHandlerFor(spec: CapabilitySpec): string {
   const lines = [
@@ -605,9 +600,8 @@ export const MULTI_REQUIRED_VALIDATION_SUITE = fullBehavioralSuiteFor(articlesSp
 });
 
 /**
- * Group a whole-capability fixture suite into the frozen per-Action artifact, digesting
- * each Action's real closed inputs. This is the shape the pipeline freezes before Handler
- * generation and hands the Gate.
+ * Group a whole-capability fixture suite into the frozen per-Action artifact — the shape the
+ * pipeline freezes before Handler generation and hands the Gate.
  */
 export function frozenBehavioralTestsFor(
   spec: CapabilitySpec,
@@ -652,11 +646,8 @@ function declaredActions(spec: CapabilitySpec): readonly CapabilityTool[] {
 }
 
 /**
- * A provider that answers per-Action behavioral test generation from a whole-capability
- * fixture suite: it reads the Action under test off the prompt and hands back only that
- * Action's cases, exactly as the real per-Action contract expects. A fixture with no case
- * for the requested Action falls through unsliced, so a deliberately malformed suite still
- * reaches the platform validator instead of being silently emptied.
+ * A provider answering per-Action test generation from a whole-capability fixture suite. A
+ * fixture with no case for the Action falls through unsliced, reaching the real validator.
  */
 export function makeBehaviorProvider(suite: unknown = DEFAULT_BEHAVIORAL_SUITE): {
   provider: Provider;
@@ -684,9 +675,8 @@ export function makeBehaviorProvider(suite: unknown = DEFAULT_BEHAVIORAL_SUITE):
 }
 
 /**
- * Slice a whole-capability fixture suite down to the Action a per-Action test-generation
- * prompt is asking for. Shared by every fake provider in the repo so one fixture answers
- * all five calls the freeze stage now makes.
+ * Slice a whole-capability fixture suite down to the Action a prompt asks for. Shared by every
+ * fake provider, so one fixture answers all five calls the freeze stage makes.
  */
 export function behavioralResponseFor(prompt: string, suite: unknown): unknown {
   const action = prompt.match(new RegExp(`${ACTION_UNDER_TEST_PREFIX} (\\w+)`))?.[1];
@@ -698,10 +688,8 @@ export function behavioralResponseFor(prompt: string, suite: unknown): unknown {
 }
 
 /**
- * A provider that answers Handler *regeneration* — the call the Gate's repair rungs make.
- * Each Action maps to a queue of replacement bytes consumed in order; an Action with no
- * queued bytes left throws, so a test asserting "repair rewrote exactly this Handler, once"
- * fails loudly on an extra rewrite instead of silently accepting a looser bound.
+ * A provider answering Handler *regeneration*, one queue of replacement bytes per Action. An
+ * exhausted queue throws, so an extra rewrite fails loudly instead of loosening the bound.
  */
 export function makeHandlerRepairProvider(
   replacements: Readonly<Partial<Record<HandlerUnitName, readonly string[]>>>,
@@ -746,10 +734,8 @@ export function makeHandlerRepairProvider(
 }
 
 /**
- * A provider that hands back one queued response per call, in order. It throws once the
- * queue is exhausted rather than replaying the last response: a test that asserts "these
- * units were copied, never generated" is only proof if an unexpected extra generation
- * fails loudly instead of being silently answered with stale bytes.
+ * A provider that hands back one queued response per call, in order. An exhausted queue throws
+ * rather than replaying, so "copied, never generated" stays provable.
  */
 export function makeSequenceProvider(responses: readonly unknown[]): {
   provider: Provider;
@@ -781,9 +767,8 @@ export function makeSequenceProvider(responses: readonly unknown[]): {
 }
 
 /**
- * A Gate input carrying tests already frozen from `suite` — the state the pipeline hands
- * the Gate, since generation now happens before Handler work rather than inside a rung.
- * Pass the suite matching a non-default spec; `provider` remains for the repair rungs.
+ * A Gate input carrying tests already frozen from `suite`, the state the pipeline hands the
+ * Gate. Pass the suite matching a non-default spec; `provider` remains for the repair rungs.
  */
 export function gateInput(
   overrides: Partial<Parameters<typeof runCapabilityGate>[0]> = {},

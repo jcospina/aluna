@@ -2,11 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-// The desk ground, checked where it is declared. Three things have to hold for the
-// page the Desk ships (PLAN decisions 1 and 5, design D5): the ground fills the
-// viewport, the prompt bar floats over it clear of every edge and never full width,
-// and the strip it reserves is one number — declared once in the token layer, read
-// from there by everything that stands on it, and restated nowhere.
+// The desk ground, checked where it is declared (PLAN decisions 1 and 5, design D5): the ground
+// fills the viewport, the bar floats clear of every edge, and the strip it reserves is one number.
 
 const ROOT = resolve(import.meta.dir, "../../../..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -88,10 +85,8 @@ describe("the prompt bar floats", () => {
   });
 
   test("the bar's whole box is the rail, so it sits inside the strip it reserves", () => {
-    // Anything else in the form's flow adds its own height to a box anchored by its
-    // bottom edge, which grows the bar upward past the strip and over the content
-    // the strip is reserved for. The notice is therefore out of flow, and it is not
-    // a hit target: nothing there is clickable.
+    // Anything else in the form's flow adds its own height to a box anchored by its bottom edge,
+    // growing the bar past the strip, so the notice is out of flow and is not a hit target.
     const notice = body(prompt, ".prompt__notice");
     expect(notice).toMatch(/position:\s*absolute/);
     expect(notice).toMatch(/bottom:\s*100%/);
@@ -142,19 +137,16 @@ describe("the clearance is one number", () => {
       expect(read(path), `${path} restates the clearance`).not.toContain("4.875rem");
     }
 
-    // The logo grid's floor, the bar's own anchor and the window's: three surfaces,
-    // one length, no two files agreeing. The shell's content area used to reserve the
-    // strip as a block at the end of itself; the window took that duty with the
-    // content, and reads the same number through the geometry module.
+    // The logo grid's floor, the bar's own anchor and the window's: three surfaces, one length.
+    // The shell's content area used to reserve the strip as a block at the end of itself.
     expect(rules("design/styles/components/desk.css")).toContain("var(--prompt-clearance)");
     expect(rules("public/css/prompt.css")).toContain("var(--prompt-clearance)");
     expect(read("public/desk-window.js")).toContain("PROMPT_CLEARANCE");
     expect(read("public/css/shell.css")).not.toContain(".content::after");
   });
 
-  // The bar is anchored by the clearance less its own height, so a clearance smaller
-  // than the bar would compute a negative `bottom` and slide it off the screen. The
-  // three lengths live in two files; this is what keeps the subtraction positive.
+  // The bar is anchored by the clearance less its own height, so a clearance smaller than the bar
+  // computes a negative `bottom`. The three lengths live in two files.
   test("the strip is deep enough to hold the bar it reserves", () => {
     const rem = (name: string): number => {
       const match = new RegExp(`--${name}:\\s*([\\d.]+)rem`).exec(
@@ -173,9 +165,8 @@ describe("the clearance is one number", () => {
     expect(geometry).toMatch(
       /PROMPT_CLEARANCE\s*=\s*readLength\(\s*root,\s*"--prompt-clearance",\s*[A-Z_]+\.clearance,?\s*\)/,
     );
-    // One `getComputedStyle` per refresh rather than one per length. Every clamp on the
-    // surface calls `refreshGeometry`, so four separate reads meant sixteen forced style
-    // reads for a single resize tick — and as many again on every frame of a drag.
+    // One `getComputedStyle` per refresh rather than one per length: four separate reads meant
+    // sixteen forced style reads per resize tick, and as many again on every frame of a drag.
     expect(geometry.match(/getComputedStyle\(/g), "a length fetches its own style").toHaveLength(1);
     // The one place the pixel literal is allowed to appear: the fallback for a
     // stylesheet that has not applied. Anywhere else it is a second source.

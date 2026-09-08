@@ -1,16 +1,12 @@
-// Durable lifecycle storage for every admitted generation. Unlike the historical
-// terminal-only metrics table, this store represents running work, typed terminal
-// outcomes, recovery after process interruption, and semantic stage state.
+// Durable lifecycle storage for every admitted generation: running work, typed terminal outcomes,
+// recovery after process interruption, and semantic stage state.
 //
-// One row is written directly terminal rather than opening `running` first: the
-// lease-head stale refusal. It never enters `running`
-// because no Builder provider work ever starts, and for a new capability refused
-// before incarnation assignment it has no incarnation at all. That absence is real
-// domain knowledge, so the public row shape carries `incarnationId: null` — but the
-// physical column sits inside `PRIMARY KEY (build_id, incarnation_id)` on a STRICT
-// table, where SQLite enforces NOT NULL implicitly and no ALTER can relax it. This
-// module therefore owns the translation, exactly as migration 0006 made the registry's
-// incarnation column physically permissive and left its meaning to row validation:
+// One row is written directly terminal — the lease-head stale refusal, which starts no Builder
+// provider work and, for a new capability refused before incarnation assignment, has no
+// incarnation at all. That absence is real domain knowledge, so the public row shape carries
+// `incarnationId: null`, but the physical column sits inside `PRIMARY KEY (build_id,
+// incarnation_id)` on a STRICT table, where SQLite enforces NOT NULL implicitly and no ALTER can
+// relax it. This module owns the translation the way migration 0006 did for the registry:
 // `ABSENT_INCARNATION` is written to disk and never escapes this file.
 
 import type { Database } from "bun:sqlite";
@@ -125,9 +121,8 @@ export const generationBuildMeasurementSchema = z.strictObject({
 export type GenerationBuildMeasurement = z.infer<typeof generationBuildMeasurementSchema>;
 
 /**
- * The on-disk stand-in for "this row has no incarnation". Never returned to a caller
- * and never accepted from one — {@link toStoredIncarnation} and {@link fromStoredIncarnation}
- * are the only two places it appears.
+ * The on-disk stand-in for "this row has no incarnation". {@link toStoredIncarnation} and
+ * {@link fromStoredIncarnation} are the only two places it appears.
  */
 const ABSENT_INCARNATION = "";
 
@@ -142,9 +137,8 @@ function fromStoredIncarnation(stored: string): string | null {
 const generationLifecycleBaseSchema = z.strictObject({
   buildId: z.string().min(1),
   /**
-   * Null only for a new-capability stale refusal that never reached incarnation
-   * assignment. Every other row — including an evolution's stale
-   * refusal, which carries its expected incarnation — names one.
+   * Null only for a new-capability stale refusal that never reached incarnation assignment. Every
+   * other row names one, an evolution's stale refusal included.
    */
   incarnationId: z.string().uuid().nullable(),
   capabilityId: z.string().min(1).nullable(),
@@ -209,9 +203,8 @@ export interface FinalizeGenerationLifecycleInput {
 }
 
 /**
- * The lease-head stale refusal's row. It is written directly terminal — there is no
- * `running` row to update, because the refusal happens before the first Builder
- * provider call.
+ * The lease-head stale refusal's row, written directly terminal: the refusal happens before the
+ * first Builder provider call, so there is no `running` row to update.
  */
 export interface WriteStaleGenerationAdmissionInput {
   readonly buildId: string;
@@ -229,13 +222,8 @@ export type GenerationSuccessOutcome = Extract<
   "activated" | "no_change"
 >;
 /**
- * The failure outcomes a *running* row may be finalized into.
- *
- * `stale` is deliberately excluded. A refused admission never runs, so it has no running
- * row to close — it is written terminal on its first and only write by
- * {@link writeStaleGenerationAdmission}. Admitting `stale` here would let a build that
- * called a provider, generated units, or moved DDL file itself as one that never started,
- * which is the one thing decision 28's row is supposed to be able to prove.
+ * The failure outcomes a running row may be finalized into (decision 28). Admitting `stale` here
+ * would let a build that ran file itself as never started; {@link writeStaleGenerationAdmission}.
  */
 export type GenerationFailureOutcome = Exclude<
   GenerationTerminalOutcome,
@@ -301,10 +289,8 @@ export function startGenerationLifecycle(
 }
 
 /**
- * Record one refused admission while the build lease is still held. Unlike every other
- * row this store writes, it is terminal on its first and only write: the target,
- * expected-absence, or resolver catalog moved between resolution and the lease head, so
- * the request was refused outright rather than rebased onto the newer catalog.
+ * Record one refused admission while the build lease is still held, terminal on its first and only
+ * write: the catalog moved between resolution and the lease head, so the request was refused.
  */
 export function writeStaleGenerationAdmission(
   input: WriteStaleGenerationAdmissionInput,

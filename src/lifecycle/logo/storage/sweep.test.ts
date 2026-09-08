@@ -22,10 +22,8 @@ import { createApp } from "../../../server/app.ts";
 import { LogoGenerationError, type LogoGenerationProvider } from "../generation/provider.ts";
 import { capabilityLogoPath, installCapabilityLogo } from "./storage.ts";
 
-// The sweep, exercised through the two real routes and the desk that names them, because
-// the ordering they hold is the whole mechanism: a fresh render arms one attempt per
-// `absent` tile, and only `absent` arms. Every provider here is injected — a sweep that
-// reached the network would spend real credits per test run.
+// The sweep, through the two real routes and the desk that names them: a fresh render arms one
+// attempt per `absent` tile. Every provider is injected; reaching the network spends real credits.
 
 const ARTWORK = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
 
@@ -78,9 +76,8 @@ function storedLogo(): string {
 }
 
 /**
- * Wait for a condition the request currently in flight is about to satisfy. The deadline
- * is wall-clock rather than a tick count, so a loaded machine that schedules the timer
- * late is given the same ten seconds a quiet one is.
+ * Wait for a condition the in-flight request is about to satisfy. The deadline is wall-clock, not
+ * a tick count, so a loaded machine gets the same ten seconds a quiet one does.
  */
 async function until(satisfied: () => boolean): Promise<void> {
   const deadline = Date.now() + 10_000;
@@ -173,9 +170,8 @@ describe("what one desk load may spend", () => {
     const provider = countingFailure();
     const app = appWith(provider);
 
-    // Four desk loads, each with eight tiles racing the same capability. Within a load the
-    // atomic claim is what holds it to one call; across loads it is the third failure
-    // settling the row to `abandoned`. Nothing here counts anything.
+    // Four desk loads, eight tiles each racing one capability: within a load the atomic claim holds
+    // it to one call, across loads the third failure settles `abandoned`. Nothing counts anything.
     for (let load = 0; load < 4; load += 1) {
       await Promise.all(
         Array.from({ length: 8 }, async () => {
@@ -211,9 +207,8 @@ describe("what one desk load may spend", () => {
   });
 });
 
-// The recovery half, seen from the outside: a row a crash left in `generating` renders a
-// resting placeholder, and only `absent` arms — so unless the load reconciles it first,
-// that capability is never offered another attempt at all.
+// The recovery half from outside: a row a crash left in `generating` renders a resting placeholder,
+// and only `absent` arms, so unless the load reconciles it first no further attempt is offered.
 describe("what a desk load reconciles before it draws", () => {
   test("a claim a crash interrupted is offered another attempt by the very next load", async () => {
     install(conns, notesRow());
@@ -316,9 +311,8 @@ describe("what recovery refuses to hold up", () => {
     const desk = await app.request("/");
     const waited = Date.now() - started;
 
-    // A platform write queues behind a build reservation, and a build holds its lease for
-    // as long as a build takes. Recovery gives up on its bounded admission instead, so the
-    // desk is drawn from the row as it stands and the next load reconciles it.
+    // A build holds its lease for as long as a build takes, so recovery gives up on its bounded
+    // admission: the desk is drawn from the row as it stands and the next load reconciles it.
     expect(desk.status).toBe(200);
     expect(waited).toBeLessThan(5_000);
     expect(logoState()).toEqual({ status: "generating", attempts: 1 });
@@ -410,9 +404,8 @@ describe("more than one faceless capability", () => {
 describe("a tile with nothing left to ask for", () => {
   test("an absent row at the cap rests rather than arming a POST it cannot win", async () => {
     install(conns, notesRow());
-    // `absent` with every attempt spent: claimable by shape, refused by count. Arming on
-    // the status alone would animate this tile on every load for a picture that is not
-    // coming, and send a paid-route POST each time to be told so.
+    // `absent` with every attempt spent: claimable by shape, refused by count. Arming on the status
+    // alone would animate this tile every load for a picture that is not coming.
     for (let attempt = 0; attempt < 3; attempt += 1) {
       claimLogoGeneration("notes", NOTES_INCARNATION_ID, conns.readwrite);
       releaseLogoClaim("notes", NOTES_INCARNATION_ID, conns.readwrite);

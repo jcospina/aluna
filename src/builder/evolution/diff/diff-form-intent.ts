@@ -1,16 +1,12 @@
-// The form's two subset collections as change facts: which string fields are drawn
-// multi-line, and what each field says about itself underneath.
+// The form's two subset collections as change facts: which string fields are drawn multi-line,
+// and what each field says about itself underneath.
 //
-// They live apart from the rest of the matrix for the same reason the choice facts do —
-// they are per-field movements inside one `ui_intent` region, and reading them beside the
-// whole-spec comparisons would bury both. `diff-engine.ts` calls this and maps each fact to
-// its column, exactly as it does for `diff-choice.ts`.
+// They live apart from the rest of the matrix for the reason the choice facts do — per-field
+// movements inside one `ui_intent` region. `diff-engine.ts` maps each fact to its column.
 //
-// Both are View facts and neither is stored, so neither changes validation shape and
-// neither reaches a generated unit: a Handler is never told which control drew a value,
-// and the item renderer never draws a form. Every comparison is over fields active in
-// *both* specs, because a field that gained or lost that status is already a
-// `new_active_field` or a `field_lifecycle` fact and its entry follows the lifecycle.
+// Both are View facts and neither is stored, so neither changes validation shape and neither
+// reaches a generated unit. Every comparison is over fields active in *both* specs: one that
+// gained or lost that status is already a `new_active_field` or `field_lifecycle` fact.
 
 import type { CapabilitySpec } from "../../../registry/index.ts";
 import type { ChangeFact } from "./diff-engine.ts";

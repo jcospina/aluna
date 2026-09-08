@@ -1,24 +1,12 @@
-// The generation-metrics access module (ARCH §6.3
-// "Generation Metrics", §6.2, PLAN flow step 8).
+// The generation-metrics access module (ARCH §6.3, §6.2; PLAN flow step 8).
 //
-// One row per generation, recording what the *system* did to build itself —
-// distinct from the event log (M7's record of what the *user* did). This is the
-// store the PoC exists to fill: latency and capability conclusions
-// come from querying it, not guessing. Every build, every failed build, and every
-// deflection writes exactly one row here.
+// One row per generation, recording what the system did to build itself — distinct from the event
+// log, which is M7's record of what the user did. Every build, every failed build and every
+// deflection writes exactly one row, so latency and capability conclusions come from querying it.
 //
-// The writer is callable with **partial knowledge** (PLAN flow step 8, decision
-// 6): a deflection writes intent + model/tokens with no build timings; a failed
-// build writes everything up to the failing rung. The optional groups
-// (`timings`, `gateRungs`, `unitAttempts`, `failure`) map to nullable columns, so
-// "didn't get that far" is stored as honest absence (NULL), never a fabricated
-// zero.
-//
-// Access follows the platform's data access model: the insert rides
-// `db`, the single constrained write path; reads default to `dbReadonly`, the read
-// path on which a write is physically impossible — M8's future query surface. Both
-// sides of the round-trip validate against the Zod row shape (the registry's
-// discipline): a malformed metrics row can neither enter nor come back out unnoticed.
+// The writer is callable with partial knowledge (PLAN decision 6): the optional groups map to
+// nullable columns, so "did not get that far" is stored as honest absence rather than a fabricated
+// zero. The insert rides `db` and reads default to `dbReadonly`; both sides validate the row shape.
 
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
@@ -37,25 +25,21 @@ import {
 } from "./shared-schema.ts";
 
 /**
- * The metrics table, created by platform migration 0004 (src/platform/persistence/migrations.ts). A
- * fixed platform constant (never user input), so interpolating it into the SQL
- * below is safe — same convention as the registry and the migrations ledger.
+ * The metrics table, created by platform migration 0004. A fixed platform constant, never user
+ * input, so interpolating it into the SQL below is safe.
  */
 export const GENERATION_METRICS_TABLE = "generation_metrics";
 
 /**
- * The terminal outcome of a generation. `success` committed a capability;
- * `failure` attempted a build and stopped at a stage/rung (failure is data, ARCH
- * §6.2); `deflected` classified the prompt as something M2 does not act on (PLAN
- * decision 6) and built nothing.
+ * `success` committed a capability; `failure` stopped at a stage or rung (failure is data, ARCH
+ * §6.2); `deflected` classified the prompt as something M2 does not act on (PLAN decision 6).
  */
 export const GENERATION_OUTCOMES = ["success", "failure", "deflected"] as const;
 export const generationOutcomeSchema = z.enum(GENERATION_OUTCOMES);
 export type GenerationOutcome = z.infer<typeof generationOutcomeSchema>;
 
-// The intent classification behind this generation. Present on
-// every row — a deflection's whole point is to log its classification. Carries the
-// overlap target so extend/ui deflections record which capability they touched.
+// The intent classification behind this generation, present on every row — a deflection's whole
+// point is to log its classification, and the overlap target says which capability it touched.
 const generationIntentSchema = z.strictObject({
   type: intentTypeSchema,
   confidence: z.number().min(0).max(1),
@@ -63,14 +47,8 @@ const generationIntentSchema = z.strictObject({
 });
 export type GenerationIntent = z.infer<typeof generationIntentSchema>;
 
-// The PLAN step-8 timing breakdown. Every leg is optional: a deflection omits the
-// group entirely, a failed build fills only the legs it reached. `codeGenMs` is handler
-// generation and `presentationGenMs` is the current item-renderer generation leg. M2's
-// historical view-generation measurement remains in the legacy `html_gen_ms` database
-// column, while M3+ writes the semantically continuous measurement to
-// `presentation_gen_ms`. `testGenMs` and `testRunMs` are the behavioral tier's
-// generation and execution — the two columns that let M8 weigh the behavioral tier
-// against the no-test baseline.
+// The PLAN step-8 timing breakdown. Every leg is optional: a deflection omits the group, a failed
+// build fills only what it reached. `testGenMs` and `testRunMs` are what M8 weighs the tier by.
 const generationTimingsSchema = z.strictObject({
   specGenMs: z.number().nonnegative().optional(),
   migrationMs: z.number().nonnegative().optional(),
@@ -83,9 +61,8 @@ const generationTimingsSchema = z.strictObject({
 export type GenerationTimings = z.infer<typeof generationTimingsSchema>;
 
 /**
- * The metrics row as a caller assembles it — the writer's input. Everything past
- * the always-known identity/intent/model block is optional so the writer is
- * callable with partial knowledge (deflection, failed build).
+ * The writer's input. Everything past the always-known identity/intent/model block is optional, so
+ * the writer is callable with partial knowledge (deflection, failed build).
  */
 export const generationMetricsSchema = z
   .strictObject({
@@ -100,9 +77,8 @@ export const generationMetricsSchema = z
     // The capability this generation built or targeted, when known. Null on a
     // deflection or a build that failed before a spec named one.
     capabilityId: z.string().min(1).nullish(),
-    // Capability generations are identified by build id + incarnation. This stays
-    // absent only when no capability lifetime exists (for example a deflection or
-    // failure before a generated spec can be accepted).
+    // Absent only when no capability lifetime exists — a deflection, or a failure before a
+    // generated spec can be accepted.
     incarnationId: z.string().uuid().nullish(),
     usage: tokenUsageSchema.optional(),
     timings: generationTimingsSchema.optional(),
@@ -122,18 +98,16 @@ export const generationMetricsSchema = z
 export type GenerationMetrics = z.infer<typeof generationMetricsSchema>;
 
 /**
- * What a stored row reads back as: the written shape plus the platform-stamped
- * `createdAt` (the uniform timestamp, ARCH §6.3). Validated on the way out so a
- * hand-edited or drifted row fails loudly at the read site, not three queries later.
+ * The written shape plus the platform-stamped `createdAt` (ARCH §6.3), validated on the way out so
+ * a hand-edited or drifted row fails loudly at the read site rather than three queries later.
  */
 export const storedGenerationMetricsSchema = generationMetricsSchema.extend({
   createdAt: z.string().min(1),
 });
 export type StoredGenerationMetrics = z.infer<typeof storedGenerationMetricsSchema>;
 
-// The flat row as SQLite stores it: scalars per column, the structured groups
-// (gate rungs, unit attempts) serialized to JSON text. Mirrors the StoredRow shape
-// the registry store uses.
+// The flat row as SQLite stores it: scalars per column, the structured groups serialized to JSON
+// text. Mirrors the StoredRow shape the registry store uses.
 interface StoredRow {
   id: string;
   created_at: string;
@@ -188,9 +162,8 @@ const ROW_COLUMNS = [
   "failed_message",
 ].join(", ");
 
-// Columns the writer sets explicitly. `created_at` is omitted on insert so the
-// column default (datetime('now')) stamps it — the same pattern as the migrations
-// ledger's `applied_at`.
+// Columns the writer sets explicitly. `created_at` is omitted on insert so the column default
+// (datetime('now')) stamps it, the way the migrations ledger's `applied_at` is stamped.
 const INSERT_COLUMNS = ROW_COLUMNS.replace("created_at, ", "");
 const INSERT_PLACEHOLDERS = INSERT_COLUMNS.split(", ")
   .map(() => "?")
@@ -201,11 +174,8 @@ function nullish<T>(value: T | undefined): T | null {
 }
 
 /**
- * Write one generation-metrics row through the read-write connection. The input is
- * validated first — an invalid record throws (ZodError) and writes nothing, the
- * loud failure the build's metrics step leans on. A duplicate id throws the
- * primary-key violation: one row per generation is the invariant, so reaching that
- * is a bug.
+ * Write one row through the read-write connection. An invalid record throws (ZodError) and writes
+ * nothing; a duplicate id throws, because one row per generation is the invariant.
  */
 export function writeGenerationMetrics(
   metrics: GenerationMetrics,
@@ -274,10 +244,8 @@ export function listGenerationMetrics(database: Database = dbReadonly): StoredGe
   return rows.map(parseStoredRow);
 }
 
-// Rehydrate a flat stored row into the structured record and re-validate it.
-// Reassembles the optional groups only when at least one of their columns is
-// populated, so a deflection (no timings) reads back without an empty timings
-// husk — the write/read round-trip is shape-stable.
+// Rehydrate a flat stored row and re-validate it. An optional group is reassembled only when a
+// column of it is populated, so a deflection reads back without an empty timings husk.
 function parseStoredRow(stored: StoredRow): StoredGenerationMetrics {
   const usage = buildUsage(stored);
   const timings = buildTimings(stored);
@@ -343,10 +311,8 @@ function buildFailure(stored: StoredRow): GenerationFailure | undefined {
 }
 
 /**
- * Sum token usage across the generation's provider calls (spec-gen, each unit,
- * behavioral test-gen) into the single per-row total the metrics record stores.
- * A figure stays absent unless at least one call reported it — the same honest
- * "undefined, not zero" rule the contract sets (provider/contract.ts).
+ * Sum token usage across the generation's provider calls into the single per-row total. A figure
+ * stays absent unless one call reported it, because absence is honest (platform/provider/contract.ts).
  */
 export function sumTokenUsage(usages: readonly TokenUsage[]): TokenUsage {
   return {

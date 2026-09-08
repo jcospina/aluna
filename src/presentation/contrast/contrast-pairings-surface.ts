@@ -223,8 +223,8 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     note:
       "The one pairing whose background is not a fill. What is behind the glyph is a " +
       "photograph, which cannot be measured; what is *adjacent* to it is the ink " +
-      "`--shadow-desk-label` lays around it, and that is the whole reason the " +
-      "treatment exists. Measured at the alpha the token states. Be plain about the " +
+      "`--shadow-desk-label` lays around it, which is what the treatment exists for. " +
+      "Measured at the alpha the token states. Be plain about the " +
       "limit: the three layers are drop shadows offset a pixel or two down, so the " +
       "halo is strongest under a glyph and thinnest above it, where the widest layer's " +
       "7px blur is all there is. This row records a number rather than proving one.",

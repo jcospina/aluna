@@ -113,15 +113,13 @@ describe("platform-owned capability deletion routes", () => {
       (await app.request("/capability-deletion-restoration?restore_surface=neutral")).status,
     ).toBe(200);
 
-    // Deletion's doorway is the logo's own context menu and nowhere else (5.9/01). It
-    // ships hidden with the logo, so nothing on the standing desk is a destructive
-    // control, and there is exactly one of them per capability.
+    // Deletion's doorway is the logo's own context menu and nowhere else (5.9/01). It ships hidden
+    // with the logo, so nothing on the standing desk is a destructive control.
     const shell = await (await app.request("/")).text();
     expect(shell).toContain('id="capability-logo-notes"');
     expect(shell.split('hx-get="/capability-deletion/notes"').length - 1).toBe(1);
-    // Hidden until someone asks for it, so a standing desk offers no destructive control
-    // at all — and marked as a doorway, because the confirmation it opens fills the window
-    // and the window does not exist until the desk is asked for one.
+    // Hidden until someone asks, so a standing desk offers no destructive control — and marked as
+    // a doorway, because the confirmation fills a window that does not exist until asked for.
     expect(/data-logo-menu\s+data-ink\s+hidden/.test(shell)).toBe(true);
     expect(shell).toContain("data-window-doorway");
 
@@ -138,9 +136,8 @@ describe("platform-owned capability deletion routes", () => {
     );
     expect(confirmation.status).toBe(200);
     const confirmationHtml = await confirmation.text();
-    // The refusal fills the window that asked the question and names what depends on the
-    // capability. It holds there: nothing is restored and the address has not moved,
-    // because the restoration runs on the dismissal and answers for the address itself.
+    // The refusal fills the window that asked and names what depends on the capability. It holds
+    // there: the restoration runs on the dismissal and answers for the address itself.
     expect(confirmationHtml).toContain("I can’t delete Notes while Reading list uses it");
     expect(confirmationHtml).toContain("data-capability-deletion-ending");
     expect(confirmationHtml).not.toContain("data-active-capability-id");
@@ -182,9 +179,8 @@ describe("platform-owned capability deletion routes", () => {
     );
     expect(fromOther).toContain("restore_capability_id=boom");
     expect(fromOther).toContain(`restore_incarnation_id=${other.incarnation_id}`);
-    // No `hx-push-url`: the restoration route answers with `HX-Replace-Url` naming where
-    // it actually landed, a response header wins over the attribute, and Keep it is not a
-    // navigation — it puts back what the confirmation displaced (design D14).
+    // No `hx-push-url`: the restoration route answers with `HX-Replace-Url` naming where it landed,
+    // and Keep it is not a navigation — it puts back what the confirmation displaced (design D14).
     expect(fromOther).not.toContain('hx-push-url="');
     expect(fromOther).toContain('name="restore_surface" value="capability"');
 
@@ -363,9 +359,8 @@ describe("platform-owned capability deletion routes", () => {
 
     const shell = await (await app.request("/")).text();
     expect(shell).not.toContain("capability-logo-notes");
-    // The address survives the tile, and it answers with the desk plus its sentence
-    // rather than a page — still a 404, because the capability really is gone
-    // (`app.deleted-capability-address.test.ts` holds the whole of that behavior).
+    // The address survives the tile, and answers with the desk plus its sentence rather than a
+    // page — still a 404 (`app.deleted-capability-address.test.ts` holds the whole behavior).
     const stale = await app.request("/capability/notes");
     expect(stale.status).toBe(404);
     expect(await stale.text()).toContain(NOT_FOUND_NOTICE);
@@ -479,9 +474,8 @@ describe("platform-owned capability deletion routes", () => {
     // work did not finish, which is the one refusal here that invites trying again.
     expect(html).toContain("Something in Notes was still finishing, so I didn’t delete it.");
     expect(html).not.toContain("I couldn’t delete Notes");
-    // It reports in the window and waits there. What it gives back is carried as evidence
-    // rather than as a rendered surface, so the dismissal resolves it against the registry
-    // as it is *then* — the same route **Keep it** presses.
+    // It reports in the window and waits there. What it gives back is evidence rather than a
+    // rendered surface, so the dismissal resolves it against the registry as it is then.
     expect(html).toContain("data-capability-deletion-ending");
     expect(html).not.toContain('data-active-capability-id="notes"');
     expect(html).toContain(
@@ -520,9 +514,8 @@ describe("platform-owned capability deletion routes", () => {
     expect(html).toContain("data-capability-deletion-ending");
     expect(response.headers.get("HX-Replace-Url")).toBe(null);
     expect(getCapabilityForTest(conns, target.id)).toBe(true);
-    // Reads are open again: the failure was before the point of no return, so the
-    // committed ground and View are still authoritative. Asserted on the gate itself —
-    // `every` over an empty snapshot is vacuously true and would prove nothing.
+    // Reads are open again: the failure was before the point of no return. Asserted on the gate
+    // itself — `every` over an empty snapshot is vacuously true and would prove nothing.
     expect(readGates.snapshot()).toHaveLength(1);
     expect(readGates.snapshot()[0]).toMatchObject({ state: "active" });
   });

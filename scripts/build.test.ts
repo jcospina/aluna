@@ -18,10 +18,8 @@ import { WORKER_THREAD_SOURCE } from "./build.ts";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
- * The build runs as its own process, which is what `bun run build` does and what a release
- * does. Calling `buildPlatform` in-process instead resolves `.ts` specifiers differently
- * under `bun test` and fails on modules the real build bundles without complaint — a
- * difference that would make this suite test the harness rather than the build.
+ * Calling `buildPlatform` in-process resolves `.ts` specifiers differently under `bun test` and
+ * fails on modules the real build bundles, so this spawns the build the way a release does.
  */
 function build(outdir: string): readonly string[] {
   const result = Bun.spawnSync(["bun", join(REPO_ROOT, "scripts", "build.ts"), outdir], {
@@ -62,10 +60,8 @@ describe("the production bundle", () => {
   test("the copied thread has no relative dependency the copy could not resolve", () => {
     const source = readFileSync(WORKER_THREAD_SOURCE, "utf8");
 
-    // A copy is only self-contained while everything it reaches for is a Bun builtin. The
-    // day the thread imports a sibling module, the copy silently stops being enough — and
-    // the shapes that would do it are not all `import … from`, which is what the first
-    // version of this assertion looked for and only that.
+    // A sibling import would silently stop the copy being enough, and not every shape that
+    // does it is `import … from`, which is all the first version of this assertion matched.
     const specifiers = [
       ...source.matchAll(/\bfrom\s+["']([^"']+)["']/g),
       ...source.matchAll(/^\s*import\s+["']([^"']+)["']/gm),

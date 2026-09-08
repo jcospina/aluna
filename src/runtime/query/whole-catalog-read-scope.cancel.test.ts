@@ -35,11 +35,10 @@ const { catalogued } = platforms;
 
 afterEach(platforms.disposeAll);
 
-// The one number here is the point of these tests rather than an accident of them: it sits
-// an order of magnitude under how long the statement it races has left to run, so a run
-// that passed with the cancel wiring removed would be a run asserting nothing. Which was
-// checked: removing it fails three of these, and the deletion test named above.
-/** Far below the runaway statement, far above the chain of microtasks a release takes. */
+/**
+ * Far below the runaway statement, far above the chain of microtasks a release takes: removing the
+ * cancel wiring fails three of these tests, so the margin is the point rather than an accident.
+ */
 const DRAIN_MS = 200;
 /** How long a test waits before calling a promise stuck rather than slow. */
 const SETTLE_MS = 500;
@@ -57,9 +56,8 @@ describe("how a question is cancelled", () => {
         const reading = scope.read("SELECT 1 AS ok");
         scope.cancel();
 
-        // Raced rather than awaited. A held read is exactly what a cancel that stopped
-        // killing would leave outstanding forever, and a regression that hangs the suite is
-        // a regression nobody reads the failure of.
+        // Raced rather than awaited: a cancel that stopped killing would leave the read
+        // outstanding for ever, and a regression that hangs the suite is one nobody reads.
         outcome = await Promise.race([
           reading.then(
             () => "answered",
@@ -94,9 +92,8 @@ describe("how a question is cancelled", () => {
         expect(scope.signal.aborted).toBe(false);
         scope.cancel(reason);
 
-        // 6.3's loop spends most of its time between statements, and 6.5/04's two triggers
-        // land there. A body that only ever learns of a cancel by trying another read would
-        // finish a turn it has no ownership for.
+        // 6.3's loop spends most of its time between statements, where 6.5/04's triggers land: a
+        // body learning of a cancel only by trying another read finishes a turn it cannot own.
         expect(scope.signal.aborted).toBe(true);
         expect(scope.signal.reason).toBe(reason);
       },
@@ -195,9 +192,8 @@ describe("what a cancel does to a statement already running", () => {
       },
     );
 
-    // The statement has well over a second left to run and no way to hear about any of
-    // this. What the kill reclaims is the waiting, not the thread's remaining cycles — and
-    // it reclaims it inside the deadline the next test holds it to.
+    // The statement has well over a second left to run and no way to hear about any of this: what
+    // the kill reclaims is the waiting rather than the thread's remaining cycles.
     expect(waited).toBeLessThan(DRAIN_MS);
     expect(readerCounts(readGates)).toEqual([0, 0]);
   });
@@ -254,11 +250,8 @@ describe("what the cancel path may not become", () => {
     database.readonly.query(countingQuerySql(sample)).all();
     const projected = (Date.now() - startedAt) * 10;
 
-    // Every deadline in this file discriminates only while the statement it races still has
-    // work left. A slower machine is safe — the statement slows with everything else — but a
-    // much faster one would leave these tests passing whether the cancel wiring was there or
-    // not, which is the failure mode a timing-shaped test dies of quietly. Counting is linear
-    // in the row count, so a tenth of the work prices the whole of it without paying for it.
+    // Every deadline here discriminates only while the statement it races still has work left, so
+    // a much faster machine would pass with the wiring gone: a tenth of the work prices the whole.
     expect({ projected: projected > 4 * DRAIN_MS, liveness: projected > 2_000 }).toEqual({
       projected: true,
       liveness: true,
@@ -266,10 +259,8 @@ describe("what the cancel path may not become", () => {
   });
 
   test("nothing on the question's path arms a wall-clock deadline", () => {
-    // Decision 9 belongs to 6.3 and this is where it would be smuggled back in: a cancel
-    // entry point is one timer away from being the timeout decision 9 refused. The thread's
-    // `PRAGMA busy_timeout` is not one — it bounds waiting for another process's lock, not
-    // how long a statement of ours may run.
+    // A cancel entry point is one timer away from the deadline decision 9 refused. The thread's
+    // `PRAGMA busy_timeout` is not one: it bounds waiting for another process's lock.
     for (const module of [
       "whole-catalog-read-scope.ts",
       "query-worker.ts",

@@ -19,12 +19,8 @@ import {
 } from "./list-container.ts";
 import { renderRecordViewTemplate } from "./record-view.ts";
 
-// The list scaffolding container + item wrapper are platform chrome — their
-// escaping/payload/accessibility invariants are deterministic platform tests, not gate
-// rungs the model can fail. These pin: the closed `feed | grid` layout map (unknown
-// layout is unrepresentable), the container's New X / empty state / data-free region, and
-// the wrapper's record `<button>` + escaped `data-item` payload (round-trip, hostile
-// values, byte guard).
+// The list container and item wrapper are platform chrome, so their escaping, payload and
+// accessibility invariants are deterministic tests rather than gate rungs the model can fail.
 
 const SAMPLE: RenderableCapability = {
   id: "tasks",
@@ -114,9 +110,8 @@ describe("collection layout — CSS parity", () => {
   });
 
   test("a search in any state suppresses the canonical empty state", () => {
-    // "Nothing here yet" is what a capability with no records says. Every state but
-    // `idle` is a search in progress or settled, and a filtered collection is not a bare
-    // one — so none of them may leave that sentence on screen.
+    // "Nothing here yet" is what a capability with no records says. Every state but `idle` is a
+    // search, and a filtered collection is not a bare one, so none may leave that sentence up.
     for (const state of SEARCH_STATES.filter((s) => s !== "idle")) {
       expect(flatCss, `[${state}] leaves the empty state showing`).toContain(
         `.capability-collection[data-search-state="${state}"] .capability-empty`,
@@ -134,17 +129,8 @@ describe("collection layout — CSS parity", () => {
   });
 
   test("every search-state rule actually reaches the chrome it is written about", () => {
-    // The rules above once used `>`, and matched nothing at all: the flag is on the
-    // collection but the chrome is nested one level down, inside the half of the
-    // collection the create form swaps out. Every state rule was inert, which is how a
-    // search with no matches came to show its own message *and* "Nothing here yet" — two
-    // different facts about two different things, on screen together.
-    //
-    // Asserting the selector string alone is what let that ship. So the nesting is read
-    // out of the parsed render — document order would still pass if the chrome were
-    // hoisted out of the list — and the combinator that cannot cross it is refused over a
-    // whitespace-flattened, comment-free sheet, because the rule that shipped broken was
-    // written across three lines and no single-space scan would have seen it.
+    // The rules above once used `>` and matched nothing — the flag is on the collection, the
+    // chrome one level down — so the nesting is read from the parsed render, over a flat sheet.
     const root = parseHtml(renderCollection({ capability: SAMPLE }), new Doc());
     const collection = root.querySelector(".capability-collection");
     expect(collection).not.toBeNull();
@@ -205,10 +191,8 @@ describe("container scaffolding", () => {
     // A view swap that leaves focus on a control no longer on screen strands a
     // keyboard user at the top of the desk.
     expect(feed).toContain("createOpen = true");
-    // Every field is preceded by its own hidden `__aluna_present` marker, so the
-    // first `input` in the form is one that cannot take focus at all. The last two are
-    // the drawn choice controls, which are not form elements: a capability whose fields
-    // are all picker or segmented matched nothing here and opened onto no focus at all.
+    // Every field is preceded by its own hidden `__aluna_present` marker, so the first `input`
+    // cannot take focus. The last two are drawn choice controls, which are not form elements.
     expect(feed).toContain(
       "$refs.createPanel.querySelector('input:not([type=hidden]), textarea, select," +
         " .listbox__button, .segmented button:not([disabled])')?.focus()",
@@ -321,9 +305,8 @@ describe("what the collection states about how many it holds", () => {
   const feed = renderCollection({ capability: SAMPLE, layout: "feed" });
 
   test("states how many records it holds, under the search rail and above the first item", () => {
-    // PLAN decision 32. Platform chrome between the search rail and the records region —
-    // and empty in the container, because the number arrives with the records themselves
-    // rather than being baked into a View that outlives them.
+    // PLAN decision 32. Platform chrome between the search rail and the records region, and empty
+    // in the container: the number arrives with the records rather than baked into the View.
     const headerEndIndex = feed.indexOf("</header>");
     const countIndex = feed.indexOf(`${COLLECTION_COUNT_LABEL_ATTR}></p>`);
     const recordsIndex = feed.indexOf(
@@ -438,13 +421,11 @@ describe("item wrapper — the record button", () => {
   });
 });
 
-// Nothing in the collection destroys a record (PLAN decision 22). A delete starts by
-// opening the record, so the only destructive control anywhere is in the record's own
-// surface — never on a row of the list, and never in the collection's chrome.
+// Nothing in the collection destroys a record (PLAN decision 22). A delete starts by opening the
+// record, so the only destructive control is in the record's own surface.
 describe("the collection — no per-row delete", () => {
-  // Built the way the adapter builds it (src/presentation/records/adapter.ts): each item is
-  // emitted beside the inert `<template>` carrying that record's view, so the fixture is
-  // the markup the criterion is actually about.
+  // Built the way the adapter builds it: each item is emitted beside the inert `<template>`
+  // carrying that record's view, so the fixture is the markup the criterion is about.
   const RECORD = { id: "task-7", created_at: "2026-08-27T00:00:00.000Z", title: "Buy oat milk" };
   const templateId = "record-tasks-task-7";
   const items =
@@ -510,9 +491,8 @@ describe("item wrapper — payload escaping + safety invariants", () => {
   });
 });
 
-// The click-to-open wiring: the wrapper carries the hook the record swap reads to open
-// one record. Optional so the frame-only shape (the stand-in demo) still renders without
-// it, and so a capability that cannot be updated carries no open hook at all.
+// The click-to-open wiring: the wrapper carries the hook the record swap reads. Optional, so a
+// capability that cannot be updated carries no open hook at all.
 describe("item wrapper — the record-view open hook", () => {
   const wrapper = renderItemWrapper(
     "<span>x</span>",
@@ -541,10 +521,8 @@ describe("item wrapper — the record-view open hook", () => {
   });
 });
 
-// No DOM in Bun, so the swap mechanics live in a browser file this test can only read. It
-// pins that the client agrees with the server on the trigger class and the open hook
-// (attr ↔ dataset), and that it does no key handling of its own — a real button already
-// activates on Enter and Space.
+// No DOM in Bun, so the swap mechanics live in a browser file this test can only read. It pins
+// that the client agrees on the trigger class and the open hook, and does no key handling.
 describe("record swap — controller contract parity (server ⇄ client)", () => {
   const controller = readFileSync(join(import.meta.dir, "../../../public/record-view.js"), "utf8");
 

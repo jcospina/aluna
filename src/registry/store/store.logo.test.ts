@@ -169,10 +169,8 @@ describe("the registry's logo inputs and state", () => {
   });
 
   test("a pre-logo row fails loudly on read rather than reading back with a default", () => {
-    // What the migration deliberately leaves behind for any row that predates the cut:
-    // no subject, no ground, no noun, no seed. `bun run reset` removes those rows; a
-    // survivor must not be quietly repaired into a capability describing artwork
-    // nobody drew.
+    // What the migration leaves behind for a row predating the cut: no subject, ground, noun or
+    // seed. A survivor must not be repaired into a capability describing artwork nobody drew.
     insertCapability(write(), conns.readwrite);
     conns.readwrite.run(
       `UPDATE ${REGISTRY_TABLE}
@@ -207,9 +205,8 @@ describe("the hard cap on claimed attempts", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  // Decision 38's cap, enforced where the increment is. A caller that read the count and
-  // then decided would be a read followed by a write: two desk loads arriving together
-  // would both read two and both write three, and a fourth ~$0.08 call would go out.
+  // Decision 38's cap, enforced where the increment is: two desk loads that read the count first
+  // would both read two, both write three, and a fourth ~$0.08 call would go out.
   test("the third claim is the last one, whatever a row is released back to", () => {
     insertCapability(write(), conns.readwrite);
 
@@ -229,9 +226,8 @@ describe("the hard cap on claimed attempts", () => {
     );
   });
 
-  // The count is the only thing standing between a capability that cannot be drawn and an
-  // unbounded spend, so it has to be durable rather than remembered. A restart is the case
-  // an in-memory count would silently pass and then start paying for all over again.
+  // The count is the only thing between a capability that cannot be drawn and an unbounded spend,
+  // so it is durable: an in-memory count would pass a restart and start paying all over again.
   test("the spend survives the process that made it", () => {
     insertCapability(write(), conns.readwrite);
     for (let attempt = 1; attempt <= LOGO_MAX_CLAIMED_ATTEMPTS; attempt += 1) {
@@ -268,9 +264,8 @@ describe("closing out a claim", () => {
   });
 
   test("a released claim returns to absent, keeps its spend, and can be claimed again", () => {
-    // The transition a failed-but-not-final attempt makes, and the one recovery makes
-    // for a claim whose process died. Without it `generating` is a trap: only `absent`
-    // is claimable, so the capability would stay faceless forever.
+    // The transition a failed-but-not-final attempt makes, and the one recovery makes for a claim
+    // whose process died. Without it `generating` is a trap: only `absent` is claimable.
     insertCapability(write(), conns.readwrite);
     claimLogoGeneration("notes", INCARNATION_ID, conns.readwrite);
 
@@ -306,9 +301,8 @@ describe("closing out a claim", () => {
     expect(settleLogoGeneration("notes", INCARNATION_ID, "present", conns.readwrite)).toBeNull();
   });
 
-  // Two callers with opposite intents must not share one permissive transition: the loss
-  // reconciliation is the only way a row holding artwork reaches `abandoned`, so an
-  // exhausted attempt arriving late cannot take a drawing off the desk.
+  // Two callers with opposite intents must not share one permissive transition: loss
+  // reconciliation is the only way a row holding artwork reaches `abandoned`.
   test("an exhausted attempt cannot abandon a row that already has artwork", () => {
     insertCapability(write(), conns.readwrite);
     claimLogoGeneration("notes", INCARNATION_ID, conns.readwrite);

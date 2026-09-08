@@ -96,10 +96,8 @@ describe("the capability surface", () => {
     expect(html).not.toContain('data-living-demo="evolution"');
     expect(html).not.toContain("Evolve this capability");
     expect(html).not.toContain("Show me the guided repair");
-    // What a direct navigation serves is the whole desk and nothing composed into it:
-    // the window is the client's to create, and it asks for the fragment below. The
-    // read-only developer panel is untouched by any of this — and it is a window of
-    // its own now, so what the page carries is its tile rather than its contents.
+    // What a direct navigation serves is the whole desk with nothing composed into it: the window
+    // is the client's to create. The developer panel is a window too, so the page carries a tile.
     expect(html).toContain('data-capability-id="journal"');
     expect(html).toContain('class="desk__windows"');
     expect(html).not.toContain("data-active-capability-id");
@@ -193,9 +191,8 @@ describe("admission", () => {
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
-    // A warm product-voice failure ending the narration, with the person's own View
-    // streamed for the window to hold until it is dismissed — the same terminal shape
-    // any pre-admission failure gets, not a bare error.
+    // A warm product-voice failure ending the narration, with the person's own View streamed for
+    // the window to hold — the same terminal shape any pre-admission failure gets, not an error.
     expect(eventData(events, "narration")).toContain(renderBuildEnding(jobId, FAILED_BUILD_ENDING));
     expect(eventData(events, "fragment")).toContain("capability-surface");
     expect(eventData(events, "fragment")).toContain('data-active-capability-id="journal"');
@@ -283,22 +280,19 @@ describe("an accepted candidate", () => {
     expect(gate.structural).toBe("passed");
     expect(gate.smoke).toBe("passed");
 
-    // The run does not stop at the candidate. It publishes, activates, and swaps
-    // the complete View exactly once — `commit` is reserved for a real pointer activation,
-    // so there is no restoring `fragment` on this path at all.
+    // The run does not stop at the candidate. It publishes, activates, and swaps the complete View
+    // exactly once; `commit` is reserved for a real pointer activation, so no restoring `fragment`.
     expect(prompts[0]).toContain("Add a mood field");
     expect(events.filter((event) => event.event === "commit")).toHaveLength(1);
     expect(eventData(events, "commit")).toContain('data-active-capability-version="2"');
-    // The one `fragment` an evolution sends is the window's name, and it is the name the
-    // window keeps: an evolution's capability already exists, so there is no later moment
-    // when the title becomes truer (M5 plan 1). No restoration — this one activated.
+    // The one `fragment` an evolution sends is the window's name, and the name it keeps: the
+    // capability already exists, so no later moment makes the title truer (M5 plan 1).
     expect(eventData(events, "fragment")).toBe('<div data-build-window-title="Journal"></div>');
     expect(eventData(events, "done")).toBe("ok");
     const commitPreview = JSON.parse(eventData(events, "commit-preview"));
     expect(commitPreview.version).toBe(2);
-    // The published-version pane names the transition row this version landed on, so
-    // "why does this version carry (no) frozen tests?" is answerable without opening the
-    // predecessor's manifest. A first build has no predecessor and omits it.
+    // The published-version pane names the transition row this version landed on, so "why does
+    // this version carry (no) frozen tests?" is answerable without the predecessor's manifest.
     expect(commitPreview.behavioralTierTransition).toMatchObject({
       prior: expect.stringMatching(/^(on|off)$/u),
       candidate: expect.stringMatching(/^(on|off)$/u),
@@ -356,9 +350,8 @@ describe("an accepted candidate", () => {
 
     const read = await app.request("/capability/journal/read");
     expect(read.status).toBe(200);
-    // Decision 13 through the router: `read` was byte-copied, so its SQL never mentions
-    // `mood` — yet the record it renders is the rehydrated canonical row, and it is the
-    // record the user already had.
+    // Decision 13 through the router: `read` was byte-copied, so its SQL never mentions `mood` —
+    // yet the record it renders is the rehydrated canonical row the user already had.
     expect(await read.text()).toContain("written before mood existed");
     expect(loadedPaths.every((path) => path.includes("/v2/"))).toBe(true);
   });

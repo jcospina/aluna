@@ -1,10 +1,9 @@
 // The hosted vector service, behind a one-method contract.
 //
-// A logo call costs real money ([ADR-0007](../../docs/adr/0007-capability-logo-contract.md)
-// L1: roughly $0.08), so the seam matters more than the client: every test in this repo
-// injects a {@link LogoGenerationProvider} and no automated test ever reaches the
-// network. That mirrors `src/platform/provider/spine.ts`, which carries the same rule for the
-// text spine.
+// A logo call costs real money ([ADR-0007](../../../../docs/adr/0007-capability-logo-contract.md)
+// L1: roughly $0.08), so the seam matters more than the client: every test injects a
+// {@link LogoGenerationProvider} and none reaches the network, as `src/platform/provider/spine.ts`
+// does for the text spine.
 //
 // The client's job ends at *accepted bytes*. It bounds the call, validates the envelope,
 // decodes base64 strictly and checks for an SVG document root — and then hands the bytes
@@ -30,9 +29,8 @@ export const RECRAFT_BASE_URL_ENV_VAR = "RECRAFT_BASE_URL";
 export const DEFAULT_RECRAFT_BASE_URL = "https://external.api.recraft.ai/v1";
 
 /**
- * One attempt's wall-clock bound. Generous, because a vector generation is slow and a
- * timeout burns a claimed attempt; short enough that a hung service cannot hold a tile
- * request open indefinitely.
+ * One attempt's wall-clock bound. Generous, because a vector generation is slow and a timeout burns
+ * a claimed attempt; short enough that a hung service cannot hold a tile request open.
  */
 export const DEFAULT_LOGO_GENERATION_TIMEOUT_MS = 90_000;
 
@@ -63,13 +61,8 @@ export class LogoGenerationError extends Error {
 export interface LogoGenerationProvider {
   generate(request: LogoGenerationRequest, signal: AbortSignal): Promise<Uint8Array>;
   /**
-   * Whether this provider could reach the service at all — for the real client, whether
-   * a key is set. Asked **before** a claim, because a claim spends an attempt the moment
-   * it is won and nothing ever decrements one: without this, three desk loads on a
-   * machine with no key would permanently abandon every capability's logo without a
-   * single request leaving the process.
-   *
-   * Optional so a test fake need not state it; absent means "yes, try".
+   * Whether this provider could reach the service — for the real client, whether a key is set.
+   * Asked before a claim. Optional: absent means "yes, try", so a test fake need not state it.
    */
   isConfigured?(): boolean;
 }
@@ -83,9 +76,8 @@ export interface RecraftLogoProviderOptions {
 }
 
 /**
- * The response envelope, validated rather than trusted. `data` is an array because the
- * service can return several images; the request never asks for more than the default
- * one, so the first entry is the drawing and anything beyond it is not this contract's.
+ * The response envelope, validated rather than trusted. `data` is an array because the service can
+ * return several images; the request asks for one, so the first entry is the drawing.
  */
 const generationEnvelopeSchema = z.object({
   data: z.array(z.object({ b64_json: z.string().min(1) })).min(1),
@@ -110,14 +102,8 @@ export function resolveRecraftBaseUrl(env: NodeJS.ProcessEnv = process.env): str
 }
 
 /**
- * Decode the envelope's base64 payload strictly. `Buffer.from(…, "base64")` silently skips
- * what it does not recognize and would turn a truncated or HTML-ish body into
- * plausible-looking bytes.
- *
- * `lastChunkHandling: "strict"` is load-bearing: the default is `"loose"`, which accepts a
- * truncated final chunk. `"PHN2Zz"` decodes to exactly `<svg` under it, so a body cut short
- * in transit passes `assertSvgDocumentRoot` and a half-drawing installs as accepted
- * artwork — which L7 then forbids ever replacing.
+ * Strict, because the default `"loose"` accepts a truncated final chunk: `"PHN2Zz"` decodes to
+ * exactly `<svg`, so a cut-short body installs as accepted artwork that L7 forbids replacing.
  */
 export function decodeLogoPayload(payload: string): Uint8Array {
   let bytes: Uint8Array;
@@ -135,23 +121,16 @@ export function decodeLogoPayload(payload: string): Uint8Array {
   return bytes;
 }
 
-// Everything an SVG file may legally carry before its root element: an XML declaration,
-// a DOCTYPE (internal subset and all), processing instructions, comments and whitespace.
-// Skipped rather than stripped — the bytes handed on are the bytes that arrived.
-//
-// The internal subset is matched **lazily**, and backtracking is what makes a `]` inside
-// an entity value work. Greedy looks equivalent and is not: it runs to the last `]` in
-// the document, so a DOCTYPE followed anywhere by a `CDATA` section swallows the root and
-// throws away a paid generation.
+// Everything an SVG file may carry before its root, skipped rather than stripped. The internal
+// subset is matched lazily: greedy runs to the last `]`, so a DOCTYPE plus `CDATA` eats the root.
 const PROLOGUE_PATTERN =
   /^(?:\s+|<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>[]*(?:\[[\s\S]*?\])?\s*>)+/i;
 
 // The root element itself. Case-sensitive, because SVG is XML: `<SVG` is not an SVG root.
 const SVG_ROOT_PATTERN = /^<svg(?=[\s/>])/;
 
-// Enough of the document to find the root in the ordinary case. Every specimen opens with
-// `<svg` at byte zero, so this window is never actually needed — it exists so a 111 kB
-// drawing is not decoded in full on the happy path.
+// Enough of the document to find the root. Every specimen opens with `<svg` at byte zero, so this
+// window exists only so a 111 kB drawing is not decoded in full on the happy path.
 const ROOT_SEARCH_WINDOW = 4096;
 
 function startsAtSvgRoot(text: string): boolean {
@@ -159,13 +138,8 @@ function startsAtSvgRoot(text: string): boolean {
 }
 
 /**
- * Assert the decoded bytes are an SVG document — the root element is `<svg`, not HTML,
- * not JSON, not a PNG the service substituted. Read-only: it never returns a rewritten
- * document, because L8 forbids touching what arrived.
- *
- * The window is an optimization, never a rule: a document whose prologue is longer than
- * it is re-read in full rather than refused, because a false rejection here throws away
- * a paid generation.
+ * Assert the root element is `<svg`, not HTML, JSON or a PNG. Read-only: L8 forbids touching what
+ * arrived, and a long prologue is re-read in full rather than refused — a false rejection costs.
  */
 export function assertSvgDocumentRoot(bytes: Uint8Array): void {
   const decoder = new TextDecoder("utf-8", { fatal: false });
@@ -178,13 +152,8 @@ export function assertSvgDocumentRoot(bytes: Uint8Array): void {
 }
 
 /**
- * One attempt's budget: the caller's cancellation signal and the client's own timeout,
- * merged into a single signal that covers the **whole** call.
- *
- * Bounding only the fetch would leave the body read unbounded, and a service that
- * answers its headers promptly and then dribbles 111 kB forever would hold this
- * incarnation's read token past deletion's drain deadline. The budget therefore stays
- * open until the bytes are validated.
+ * The caller's signal and the client's timeout, merged to cover the whole call: bounding the fetch
+ * alone lets a dribbled body hold the read token past deletion's drain deadline.
  */
 interface CallBudget {
   readonly signal: AbortSignal;
@@ -214,9 +183,8 @@ function openCallBudget(caller: AbortSignal, timeoutMs: number): CallBudget {
 }
 
 /**
- * Classify whatever went wrong. Cancellation before the timeout, the timeout before an
- * ordinary transport failure — a validation error already knows its own reason and
- * passes straight through.
+ * Classify whatever went wrong: cancellation before the timeout, the timeout before an ordinary
+ * transport failure. A validation error knows its own reason and passes straight through.
  */
 function callFailure(error: unknown, budget: CallBudget, timeoutMs: number): LogoGenerationError {
   if (error instanceof LogoGenerationError) return error;

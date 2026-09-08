@@ -12,10 +12,8 @@ import { type CapabilityRow, canonicalCapabilityLabel } from "../../../registry/
 import type { IntentClassification } from "../../intent/index.ts";
 
 /**
- * The product-voice narration for a deflected intent — understood, not yet
- * actionable. A `new_capability` "deflection" reuses its own `user_facing_label`
- * (it is being built, not deflected); the others explain, gently, what Aluna can't
- * do yet.
+ * The product-voice narration for a deflected intent. A `new_capability` reuses its own
+ * `user_facing_label`, because it is being built rather than deflected.
  */
 export function deflectionNarration(intent: IntentClassification): string {
   switch (intent.type) {
@@ -89,10 +87,8 @@ function sameTokens(left: Set<string>, right: Set<string>): boolean {
 }
 
 /**
- * Every name this capability answers to. A rename gives it a second one, and it is the one
- * the person will type — while the sentence this deflection ends in is already written
- * with it (`canonicalCapabilityLabel`, below). Matching on the authored name alone is how
- * "journal" fails to find the capability the desk plainly calls Journal.
+ * Every name this capability answers to. A rename adds the name the person will actually type,
+ * and matching the authored name alone is how "journal" misses the tile the desk calls Journal.
  */
 function duplicateCapabilityIdentityTokens(capability: CapabilityRow): readonly Set<string>[] {
   return [
@@ -131,11 +127,8 @@ function duplicateIntentForCapability(capability: CapabilityRow): IntentClassifi
 }
 
 /**
- * The `extend_capability` intent for a prompt that overlaps an existing capability,
- * or `undefined` when the prompt adds any meaningful qualifier. This guard is
- * intentionally exact-only: semantic overlap such as "work contacts separately"
- * must reach the resolver with the complete registry so the model can distinguish
- * extension from a separately named capability.
+ * The `extend_capability` intent for a prompt overlapping an existing capability. Exact-only on
+ * purpose: only the resolver, holding the whole registry, can place "work contacts separately".
  */
 export function duplicateIntentForPrompt(
   prompt: string,
@@ -156,10 +149,8 @@ export function existingCapabilityNarration(
 }
 
 /**
- * Re-route a model-classified `new_capability` to an `extend_capability` deflection
- * when the prompt overlaps an existing capability — the safety net for the resolver
- * proposing a brand-new build that would collide with one the user already has.
- * Non-`new_capability` intents pass through untouched.
+ * Re-routes a model-classified `new_capability` to an `extend_capability` deflection when the
+ * prompt overlaps — the net under a resolver proposing a build that collides with what exists.
  */
 export function deflectDuplicateNewCapability(
   intent: IntentClassification,

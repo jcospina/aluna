@@ -20,9 +20,8 @@ import {
   logoShadeInWords,
 } from "./request.ts";
 
-// The contract this file guards is `docs/adr/0007-capability-logo-contract.md` plus the
-// art contract it points at, `design/logo.html`. Both fix exact strings, so these tests
-// pin literals rather than comparing the module against itself.
+// The contract this file guards is `docs/adr/0007-capability-logo-contract.md` plus the art
+// contract it points at, `design/logo.html`. Both fix exact strings, so these tests pin literals.
 
 /** A shade of some other family — every request must carry two colours that differ. */
 function other(shade: LogoShade): LogoShade {
@@ -62,9 +61,8 @@ describe("the fields no caller may vary", () => {
     }
   });
 
-  // The strongest form of "no caller may vary them" is that there is nowhere to put an
-  // override — no second parameter, and no knob folded into the request the builder
-  // returns. Both halves are checked, because an added field is the likelier of the two.
+  // "No caller may vary them" holds because there is nowhere to put an override: no second
+  // parameter, no knob in the returned request. Both are checked; an added field is likelier.
   test("the builder takes one input and the request carries no knob", () => {
     expect(buildLogoGenerationRequest.length).toBe(1);
 
@@ -112,9 +110,8 @@ describe("the two colours", () => {
     expect(request.controls.colors[1]).toEqual(logoShadeColorControl("mustard"));
   });
 
-  // The ordering is the one presentation choice the contract fixes, and it is fixed in
-  // one place. Swapping the two authored colours swaps the drawing, so a call site that
-  // could re-decide which is the background would be steering presentation.
+  // The ordering is the one presentation choice the contract fixes, and it is fixed in one place:
+  // a call site that could re-decide which colour is the background would steer the drawing.
   test("swapping the two authored colours swaps the request, and nothing else moves", () => {
     const forward = buildLogoGenerationRequest(INPUTS);
     const reversed = buildLogoGenerationRequest({
@@ -129,10 +126,8 @@ describe("the two colours", () => {
     expect(reversed.random_seed).toBe(forward.random_seed);
   });
 
-  // Four closed pairs capped the whole product at four looks. Eight freely-paired anchors
-  // lifted the cap to 56 and the model still collapsed to one of them; eight families of
-  // four shades, paired across families, is 896 — and unlike the 56, which colour comes
-  // up is not the model's to collapse.
+  // Four closed pairs capped the product at four looks; eight freely-paired anchors lifted it to 56
+  // and the model collapsed. Eight families of four, paired across, is 896 it cannot collapse.
   test("every ordered pair of shades from two different families is reachable", () => {
     const pairs = new Set<string>();
     for (const ground of LOGO_SHADES) {
@@ -178,13 +173,8 @@ describe("the two colours", () => {
     }
   });
 
-  // The eight anchors this ladder replaced were palette tokens, and were cross-checked
-  // against `design/styles/tokens.css`. The thirty-two shades are not tokens and never
-  // reach a stylesheet — `ground` and `companion` style nothing, they only address a
-  // colour in the request — so what is pinned instead is the property the token list was
-  // standing in for, measured directly. This is a test over the platform's own literal
-  // table, not the runtime chroma-and-lightness validator ADR-0007 deleted: no model
-  // output is measured anywhere, and a spec still validates against a word list.
+  // The shades are not tokens and never reach a stylesheet, so the property the token list stood
+  // for is measured directly, over the platform's own literal table and never over model output.
   test("every shade is a daylight colour at high chroma — no near-blacks, no greys", () => {
     for (const shade of LOGO_SHADES) {
       const [red, green, blue] = logoShadeColorControl(shade).rgb.map((c) => c / 255) as [
@@ -203,9 +193,8 @@ describe("the two colours", () => {
     }
   });
 
-  // The eight old anchors are still in the ladder at their exact former bytes: this
-  // widened the vocabulary rather than restating it, so nothing the desk already wore
-  // became unreachable.
+  // The eight old anchors are still in the ladder at their exact former bytes: the ladder widened
+  // the vocabulary rather than restating it, so nothing the desk already wore became unreachable.
   test("the eight former anchors survive at their exact values", () => {
     const anchors: Record<string, string> = {
       grass: "#3fa65b",
@@ -264,10 +253,8 @@ describe("the prompt block", () => {
     expect(new Set(phrases).size).toBe(LOGO_SHADES.length);
   });
 
-  // The block's closing sentence asks for daylight colours at high chroma and bans
-  // near-blacks, dark backgrounds, pastels and greys. A ground phrase reading "pale sky
-  // blue" or "deep forest green" argues with a sentence three lines below it, and this
-  // model follows the words rather than reconciling them.
+  // The block's closing sentence bans near-blacks, dark backgrounds, pastels and greys, and this
+  // model follows the words rather than reconciling them: "pale sky blue" argues with them.
   test("no phrase contradicts the block it is written into", () => {
     const contradictions =
       /\b(pale|pastel|muted|soft|dark|deep|dull|faded|washed|light|burnt|grey|gray|black)\b/;
@@ -277,9 +264,8 @@ describe("the prompt block", () => {
     }
   });
 
-  // Rule 4: spatial words do not stay in the style wording. A colour named after a
-  // material or a plant is a colour name; one named after a place is an invitation to
-  // draw the place, three lines above "no horizon, no ground line, no perspective".
+  // Rule 4: spatial words do not stay in the style wording. A colour named after a material or a
+  // plant is a colour name; one named after a place invites the model to draw the place.
   test("no phrase names a scene the block forbids", () => {
     // The block's own list, verbatim, plus the words that would read as one of them. A
     // colour name drawn from a plant or a material is not a place and stays.
@@ -295,9 +281,8 @@ describe("the prompt block", () => {
     expect(logoShadeInWords("golden")).toBe("a flat warm golden yellow");
   });
 
-  // "names both colours and no others" can only mean anything if no phrase hides inside
-  // another one; without this, a shade whose phrase were a substring of the ground's
-  // would be counted as named and the containment test would pass by accident.
+  // "Names both colours and no others" means nothing if one phrase hides inside another: a shade
+  // whose phrase were a substring of the ground's would be counted as named, by accident.
   test("no shade's phrase is a substring of another's", () => {
     for (const shade of LOGO_SHADES) {
       for (const otherShade of LOGO_SHADES) {
@@ -317,9 +302,8 @@ describe("the prompt block", () => {
     }
   });
 
-  // Rule 3 is "offer one colour, never a palette" — a palette being the eight anchors,
-  // which made the model reach for green or block the ground into quadrants. Two colours
-  // with distinct jobs is not a palette: it is exactly what `controls.colors` carries.
+  // Rule 3 is "offer one colour, never a palette": the eight anchors made the model reach for green
+  // or block the ground into quadrants. Two colours with distinct jobs is not a palette.
   test("names both colours in words and no others", () => {
     const prompt = buildLogoPrompt("a telescope", "cyan", "mustard");
     const named = LOGO_SHADES.filter((shade) => prompt.includes(logoShadeInWords(shade)));
@@ -327,9 +311,8 @@ describe("the prompt block", () => {
     expect([...named].sort()).toEqual(["cyan", "mustard"] as LogoShade[]);
   });
 
-  // L2 says the control alone is ignored, so an authored companion that reached the
-  // service only as `controls.colors[1]` would be a stored fact with nothing visible
-  // behind it — which would make authoring it pointless.
+  // L2 says the control alone is ignored, so an authored companion reaching the service only as
+  // `controls.colors[1]` would be a stored fact with nothing visible behind it.
   test("the companion is named in the prompt as well as in the control", () => {
     const request = buildLogoGenerationRequest(INPUTS);
 
@@ -342,11 +325,8 @@ describe("the prompt block", () => {
   });
 });
 
-// The contract *is* `design/logo.html` (the ADR points at it and holds nothing of its
-// own about the wording). So the block is not pinned as a literal here — it is compared
-// against the page, word for word, with the page's two `<mark>` slots filled. Editing
-// the block therefore means editing the contract, which is exactly the freedom the issue
-// grants; editing only the code is what this fails on.
+// The contract *is* `design/logo.html`, so the block is compared against the page word for word
+// rather than pinned as a literal: editing the block means editing the contract, not just code.
 describe("the block matches the contract page it comes from", () => {
   test("word for word, with all three slots filled", () => {
     const page = readFileSync(resolve(import.meta.dir, "../../../design/logo.html"), "utf8");

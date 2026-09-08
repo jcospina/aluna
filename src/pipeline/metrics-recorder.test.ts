@@ -72,10 +72,8 @@ function behavioralRows(stages: ReturnType<typeof lifecycleStages>): string[] {
 
 describe("the behavioral tier's stage vector", () => {
   test("a carried suite re-run over a regenerated Handler reports copied and executed", () => {
-    // Decision 24's fourth row in its narrowed form. It cannot arise from the Diff — every
-    // change fact that regenerates a Handler also regenerates that Action's tests — so it
-    // reaches a published version only through a Gate repair, and this is where the metrics
-    // half of that row is pinned. Its snapshot half is in `artifact-lifecycle.test.ts`.
+    // Decision 24's fourth row, narrowed: a change fact regenerating a Handler regenerates its
+    // tests too, so only a Gate repair gets here. Snapshot half: `artifact-lifecycle.test.ts`.
     const stages = lifecycleStages(
       tierOnAccumulator({
         behavioralFreeze: freezeReport([...ACTIONS]),
@@ -108,9 +106,8 @@ describe("the behavioral tier's stage vector", () => {
   });
 
   test("the tier-off rows report an absence, not a skip that never happened", () => {
-    // Decision 24's two tier-off rows: no artifact, and nothing per Action to report. The
-    // Gate ran (its behavioral rung is present and skipped), which is what distinguishes
-    // `absent` from the `skipped` a run that never reached the tier records.
+    // Decision 24's two tier-off rows: no artifact, nothing per Action. The Gate ran — its
+    // behavioral rung is present and skipped — which is what tells `absent` from `skipped`.
     const stages = lifecycleStages(
       {
         usages: [],
@@ -129,9 +126,8 @@ describe("the behavioral tier's stage vector", () => {
   });
 
   test("a run that froze intent and then failed is not a tier-off row", () => {
-    // The freeze stage records itself, so a build that authored suites and then died says
-    // so. Without `behavioralFreeze` this would read `skipped`/`skipped` — the signature of
-    // a run that never turned the tier on — and the tokens it spent would explain nothing.
+    // The freeze stage records itself, so a build that authored suites and then died says so.
+    // Without `behavioralFreeze` this reads `skipped`/`skipped`, the tier-off signature.
     const stages = lifecycleStages(
       { usages: [], timings: { testGenMs: 3 }, behavioralFreeze: freezeReport(["read", "delete"]) },
       "failed",

@@ -129,15 +129,8 @@ function requireRecordTarget(
   return recordTarget;
 }
 
-// Build the capability's presentation adapter for the injected toolbox:
-// load its item renderer, then bind it with the capability so `present` turns one record
-// into safe wrapped item HTML. `present` stays synchronous (record → string) because the
-// renderer is resolved here, once, before the handler runs.
-//
-// The M3 artifact shape is mandatory: every committed capability has one item renderer
-// beside its handlers. A missing or malformed renderer fails the request through the
-// router's normal product-voice error boundary; there is no M2 compatibility adapter or
-// dual-serving path.
+// Build the capability's presentation adapter. `present` stays synchronous (record → string)
+// because the renderer resolves here, once, before the handler runs; a missing one fails the read.
 async function buildPresentationAdapter(
   row: CapabilityRow,
   loadItemRenderer: ItemRendererLoader,
@@ -146,12 +139,8 @@ async function buildPresentationAdapter(
   return createPresentationAdapter({ capability: renderableFromRow(row), renderItem });
 }
 
-// The slice of a row the presentation adapter needs: the id (namespaces the record-view
-// templates), the user-facing label (what back goes back to), and the fields (the form).
-//
-// The label is the effective one — what the user renamed this to, or what the model
-// authored. The place a person goes back to should be called what it is called on the
-// desk, and the same canonical reading serves the collection (`src/server/http/cached-view.ts`).
+// The slice of a row the adapter needs: the id, the effective label — what the user renamed this
+// to — and the fields. The same canonical reading serves `src/server/http/cached-view.ts`.
 function renderableFromRow(row: CapabilityRow): RenderableCapability {
   return {
     id: row.id,

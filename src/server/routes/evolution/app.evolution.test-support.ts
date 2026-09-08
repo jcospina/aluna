@@ -8,9 +8,8 @@
 // is faked (see {@link resolvedBy}) rather than skipped: the engine must receive a real
 // classification, because there is no longer any other way for it to receive one.
 //
-// Both capabilities get real snapshots on purpose: the engine reconciles every committed
-// version before it treats a pointer as an evolution base, so a registry row with no
-// artifacts behind it is corruption, not a convenient fixture shortcut.
+// Both capabilities get real snapshots on purpose: the engine reconciles every committed version
+// before it treats a pointer as an evolution base, so a row with no artifacts behind it is corrupt.
 
 import type { ZodType } from "zod";
 import {
@@ -67,10 +66,8 @@ export function journalEvolutionIntent(
 }
 
 /**
- * Answer the Intent Resolver's one classification call with `intent`, and delegate every
- * other generation to `inner`. Matching on the resolver's own prompt rather than on call
- * position keeps the engine provider's recorded `prompts` exactly what it was when the
- * demo route called the engine directly — the resolver leg is added, not interleaved.
+ * Answer the Intent Resolver's one classification call with `intent` and delegate the rest to
+ * `inner`, matched on the resolver's prompt rather than call position: added, not interleaved.
  */
 export function resolvedBy(intent: IntentClassification, inner: Provider): Provider {
   return {
@@ -119,10 +116,9 @@ export interface EvolutionRouteFixture {
 }
 
 /**
- * These suites own the route/presentation seam, not the behavioral tier — the tier is
- * proven on *and* off end to end by `pipeline/evolution/evolution-run.test.ts`. Pinning
- * the global toggle off keeps these runs fast and their fake providers focused on the
- * units the Diff selects.
+ * These suites own the route/presentation seam, not the behavioral tier, which is proven on and
+ * off end to end by `pipeline/evolution/run/evolution-run.test.ts`. Pinning it off keeps these
+ * fast.
  */
 export function pinBehavioralTierOff(): () => void {
   const previous = process.env[BEHAVIORAL_TIER_ENV_VAR];
@@ -181,9 +177,8 @@ export function tearDownEvolutionRouteEnv(env: ScratchDbEnv): void {
 }
 
 /**
- * An app whose provider classifies `intentText` as an evolution of `journal` and then
- * answers exactly one canned candidate. `submit` types that same text into the prompt bar,
- * so the classification and the prompt behind it can never drift apart.
+ * An app whose provider classifies `intentText` as an evolution of `journal` and answers exactly
+ * one canned candidate. `submit` types that same text, so classification and prompt cannot drift.
  */
 export function scratchApp(env: ScratchDbEnv, response: unknown, intentText: string) {
   const { recordMetrics, rows, lifecycles } = makeMetricsRecorder();
@@ -258,9 +253,8 @@ export function pausingProvider(inner: Provider, pauseOnCall: number) {
 }
 
 /**
- * Type one change into the prompt bar from the open `journal` surface and return its job's
- * stream path — the same POST the browser sends, restoration descriptor included, so a
- * non-activating terminal restores the View the person was actually looking at.
+ * Type one change into the prompt bar from the open `journal` surface and return its job's stream
+ * path — the same POST the browser sends, restoration descriptor included.
  */
 export async function submitEvolution(
   app: { request: (path: string, init?: RequestInit) => Response | Promise<Response> },

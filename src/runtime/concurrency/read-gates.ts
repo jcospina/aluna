@@ -8,42 +8,11 @@
  */
 
 /**
- * How long a close waits for its readers before the deletion gives up on them.
- *
- * Closing signals cancellation to every reader it already tracks, so this is not how long
- * a read is allowed to live — it is how long the drain waits for a scope that has not yet
- * reached a point where it can notice. It sits *above* the longest a single generated
- * Handler may run (`DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS` in
- * `src/runtime/router/dispatch/generated-code.ts`), and that ordering is the point of the number rather
- * than an accident of two literals: below it, a route the router will abandon on its own
- * outlives the drain and fails a deletion for a reason the user cannot see. One window
- * holds several concurrent read tokens whenever a canonical read, a debounced search and
- * a post-mutation refresh overlap, which makes that overlap ordinary rather than exotic.
- *
- * The gap is closed from this side only. The Handler deadline is not shortened to meet
- * it: reads are what the user is doing, deletions are rare and deliberate, and capping a
- * slow read to speed up a rare operation is the wrong trade. What sits above the Handler
- * deadline is headroom rather than a proof — a route holds its tokens across reading the
- * request too, which the Handler deadline does not cover — and the ordering itself is
- * asserted by test rather than left to two literals that happen to agree today.
- *
- * Longer-lived token scopes exist and are not covered by that ordering: a logo attempt
- * holds one across provider I/O bounded by `DEFAULT_LOGO_GENERATION_TIMEOUT_MS`, six
- * times this deadline, and a whole-catalog question holds one for as long as its query
- * runs, which ADR-0008 deliberately does not bound at all. They stay compatible by
- * *observing* the cancellation a close signals, which
- * `src/lifecycle/logo/generation/attempt.test.ts` pins — not by being shorter. The question
- * cannot observe it the way a logo attempt does, since its statement is synchronous inside
- * a worker thread, so `src/runtime/query/whole-catalog-read-scope.ts` turns the same signal
- * into a `terminate()`. That unparks the question from its statement; the tokens go back
- * when its body unwinds, so a body parked on something other than a read still holds them
- * and can still run this deadline out.
- *
- * The raise has a real cost, taken deliberately: deletion holds the mutation
- * coordinator's non-queued lease across the whole drain, so a drain that runs all the way
- * to this deadline refuses every other write for that long. That is the price of never
- * refusing a deletion that would have succeeded a moment later. A drain that still
- * expires is reported as its own outcome rather than as a generic failure.
+ * How long a close waits for its readers before the deletion gives up. Above
+ * `DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS`, or a route the router abandons outlives the drain.
+ * That ordering covers handler-bounded routes only: a logo attempt holds its tokens across
+ * provider I/O, and a question holds them for its whole turn, model round-trips included.
+ * Tokens come back only when the body unwinds, so either can still run this deadline out.
  */
 export const DEFAULT_READ_DRAIN_TIMEOUT_MS = 15_000;
 
@@ -53,9 +22,8 @@ export interface CapabilityIncarnation {
 }
 
 /**
- * The gate identity of one registry row — the one mapping every caller of this coordinator
- * needs before it can ask for anything. Typed structurally rather than against
- * `CapabilityRow` so this module keeps depending on nothing.
+ * The gate identity of one registry row. Typed structurally rather than against `CapabilityRow`,
+ * so this module keeps depending on nothing.
  */
 export function capabilityIncarnation(row: {
   readonly id: string;
@@ -213,12 +181,8 @@ export class ReadGateCoordinator {
   private readonly gates = new Map<string, InternalReadGate>();
   private readonly now: () => number;
   /**
-   * Incarnations retired by {@link finalizeClose} — deletion's point of no return.
-   * Their tables are gone, so no catalog may ever bring their gate back: without this,
-   * a caller holding a catalog captured before the commit would re-create the gate as
-   * active and receive a live read token for a dropped table. The set only grows by one
-   * entry per completed deletion, and recreation uses a new incarnation, so a rebuilt
-   * capability is never shadowed by its predecessor's retirement.
+   * Incarnations retired by {@link finalizeClose}. Without this a caller holding a catalog taken
+   * before the commit would re-create the gate and take a live read token for a dropped table.
    */
   private readonly retired = new Set<string>();
 
@@ -228,12 +192,8 @@ export class ReadGateCoordinator {
   }
 
   /**
-   * Register newly active incarnations without disturbing an in-flight close.
-   *
-   * Additive on purpose: callers legitimately pass a *subset* (deletion passes the one
-   * incarnation it is about to close), so this must never treat absence as a reason to
-   * drop a gate. Gates for superseded incarnations are therefore retained until the
-   * process restarts; only a completed deletion removes one.
+   * Register newly active incarnations without disturbing an in-flight close. Additive: callers
+   * pass a subset, so absence must never drop a gate, and superseded gates live until restart.
    */
   synchronizeCatalog(catalog: readonly CapabilityIncarnation[]): void {
     for (const [key, incarnation] of canonicalCatalog(catalog)) {
@@ -311,9 +271,8 @@ export class ReadGateCoordinator {
   }
 
   /**
-   * Close one exact incarnation and wait for zero readers. A timeout or failure
-   * automatically reopens in this method's finally; a successful drain hands the
-   * caller an ownership-checked closing lease for the later destructive phase.
+   * Close one exact incarnation and wait for zero readers, reopening in `finally` on timeout or
+   * failure. Deletion holds its non-queued lease across the whole drain, refusing every write.
    */
   async closeAndDrain(
     incarnation: CapabilityIncarnation,
@@ -387,18 +346,8 @@ export class ReadGateCoordinator {
   }
 
   /**
-   * Retire a gate whose capability has already gone, whatever state the cell is in.
-   *
-   * {@link finalizeClose} is the ordinary ending and it is conditional — it refuses unless
-   * the gate is the one this lease drained and is still at zero readers, which is what stops
-   * it being a way to retire a live capability. After the deletion's commit those conditions
-   * protect nothing: the registry row is a tombstone and the table is dropped, so a reader
-   * still holding a token is holding one for a lifetime that has ended.
-   *
-   * Refusing there left the cell in `closing` for the life of the process — harmless in
-   * itself, and a state machine with a square nothing can leave. This is the square's exit:
-   * any straggler is told the gate is closing, and the gate is retired the way a normal
-   * finalize retires it, so a stale catalog can never bring it back.
+   * Retire a gate whose capability has already gone, whatever state the cell is in. After the
+   * commit {@link finalizeClose}'s conditions protect nothing, and refusing left `closing` stuck.
    */
   retireAfterCommit(lease: ReadGateCloseLease): boolean {
     const key = this.closeLeases.get(lease);

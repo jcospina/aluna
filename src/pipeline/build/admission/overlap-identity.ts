@@ -37,11 +37,8 @@ function containsIdentityTokens(container: Set<string>, identity: Set<string>): 
 }
 
 /**
- * Every name this capability answers to: its id, the label the model authored, and — when
- * the user has renamed it — the name they gave it. All three, because a rename does not
- * retire the old ones and the resolver is shown the new one (`formatCapability`,
- * `src/pipeline/intent/resolver.ts`). Matching on fewer than the resolver sees is how a
- * second tile called what a tile on the desk is already called gets admitted.
+ * Every name this capability answers to: a rename adds one without retiring the old, and the
+ * resolver sees it too (`formatCapability`), so matching fewer admits a tile the desk already has.
  */
 function identitiesFor(capability: RenameableIdentity): readonly Set<string>[] {
   return [
@@ -54,10 +51,8 @@ function identitiesFor(capability: RenameableIdentity): readonly Set<string>[] {
 type RenameableIdentity = Pick<CapabilityRow, "id" | "label" | "display_label_override">;
 
 /**
- * A trailing number/version is mechanical only when the text before it still names an
- * existing capability. This catches Contacts 2 / contacts_v2 / Work contacts 2 while
- * leaving semantic numbers such as Studio 54 to the resolver instead of growing a domain
- * blacklist inside deterministic platform code.
+ * A trailing number is mechanical only when the text before it still names an existing
+ * capability: Contacts 2 and contacts_v2 match, Studio 54 goes to the resolver, not a blacklist.
  */
 function hasMechanicalIdentity(
   value: string,

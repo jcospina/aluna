@@ -73,14 +73,8 @@ export function assertGeneratedUnitInventory(units: readonly GeneratedUnit[]): v
 }
 
 /**
- * The tier metadata's own internal contract. Tier state and tier metadata are one
- * fact: a tier-on snapshot that cannot say what it executed is as incomplete as one missing
- * its frozen tests, and a tier-off snapshot describing test execution describes work the
- * contract says never happened. Beyond presence, two invariants are cheap here and
- * expensive to discover later — a freshly authored suite that never judged code must not
- * reach a published version, and a full-suite fallback that skipped something is not a full
- * suite. They are asserted at the boundary rather than trusted from the Gate, exactly as the
- * frozen suite's own contract is.
+ * The tier metadata's own contract, asserted at the boundary rather than trusted from the Gate:
+ * an authored suite must not reach a version unrun, and a fallback that skipped is not full.
  */
 function assertBehavioralTestMetadataShape(manifest: SnapshotManifest): void {
   const behavioralTests = manifest.behavioral_tests;

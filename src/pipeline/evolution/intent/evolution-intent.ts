@@ -14,11 +14,8 @@ const UI_CHANGE_FACTS = new Set([
   "empty_state_noun",
   "field_label",
   "list_input_mode",
-  // Which control a string field's form draws, and the line a field says about itself.
-  // Both are exactly the character `list_input_mode` is — nothing stored moves, nothing
-  // validates differently, and no generated unit is regenerated — so a request to give a
-  // field a bigger box or a hint under it is the same kind of change as a request to
-  // switch a list between its two input modes.
+  // Which control a string field draws, and the line it says about itself: like `list_input_mode`,
+  // nothing stored moves, nothing validates differently, and no generated unit is regenerated.
   "long_text_input",
   "field_guidance",
   "item_presentation",
@@ -26,12 +23,8 @@ const UI_CHANGE_FACTS = new Set([
 ]);
 
 /**
- * The resolver's classification, re-checked against the capability the run is actually
- * aimed at. The intent *type* is already narrowed at the type level, so all that
- * is left is the pairing: a classification about one capability may never author a
- * candidate for another. `/prompt` resolves `active` **by** `target_capability` and
- * revalidates it at the lease head, so this cannot fire from there — it is the guard for
- * the next caller of the engine, which Module 7's implicit loop will be.
+ * The resolver's classification, re-checked against the capability the run aims at, so one about
+ * a capability never authors a candidate for another. `/prompt` cannot fire this; Module 7 can.
  */
 export function resolveEvolutionIntent(
   active: CapabilityRow,

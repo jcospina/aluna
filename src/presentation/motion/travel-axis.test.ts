@@ -12,23 +12,15 @@ import {
 } from "./travel-axis.js";
 
 /*
- * Reduce Motion quiets travel, not life (PLAN decision 44).
- *
- * The rules themselves are in `travel-axis.ts`, stated over stylesheet text rather than
- * over files, which is what lets this file do two things instead of one: hold the shipped
- * surface to them, and hold *them* to a rule written to get around them. A check that only
- * ever runs over code that passes is a check nobody would notice going blind — and the
- * issue asks precisely that a component added later be quieted without being listed, which
- * is a claim about rules that were never written for it.
+ * Reduce Motion quiets travel, not life (PLAN decision 44). The rules are stated over stylesheet
+ * text, so this holds the shipped surface to them and them to a rule written to get around them.
  */
 
 const ROOT = resolve(import.meta.dir, "../../..");
 
 /**
- * Every stylesheet the product loads. `AUDITED_SHEETS` is the audited set — kept complete
- * by `contrast-audit.test.ts`, which fails on a sheet that exists and is not in it — plus
- * the two manifests it excludes as import lists. They are excluded there because they
- * declare no colour; a rule written into one would still move.
+ * Every stylesheet the product loads: `AUDITED_SHEETS`, kept complete by `contrast-audit.test.ts`,
+ * plus the two manifests it excludes for declaring no colour — a rule in one would still move.
  */
 const MOTION_SHEETS = [...AUDITED_SHEETS, "design/styles/index.css", "public/app.css"];
 
@@ -60,9 +52,8 @@ describe("the axis itself", () => {
     const tokens = stated();
     expect(tokens.get("--travel"), "the axis is not on at full strength by default").toBe("1");
 
-    // With the setting off, these are the numbers the surface always used: a 1px settle
-    // under the pointer, a 2px press into the paper, a 2px lift off the ground, and the
-    // one fast duration. The axis rewrote how they are stated, not what they are.
+    // With the setting off, these are the numbers the surface always used: a 1px settle, a 2px
+    // press, a 2px lift, one fast duration. The axis rewrote how they are stated, not what.
     expect(tokens.get("--travel-nudge")).toBe("calc(1px * var(--travel))");
     expect(tokens.get("--travel-press")).toBe("calc(2px * var(--travel))");
     expect(tokens.get("--travel-lift")).toBe("calc(-2px * var(--travel))");
@@ -71,19 +62,17 @@ describe("the axis itself", () => {
   });
 
   test("replaced the blanket reset rather than moving it", () => {
-    // `public/css/a11y.css` held one `*` rule that flattened every animation on the
-    // surface, life included. Its other half was a second focus ring; with both gone the
-    // sheet held nothing, and a file that wins by loading last is what both decisions
-    // removed.
+    // `public/css/a11y.css` (absent) held one `*` rule that flattened every animation, life
+    // included. Its other half was a second focus ring, and a file that wins by loading last had
+    // to go.
     expect(
       existsSync(join(ROOT, "public/css/a11y.css")),
       "the blanket reduced-motion reset is back",
     ).toBe(false);
   });
 
-  // The exclusion that makes the list a rule rather than an enumeration: a background is
-  // a fill, not content, so nothing a reader is following moves when it moves. That is
-  // exactly what the working tile's crawl is, and why it stays on for everybody.
+  // The exclusion that makes the list a rule rather than an enumeration: a background is a fill,
+  // so nothing a reader follows moves with it, which is why the working tile's crawl stays on.
   test("a crawling fill is not travel, because nothing a reader follows moves with it", () => {
     expect(
       probe(`
@@ -94,9 +83,8 @@ describe("the axis itself", () => {
   });
 
   test("leaves the one animation the surface runs today crawling", () => {
-    // The tile that says a capability is still being built. It crawls in place, so it
-    // crawls for everybody — the reader who asked for less motion included, who is the one
-    // most owed the news that something is still on its way.
+    // The tile that says a capability is still being built crawls in place, so it crawls for
+    // everybody, the reader who asked for less motion included.
     const working = declarations("design/styles/components/desk.css", ["animation"]).find(
       ({ selector }) => selector === ".logo-tile--working",
     );

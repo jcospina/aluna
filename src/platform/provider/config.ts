@@ -13,20 +13,8 @@
 import { readSecret } from "../secrets.ts";
 
 /**
- * The configured global model, in exactly one place. The demo ships against a
- * single model by default; the default is `gpt-5.6-terra` (OpenAI) at medium
- * reasoning — the platform the project currently has credits/key for. Note:
- * reasoning effort is a serving/latency concern tuned at the provider call (the
- * spine sets effort `medium` for the OpenAI wire, issue 02), not a separate model
- * id — the API model string is the bare `gpt-5.6-terra`.
- *
- * Which model ships as the default is deliberately open (ADR-0003: "an empirical
- * call for the experiment, not an architecture decision"); this constant is the
- * one line to change, or override `OMNI_MODEL` at runtime, to swap it across GPT,
- * Claude, Gemini, or the open Chinese coding models — all reachable through the
- * OpenAI-/Anthropic-compatible wire shapes the spine targets. Swapping
- * model usually means swapping the endpoint too: change `OMNI_MODEL` *and*
- * `OMNI_BASE_URL` together (e.g. to a `claude-*` id at the Anthropic endpoint).
+ * The configured global model, in exactly one place (ADR-0003 calls the choice empirical). The
+ * effort knob is tuned at the provider call, so this string is bare; swap `OMNI_BASE_URL` with it.
  */
 export const DEFAULT_MODEL = "gpt-5.6-terra";
 
@@ -37,13 +25,8 @@ export const DEFAULT_MODEL = "gpt-5.6-terra";
 export const MODEL_ENV_VAR = "OMNI_MODEL";
 
 /**
- * The default endpoint, paired with the default model: OpenAI's API base. The spine
- * reads the wire shape off this URL (ADR-0003: "a provider registry keyed by
- * baseURL") — OpenAI's own host selects the first-party OpenAI wire, an Anthropic
- * host the Anthropic Messages wire, and any other host the generic OpenAI-compatible
- * wire. Override with `OMNI_BASE_URL` to point at any OpenAI-/Anthropic-compatible
- * endpoint (the open Chinese coding models all expose one, and reach the compatible
- * wire), which is how a provider swap stays a config change, not a code edit.
+ * The default endpoint, paired with the default model. The spine reads the wire shape off this URL
+ * (ADR-0003, "a provider registry keyed by baseURL"), so a provider swap stays a config change.
  */
 export const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 
@@ -54,13 +37,8 @@ export const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 export const BASE_URL_ENV_VAR = "OMNI_BASE_URL";
 
 /**
- * The BYO key lives here under a provider-neutral name. Provider-agnosticism is
- * the thesis: you move providers by swapping the whole trio — the
- * model (OMNI_MODEL), the endpoint (OMNI_BASE_URL, wired in issue 02), and this
- * key — so the key var must not imply one vendor (the value may be an OpenAI,
- * Anthropic, or any compatible provider's key). The key is passed explicitly to
- * the spine (createAnthropic / createOpenAICompatible, issue 02), so it need not
- * match any SDK's own default variable.
+ * The BYO key, under a provider-neutral name: the value may be an OpenAI, Anthropic or any
+ * compatible provider's key, and the spine passes it explicitly rather than by an SDK's own var.
  */
 export const API_KEY_ENV_VAR = "OMNI_API_KEY";
 
@@ -75,9 +53,8 @@ export interface ProviderConfig {
 }
 
 /**
- * Resolve the single global model: the OMNI_MODEL override if set and non-empty,
- * otherwise the configured default. Reading at call time (rather than freezing at
- * import) keeps it overridable per run and trivially testable.
+ * The OMNI_MODEL override if set and non-empty, otherwise the default. Read at call time rather
+ * than frozen at import, so a single run can override it.
  */
 export function resolveModel(env: NodeJS.ProcessEnv = process.env): string {
   const override = env[MODEL_ENV_VAR]?.trim();
@@ -85,9 +62,8 @@ export function resolveModel(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /**
- * Resolve the endpoint the same way: OMNI_BASE_URL override if set and non-empty,
- * otherwise the configured default. The spine reads the wire shape off this URL,
- * so it is the third leg of the provider swap (key + model + endpoint).
+ * The OMNI_BASE_URL override if set and non-empty, otherwise the default. The spine reads the wire
+ * shape off this URL, the third leg of the swap (key + model + endpoint).
  */
 export function resolveBaseURL(env: NodeJS.ProcessEnv = process.env): string {
   const override = env[BASE_URL_ENV_VAR]?.trim();
@@ -95,14 +71,12 @@ export function resolveBaseURL(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /**
- * Read the BYO key from the environment, failing loudly when it is missing. The
- * error names the variable and how to fix it — a missing key must surface clearly,
- * never as a confusing downstream failure (issue 02 acceptance).
+ * Read the BYO key, failing loudly when it is missing: the error names the variable and the fix,
+ * rather than surfacing as a confusing downstream failure.
  */
 export function requireApiKey(env: NodeJS.ProcessEnv = process.env): string {
   // Read through the vault: the ambient environment no longer holds this key after boot
-  // (src/platform/secrets.ts), so an ambient reference a generated Handler walks its way to finds
-  // nothing. An explicitly supplied `env` is still answered from itself.
+  // (src/platform/secrets.ts). An explicitly supplied `env` is still answered from itself.
   const key = readSecret(API_KEY_ENV_VAR, env);
   if (!key) {
     throw new Error(

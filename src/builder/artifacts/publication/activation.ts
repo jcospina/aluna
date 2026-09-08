@@ -37,9 +37,8 @@ export interface ActivatePublishedSnapshotInput {
   /** Finalize this publication's already-running lifecycle as success/activated. */
   readonly finalizeMetrics: (database: Database) => void;
   /**
-   * Optional cancellation predicate. It is checked after the test seam and again
-   * immediately before SQLite COMMIT, so any cancellation observed before the point of
-   * no return rolls migration, pointer CAS, and lifecycle success back together.
+   * Optional cancellation predicate, checked after the test seam and again just before
+   * COMMIT, so a cancellation before the point of no return rolls everything back together.
    */
   readonly isAborted?: () => boolean;
   /** Synchronous integrity assertions run after transactional writes, before COMMIT. */
@@ -55,9 +54,8 @@ export class ActivationCancelledError extends Error {
 }
 
 /**
- * Activate one already-published snapshot. Throws leave the publication available
- * for guarded reconciliation. A throw from `afterCommit` is deliberately post-PONR:
- * callers must treat the committed registry and lifecycle row as authoritative.
+ * Activate one already-published snapshot; a throw leaves it for guarded reconciliation. A
+ * throw from `afterCommit` is post-PONR: the committed registry row is authoritative.
  */
 export async function activatePublishedSnapshot(
   input: ActivatePublishedSnapshotInput,

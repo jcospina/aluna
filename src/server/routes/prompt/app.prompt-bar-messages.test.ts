@@ -20,12 +20,8 @@ import {
   renderPromptNotice,
 } from "../../http/index.ts";
 
-// The desk has two places to speak and each message goes to the one that was asked
-// (PLAN decisions 24 and 26; ARCH §6.1, §6.2).
-//
-// Run rather than grepped, on the shared shell double: these are rules about which
-// surface hears a sentence, and a rule about routing proved by a string match is proved
-// against nothing.
+// The desk has two places to speak and each message goes to the one that was asked (PLAN decisions
+// 24 and 26; ARCH §6.1, §6.2). Run rather than grepped: routing proved by a string match is not.
 
 /** The seam a module of the desk speaks through, restated the way both sides restate it. */
 const PROMPT_BAR_MESSAGE_EVENT = "aluna:prompt-bar-message";
@@ -45,9 +41,8 @@ function flashing(scene: ReturnType<typeof desk>): boolean {
 }
 
 /**
- * One request leaving the page, with the target htmx has already resolved for it. Both
- * halves are what the real event carries: the element that asked, and where its answer
- * would land.
+ * One request leaving the page, with the target htmx has already resolved for it: the element
+ * that asked, and where its answer would land — both halves the real event carries.
  * @returns whether it was refused
  */
 function request(scene: ReturnType<typeof desk>, asking: El, target: El | null) {
@@ -106,9 +101,8 @@ function structuredRefusal(
   body = READ_UNAVAILABLE,
   status = 409,
 ) {
-  // htmx dispatches `htmx:beforeSwap` on the swap target, so `elt` here is the region and
-  // the element that asked rides in the request's own configuration — the shape a live
-  // browser check against the vendored htmx confirmed.
+  // htmx dispatches `htmx:beforeSwap` on the swap target, so `elt` is the region and the element
+  // that asked rides in the request's configuration — confirmed live against the vendored htmx.
   const detail = {
     xhr: { status, responseText: body },
     shouldSwap: false,
@@ -194,9 +188,8 @@ describe("a submission with nothing in it", () => {
 
     submitBlank(scene, "   ");
 
-    // Stopped at the document in the capture phase: htmx listens on the form itself, so
-    // an event that never reaches it never goes on the wire, and the desk's own opener
-    // reads `defaultPrevented` rather than standing a frame up to close again.
+    // Stopped at the document in the capture phase: htmx listens on the form itself, so an event
+    // that never reaches it never goes on the wire, and the opener reads `defaultPrevented`.
     expect(scene.propagationStopped).toContain("submit");
   });
 
@@ -331,10 +324,8 @@ describe("a structured refusal renders on the surface it arrived from", () => {
   test("a press on a tile whose capability has gone speaks, rather than flickering a window", () => {
     const scene = desk();
 
-    // The router's own fragment, not a copy of it: the code the server marks a refusal
-    // with and the codes this shell rescues are two halves of one contract, and htmx drops
-    // any 4xx the shell does not claim — so a fragment written for a screen it never
-    // reaches is the failure this pins (5.9/03).
+    // The router's own fragment, not a copy: htmx drops any 4xx the shell does not claim, so a
+    // fragment written for a screen it never reaches is the failure this pins (5.9/03).
     expect(structuredRefusal(scene, deskLogo(), NOT_FOUND_FRAGMENT, 404)).toBe(false);
     expect(spoken(scene)).toBe(NOT_FOUND_NOTICE);
     expect(refused(scene)).toBe(true);
@@ -476,9 +467,8 @@ describe("the seam the desk's modules speak through", () => {
   });
 });
 
-// The duplicate-prompt path does not let htmx place the restoration at all — it keeps the
-// active view exactly where it is and lifts only the explanation out of the payload — so
-// the sentence reaches the bar through the shell rather than through an out-of-band swap.
+// The duplicate-prompt path does not let htmx place the restoration: it keeps the active view
+// where it is, so the sentence reaches the bar through the shell, not an out-of-band swap.
 describe("a deflection that keeps the view it would have replaced", () => {
   /** The scene that path needs: an untouched canonical collection standing in the window. */
   function canonicalDesk() {
@@ -581,9 +571,8 @@ describe("a sentence the server sent out of band", () => {
   });
 });
 
-// The shell is a classic script that imports nothing, so every constant it shares with a
-// module or with the server is restated in it. These are the pins that keep the copies
-// honest.
+// The shell is a classic script that imports nothing, so every constant it shares with a module
+// or with the server is restated in it. These are the pins that keep the copies honest.
 describe("the strings the desk restates", () => {
   const shellGlue = readFileSync(resolve("public/app.js"), "utf8");
   const promptBar = readFileSync(resolve("public/prompt-bar.js"), "utf8");
@@ -675,9 +664,8 @@ describe("the strings the desk restates", () => {
 
     expect(promptBar).toContain('const PROMPT_REFUSED_CLASS = "is-refused";');
     expect(promptBar).toContain("const PROMPT_REFUSAL_FLASH_MS = 400;");
-    // The design's placeholder rule verbatim, and the rail's own alert fill for the case
-    // the design never drew: a refusal that keeps what the person typed, where there is
-    // no placeholder on screen for the cue to land on.
+    // The design's placeholder rule verbatim, and the rail's own alert fill for the case the
+    // design never drew: a refusal that keeps what the person typed, with no placeholder on screen.
     expect(promptCss).toContain(".prompt.is-refused .prompt__field::placeholder");
     expect(promptCss).toContain("color: var(--signal)");
     // Scoped so the fill only applies where the placeholder rule has nothing to say.

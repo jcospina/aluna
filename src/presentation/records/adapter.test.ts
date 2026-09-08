@@ -1,17 +1,13 @@
 // Tests for the capability-scoped presentation adapter.
 //
-// The adapter is a deterministic seam: given a capability and its item
-// renderer, `present(record)` is a pure record → safe wrapped item HTML function. These
-// tests drive it with a **hand-written** item renderer — the composition input a generated
-// renderer replaces — and pin the invariants the model cannot get wrong:
-//
-//   • COMPOSITION — the trigger `<button>` + escaped `data-item` payload + the
-//     click-to-open hook + the record's inert view <template>, in the right order and
-//     linked by id.
-//   • ENFORCEMENT — the runtime allow-list enforcer runs on EVERY rendered record, so a
-//     hostile field value (even one a renderer forgot to escape) cannot escape as
-//     executable markup through the adapter. This is the safety half of the contract.
-//   • PAYLOAD — raw bytes are neutralized to null (`file` fields are references, ADR-0005 §3).
+// The adapter is a deterministic seam: given a capability and its item renderer, `present(record)`
+// is a pure record → safe wrapped item HTML function. These tests drive it with a hand-written
+// item renderer — the composition input a generated renderer replaces — and pin three invariants.
+// Composition: the trigger `<button>`, escaped `data-item` payload, click-to-open hook and the
+// record's inert view `<template>`, in the right order and linked by id. Enforcement: the runtime
+// allow-list enforcer runs on every rendered record, so a hostile field value cannot escape as
+// executable markup even if a renderer forgot to escape it. Payload: raw bytes are neutralized to
+// null, `file` fields being references (ADR-0005 §3).
 
 import { describe, expect, test } from "bun:test";
 
@@ -99,11 +95,8 @@ function recordTemplateBody(html: string, templateId: string): string {
   return match[1] ?? "";
 }
 
-// The inner markup the enforcer actually processed — between the wrapper's open tag and
-// </button>. The wrapper's own attributes (incl. the escaped data-item payload, where a
-// hostile value legitimately survives as inert data) are platform chrome, not part of the
-// enforced surface, so a security assertion must look at the inner markup alone. The first
-// literal `>` closes the open tag: every `>` inside data-item is escaped to `&gt;`.
+// The inner markup the enforcer actually processed. The wrapper's own attributes are chrome, and
+// the first literal `>` closes the open tag: every `>` inside data-item is escaped to `&gt;`.
 function innerMarkupOf(html: string): string {
   const openEnd = html.indexOf(">");
   const close = html.indexOf("</button>");
@@ -255,9 +248,8 @@ describe("createPresentationAdapter — composition", () => {
 });
 
 describe("createPresentationAdapter — enforcement on every rendered record", () => {
-  // A renderer that emits every hostile category: a fabricated class, a script, an event
-  // handler, a javascript: URL, an off-token style, plus one conforming class + on-token
-  // style so we can prove the enforcer discriminates rather than blanket-strips.
+  // A renderer that emits every hostile category, plus one conforming class and on-token style,
+  // so the enforcer is shown to discriminate rather than blanket-strip.
   const hostileRenderer: ItemRenderer = (record) =>
     `<div class="stack fabricated-danger">` +
     `<a href="javascript:steal()" onclick="pwn()">` +
@@ -304,9 +296,8 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
     const html = present(record({ title: hostileTitle }));
     const inner = innerMarkupOf(html);
 
-    // The rendered inner markup has no executable surface: the <script> is gone (with its
-    // content) and no element carries an event handler. A sanitized <img src=x> may survive —
-    // the allow-listed media frame with its handler stripped, inert, not executable.
+    // The rendered inner markup has no executable surface. A sanitized <img src=x> may survive:
+    // the allow-listed media frame with its handler stripped, inert rather than executable.
     expect(inner).not.toMatch(/<script/i);
     expect(inner).not.toMatch(/on\w+=/i);
     // The raw value survives only as inert data in the escaped payload — never live markup.
@@ -314,9 +305,8 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
   });
 
   test("a hostile field value cannot execute in the record's view template either", () => {
-    // The sibling test above covers the list half. The record's inert view <template>
-    // is the other half of what a hostile record reaches: it is cloned into the window
-    // on open, so an unescaped value there would execute at that moment instead.
+    // The record's inert view <template> is the other half of what a hostile record reaches: it
+    // is cloned into the window on open, so an unescaped value would execute at that moment.
     const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
@@ -326,10 +316,8 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
     const html = present(record({ title: hostileTitle }));
     const body = recordTemplateBody(html, `${RECORD_TEMPLATE_ID_PREFIX}-reading-rec-1`);
 
-    // `title` is the first active schema field, so the hostile value seeds its input as
-    // inert escaped text. Assert on the element openings, which are what would execute:
-    // the `onerror=alert(2)` characters legitimately survive as text inside the escaped
-    // `&lt;img …&gt;`.
+    // `title` is the first active schema field, so the hostile value seeds its input as inert
+    // escaped text. Assert on the element openings, which are what would execute.
     expect(body).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(body).not.toMatch(/<script/i);
     expect(body).not.toMatch(/<img/i);

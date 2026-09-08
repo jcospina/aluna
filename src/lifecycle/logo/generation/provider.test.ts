@@ -13,10 +13,8 @@ import {
   resolveRecraftBaseUrl,
 } from "./provider.ts";
 
-// **No test here calls the live service.** A generation costs real money, so every case
-// runs against an injected `fetch` and the four specimens `design/logo.html` was settled
-// on. That is the same rule `src/platform/provider/spine.test.ts` states for the text spine, and
-// it is why the client's only seam is a function you can hand it.
+// No test here calls the live service: a generation costs real money, so every case runs against
+// an injected `fetch` and the four specimens from `design/logo.html`, as `spine.test.ts` does.
 
 const SPECIMEN = readFileSync(
   resolve(import.meta.dir, "../../../../design/assets/logos/reading-journal.svg"),
@@ -169,9 +167,8 @@ describe("what counts as a failed attempt", () => {
     );
   });
 
-  // The budget covers the whole call, not just the headers. A service that answers
-  // promptly and then dribbles its body forever would otherwise hold this incarnation's
-  // read token past deletion's drain deadline.
+  // The budget covers the whole call, not just the headers: a service that dribbles its body
+  // for ever would hold this incarnation's read token past deletion's drain deadline.
   test("a body that never finishes arriving", async () => {
     const provider = createRecraftLogoProvider({
       env: ENV,

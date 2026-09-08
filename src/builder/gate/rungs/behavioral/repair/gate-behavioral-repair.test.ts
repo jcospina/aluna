@@ -49,10 +49,8 @@ const ALSO_UNTRIMMED_CREATE = CREATE_HANDLER.replace(
 );
 
 /**
- * A conforming renderer that throws on exactly one row the frozen `read` case seeds. The
- * platform smoke fixture never produces that value, so the defect first surfaces inside a
- * frozen case — which is precisely the situation where it could be mistaken for the read
- * Handler's own failure.
+ * A conforming renderer that throws on one row the frozen `read` case seeds. The smoke fixture
+ * never produces that value, so the defect first surfaces where it looks like the Handler's.
  */
 const THROWING_ITEM_RENDERER = [
   "export default function renderItem(record: Record<string, unknown>): string {",
@@ -81,8 +79,7 @@ function passingSuite(): FullBehavioralTestSuite {
 
 /**
  * A suite whose create case demands trimming. `GOOD_HANDLERS.create` stores the untrimmed
- * value, so the case fails on the *scratch rows it left behind* — the item renderer is not
- * involved, and attribution is total.
+ * value, so it fails on the scratch rows left behind: no renderer involved, attribution total.
  */
 function trimSuite(): FullBehavioralTestSuite {
   const suite = passingSuite();
@@ -97,11 +94,8 @@ function trimSuite(): FullBehavioralTestSuite {
 }
 
 /**
- * A suite whose search case froze the opposite ordering, and whose every other case passes.
- * Each row the case requires is stored and returned, so the only assertion that fails is the
- * *ordered fragment* — the one surface the shared item renderer can be responsible for. The
- * suite stays admissible: the platform contract governs which rows an ordering assertion may
- * name, not which direction the intent chose.
+ * A suite whose search case froze the opposite ordering and whose every other case passes, so
+ * the only failing assertion is the ordered fragment — the one surface the renderer owns.
  */
 function reversedOrderingSuite(): FullBehavioralTestSuite {
   const suite = passingSuite();
@@ -200,9 +194,8 @@ describe("behavioral repair — total attribution", () => {
 
 describe("behavioral repair — conservative attribution", () => {
   test("a renderer that throws inside the Handler call is not blamed on the Handler", async () => {
-    // `item.ts` executes *during* the Handler call, so without care its defect would look
-    // like the Handler's own and be attributed totally — licensing a rewrite of a unit that
-    // could not possibly fix it. A moved renderer makes that attribution unsound.
+    // `item.ts` executes during the Handler call, so its defect reads as the Handler's and
+    // would license a rewrite of a unit that could not possibly fix it.
     const suite = passingSuite();
     const { input, repaired } = repairGateInput(
       suite,
@@ -301,9 +294,8 @@ describe("behavioral repair — the bound", () => {
 
   test("a byte-identical rewrite is not a repair and is not retried", async () => {
     const suite = trimSuite();
-    // The model handed back exactly what it was given. Recording that as a repair would put
-    // a rewrite in the unit's provenance that never happened, and re-running identical bytes
-    // against identical tests cannot change the verdict — so the budget stops here.
+    // The model handed back what it was given. Recording a repair would log a rewrite that
+    // never happened, and identical bytes cannot change the verdict, so the budget stops.
     const { input, repaired } = repairGateInput(
       suite,
       { create: [GOOD_HANDLERS.create] },
@@ -355,9 +347,8 @@ describe("behavioral repair — what may never happen", () => {
   });
 
   test("a suite mutated mid-Gate fails the rung instead of being judged", async () => {
-    // Nothing in the shipped path does this. The guard exists so that if anything ever
-    // does, the Gate says so out loud rather than clearing a build against tests that
-    // moved to fit the code — the one failure mode frozen intent exists to prevent.
+    // Nothing shipped does this. The guard is here so that anything that ever does is said
+    // out loud, rather than clearing a build against tests that moved to fit the code.
     const suite = trimSuite();
     const frozen = frozenTierInput(TRIM_SPEC, suite).frozen;
     if (!frozen) throw new Error("expected a frozen tier input");
@@ -377,9 +368,8 @@ describe("behavioral repair — what may never happen", () => {
   });
 
   test("a suite mutated while a failing case is being judged fails the rung", async () => {
-    // The seal is checked on the failure path too, and for a sharper reason than on the
-    // passing one: if executing the suite moved it, the *verdict that just failed* was
-    // reached against tests nobody can vouch for, so attributing it would be theatre.
+    // The seal is checked on the failure path too: if executing the suite moved it, the
+    // verdict that just failed was reached against tests nobody can vouch for.
     const suite = trimSuite();
     const frozen = frozenTierInput(TRIM_SPEC, suite).frozen;
     if (!frozen) throw new Error("expected a frozen tier input");
@@ -407,9 +397,8 @@ describe("behavioral repair — what may never happen", () => {
   });
 
   test("an error that is not a case verdict fails closed but keeps the repair spend on record", async () => {
-    // A repaired Handler that loads badly, the real-database guard, a scratch fault: none of
-    // them is a Handler's verdict, so none may spend another turn. The tokens already spent
-    // are evidence, though, and must not vanish with the raw throw.
+    // A badly loading Handler, the real-database guard, a scratch fault: none is a Handler's
+    // verdict, so none spends another turn — but their tokens must not vanish with the throw.
     const suite = trimSuite();
     const frozen = frozenTierInput(TRIM_SPEC, suite).frozen;
     if (!frozen) throw new Error("expected a frozen tier input");
@@ -478,9 +467,8 @@ describe("behavioral repair — what may never happen", () => {
 
   test("a repair that satisfies the frozen suite but breaks the platform contract fails closed", async () => {
     const suite = reversedOrderingSuite();
-    // The frozen intent asks for oldest-first; the platform's own search contract is
-    // newest-first. A repair that satisfies the former violates the latter — and the Gate
-    // must reject it at smoke rather than commit bytes that only one judge approved.
+    // The frozen intent asks oldest-first, the platform's search contract newest-first. Smoke
+    // must reject the repair rather than commit bytes only one judge approved.
     const oldestFirstSearch = GOOD_HANDLERS.search.replaceAll("DESC", "ASC");
     const { input, repaired } = repairGateInput(suite, { search: [oldestFirstSearch] });
 

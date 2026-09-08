@@ -1,18 +1,15 @@
-// The core Builder / presenter split and lease-head stale revalidation
-// (PLAN decisions 28, 31, 37; ADR-0006; ARCH §6.2 step 1).
+// The core Builder / presenter split and lease-head stale revalidation (PLAN decisions 28, 31,
+// 37; ADR-0006; ARCH §6.2 step 1). Two things are proven here, and neither involves SSE.
 //
-// Two things are proven here, and neither of them involves SSE.
+// First the seam: the Builder runs a complete evolution — Diff, Gate, publication, activation,
+// durable metrics — driven by a recording fake presenter that knows nothing about transports,
+// DOM or the prompt route. That is the interface Module 7's implicit loop will consume with a
+// presenter of its own.
 //
-// First, the seam: the Builder runs a complete evolution — Diff, Gate, publication,
-// activation, durable metrics — driven by a recording fake presenter that knows nothing
-// about transports, DOM, or the prompt route. That is the interface Module 7's implicit
-// loop will consume with a presenter of its own.
-//
-// Second, staleness: a request whose target expectation, expected-absence, or resolver
-// catalog no longer holds at the head of the lease is refused. It calls no provider, never
-// opens a `running` row, and writes one direct terminal `failed/stale` admission row with
-// every generation stage skipped — carrying the expected incarnation for an evolution, and
-// none at all for a new capability refused before one was ever assigned.
+// Then staleness: a request whose target expectation, expected-absence or resolver catalog no
+// longer holds at the head of the lease is refused. It calls no provider, never opens a `running`
+// row, and writes one direct terminal `failed/stale` row with every generation stage skipped,
+// carrying the expected incarnation for an evolution and none for a new capability.
 
 import { afterEach, beforeAll, beforeEach, expect, test } from "bun:test";
 import type { ZodType } from "zod";
@@ -70,9 +67,8 @@ afterEach(() => {
 });
 
 /**
- * A presenter with no transport at all: it records the terminal lifecycle event and the
- * liveness sink's traffic. Everything the Builder does to the database and the filesystem
- * happens without it.
+ * A presenter with no transport at all: it records the terminal lifecycle event and the liveness
+ * sink's traffic. Everything the Builder does to the database and filesystem happens without it.
  */
 function fakePresenter(): {
   presenter: CoreBuilderPresenter;
@@ -242,9 +238,8 @@ test("the core Builder activates a real evolution through a presenter that has n
 });
 
 test("the core Builder builds and activates a brand-new capability through the same presenter", async () => {
-  // The other half of the seam. Nothing about this path is evolution: it assigns the
-  // incarnation, opens the durable row, authors a spec from nothing, and ends at a
-  // pointer that did not exist before — all through a presenter with no transport.
+  // The other half of the seam, no evolution in it: assign the incarnation, open the durable row,
+  // author a spec from nothing, end at a new pointer — all through a transport-free presenter.
   const authored = notesSpec({
     id: "recipes",
     label: "Recipes",
@@ -287,9 +282,8 @@ test("the core Builder builds and activates a brand-new capability through the s
 });
 
 test("a semantically identical candidate resolves to success/no_change through the seam", async () => {
-  // Decision 37's measured no-op, reached the same way a person reaches it: the Builder
-  // authored a candidate, the Diff Engine found zero change facts, and nothing moved. It
-  // is the row that must stay distinguishable from a stale refusal in both columns.
+  // Decision 37's measured no-op: a candidate authored, zero change facts, nothing moved. The row
+  // must stay distinguishable from a stale refusal in both columns.
   const { provider } = engineProvider(committedSpec());
   const active = getCapability("notes", env.conns.readonly);
   if (!active) throw new Error("committed capability did not activate");
@@ -330,10 +324,8 @@ test("a semantically identical candidate resolves to success/no_change through t
 });
 
 test("an evolution measures on its caller's clock, not on the moment the engine started", async () => {
-  // The engine used to start its own clock when it began work, which silently dropped
-  // everything the person had already waited through — classification, then the queue
-  // behind somebody else's lease. A v1 build has always counted that time; this pins the
-  // evolution to the same clock by handing it one that started five seconds ago.
+  // The engine used to start its own clock, dropping the classification and the queue wait behind
+  // somebody else's lease. Handing it a clock that started five seconds ago pins the v1 behavior.
   const { provider } = engineProvider(dueDateCandidate());
   const active = getCapability("notes", env.conns.readonly);
   if (!active) throw new Error("committed capability did not activate");
@@ -431,10 +423,8 @@ test("an evolution target reborn under another incarnation is refused stale", as
     incarnationId: OTHER_INCARNATION_ID,
   });
   expect(calls).toEqual([]);
-  // Unlike the expected-absent collision, this row *is* filed under the capability id: the
-  // build really did aim at `notes`, and the expected incarnation beside it says which
-  // `notes` it meant. That pair is a complete, true statement about a capability this build
-  // owned — which is exactly what the collision case cannot say about the id it borrowed.
+  // Unlike the expected-absent collision, this row is filed under the capability id: the build
+  // aimed at `notes`, and the expected incarnation beside it says which `notes` it owned.
   expect(rows).toMatchObject([
     {
       buildId: "stale-target",
@@ -500,9 +490,8 @@ test("a proposed separate id that was taken in the meantime is an expected-absen
     incarnationId: null,
   });
   expect(calls).toEqual([]);
-  // The durable row names neither, and the collision is exactly why: `notes` is somebody
-  // else's committed capability that this build never touched, so charging it with the
-  // refusal would put a failure on a capability whose own history is spotless.
+  // The durable row names neither: `notes` is somebody else's committed capability this build
+  // never touched, so charging it with the refusal marks a spotless history with a failure.
   expect(rows).toMatchObject([
     { buildId: "stale-collision", outcome: "stale", incarnationId: null, capabilityId: null },
   ]);

@@ -22,10 +22,8 @@ import {
   renderRecordViewTemplate,
 } from "./record-view.ts";
 
-// The record's own view is platform chrome: a back control above the record's form, and
-// nothing else. These pin what the design settled — a record opens in edit mode, there is
-// no read view of one anywhere, an absent value is an empty input rather than a muted em
-// dash, and nothing about this surface is a dialog.
+// The record's own view is platform chrome: a back control above the record's form, and nothing
+// else. A record opens in edit mode, an absent value is an empty input, and nothing is a dialog.
 
 const CAPABILITY: RenderableCapability = {
   id: "notes",
@@ -120,9 +118,8 @@ describe("the record view — a record opens in edit mode", () => {
   });
 });
 
-// Record deletion changes container and nothing else (PLAN decision 22): the shape the
-// modal had is the shape the form's action row keeps, and the only way to a delete is to
-// open the record first.
+// Record deletion changes container and nothing else (PLAN decision 22): the shape the modal had
+// is the shape the form's action row keeps, and a delete starts by opening the record.
 describe("the record view — deletion lives in the form's action row", () => {
   const view = renderRecordView(CAPABILITY, RECORD, TEMPLATE_ID);
   const confirmationId = capabilityDeleteConfirmationId("notes");
@@ -218,9 +215,8 @@ describe("the record view — the inert template it travels in", () => {
   });
 });
 
-// No DOM in Bun, so the swap mechanics live in a browser file this test can only read.
-// It pins that the client leaves by the same two controls the server renders, and that
-// leaving is a fresh read of the collection rather than a restored snapshot.
+// No DOM in Bun, so the swap mechanics live in a browser file this test can only read. It pins
+// that leaving uses the two controls the server renders, and is a fresh read, not a snapshot.
 describe("the record swap — the way out (server ⇄ client)", () => {
   const controller = readFileSync(join(import.meta.dir, "../../../public/record-view.js"), "utf8");
 
@@ -247,13 +243,8 @@ describe("the record swap — the way out (server ⇄ client)", () => {
   });
 });
 
-// The swap's own rules, run in Bun against structural doubles. The release rule is
-// deliberately structural (`public/region-scope.js`) so the thing the acceptance criterion
-// names — what a swap releases — can be executed rather than grepped for.
-// The confirmation's own rules, run in Bun against structural doubles for the same reason
-// the release rule is: what the acceptance criteria name — the row and the question
-// trading places, and where a finished delete leaves the user — is executed rather than
-// grepped for.
+// The confirmation's own rules, run in Bun against structural doubles, so the row and the
+// question trading places is executed rather than grepped for.
 describe("the record's deletion — the row and the question trade places", () => {
   /** The four facts the rule needs of a record view, and no more. */
   function surface(confirming = false) {
@@ -331,9 +322,8 @@ describe("the record's deletion — where a finished delete leaves the user", ()
   });
 });
 
-// The sentence used to be written into the form's own live region unconditionally — inside
-// the subtree being destroyed in the same tick when the region rule was what aborted the
-// request. It was written and thrown away, and the server may have committed the write.
+// The sentence used to be written into the form's own live region unconditionally, inside a
+// subtree being destroyed in the same tick, so it was written and thrown away.
 describe("the record's deletion — where an unconfirmed outcome is said", () => {
   const inField = "I couldn’t confirm that change. Go back and check before trying again.";
 
@@ -360,9 +350,8 @@ describe("the record's deletion — where an unconfirmed outcome is said", () =>
   });
 });
 
-// The wiring those rules hang off cannot be evaluated without a browser, so it is read.
-// Each assertion names a call site rather than a declaration: deleting the listener or the
-// outcome branch fails these, which is exactly what a declaration-only grep would not.
+// The wiring those rules hang off cannot be evaluated without a browser, so it is read. Each
+// assertion names a call site, so deleting the listener or the outcome branch fails these.
 describe("the record's deletion — the wiring (server ⇄ client)", () => {
   const mutations = readFileSync(
     join(import.meta.dir, "../../../public/record-mutations.js"),
@@ -378,9 +367,8 @@ describe("the record's deletion — the wiring (server ⇄ client)", () => {
   });
 
   test("the delete's outcome is handled, and its request says what it is doing", () => {
-    // The fourth argument is whether the surface went while the request was out: a delete
-    // aborted by the region rule must not write its sentence into a subtree that is being
-    // destroyed in the same tick.
+    // The fourth argument is whether the surface went while the request was out: a delete aborted
+    // by the region rule must not write its sentence into a subtree being destroyed.
     expect(mutations).toContain("handleDeleteOutcome(");
     expect(mutations).toContain("releaseMutationSurface(deleteForm)");
     expect(mutations).toContain("setDeletePending(deleteForm, true)");
@@ -400,9 +388,8 @@ describe("the record's deletion — the wiring (server ⇄ client)", () => {
   });
 });
 
-// The swap's own rules, run in Bun against structural doubles. The release rule is
-// deliberately structural (`public/region-scope.js`) so the thing the acceptance criterion
-// names — what a swap releases — can be executed rather than grepped for.
+// The swap's own rules, run in Bun against structural doubles. The release rule is structural
+// (`public/region-scope.js`) so what a swap releases can be executed rather than grepped for.
 describe("the record swap — what a swap releases, and in what order", () => {
   /** The three DOM facts the release rule needs, and no more. */
   class Node {

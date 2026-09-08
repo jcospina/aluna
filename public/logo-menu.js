@@ -1,28 +1,14 @@
 // @ts-check
 
 /**
- * The short menu that opens on a capability's logo, and the one inline rename form it
- * opens.
- *
- * Three ways in, one component (PLAN decision 19): right-click for a mouse,
- * press-and-hold for touch, and the menu key or Shift+F10 for the keyboard — which the
- * logo already accepts because it is a real `<button>`. The markup for both the menu and
- * the editor ships with the logo and hidden (`renderCapabilityLogo`, `src/web/fragments.ts`),
- * the way the record view ships its delete confirmation: nothing here builds HTML, so
- * nothing here has to get escaping right, and no round trip stands between a right-click
- * and the menu.
- *
- * The doorway is on the logo and not on the window chrome, which is the whole reason no
- * lamp goes signal red and D3 stands. Delete's confirmation is the window's (5.9/02);
- * this module only opens the doorway to it.
- *
- * Rename changes the name written under the tile and nothing else — not the id, not the
- * address, not the artwork, which L7 forbids redrawing. The write itself is the server's
- * (`src/capability-rename/`); what happens here is the form, its own guard on the name,
- * and putting focus back where it came from.
+ * The short menu that opens on a capability's logo, and the inline rename form it opens: three
+ * ways in, one component (PLAN decision 19), with the markup shipped hidden beside the logo.
  */
 
-/** The slot one capability occupies on the desk: the logo, its menu and its editor. */
+/**
+ * The slot one capability occupies on the desk: the logo, its menu and its editor. The doorway is
+ * on the logo rather than the window chrome, which is why no lamp goes signal red and D3 stands.
+ */
 const SLOT_SELECTOR = "[data-logo-slot]";
 const LOGO_SELECTOR = "[data-capability-logo]";
 const MENU_SELECTOR = "[data-logo-menu]";
@@ -40,27 +26,20 @@ const RENAME_SAVE_SELECTOR = "[data-logo-rename-save]";
 const RENAMING_ATTRIBUTE = "data-renaming";
 
 /**
- * Where an open menu stands while it is open.
- *
- * The menu ships inside its logo's slot, which is the only place that keeps the two
- * together through every swap addressed at that capability. But the logo layer sits under
- * the window layer — correct for logos, wrong for a menu, which is the frontmost thing on
- * the desk for as long as it is open. So the menu is lifted into this layer on the way up
- * and put back on its logo on the way down, and it is never in both places at once.
+ * Where an open menu stands. It ships inside its logo's slot, which keeps the two together
+ * through every swap, but the logo layer sits under the window layer — so it is lifted here.
  */
 const MENU_LAYER_ID = "capability-menus";
 
 /**
- * How long a press has to be held before it is a press-and-hold. The interval every
- * platform's own long-press uses; shorter and an ordinary tap opens the menu, longer and
- * the gesture feels broken.
+ * How long a press has to be held before it is a press-and-hold — the interval every platform's
+ * own long-press uses. Shorter and an ordinary tap opens the menu; longer feels broken.
  */
 export const LONG_PRESS_MS = 500;
 
 /**
- * How far a finger may wander and still be holding still. A press is never perfectly
- * still on a touch screen, and anything past this is the start of a scroll or a drag —
- * both of which cancel the hold rather than opening a menu over what is moving.
+ * How far a finger may wander and still be holding still. A press is never perfectly still on a
+ * touch screen, and anything past this is the start of a scroll or a drag.
  */
 export const LONG_PRESS_SLOP_PX = 10;
 
@@ -68,33 +47,20 @@ export const LONG_PRESS_SLOP_PX = 10;
 const MENU_VIEWPORT_MARGIN_PX = 8;
 
 /**
- * The prompt bar's form. The floor a floating panel stops at is its top edge, not the
- * bottom of the window: the strip the bar floats in is a floor for everything on this
- * desk (design D5), and the bar is also where a refusal about the very name being typed is
- * spoken — a panel standing over that sentence would cover the answer to itself.
- *
- * Restated from `public/desk-window.js` (PROMPT_FORM_ID) rather than imported, the way
- * this shell restates every constant that crosses a module boundary here; a platform test
- * pins the two copies against each other.
+ * The prompt bar's form, whose top edge is the floor a floating panel stops at (design D5): a
+ * panel over that sentence would cover the answer to itself. Restated and pinned by a test.
  */
 const PROMPT_FORM_ID = "spec-build-form";
 
 /**
- * The slot the bar speaks in. It stands *above* the rail rather than inside it, and it is
- * as tall as the sentence it is holding — so the floor moves up when the desk has
- * something to say, which is exactly when this matters.
- *
- * Restated from `public/prompt-bar.js` (PROMPT_NOTICE_ID); a platform test pins the two.
+ * The slot the bar speaks in. It stands above the rail and is as tall as the sentence it holds,
+ * so the floor moves up when the desk has something to say. Restated and pinned by a test.
  */
 const PROMPT_NOTICE_ID = "prompt-notice";
 
 /**
- * What the editor says about a name it will not send.
- *
- * Restated from `isCapabilityNameLabel` (`src/registry/labels.ts`) rather than shared,
- * the way this shell restates every constant it cannot import; a platform test runs both
- * readings over the same corpus and pins that they agree. The server keeps its own guard
- * for every submission that does not come from this form.
+ * What the editor says about a name it will not send. Restated from `isCapabilityNameLabel`
+ * (`src/registry/labels.ts`), with a test running both readings over the same corpus.
  */
 const MAX_LABEL_CHARS = 48;
 const MAX_LABEL_WORDS = 5;
@@ -129,9 +95,8 @@ export function labelNotice(value) {
 }
 
 /**
- * As much of the document as these rules reach for. Structural on purpose, the way the
- * desk's other modules take theirs: a real `Document` satisfies it and so does a double,
- * which is what lets the rules run in Bun without a browser.
+ * As much of the document as these rules reach for. Structural on purpose, so a double satisfies
+ * it as well as a `Document` and the rules run in Bun without a browser.
  *
  * @typedef {{
  *   getAttribute(name: string): string | null,
@@ -205,9 +170,8 @@ function within(slot, selector) {
 }
 
 /**
- * The capability one node belongs to. A press inside the open menu is answered by the
- * slot the menu was opened on rather than by walking up from it: while it is open the
- * menu stands in the menu layer, which is nobody's slot.
+ * The capability one node belongs to. A press inside the open menu is answered by the slot it
+ * was opened on: while open, the menu stands in the menu layer, which is nobody's slot.
  * @param {MenuNode} node
  */
 function slotOf(node) {
@@ -217,10 +181,8 @@ function slotOf(node) {
 }
 
 /**
- * The desk's one open menu, and the gesture that opened it.
- *
- * Module state rather than per-slot state: there is one pointer and one keyboard, so
- * there is one menu, and a second one opening is the first one closing.
+ * The desk's one open menu. Module state rather than per-slot: there is one pointer and one
+ * keyboard, so a second menu opening is the first one closing.
  */
 /** @type {MenuNode | null} */
 let openSlot = null;
@@ -231,19 +193,14 @@ let liftedMenu = null;
 /** @type {MenuNode | null} */
 let liftedEditor = null;
 /**
- * The slot that editor was lifted out of, and the only slot it may ever be put back into.
- *
- * Held rather than passed in. A lifted editor belongs to one capability, and a swap
- * landing on the desk while it is up is not always that capability's — sending it home by
- * whichever slot happened to be swapped is how one logo's editor ends up inside another
- * logo's, which is to say gone.
+ * The slot that editor was lifted out of, and the only slot it may be put back into. Sending it
+ * home by whichever slot happened to be swapped puts one logo's editor inside another's.
  */
 /** @type {MenuNode | null} */
 let editorHome = null;
 /**
- * Where the label the editor is standing in for was. Kept, because the editor is placed
- * more than once: a sentence appearing under the field makes the panel taller, and a
- * panel clamped to the screen when it was shorter now hangs past the bottom of it.
+ * Where the label the editor stands in for was. Kept because the editor is placed more than
+ * once: a sentence under the field makes the panel taller than the clamp allowed for.
  */
 /** @type {{ x: number, y: number } | null} */
 let editorAnchor = null;
@@ -258,13 +215,8 @@ let holdTimer;
 /** @type {{ x: number, y: number } | null} */
 let holdOrigin = null;
 /**
- * Whether the click a consumed gesture is about to produce belongs to this module.
- *
- * A press-and-hold ends in a `pointerup`, and the browser follows it with a click on the
- * button that was held — which is the logo's ordinary open. Opening the menu must never
- * also open the capability, so exactly one click is taken. It is cleared by the next
- * `pointerdown` as well: a platform that suppressed the click itself would otherwise
- * leave this armed against the person's next, entirely unrelated, tap.
+ * Whether the click a consumed gesture is about to produce belongs to this module: a hold ends in
+ * a `pointerup` the browser follows with a click, and opening the menu must not open the tile.
  */
 let consumeNextClick = false;
 /** The capability whose rename is in flight, so the logo that comes back can be given
@@ -272,12 +224,8 @@ let consumeNextClick = false;
 let renamingCapabilityId = "";
 
 /**
- * Put down everything this module is holding.
- *
- * Called when it is started against a document, which in the browser happens once. It is
- * the rules being run against a *second* document that this is for: state left over from
- * the first — a consumed click still armed, a slot still marked open — would answer the
- * second one's first question with the first one's leftovers.
+ * Put down everything this module is holding. For the rules being run against a second document:
+ * a consumed click still armed would answer its first question with the first one's leftovers.
  */
 export function resetLogoMenu() {
   openSlot = null;
@@ -304,9 +252,8 @@ function logoOf(slot) {
 }
 
 /**
- * Open one logo's menu, and close whatever was open. Idempotent: a platform that fires
- * its own `contextmenu` for a long press reaches this beside the hold's own timer, and
- * the second arrival must not re-enter the menu or move focus a second time.
+ * Open one logo's menu, and close whatever was open. Idempotent: a platform firing its own
+ * `contextmenu` for a long press reaches this beside the hold's timer.
  * @param {MenuNode} slot
  * @param {{ x: number, y: number } | null} [at] where the pointer was, when there was one
  */
@@ -316,8 +263,8 @@ export function openLogoMenu(slot, at = null) {
   closeRenameEditor({ restoreFocus: false });
   const menu = menuOf(slot);
   if (menu === null) return;
-  // Shown first and moved second. A drawn element measured while it is hidden has no box,
-  // so relocating before unhiding asks the ink system to redraw nothing.
+  // Shown first and moved second: a drawn element measured while hidden has no box, so
+  // relocating before unhiding asks the ink system to redraw nothing.
   menu.removeAttribute("hidden");
   logoOf(slot)?.setAttribute("aria-expanded", "true");
   if (menuLayer !== null) menuLayer.append?.(menu);
@@ -328,16 +275,8 @@ export function openLogoMenu(slot, at = null) {
 }
 
 /**
- * Put a floating piece of the desk where it was asked for: the menu at the tip of the
- * pointer, running down and to the right of it the way a context menu does everywhere
- * else, and the rename editor at the label it is standing in for.
- *
- * Clamped to the viewport, so a logo in the bottom-right corner of the desk opens its menu
- * *above and to the left* of the cursor rather than half off the screen. Measured after
- * the menu is shown, because a hidden box has no size to clamp against.
- *
- * Silent where there is nothing to measure. The rules above run against a document double
- * in Bun, and placement is the one thing a double cannot answer.
+ * Put a floating piece of the desk where it was asked for, clamped to the viewport so a logo in
+ * the corner opens above and left of the cursor. Silent where there is nothing to measure.
  *
  * @param {MenuNode | null | undefined} node @param {{ x: number, y: number } | null} at
  */
@@ -372,8 +311,8 @@ function promptBarTop() {
 }
 
 /**
- * Where a menu opened without a pointer starts: the logo's own bottom-left corner, which
- * is where the person's attention already is. The keyboard has no cursor to open from.
+ * Where a menu opened without a pointer starts: the logo's own bottom-left corner, the keyboard
+ * having no cursor to open from.
  * @param {MenuNode | null} logo
  */
 function cornerOf(logo) {
@@ -382,8 +321,8 @@ function cornerOf(logo) {
 }
 
 /**
- * Put the menu away. Focus goes back to the logo it opened on, which is where it was
- * before and the only place that is still there afterwards.
+ * Put the menu away. Focus goes back to the logo it opened on, which is where it was before and
+ * the only place still there afterwards.
  * @param {{ restoreFocus?: boolean }} [options]
  */
 export function closeLogoMenu(options = {}) {
@@ -391,17 +330,13 @@ export function closeLogoMenu(options = {}) {
   if (slot === null) return;
   openSlot = null;
   const menu = liftedMenu ?? menuOf(slot);
-  // Asked before the menu is hidden, because after it the answer is always no. Focus goes
-  // back to the logo when the menu still had it — a row that is about to be hidden is not
-  // somewhere the keyboard may be left, and neither is nowhere. It does not go back when
-  // something else has already taken it: a press that lands on another control moves focus
-  // before this runs, and taking it away again would be this menu closing over the
-  // person's next action.
+  // Asked before the menu is hidden, because after it the answer is always no. It does not go
+  // back when something else has taken it: that would be this menu closing over the next action.
   const held = options.restoreFocus ?? holdsTheFocus(menu, MENU_SELECTOR);
   menu?.setAttribute("hidden", "");
   logoOf(slot)?.setAttribute("aria-expanded", "false");
-  // Home again, so the slot is once more the whole of what this capability occupies and a
-  // swap addressed at it takes the menu with it.
+  // Home again, so the slot is once more the whole of what this capability occupies and a swap
+  // addressed at it takes the menu with it.
   if (menu !== null && menu !== undefined) slot.append?.(menu);
   liftedMenu = null;
   if (held) logoOf(slot)?.focus();
@@ -409,13 +344,13 @@ export function closeLogoMenu(options = {}) {
 
 /**
  * Whether the keyboard is inside this node, or nowhere in particular. Both are cases where
- * putting focus back on the logo is giving it somewhere to be rather than taking it.
+ * putting focus back on the logo gives it somewhere to be rather than taking it away.
  * @param {MenuNode | null | undefined} node @param {string} selector
  */
 function holdsTheFocus(node, selector) {
   const active = deskRoot?.activeElement;
-  // A root that cannot answer is answered generously: the panel had the focus when it
-  // opened, so giving it back is the safe reading.
+  // A root that cannot answer is answered generously: the panel had the focus when it opened,
+  // so giving it back is the safe reading.
   if (active === undefined) return true;
   if (active === null || active === deskRoot?.body) return true;
   return node !== null && node !== undefined && active.closest?.(selector) === node;
@@ -432,8 +367,7 @@ function firstMenuItem(menu) {
 }
 
 /**
- * Move along the menu, wrapping at both ends. A menu of two items is a menu you can
- * still walk, and wrapping is what every platform's own does.
+ * Move along the menu, wrapping at both ends, which is what every platform's own does.
  * @param {MenuNode} menu @param {MenuNode | null} from @param {number} step
  */
 function moveMenuFocus(menu, from, step) {
@@ -445,12 +379,8 @@ function moveMenuFocus(menu, from, step) {
 }
 
 /**
- * Turn one logo's label into the rename form.
- *
- * The form is a sibling of the button rather than a child of it, because a `<button>` may
- * not contain interactive content — so the label is hidden and the form takes the space
- * it was using. Nothing about the capability's place on the desk moves, no modal opens,
- * and the window keeps whatever it was holding.
+ * Turn one logo's label into the rename form. A sibling of the button rather than a child,
+ * because a `<button>` may not contain interactive content, so no modal opens and nothing moves.
  * @param {MenuNode} slot
  */
 export function openRenameEditor(slot) {
@@ -463,8 +393,8 @@ export function openRenameEditor(slot) {
   const at = label?.getBoundingClientRect?.();
   editingSlot = slot;
   slot.setAttribute(RENAMING_ATTRIBUTE, "");
-  // The tile is still on the desk but is not a way into the capability while its own
-  // name is being typed, and it is not a tab stop standing between the field and Save.
+  // The tile is not a way into the capability while its own name is being typed, and not a tab
+  // stop standing between the field and Save.
   logoOf(slot)?.setAttribute("inert", "");
   form.removeAttribute("hidden");
   if (menuLayer !== null) menuLayer.append?.(form);
@@ -479,9 +409,8 @@ export function openRenameEditor(slot) {
 }
 
 /**
- * Put the editor away and give the label back. Every exit comes through here — Cancel,
- * Escape, and a name that has just been written — so there is one place that knows how
- * to leave the logo the way it was found.
+ * Put the editor away and give the label back. Every exit comes through here — Cancel, Escape,
+ * and a name just written — so one place knows how to leave the logo the way it was found.
  * @param {{ restoreFocus?: boolean }} [options]
  */
 export function closeRenameEditor(options = {}) {
@@ -498,10 +427,8 @@ export function closeRenameEditor(options = {}) {
 }
 
 /**
- * Hide the editor and put it back on the logo it was opened from, wherever it currently
- * stands. It goes home even when home has just been swapped out from under it: appending
- * it to the slot that left takes it out of the menu layer, which is the one place it may
- * not be left behind.
+ * Hide the editor and put it back on the logo it was opened from. It goes home even when home
+ * has just been swapped away: the menu layer is the one place it may not be left behind.
  */
 function returnEditor() {
   const home = editorHome;
@@ -534,21 +461,16 @@ function clearRenameNotice(slot) {
   sayInEditor(slot, "");
 }
 
-/** Whether this keystroke is a request for the menu. Two spellings, because two
- * platforms: the dedicated menu key, and Shift+F10 where there is none.
+/** Whether this keystroke is a request for the menu. Two spellings for two platforms: the
+ * dedicated menu key, and Shift+F10 where there is none.
  * @param {MenuEvent} event */
 function asksForTheMenu(event) {
   return event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey === true);
 }
 
 /**
- * Wire every way in onto a document.
- *
- * `gestureRoot` is where the one consumed click is taken, and it is `window` in a browser
- * rather than the document. Capture runs outermost-first, so a listener there is the only
- * one guaranteed to see a click before the desk's own document-level opener does
- * (`answerPress`, `public/desk-window.js`) — which is what makes the suppression
- * independent of the order these modules happen to load in.
+ * Wire every way in onto a document. `gestureRoot` is `window` in a browser: capture runs
+ * outermost-first, so only a listener there is guaranteed to see a click before `answerPress`.
  *
  * @param {MenuRoot} root
  * @param {MenuRoot} [gestureRoot]
@@ -558,14 +480,8 @@ export function startLogoMenu(root, gestureRoot = root) {
   deskRoot = root;
   menuLayer = root.getElementById?.(MENU_LAYER_ID) ?? null;
   gestureRoot.addEventListener("click", onGestureClick, true);
-  // Outside the document, in the capture phase, for the reason the click above is: two
-  // other rules answer Escape on the document itself and neither reads what has focus —
-  // a standing record confirmation (`public/record-mutations.js`) and the question a
-  // navigation asks before it ends a run (`public/leaving-a-run.js`). An Escape that
-  // closes this menu must not also dismiss one of those behind it, and `stopPropagation`
-  // does not stop a listener on the *same* node, so answering it here — before the
-  // document sees it at all — is the only placement that holds whatever order these
-  // modules happen to load in.
+  // Outside the document and captured, for the reason the click above is: two other rules answer
+  // Escape on the document and neither reads focus, and `stopPropagation` spares the same node.
   gestureRoot.addEventListener("keydown", onKeyDown, true);
   wirePointerHold(root);
   root.addEventListener("contextmenu", onContextMenu);
@@ -575,15 +491,13 @@ export function startLogoMenu(root, gestureRoot = root) {
 }
 
 /**
- * The one click a consumed gesture is allowed to eat, and the press that dismisses a
- * menu. Everything else on the desk goes past untouched.
+ * The one click a consumed gesture is allowed to eat, and the press that dismisses a menu.
+ * Everything else on the desk goes past untouched.
  * @param {MenuEvent} event
  */
 function onGestureClick(event) {
-  // `detail` counts the presses behind a click, and a keyboard activation reports none.
-  // A platform that suppressed the post-hold click itself would otherwise leave this
-  // armed against the very next Enter on the menu it just opened, so the first press of
-  // Rename would do nothing at all.
+  // `detail` counts the presses behind a click and a keyboard activation reports none, so a
+  // platform that suppressed the post-hold click cannot eat the next Enter on Rename.
   if (consumeNextClick && pressesBehind(event) > 0) {
     consumeNextClick = false;
     event.preventDefault();
@@ -592,10 +506,8 @@ function onGestureClick(event) {
   }
   const node = nodeOf(event.target);
   if (node === null) return;
-  // A press that goes somewhere answers the editor on its way: a logo, or an item on
-  // another logo's menu. An editor left standing through one of those is a form about a
-  // capability the person has walked away from. A press on the ground or in the prompt bar
-  // is not going anywhere, and takes nobody's half-typed name with it.
+  // A press that goes somewhere — a logo, another logo's menu item — answers the editor on its
+  // way. One on the ground or in the prompt bar takes nobody's half-typed name with it.
   const navigating =
     node.closest(LOGO_SELECTOR) !== null || node.closest(MENU_ITEM_SELECTOR) !== null;
   if (navigating && editingSlot !== null && node.closest(RENAME_FORM_SELECTOR) === null) {
@@ -603,9 +515,8 @@ function onGestureClick(event) {
   }
   if (openSlot === null) return;
   if (node.closest(MENU_SELECTOR) !== null) return;
-  // A press that dismisses the menu does only that. Landing on the logo the menu belongs
-  // to would otherwise both put the menu away and open the capability, which is one press
-  // doing two things the person asked for once.
+  // A press that dismisses the menu does only that: landing on its own logo would otherwise put
+  // the menu away and open the capability, one press doing two things asked for once.
   const dismissedOnItsOwnLogo = node.closest(SLOT_SELECTOR) === openSlot;
   closeLogoMenu();
   if (!dismissedOnItsOwnLogo) return;
@@ -619,24 +530,21 @@ function onContextMenu(event) {
   const node = nodeOf(event.target);
   const slot = node?.closest(SLOT_SELECTOR) ?? null;
   if (slot === null || slot === editingSlot) {
-    // A right-click anywhere else is a dismissal like any other. It produces no `click`,
-    // so the rule that closes the menu on a press away never hears about this one.
+    // A right-click anywhere else is a dismissal like any other. It produces no `click`, so the
+    // rule that closes the menu on a press away never hears about this one.
     if (node?.closest(MENU_SELECTOR) === null) closeLogoMenu();
     return;
   }
   event.preventDefault();
-  // The same logo again is the menu asked for again, at wherever the pointer is now — and
-  // moved rather than closed and reopened. A platform that turns a long press into one of
-  // these itself fires it alongside this module's own timer, and a menu that tore itself
-  // down and rebuilt on the second arrival flickered on every touch open.
+  // The same logo again is the menu asked for again, moved rather than closed and reopened: a
+  // menu that tore itself down on the second arrival flickered on every touch open.
   if (slot === openSlot) placeFloating(liftedMenu ?? menuOf(slot), pointOf(event));
   else openLogoMenu(slot, pointOf(event));
 }
 
 /**
- * Where a pointer event happened, or nothing when it did not happen at a point. A menu
- * key pressed on Windows arrives as a `contextmenu` with no coordinates of its own, and
- * that one belongs at the logo rather than at the top-left corner of the screen.
+ * Where a pointer event happened, or nothing when it did not happen at a point: a Windows menu
+ * key arrives as a `contextmenu` with no coordinates, and belongs at the logo.
  * @param {MenuEvent} event
  */
 function pointOf(event) {
@@ -666,8 +574,8 @@ function onKeyDown(event) {
 }
 
 /**
- * Escape is the way out of a form that has taken the label's place. It answers the editor
- * and nothing further up: a live run and the window it is in are not what this is about.
+ * Escape is the way out of a form that has taken the label's place. It answers the editor and
+ * nothing further up: a live run and its window are not what this is about.
  * @param {MenuEvent} event
  */
 function onEditorKey(event) {
@@ -684,9 +592,8 @@ function wirePointerHold(root) {
   for (const ending of ["pointerup", "pointercancel", "pointerleave"]) {
     root.addEventListener(ending, cancelHold);
   }
-  // Scrolling does not bubble, so it is heard on the way down. A list moving under a
-  // finger is the clearest statement there is that the press was not a hold — and a panel
-  // placed against the viewport has to answer for the ground moving under it too.
+  // Scrolling does not bubble, so it is heard on the way down: a list moving under a finger says
+  // the press was not a hold, and a panel placed against the viewport must answer for it too.
   root.addEventListener("scroll", onTheGroundMoving, true);
   if (typeof window !== "undefined") window.addEventListener("resize", onTheGroundMoving);
 }
@@ -695,28 +602,24 @@ function wirePointerHold(root) {
 function onPointerDown(event) {
   consumeNextClick = false;
   cancelHold();
-  // A mouse has its own way in and does not hold anything down to get it. Only the
-  // gestures that have no button of their own are timed.
+  // A mouse has its own way in and holds nothing down to get it, so only the gestures with no
+  // button of their own are timed.
   if (event.pointerType === "mouse") return;
   const slot = nodeOf(event.target)?.closest(SLOT_SELECTOR) ?? null;
   if (slot === null || slot === editingSlot) return;
   holdOrigin = { x: event.clientX ?? 0, y: event.clientY ?? 0 };
   holdTimer = setTimeout(() => {
     holdTimer = undefined;
-    // Taken before the menu opens, because the release that ends this hold is still to
-    // come and the click behind it belongs to a gesture that has now been spent.
+    // Taken before the menu opens, because the release that ends this hold is still to come and
+    // the click behind it belongs to a gesture now spent.
     consumeNextClick = true;
     openLogoMenu(slot, holdOrigin);
   }, LONG_PRESS_MS);
 }
 
 /**
- * The desk moved under whatever is floating over it.
- *
- * The menu goes away, which is what every menu does when the thing it opened on walks off
- * — it is a choice about one logo, and a menu pointing at a logo that has scrolled away
- * is pointing at nothing. The editor is followed instead: it is holding typed text, and
- * taking that away because the page moved would be the worst of both.
+ * The desk moved under whatever is floating over it. The menu goes away, pointing at nothing;
+ * the editor is followed instead, because it is holding typed text.
  */
 function onTheGroundMoving() {
   cancelHold();
@@ -755,27 +658,21 @@ function onActivation(event) {
     if (slot !== null) openRenameEditor(slot);
     return;
   }
-  // Any other item is a doorway into the window — Delete's confirmation is the window's
-  // (5.9/02). Focus goes back to the logo, because the row it is standing on is about to
-  // be hidden and the window's own answer arrives later and only if it arrives at all: a
-  // refusal swaps nothing, and the keyboard would be left on the body with nothing to
-  // carry on from.
+  // Any other item is a doorway into the window; Delete's confirmation is the window's (5.9/02).
+  // Focus goes back to the logo, since a refusal swaps nothing and leaves the keyboard nowhere.
   if (node.closest(MENU_ITEM_SELECTOR) !== null) closeLogoMenu({ restoreFocus: true });
 }
 
 /**
- * The editor's own guard on the name, before anything reaches the wire. A name this
- * reading refuses is not a refusal the desk has made, so it is said in the editor and the
- * prompt bar stays quiet. `stopPropagation` in the capture phase is what keeps it off the
- * wire: htmx listens on the form itself, and an event stopped at the document never
- * reaches it — the same way a blank prompt is refused (`public/prompt-bar.js`).
+ * The editor's own guard on the name. A name this reading refuses is not a refusal the desk has
+ * made, so `stopPropagation` in the capture phase keeps it off the wire and the bar stays quiet.
  * @param {MenuEvent} event
  */
 function onRenameSubmit(event) {
   const form = nodeOf(event.target)?.closest(RENAME_FORM_SELECTOR) ?? null;
   if (form === null) return;
-  // The slot the editor belongs to, not the one it sits in: an open editor stands in the
-  // menu layer, which is nobody's slot.
+  // The slot the editor belongs to, not the one it sits in: an open editor stands in the menu
+  // layer, which is nobody's slot.
   const slot = form.closest(SLOT_SELECTOR) ?? editingSlot;
   if (slot === null) return;
   const input = form.querySelector(RENAME_INPUT_SELECTOR);
@@ -793,9 +690,8 @@ function onRenameSubmit(event) {
 
 /** @param {MenuRoot} root */
 function wireRenameRequest(root) {
-  // While the write waits for its place in the coordinator's queue. The action is not
-  // lost and must not look it; htmx's own `hx-disabled-elt` takes Save out of reach for
-  // the same interval.
+  // While the write waits for its place in the coordinator's queue: the action is not lost and
+  // must not look it. htmx's `hx-disabled-elt` takes Save out of reach for the same interval.
   root.addEventListener("htmx:beforeRequest", (/** @type {MenuEvent} */ event) => {
     const form = renameFormOf(event);
     if (form === null) return;
@@ -807,36 +703,27 @@ function wireRenameRequest(root) {
     if (form === null) return;
     form.removeAttribute("aria-busy");
     sayOnSave(form, SAVE_LABEL);
-    // A refusal swaps nothing, so no swap arrives to put this marker down. Leaving it
-    // standing would hand the focus to a logo on the next unrelated swap of that slot.
+    // A refusal swaps nothing, so no swap arrives to put this marker down: leaving it standing
+    // would hand the focus to a logo on the next unrelated swap of that slot.
     if (htmxDetail(event).successful === true) return;
     renamingCapabilityId = "";
-    // The bar has answered by now, and the sentence it is holding raises the desk's floor.
-    // Placed again so the editor never stands over the answer it is about.
+    // The bar has answered by now, and the sentence it holds raises the desk's floor. Placed
+    // again, so the editor never stands over the answer it is about.
     placeFloating(form, editorAnchor);
   });
-  // The name was written and the slot came back re-rendered, which takes the focus with
-  // it. A rename is a small thing to have done and must not cost the keyboard its place.
-  //
-  // Three events rather than one, because a slot changes hands three ways. `afterSwap` is
-  // the rename's own answer and the tile's. `oobAfterSwap` is an evolution's replacement,
-  // which arrives out of band inside a response addressed at the window. And `afterSettle`
-  // is the backstop for the one that announces nothing at all: a deletion's out-of-band
-  // `delete:` removes the slot without htmx swapping anything, so no swap event is ever
-  // dispatched for it.
+  // Two of the three ways a slot changes hands: the rename's own answer, and an evolution's
+  // out-of-band replacement. A rename must not cost the keyboard its place.
   for (const landing of ["htmx:afterSwap", "htmx:oobAfterSwap"]) {
     root.addEventListener(landing, onSlotSwapped);
   }
+  // The backstop for the third, which announces nothing: a deletion's out-of-band `delete:`
+  // removes the slot without htmx swapping, so no swap event is ever dispatched for it.
   root.addEventListener("htmx:afterSettle", reconcile);
 }
 
 /**
- * Put back anything this module is holding whose logo has left the document.
- *
- * The menu and the editor are lifted into the menu layer while they are open, and the slot
- * they belong to can be taken out from under them by work they had nothing to do with — an
- * evolution replacing it, a deletion removing it. A panel left in that layer is a form
- * floating over a desk with no logo under it, and nothing else ever takes it down.
+ * Put back anything this module is holding whose logo has left the document. A panel left in the
+ * menu layer floats over a desk with no logo under it, and nothing else ever takes it down.
  */
 function reconcile() {
   if (editorHome !== null && editorHome.isConnected === false) {
@@ -847,45 +734,38 @@ function reconcile() {
 }
 
 /**
- * One capability's place on the desk has been re-rendered. Two things follow, and they are
- * matched by capability rather than by node: an `outerHTML` swap replaces the element, so
- * the node this event names and the node this module was holding are never the same object.
+ * One capability's place on the desk has been re-rendered. Matched by capability, not by node:
+ * an `outerHTML` swap replaces the element, so the two are never the same object.
  *
  * @param {MenuEvent} event
  */
 function onSlotSwapped(event) {
-  // Whatever is no longer standing goes home first, whichever slot this event named: an
-  // out-of-band replacement is dispatched on the new element inside a response addressed
-  // at the window, so the slot that left is not always the one this event can reach.
+  // Whatever is no longer standing goes home first: an out-of-band replacement is dispatched on
+  // the new element, so the slot that left is not always the one this event can reach.
   reconcile();
   const swapped = nodeOf(event.target ?? htmxDetail(event).target);
   const was = swapped?.closest(SLOT_SELECTOR) ?? null;
   const id = was === null ? "" : (was.getAttribute("data-capability-id") ?? "");
   if (was === null || id === "") return;
 
-  // Whatever was lifted out of that slot goes back into the copy of it that just left,
-  // which is what takes it out of the menu layer. Without this a rename editor standing
-  // open when its own tile's artwork lands is left floating over a desk that no longer has
-  // a logo it belongs to.
+  // Whatever was lifted out of that slot goes back into the copy that just left, which is what
+  // takes it out of the menu layer and off a desk with no logo it belongs to.
   if (editorHome?.getAttribute("data-capability-id") === id) {
     editingSlot = null;
     returnEditor();
   }
   if (openSlot?.getAttribute("data-capability-id") === id) closeLogoMenu({ restoreFocus: false });
 
-  // And the name that was just written gets its focus back. The slot that came back, not
-  // the one that went away: focus on a node nothing holds goes to the body, which is the
-  // keyboard losing its place over a rename that worked.
+  // And the name just written gets its focus back — the slot that came back, not the one that
+  // went away, since focus on a node nothing holds goes to the body.
   if (renamingCapabilityId !== id) return;
   renamingCapabilityId = "";
   logoOf(slotFor(id) ?? was)?.focus();
 }
 
 /**
- * One capability's slot as the document currently holds it. Found by reading ids back
- * rather than by building a selector out of one: a capability id is a string this module
- * did not author, and a selector assembled from one has to be escaped correctly to be
- * safe. Reading the attribute back needs no escaping at all.
+ * One capability's slot as the document currently holds it. Found by reading ids back rather than
+ * building a selector from one: the id is a string this module did not author.
  * @param {string} capabilityId
  */
 function slotFor(capabilityId) {
@@ -896,9 +776,8 @@ function slotFor(capabilityId) {
 }
 
 /**
- * What Save is called right now. The button also goes out of reach for the same interval
- * (htmx's own `hx-disabled-elt`), but a control that only goes grey has not said what it
- * is doing — and this write waits behind whatever is already queued.
+ * What Save is called right now. The button also goes out of reach for the interval, but a
+ * control that only goes grey has not said what it is doing.
  * @param {MenuNode} form @param {string | null | undefined} said
  */
 function sayOnSave(form, said) {
@@ -935,8 +814,8 @@ function onMenuKey(event, menu, item) {
     closeLogoMenu();
     return;
   }
-  // Tab leaves the menu rather than cycling inside it. Focus goes back to the logo first
-  // so the browser's own move continues from where the menu was opened.
+  // Tab leaves the menu rather than cycling inside it. Focus goes back to the logo first, so the
+  // browser's own move continues from where the menu was opened.
   if (event.key === "Tab") closeLogoMenu();
 }
 

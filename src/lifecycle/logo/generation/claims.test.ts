@@ -18,9 +18,8 @@ describe("what recovery asks", () => {
     expect(claims.isAttempting(NOTES)).toBe(false);
   });
 
-  // The question is asked before the claim is won, because the window between winning one
-  // and registering it is exactly where a concurrent recovery would release a paid call's
-  // row. An attempt still asking therefore counts.
+  // The question is asked before the claim is won: the window between winning one and registering
+  // it is where a concurrent recovery would release a paid call's row, so an asking attempt counts.
   test("an attempt that has not won its claim yet still counts as running", () => {
     const claims = createRunningLogoClaims();
     claims.begin(NOTES);

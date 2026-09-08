@@ -1,18 +1,13 @@
-// POST /prompt → GET /build/:id/stream (builder stages, fake provider) — the
-// happy-path slices of the one production build path. The build commits for real
-// migration, gate, and registry insert ride a scratch db pair, and
-// committed artifacts land in a throwaway directory — never the real data file or the
-// tracked capabilities/ tree. The same scratch pair is handed to the capability router
-// so a committed build is immediately routable in the same test. The fake provider
-// answers the resolver first, so the Builder is reached the only way it can be: through
-// a real `new_capability` classification.
+// POST /prompt → GET /build/:id/stream (builder stages, fake provider) — the happy-path slices
+// of the one production build path. The migration, gate and registry insert commit for real, but
+// against a scratch db pair, and committed artifacts land in a throwaway directory rather than
+// the real data file or the tracked capabilities/ tree. The same scratch pair is handed to the
+// capability router, so a committed build is immediately routable in the same test. The fake
+// provider answers the resolver first, so the Builder is reached through a real classification.
 //
-// The headline "narrates, previews stages, commit-swaps content and the desk, and
-// closes" case runs one build and then makes a long, ordered sequence of assertions
-// over every streamed stage. Those assertions are grouped VERBATIM into the
-// module-scope assert* helpers below (each stage's checks, in original order) so the
-// test body stays a readable script of stage checks — no assertion is changed,
-// added, removed, or reordered. Shared setup and fixtures live in app.test-support.ts.
+// The headline case runs one build and then asserts, in order, over every streamed stage. Those
+// assertions are grouped verbatim into the module-scope assert* helpers below, in their original
+// order. Shared setup and fixtures live in app.test-support.ts.
 
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync } from "node:fs";
@@ -61,15 +56,11 @@ function committingApp(provider: Provider, recordMetrics: RecordMetrics) {
 
 function assertBuildEventOrder(events: SseEvent[]): void {
   const eventNames = events.map((event) => event.event);
-  // Resolution narrates first — it runs before admission — then the tile lands on the
-  // desk the moment resolution admits a new capability, and the admitted row's preview
-  // is the build's own opening event. The tile is deliberately ahead of that: it is the
-  // ambient half of the signal and it belongs to admission, not to the run.
+  // Resolution narrates first — it runs before admission — then the tile lands the moment
+  // resolution admits a new capability. The tile belongs to admission, not to the run.
   expect(eventNames[0]).toBe("narration");
-  // It rides `fragment` rather than adding a fifth app-level event name (ADR-0002) — and
-  // so does the window's name, which is the same fact told to the other surface: the
-  // moment admission knows this is a new capability, the window can stop saying
-  // `Thinking…` and say what it is doing (M5 plan 1).
+  // It rides `fragment` rather than adding a fifth app-level event name (ADR-0002), and so does
+  // the window's name: admission knows this is new, so the window stops saying `Thinking…`.
   expect(eventNames[1]).toBe("fragment");
   expect(eventNames[2]).toBe("fragment");
   expect(events[2]?.data ?? "").toContain('data-build-window-title="Building…"');
@@ -77,10 +68,8 @@ function assertBuildEventOrder(events: SseEvent[]): void {
   expect(events[1]?.data ?? "").toContain('hx-swap-oob="beforeend:#capability-logos"');
   expect(events[1]?.data ?? "").toContain("data-provisional-logo=");
   expect(events.filter((event) => event.data.includes("data-provisional-logo"))).toHaveLength(1);
-  // And it lands nameless. Admission has no name to write — the resolver's line is a
-  // sentence about the request, not a name — so the ground stays blank until the spec
-  // authors one, which is what this second `fragment` carries. It is addressed at the
-  // label alone: the tile beside it is mid-crawl and must not be replaced.
+  // And it lands nameless: admission has no name to write, so the ground stays blank until the
+  // spec authors one. Addressed at the label alone — the tile beside it is mid-crawl.
   expect(events[1]?.data ?? "").toContain('<span class="logo-label" id="provisional-logo-label-');
   expect(events[1]?.data ?? "").not.toContain("Something new");
   const naming = events.findIndex(
@@ -216,9 +205,8 @@ function assertNarrationCommitAndPrompts(
   dataFor: (name: string) => string,
   prompts: string[],
 ): void {
-  // The product-voice narration must NOT leak internals. The commit
-  // event carries generated HTML, including classes and HTMX attributes, so the
-  // internals check stays scoped to visible narration copy.
+  // The product-voice narration must not leak internals. The commit event carries generated HTML,
+  // so the internals check stays scoped to visible narration copy.
   expect(dataFor("narration")).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
   const commitSwap = dataFor("commit");
   expect(commitSwap).toContain('class="capability-surface"');
@@ -237,11 +225,8 @@ function assertNarrationCommitAndPrompts(
   expect(commitSwap).toContain("Notes");
   expect(dataFor("done")).toBe("ok");
 
-  // The typed prompt reached the resolver, then the spec stage, then the five per-Action
-  // behavioral test prompts, then the unit-generation prompts (item renderer, then all
-  // five handlers) — proof the route runs the current builder stages, not a canned
-  // string. The ordering is itself the guarantee: the intent is classified before the
-  // spec exists, and behavioral intent is frozen before a Handler byte exists.
+  // The typed prompt reached the resolver, then the spec stage, the five per-Action behavioral
+  // prompts, then the units. The ordering is the guarantee: intent before spec, tests before code.
   expect(prompts).toHaveLength(13);
   expect(prompts[0]).toContain("Aluna's Intent Resolver");
   expect(prompts[0]).toContain("track my notes");
@@ -269,10 +254,8 @@ function assertNarrationCommitAndPrompts(
 }
 
 function assertBuildMetrics(rows: GenerationMetrics[]): void {
-  // A successful build writes exactly one metrics row, before `done`,
-  // carrying the PLAN step-8 fields: intent, the built capability, the full timing
-  // breakdown including test-gen/test-run, the per-rung gate outcomes, and the
-  // per-unit fix-loop attempts.
+  // A successful build writes exactly one metrics row, before `done`, carrying the PLAN step-8
+  // fields: intent, capability, timing including test-gen/test-run, gate outcomes, fix attempts.
   expect(rows).toHaveLength(1);
   const metrics = rows[0];
   expect(metrics?.outcome).toBe("success");
@@ -359,11 +342,8 @@ function assertCommitPreviewAndArtifacts(
     "update.ts",
   ]);
 
-  // The developer preview shows the logo's inputs and its state: the four authored
-  // keys, the stored seed, and the lifecycle. The spec authors two *hues*; `colors` is
-  // the ordered pair the request carries, which is those two hues resolved against the
-  // stored seed — so both what the model chose and what it came out as are readable
-  // without reconstructing either.
+  // The developer preview shows the logo's inputs and its state. The spec authors two hues;
+  // `colors` is that pair resolved against the stored seed, so both are readable.
   expect(LOGO_HUE_FAMILIES as readonly string[]).toContain(commitPreview.logo.ground);
   expect(LOGO_HUE_FAMILIES as readonly string[]).toContain(commitPreview.logo.companion);
   expect(commitPreview.logo.companion).not.toBe(commitPreview.logo.ground);
@@ -487,10 +467,8 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
   });
 
   test("commits a capability that immediately exercises full CRUD and search", async () => {
-    // Prompt → committed capability → all five Actions through the deterministic
-    // router, all on a fake provider, no real
-    // calls. The router shares the build's scratch db pair and resolves the committed
-    // handler files from the temp artifacts directory.
+    // Prompt → committed capability → all five Actions through the deterministic router, on a
+    // fake provider. The router shares the build's scratch db pair and the temp artifacts dir.
     const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);

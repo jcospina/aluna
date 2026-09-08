@@ -1,22 +1,13 @@
 // The platform-owned behavioral test contract.
 //
-// Generated tests are model output, so the platform decides what an Action's observable
-// response *is*; a suite that contradicts the response-shape matrix is rejected before it
-// can be frozen or executed, and model output can therefore never redefine an Action's
-// contract by asserting against it:
+// Generated tests are model output, so the platform decides what an Action's observable response
+// *is*: a suite contradicting the response-shape matrix in modules/04 PLAN.md is rejected before
+// it can be frozen or executed, and model output can never redefine an Action's contract by
+// asserting against it. Error cases leave every fragment assertion empty on every Action and
+// prove only stable semantic markers, codes, Action and affected fields.
 //
-//   | Action         | Admissible fragment evidence                                     |
-//   | -------------- | ---------------------------------------------------------------- |
-//   | create, update | the one mutated item only — submitted input, or one affected      |
-//   |                | expected row; never an unrelated preserved row, never ordering    |
-//   | read, search   | the returned collection; ordered row markers are admissible       |
-//   | delete         | none; deletion is proved from scratch state                       |
-//
-// Error cases leave every fragment assertion empty on every Action and prove only stable
-// semantic markers, codes, Action, and affected fields.
-//
-// Checks run per Action at generation time (before a single Handler byte exists) and again
-// over the assembled frozen artifact before the Gate executes it.
+// Checks run per Action at generation time, before a single Handler byte exists, and again over
+// the assembled frozen artifact before the Gate executes it.
 
 import { normalizeSearchText } from "../../../../../platform/persistence/sqlite-functions.ts";
 import {
@@ -37,9 +28,8 @@ import type {
 import type { BehavioralScalar } from "./gate-behavioral-input.ts";
 
 /**
- * Validate one Action's generated cases against the platform contract. Called on every
- * generated suite and on every carried-forward suite, so nothing reaches the frozen
- * artifact — or Handler repair — that the platform has not admitted.
+ * Validate one Action's generated cases against the platform contract. Called on generated and
+ * carried-forward suites alike, so nothing unadmitted reaches the artifact or Handler repair.
  */
 export function assertActionSuiteContract(
   spec: CapabilitySpec,
@@ -77,10 +67,8 @@ export function assertActionSuiteContract(
 }
 
 /**
- * Validate the assembled frozen artifact: every declared Action covered exactly once in
- * canonical order, each entry content-addressed to that Action's *current* total inputs,
- * and every case still admissible. The digest check is what makes the artifact honest — a
- * carried-forward suite cannot claim inputs it was not generated from.
+ * Validate the assembled frozen artifact: every declared Action covered once in canonical order,
+ * each content-addressed to its *current* total inputs, and every case still admissible.
  */
 export function assertFrozenTestsContract(
   spec: CapabilitySpec,
@@ -135,15 +123,8 @@ function assertCaseContract(spec: CapabilitySpec, testCase: FullBehavioralTestCa
 }
 
 /**
- * Every field a case names must still be an active field of *this* spec — checked here,
- * before the suite can be frozen, rather than only when the Gate executes it.
- *
- * This is what makes carrying a suite forward safe. An Action's fixtures depend on the
- * active field set even when its *contract* does not: `read` and `delete` project no
- * schema, so hiding a field moves neither digest, yet the prior version's
- * rows still name the hidden field. Catching it here turns that into a regeneration
- * (`behavioral-test-freeze.ts`) instead of a suite that is admitted, frozen, published as
- * intent, and only then rejected by the executor on every retry forever.
+ * Every field a case names must still be active in *this* spec. `read` and `delete` project no
+ * schema, so a hidden field moves no digest and a carried suite would fail every retry forever.
  */
 function assertCaseFieldVocabulary(spec: CapabilitySpec, testCase: FullBehavioralTestCase): void {
   const rowFields = new Set(activeSpecFields(spec.schema.fields).map((field) => field.name));
@@ -187,9 +168,8 @@ function assertCaseFieldVocabulary(spec: CapabilitySpec, testCase: FullBehaviora
 }
 
 /**
- * The response-shape matrix itself, checked before anything executes. Every rejection here
- * is a contradiction between what the case asserts and what the Action can observably
- * return — never a judgement about whether the assertion would happen to pass.
+ * The response-shape matrix itself. Every rejection is a contradiction between what a case
+ * asserts and what the Action can observably return, never a guess at whether it would pass.
  */
 function assertResponseShape(testCase: FullBehavioralTestCase): void {
   const ordered = testCase.expectFragmentIncludesInOrder;
@@ -213,9 +193,8 @@ function assertResponseShape(testCase: FullBehavioralTestCase): void {
 }
 
 /**
- * create/update observe the one mutated item. A marker that also occurs in an unrelated
- * setup row cannot distinguish the mutated item from a preserved one, so it is
- * inadmissibly ambiguous — even when it is also a submitted value.
+ * create/update observe the one mutated item, so a marker that also occurs in an unrelated setup
+ * row is inadmissibly ambiguous — even when it is a submitted value.
  */
 function assertMutationFragmentEvidence(testCase: FullBehavioralTestCase): void {
   if (testCase.action !== "create" && testCase.action !== "update") return;
@@ -408,9 +387,8 @@ function mutationFragmentValues(testCase: FullBehavioralTestCase): string[] {
 }
 
 /**
- * The values a mutation case's *other* rows carry. `create` mutates nothing that was
- * already seeded, so every setup row is unrelated; `update` binds `first_setup_row`, so
- * only the rows after it are.
+ * The values a mutation case's *other* rows carry. `create` mutates nothing already seeded, so
+ * every setup row is unrelated; `update` binds `first_setup_row`, so only later rows are.
  */
 function unrelatedRowValues(testCase: FullBehavioralTestCase): string[] {
   const unrelatedRows =

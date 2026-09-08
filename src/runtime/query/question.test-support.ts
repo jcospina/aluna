@@ -23,7 +23,9 @@ import { applyCapabilityTableDdl } from "../data/index.ts";
 import { createQueryWorker, type QueryWorkerValue } from "./query-worker.ts";
 import { QUESTION_STEP_BUDGET, type QuestionLoopResult, runQuestionLoop } from "./question-loop.ts";
 import {
+  QUESTION_STEP_FALLBACK_LABEL,
   type QuestionDecision,
+  type QuestionStepLabel,
   type QuestionToolCall,
   READ_ONLY_QUERY_TOOL,
 } from "./question-tool.ts";
@@ -96,9 +98,8 @@ function register(database: Database, spec: CapabilitySpec, incarnationId: strin
 }
 
 /**
- * Two registered capabilities with their physical tables and a few rows each: three notes,
- * and two expenses whose `text` deliberately matches one of the notes so a statement that
- * joins the two collections has something to find.
+ * Two registered capabilities with their tables and a few rows each: three notes, and two expenses
+ * whose `text` matches one of the notes, so a statement joining the collections finds something.
  */
 export function catalogueWithRecords(database: Database): readonly CapabilitySpec[] {
   const specs = [notesSpec(), expensesSpec()];
@@ -128,12 +129,16 @@ export function registeredSpecs(database: Database): readonly CapabilitySpec[] {
   return readActiveRegistryCatalog(database).capabilities.map(capabilitySpecFromRow);
 }
 
-/** A decision to run one statement. */
+/**
+ * A decision to run one statement. The label defaults to decision 14's generic member, because
+ * most suites here are about what a statement does rather than what Aluna says while it runs.
+ */
 export function reads(
   sql: string,
   parameters: QuestionToolCall["parameters"] = [],
+  label: QuestionStepLabel = QUESTION_STEP_FALLBACK_LABEL,
 ): QuestionDecision {
-  return { next: "read", read: { tool: READ_ONLY_QUERY_TOOL, sql, parameters } };
+  return { next: "read", read: { tool: READ_ONLY_QUERY_TOOL, sql, parameters, label } };
 }
 
 /** A decision to stop reading. What Aluna then says is 6.4's. */
@@ -142,10 +147,8 @@ export function answers(): QuestionDecision {
 }
 
 /**
- * One turn that ran a statement, for a suite that scripts only `read` decisions — a turn
- * that came back as an answer there is the fixture having drifted rather than a case to
- * handle. The decision itself, and the budget it is spent against, belong to
- * `question-loop.test.ts`.
+ * One turn that ran a statement, for a suite that scripts only `read` decisions: a turn coming
+ * back as an answer there is the fixture having drifted rather than a case to handle.
  */
 export async function oneTurn(
   deps: QuestionTurnDeps,
@@ -173,9 +176,8 @@ export function nextPrompt(
 }
 
 /**
- * A provider that resolves `object` to whatever the test chose, in order, *without* parsing
- * it — the only way to exercise the turn's own re-validation, which is what stands between a
- * non-conforming object and the worker. The last value repeats once the list runs out.
+ * A provider that resolves `object` to whatever the test chose, in order, *without* parsing it —
+ * the only way to exercise the turn's own re-validation. The last value repeats once exhausted.
  */
 export function providerResolving(...values: readonly unknown[]): Provider {
   let next = 0;
@@ -223,12 +225,8 @@ export interface ScriptedProvider extends Provider {
 }
 
 /**
- * A provider that answers each `generate` with the next scripted decision, validated
- * through the same schema the real spine validates against — so a fixture that could never
- * come off the wire fails here rather than passing a test the product would not.
- *
- * A script that runs out repeats its last decision, which is what makes a one-entry script of
- * `reads(...)` a question that never converges — the fixture the ten-step budget needs.
+ * A provider answering each `generate` with the next scripted decision, validated through the real
+ * spine's schema. A script that runs out repeats its last, which never converges.
  */
 export function scriptedProvider(...decisions: readonly QuestionDecision[]): ScriptedProvider {
   const prompts: string[] = [];
@@ -260,10 +258,8 @@ export function scriptedProvider(...decisions: readonly QuestionDecision[]): Scr
 }
 
 /**
- * More notes than `catalogueWithRecords` writes, each carrying `text`, so a suite can ask for
- * a payload of a chosen size. Written straight to the table rather than through a route: what
- * these rows are for is their size in a prompt, and nothing about how they were saved matters
- * to that.
+ * More notes than `catalogueWithRecords` writes, so a suite can ask for a payload of a chosen
+ * size. Written straight to the table: only their size in a prompt matters.
  */
 export function addNotes(database: Database, count: number, text: string, prefix = "bulk"): void {
   const insert = database.prepare(
@@ -296,13 +292,8 @@ export interface QuestionDesk {
 }
 
 /**
- * A migrated throwaway desk holding Notes and Expenses, with the real worker wired in, and
- * the loop run inside one scope over it.
- *
- * Shared by every suite that drives the whole loop rather than one turn, so the two cannot
- * drift into disagreeing about what a desk is or about how a question is run against one.
- * `seed` is called with the read-write connection before the first read, which is where a
- * suite adds the rows its own case needs.
+ * A migrated throwaway desk holding Notes and Expenses, with the real worker wired in and the loop
+ * run in one scope. `seed` is called with the read-write connection before the first read.
  */
 export function questionDesk(
   platforms: ScratchPlatforms,

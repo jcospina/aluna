@@ -1,30 +1,17 @@
 // Bounded per-Handler repair against frozen behavioral intent.
 //
-// The smoke rung repairs against a fixture the platform owns. This rung repairs against a
-// suite the *model* authored, which is why the loop is built the way it is: the suite was
-// frozen before any Handler byte existed and admitted against the platform-owned Action
-// response contract before the rung ran, so by the time a case fails the intent is settled
-// and the code is the only variable left. Nothing here can edit, regenerate, weaken,
-// reorder or skip a frozen case; the only lever is Handler bytes, and every attempt reruns
-// the same frozen bytes from the same artifact object.
+// The smoke rung repairs against a fixture the platform owns; this one repairs against a suite the
+// model authored, frozen before any Handler byte existed. By the time a case fails the intent is
+// settled and the code is the only variable: nothing here may edit, weaken, reorder or skip a
+// frozen case, and every attempt reruns the same bytes from the same artifact object.
 //
-// Two things make that claim checkable rather than aspirational:
-//
-//   - a seal over the frozen artifact is re-verified at every attempt boundary, so a
-//     mutation by anything the loop calls fails the Gate instead of passing quietly;
-//   - repair answers only to `FullBehavioralCaseFailure`. Any other error out of the rung —
-//     an inadmissible suite, a scratch-setup fault, a real-database mutation — is not a
-//     verdict about a Handler and fails the Gate closed without spending the budget.
-//
-// Repairing a Handler is also an admission that its bytes moved, so each round folds the
-// repaired Handlers back into the executable impact and re-plans, and the turn that passes
-// asserts that every rewritten Handler's suite actually ran. Under the current planning
-// rules neither can change the outcome, so both are coupling guards rather than observable
-// behavior — they are here so that loosening either rule fails loudly instead of quietly
-// letting a repair buy a pass with an unrun suite.
+// Two things make that checkable. A seal over the frozen artifact is re-verified at every attempt
+// boundary, and repair answers only to `FullBehavioralCaseFailure` — any other error is no verdict
+// about a Handler and fails closed without spending the budget. Each round then re-plans on the
+// repaired Handlers, and the passing turn asserts their suites ran — loosening either fails loud.
 
 import { isProviderAbortError, type TokenUsage } from "../../../../../platform/provider/index.ts";
-import { type CapabilityRow, LOGO_BIRTH_STATUS } from "../../../../../registry/index.ts";
+import type { CapabilityRow } from "../../../../../registry/index.ts";
 import {
   DEFAULT_UNIT_FIX_ATTEMPTS,
   type HandlerUnitName,
@@ -37,7 +24,7 @@ import type {
   CapabilityGateInput,
   FrozenBehavioralTestsInput,
 } from "../../../gate.ts";
-import { errorMessage } from "../../../gate-internal.ts";
+import { errorMessage, scratchDependencyRows } from "../../../gate-internal.ts";
 import {
   type BehavioralExecutionImpact,
   type BehavioralExecutionPlan,
@@ -70,13 +57,8 @@ export interface BehavioralRungFailureMeasurement {
 }
 
 /**
- * The rung's failure after the bounded budget is spent, or when nothing may be repaired.
- *
- * The diagnostic keeps the failing case's own evidence — the rendered fragment, the scratch
- * rows, the Handler input — at the top level, because that is what a developer reads to
- * understand *why* the frozen intent was not met, and it does not become less useful for
- * having been retried. The repair record sits beside it under `repair`: what was attributed
- * to whom, what was rewritten, and what the budget bought.
+ * The rung's failure after the budget is spent, or when nothing may be repaired. The failing
+ * case's own evidence stays at the top level; the repair record sits beside it under `repair`.
  */
 export class BehavioralRungFailure extends Error {
   override readonly name = "BehavioralRungFailure";
@@ -126,10 +108,8 @@ export interface BehavioralRepairLoopInput {
 }
 
 /**
- * Execute the frozen suite, and on a failing case repair the attributed Handler set and
- * rerun the same frozen bytes, up to ADR-0003's bounded budget. Returns the passing rung
- * result plus the Handler bytes that earned it; throws {@link BehavioralRungFailure} when
- * the budget is spent, when nothing may lawfully be repaired, or when no repair landed.
+ * Execute the frozen suite, repairing attributed Handlers and rerunning the same bytes up to
+ * ADR-0003's budget. A spent budget throws {@link BehavioralRungFailure}, as does no repair.
  */
 export async function runBehavioralRepairLoop(
   options: BehavioralRepairLoopInput,
@@ -139,16 +119,15 @@ export async function runBehavioralRepairLoop(
     maxAttempts: normalizeMaxAttempts(options.input.behavioralTier?.maxAttempts),
     seal: JSON.stringify(options.frozen.frozenTests),
     declaredHandlers: declaredHandlerSet(options.input.spec),
-    dependencyCatalog: scratchDependencyRows(options.input),
+    dependencyCatalog: scratchDependencyRows(options.input.scratchCatalog),
     handlers: { ...options.input.handlers },
     repairedHandlers: new Set<HandlerUnitName>(),
     generationAttempts: new Map<HandlerUnitName, number>(),
     attempts: [],
   };
 
-  // Every non-passing turn either records one attempt and returns repaired bytes, or throws.
-  // `repairFromCaseFailure` rejects regeneration on the max-attempt turn, so the loop cannot
-  // cross the bound and needs no unreachable exhaustion throw after it.
+  // Every non-passing turn records an attempt and returns bytes, or throws. Regeneration is
+  // refused on the max-attempt turn, so the loop needs no unreachable exhaustion throw.
   while (true) {
     const repairs = await runRepairAttempt(options, state);
     if (repairs.kind === "passed") return repairs.run;
@@ -177,9 +156,8 @@ type RepairAttemptResult =
   | { readonly kind: "repaired"; readonly repaired: readonly HandlerRepair[] };
 
 /**
- * One turn: re-plan against the impact as it now stands, run the selected frozen cases,
- * and — when a case fails and the budget allows — repair the attributed Handlers. Throws
- * rather than returning when the Gate must fail closed.
+ * One turn: re-plan against the impact as it stands, run the selected frozen cases, and repair
+ * the attributed Handlers when one fails. Throws rather than returning on a fail-closed.
  */
 async function runRepairAttempt(
   options: BehavioralRepairLoopInput,
@@ -218,10 +196,8 @@ async function runRepairAttempt(
         startedAt,
       });
     }
-    // Not a verdict about a Handler — a malformed suite, a scratch fault, the real-database
-    // guard, or this loop's own invariant. The Gate fails closed either way, but once a
-    // repair round has been paid for, that spend is evidence: carry the attempt record out
-    // rather than letting the tokens and the attribution vanish with the raw throw.
+    // Not a verdict about a Handler, so the Gate fails closed. A paid-for repair round is
+    // still evidence: carry the attempt record out rather than losing it with the raw throw.
     if (state.attempts.length === 0) throw error;
     state.attempts.push({
       attempt: state.attempts.length + 1,
@@ -233,12 +209,8 @@ async function runRepairAttempt(
 }
 
 /**
- * Every Handler this loop rewrote was judged by its own frozen suite on the turn that
- * passed. Total attribution satisfies it because the repaired Handler is the one whose suite
- * just failed; the conservative set satisfies it because every path that widens attribution
- * also runs the complete frozen suite. It holds by construction today and is checked anyway,
- * so that loosening either rule later fails the Gate here instead of quietly letting a
- * repair buy a pass with an unrun suite.
+ * Every Handler this loop rewrote was judged by its own frozen suite on the turn that passed.
+ * True by construction, checked anyway: a loosened rule fails here, not with an unrun suite.
  */
 function assertRepairsWereProven(state: RepairLoopState, execution: BehavioralExecutionPlan): void {
   const unproven = [...state.repairedHandlers].filter(
@@ -381,10 +353,8 @@ function behavioralRungFailure(
 }
 
 /**
- * Fold this Gate's own behavioral repairs into the executable impact before re-planning.
- * An unstated impact stays unstated: it already runs the complete frozen suite, and
- * inventing a statement out of repairs alone would narrow execution on the strength of
- * something the caller never claimed.
+ * Fold this Gate's repairs into the executable impact before re-planning. An unstated impact
+ * stays unstated: inventing one from repairs would narrow on a claim nobody made.
  */
 function impactWithRepairs(
   base: BehavioralExecutionImpact | undefined,
@@ -406,22 +376,6 @@ function orderedHandlers(
   declared: readonly HandlerUnitName[],
 ): readonly HandlerUnitName[] {
   return declared.filter((action) => repaired.has(action));
-}
-
-// Scratch dependency rows never reach the registry, so their logo values are the
-// birth state a real row would be inserted with rather than anything meaningful.
-const SCRATCH_DEPENDENCY_SEED = 1;
-
-function scratchDependencyRows(input: CapabilityGateInput): CapabilityRow[] {
-  return (input.scratchCatalog ?? []).map((fixture) => ({
-    ...fixture.spec,
-    incarnation_id: fixture.incarnationId,
-    version: 1,
-    artifacts_path: `scratch/${fixture.spec.id}`,
-    seed: SCRATCH_DEPENDENCY_SEED,
-    logo: { status: LOGO_BIRTH_STATUS, attempts: 0 },
-    display_label_override: null,
-  }));
 }
 
 function normalizeMaxAttempts(value: number | undefined): number {

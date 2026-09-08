@@ -4,24 +4,15 @@
 
 import { z } from "zod";
 
-// Capability ids and field names both end up inside SQL identifiers — the data
-// table is `cap_<id>` and each field becomes a column (2.2 mapper) — so both are
-// confined to a shape that needs no quoting and can never smuggle SQL.
+// Capability ids and field names both end up inside SQL identifiers — `cap_<id>` and one column
+// per field — so both are confined to a shape that needs no quoting and cannot smuggle SQL.
 export const SQL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
 export const SQL_NAME_MESSAGE =
   "must be lowercase letters/digits/underscores, starting with a letter";
 
 /**
- * The longest a SQL name may be.
- *
- * The pattern says what characters an id may use and said nothing about how many. SQLite
- * takes an identifier of any length, so a five-thousand-character id produced valid DDL —
- * and then a `capabilities/<id>/<incarnation>/` path whose first component is past every
- * filesystem's 255-byte limit for one. The two validators disagreed about what an id is,
- * and the disagreement surfaced only at publication, after the whole build was paid for.
- *
- * Sixty-four is well past every id the resolver has ever authored (`coffee_tasting_diary`
- * is twenty) and well inside the limit the path has to keep.
+ * SQLite takes an identifier of any length, so a 5,000-character id produced valid DDL and a path
+ * component past the 255-byte limit. 64 clears every authored id (`coffee_tasting_diary` is 20).
  */
 export const MAX_SQL_NAME_LENGTH = 64;
 

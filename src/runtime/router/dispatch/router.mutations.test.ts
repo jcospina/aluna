@@ -391,10 +391,8 @@ describe("deterministic capability router — nothing is held while the body arr
     return { request, finish: () => release() };
   }
 
-  // The route used to take read tokens, then the record-write lease, then
-  // `BEGIN IMMEDIATE`, and only then read the body. One socket held open that way refused
-  // every record write on every capability, queued every build, and made the capability
-  // undeletable, because the deletion drain waits for a reader that is waiting for a socket.
+  // The route used to read the body last, after the read tokens, the write lease and
+  // `BEGIN IMMEDIATE`, so one held-open socket refused every write and blocked every deletion.
   test("a request whose body is still arriving holds no write lease", async () => {
     const app = createApp({
       capabilityRouter: {

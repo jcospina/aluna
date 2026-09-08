@@ -57,9 +57,8 @@ describe("the shipped page runs the module against what the server writes", () =
   });
 
   test("a form opening onto a choice field has something to put focus on", () => {
-    // Neither drawn control is a form element — a picker's closed control is a `button`
-    // and a segmented row is a set of them — so a capability whose fields are all of that
-    // kind matched neither focus selector and opened onto no focus at all.
+    // Neither drawn control is a form element, so a capability whose fields are all of that kind
+    // matched neither focus selector and opened onto no focus at all.
     const asked = [
       readSource("public/record-view.js"),
       readSource("src/presentation/records/list-container.ts"),
@@ -195,10 +194,8 @@ describe("the walk moves the active option and never the chosen one", () => {
   });
 
   test("hovering a row scrolls nothing, and the keyboard scrolls only the list", async () => {
-    // A hover is already on the row it names, so there is nothing to bring into view; the
-    // keyboard is the one that has to be shown where it went. Revealing used to be
-    // `scrollIntoView`, which scrolls every ancestor — including the form, whose movement
-    // re-placed the panel and put a new row under a pointer that had not moved.
+    // A hover is already on the row it names, so only the keyboard has to be shown where it went.
+    // Revealing used to be `scrollIntoView`, which scrolls the form and re-placed the panel.
     const picker = await longList();
 
     picker.doc.fire("pointerover", picker.visible);
@@ -225,9 +222,8 @@ describe("the walk moves the active option and never the chosen one", () => {
   });
 
   test("a row the list slid under a still pointer is not a row anyone chose", async () => {
-    // `pointerover` fires for a scroll under a resting hand as much as for a hand that
-    // moved. Answering the first is how arrowing down a list hands the selection straight
-    // back to wherever the cursor happens to be sitting.
+    // `pointerover` fires for a scroll under a resting hand as much as for a hand that moved, and
+    // answering the first hands the selection back to wherever the cursor is sitting.
     const picker = await longList();
     picker.doc.fire("pointerover", picker.visible);
     picker.key("End", picker.button);
@@ -253,8 +249,7 @@ describe("the walk moves the active option and never the chosen one", () => {
 
   test("a row is brought inside the scrollport, not inside the scrollbars", async () => {
     // A note long enough to overflow brings out a horizontal scrollbar, and the border box
-    // includes it while the scrollport does not. Revealing against the wrong one parks the
-    // last row underneath the bar, which is exactly where it cannot be read.
+    // includes it while the scrollport does not, so the wrong one parks the last row under it.
     const picker = await longList();
     // A 200px border box holding a 1px line and 15px of horizontal scrollbar: the
     // scrollport runs 101..285, where the border box runs 100..300.

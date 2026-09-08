@@ -1,13 +1,11 @@
 // The production `/prompt` pipeline — resolution, then admission (Epics 2.5, 4.8).
 //
-// This is the explicit loop's *route* half, and that is all it is. It reads
-// one active registry catalog, classifies the typed prompt against it (with a
-// deterministic duplicate short circuit), and turns a build-shaped classification into a
-// `ResolvedBuildRequest` bound to its target expectation and that catalog's fingerprint.
-// From there it hands the request to the core Builder together with the explicit
-// foreground presenter, and owns nothing else: the lease, the lease-head stale
-// revalidation, the durable admission row, mutation, Gate, and activation all live in
-// `core-builder.ts`, which Module 7 will drive with a different presenter.
+// The explicit loop's *route* half and no more: it reads one active registry catalog, classifies
+// the typed prompt against it (with a deterministic duplicate short circuit), and turns a
+// build-shaped classification into a `ResolvedBuildRequest` bound to its target expectation and
+// that catalog's fingerprint. It then hands the request to the core Builder with the explicit
+// foreground presenter. The lease, lease-head revalidation, the admission row, mutation, Gate
+// and activation all live in `core-builder.ts`, which Module 7 drives with another presenter.
 //
 // `reject` and `data_query` never reach the Builder — they deflect with a warm line and a
 // best-effort resolver-only metrics row.
@@ -114,9 +112,8 @@ async function runExistingCapabilityIntent(
     catalogFingerprint: catalog.fingerprint,
     resolver,
   });
-  // The window has been saying `Thinking…` since the prompt was sent. It is an evolution
-  // of a capability that already exists, so the name it will keep is the one it already
-  // has — there is no moment later when it becomes truer.
+  // The window has said `Thinking…` since the prompt was sent. An evolution keeps the name the
+  // capability already has, so no later moment makes the title truer than this one.
   if (context.canPresent()) {
     await context.send("fragment", renderBuildWindowTitle(canonicalCapabilityLabel(active)));
   }
@@ -191,10 +188,8 @@ async function runNewCapabilityIntent(
     resolver,
     buildRequest: request,
   };
-  // The one place a new capability is announced on the ground, and it is here on purpose:
-  // this is the moment resolution admitted a *new* capability, which an evolution and a
-  // deflection never reach. It is also the moment the window can stop saying `Thinking…`
-  // and say what it is doing, which is the same fact told to the other surface.
+  // The moment resolution admitted a *new* capability, which an evolution and a deflection never
+  // reach — so the ground announces it here and the window stops saying `Thinking…`.
   if (context.canPresent()) {
     await context.send("fragment", renderProvisionalLogo(context.job.id));
     await context.send("fragment", renderBuildWindowTitle(BUILDING_WINDOW_TITLE));

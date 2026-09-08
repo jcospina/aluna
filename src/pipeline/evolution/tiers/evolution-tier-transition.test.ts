@@ -38,10 +38,8 @@ const FROZEN_TESTS_FILE = "tests/behavioral.json";
 const ACTIONS = ["create", "read", "update", "delete", "search"] as const;
 
 /**
- * The tier-on base the on→ rows evolve from: the additive due-date candidate, published
- * with the tier on, showing both fields in the list so a later case has a field it can take
- * *away*. Publishing it is itself decision 24's off→on row, since the committed v1 carries
- * no frozen tests at all.
+ * The tier-on base the on→ rows evolve from, showing both fields so a later case has one to take
+ * away. Publishing it is itself decision 24's off→on row: the committed v1 has no frozen tests.
  */
 function tierOnBaseSpec(): CapabilitySpec {
   const neutral = behaviorNeutralDueDateCandidate();
@@ -87,9 +85,8 @@ function transitionRows(result: EvolveResult): string[] {
 }
 
 /**
- * What the published version carries. A tier-off row's whole claim is an absence, so it is
- * asserted three ways — the manifest's tier, its verified inventory, and the directory
- * itself — because any one of them alone could be true while a stale artifact sat on disk.
+ * What the published version carries. A tier-off row's whole claim is an absence, so the manifest
+ * tier, the verified inventory and the directory are all checked: one alone allows a stale file.
  */
 function expectSnapshotArtifacts(
   directory: string,
@@ -161,9 +158,8 @@ describe("decision 24's transition table — the tier-off rows", () => {
     expect(outcome.assembly.behavioralExecution).toBeUndefined();
     expectSnapshotArtifacts(versionDirectory(env, 2), "absent");
 
-    // No generation, no execution, and — the half a bare `skipped` would blur — no per-Action
-    // rows at all. `absent` is the tier saying there was nothing here to measure, which is a
-    // different reading from `skipped`, the state a run that never reached the Gate records.
+    // No generation, no execution, and no per-Action rows. `absent` says there was nothing to
+    // measure, a different reading from `skipped`, what a run that never reached the Gate records.
     expect(aggregateTestStages(result)).toEqual([
       "behavioral_test_generation:absent",
       "behavioral_test_execution:absent",
@@ -199,9 +195,8 @@ describe("decision 24's transition table — the tier-off rows", () => {
   });
 
   test("the candidate preview carries the row a tier-off evolution landed on", async () => {
-    // The living demo's surface. A tier-off version's `behavioralTests` and
-    // `behavioralExecution` are both empty by design, so the transition row is the only
-    // thing on the panel that says *why* the artifacts are absent.
+    // A tier-off version's `behavioralTests` and `behavioralExecution` are both empty by design,
+    // so the transition row is the only thing on the panel saying *why* the artifacts are absent.
     const result = await evolve(env, behaviorNeutralDueDateCandidate(), "add a due date", {
       behavioralTierEnabled: false,
       buildId: "off-preview",
@@ -267,9 +262,8 @@ describe("decision 24's transition table — the tier-on rows", () => {
 
   test("on → on with unchanged inputs and no Handler impact copies every suite and runs none", async () => {
     const base = await publishTierOnBase("carry-base");
-    // Only user-facing wording moves. No field name, type, requiredness, lifecycle,
-    // behavior, error, or dependency identity changes — so no Action's test-input digest
-    // moves, and the one unit that regenerates (`item.ts`) covers no Action.
+    // Only user-facing wording moves: no name, type, requiredness, lifecycle, behavior, error or
+    // dependency identity, so no test-input digest moves and `item.ts` alone covers no Action.
     const relabelled: CapabilitySpec = {
       ...base,
       label: "Reminders",
@@ -316,10 +310,8 @@ describe("decision 24's transition table — the on → on rows over one version
   });
 
   test("on → on mixes the changed-input and impacted rows in one version", async () => {
-    // Two facts at once: a new non-searchable field, and the list dropping a field it used
-    // to show. `create`/`update` see changed inputs and are authored fresh (row five);
-    // `read`/`delete`/`search` see identical inputs but a build that moved Handler bytes and
-    // narrowed the renderer, so their frozen bytes carry and are re-proven (row four).
+    // Two facts: a new non-searchable field, and the list dropping one. `create`/`update` are
+    // authored fresh (row five); the other three carry and are re-proven (row four).
     const base = await publishTierOnBase("mixed-base");
     const candidate: CapabilitySpec = {
       ...withRemindedAt(base),
@@ -366,9 +358,8 @@ describe("decision 24's transition table — the on → on rows over one version
   });
 
   test("on → on with changed inputs regenerates only the Actions whose inputs moved", async () => {
-    // The narrow version of the row above, with nothing else moving: the additive field
-    // changes the two writing Actions' inputs and leaves the other three byte-identical and
-    // unexecuted. Row five and row three, in one version, with no fallback in sight.
+    // The narrow version of the row above: the additive field changes the two writing Actions'
+    // inputs and leaves the other three byte-identical and unexecuted. Rows five and three.
     const base = await publishTierOnBase("regen-base");
     const result = await evolve(env, withRemindedAt(base), "add a reminder date", {
       behavioralTierEnabled: true,
@@ -405,11 +396,8 @@ describe("toggling the tier is not, by itself, a transition", () => {
   });
 
   test("a semantic no-op under a flipped tier stays a no-op and materializes nothing", async () => {
-    // Decision 24: toggling the global tier alone does not create a version. The toggle is
-    // not a change fact and has no matrix row, so the run reaches the Diff, finds zero facts,
-    // and stops — before the freeze stage, the only place the tier is read at all. That
-    // ordering is the claim: the flipped tier here is inert not because it is ignored, but
-    // because nothing downstream of the Diff ever runs to consult it.
+    // Decision 24: toggling the global tier creates no version. It is not a change fact, so the
+    // run stops at a zero-fact Diff — before the freeze stage, the only place the tier is read.
     const base = await publishTierOnBase("toggle-base");
     const before = verifyCapabilitySnapshot(versionDirectory(env, 2));
 
@@ -429,9 +417,8 @@ describe("toggling the tier is not, by itself, a transition", () => {
     expect(existsSync(versionDirectory(env, 3))).toBe(false);
     expect(verifyCapabilitySnapshot(versionDirectory(env, 2)).manifest).toEqual(before.manifest);
     expectSnapshotArtifacts(versionDirectory(env, 2), "present");
-    // Nothing ran and nothing was absent-because-tier-off either: the stage vector reports
-    // the whole post-Diff half as skipped, which is what "no transition materialized" means
-    // in the metrics vocabulary.
+    // Nothing ran, and nothing was absent-because-tier-off either: the stage vector reports the
+    // whole post-Diff half as skipped, the metrics vocabulary for "no transition materialized".
     expect(aggregateTestStages(toggled)).toEqual([
       "behavioral_test_generation:skipped",
       "behavioral_test_execution:skipped",
@@ -485,10 +472,8 @@ describe("a build that froze intent and then failed still reports it", () => {
   });
 
   test("a tier-on run that dies after the freeze is not a tier-off row in the metrics", async () => {
-    // The freeze happens before the first Handler byte, so a run can pay for five suites and
-    // then fail. If that generation were recorded only on a successful Gate, its stage vector
-    // would be indistinguishable from a tier-off build's — and the tokens it spent would be
-    // attributed to nothing, which is exactly the comparison the tier exists to support.
+    // The freeze precedes the first Handler byte, so a run can pay for five suites and then fail.
+    // Recorded only on a successful Gate, its vector would read tier-off and its tokens vanish.
     await publishTierOnBase("failed-freeze-base");
     await expect(
       evolve(env, withRemindedAt(tierOnBaseSpec()), "add a reminder date", {
@@ -509,10 +494,8 @@ describe("a build that froze intent and then failed still reports it", () => {
     });
     expect(row?.stages).toContainEqual({ stage: "behavioral_test_execution", state: "skipped" });
     expect(row?.measurement?.timings?.testGenMs).toBeDefined();
-    // And the freeze's tokens are all on the row. The fake provider answers every call with
-    // the same 48 tokens, and only `create`/`update` see changed inputs, so the exact total
-    // is the spec authoring plus two per-Action freeze calls — pinned rather than bounded,
-    // because a loose `> 48` would still pass with half the freeze usage dropped.
+    // The fake provider answers every call with the same 48 tokens and only `create`/`update` see
+    // changed inputs, so the total is pinned: a loose `> 48` passes with half the freeze dropped.
     expect(row?.measurement?.usage?.totalTokens).toBe(48 * 3);
     // Nothing was published, so no snapshot claims a tier either way.
     expect(existsSync(versionDirectory(env, 3))).toBe(false);

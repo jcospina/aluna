@@ -7,9 +7,8 @@
 import type { ChoiceInputIntent, UiFormIntent } from "../../registry/index.ts";
 
 /**
- * Resolve the closed authored presentation for one active choice field. Validated specs
- * always contain the entry; hand-built render projections fail loudly if they dropped
- * form intent between the registry and the platform module.
+ * Resolve the closed authored presentation for one active choice field. Validated specs always
+ * contain the entry, so a hand-built render projection that dropped form intent fails loudly.
  */
 export function choiceInputForField(form: UiFormIntent, fieldName: string): ChoiceInputIntent {
   const entry = form.choice_inputs.find((candidate) => candidate.field === fieldName);

@@ -1,26 +1,15 @@
-// The Module 7 acceptance fake for the Event Log half of the cleanup seam (PLAN
-// decision 35, ADR-0006, ARCH §6.3 Event Log).
+// The Module 7 acceptance fake for the Event Log half of the cleanup seam (PLAN decision 35,
+// ADR-0006, ARCH §6.3 Event Log). Two properties have to hold before M7 can extend M4's deletion
+// without guessing from free text, and both are provable now.
 //
-// Two properties have to be true before M7 can extend M4's deletion without guessing
-// from free text, and both are provable now:
+// Ownership provenance is server-derived: an event's incarnation set comes from the admitted
+// route/query/read-token context, never from a label the client or the model supplied. The fake
+// accepts client-claimed incarnations and payloads and then ignores them, so *not trusted* is an
+// assertion rather than a comment. Ingestion is atomic and current-only, so a batch derived before
+// a deletion and presented after it is rejected whole and cannot resurrect purged content.
 //
-//  1. **Ownership provenance is server-derived.** An event row carries the complete set
-//     of capability incarnations whose product data appears in it. That set comes from
-//     the admitted route/query/read-token context and from canonical, server-side
-//     payload production — never from a label the client or the model supplied. This
-//     fake therefore *accepts* client-claimed incarnations and payloads on the way in and
-//     then ignores them, so "not trusted" is an assertion rather than a comment.
-//
-//  2. **Ingestion is atomic and current-only.** The complete derived set is validated and
-//     appended in one transaction, and only while every pair is still active/current. A
-//     batch derived before a deletion and presented after it — the queued/late batch —
-//     is rejected whole, so it can never resurrect purged content.
-//
-// The store shape is the fixed one `../installed-payloads.ts` purges. M7 installs it via a
-// platform migration; here it is installed on demand by the tests, which is exactly what
-// makes the core purge exercisable before M7 exists. A test fixture only — the
-// `.test-support.ts` suffix keeps it out of the server's module graph, so no running
-// process ever creates these tables outside the migrations ledger.
+// The store shape is the fixed one `../installed-payloads.ts` purges. M7 installs it by platform
+// migration; the tests install it on demand, which makes the core purge exercisable before M7.
 
 import type { Database } from "bun:sqlite";
 import { getCapability } from "../../../../registry/index.ts";
@@ -58,12 +47,8 @@ export function installFakeEventLogStore(database: Database): void {
 }
 
 /**
- * How the server knows which incarnations an event belongs to.
- *
- * `live` is the ordinary path: the route holds a read-token set, and that set *is* the
- * complete admitted incarnation set — the target plus its declared read dependencies.
- * `queued` is a batch whose ownership was derived server-side earlier and is being
- * appended now; revalidation at append time is what makes a late batch safe.
+ * `live`: the route's read-token set *is* the admitted incarnation set, target plus declared read
+ * dependencies. `queued` was derived server-side earlier; revalidation at append makes it safe.
  */
 export type AdmittedEventContext =
   | {
@@ -122,9 +107,8 @@ function compareIncarnations(left: CapabilityIncarnation, right: CapabilityIncar
 }
 
 /**
- * The complete ownership set, derived server-side. Claimed labels never reach this
- * function — the only inputs are the admitted route context and the token set the
- * platform itself issued.
+ * The complete ownership set, derived server-side. Claimed labels never reach this function: the
+ * only inputs are the admitted route context and the token set the platform itself issued.
  */
 export function deriveEventOwnership(
   context: AdmittedEventContext,
@@ -162,15 +146,8 @@ function isPairCurrent(pair: CapabilityIncarnation, deps: EventIngestionDeps): b
 }
 
 /**
- * Validate the complete derived set and append the whole batch, or append nothing.
- * A closing, tombstoned, or replaced pair rejects the batch outright.
- *
- * Deliberately synchronous end to end. Validation reads the read-gate coordinator and
- * the registry *outside* the SQLite transaction, and that is only safe because no `await`
- * separates the check from the append: on one thread, deletion cannot close a gate or
- * commit its tombstone in between. When M7 replaces this fake with ingestion that does
- * asynchronous work, that span stops being atomic on its own and the ingestion must hold
- * the short mutation-coordinator write ARCH §6.3 specifies instead.
+ * Append the whole validated batch or nothing; a closing, tombstoned or replaced pair rejects it.
+ * Synchronous end to end: an `await` between check and append needs ARCH §6.3's write instead.
  */
 export function ingestCapabilityEvents(
   context: AdmittedEventContext,

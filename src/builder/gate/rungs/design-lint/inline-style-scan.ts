@@ -1,22 +1,17 @@
-// The inline-`style` scan the design-lint rung runs over a rendered record, ahead of the
-// enforcer diff, so a refusal names the rule the renderer broke rather than showing a
-// before and an after.
+// The inline-`style` scan the design-lint rung runs over a rendered record, ahead of the enforcer
+// diff, so a refusal names the rule the renderer broke rather than a before and an after.
 //
-// It reads `style` through the same parser the enforcer uses, not with a regex over the
-// markup text. A hostile field value the renderer escaped correctly renders as inert *text*
-// that can read exactly like an attribute — the design-lint probes carry one that does — and
-// a regex cannot tell the two apart, so it would refuse a correct renderer for quoting a
-// payload.
+// It reads `style` through the same parser the enforcer uses, not with a regex over the markup
+// text. A hostile field value the renderer escaped correctly renders as inert *text* that can read
+// exactly like an attribute — the probes carry one — and a regex would refuse a correct renderer.
 //
-// The parser hands back the *raw* attribute text rather than the entity-decoded value the
-// browser will act on, which is why `style-discipline.ts` refuses a value carrying `&` at
-// all rather than trusting a decode that has not happened.
+// The parser hands back the *raw* attribute text rather than the entity-decoded value the browser
+// acts on, which is why `style-discipline.ts` refuses a value carrying `&` at all.
 
 import { describeStyleViolation } from "../../../../presentation/index.ts";
 
-/** What the scan found in a record's inline styles: a declaration the render-time
- *  discipline would drop, or the one residual it cannot see — a named CSS colour inside a
- *  mixed shorthand, inert at render time but still off-token. */
+/** What the scan found in a record's inline styles: a declaration the render-time discipline
+ *  would drop, or its one residual — a named CSS colour inside a mixed shorthand. */
 export type InlineStyleViolation =
   | { readonly kind: "declaration"; readonly detail: string }
   | { readonly kind: "raw-colour"; readonly colour: string };
@@ -32,11 +27,8 @@ export function findInlineStyleViolation(markup: string): InlineStyleViolation |
   return undefined;
 }
 
-/** Every `style` attribute value in the markup, in document order.
- *
- * The attribute list is walked rather than `getAttribute("style")`, which returns only the
- * first of a repeated attribute. Browsers keep the first and the enforcer keeps the last, so
- * reading one of them would let the other carry an off-token value past this scan. */
+/** Every `style` attribute value in the markup, in document order. The attribute list is walked
+ * because browsers keep the first repeated attribute and the enforcer keeps the last. */
 function styleAttributes(markup: string): string[] {
   const values: string[] = [];
   new HTMLRewriter()

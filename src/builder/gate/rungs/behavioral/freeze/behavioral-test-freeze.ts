@@ -1,18 +1,16 @@
 // Freezing behavioral intent.
 //
-// This stage runs *before* any Handler is generated or repaired. That ordering is the
-// whole point: tests that exist before the first Handler byte cannot have been written to
-// fit code, so the suite the Gate later executes is intent, not a description of whatever
-// the model happened to produce. Repair answers to these tests; they never answer to it.
+// This stage runs before any Handler is generated or repaired, and that ordering is what the
+// claim rests on: tests that exist before the first Handler byte cannot have been written to fit
+// code, so the suite the Gate later executes is intent rather than a description of whatever the
+// model happened to produce. Repair answers to these tests; they never answer to it.
 //
-// Each Action is generated independently from its own closed input set
-// (`behavioral-test-inputs.ts`), and the result is content-addressed to that input set. On
-// a later build an Action whose total inputs are byte-identical carries its frozen cases
-// forward untouched — a label rename or a field reorder changes no digest, so it
-// regenerates nothing, while a new required field regenerates exactly `create`/`update`.
+// Each Action is generated independently from its own closed input set and the result is
+// content-addressed to that input set. On a later build an Action whose total inputs are
+// byte-identical carries its frozen cases forward untouched — a label rename or a field reorder
+// changes no digest — while a new required field regenerates exactly `create` and `update`.
 //
-// Which frozen suites then *execute*, the impact-driven run/skip selection and its
-// full-suite fallback, is deliberately not decided here.
+// Which frozen suites then execute is deliberately not decided here.
 
 import type { Provider, TokenUsage } from "../../../../../platform/provider/index.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../../../../registry/index.ts";
@@ -38,9 +36,8 @@ const ZERO_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0
 export const BEHAVIORAL_TEST_GENERATION_CONCURRENCY = 2;
 
 /**
- * A behavioral suite that could not be authored or could not be admitted. Freezing now
- * happens before the Gate exists, so this is the typed error that keeps such a failure
- * attributable to the behavioral tier rather than to whichever stage happens to be next.
+ * A behavioral suite that could not be authored or admitted. Freezing happens before the Gate
+ * exists, so this typed error keeps the failure attributable to the behavioral tier.
  */
 export class BehavioralTestGenerationError extends Error {
   override readonly name = "BehavioralTestGenerationError";
@@ -61,10 +58,8 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * What the build story shows per Action: whether this build generated the Action's tests
- * or carried the prior frozen ones forward, the content address of the inputs that decided
- * it, and — the "from which inputs" half — the closed input set itself, named rather than
- * dumped.
+ * What the build story shows per Action: generated or carried forward, the content address of
+ * the inputs that decided it, and the closed input set itself, named rather than dumped.
  */
 export interface BehavioralTestActionReport {
   readonly action: CapabilityTool;
@@ -94,9 +89,8 @@ export interface BehavioralTestActionProgress {
 }
 
 /**
- * A point-in-time, canonical-Action-order view of the pre-unit freeze. Callers may stream
- * it freely: the snapshot never exposes test bytes and never changes the rule that every
- * suite must finish and pass admission before Handler generation begins.
+ * A point-in-time, canonical-Action-order view of the pre-unit freeze. Callers may stream it
+ * freely: it never exposes test bytes, and every suite still passes admission first.
  */
 export interface BehavioralTestFreezeProgress {
   readonly completedActions: number;
@@ -108,9 +102,8 @@ export interface FreezeBehavioralTestsInput {
   readonly provider: Provider;
   readonly spec: CapabilitySpec;
   /**
-   * The prior version's frozen tests, when the committed snapshot was tier-on. An Action
-   * whose total inputs are unchanged carries its cases forward from here instead of
-   * regenerating them; absent, every Action generates (a v1 build, or an off→on transition).
+   * The prior version's frozen tests, when the committed snapshot was tier-on. An Action with
+   * unchanged inputs carries its cases forward; absent, every Action generates.
    */
   readonly priorFrozenTests?: FrozenBehavioralTests;
   /** Optional liveness observer; it cannot alter, admit, or access the frozen test bytes. */
@@ -126,9 +119,8 @@ export interface FrozenBehavioralTestsResult {
 }
 
 /**
- * Generate, validate, and freeze one capability version's behavioral intent. Throws before
- * returning if any Action's suite contradicts the platform response-shape contract — an
- * inadmissible suite is never frozen and never reaches Handler repair.
+ * Generate, validate, and freeze one capability version's behavioral intent. An inadmissible
+ * suite throws before returning: it is never frozen and never reaches Handler repair.
  */
 export async function freezeBehavioralTests(
   input: FreezeBehavioralTestsInput,
@@ -259,10 +251,8 @@ function entryAt<T>(entries: readonly T[], index: number): T {
 }
 
 /**
- * Candidate fixture mechanics can invalidate a byte-addressed suite without changing its
- * versioned equality inputs (for example, read rows name a newly inactive field). That is
- * a cache miss: regenerate from current scratch vocabulary instead of permanently failing
- * every retry from the same committed base.
+ * Candidate fixture mechanics can invalidate a byte-addressed suite without moving its versioned
+ * inputs (read rows naming a newly inactive field). That is a cache miss, not a permanent failure.
  */
 function carriedSuiteIsAdmissible(
   spec: CapabilitySpec,

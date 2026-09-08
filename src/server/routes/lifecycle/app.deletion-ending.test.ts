@@ -10,21 +10,16 @@ import {
 import { notesRow } from "../../../runtime/router/dispatch/router.test-support.ts";
 import { desk, El } from "../../app.shell-double.test-support.ts";
 
-// The deletion that did not happen, run rather than grepped. `public/capability-deletion.js`
-// is a module of the desk, so it is started on the same document double the shell's own
-// glue is evaluated against: the ending, the prompt bar it falls back to and the window it
-// holds are one desk, and a rule proved apart from them is proved against nothing.
+// The deletion that did not happen, run rather than grepped. `public/capability-deletion.js` is a
+// module of the desk, so it runs on the same document double the shell's own glue is proved on.
 const { focusCapabilityDeletion, rescueCapabilityDeletionEnding, startCapabilityDeletionRecovery } =
   await import("#shell/capability-deletion.js");
 
 const SENTENCE = "I couldn’t delete Notes. Everything you had there is still safe.";
 
 /**
- * The ending exactly as the server writes it, rebuilt as nodes the double can hold. One
- * element carries the sentence, the focus mark and the accessible name, because that is
- * what `renderCapabilityDeletionEnding` emits — a fixture with a heading beside the
- * sentence would prove focus lands on a node the product does not have. The test below
- * pins this against the real render rather than trusting the copy.
+ * The ending exactly as the server writes it, rebuilt as nodes the double can hold. One element
+ * carries sentence, focus mark and name, so a fixture with a heading would prove the wrong focus.
  */
 function endingIn(region: El): El {
   const sentence = new El("p", {
@@ -111,9 +106,8 @@ describe("a deletion that did not happen", () => {
     stage.fire("click", { target: dismiss });
     expect(stage.promptField.focused).toBe(true);
 
-    // The sentence is read once its answer is about to land. Releasing the panel
-    // afterwards must not repeat it on the prompt bar, which is where an *unread* one
-    // goes.
+    // The sentence is read once its answer is about to land. Releasing the panel afterwards must
+    // not repeat it on the prompt bar, which is where an unread one goes.
     stage.fire("htmx:beforeSwap", { detail: { requestConfig: { elt: dismiss } } });
     expect(ending.getAttribute(DELETION_ENDING_ATTRIBUTE)).toBe(null);
     stage.fire("htmx:beforeCleanupElement", { target: ending });
@@ -179,11 +173,8 @@ describe("a deletion that did not happen", () => {
     });
     stage.region.append(confirm);
 
-    // Putting the window away releases the region's scope, and that aborts the request
-    // its content started. The abort is the browser's alone — the server goes on, and may
-    // cross the point of no return — so a destructive action may never end here in
-    // silence. Read off a live desk: an aborted confirm fires no swap event at all, so
-    // this is the only place it can be heard.
+    // Putting the window away releases the region's scope, aborting the request its content
+    // started. The abort is the browser's alone, so an aborted confirm fires no swap event at all.
     stage.fire("htmx:sendAbort", { detail: { elt: confirm } });
 
     expect(spoken(stage)).toBe("Something interrupted that. Let me check what happened…");

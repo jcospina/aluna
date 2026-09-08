@@ -90,25 +90,15 @@ describe("deterministic capability router — presentation adapter and empty rea
   });
 
   test("read leaves the region truly empty when there are no records, so the platform empty state shows", async () => {
-    // Regression (empty-state bug): a read handler must not author its own empty state.
-    // If it returns empty-state markup for zero rows, that lands in `#notes-records` on
-    // the read `load` swap, which (1) defeats the platform's `:empty` empty state
-    // (ADR-0005 §1 — the list scaffolding owns it) and (2) lingers below the first
-    // record once create prepends it (hx-swap="afterbegin"). With no records, read must
-    // return nothing so the region stays childless and the platform empty state shows.
+    // Regression: a read handler authoring its own empty state defeats the platform's `:empty`
+    // one (ADR-0005 §1) and lingers below the first record create prepends with `afterbegin`.
     install(conns, notesRow());
     const app = createApp({ capabilityRouter: { databases: conns } });
 
     const res = await app.request("/capability/notes/read");
     expect(res.status).toBe(200);
-    // Nothing rendered into the region — no element, no placeholder text — so `:empty`
-    // still matches and `.capability-empty` (rendered by the scaffolding) is the sole
-    // empty state, which the first created record then clears on its own.
-    //
-    // The collection count rides at the head of the same answer, and it is read off
-    // before the records land. It says nothing here, because the empty state already
-    // speaks for a collection holding nothing and one fact stated twice is once too
-    // many — and even unread it could not defeat `:empty`, being a comment.
+    // Nothing rendered into the region, so `:empty` still matches and `.capability-empty` is the
+    // sole empty state. The count says nothing here; the empty state already speaks for zero.
     const { sentence, records } = splitCollectionCount(await res.text());
     expect(sentence).toBe("");
     expect(records.trim()).toBe("");
@@ -141,9 +131,8 @@ describe("deterministic capability router — presentation adapter and empty rea
     // Seed a record so `read` has something to present.
     createCapabilityDataTool(notesSpec(), conns).insert({ text: "Buy milk", pinned: true });
 
-    // A hand-written item renderer (the composition input generation produces) and a read
-    // handler shaped like a generated one: it maps records through the injected `present` and emits
-    // no markup of its own — proving the adapter reaches the toolbox and does the wrapping.
+    // A hand-written item renderer and a read handler shaped like a generated one: it maps records
+    // through the injected `present` and emits no markup, so the adapter does the wrapping.
     const renderItem = (rec: Record<string, unknown>) =>
       `<div class="stack"><span class="text-lg truncate">${rec.text}</span></div>`;
     const loadItemRenderer: ItemRendererLoader = async () => renderItem;
@@ -164,9 +153,8 @@ describe("deterministic capability router — presentation adapter and empty rea
     const res = await app.request("/capability/notes/read");
     expect(res.status).toBe(200);
     const body = await res.text();
-    // The record came back through the adapter: the record button, the escaped payload,
-    // the record-keyed open hook, and the renderer's inner markup — none authored by the
-    // handler itself. The record's own view rides beside it, back control and all.
+    // The record came back through the adapter: the button, the escaped payload, the open hook and
+    // the renderer's inner markup, none of it authored by the handler.
     expect(body).toContain('class="capability-item"');
     expect(body).toContain("data-item=");
     expect(body).toContain('data-record-view-template="record-notes-');
@@ -179,9 +167,8 @@ describe("deterministic capability router — presentation adapter and empty rea
   test("a missing required item renderer fails cleanly before the handler loads", async () => {
     install(conns, notesRow());
 
-    // The M3 shape has no compatibility path for a version directory without `item.ts`.
-    // Loading the renderer fails before handler code is reached, and the router keeps the
-    // exact artifact error developer-only.
+    // A version directory without `item.ts` has no compatibility path: the renderer fails to load
+    // before handler code is reached, and the exact artifact error stays developer-only.
     let handlerLoads = 0;
     const loadHandler: HandlerLoader = async () => {
       handlerLoads += 1;
@@ -216,10 +203,8 @@ describe("deterministic capability router — what a collection says it holds", 
   });
 
   test("the collection states how many records it holds, without rebuilding the capability", async () => {
-    // PLAN decision 32, end to end. The notes fixture is a capability built before any of
-    // this existed: its Handler, item renderer and spec are untouched, and its read still
-    // answers with the count at the head. The number is a `count` against the read-only
-    // connection, so it costs a read and creates nothing.
+    // PLAN decision 32, end to end: the notes fixture predates the count, its Handler and spec are
+    // untouched, and its read still answers with the count at the head.
     install(conns, notesRow());
     const records = createCapabilityDataTool(notesSpec(), conns);
     records.insert({ text: "Buy milk", pinned: false });
@@ -237,10 +222,8 @@ describe("deterministic capability router — what a collection says it holds", 
   });
 
   test("a filtered collection states how many matched and how many there are", async () => {
-    // Decision 32's second half, and the honesty rule it shares with decision 17: a
-    // filtered number presented alone reads as the whole truth and is not. The matched
-    // half is never re-derived — the fixture's own `search` Handler owns its filter, and
-    // it is untouched here — so it is counted off the records the answer actually carries.
+    // Decision 32's second half, and the honesty rule of decision 17: a filtered number alone
+    // reads as the whole truth. The matched half is counted off the records the answer carries.
     install(conns, notesRow());
     const records = createCapabilityDataTool(notesSpec(), conns);
     records.insert({ text: "Buy milk", pinned: false });
@@ -376,9 +359,8 @@ describe("deterministic capability router — view scaffolding", () => {
     ).text();
     const desk = await (await app.request("/capability/notes")).text();
 
-    // The fragment renders the read-wired region but bakes in NO record — the data
-    // never enters the platform chrome (ADR-0004's never-stale cache is preserved
-    // because the chrome is deterministic from the spec, not from the data).
+    // The fragment renders the read-wired region and bakes in no record: ADR-0004's never-stale
+    // cache holds because the chrome is deterministic from the spec rather than the data.
     expect(fragment).toContain('id="notes-records"');
     expect(fragment).toContain('hx-get="/capability/notes/read"');
     expect(fragment).toContain('hx-trigger="load"');
@@ -408,9 +390,8 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain('class="shell"');
     expect(body).not.toContain("has-capabilities");
 
-    // The desk, whole: the addressed capability's logo standing on it, the layer its
-    // window opens on, and the module that opens it. Nothing is composed into the page,
-    // because there is no longer a hole to compose into.
+    // The desk, whole: the addressed capability's logo, the layer its window opens on, and the
+    // module that opens it. Nothing is composed into the page; there is no hole to compose into.
     expect(body).toContain("data-capability-logo");
     expect(body).toContain('hx-get="/capability/notes"');
     expect(body).toContain('class="desk__windows"');
@@ -448,10 +429,8 @@ describe("deterministic capability router — logo rehydration and labels", () =
   });
 
   test("direct capability navigation rehydrates the whole desk, not just the opened capability", async () => {
-    // The reported bug: opening or refreshing one capability by URL showed only that
-    // capability on the desk, so every sibling looked lost — even though the registry
-    // still held them (`GET /` proved it by showing them all again). A full-page load of
-    // `/capability/:id` must restore the same complete desk `GET /` does.
+    // The reported bug: opening one capability by URL showed only that capability, so every
+    // sibling looked lost. A full-page `/capability/:id` must restore the desk `GET /` does.
     install(conns, notesRow());
     install(conns, boomRow());
     const app = createApp({ capabilityRouter: { databases: conns } });
@@ -468,9 +447,8 @@ describe("deterministic capability router — logo rehydration and labels", () =
   });
 
   test("a link to a capability that is not there loads the bare desk and says so", async () => {
-    // The second-tab, bookmark and reload cases after a deletion, and a link that was
-    // never right — one page load, because a finished deletion takes its registry row
-    // with it and the two cannot be told apart (PLAN decision 21).
+    // The second-tab, bookmark and reload cases after a deletion, and a link that was never right:
+    // one page load, since a finished deletion takes its row and the two look alike (decision 21).
     install(conns, boomRow());
     const app = createApp({ capabilityRouter: { databases: conns } });
 

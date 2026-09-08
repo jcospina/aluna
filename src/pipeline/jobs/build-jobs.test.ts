@@ -41,10 +41,8 @@ describe("BuildJobQueue", () => {
   });
 
   test("a pipeline that threw without presenting still ends the narration and holds", async () => {
-    // The last resort — a double fault, since every pipeline presents its own terminal.
-    // It has no restoration to give back, but it is a build that failed, and a failure
-    // that promoted its apology into the window would take the person's open capability
-    // out with it (PLAN decisions 23 and 25).
+    // The last resort — a double fault; every pipeline presents its own terminal. Its apology,
+    // promoted into the window, would take the person's open capability (PLAN decisions 23, 25).
     const queue = createBuildJobQueue({
       createId: () => "build-1",
       pipeline: async () => {

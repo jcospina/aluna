@@ -67,10 +67,8 @@ import { registerDemoQuestionRoutes } from "./routes/query/demo-question.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "./sse/index.ts";
 
 /**
- * Dependencies the app is built with. Everything is injected (defaulting to the real
- * spine, db singletons, and tracked artifacts root) so the route wiring is testable
- * through fakes with no network and no spend — the orchestrator depends on the
- * contracts, never the SDK or the real data file.
+ * Dependencies the app is built with. Everything is injected (defaulting to the real spine, db
+ * singletons and tracked artifacts root), so route wiring is testable with no network and no spend.
  */
 export interface AppDeps {
   /**
@@ -87,9 +85,8 @@ export interface AppDeps {
   /** Defaults to the real writer on the platform read-write connection. */
   readonly recordMetrics?: RecordMetrics;
   /**
-   * The read-write/read-only pair the build's migration, Gate and commit ride. Tests
-   * inject the same scratch pair they hand the router, so a committed capability is
-   * immediately routable.
+   * The read-write/read-only pair the build's migration, Gate and commit ride. Tests inject the
+   * same scratch pair they hand the router, so a committed capability is immediately routable.
    */
   readonly buildDatabases?: PlatformDatabase;
   /** Where commit writes a capability's version directory. Defaults to `capabilities/`. */
@@ -103,15 +100,13 @@ export interface AppDeps {
   /** Bounded in-process retry for durable post-commit cleanup. */
   readonly deletionCleanup?: DeletionCleanupSupervisor;
   /**
-   * The hosted vector service one claimed logo attempt calls. Defaults to the real,
-   * paid client — every test injects a fake, because no automated test may spend
-   * credits (ADR-0007).
+   * The hosted vector service one claimed logo attempt calls. Defaults to the real, paid client;
+   * every test injects a fake, because no automated test may spend credits (ADR-0007).
    */
   readonly logoProvider?: LogoGenerationProvider;
   /**
-   * The logo attempts running in this process. Shared by the attempt route and the
-   * desk load's recovery, which is the only way to tell a claim that is running from
-   * one whose process died (ADR-0007).
+   * The logo attempts running in this process, shared by the attempt route and the desk load's
+   * recovery — the only way to tell a running claim from one whose process died (ADR-0007).
    */
   readonly logoClaims?: RunningLogoClaims;
   /** Test seam for the bounded moment a claim loser watches the winner. */
@@ -170,10 +165,8 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
         mutationCoordinator,
       }),
     });
-  // The capability router and the on-load shell rehydration read the same registry:
-  // a `GET /` logo click hits `/capability/:id` on this very connection, so
-  // resolving it once keeps the two views of the registry consistent. Tests inject a
-  // scratch pair here and a committed build stands on the rehydrated desk.
+  // The capability router and the on-load shell rehydration read the same registry: a `GET /`
+  // logo click hits `/capability/:id` on this connection, so resolving it once keeps them agreed.
   const capabilityRouter = deps.capabilityRouter ?? {};
   const capabilityDeletionAdapters = createProductionCapabilityDeletionAdapters(artifactsRoot);
   const registryDatabases = resolveRegistryDatabases(capabilityRouter, {
@@ -208,50 +201,31 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
 }
 
 /**
- * A caller may hand the read gates in directly or through the capability router, and the
- * two have to be the same coordinator — deletion and a capability read that cannot see
- * each other's gates is the bug this resolution exists to prevent.
+ * A caller may hand the read gates in directly or through the capability router, and the two have
+ * to be the same coordinator: deletion and a capability read blind to each other's gates is a bug.
  */
 function resolveReadGates(deps: AppDeps): ReadGateCoordinator {
   return deps.readGates ?? deps.capabilityRouter?.readGates ?? createReadGateCoordinator();
 }
 
 /**
- * The response headers every app page and fragment carries.
- *
- * The desk had none. The logo route sets its own strict policy because it hands out bytes
- * the platform did not author; the pages that *run* the product carried nothing at all, so
- * a script that reached the DOM by any route had the whole origin, and the desk was
- * framable by anyone.
- *
- * The policy is as tight as the shipped surface allows:
- *   - `script-src 'self' 'unsafe-eval'` — every script is a `<script src>` from this origin,
- *     so injected inline script is refused. `'unsafe-eval'` is Alpine's: the vendored build
- *     compiles `x-data`/`x-text` expressions with `new Function`. Dropping it means dropping
- *     Alpine, which is a bigger change than this fix; what matters here is that
- *     `'unsafe-inline'` is *not* granted, which is what makes an injected `<script>` inert.
- *   - `style-src 'self' 'unsafe-inline'` — the design contract's escape hatch is the inline
- *     `style` attribute, sanitized to token discipline rather than forbidden.
- *   - `img-src`/`media-src 'self' data:` — a capability's picture is served from this origin
- *     and an inline `data:image/*` is a legitimate record value. A remote host is not, which
- *     is the browser-side half of the exfiltration ban in `presentation/vocabulary.ts`.
- *   - `frame-ancestors 'none'` with `X-Frame-Options` beside it for browsers that predate it.
- *   - `base-uri 'none'` so injected markup cannot re-root every relative URL on the page.
+ * The response headers every app page and fragment carries. The desk had none, so a script that
+ * reached the DOM by any route had the whole origin, and the desk was framable by anyone.
  */
 const APP_SECURITY_HEADERS: Readonly<Record<string, string>> = {
   "content-security-policy": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-eval'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    "script-src 'self' 'unsafe-eval'", // 'unsafe-eval' is Alpine's; no 'unsafe-inline'
+    "style-src 'self' 'unsafe-inline'", // the design contract's escape hatch is inline style
+    "img-src 'self' data:", // an inline data:image is a legitimate record value
     "media-src 'self' data:",
     "font-src 'self'",
     "connect-src 'self'",
     "form-action 'self'",
     "frame-src 'none'",
     "object-src 'none'",
-    "base-uri 'none'",
-    "frame-ancestors 'none'",
+    "base-uri 'none'", // or injected markup re-roots every relative URL
+    "frame-ancestors 'none'", // x-frame-options below repeats it for older browsers
   ].join("; "),
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
@@ -272,9 +246,8 @@ function registerSecurityHeaders(app: Hono): void {
 }
 
 /**
- * The fixed shell at `/` — rendered from the registry alone, so the provider is
- * never called on page load. The logo lifecycle is reconciled against the artifact tree
- * one step before the markup, which is also provider-free: it moves rows, never draws.
+ * The fixed shell at `/`, rendered from the registry alone, so the provider is never called on
+ * page load. The logo sweep runs one step before the markup: it moves rows and never draws.
  */
 function registerShellRoute(
   app: Hono,
@@ -283,24 +256,8 @@ function registerShellRoute(
 ): void {
   const { registryReadonly } = ctx;
 
-  // The shell file is read per request: Bun file I/O is microsecond-fast and
-  // `scripts/dev.ts` deliberately does not watch `public/`, so a browser reload picks up
-  // an edit. Content-type is set explicitly because Hono's router drops Bun's lazily
-  // inferred header. Kept as an explicit route rather than a serveStatic fall-through so
-  // `/` stays greppable and `app.request("/")`-testable.
-  // Never stored. The desk is a live view of the registry, and it is also the page that
-  // *names* every logo's incarnation-keyed address. A stale copy would go on asking for a
-  // deleted lifetime's picture, which the browser would then serve out of the year-long
-  // immutable entry that address was granted — the one way decision 34's guarantee can be
-  // defeated without the route being wrong (ADR-0007).
-  //
-  // The desk-load sweep starts here, one step before the markup. A fresh render is what
-  // arms an attempt on every `absent` tile, and only `absent` arms — so a lifecycle left
-  // dishonest by a crash has to be reconciled *before* the tiles are drawn or the row it
-  // stranded would never be offered another one. Recovery makes no provider call and
-  // moves no row that agrees with its artwork, so an ordinary load pays one `stat` for
-  // each capability that has artwork or is mid-attempt, and renders exactly what it would
-  // have rendered anyway.
+  // Read per request, so a reload picks up an edit; content-type is explicit because Hono drops
+  // Bun's inferred one. Never stored: a stale desk names a deleted lifetime's picture (ADR-0007).
   app.get("/", async () => {
     await recoverLogos();
     return new Response(renderRehydratedShellPage(registryReadonly), {
@@ -310,19 +267,8 @@ function registerShellRoute(
 }
 
 /**
- * The other full-page desk render. Direct navigation to `/capability/:id` rehydrates the
- * whole logo layer from the registry and arms every `absent` tile exactly as `/` does, so
- * it owes the same reconciliation first: a user who deep-links to one capability after a
- * crash is having a desk load, and the sweep is a property of the desk, not of one URL.
- *
- * A middleware rather than a hook inside the capability router, for two reasons. The
- * router is the generated-capability path and knows nothing of the logo layer, and its
- * view handler runs holding read tokens — where awaiting the queued coordinator write
- * recovery needs is the deadlock the coordinator's own doc names. Here it runs, and
- * finishes, before a single token is taken.
- *
- * An htmx logo click sends a fragment request and reconciles nothing: it is one tile
- * arriving in a desk that is already standing, not a desk being drawn.
+ * Direct navigation to `/capability/:id` draws the whole desk, so it owes the same reconciliation
+ * `/` does. Middleware, not a router hook: the view handler holds read tokens and would deadlock.
  */
 function registerCapabilityPageRecovery(app: Hono, recoverLogos: () => Promise<void>): void {
   const recover = async (c: Context, next: () => Promise<void>) => {
@@ -331,34 +277,15 @@ function registerCapabilityPageRecovery(app: Hono, recoverLogos: () => Promise<v
     }
     await next();
   };
-  // Both spellings of the one address (`CAPABILITY_VIEW_TRAILING_SLASH_ROUTE`): a desk
-  // drawn for a bookmark carrying a trailing slash owes the same reconciliation as one
-  // drawn for a bookmark without it.
+  // Both spellings of the one address (`CAPABILITY_VIEW_TRAILING_SLASH_ROUTE`): a desk drawn
+  // for a bookmark with a trailing slash owes the same reconciliation as one without it.
   app.use("/capability/:id", recover);
   app.use("/capability/:id/", recover);
 }
 
 /**
- * Reconcile the logo lifecycle against what is on disk, and never let that stop a desk
- * from rendering. A capability whose tile is a placeholder one load longer is a small
- * thing; a desk that will not draw because a logo could not be reconciled is not.
- *
- * **One pass at a time.** Two tabs opening together would otherwise each walk the whole
- * registry and each take the coordinator, to reach the state the first one is already
- * reaching. A pass already running is the pass this load wants, so it waits for that one
- * — every transition is conditional, so joining is as correct as repeating and costs a
- * fraction of it.
- */
-/**
- * Everything a desk load discharges before the tiles are drawn.
- *
- * The logo sweep is the half that has always been here. The other is the deletion-cleanup
- * supervisor's bounded backoff, which deliberately gives up after its last rung — and a
- * tombstone left standing reserves its capability id, so until it is discharged that
- * capability can be neither used nor rebuilt. Nothing a person could do reached that state;
- * only a process restart did. Now a desk load does, which makes refreshing the page the
- * recovery gesture. It costs nothing when nothing is owed: the supervisor schedules only
- * when a tombstone is actually outstanding, and never a second pass while one is running.
+ * What a desk load discharges before the tiles are drawn, never at the cost of the desk rendering.
+ * One sweep pass at a time, and a forced cleanup retry: a stranded tombstone reserves its id.
  */
 function createDeskLoadRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
   const recoverLogos = createPlatformLogoRecovery(ctx);
@@ -401,31 +328,21 @@ function createPlatformLogoRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
 function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
   const { buildJobs, sseHeartbeatMs, registryReadonly } = ctx;
 
-  // Prompt submission enters the build-job lifecycle. The POST does
-  // only synchronous ephemeral job creation and returns the per-build SSE subscriber
-  // fragment immediately; intent resolution and later builder stages run from
-  // `/build/:id/stream`, never on the POST path.
+  // Prompt submission enters the build-job lifecycle. The POST creates the ephemeral job and
+  // returns the subscriber fragment; resolution and builder stages run from `/build/:id/stream`.
   app.post("/prompt", async (c) => {
     const submission = await readPromptSubmission(c);
 
-    // Nothing meaningful typed, nothing to build. `readPromptSubmission` normalizes every
-    // encoding to one string, and the admission predicate also catches bodies made only
-    // from invisible/default-ignorable or control characters. The guard is admission's,
-    // not the parser's, and never the pipeline's: an empty-looking prompt must not reach
-    // `runPromptJob`, where classification would spend a real provider call on it.
-    // Answered as 200 carrying only the out-of-band notice,
-    // the vocabulary every warm terminal already speaks: a non-2xx would leave HTMX
-    // with nothing to swap, so a blank submit would look like nothing happened. No
-    // subscriber fragment means no stream opens, so the prompt bar stays live.
+    // Nothing meaningful typed, nothing to build: an empty-looking prompt must not reach
+    // `runPromptJob` and spend a call. 200, or htmx has nothing to swap and the submit looks lost.
     if (!hasMeaningfulPromptContent(submission.prompt)) {
       return c.html(renderPromptNotice(BLANK_PROMPT_NOTICE, "refusal"), 200, {
         "cache-control": "no-store",
       });
     }
 
-    // The other end of the same admission. Nothing bounded the length of a prompt, so a
-    // body within the server's cap still reached the resolver and was paid for. Answered
-    // the same way and for the same reason: on the bar, with no stream opened.
+    // The other end of the same admission: nothing bounded a prompt's length, so a body within
+    // the server's cap still reached the resolver and was paid for. Answered the same way.
     if (submission.prompt.length > MAX_PROMPT_LENGTH) {
       return c.html(renderPromptNotice(LONG_PROMPT_NOTICE, "refusal"), 200, {
         "cache-control": "no-store",
@@ -444,10 +361,8 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
     buildJobs.cancel(c.req.param("id")) ? c.body(null, 202) : c.body(null, 404),
   );
 
-  // Per-build ephemeral stream ("phone call", ADR-0002 update). App event ids are
-  // monotonic per stream via the transport writer; heartbeat events are id-less
-  // transport keepalives so a silent long-running builder stage does not let the
-  // connection go idle.
+  // Per-build ephemeral stream ("phone call", ADR-0002 update). App event ids are monotonic per
+  // stream; heartbeats are id-less keepalives, so a silent builder stage keeps the connection.
   app.get("/build/:id/stream", (c) =>
     streamSSE(c, async (stream) => {
       const transport = sseTransport(stream);
@@ -471,9 +386,8 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
 }
 
 /**
- * Platform-owned permanent-deletion chrome and admission. This is intentionally a
- * top-level route rather than a generated capability Action: it never loads a Handler,
- * asks the resolver, or constructs a provider.
+ * Platform-owned permanent-deletion chrome and admission. A top-level route rather than a
+ * generated capability Action: it loads no Handler, asks no resolver and constructs no provider.
  */
 function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void {
   app.get("/capability-deletion-restoration", (c) => {
@@ -501,13 +415,8 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
       query.getAll("restore_surface"),
     );
     const target = getCapability(capabilityId, ctx.registryReadonly);
-    // Even a target that has gone in the meantime owes back the capability the doorway
-    // displaced; a deletion may never close a capability it was not about.
-    //
-    // *Why* it is gone decides what is true to say about it. An ordinary press on a tile a
-    // second tab already deleted removed nothing, and says so. The client's recovery for a
-    // Confirm whose reply never arrived marks itself, because there the same sentence would
-    // tell somebody their destructive action did nothing when it may have done everything.
+    // A target gone in the meantime still owes back the capability the doorway displaced. Why it
+    // is gone decides the sentence: an unasked press removed nothing; a lost Confirm may not have.
     if (!target) {
       return alreadyGoneResponse(
         c,
@@ -539,9 +448,8 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
 }
 
 /**
- * Renaming from the logo's own context menu. A top-level platform route for the reason
- * deletion's are: it loads no Handler, asks no resolver and constructs no provider, so
- * the path from the menu to the registry is deterministic and zero-AI end to end.
+ * Renaming from the logo's own context menu. A top-level platform route for the reason deletion's
+ * are: no Handler, no resolver and no provider, so menu to registry is zero-AI end to end.
  */
 function registerCapabilityRenameRoutes(app: Hono, ctx: ResolvedAppDeps): void {
   app.post("/capability-rename/:id", (c) => handleCapabilityRename(c, ctx));
@@ -555,10 +463,8 @@ export function createApp(deps: AppDeps = {}): Hono {
   const ctx = resolveAppDeps(deps);
   const app = new Hono();
 
-  // Every route here states its own cache policy; these two are what answers when no route
-  // does. Hono's built-ins carry no directive at all, and a bare 404 is heuristically
-  // cacheable (RFC 9111 §4.2.2) — so a mistyped or half-built address could be remembered
-  // as missing. Nothing this platform serves is ever worth storing without being asked.
+  // Every route here states its own cache policy; these two are what answers when no route does.
+  // A bare 404 is heuristically cacheable (RFC 9111 §4.2.2), so a half-built address would stick.
   app.notFound((c) => c.text("404 Not Found", 404, { "cache-control": "no-store" }));
   app.onError((error, c) => {
     console.error("omni-crud request failed:", error);
@@ -574,19 +480,16 @@ export function createApp(deps: AppDeps = {}): Hono {
   registerCapabilityDeletionRoutes(app, ctx);
   registerCapabilityRenameRoutes(app, ctx);
 
-  // One question turn, exercisable by hand. Scaffolding behind the developer gate: the
-  // module is invisible until 6.5, and this is what keeps the integration from being
-  // invisible with it. 6.5/05 takes it down.
+  // One question turn, exercisable by hand. Scaffolding behind the developer gate: the module is
+  // invisible until 6.5, which takes this down in 6.5/05.
   registerDemoQuestionRoutes(app, {
     getProvider: ctx.getProvider,
     readGates: ctx.readGates,
     registryReadonly: ctx.registryReadonly,
   });
 
-  // The logo's own two addresses. Registered before the generated capability router so
-  // the four-segment paths are matched by their owner; they cannot collide with the
-  // three-segment `/capability/:id/:action` convention, but the ordering says which
-  // subsystem owns them without anyone having to work that out.
+  // The logo's own two addresses, registered before the generated capability router so the
+  // four-segment paths are matched by their owner and the ordering says who owns them.
   registerCapabilityLogoRoutes(app, {
     registryDatabases: { readwrite: ctx.registryReadwrite, readonly: ctx.registryReadonly },
     mutationCoordinator: ctx.mutationCoordinator,
@@ -597,24 +500,16 @@ export function createApp(deps: AppDeps = {}): Hono {
     logoClaimObservationMs: ctx.logoClaimObservationMs,
   });
 
-  // The deterministic capability router: the fixed
-  // `/capability/:id/:action` convention the generated UI targets. It validates the
-  // action against the registry row's tools, loads the version-keyed handler, builds
-  // the scoped context, and wraps the returned fragment — routing is never an AI
-  // concern. Registered as its own subsystem (src/router) so this file stays the
-  // thin wiring sheet.
+  // The deterministic capability router: the fixed `/capability/:id/:action` convention the
+  // generated UI targets. Its own subsystem (src/router), so this file stays the wiring sheet.
   registerCapabilityRoutes(app, {
     ...ctx.capabilityRouter,
     mutationCoordinator: ctx.mutationCoordinator,
     readGates: ctx.readGates,
   });
 
-  // Static assets live in ./public and are served under the /static/* prefix
-  // (e.g. the shell's CSS/JS will be referenced as /static/<file>). A dedicated
-  // prefix keeps the asset namespace clear of the root-level route conventions
-  // that arrive later (/capability/:id/:action, /files/:key, the SSE channel).
-  // rewriteRequestPath strips the prefix so /static/app.css resolves to
-  // ./public/app.css rather than ./public/static/app.css.
+  // Static assets live in ./public, served under /static/*, a prefix that keeps the asset
+  // namespace clear of root-level routes. rewriteRequestPath strips it before the lookup.
   app.use(
     "/static/*",
     serveStatic({
@@ -647,9 +542,8 @@ export const platformDeletionCleanup = createDeletionCleanupSupervisor({
   mutationCoordinator: platformMutationCoordinator,
 });
 /**
- * The attempts running in this process. Exported so boot can reconcile the logo lifecycle
- * against the *same* registry the desk load consults — a boot pass holding its own would
- * be asking a set that is always empty, which is true at boot and a lie ever after.
+ * The attempts running in this process. Exported so boot reconciles the logo lifecycle against
+ * the same registry the desk load consults; a boot pass with its own set would always be empty.
  */
 export const platformLogoClaims = createRunningLogoClaims();
 export const app = createApp({

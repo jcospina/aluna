@@ -21,14 +21,8 @@ export function capabilityCountLabelId(capabilityId: string): string {
 }
 
 /**
- * What the collection says. Empty at zero, because the platform empty state already
- * speaks for a collection with nothing in it.
- *
- * The noun is the capability's own ("22 notes", not "22 records"), the way every other
- * piece of desk copy uses it — but only when the platform can put it in the plural
- * without getting it wrong. {@link pluralNoun} declines far more often than English
- * pluralization rules would, and a declined noun leaves the bare number, which is true
- * in every language.
+ * What the collection says. Empty at zero, because the platform empty state already speaks for a
+ * collection with nothing in it. The noun is the capability's own when {@link pluralNoun} allows.
  */
 export function collectionCountSentence(count: number, noun: string): string {
   if (count <= 0) return "";
@@ -36,19 +30,8 @@ export function collectionCountSentence(count: number, noun: string): string {
 }
 
 /**
- * What a *filtered* collection says: how many matched, and how many there are.
- *
- * A matched number alone is a number that reads as the whole truth and is not — the same
- * honesty rule decision 17 applies to a spoken answer, applied to a rendered one (PLAN
- * decision 32). So neither number is ever stated without the other, and zero matched is
- * stated as zero matched beside a total that is not zero, which is the case this exists
- * for: a search that found nothing must never read as a capability that holds nothing.
- *
- * The total governs the noun, because the noun belongs to the collection rather than to
- * the search: "1 of 22 entries", "0 of 1 entry".
- *
- * A total of zero says nothing at all. That collection is bare, not filtered, and what a
- * bare collection says is the platform empty state — one fact, stated once.
+ * What a filtered collection says: how many matched, of how many there are (PLAN decision 32).
+ * Neither number is stated alone, so a search that found nothing cannot read as a bare collection.
  */
 export function filteredCollectionCountSentence(
   matched: number,
@@ -56,11 +39,8 @@ export function filteredCollectionCountSentence(
   noun: string,
 ): string {
   if (total <= 0) return "";
-  // The two numbers are taken one after the other, not in one transaction
-  // (`src/runtime/router/wire/collection-count.ts`), so a delete landing between them can
-  // hand this more matched than there are. A pair that cannot both be true is not a
-  // number to repair into a plausible one: the label says nothing, and the next read —
-  // one keystroke or one refresh away — says it properly.
+  // The two numbers are read one after the other, not in one transaction, so a delete between
+  // them can hand this more matched than there are. A pair that cannot both be true says nothing.
   if (matched < 0 || matched > total) return "";
   return withNoun(`${written(matched)} of ${written(total)}`, total, noun);
 }
@@ -71,11 +51,8 @@ function written(count: number): string {
 }
 
 /**
- * `lead`, followed by the capability's own noun declined by `governing` — or `lead` alone,
- * when {@link pluralNoun} will not put that noun in the plural without getting it wrong.
- *
- * Declined once is declined at every count, so the label never changes shape: a collection
- * that says "22" must not say "1 메모" when it empties down to one.
+ * `lead`, followed by the capability's own noun declined by `governing` — or `lead` alone when
+ * {@link pluralNoun} declines. Declined once is declined at every count, so the shape holds.
  */
 function withNoun(lead: string, governing: number, noun: string): string {
   const plural = pluralNoun(noun);
@@ -84,9 +61,8 @@ function withNoun(lead: string, governing: number, noun: string): string {
 }
 
 /**
- * Nouns English does not count. None of them is what the generation contract asks for —
- * "the singular common noun for one stored record" — but a model reaches for one now and
- * then, and "7 datas" is the platform speaking badly in its own chrome.
+ * Nouns English does not count. The generation contract asks for a singular common noun, but a
+ * model reaches for one of these now and then, and "7 datas" is the platform speaking badly.
  */
 const UNCOUNTABLE = new Set([
   "advice",
@@ -117,22 +93,12 @@ const IRREGULAR_PLURALS = new Map([
 ]);
 
 /**
- * The plural of a capability's noun, or `undefined` when the platform will not guess.
- *
- * The generation contract asks for "the singular common noun for one stored record,
- * lowercase" (`src/builder/spec/spec-gen.ts`), but the schema admits any single line of up
- * to 32 characters in any script, and a model follows the language the person prompted in.
- * So this declines wherever English has more than one answer — a noun ending in `f`/`fe`
- * (leaf/chief), in `o` (potato/photo), or already in `s` (series, or a model that emitted
- * a plural) — and declines outright for anything that is not plain Latin letters, rather
- * than glue an English `s` onto 메모 or مذكرة.
- *
- * What it cannot tell is whether Latin letters are *English* letters: a German capability's
- * "Aufgabe" is pluralized as English. That is the one wrong answer left in here, and it is
- * wrong in the same way "add your first Aufgabe above" already is — the desk has always put
- * this noun into English copy.
+ * The plural of a capability's noun, or `undefined` when the platform will not guess: a noun in
+ * `f`/`fe`/`o`/`s`, or anything outside plain Latin letters, rather than an `s` glued onto 메모.
  */
 function pluralNoun(noun: string): string | undefined {
+  // Latin letters are not necessarily English letters: a German "Aufgabe" is pluralized as
+  // English, which is the one wrong answer left and the one "add your first Aufgabe" already is.
   if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(noun)) return undefined;
   const words = noun.split(" ");
   const last = words.at(-1) ?? "";
@@ -168,15 +134,8 @@ export function renderCollectionCountLabel(capability: RenderableCapability): st
 }
 
 /**
- * The sidecar that carries one sentence at the head of a records response.
- *
- * It is an HTML comment on purpose. The shell strips it before the records land, and a
- * comment is the one thing that degrades to nothing if a path ever failed to: browsers do
- * not count comments when matching `:empty` (Selectors L3), so a sidecar left in the
- * records region cannot silently take the platform empty state away.
- *
- * An empty sentence is not the absence of a sidecar: it is the instruction to clear the
- * label, which is what a collection emptied by a delete needs.
+ * The sidecar carrying one sentence at the head of a records response, as an HTML comment:
+ * `:empty` ignores comments (Selectors L3). An empty sentence clears the label, not the sidecar.
  */
 export function renderCollectionCountSidecar(sentence: string): string {
   return `${COLLECTION_COUNT_SIDECAR_PREFIX}${encodeSidecarPayload(sentence)}${COLLECTION_COUNT_SIDECAR_SUFFIX}`;

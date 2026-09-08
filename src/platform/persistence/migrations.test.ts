@@ -111,10 +111,8 @@ describe("platform migrations runner", () => {
   test("creates platform schema only — no capability data tables", () => {
     runMigrations(conns.readwrite);
 
-    // The platform stands up exactly its own stores: the migrations ledger,
-    // the capability registry, and the generation-metrics store. Capability
-    // data tables (`cap_<id>`) are never migrated here — the builder derives them from
-    // specs at runtime.
+    // Capability data tables (`cap_<id>`) are never migrated here — the builder derives them
+    // from specs at runtime.
     expect(userTables(conns.readwrite)).toEqual(
       [
         REGISTRY_TABLE,
@@ -152,9 +150,8 @@ describe("migrations run on app boot", () => {
   test("booting the entrypoint creates the db file with the migrations table", async () => {
     const entry = join(import.meta.dir, "../..", "index.ts");
 
-    // Boot the real entrypoint with the temp dir as cwd, so its relative db path
-    // (data/omni-crud.db) resolves to an isolated location. PORT=0 binds an
-    // ephemeral port to avoid clashing with anything already listening.
+    // The temp dir as cwd puts the relative db path (data/omni-crud.db) somewhere isolated, and
+    // PORT=0 binds an ephemeral port rather than clashing with anything already listening.
     const proc = Bun.spawn(["bun", entry], {
       cwd: dir,
       env: { ...process.env, PORT: "0" },

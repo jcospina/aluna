@@ -65,10 +65,8 @@ interface FullBehavioralCaseDiagnostic {
 }
 
 /**
- * One frozen case's verdict against these bytes. Exported because it is the *only* error
- * a Handler repair may answer to: anything else escaping the rung — an
- * inadmissible suite, a scratch-setup fault, a real-database mutation — fails the Gate
- * closed rather than spending the repair budget on an innocent unit.
+ * One frozen case's verdict against these bytes — the *only* error a Handler repair may answer
+ * to. Anything else escaping the rung fails the Gate closed rather than spending the budget.
  */
 export class FullBehavioralCaseFailure extends Error {
   override readonly name = "BehavioralCaseFailure";
@@ -81,23 +79,8 @@ export class FullBehavioralCaseFailure extends Error {
 }
 
 /**
- * Execute the frozen behavioral suite. The rung generates nothing: decision 23 freezes the
- * suite before any Handler is generated or repaired, so by the time the Gate runs
- * the tests already exist and the rung's only job is to run them against the exact bytes
- * the Gate is about to clear. The platform contract is re-asserted here rather than trusted
- * from the freeze stage, so no caller can smuggle an inadmissible suite into execution.
- *
- * *Which* frozen suites run is `planBehavioralExecution`'s decision: execution
- * follows executable impact, so a suite copied byte-for-byte from the prior version runs
- * only when a Handler it covers regenerated — or when narrowing could not be proven sound,
- * in which case the complete frozen suite runs. When the plan executes nothing, this rung
- * loads no Handler and opens no scratch database: a skip is a skip.
- *
- * A *failing* case does not end the rung outright: `runBehavioralRepairLoop`
- * rewrites the attributed Handler(s) within ADR-0003's bounded budget and reruns the same
- * frozen bytes. The suite is admitted against the platform-owned Action response contract
- * here, once, before any of that — an inadmissible suite may neither execute nor drive a
- * repair.
+ * Execute the frozen behavioral suite — the rung generates nothing, and re-asserts the platform
+ * contract rather than trusting the freeze stage. An empty plan opens no scratch database.
  */
 export function runFullBehavioralRung(input: CapabilityGateInput): Promise<BehavioralRungRun> {
   const frozen = input.behavioralTier?.frozen;
@@ -174,9 +157,8 @@ async function runFullBehavioralCase(
   const actionInput = inputValuesToHandlerInput(input.spec, testCase.input, submittedFields);
   let fragment: string | undefined;
   let scratchRows: ReturnType<typeof selectCapabilityRows> | undefined;
-  // Tagged as execution advances, never inferred from the message afterwards. Runtime
-  // attribution turns on *which generated units had run by this point*, and only
-  // the executor knows that — a wording heuristic over an error string would not.
+  // Tagged as execution advances, never inferred from the message: attribution turns on which
+  // generated units had run by this point, and only the executor knows that.
   let surface: BehavioralFailureSurface = "setup";
   try {
     prepareScratchCatalog(input.spec, input.ddl, input.scratchCatalog, scratch);
@@ -212,11 +194,8 @@ async function runFullBehavioralCase(
       actionInput,
       scratchRows,
       fragment,
-      // The item renderer runs *inside* the Handler call, so a renderer defect would
-      // otherwise be tagged `handler_invocation` — the one surface attribution treats as
-      // unconditionally total — and blamed on a Handler that could not possibly fix it.
-      // A marked renderer throw moves to the fragment surface, where attribution asks
-      // whether the shared renderer is proven unmoved before narrowing.
+      // The item renderer runs *inside* the Handler call, so an unmarked throw would be tagged
+      // `handler_invocation` — total attribution — and blamed on a Handler that cannot fix it.
       surface: renderedThrough(error) ? "fragment" : surface,
       failure: errorMessage(error),
     });

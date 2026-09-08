@@ -57,10 +57,8 @@ const EXTEND_INTENT: IntentClassification = {
 };
 
 /**
- * Classify the prompt, and — in the same moment, before the request can reach the head of
- * the mutation queue — let another writer take Notes to v2. This is the two-tab race with
- * its timing made deterministic: the resolver has already read the v1 catalog, and the
- * registry moves underneath it while its answer is still being produced.
+ * Classify the prompt and, before the request can reach the head of the mutation queue, let
+ * another writer take Notes to v2: the two-tab race with its timing made deterministic.
  */
 function racingResolver(onClassify: () => void): { provider: Provider; calls: number } {
   const state = { calls: 0 };
@@ -120,9 +118,8 @@ test("a registry change between resolution and the lease head refuses stale and 
   const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
   const names = events.map((event) => event.event);
 
-  // The warm foreground story: a product-voice line with no internals in it, ending the
-  // narration where the person is already looking, the canonical committed View streamed
-  // for the window to hold until it is dismissed, and a terminal `done`.
+  // The warm foreground story: a product-voice line with no internals, ending the narration where
+  // the person is looking, the committed View streamed for the window, and a terminal `done`.
   expect(eventData(events, "narration")).toContain(renderBuildEnding(jobId, STALE_BUILD_ENDING));
   expect(eventData(events, "fragment")).toContain('data-build-restoration="capability"');
   expect(eventData(events, "fragment")).not.toContain("prompt-notice");

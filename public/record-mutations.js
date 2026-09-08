@@ -1,30 +1,8 @@
 // @ts-check
 
 /**
- * What a record mutation looks like while it is happening.
- *
- * The server owns every record-bound surface; this module owns only request feedback —
- * the pending label on the submit button, the controls it disables while a request is in
- * flight, and where the user ends up once the outcome is known. Three forms reach it:
- *
- *   • CREATE, inside the collection. Its records region is still on screen, so a
- *     committed create refreshes that region in place and hands the collection back.
- *   • UPDATE, inside the record view. Its region is not on screen — the record replaced
- *     the collection — so a committed update leaves the record instead, and going back is
- *     itself the fresh read.
- *   • DELETE, inside the record view. Its confirmation replaces the form's action row in
- *     place, and a committed delete leaves the record the way a committed update does —
- *     the collection comes back as a fresh read, without the record in it.
- *
- * A request whose outcome is unknown (a severed connection: status 0) is the one case
- * neither of those covers. Create reconciles by re-reading and says so; update and delete
- * keep their surface standing and say so there, because the form still holds what was
- * typed and the confirmation still holds the question.
- *
- * Each of them sits under a back control, and leaving a record aborts whatever it still
- * has in flight. So the back control is disabled for exactly as long as a mutation is
- * running, the way Cancel is: a save the server may already have committed must not be
- * cancellable from above the form.
+ * What a record mutation looks like while it is happening: the server owns every record-bound
+ * surface, and this module owns only request feedback — pending labels and disabled controls.
  */
 
 import { leavingIsBeingAsked } from "./leaving-a-run.js";
@@ -74,7 +52,8 @@ function setPending(form, pending, pendingLabel, idleLabel, cancelSelector) {
   }
   const cancel = form.querySelector(cancelSelector);
   if (cancel instanceof HTMLButtonElement) cancel.disabled = pending;
-  // The bar is the form's own sibling, in the record view and in the create view alike.
+  // The bar is the form's own sibling, in the record view and the create view alike. Disabled
+  // while a mutation runs, like Cancel: a save the server may have committed is not cancellable.
   const back = form.parentElement?.querySelector(BACK_SELECTOR);
   if (back instanceof HTMLButtonElement) back.disabled = pending;
 }
@@ -95,20 +74,8 @@ function setDeletePending(form, pending) {
 }
 
 /**
- * The rule the confirmation follows, stated on its own so it can be proved without a
- * browser. The action row and the question are siblings and exactly one of them is ever
- * shown, which is the whole of "replaces it in place": nothing moves, and the record stays
- * readable above the question.
- *
- * Every asking is a fresh one, so the error region is cleared either way. A refusal left
- * standing from a previous attempt would sit under the new question describing something
- * the user has not tried yet, and the one that says the entry is already gone is the worst
- * of them to read that way.
- *
- * Focus follows what is now on screen. Opening lands on Cancel rather than the destructive
- * control, the way the deleted modal did; cancelling gives focus back to the Delete that
- * opened it, because hiding the control a keyboard user is standing on drops them at the
- * top of the desk.
+ * The rule the confirmation follows, provable without a browser: the action row and the question
+ * are siblings and exactly one is shown, so nothing moves and the record stays readable.
  *
  * @template T
  * @param {{
@@ -121,7 +88,11 @@ function setDeletePending(form, pending) {
 export function applyDeleteConfirmation({ confirming, actions, question, focus }) {
   actions.hidden = confirming;
   question.hidden = !confirming;
+  // Every asking is a fresh one: a refusal left standing would describe an attempt the user has
+  // not made, and the one saying the entry is already gone is the worst to read that way.
   question.clearError();
+  // Opening lands on Cancel, not the destructive control; cancelling gives focus back to the
+  // Delete that opened it, because hiding the control a keyboard user stands on drops them.
   const landing = confirming ? question.cancel : actions.trigger;
   if (landing) focus(landing);
 }
@@ -171,26 +142,18 @@ function standingDeleteConfirmation(view) {
 }
 
 /**
- * What a mutation's surface owes while its request is in flight.
- *
- * A record mutation aborted by the region rule — the window put away, another capability
- * opened, a build taking the window — resolves with status 0, which is the one outcome the
- * browser cannot tell from a commit it never heard about. The sentence for that was written
- * into the form's own live region: *inside the subtree being destroyed in the same tick*.
- * It was written and immediately thrown away, and the server may have committed the write.
- * For a delete that contradicts this file's own opening rule — a destructive action must
- * never look like it did nothing.
- *
- * So each in-flight mutation registers with the region's scope, and the release runs before
- * the abort does (`releaseRegionContent`, `public/region-scope.js`). A form whose surface is
- * gone says its piece on the prompt bar instead, which is the rescue `capability-deletion.js`
- * already proves. The claim lives exactly as long as the request, so nothing is left armed.
+ * A mutation aborted by the region rule used to write its sentence into the form's own live
+ * region — inside the subtree being destroyed in the same tick, so it was thrown away at once.
  *
  * @type {WeakMap<HTMLFormElement, { surfaceGone: boolean, deregister: () => void }>}
  */
 const mutationSurfaceClaims = new WeakMap();
 
-/** @param {HTMLFormElement} form */
+/**
+ * Register with the region's scope, whose release runs before the abort does
+ * (`releaseRegionContent`). The claim lives as long as the request, so nothing is left armed.
+ * @param {HTMLFormElement} form
+ */
 function claimMutationSurface(form) {
   releaseMutationSurface(form);
   const claim = { surfaceGone: false, deregister: /** @type {() => void} */ (() => {}) };
@@ -201,7 +164,8 @@ function claimMutationSurface(form) {
 }
 
 /**
- * End the claim and say whether the surface went while the request was out.
+ * End the claim and say whether the surface went while the request was out. A form whose surface
+ * is gone says its piece on the prompt bar instead.
  * @param {HTMLFormElement} form
  * @returns {boolean}
  */
@@ -231,12 +195,8 @@ export const UNCONFIRMED_ON_THE_DESK =
   "I couldn’t confirm that change. Open it again to see where it landed.";
 
 /**
- * Where an unconfirmed outcome is said, as a value rather than an effect, so the rule can
- * be executed instead of read — the way `deleteOutcomeDisposition` beside it is.
- *
- * A surface that is going away cannot hold a sentence: writing one into it is writing it
- * and throwing it away in the same tick, which is how a delete the server may have
- * committed came to look like it did nothing at all.
+ * Where an unconfirmed outcome is said, as a value rather than an effect, so the rule can be
+ * executed instead of read. A surface that is going away cannot hold a sentence.
  *
  * @param {{ surfaceGone: boolean, hasField: boolean, inField: string }} outcome
  * @returns {{ where: "field" | "prompt-bar", sentence: string }}
@@ -312,6 +272,8 @@ async function finishCommittedCreate(form) {
 }
 
 /**
+ * Create sits inside the collection, whose records region is still on screen, so a committed
+ * create refreshes that region in place and an unknown outcome reconciles by re-reading.
  * @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown
  * @param {boolean} surfaceGone
  */
@@ -337,6 +299,8 @@ async function handleCreateOutcome(form, successful, outcomeUnknown, surfaceGone
 }
 
 /**
+ * Update sits inside the record view, whose region is off screen, so a committed update leaves
+ * the record and going back is itself the fresh read.
  * @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown
  * @param {boolean} surfaceGone
  */
@@ -359,15 +323,8 @@ function handleEditOutcome(form, successful, outcomeUnknown, surfaceGone) {
 }
 
 /**
- * Where a finished delete leaves the user, as a value rather than an effect, so the
- * acceptance criterion can be executed instead of read.
- *
- * A committed delete leaves the record the way a committed update does: the collection
- * comes back as a fresh read, and the record is not in it. A refused one leaves the
- * confirmation standing, because the router retargets its refusal into the live region
- * that form carries — a question that closed itself would take the answer with it. A
- * severed one keeps the question too, and adds the one thing the browser knows: that it
- * cannot say whether the record is gone.
+ * Where a finished delete leaves the user, as a value so the acceptance criterion can be run. A
+ * refusal keeps the question standing: the router retargets it into that form's live region.
  *
  * @param {{ successful: boolean, outcomeUnknown: boolean }} outcome
  * @returns {"leave" | "stand" | "stand-and-say"}
@@ -378,6 +335,8 @@ export function deleteOutcomeDisposition({ successful, outcomeUnknown }) {
 }
 
 /**
+ * Delete sits inside the record view too, its confirmation replacing the action row in place,
+ * and a committed delete leaves the record the way a committed update does.
  * @param {HTMLFormElement} form @param {boolean} successful @param {boolean} outcomeUnknown
  * @param {boolean} surfaceGone
  */
@@ -402,8 +361,7 @@ function handleDeleteOutcome(form, successful, outcomeUnknown, surfaceGone) {
 // rules above can be evaluated and exercised in Bun without a browser.
 function installRecordMutations() {
   // Delegated and document-level, so it covers every record view the swap brings in later.
-  // Pressing Delete only asks the question: the separately submitted confirmation below is
-  // the one thing that can invoke the server Action.
+  // Pressing Delete only asks the question; the confirmation below invokes the server Action.
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
@@ -413,11 +371,8 @@ function installRecordMutations() {
     setDeleteConfirming(view, control.matches(DELETE_TRIGGER_SELECTOR));
   });
 
-  // A destructive question standing over the form is the one moment the form beneath it must
-  // not be submittable. The action row is hidden, but a hidden submit button is still the
-  // form's default button, so Enter in any field would save — and once Delete record is
-  // pressed, race the very delete it is answering. Captured, because htmx listens on the
-  // form itself and this has to be the earlier of the two.
+  // A hidden submit button is still the form's default button, so Enter in any field would save
+  // under a standing question. Captured, because htmx listens on the form and must come second.
   document.addEventListener(
     "submit",
     (event) => {
@@ -431,16 +386,12 @@ function installRecordMutations() {
     true,
   );
 
-  // The question the modal dismissed with Escape keeps that exit, which is the one thing a
-  // view swap could not inherit from a `<dialog>`. It is refused mid-delete for the same
-  // reason Cancel is disabled there: the server may already have committed.
+  // Escape keeps the exit the modal had, the one thing a view swap could not inherit from a
+  // `<dialog>`. Refused mid-delete for the reason Cancel is: the server may have committed.
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    // One press, one question. A run covers the collection without removing it, so a record
-    // view with a standing confirmation can be sitting behind the question a navigation is
-    // asking (`public/leaving-a-run.js`); that one is the one on screen and the one Escape
-    // means, and answering both with a single press would close a question the person
-    // never saw.
+    // One press, one question. A record view with a standing confirmation can sit behind the
+    // question a navigation asks (`public/leaving-a-run.js`); that one is on screen, so it wins.
     if (leavingIsBeingAsked()) return;
     // Asked of the document rather than of what has focus: the window holds one record view
     // at a time, and a user who has clicked away still means this question by Escape.
@@ -506,9 +457,8 @@ function installRecordMutations() {
     }
   });
 
-  // The datetime control the user types into is a local-time `datetime-local`; the exact
-  // stored value rides a hidden twin so a round-trip never rewrites precision the user did
-  // not touch. Mirroring is presentation, not canonical state.
+  // The datetime control the user types into is a local-time `datetime-local`; the exact stored
+  // value rides a hidden twin, so a round-trip never rewrites precision the user did not touch.
   document.addEventListener("input", (event) => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || !input.matches("[data-edit-datetime-input]"))

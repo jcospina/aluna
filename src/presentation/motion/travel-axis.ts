@@ -1,27 +1,17 @@
 /**
  * The travel axis: what may move a thing across the surface, and what may not.
  *
- * Motion is on by default for everyone. When the OS Reduce Motion setting is on, Aluna
- * stops travel — a window arriving from somewhere else, content sliding, a press jumping
- * — because travel is what makes a reader ill. In-place life carries on: a mark grows into
- * its box, a chevron turns over, the working tile crawls, the pet breathes. Standing
- * perfectly still is not an accessible surface, it is a dead one (PLAN decision 44).
+ * Under the OS Reduce Motion setting Aluna stops travel — a window arriving, content sliding, a
+ * press jumping — while in-place life carries on, because standing perfectly still is a dead
+ * surface rather than an accessible one (PLAN decision 44).
  *
- * The promise is kept by a shape rather than by a list of components:
+ * The promise is kept by a shape rather than a list of components. Travel states its distance and
+ * duration through `--travel`, which one media query in the token layer takes to zero: distance
+ * times zero does not move, and duration times zero lands rather than sliding, which is how a row
+ * displaced from JavaScript is reached. Life keeps a duration of its own.
  *
- *   - `transform` says where a thing sits. `translate` is how far it travels. `scale` and
- *     `rotate` are how it changes without going anywhere.
- *   - Travel states its distance and its duration through `--travel`, which one media
- *     query in the token layer takes to zero. Distance times zero does not move; duration
- *     times zero lands rather than sliding, which is how a row displaced from JavaScript
- *     is reached.
- *   - Life keeps a duration of its own and is never allowed onto the travel duration, so
- *     quieting travel cannot quietly flatten it.
- *
- * This module states those rules over stylesheet text rather than over files, so the same
- * rules can be run against the shipped surface and against a rule written to break them —
- * which is how `travel-axis.test.ts` shows the check has teeth rather than only that the
- * surface currently passes.
+ * The rules are stated over stylesheet text rather than over files, so they run against the
+ * shipped surface and against a rule written to break them.
  */
 
 /** A stylesheet to check, named for the message a violation carries. */
@@ -43,20 +33,8 @@ export const AXIS_SHEET = "design/styles/tokens.css";
 export const AXIS_RULE = ":root { --travel: 0; }";
 
 /**
- * The properties that move a box or push the content around it. A transition on one of
- * these travels, whatever it is attached to, so it answers to the travel duration.
- * `scale` and `rotate` are deliberately absent: they change a thing where it stands.
- *
- * The rule this list tries to be is *does this carry content across the surface* — so it
- * covers the ways that is done without touching a box's own metrics: the clip that decides
- * which part of a thing is visible, the offset path a thing is carried along, an image
- * moving inside its frame, and SVG's own geometry, which is where a drawn line's ends live.
- * Each of those was a way to slide real content past a check keyed on `left` and `margin`.
- *
- * `background-position` is deliberately *not* here, and the exclusion is the rule rather
- * than an oversight: a background is a fill, not content — nothing a reader is following
- * moves with it. That is what makes the one animation this surface runs today, the working
- * tile's crawling pattern, life rather than travel (`travel-axis.test.ts` pins it).
+ * The properties that carry content across the surface — a clip, an offset path and SVG geometry
+ * included, each of which slid past a check keyed on `left` and `margin`. A fill does not.
  */
 const GEOMETRY = [
   "translate",
@@ -94,13 +72,8 @@ const geometric = (property: string): boolean =>
   GEOMETRY.some((name) => property === name || property.startsWith(`${name}-`));
 
 /**
- * A selector that matches only some of the time: a state, or a step of a keyframe. A
- * displacement under one of these is travel — the thing was somewhere else a moment ago. A
- * displacement under a plain selector is placement: where the element is drawn, always.
- *
- * The list is a heuristic and is allowed to be, because a selector it misses does not fall
- * through to nothing: an unrecognised state still has to state its distance as a token
- * from the axis sheet, which is a line somebody has to add where it will be read.
+ * A selector that matches only some of the time: a state, or a keyframe step. A heuristic, and
+ * allowed to be — an unrecognised state still states its distance as a token from the axis sheet.
  */
 const STATE =
   /:hover|:active|:focus|:checked|:disabled|:indeterminate|:target|:open|:valid|:invalid|:placeholder-shown|:popover-open|:has\(|:not\(|\[data-|\[aria-|\[open|\[hidden|\.is-|\.has-/;
@@ -173,9 +146,8 @@ function rawLengths(value: string): string[] {
 }
 
 /**
- * What a declaration displaces by. A `transform` displaces by its translations and by
- * nothing else — a scale or a rotation in there stays where it is. Every other property
- * that displaces states the distance itself, one component per axis.
+ * What a declaration displaces by. A `transform` displaces by its translations and nothing else;
+ * every other property that displaces states the distance itself, one component per axis.
  */
 function displacements({ property, value }: Declaration): string[] {
   if (property !== "transform") return split(value, /\s/);
@@ -192,10 +164,8 @@ const tokensIn = (value: string): string[] =>
   [...value.matchAll(/var\(\s*(--[\w-]+)/g)].map(([, name]) => name as string);
 
 /**
- * Everything on the surface that could move without answering to the axis.
- *
- * Every rule reports rather than throws, so one run says all of what is wrong instead of
- * the first thing it met.
+ * Everything on the surface that could move without answering to the axis. Every rule reports
+ * rather than throws, so one run says all of what is wrong, not the first thing it met.
  */
 export function travelViolations(sheets: readonly Sheet[]): string[] {
   const all = sheets.flatMap((sheet) => declarationsIn(sheet));
@@ -328,9 +298,8 @@ function durationsOnTheAxis(all: readonly Declaration[]): string[] {
 }
 
 /**
- * The two things that would make `scale` and `rotate` travel after all: an origin outside
- * the box, which turns a turn into a sweep, and a `transform` inside a keyframe, which
- * carries both axes under one name.
+ * The two things that would make `scale` and `rotate` travel after all: an origin outside the
+ * box, which turns a turn into a sweep, and a `transform` in a keyframe, which carries both.
  */
 function lifeStaysWhereItIs(all: readonly Declaration[]): string[] {
   const found: string[] = [];

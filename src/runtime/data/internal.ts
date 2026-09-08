@@ -5,9 +5,8 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
 
-// The platform's typed data-validation failures. The base class and the three structural
-// refusals that carry a code and the fields they name live together so the router has one
-// place to read the mutation contract from.
+// The platform's typed data-validation failures. The base class and the three structural refusals
+// live together so the router has one place to read the mutation contract from.
 
 export class CapabilityDataValidationError extends Error {
   override readonly name: string = "CapabilityDataValidationError";
@@ -35,10 +34,8 @@ export class MissingRequiredFieldsError extends CapabilityDataValidationError {
 }
 
 /**
- * A *newly chosen* disabled option, refused before any canonical state moves and before a
- * generated Handler runs. Its own code rather than {@link InvalidChoiceError}, because
- * the value is declared and a row already holding it stays valid: what is refused is
- * arriving at the option, not carrying it.
+ * A *newly chosen* disabled option, refused before canonical state moves. Its own code rather than
+ * {@link InvalidChoiceError}: what is refused is arriving at the option, not carrying it.
  */
 export class ChoiceDisabledError extends CapabilityDataValidationError {
   override readonly name = "ChoiceDisabledError";
@@ -58,10 +55,8 @@ export class ChoiceDisabledError extends CapabilityDataValidationError {
 }
 
 /**
- * A submitted value outside a choice field's declared options, refused before any
- * canonical state moves and before a generated Handler runs. It carries its fields the
- * way {@link MissingRequiredFieldsError} does, so the router can relocate the platform
- * sentence into the control that produced it.
+ * A submitted value outside a choice field's declared options, refused before canonical state
+ * moves. Carries its fields like {@link MissingRequiredFieldsError}, so the router can relocate it.
  */
 export class InvalidChoiceError extends CapabilityDataValidationError {
   override readonly name = "InvalidChoiceError";
@@ -81,13 +76,8 @@ export class InvalidChoiceError extends CapabilityDataValidationError {
 }
 
 /**
- * A submitted string longer than its field's declared `max_length`, refused before any
- * canonical state moves and before a generated Handler runs.
- *
- * The native attribute already stops the typing, so reaching this is a crafted request
- * rather than a filled-in form — which is exactly why the limit cannot live only in the
- * browser. It carries its fields the way its three siblings do, so the sentence can be
- * relocated into the control that produced it.
+ * A submitted string longer than its field's declared `max_length`. The native attribute already
+ * stops the typing, so reaching this is a crafted request rather than a filled-in form.
  */
 export class MaxLengthExceededError extends CapabilityDataValidationError {
   override readonly name = "MaxLengthExceededError";

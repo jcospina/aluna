@@ -1,20 +1,16 @@
-// Which incarnations have a logo attempt running *in this process*, right now.
+// Which incarnations have a logo attempt running in this process, right now — two questions the
+// registry row cannot answer.
 //
-// Two questions need the same answer, and neither can be read from the registry row:
+// Is this `generating` row interrupted? Recovery has to tell a claim whose process died from one
+// three seconds into a ninety-second drawing; the durable row looks identical, and a timestamp
+// would only guess at how slow a service may be. A claim nothing here holds is a claim nobody is
+// running, because the only code that can hold one runs here.
 //
-//   - **Is this `generating` row interrupted?** Recovery has to tell a claim whose
-//     process died from one that is three seconds into a ninety-second drawing. The
-//     durable row looks identical in both cases, and a timestamp would only turn the
-//     question into a guess about how slow a service is allowed to be. In-process
-//     bookkeeping answers it exactly: a claim nothing here is holding is a claim nobody
-//     is running, because the only code that can hold one runs here.
-//   - **What is a claim loser waiting for?** ADR-0007 gives a loser a bounded observation
-//     of the winner and forbids a polling loop. The winner's own completion is already a
-//     promise; handing it to the loser is the observation, with no interval, no scheduler
-//     and nothing for a client to repeat.
+// What is a claim loser waiting for? ADR-0007 gives a loser a bounded observation of the winner
+// and forbids a polling loop, so the winner's own completion promise is the observation.
 //
-// The set is per-app rather than a module global, so a test can hold its own and two apps
-// in one process cannot see each other's attempts.
+// The set is per-app rather than a module global, so a test can hold its own and two apps in one
+// process cannot see each other's attempts.
 
 import type { CapabilityIncarnation } from "../../../runtime/concurrency/read-gates.ts";
 
@@ -28,26 +24,18 @@ export interface LogoClaimTicket {
 
 export interface RunningLogoClaims {
   /**
-   * Start tracking an attempt. Called **before** the claim is asked for: between the
-   * claim's commit and its registration there would otherwise be a window in which a
-   * concurrent desk load's recovery reads a `generating` row nobody appears to hold.
+   * Start tracking an attempt, before the claim is asked for: between the claim's commit and its
+   * registration a concurrent recovery would read a `generating` row nobody appears to hold.
    */
   begin(incarnation: CapabilityIncarnation): LogoClaimTicket;
   /**
-   * Whether any attempt for this incarnation is running here, won or still asking.
-   * Deliberately the wider question: a loser is in flight for microseconds, and treating
-   * its incarnation as busy only defers recovery to the next desk load, which is the safe
-   * direction. Answering the narrow question would put the winner's registration back in
-   * the race this exists to close.
+   * Whether any attempt for this incarnation is running here, won or still asking — the wider
+   * question, because the narrow one puts the winner's registration back in the race above.
    */
   isAttempting(incarnation: CapabilityIncarnation): boolean;
   /**
-   * Wait for the attempt that *won* this incarnation's claim, for at most `timeoutMs`, or
-   * until `abandoned` says the client that asked has gone.
-   *
-   * Resolves true when the winner finished inside the bound, false when there was no
-   * winner to observe, the bound ran out, or nobody is listening any more. Never rejects:
-   * a loser reports the row as it then stands either way.
+   * Wait for the attempt that *won* this claim, for at most `timeoutMs` or until `abandoned` fires.
+   * False when there was no winner, the bound ran out, or nobody listens. Never rejects.
    */
   awaitWinner(
     incarnation: CapabilityIncarnation,
@@ -119,8 +107,7 @@ export function createRunningLogoClaims(): RunningLogoClaims {
         };
         timer = setTimeout(giveUp, timeoutMs);
       });
-      // A drawing takes most of a minute, and a reader who navigated away is not going to
-      // see the tile it produces. Without this, every reload during one winner's call
+      // A drawing takes most of a minute. Without this, every reload during one winner's call
       // leaves a minute-and-a-half timer and a pinned handler behind it.
       abandoned?.addEventListener("abort", giveUp, { once: true });
       try {

@@ -64,9 +64,8 @@ function committedSpec(): CapabilitySpec {
   });
 }
 
-// The hide-then-evolve candidate: `pinned` becomes inactive. Every committed Handler that
-// wrote or read it now carries a name the candidate contract no longer declares, which is
-// exactly the prior source admissibility must withhold.
+// The hide-then-evolve candidate: `pinned` becomes inactive, so every committed Handler that wrote
+// or read it names a field the candidate no longer declares — the prior source to withhold.
 function candidateHidingPinned(): CapabilitySpec {
   return notesSpec({
     schema: {
@@ -77,9 +76,8 @@ function candidateHidingPinned(): CapabilitySpec {
   });
 }
 
-// A candidate whose only change is the item renderer's design direction — the one shape that
-// regenerates `item` alone, and `item` is the one unit whose canonical order (last) differs
-// from the snapshot file order (first).
+// A candidate changing only the item renderer's design direction: the one shape regenerating
+// `item` alone, and `item`'s canonical order (last) differs from the snapshot file order (first).
 function candidateWithNewItemDirection(): CapabilitySpec {
   return notesSpec({
     schema: { fields: committedSpec().schema.fields },
@@ -298,10 +296,8 @@ function conformingUnitsFor(spec: CapabilitySpec): Readonly<Record<string, strin
   };
 }
 
-// Prior source is optional regeneration context, not an entitlement (decision 21
-// ¶2). A regenerated unit gets its old committed source back only when deterministic checks
-// prove it references nothing outside the *candidate* unit's contract; otherwise it
-// regenerates from the contract alone, exactly as a v1 build does.
+// Prior source is optional regeneration context, not an entitlement (decision 21 ¶2): a unit gets
+// its old source back only when checks prove it references nothing outside the candidate contract.
 describe("prior-source admissibility in an evolution", () => {
   useCommittedCapability();
 
@@ -399,10 +395,8 @@ describe("prior-source admissibility in an evolution", () => {
   });
 });
 
-// The assembly stage is the long half of an evolution (several live regenerations plus the
-// Gate), so it reports its progress rather than only its result — that reporting is what
-// the developer panel streams. The plan half is derived, not generated, so it is
-// reportable before the first model call.
+// The assembly stage is the long half of an evolution, so it reports progress, not only a result.
+// The plan half is derived rather than generated, so it is reportable before the first model call.
 describe("evolution assembly liveness", () => {
   useCommittedCapability();
 
@@ -464,9 +458,8 @@ describe("evolution assembly liveness", () => {
     const active = getCapability("notes", env.conns.readonly);
     if (!active) throw new Error("committed capability did not activate");
 
-    // The regenerated search Handler normalizes with `lower` instead of the platform's
-    // search function: it passes every static check and fails the smoke rung, which
-    // repairs exactly that Handler from the next provider response.
+    // The regenerated search Handler normalizes with `lower` instead of the platform's search
+    // function: it passes every static check, fails smoke, and is repaired from the next response.
     const goodSearch = searchHandlerFor(candidate);
     const { provider } = makeSequenceProvider([
       { content: createHandlerFor(candidate) },

@@ -17,23 +17,14 @@ import type { CapabilitySpec, SpecField } from "../spec/spec.ts";
 import { singleLinePhrase, sqlNameText } from "../spec/spec-text.ts";
 
 /**
- * One line of hint under one field.
- *
- * It is a form fact, not a schema one, which is why it lives in `ui_intent` rather than on
- * the field: what a field *is* does not change because the form says a word about how to
- * fill it in. It also carries the sentence announcing a default ("Defaults to today."), so
- * a default needs no key of its own.
- *
- * There is deliberately no placeholder key anywhere in the spec. A placeholder is erased
- * by the first keystroke, which is exactly when a format hint is being used; guidance sits
- * under the field and survives typing (`design/design-system.md`, "Forms").
+ * One line of hint under one field, a form fact rather than a schema one; it carries the sentence
+ * announcing a default. No placeholder key: a keystroke erases one (`design/design-system.md`).
  */
 export const MAX_FIELD_GUIDANCE_LENGTH = 96;
 
 /**
- * Bounded, single-line and free of control characters, for the reasons every other
- * authored phrase on a control is (`choice.ts`): it is one line under a field, it is
- * written into markup, and it is serialized into generation prompts.
+ * Bounded, single-line and free of control characters, for the reasons every other authored phrase
+ * on a control is (`choice.ts`): it is written into markup and into generation prompts.
  */
 export const fieldGuidanceSchema = z.strictObject({
   field: sqlNameText,
@@ -45,13 +36,8 @@ export const fieldGuidanceSchema = z.strictObject({
 export type FieldGuidance = z.infer<typeof fieldGuidanceSchema>;
 
 /**
- * The fields drawn as a multi-line control — a bare name list, because there is nothing
- * else to say: a field either gets the multi-line control or it does not.
- *
- * Which of the two a string field wants is not something its type can decide — a title and
- * three paragraphs of notes are both a `string` — so it is a presentation choice and
- * belongs here, beside `collection.layout` and `item.shows`, rather than in the schema
- * (`design/controls.html`, "What decides between an input and a textarea").
+ * The fields drawn as a multi-line control. A title and three paragraphs of notes are both a
+ * `string`, so the choice is presentation and belongs here, not in the schema (controls.html).
  */
 export const longTextIntentSchema = z.array(sqlNameText);
 
@@ -88,15 +74,8 @@ export function validateFieldGuidance(
 type SubsetKey = "long_text" | "guidance";
 
 /**
- * The shared shape of both collections: each entry names a distinct active field the
- * collection is eligible for, and the entries appear in schema-field order.
- *
- * Order is a strictly increasing walk of schema positions rather than a comparison against
- * a built expected list, because a subset has no single expected list —
- * `sameOrderedStrings` is the right check for `list_inputs` precisely because that one is
- * total. Canonical order is what keeps two specs that opted the same fields in from
- * differing by arrangement alone, which would manufacture an evolution fact for a change
- * nobody made.
+ * Each entry names a distinct active field the collection is eligible for, in schema-field order.
+ * Order is a strictly increasing walk of positions, because a subset has no single expected list.
  */
 function validateFormFieldSubset(
   fields: readonly SpecField[],

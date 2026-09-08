@@ -1,27 +1,12 @@
-// The runtime allow-list enforcer. The presentation adapter
-// applies this to the inner markup of *every rendered record*, so a dynamic
-// field value can never become executable markup even after build-time validation
-// passes. The design-lint gate rung (3.6) is the build-time catch; this is the last line
-// at render time.
+// The runtime allow-list enforcer. The presentation adapter applies this to the inner markup of
+// every rendered record, so a dynamic field value can never become executable markup even after
+// build-time validation passes. The design-lint gate rung is the build-time catch; this is the
+// last line at render time.
 //
-// It parses with Bun's native `HTMLRewriter` (lol-html) — deterministic, dependency-free,
-// and, crucially, parsing the *final rendered* HTML the way a browser would, so a hostile
-// field value that broke out of its interpolation is seen as the elements it really forms
-// and neutralized, not missed by a parser that disagrees with the browser. The enforcer
-// *neutralizes* rather than throws: a record that slipped past the gate must still render
-// inertly, never crash a live view.
-//
-// Per record it:
-//   • removes script/style/foreign/embedding elements with their content,
-//   • unwraps interactive and unknown/custom elements (keeping their inner record text),
-//   • collapses a repeated attribute to the copy a browser honours (the first) before
-//     cleaning it, so a hostile duplicate cannot outlive the conforming one,
-//   • on the elements it keeps, drops every attribute outside the per-element allow-list
-//     (this is what kills `on*=` handlers, `href`, `id`/`name`, `data-*`, …),
-//   • filters `class` to the closed vocabulary and sanitizes `style` to token discipline,
-//   • drops a URL attribute naming a dangerous scheme *or any remote address* — a record
-//     never reaches off this origin, which is the same rule the `url(...)` style ban states,
-//   • and strips comments.
+// It parses with Bun's native `HTMLRewriter` (lol-html) — deterministic, dependency-free, and
+// parsing the final rendered HTML the way a browser would, so a hostile field value that broke
+// out of its interpolation is seen as the elements it really forms. It neutralizes rather than
+// throws: a record that slipped past the gate must still render inertly, never crash a live view.
 // Conforming markup passes through unchanged.
 
 import { sanitizeStyle } from "./style-discipline.ts";
@@ -67,15 +52,8 @@ function cleanAttributes(element: HTMLRewriterTypes.Element, tag: string): void 
 }
 
 /**
- * Collapse a repeated attribute to the one a browser would honour — the first — and write
- * that single copy back before anything else is cleaned.
- *
- * Repeating an attribute is malformed markup, and until this ran the enforcer made it
- * *worse* rather than inert. lol-html's `setAttribute`/`removeAttribute` address only the
- * first occurrence of a name, so a conforming first `style` was left untouched, and then
- * the hostile second copy's `removeAttribute` deleted the conforming one and left the
- * hostile one standing — turning an attribute the browser was ignoring into the live one.
- * A `javascript:` `src` and a remote `url(...)` both survived enforcement that way.
+ * Collapse a repeated attribute to the one a browser honours — the first — before anything else
+ * is cleaned. lol-html addresses only the first, so a hostile second copy used to delete it.
  */
 function dedupeFirstWins(
   attributes: readonly (readonly [string, string])[],

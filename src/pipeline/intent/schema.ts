@@ -44,9 +44,8 @@ const intentClassificationObject = z.strictObject({
     .nullable(),
   proposed_action: nonBlankText,
   user_facing_label: nonBlankText,
-  // Confirmations are reserved for later modules: capability delete in M4 and
-  // implicit-loop proposals in M7. In M2 the schema carries the field, but only
-  // the literal value `false` validates.
+  // Confirmations are reserved for later modules: capability delete in M4 and implicit-loop
+  // proposals in M7.
   requires_confirmation: z.literal(false),
 });
 type ParsedIntentClassification = z.infer<typeof intentClassificationObject>;

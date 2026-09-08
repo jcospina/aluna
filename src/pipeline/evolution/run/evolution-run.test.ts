@@ -221,10 +221,8 @@ describe("evolution during unrelated deletion cleanup", () => {
 });
 
 /**
- * Load the *published* v2 `read.ts` and run it through the real query adapter, then
- * return the single record it handed to `present`. This is the only way to prove
- * rehydration: the handler's own SQL selects target ids and never names the new column,
- * so what matters is what the platform gives back — not what the source says.
+ * Loads the published v2 `read.ts`, runs it through the real query adapter, and returns the
+ * record it handed `present`. Its SQL never names the new column; only the platform's answer does.
  */
 async function readOneRecordThroughPublishedHandler(
   spec: CapabilitySpec,
@@ -265,11 +263,8 @@ describe("a behavior-neutral additive change", () => {
     expect([...result.generatedUnits].sort()).toEqual(["create", "update"]);
     expect(result.prompts.some((prompt) => prompt.startsWith("Generate the read.ts"))).toBe(false);
 
-    // Decision 13: the copied `read` selects target ids and the platform rehydrates the
-    // canonical row on the same snapshot — so an old explicit projection cannot omit the
-    // new column even though its bytes never mention it. Proving that means *running*
-    // the v2 handler, not reading its source: load the published bytes and drive them
-    // through the real query adapter.
+    // Decision 13: the copied `read` selects target ids and the platform rehydrates the canonical
+    // row, so an old projection cannot omit the new column its bytes never mention.
     const readHandler = publishedUnit(env, 2, "read.ts");
     expect(readHandler).toContain('"id" AS "target_id"');
     expect(readHandler).not.toContain("due_date");
@@ -373,11 +368,8 @@ describe("the canonical no-op", () => {
 
 describe("an unmapped difference fails closed", () => {
   test("a committed region no matrix row covers stops the engine before any work", async () => {
-    // Today's candidate and registry schemas are jointly total, so this difference cannot
-    // be *stored* — which is exactly why decision 21's guard is a residual check rather
-    // than an enumerated denylist. Handing the engine a committed row from outside that
-    // vocabulary (here the reset-bounded pre-4.4 two-Action shape) is the reachable
-    // simulation of a future admitted region arriving without a matrix row.
+    // Today's schemas are jointly total, so this difference cannot be stored — which is why
+    // decision 21's guard is residual. A pre-4.4 two-Action row stands in for a future region.
     const active = getCapability("notes", env.conns.readonly);
     if (!active) throw new Error("committed capability did not activate");
     const legacy = { ...active, tools: ["create", "read"] } as typeof active;
@@ -394,10 +386,8 @@ describe("an unmapped difference fails closed", () => {
   });
 });
 
-// The one check in the engine that reads committed *data* rather than a spec: a candidate
-// may only add or lower a `max_length` once the stored rows have been proved to fit it. The
-// unit test proves the scan; this proves it is wired — that a real `runCapabilityEvolution`
-// reaches it, refuses there, and leaves everything as it was.
+// The one engine check that reads committed *data* rather than a spec. The unit test proves the
+// scan; this proves a real `runCapabilityEvolution` reaches it, refuses, and leaves v1 as it was.
 describe("a limit the stored rows cannot fit fails closed", () => {
   test("the engine refuses before publishing, and nothing about v1 moves", async () => {
     const base = committedSpec();
@@ -572,9 +562,8 @@ describe("frozen behavioral intent under evolution", () => {
       readFileSync(join(secondOutcome.publication.directory, "tests/behavioral.json"), "utf8"),
     ).toBe(frozenV2);
 
-    // …and nothing ran. A label rename regenerates `item.ts` alone; the renderer covers no
-    // Action and no Handler moved, so there is no code any frozen assertion has not already
-    // judged. This is the living-demo case: an item-only change runs none.
+    // …and nothing ran. A label rename regenerates `item.ts` alone: the renderer covers no Action
+    // and no Handler moved, so no code exists that a frozen assertion has not already judged.
     expect(secondOutcome.assembly.regeneratedUnits).toEqual(["item"]);
     expectEveryFrozenSuiteSkipped(second, secondOutcome, versionDirectory(env, 3));
   });

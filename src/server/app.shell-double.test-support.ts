@@ -3,16 +3,8 @@ import { resolve } from "node:path";
 
 import { startPromptBar } from "#shell/prompt-bar.js";
 
-// The shell's glue, run rather than grepped. `public/app.js` is a classic script that
-// imports nothing, so it is evaluated with the handful of DOM globals its rules actually
-// touch — the double below is as much of the DOM as those rules reach for and no more. A
-// rule proved against a double that has stopped resembling the DOM is proved against
-// nothing, so every operation here is the one the browser performs.
-//
-// Shared because the shell has more than one subject standing on the same desk: the run
-// that ends with something to tell you (`app.build-ending.test.ts`) and where the desk's
-// messages are spoken (`app.prompt-bar-messages.test.ts`) are the same window, the same
-// prompt bar and the same script.
+// Shell glue, run rather than grepped: `public/app.js` imports nothing, so it runs with the DOM
+// globals its rules touch. Shared with app.build-ending and app.prompt-bar-messages.
 
 export const WINDOW_REGION_ID = "spec-build-output";
 
@@ -69,10 +61,8 @@ export class El {
   }
 
   /**
-   * A live view over `data-*`, which is what the browser's `dataset` is. Held as a plain
-   * object it was a second, empty store beside the attributes — so a node built with
-   * `data-active-capability-id` read back as having no capability at all, and every rule
-   * that identifies the surface in the window by its dataset was proved against nothing.
+   * A live view over `data-*`, which is what the browser's `dataset` is. A plain object was a
+   * second, empty store: a node built with `data-active-capability-id` read back as having none.
    */
   get dataset(): Record<string, string | undefined> {
     const attributes = this.attributes;
@@ -97,10 +87,8 @@ export class El {
   }
 
   /**
-   * Read through the tree and written by replacing it — the two halves of the browser's
-   * own `textContent`. Written as a field, the setter silently left the children it was
-   * supposed to remove standing behind the new words, and every rule that replaces one
-   * sentence with another would have proved itself against a slot that never emptied.
+   * Read through the tree and written by replacing it, the two halves of the browser's own
+   * `textContent`. As a field, the setter left the children it was meant to remove standing.
    */
   get textContent(): string {
     return this.childNodes.reduce((text, child) => text + child.textContent, this.ownText);
@@ -124,9 +112,8 @@ export class El {
   }
 
   matches(selector: string): boolean {
-    // One compound selector only. A descendant selector reaching this would match on its
-    // first bracket group and quietly answer about the wrong node, which is exactly the
-    // kind of lie a double is not allowed to tell.
+    // One compound selector only. A descendant selector would match on its first bracket group
+    // and quietly answer about the wrong node, which a double is not allowed to do.
     if (/\s/.test(selector.trim())) throw new Error(`not a compound selector: ${selector}`);
     if (selector.startsWith("#")) return this.attributes.get("id") === selector.slice(1);
     const tagged = /^([a-z]+)\[/.exec(selector);
@@ -148,10 +135,8 @@ export class El {
 
   /** The first descendant this selector reaches, one compound step at a time. */
   querySelector(selector: string): El | null {
-    // `:scope > x` asks about this node's own children and nothing deeper. Answered here
-    // rather than left to the walk below, which would reach a grandchild and say yes —
-    // and the rule that asks this is the one deciding whether the window is holding a
-    // capability *directly*, where a grandchild is a different answer.
+    // `:scope > x` asks about this node's own children and nothing deeper. The walk below would
+    // reach a grandchild and say yes, and the rule asking this wants a direct child.
     const scoped = /^:scope\s*>\s*(.+)$/.exec(selector.trim());
     if (scoped) {
       const step = scoped[1] ?? "";
@@ -213,9 +198,8 @@ export class El {
   }
 
   /**
-   * The browser runs a node's own listeners whether or not the node is still in the
-   * document — which is the whole reason a rule that has to hear about a swap into a
-   * detached region binds itself here rather than to the document.
+   * The browser runs a node's own listeners whether or not the node is still in the document, so
+   * a rule that must hear about a swap into a detached region binds here rather than to it.
    */
   dispatchEvent(event: { type: string }): boolean {
     this.dispatched.push(event.type);
@@ -225,9 +209,8 @@ export class El {
 }
 
 /**
- * The one thing a `<template>` is for here: the parked restoration, inert and
- * unsearchable from the document until it is asked for. Its content is read exactly the
- * way the browser reads it — the outer element's attributes, and whatever it wraps.
+ * The one thing a `<template>` is for here: the parked restoration, inert and unsearchable until
+ * it is asked for. Read the way the browser reads it — the outer attributes, and what it wraps.
  */
 export class Template extends El {
   readonly content = new El("#fragment");
@@ -244,11 +227,8 @@ export class Template extends El {
 }
 
 /**
- * As much of an HTML parser as the shell's rules ask a `<template>` for: elements with
- * their attributes, nested, carrying their text. Small, but not a stub — the rules under
- * test read a marker off a *child* of the element they found (a refusal's span inside the
- * prompt notice), and a parser that flattened everything into one node would answer
- * "no marker" to every one of them and let the rule ship broken.
+ * As much of an HTML parser as the shell's rules ask a `<template>` for: nested elements with
+ * their attributes and text. The rules read a marker off a child, so flattening would answer no.
  */
 function parseFragment(raw: string): El[] {
   const roots: El[] = [];
@@ -288,9 +268,8 @@ function elementFrom(tag: string, attributes: string): El {
 const VOID_TAGS = new Set(["br", "hr", "img", "input", "meta", "link"]);
 
 /**
- * Note where a rule stops an event at the document. A capture-phase refusal keeps a
- * submission off the wire by stopping it before it can reach the form htmx listens on,
- * so the stop *is* the behaviour and has to be observable.
+ * Note where a rule stops an event at the document. A capture-phase refusal keeps a submission
+ * off the wire before it reaches the form htmx listens on, so the stop is the behaviour.
  */
 function watchForStop(event: unknown, stopped: string[]): void {
   if (!(event instanceof Event)) return;
@@ -302,9 +281,8 @@ function watchForStop(event: unknown, stopped: string[]): void {
 }
 
 /**
- * As much of a document as the shell's rules reach for, over the nodes standing on the
- * page. Its own function rather than another twenty lines inside `desk()`: what a
- * document answers is a subject, and the desk is already at the file's line ceiling.
+ * As much of a document as the shell's rules reach for. Its own function rather than twenty more
+ * lines inside `desk()`: what a document answers is a subject, and desk() is at its line ceiling.
  */
 function documentOver(
   page: { page: El; region: El; notice: El; promptForm: El; promptField: El },
@@ -324,9 +302,8 @@ function documentOver(
     },
     createElement: (tag: string) => (tag === "template" ? new Template() : new El(tag)),
     /**
-     * What the browser answers for a node that is still in the page, and for one that has
-     * been taken out of it — which is how a rule tells an answer that still has somewhere
-     * to land from one that does not.
+     * What the browser answers for a node still in the page, and for one taken out of it — how a
+     * rule tells an answer that still has somewhere to land from one that does not.
      */
     contains: (node: unknown) => {
       for (let at = node as El | null; at; at = at.parent) if (at === page.page) return true;
@@ -362,12 +339,8 @@ export function desk() {
   const promptField = new El("input", { id: "spec-build-prompt" });
   const frames: Array<() => void> = [];
   /**
-   * The bar itself — the form a prompt is submitted from, and what the 400ms refusal cue
-   * is put on and taken off again. An element rather than a bare stand-in, because the
-   * desk-action guard steps around this form by its id and could only be proved to do so
-   * against something that reaches that check: in a browser the bar *is* an element, and
-   * it names the window in its own `hx-target` exactly like the desk furniture the guard
-   * is for.
+   * The bar itself: the form a prompt is submitted from, and what the 400ms refusal cue goes on.
+   * An element, because the desk-action guard steps around this form by its id.
    */
   class FormStub extends El {
     constructor() {
@@ -382,9 +355,8 @@ export function desk() {
   // The field is inside the bar, the way it is in the shell: the blank-prompt rule reads
   // what was typed off the form that was submitted, not off the document.
   promptForm.append(promptField);
-  /* The page everything stands on. Without one, nothing in here can have *left* the
-   * document, and a rule that asks whether its answer still has somewhere to land could
-   * only ever be proved in a browser. */
+  /* The page everything stands on. Without one, nothing here can have left the document, and a
+   * rule asking whether an answer still has somewhere to land could only be proved live. */
   const page = new El("body");
   page.append(region, notice, promptForm);
   const documentStub = documentOver(
@@ -405,8 +377,7 @@ export function desk() {
     history: { state: null, replaceState() {} },
     htmx: {
       // The real bundle's mutable config object. The shell turns two of its defaults off
-      // (`public/app.js`), so a double without one would let that statement be deleted
-      // under a green suite.
+      // (`public/app.js`), so a double without one would let that statement be deleted green.
       config: {} as Record<string, unknown>,
       process(node: El) {
         processed.push(node);
@@ -414,9 +385,8 @@ export function desk() {
     },
   };
 
-  // The prompt bar is a module of the desk, started on this document the way the page
-  // starts it — the glue only ever tells it things, so the two halves have to both be
-  // standing for a sentence to reach the slot at all.
+  // The prompt bar is a module of the desk, started on this document the way the page starts it:
+  // the glue only tells it things, so both halves must stand for a sentence to reach the slot.
   startPromptBar(documentStub as never);
 
   const appScript = readFileSync(resolve("public/app.js"), "utf8");
@@ -489,9 +459,8 @@ export function narrateEnding(scene: ReturnType<typeof desk>) {
 }
 
 /**
- * A real event, aimed at a node of the double. The glue asks `event instanceof
- * CustomEvent` before it trusts a close, so a plain object would be waved through every
- * rule under test without running any of them.
+ * A real event, aimed at a node of the double. The glue asks `event instanceof CustomEvent`
+ * before it trusts a close, so a plain object would be waved through every rule under test.
  */
 export function eventAt(type: string, target: El, detail: unknown) {
   const event = new CustomEvent(type, { detail, cancelable: true });

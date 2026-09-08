@@ -1,30 +1,15 @@
-// The Module 6 acceptance fake for the owned-resource cleanup seam (PLAN decision 35,
-// ADR-0006, ARCH §6.3 Object Store).
+// The Module 6 acceptance fake for the owned-resource cleanup seam (PLAN decision 35, ADR-0006,
+// ARCH §6.3 Object Store).
 //
-// A test fixture, and only that — the `.test-support.ts` suffix keeps bun from running it
-// and keeps it out of the server's module graph. It must never join the live cleanup
-// adapter inventory: a manifest entry is durable and names the adapter that owes it, so a
-// fake that reached a real deletion would write an obligation only a dev process could
-// discharge.
+// It must never join the live cleanup adapter inventory: a manifest entry is durable and names the
+// adapter that owes it, so a fake that reached a real deletion would write an obligation only a
+// dev process could discharge. The `.test-support.ts` suffix keeps bun from running it and keeps
+// it out of the server's module graph.
 //
-// M4 owns the *seam*: collect a deduplicated, incarnation-bound manifest while the
-// capability's table still exists, then discharge it idempotently after the database's
-// point of no return. M6 will own the real object store. This fake stands in for that
-// store so the seam is proven now rather than assumed, and it deliberately models every
-// file lifecycle state the plan says the manifest must absorb before table drop:
-//
-//   - `committed`        — a reference held by a live record, through an **active** or an
-//                          **inactive** `file`/`file[]`-shaped field. Inactive fields are
-//                          the ones a manifest built from the visible form would miss.
-//   - `pending`          — ownership claimed by an in-flight create/update that has not
-//                          committed. Bytes exist; no record points at them yet.
-//   - `cleanup_enqueued` — already handed to the store's own cleanup queue. Deletion must
-//                          still absorb it, or the queue outlives the capability.
-//
-// The fake is strict where the real store will be strict: it refuses a reference naming a
-// field the capability does not declare, refuses a committed reference whose record is
-// unreadable (which is what collecting *after* the drop would look like), and never yields
-// a resource belonging to another capability or another incarnation of the same one.
+// M4 owns the seam: collect a deduplicated, incarnation-bound manifest while the capability's table
+// still exists, then discharge it idempotently after the point of no return. M6 will own the real
+// object store; this fake models every state the manifest must absorb before the drop, including
+// `cleanup_enqueued`, which deletion must absorb or the store's queue outlives the capability.
 
 import type { Database } from "bun:sqlite";
 import {
@@ -42,6 +27,10 @@ import {
 /** The fake claims the name M6 will install for real, so the manifest shape matches. */
 export const FAKE_OWNED_RESOURCE_ADAPTER = OWNED_RESOURCE_ADAPTER;
 
+/**
+ * `committed`: held by a live record via an active or *inactive* `file` field — inactive is what a
+ * visible-form manifest misses. `pending`: bytes, no record. `cleanup_enqueued`: already queued.
+ */
 export type OwnedResourceOwnershipState = "cleanup_enqueued" | "committed" | "pending";
 
 /** The two file-shaped field types M6 will add to the spec vocabulary. */
@@ -96,9 +85,8 @@ function quoteSqlIdentifier(identifier: string): string {
 }
 
 /**
- * An in-memory stand-in for M6's object store: references (what points at bytes) and
- * objects (the bytes themselves) are tracked separately, so cleaning a key twice is
- * observably a success rather than an error.
+ * An in-memory stand-in for M6's object store. References (what points at bytes) and objects (the
+ * bytes themselves) are tracked separately, so cleaning a key twice is observably a success.
  */
 export class FakeOwnedResourceStore {
   private readonly references = new Map<string, StagedOwnedResource>();
@@ -153,9 +141,8 @@ export class FakeOwnedResourceStore {
   }
 
   /**
-   * Every owned-resource key for this exact incarnation, in every lifecycle state.
-   * Duplicates are returned deliberately: deduplication is the manifest's job, and
-   * leaving it to the collector would hide a regression there.
+   * Every owned-resource key for this exact incarnation, in every lifecycle state. Duplicates are
+   * returned on purpose: deduplication is the manifest's job, and doing it here would hide a bug.
    */
   collectFor(target: CapabilityRow, database: Database): readonly string[] {
     const references = this.stagedFor(target.id, target.incarnation_id);

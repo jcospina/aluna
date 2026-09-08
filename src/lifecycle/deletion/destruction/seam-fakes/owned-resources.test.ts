@@ -361,9 +361,8 @@ describe("the Module 6 owned-resource acceptance fake", () => {
     const target = notesRow();
     install(conns, target);
     const store = createFakeOwnedResourceStore();
-    // Manifest order is by key, so `alpha` is cleaned before `zulu` fails. That leaves the
-    // tombstone alive carrying its *complete* manifest — the partial-cleanup shape every
-    // retry has to tolerate without treating an already-removed resource as an error.
+    // Manifest order is by key, so `alpha` is cleaned before `zulu` fails, leaving the tombstone
+    // alive with its *complete* manifest: the partial-cleanup shape every retry has to tolerate.
     for (const key of ["alpha", "zulu"]) {
       store.stage({
         capabilityId: target.id,

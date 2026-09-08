@@ -1,19 +1,14 @@
 // The dependency-generation catalog.
 //
-// While mutation ownership is held, candidate generation receives an immutable
-// catalog of every *other* capability's generation identity: exactly
-// `{ capability_id, incarnation_id, label, prompt_context, active_schema }`.
-// The catalog is the only admissible source for a candidate's declared
-// `read_dependencies` — a declared pair that does not resolve here is rejected
-// before DDL or unit generation (candidate-validation.ts).
+// While mutation ownership is held, candidate generation receives an immutable catalog of every
+// other capability's generation identity — id, incarnation, label, prompt_context and
+// `active_schema`. It is the only admissible source for a candidate's `read_dependencies`: a
+// pair that does not resolve here is rejected before DDL or unit generation.
 //
-// Two exclusions are the contract, not an optimization:
-// inactive external fields are not generation context (`active_schema` carries
-// only each dependency's active fields), and the evolving capability itself is
-// absent (self-dependency is implicit and never declared). Freshness is the
-// caller's responsibility: build the catalog *under the build lease* so no
-// concurrent write can change dependency state mid-generation ("frozen under
-// the lease").
+// Two exclusions are the contract, not an optimization: inactive external fields are not
+// generation context, and the evolving capability itself is absent, self-dependency being
+// implicit. Freshness is the caller's — build the catalog under the build lease, so no
+// concurrent write can change dependency state mid-generation.
 
 import { activeSpecFields, type CapabilityRow, type SpecField } from "../../registry/index.ts";
 
@@ -27,9 +22,8 @@ export interface DependencyGenerationCatalogEntry {
 }
 
 /**
- * Project registry rows into the frozen dependency-generation catalog for one
- * evolving capability: every other capability's active incarnation, active
- * fields only. Call this while the build lease is held.
+ * Project registry rows into the frozen dependency-generation catalog: every other capability's
+ * active incarnation, active fields only. Call this while the build lease is held.
  */
 export function buildDependencyGenerationCatalog(
   rows: readonly CapabilityRow[],

@@ -3,7 +3,12 @@ import type { GateRungName, GateRungOutcome } from "./gate.ts";
 import { diagnosticForError } from "./gate-internal.ts";
 import type { BehavioralRungFailureMeasurement } from "./rungs/behavioral/gate-behavioral.ts";
 
-/** Provider work and execution evidence already completed when a Gate fails. */
+/**
+ * Provider work and execution evidence already completed when a Gate fails. It rides the error
+ * because `recordGateFailureMetrics` has nowhere else to read it: without it the tokens the
+ * passed provider-backed rungs and the behavioral repair loop already spent — real money, already
+ * billed — vanish from the durable build row.
+ */
 export interface CapabilityGateFailureMeasurement {
   readonly smokeUsage: TokenUsage;
   readonly designLintUsage: TokenUsage;

@@ -19,11 +19,8 @@ import {
 } from "#shell/leaving-a-run.js";
 import { code as stripComments } from "../safety/source.test-support.ts";
 
-// Leaving a live build or evolution warns first, and confirming ends it once (PLAN
-// decision 17, amending design D3). Every rule here is written against the DOM facts it
-// actually needs, so the whole subject runs in Bun against plain objects — which is what
-// lets the order an ending owes, and the question's effect on the region, be *proved*
-// rather than read off the source.
+// Leaving a live build or evolution warns first, and confirming ends it once (PLAN decision 17,
+// amending design D3). Written against plain objects, so the order an ending owes is proved.
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -83,17 +80,14 @@ describe("what a run is, and where it is cancelled", () => {
     expect(buildJobIdIn(windowWithRun(focused).el)).toBe("build-7");
     expect(buildCancelUrl("build 7/8")).toBe("/build/build%207%2F8/cancel");
     expect(buildJobIdIn(bareWindow)).toBeNull();
-    // A run that already ended and is only waiting to be read is not being narrated.
-    // Cancelling it would post to a job the queue deleted, and the question would ask
-    // about losing a build that finished minutes ago.
+    // A run that already ended and is only waiting to be read is not being narrated. Cancelling
+    // it would post to a job the queue deleted, and ask about losing a finished build.
     expect(buildJobIdIn(windowWithRun(focused, { ending: true }).el)).toBeNull();
   });
 
   test("the ending owes three things, in one order", () => {
-    // The cancel first, so the server stops. The release while the story is still
-    // connected, because that is the only moment a request under it can be aborted. The
-    // detach last, through htmx, because that is what closes the stream — and a stream
-    // still open is a restoration still able to land in a window the person has left.
+    // The cancel first, so the server stops; the release while the story is still connected, the
+    // only moment a request under it aborts; the detach last, because that closes the stream.
     const order: string[] = [];
     const run = { name: "the run" };
     expect(
@@ -123,19 +117,15 @@ describe("what a run is, and where it is cancelled", () => {
     };
     expect(endTheRun({ ...ending, cancel: () => null })).toBe(false);
     expect(endTheRun({ ...ending, run: null })).toBe(false);
-    // No way to take the story down stops the whole thing *before* the cancel. Ending a
-    // run halfway — stopped on the server, still narrating on screen — is the worst of the
-    // three outcomes, and the one that would send a navigation on top of a run still
-    // standing there to be asked about again.
+    // No way to take the story down stops the whole thing before the cancel: a run stopped on the
+    // server but still narrating on screen is the worst of the three outcomes.
     expect(endTheRun({ ...ending, detach: null })).toBe(false);
     expect(order).toEqual([]);
   });
 
   test("the story is taken down through htmx, never detached in silence", () => {
-    // `remove` is `removeChild` and runs no cleanup at all, so the SSE extension would
-    // be left holding an open `EventSource` for a run that is nowhere — and the
-    // `htmx:sseClose` that unlocks the prompt bar and takes the build's tile down would
-    // never reach the document.
+    // `remove` is `removeChild` and runs no cleanup, so the SSE extension would hold an open
+    // `EventSource` and `htmx:sseClose` would never reach the document.
     expect(MODULE).toContain('swapStyle: "outerHTML"');
     expect(MODULE).not.toMatch(/\.remove\(\)/);
     expect(MODULE).toContain('fetch(url, { method: "POST", keepalive: true })');
@@ -177,12 +167,8 @@ describe("the question stands inside the run, and swaps nothing", () => {
   });
 
   test("showing it neither swaps the content target nor fires the run's cleanup", () => {
-    // The load-bearing property, and proved rather than grepped for: a question fetched
-    // into the content region, or one that replaced the run's surface, would fire the very
-    // cleanup it exists to ask about — the region rule releases whatever a region's content
-    // started the moment that content is replaced (`region-scope.js`), so *asking* would
-    // cancel the run. So the complete set of things asking does is recorded, and it has to
-    // be two `hidden` writes and one focus.
+    // A question fetched into the content region would fire the cleanup it exists to ask about,
+    // since the region rule releases whatever that content started: asking would cancel the run.
     const done: string[] = [];
     const watched = <T extends object>(name: string, node: T) =>
       new Proxy(node, {
@@ -223,9 +209,8 @@ describe("the question stands inside the run, and swaps nothing", () => {
   });
 
   test("the run itself is left running while the question stands", () => {
-    // Asking is not stopping. Nothing about the run is touched — the stream stays open,
-    // the story keeps arriving, and the work goes on — so a question the person leaves
-    // standing, or backs out of, costs them nothing at all.
+    // Asking is not stopping: the stream stays open and the work goes on, so a question left
+    // standing, or backed out of, costs nothing at all.
     const focused: string[] = [];
     const posted: string[] = [];
     const held = windowWithRun(focused);
@@ -240,9 +225,8 @@ describe("the question stands inside the run, and swaps nothing", () => {
   });
 
   test("a run that has committed is not asked about either", () => {
-    // The commit lands one event before the stream closes, and the stylesheet has already
-    // taken the question out of the page with the rest of the story by then. A question
-    // raised in that gap is one nobody can see, holding a navigation nobody can answer.
+    // The commit lands one event before the stream closes, and the stylesheet has taken the
+    // question off the page by then, so one raised in that gap holds a navigation invisibly.
     const focused: string[] = [];
     const held = windowWithRun(focused, { committed: true });
     expect(buildJobIdIn(held.el)).toBeNull();
@@ -250,9 +234,8 @@ describe("the question stands inside the run, and swaps nothing", () => {
   });
 
   test("no draft persistence and no dirty-form tracker came with it", () => {
-    // 5.6/03's contract is explicit: search, record subviews and half-typed forms are
-    // DOM-only and die with the window. The question is scoped to a running build or an
-    // evolution and to nothing else.
+    // 5.6/03's contract is explicit: search, record subviews and half-typed forms are DOM-only
+    // and die with the window. The question is scoped to a running build or an evolution.
     for (const path of ["public/leaving-a-run.js", "public/desk-address.js"]) {
       const source = code(path);
       for (const store of ["localStorage", "sessionStorage", "beforeunload", "onbeforeunload"]) {
@@ -324,10 +307,8 @@ describe("either answer, and what it leaves standing", () => {
     expect(goAheadAndLeave({ activeElement: null, body: null })).toBe(false);
   });
 
-  // A run whose story cannot be detached — no htmx yet, a subscriber already off the page —
-  // cannot be ended, so the confirmed navigation must not happen. What it must also not do
-  // is leave the question standing with nothing behind it: both answers were inert, and the
-  // navigation the person confirmed neither happened nor was reported.
+  // A run whose story cannot be detached cannot be ended, so the confirmed navigation must not
+  // happen — and must not leave the question standing with both answers inert either.
   test("a leave that cannot be carried out takes the question down and says so", () => {
     const focused: string[] = [];
     const went: string[] = [];
@@ -385,9 +366,8 @@ describe("either answer, and what it leaves standing", () => {
   });
 
   test("a run that ends on its own takes the question with it", () => {
-    // There is nothing left to lose, and the person never said they were leaving — so
-    // the navigation is dropped and they are left where they are, with whatever the run
-    // has to tell them.
+    // There is nothing left to lose and the person never said they were leaving, so the
+    // navigation is dropped and they stay where they are.
     const focused: string[] = [];
     const went: string[] = [];
     const held = windowWithRun(focused);
@@ -475,10 +455,8 @@ describe("what answers the question", () => {
   });
 
   test("one press answers one question", () => {
-    // A run covers the collection without removing it, so a record view with a standing
-    // delete confirmation can be sitting behind the question a navigation is asking. That
-    // one is on screen and is the one Escape means; answering both with a single press
-    // would close a question the person never saw.
+    // A run covers the collection without removing it, so a standing delete confirmation can sit
+    // behind the leaving question. Escape means the one on screen, not both.
     const mutations = code("public/record-mutations.js");
     expect(mutations).toContain('if (event.key !== "Escape") return;');
     expect(mutations).toMatch(

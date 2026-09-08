@@ -1,9 +1,8 @@
 import type { ListInputMode, UiFormIntent } from "../../registry/index.ts";
 
 /**
- * Resolve the closed authored mode for one active list field. Validated specs
- * always contain the entry; hand-built render projections fail loudly if they
- * dropped form intent between the registry and the platform module.
+ * Resolve the closed authored mode for one active list field. Validated specs always contain the
+ * entry, so a hand-built render projection that dropped form intent fails loudly.
  */
 export function listInputModeForField(form: UiFormIntent, fieldName: string): ListInputMode {
   const entry = form.list_inputs.find((candidate) => candidate.field === fieldName);
@@ -12,11 +11,8 @@ export function listInputModeForField(form: UiFormIntent, fieldName: string): Li
 }
 
 /**
- * Normalize the raw form representation before generated Handler code runs.
- * Repeatable controls discard blank placeholder rows and preserve every nonblank
- * occurrence exactly. Comma-separated controls flatten every occurrence, trim
- * segment boundaries, and discard empty segments; order and duplicates remain
- * untouched.
+ * Normalize the raw form representation before generated Handler code runs. Repeatable controls
+ * drop blank rows; comma-separated ones flatten, trim and drop empty segments. Order is kept.
  */
 export function normalizeListInputValues(
   mode: ListInputMode,

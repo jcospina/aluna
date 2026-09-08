@@ -17,25 +17,12 @@ import {
   tookFocusAway,
 } from "./list-field.test-support.ts";
 
-// Moving a row, by the two gestures that move it.
-//
-// A suite of its own because reordering is its own subject: the rest of `list-field.test.ts`
-// is about what a row *is* and what the server writes, and this is about what happens while
-// one is in somebody's hand. The two paths are deliberately written side by side here, so a
-// difference between dragging a row and typing it into place shows up as a failure rather
-// than as a bug report.
+// Moving a row, by the two gestures that move it. The order is part of the field's value, and a
+// drag is the way that no keyboard has, so both paths are written side by side here.
 
 beforeAll(installDom);
 afterAll(removeDom);
 
-/**
- * The order a row sits in is part of the field's value, so a person has to be able to change
- * it — by dragging, which is what people already know, and without dragging, which is the
- * only way that works for a keyboard.
- *
- * Both drive the same movement, and these tests are deliberately written against both so a
- * difference between them shows up as a failure rather than as a bug report.
- */
 /** A pointer pressing and moving, and a key pressed — the two ways a row is taken hold of. */
 const pointer = (target: Node | null | undefined, y = 0) => ({
   target,
@@ -54,10 +41,8 @@ describe("reordering a row", () => {
   const drawnAt = (field: Node) => rowsOf(field).map((row) => row.style.translate || "at rest");
 
   test("the dragged row follows the pointer and the others open a gap for it", async () => {
-    // The point of a drag is that you can see the thing move. Nothing in the document
-    // changes places while the finger is down: the row in hand is translated to wherever
-    // the pointer is, and the rows it passes are translated by whole slots to get out of
-    // its way — so the list a person sees is transforms over a list that has not moved.
+    // Nothing in the document changes places while the finger is down: the row in hand is
+    // translated to the pointer and the rows it passes by whole slots, over an unmoved list.
     const { dragListRow, startListDrag, syncListRows } = await import("#design/list-rows.js");
     const { field } = listField("one", "two", "three");
     syncListRows(field);
@@ -174,10 +159,8 @@ describe("reordering a row without a drag", () => {
   });
 
   test("the grip keeps the focus across a move, which is what keeps the row in hand", async () => {
-    // Moving a row takes it out of the document and puts it back, and that blurs whatever
-    // inside it had focus — here, the very grip driving the move. Left alone, the first
-    // arrow press would blur the grip, `focusout` would read that as the person leaving,
-    // and the row would be dropped by the key that was meant to move it.
+    // Moving a row takes it out of the document and puts it back, which blurs the grip driving
+    // the move. Left alone, `focusout` would read that as leaving and drop the row.
     const { blurListRow, keyListRow, syncListRows } = await import("#design/list-rows.js");
     const { field } = listField("one", "two", "three");
     syncListRows(field);

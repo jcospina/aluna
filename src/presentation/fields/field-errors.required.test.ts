@@ -74,9 +74,8 @@ describe("a required field is refused in the browser", () => {
   });
 
   test("anything other than a missing value keeps the browser's own words", async () => {
-    // The platform has authored one sentence, for one failure. Saying it about a failure
-    // it was not written for, or inventing a second, is the second copy source this whole
-    // slice exists to avoid — so the browser keeps that one.
+    // The platform has authored one sentence, for one failure. Saying it about another failure,
+    // or inventing a second, is the second copy source this slice exists to avoid.
     const one = await scene(capabilityOf([probeField("number")]));
     const control = one.doc.querySelector('[name="value"]') as El;
     (control as unknown as { validity: { valueMissing: boolean } }).validity = {
@@ -95,9 +94,8 @@ describe("a required field is refused in the browser", () => {
     const submitted = one.submit();
 
     expect(submitted.prevented).toBe(true);
-    // Stopped as well as prevented: htmx listens on the form itself, and a refusal that
-    // only cancelled the default would still have posted. Asked of a listener standing
-    // exactly where htmx's does rather than of the flag.
+    // Stopped as well as prevented: htmx listens on the form itself, so a refusal that only
+    // cancelled the default would still have posted. Asked of a listener standing where htmx's is.
     expect(submitted.stopped).toBe(true);
     expect(one.posted).toHaveLength(0);
     expect(one.saidIn("status")).toBe(REQUIRED_FIELD_SENTENCE);
@@ -146,9 +144,8 @@ describe("a required field is refused in the browser", () => {
     );
     expect(optional.submit().prevented).toBe(false);
 
-    // The radio group keeps a real native constraint on real inputs, so it has no carrier
-    // to mark and nothing here to enforce: a second check over it would be a second
-    // refusal for one empty field.
+    // The radio group keeps a real native constraint on real inputs, so it has no carrier to
+    // mark: a second check over it would be a second refusal for one empty field.
     const radio = await scene(
       capabilityOf([probeField("choice", { name: "status", label: "Status" })], {
         choice_inputs: [{ field: "status", presentation: "radio" }],
@@ -205,9 +202,8 @@ describe("a field says it is invalid on every control it is made of", () => {
   });
 
   test("an added row inherits the verdict, and loses it with the rest of the field", async () => {
-    // `addListFieldRow` clones a row wholesale (`public/list-field.js`), so a row added
-    // while the field is marked arrives already saying so — which is right, it is the same
-    // field — and must stop saying it when the field does.
+    // `addListFieldRow` clones a row wholesale (`public/list-field.js`), so a row added while the
+    // field is marked arrives already saying so, and must stop saying it when the field does.
     const one = await scene(
       capabilityOf([probeField("string[]", { required: false })], {
         list_inputs: [{ field: "value", mode: "repeatable" }],
@@ -226,9 +222,8 @@ describe("a field says it is invalid on every control it is made of", () => {
 
   test("two forms in one document answer only for their own fields", async () => {
     const one = await scene(capabilityOf([probeField("string")]));
-    // A second capability's form, standing beside the first the way a record view and a
-    // collection do. Both draw a field called `value`; a refusal aimed at one of them must
-    // not reach into the other.
+    // A second capability's form, standing beside the first the way a record view and a collection
+    // do. Both draw a field called `value`; a refusal aimed at one must not reach the other.
     const second = new El("div");
     (one.doc.querySelector("html") as El).append(second);
     parseHtml(renderCreateForm({ ...capabilityOf([probeField("string")]), id: "other" }), second);
@@ -306,9 +301,8 @@ describe("the paint the marked state depends on", () => {
 
 describe("the form stays the platform's, and the copy stays the platform's", () => {
   test("a form in generated item markup is unwrapped before it reaches a page", async () => {
-    // Forms are platform chrome; a generated renderer that drew one — with its own copy
-    // for a business error it also declared — would be the second copy source. The runtime
-    // enforcer already unwraps every interactive element, and that is what keeps it true.
+    // Forms are platform chrome; a generated renderer drawing one with its own copy would be the
+    // second copy source. The runtime enforcer unwraps every interactive element, which holds it.
     const { enforceItemMarkup } = await import("../safety/enforcer.ts");
     const cleaned = enforceItemMarkup(
       '<form action="/x"><input name="title" required><button>Save</button></form>',

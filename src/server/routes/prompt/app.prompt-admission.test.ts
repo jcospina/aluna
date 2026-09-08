@@ -175,10 +175,8 @@ function forbiddenProvider(calls: { count: number }): Provider {
   };
 }
 
-// One blank submission per body encoding `readPromptSubmission` accepts — the guard
-// must sit above the parser's content-type branch, not inside one of them. Every body
-// here is whitespace-only or absent: whitespace passes the shell field's HTML5
-// `required`, so the browser guard alone cannot cover it.
+// One blank submission per body encoding `readPromptSubmission` accepts: the guard must sit above
+// the parser's content-type branch. Whitespace passes the field's HTML5 `required`.
 function blankSubmissions(): ReadonlyArray<{ name: string; init: RequestInit }> {
   const multipart = new FormData();
   multipart.set("prompt", "\t\n  ");
@@ -278,9 +276,8 @@ describe("blank-prompt refusal", () => {
       // A refusal, so it carries the marker the prompt bar flashes on (PLAN decision 24).
       expect(body).toBe(renderPromptNotice(BLANK_PROMPT_NOTICE, "refusal"));
       expect(body).toContain("<span data-prompt-refusal>");
-      // The signed-off line itself, pinned as a literal: comparing the body to the
-      // renderer alone would compare the implementation to itself and let a silent
-      // copy edit ship green past the sign-off gate.
+      // The signed-off line itself, pinned as a literal: comparing the body to the renderer would
+      // compare the implementation to itself and let a silent copy edit ship green.
       expect(body).toContain("What would you like me to make?");
       // No subscriber fragment means no SSE stream opens, so `promptBusy` never flips
       // and the prompt bar stays live for the next attempt.
@@ -290,10 +287,8 @@ describe("blank-prompt refusal", () => {
       expect(resolutionRows).toEqual([]);
       expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
 
-      // The provider lives behind `/build/:id/stream`, so a call count taken after the
-      // POST alone would read zero with or without the guard. Open the stream for the id
-      // the queue *would* have issued: an unknown job answers `done: missing` and runs no
-      // pipeline, which is what makes the zero call count load-bearing.
+      // The provider lives behind `/build/:id/stream`, so a count taken after the POST alone reads
+      // zero either way. An unknown job answers `done: missing`, which makes the zero load-bearing.
       const stream = collectSseEvents(
         await readSse(await app.request("/build/blank-job-1/stream")),
       );
@@ -304,11 +299,8 @@ describe("blank-prompt refusal", () => {
   }
 
   test("the bar's own guard is in front of the server's, and says the same thing", async () => {
-    // Defence in depth, and one answer: the bar refuses a blank submission before it can
-    // become a request — an empty field and one holding only spaces alike, because the
-    // browser's own `required` could tell those apart and would answer only the first,
-    // in its own voice, after a window had already been stood up for it. The server
-    // refuses every submission that did not come from that bar.
+    // Defence in depth, and one answer: the bar refuses a blank submission before it can become a
+    // request, empty field and spaces alike. The server refuses every submission not from that bar.
     const html = await responseText(
       await createApp({ capabilityRouter: { databases: conns } }).request("/"),
     );

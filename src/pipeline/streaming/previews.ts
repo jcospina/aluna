@@ -2,8 +2,8 @@
 //
 // As the build pipeline moves through its stages it streams these structured
 // snapshots so a developer watches the spec, migration, units, gate, and commit
-// assemble live. This deliberately surfaces internals — that is the whole point of a
-// liveness check — and is strictly separate from the product-voice narration and
+// assemble live. A liveness check exists to surface internals, so it does, and it is
+// strictly separate from the product-voice narration and
 // confirmation the user sees; ARCH §9.7 keeps internals out of the *product* copy,
 // not the dev previews.
 
@@ -140,12 +140,8 @@ export interface DemoBuildErrorPreview {
 }
 
 /**
- * The developer's liveness view of the terminal commit stage (issue 07): the
- * capability that just became real — its id, the version it committed at, the
- * pointer the registry row now carries, and the files written to the version
- * directory. Sent only after the migration transaction commits, so it always
- * describes a committed capability. The user-facing confirmation (the `fragment`
- * event) rides alongside it; the client-side content/desk swap is Epic 2.6.
+ * The developer's liveness view of the terminal commit stage (issue 07). Sent only after the
+ * migration transaction commits, so it always describes a committed capability.
  */
 export interface DemoCommitPreview {
   readonly kind: "commit-preview";
@@ -159,19 +155,13 @@ export interface DemoCommitPreview {
   readonly snapshotContentDigest: string;
   readonly behavioralTier: "on" | "off";
   /**
-   * Which row of decision 24's transition table this version landed on. Present on
-   * an evolution and absent on a first build, which has no prior snapshot to transition
-   * *from*. It is derived, not stored: `snapshot.json` records each version's own tier, and
-   * the row is the pair — so the published-version pane states it rather than making a
-   * reader open two manifests.
+   * Which row of decision 24's transition table this version landed on. Absent on a first build,
+   * which has no prior snapshot; derived from the pair of `snapshot.json` tiers, not stored.
    */
   readonly behavioralTierTransition?: BehavioralTierTransition;
   /**
-   * The committed logo inputs and the row's durable logo state. The spec authors two
-   * *hue families*; `colors` is the exact ordered pair a request would carry, resolved
-   * here from those families and the incarnation seed, so a reader can see both which
-   * hue the model named and which of its four shades this capability came up with —
-   * and that neither the caller nor the provider client gets to choose the second one.
+   * The committed logo inputs and durable logo state. The spec authors two *hue families*, and
+   * `colors` resolves each to one of its four shades by incarnation seed — nobody else chooses.
    */
   readonly logo: DemoCommitLogoPreview;
   readonly files: readonly string[];
@@ -225,11 +215,8 @@ function tableColumns(database: Database, tableName: string): DemoMigrationColum
 }
 
 /**
- * Build the migration-stage preview by reading the just-applied table back off the
- * build connection. The migration runs on the real read-write connection inside the
- * build's open transaction, so the `cap_<id>` table exists — uncommitted — and is
- * visible to this same connection; a build failure rolls it back. This is the
- * developer's liveness view, never user-facing.
+ * Builds the migration-stage preview by reading the just-applied table off the build connection:
+ * `cap_<id>` exists uncommitted inside the open transaction, and a build failure rolls it back.
  */
 export function buildMigrationPreview(
   database: Database,
@@ -286,9 +273,8 @@ export function unitPreviewFilename(unit: UnitDescriptor): GeneratedUnit["filena
 }
 
 /**
- * Aggregate the per-unit previews into a units snapshot, summing code-gen (handlers)
- * and presentation-gen (the item renderer — the semantic successor to M2's html-gen)
- * wall time across the units captured so far.
+ * Aggregates the per-unit previews into a units snapshot, summing code-gen (handlers) and
+ * presentation-gen (the item renderer, successor to M2's html-gen) wall time so far.
  */
 export function buildUnitsPreview(
   units: readonly DemoUnitPreview[],
@@ -373,13 +359,8 @@ function behavioralGatePreview(behavioral: BehavioralGateResult): DemoBehavioral
 }
 
 /**
- * The evolution-candidate preview. The evolution run's one
- * developer-panel payload: the validated candidate plus the Diff Engine's typed
- * change facts and unioned work plan, the measured no-op when the Diff finds zero
- * facts, or the total rejection with every contract violation. An accepted
- * candidate also carries the executed-work summary (`assembly`), first as the running
- * plan and then complete with the Gate verdict. It stops at the candidate on purpose:
- * an activated version is announced by `commit-preview`/`commit`, not here.
+ * The evolution run's one developer-panel payload: the validated candidate with the Diff's change
+ * facts, the measured no-op, or the rejection. It stops there — activation is `commit-preview`.
  */
 export interface EvolutionCandidatePreview {
   readonly kind: "evolution-candidate-preview";
@@ -397,51 +378,36 @@ export interface EvolutionCandidatePreview {
 }
 
 /**
- * The developer-visible summary of the assembled candidate: which units the
- * matrix regenerated vs. byte-copied, the additive DDL derived, and the Gate verdict
- * over the assembled snapshot. The full unit source stays out of the preview payload —
- * the regenerated units stream into the panel's Units block as they are written.
- *
- * The plan half (units + DDL) is deterministic and known before any unit work, so it is
- * sent once as `running` the moment the Diff lands and again as `complete` with the Gate
- * verdict. `running` therefore means "this is the work being done", not a partial result.
- * A trace that does not finish its assembly closes the running plan out — `cancelled` when
- * the developer stopped it, `failed` otherwise — rather than leaving the panel showing work
- * nothing is doing. A failure itself is still reported through `build-error-preview`.
+ * The developer-visible summary of the assembled candidate: which units were regenerated or
+ * byte-copied, the additive DDL, the Gate verdict. Unit source streams to the panel's Units block.
  */
 export interface EvolutionAssemblySummary {
+  /**
+   * `running` is the work being done, not a partial result: the plan is known before any unit
+   * work. An unfinished trace closes as `cancelled`/`failed`; the failure is `build-error-preview`.
+   */
   readonly status: "running" | "complete" | "failed" | "cancelled";
   readonly regeneratedUnits: readonly GeneratedUnitName[];
   readonly copiedUnits: readonly GeneratedUnitName[];
   readonly additiveMigration: readonly string[];
   /**
-   * Per regenerated unit, whether its prior committed source was admitted into the
-   * regeneration prompt and why it was withheld when it was not. Decided before
-   * the first model call, so it is already complete in the `running` plan. Copied units are
-   * absent — they never enter model context, so no admission arises.
+   * Per regenerated unit, whether its prior committed source entered the prompt, and why not.
+   * Decided before the first model call, so complete in the `running` plan; copied units absent.
    */
   readonly priorSource: readonly PriorSourceDecision[];
   /**
-   * Per Action, whether this evolution generated that Action's behavioral tests or carried
-   * the prior frozen ones forward, the content address of the closed inputs that decided
-   * it, and which inputs those were. Absent while the tier is off, and absent from
-   * the first `running` plan because it is settled a moment later — but always before any
-   * Handler is generated or repaired, which is the ordering it exists to make visible.
+   * Per Action, generated or carried behavioral tests, with the closed inputs that decided it.
+   * Absent when the tier is off and from the `running` plan; always settled before any Handler.
    */
   readonly behavioralTests?: readonly BehavioralTestActionReport[];
   /**
-   * Per Action, whether that frozen suite executed or was skipped, and why — impact-driven
-   * or the full-suite fallback. Settled by the Gate, so it is absent from the
-   * `running` plan and from a tier-off evolution. Read next to `behavioralTests`, the two
-   * halves say the whole thing: what this version's intent is, and what had to be re-proven.
+   * Per Action, whether that frozen suite ran or was skipped, impact-driven or full-suite. Settled
+   * by the Gate, so absent from the `running` plan and from a tier-off evolution.
    */
   readonly behavioralExecution?: BehavioralExecutionPlan;
   /**
-   * Which row of decision 24's transition table this candidate landed on, with the prior
-   * snapshot's tier it was read against. Absent from the `running` plan, because
-   * the candidate half is not settled until the Gate is — but present on every complete
-   * assembly, including the tier-off ones where it is the only thing that explains why
-   * `behavioralTests` and `behavioralExecution` say nothing at all.
+   * Which row of decision 24's transition table this candidate landed on, against the prior tier.
+   * Absent from the `running` plan; present on tier-off assemblies, which it alone explains.
    */
   readonly behavioralTierTransition?: BehavioralTierTransition;
   readonly gate: readonly { readonly rung: string; readonly status: string }[];
@@ -505,9 +471,8 @@ export function buildEvolutionCandidateRejectedPreview(
 }
 
 /**
- * The error preview surfaced when a build throws — names the error and message, and
- * carries a structured `diagnostic` when one is attached (e.g. the gate's per-rung
- * detail).
+ * The error preview surfaced when a build throws: the error and message, plus a structured
+ * `diagnostic` when one is attached (the gate's per-rung detail, for instance).
  */
 export function buildDemoErrorPreview(error: unknown): DemoBuildErrorPreview {
   return {

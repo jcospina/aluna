@@ -92,9 +92,8 @@ describe("the streamed assembly", () => {
       .filter((event) => event.event === "candidate-preview")
       .map((event) => JSON.parse(event.data));
 
-    // The running plan lands before any unit work: the whole shape of the evolution —
-    // the added column and the copy/regenerate split — is visible while the units are
-    // still being written, with no Gate verdict yet.
+    // The running plan lands before any unit work: the added column and the copy/regenerate split
+    // are visible while the units are still being written, with no Gate verdict yet.
     expect(candidatePreviews.length).toBeGreaterThan(1);
     const running = candidatePreviews[0];
     expect(running.assembly.status).toBe("running");
@@ -104,8 +103,7 @@ describe("the streamed assembly", () => {
       'ALTER TABLE "cap_journal" ADD COLUMN "mood" TEXT;',
     ]);
     // The prior-source decisions are already final in the running plan: admissibility is
-    // deterministic, so a developer knows which units are seeing their old source before
-    // the first of them is written.
+    // deterministic, so a developer knows which units see their old source before any is written.
     expect(running.assembly.priorSource).toEqual([
       { unit: "create", admitted: true },
       { unit: "update", admitted: true },
@@ -114,9 +112,8 @@ describe("the streamed assembly", () => {
     expect(running.assembly.gate).toEqual([]);
     expect(names.indexOf("candidate-preview")).toBeLessThan(names.indexOf("units-preview"));
 
-    // An evolution uses the capability's existing logo. Standing a second, build-id-keyed
-    // tile beside it would say a second capability was being made, which is exactly what
-    // an evolution is not — so no desk sidecar goes out before the terminal.
+    // An evolution uses the capability's existing logo. A second, build-id-keyed tile would say a
+    // second capability was being made, so no desk sidecar goes out before the terminal.
     expect(events.filter((event) => event.data.includes("data-provisional-logo"))).toHaveLength(0);
 
     // The units block fills as the regenerated units assemble, and the copied units join
@@ -229,13 +226,8 @@ describe("the streamed assembly", () => {
   });
 });
 
-// A pre-flight guard for the homepage. Every event the run puts on the wire has to have
-// somewhere to land in the browser: either a `sse-swap` region on the subscriber
-// fragment, or a hidden preview listener naming one of the eight stages the developer
-// panel actually builds. An event with no home is invisible on the homepage — the
-// failure mode that wastes a human sign-off rather than failing a test. The panel is a
-// window now, so what a listener has to name is a stage rather than an element id: there
-// is no element to find until the tile is pressed.
+// A pre-flight guard: every event the run puts on the wire needs a `sse-swap` region or a hidden
+// stage listener to land in. An event with no home is invisible and wastes a sign-off.
 describe("the developer panel can receive everything the run emits", () => {
   test("every emitted event has a subscriber region and a real panel stage", async () => {
     const candidate = moodCandidate();

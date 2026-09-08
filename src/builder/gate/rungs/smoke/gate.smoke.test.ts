@@ -83,9 +83,8 @@ describe("capability gate — smoke rung", () => {
   });
 
   test("smoke renders create and read through the real presentation adapter", async () => {
-    // With present-calling handlers and a real renderer, both rungs run records through
-    // the same `present` adapter the router injects — the item wrapper appears in the
-    // rendered output (create + read cannot drift, ADR-0005 §2).
+    // With present-calling handlers and a real renderer, both rungs run records through the same
+    // `present` adapter the router injects, so create and read cannot drift (ADR-0005 §2).
     const result = await runCapabilityGate(gateInput());
 
     expect(result.outcomes.map((outcome) => `${outcome.rung}:${outcome.status}`)).toEqual([

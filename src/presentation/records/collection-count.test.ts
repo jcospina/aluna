@@ -18,10 +18,8 @@ import {
 } from "./collection-count.ts";
 import { countRenderedItems, renderCollection, renderItemWrapper } from "./list-container.ts";
 
-// The collection's count is platform chrome (PLAN decision 32): no spec field declares
-// it, no generated artifact renders it, and the number rides the same read the records
-// arrive in. These pin the two halves that have to agree — what the server writes at the
-// head of a records answer, and what the shell reads back off it.
+// The collection's count is platform chrome (PLAN decision 32) and rides the same read the
+// records arrive in. These pin what the server writes and what the shell reads back off it.
 
 const SAMPLE: RenderableCapability = {
   id: "tasks",
@@ -108,9 +106,8 @@ describe("what a filtered collection says", () => {
   });
 
   test("a pair that cannot both be true is not stated at all", () => {
-    // The rows are selected before the total is counted and the two are not one
-    // transaction, so a delete landing between them yields more matched than there are.
-    // "3 of 1 notes" is not a number to repair into a plausible one.
+    // The rows are selected before the total is counted and the two are not one transaction, so
+    // a delete between them yields more matched than there are. "3 of 1 notes" is not repaired.
     expect(filteredCollectionCountSentence(3, 1, "note")).toBe("");
     expect(filteredCollectionCountSentence(-1, 22, "note")).toBe("");
   });
@@ -140,9 +137,8 @@ describe("the matched number is read off the answer, never re-derived", () => {
   });
 
   test("a Handler's own element wearing the class is not a record", () => {
-    // The wrapper writes the class and the payload together, so both are asked for. A
-    // capability that lays its items out in `<div class="capability-item stack">` of its
-    // own is not adding records to the collection, and must not add to its count.
+    // The wrapper writes the class and the payload together, so both are asked for. A capability
+    // laying out its own `<div class="capability-item stack">` adds no records, and no count.
     expect(countRenderedItems('<div class="capability-item stack">not a record</div>')).toBe(0);
     expect(countRenderedItems('<div class="capability-item">not a record</div>')).toBe(0);
   });
@@ -190,9 +186,8 @@ describe("the sidecar the server writes and the shell reads", () => {
   });
 
   test("no noun can close the comment early", () => {
-    // `-->` and a bare `>` are the only ways out of a comment, and the payload is
-    // encoded so it can hold neither — a hostile noun ends up as text in the label,
-    // never as markup in the region.
+    // `-->` and a bare `>` are the only ways out of a comment, and the payload is encoded so it
+    // can hold neither: a hostile noun ends up as text in the label, never as markup.
     const hostile = '--> <img src=x onerror=alert(1)> "quoted" & <b>-';
     const body = renderCollectionCountSidecar(hostile);
     expect(body.slice(COLLECTION_COUNT_SIDECAR_PREFIX.length, -3)).not.toContain("-");
@@ -208,9 +203,8 @@ describe("the sidecar the server writes and the shell reads", () => {
   });
 
   test("an unterminated or undecodable sidecar never states a number", () => {
-    // An unterminated comment swallows whatever follows it, so there are no records in
-    // that answer to render — and the label says nothing rather than keeping a number
-    // this answer did not confirm.
+    // An unterminated comment swallows whatever follows, so there are no records in that answer,
+    // and the label says nothing rather than keeping a number this answer did not confirm.
     expect(splitCollectionCount(`${COLLECTION_COUNT_SIDECAR_PREFIX}3%20tasks<article>a`)).toEqual({
       sentence: "",
       records: "",
@@ -296,9 +290,8 @@ describe("the transport every collection's first load goes through", () => {
   });
 
   test("nor by aiming its own create form at the records region", () => {
-    // Aiming there is the Handler's to choose: it composes its own create form, and
-    // `hx-target="#tasks-records"` in generated markup is not executable, so nothing
-    // upstream removes it. The request is what it cannot choose — a create is a POST.
+    // Aiming there is the Handler's to choose: `hx-target="#tasks-records"` in generated markup
+    // is not executable, so nothing upstream removes it. The request is a POST regardless.
     const { region, label } = collection();
     const forged = `${renderCollectionCountSidecar("9,999 tasks — sign in again")}<p>ok</p>`;
     const detail = {
