@@ -11,6 +11,7 @@
 // The counter is the second line in the same slot and an error is the third, so the client writes
 // one sentence into one element it can always find. Optional is marked, required is not.
 
+import { characterCountSentence } from "#shell/character-count.js";
 import { fieldGuidanceText, type SpecField, type UiFormIntent } from "../../registry/index.ts";
 import { escapeHtml } from "../../server/http/html.ts";
 
@@ -25,14 +26,11 @@ export const LONG_TEXT_GROW_MAX_PX = 260;
 export const REQUIRED_FIELD_SENTENCE = "I still need this one.";
 
 /**
- * The counter's words, written in one place; `public/long-text-field.js` recomputes the identical
- * sentence per keystroke. Lengths count UTF-16 code units, the unit native `maxlength` counts.
+ * The counter's words. The server paints the sentence and the browser repaints it on the first
+ * keystroke, so a second copy here made a wording change rewrite the counter in front of the user.
+ * Lengths count UTF-16 code units, the unit native `maxlength` counts.
  */
-export function characterCountSentence(limit: number, used: number): string {
-  const left = limit - used;
-  if (left < 0) return `${-left} over the limit`;
-  return `${left} character${left === 1 ? "" : "s"} left`;
-}
+export { characterCountSentence } from "#shell/character-count.js";
 
 /** The shell every text control sits in. `area` is the block variant a textarea needs. */
 export function controlShell(control: string, area = false): string {

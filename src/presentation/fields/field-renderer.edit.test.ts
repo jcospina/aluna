@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-
 import {
   ALUNA_PRESENT_MARKER,
   ALUNA_RECORD_ID_MARKER,
 } from "../../runtime/router/wire/wire-protocol.ts";
+import { busyLabelAttribute, SAVING_RECORD_LABEL } from "../controls/busy-label.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
 import { capabilityEditErrorId, renderEditForm } from "./field-renderer.ts";
 
@@ -91,7 +91,10 @@ describe("edit form — committed update wiring", () => {
   test("posts Save to update", () => {
     expect(form).toContain('hx-post="/capability/journal/update"');
     expect(form).toContain('hx-swap="none"');
-    expect(form).toContain('<button class="btn btn--primary" type="submit">Save</button>');
+    expect(form).toContain(
+      `<button class="btn btn--primary" type="submit"` +
+        `${busyLabelAttribute(SAVING_RECORD_LABEL)}>Save</button>`,
+    );
     expect(form).not.toContain("aluna:record-updated");
   });
 

@@ -10,8 +10,11 @@
 // about a Handler and fails closed without spending the budget. Each round then re-plans on the
 // repaired Handlers, and the passing turn asserts their suites ran — loosening either fails loud.
 
+import { errorMessage } from "../../../../../platform/errors.ts";
 import { isProviderAbortError, type TokenUsage } from "../../../../../platform/provider/index.ts";
+import { sumTokenUsages } from "../../../../../platform/provider/usage.ts";
 import type { CapabilityRow } from "../../../../../registry/index.ts";
+import { normalizeMaxAttempts } from "../../../../attempts.ts";
 import {
   DEFAULT_UNIT_FIX_ATTEMPTS,
   type HandlerUnitName,
@@ -24,7 +27,7 @@ import type {
   CapabilityGateInput,
   FrozenBehavioralTestsInput,
 } from "../../../gate.ts";
-import { errorMessage, scratchDependencyRows } from "../../../gate-internal.ts";
+import { scratchDependencyRows } from "../../../gate-internal.ts";
 import {
   type BehavioralExecutionImpact,
   type BehavioralExecutionPlan,
@@ -116,7 +119,11 @@ export async function runBehavioralRepairLoop(
 ): Promise<BehavioralRungRun> {
   const state: RepairLoopState = {
     startedAt: performance.now(),
-    maxAttempts: normalizeMaxAttempts(options.input.behavioralTier?.maxAttempts),
+    maxAttempts: normalizeMaxAttempts(
+      options.input.behavioralTier?.maxAttempts,
+      DEFAULT_UNIT_FIX_ATTEMPTS,
+      "Behavioral",
+    ),
     seal: JSON.stringify(options.frozen.frozenTests),
     declaredHandlers: declaredHandlerSet(options.input.spec),
     dependencyCatalog: scratchDependencyRows(options.input.scratchCatalog),
@@ -378,27 +385,6 @@ function orderedHandlers(
   return declared.filter((action) => repaired.has(action));
 }
 
-function normalizeMaxAttempts(value: number | undefined): number {
-  if (value === undefined) return DEFAULT_UNIT_FIX_ATTEMPTS;
-  if (!Number.isInteger(value) || value < 1) {
-    throw new RangeError("Behavioral maxAttempts must be a positive integer.");
-  }
-  return value;
-}
-
 function sumAttemptUsage(attempts: readonly BehavioralRepairAttempt[]): TokenUsage {
-  return sumUsage(attempts.flatMap((attempt) => (attempt.usage ? [attempt.usage] : [])));
-}
-
-function sumUsage(usages: readonly TokenUsage[]): TokenUsage {
-  return {
-    inputTokens: sumDefined(usages.map((usage) => usage.inputTokens)),
-    outputTokens: sumDefined(usages.map((usage) => usage.outputTokens)),
-    totalTokens: sumDefined(usages.map((usage) => usage.totalTokens)),
-  };
-}
-
-function sumDefined(values: readonly (number | undefined)[]): number | undefined {
-  const present = values.filter((value): value is number => value !== undefined);
-  return present.length === 0 ? undefined : present.reduce((sum, value) => sum + value, 0);
+  return sumTokenUsages(attempts.flatMap((attempt) => (attempt.usage ? [attempt.usage] : [])));
 }

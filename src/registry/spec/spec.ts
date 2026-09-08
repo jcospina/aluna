@@ -20,6 +20,7 @@ import {
   choiceGroupSchema,
   choiceInputIntentSchema,
   choiceOptionSchema,
+  isChoiceFieldType,
   promptChoiceOptionSchema,
   validateChoiceFields,
   validateChoiceInputs,
@@ -149,6 +150,15 @@ export type ListFieldType = (typeof LIST_FIELD_TYPES)[number];
 
 export function isListFieldType(type: string): type is ListFieldType {
   return (LIST_FIELD_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Whether search reads a field as text. One rule, because four stages act on the same answer: the
+ * freeze generates search inputs from it, the smoke rung fixtures them, the contract check admits
+ * them, and the Diff Engine decides from it whether a change touches search.
+ */
+export function isSearchableTextType(type: FieldType): boolean {
+  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
 }
 
 export const fieldLifecycleSchema = z.enum(["active", "inactive"]);

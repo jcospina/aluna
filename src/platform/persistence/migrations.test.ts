@@ -10,12 +10,14 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { FIRST_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import {
   insertCapabilityDeletionTombstone,
   listCapabilityDeletionTombstones,
 } from "../../registry/store/deletion-tombstones.ts";
 import { insertCapability, REGISTRY_TABLE } from "../../registry/store/store.ts";
 import { notesRow } from "../../runtime/router/dispatch/router.test-support.ts";
+import { waitForLog } from "../async.test-support.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
@@ -98,7 +100,7 @@ describe("platform migrations runner", () => {
 
   test("a later boot reconciles an abandoned running generation", () => {
     runMigrations(conns.readwrite);
-    const incarnationId = "11111111-1111-4111-8111-111111111111";
+    const incarnationId = FIRST_INCARNATION_ID;
     startGenerationLifecycle({ buildId: "abandoned", incarnationId }, conns.readwrite);
 
     expect(runMigrations(conns.readwrite)).toEqual([]);
@@ -191,7 +193,7 @@ describe("migrations run on app boot", () => {
     const dbPath = join(dir, "data", "omni-crud.db");
     const bootDatabase = openDatabase(dbPath);
     const capabilityId = "notes";
-    const incarnationId = "11111111-1111-4111-8111-111111111111";
+    const incarnationId = FIRST_INCARNATION_ID;
     const incarnationDirectory = join(dir, "capabilities", capabilityId, incarnationId);
     try {
       runMigrations(bootDatabase.readwrite);
@@ -240,34 +242,3 @@ describe("migrations run on app boot", () => {
     }
   }, 20000);
 });
-
-// Read a piped stream until `needle` appears in the decoded output, or reject once
-// `timeoutMs` elapses. Used to detect the entrypoint's boot log without a sleep.
-async function waitForLog(
-  stream: ReadableStream<Uint8Array>,
-  needle: string,
-  timeoutMs: number,
-): Promise<void> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let seen = "";
-
-  const deadline = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`timed out waiting for "${needle}"`)), timeoutMs),
-  );
-
-  const scan = (async () => {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) throw new Error(`stream ended before "${needle}" appeared`);
-      seen += decoder.decode(value, { stream: true });
-      if (seen.includes(needle)) return;
-    }
-  })();
-
-  try {
-    await Promise.race([scan, deadline]);
-  } finally {
-    reader.releaseLock();
-  }
-}

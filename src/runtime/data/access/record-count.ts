@@ -12,9 +12,10 @@
 // still honoured, so a count running while a deletion drains the capability is cancelled.
 
 import type { Database } from "bun:sqlite";
+import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 
 import { type CapabilitySpec, capabilitySpecSchema } from "../../../registry/index.ts";
-import { CapabilityDataValidationError, sqlIdentifier } from "../internal.ts";
+import { CapabilityDataValidationError } from "../internal.ts";
 import { deriveCapabilityTableDdl } from "../schema/ddl.ts";
 import { createCapabilityQueryPort } from "../tool.ts";
 

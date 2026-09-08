@@ -7,6 +7,7 @@
 // a place a Handler could otherwise carry on working for a lifetime that has ended.
 
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { renderableFromRow } from "../../../presentation/fields/renderable-capability.ts";
 import {
   createPresentationAdapter,
   type PresentationAdapter,
@@ -15,7 +16,6 @@ import {
 import {
   type CapabilityRow,
   type CapabilitySpec,
-  canonicalCapabilityLabel,
   capabilitySpecFromRow,
 } from "../../../registry/index.ts";
 import {
@@ -136,19 +136,11 @@ async function buildPresentationAdapter(
   loadItemRenderer: ItemRendererLoader,
 ): Promise<PresentationAdapter> {
   const renderItem = await loadItemRenderer(row.artifacts_path);
-  return createPresentationAdapter({ capability: renderableFromRow(row), renderItem });
+  return createPresentationAdapter({ capability: renderableForHandler(row), renderItem });
 }
 
 // The slice of a row the adapter needs: the id, the effective label — what the user renamed this
 // to — and the fields. The same canonical reading serves `src/server/http/cached-view.ts`.
-function renderableFromRow(row: CapabilityRow): RenderableCapability {
-  return {
-    id: row.id,
-    label: canonicalCapabilityLabel(row),
-    noun: row.noun,
-    schema: row.schema,
-    form: row.ui_intent.form,
-    actions: row.tools,
-    item: row.ui_intent.item,
-  };
+function renderableForHandler(row: CapabilityRow): RenderableCapability {
+  return { ...renderableFromRow(row), item: row.ui_intent.item };
 }

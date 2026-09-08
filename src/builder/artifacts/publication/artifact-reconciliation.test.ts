@@ -1,15 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { waitForLog } from "../../../platform/async.test-support.ts";
 import {
   finalizeGenerationLifecycleFailure,
   finalizeGenerationLifecycleSuccess,
@@ -18,32 +10,32 @@ import {
 } from "../../../platform/metrics/index.ts";
 import { openDatabase, type PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { runMigrations } from "../../../platform/persistence/migrations.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../../../platform/persistence/scratch-db.test-support.ts";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
 import { insertCapability } from "../../../registry/index.ts";
-import { gateInput, generatedUnitsFor, notesSpec } from "../../gate/gate.test-support.ts";
-import { type CapabilityGateResult, runCapabilityGate } from "../../gate/gate.ts";
+import { generatedUnitsFor, notesFixtureGate, notesSpec } from "../../gate/gate.test-support.ts";
+import type { CapabilityGateResult } from "../../gate/gate.ts";
 import { publishCapabilitySnapshot, verifyCapabilitySnapshot } from "./artifact-lifecycle.ts";
 import {
   ArtifactReconciliationError,
   reconcileCapabilityArtifacts,
 } from "./artifact-reconciliation.ts";
 
-const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
-const ORPHAN_INCARNATION_ID = "22222222-2222-4222-8222-222222222222";
+const INCARNATION_ID = FIRST_INCARNATION_ID;
+const ORPHAN_INCARNATION_ID = SECOND_INCARNATION_ID;
 
 let gate: CapabilityGateResult;
 
 beforeAll(async () => {
-  const units = [...generatedUnitsFor(notesSpec())];
-  gate = await runCapabilityGate(
-    gateInput({
-      spec: notesSpec(),
-      handlers: Object.fromEntries(
-        units.filter((unit) => unit.kind === "handler").map((unit) => [unit.name, unit.content]),
-      ),
-      itemRenderer: units.find((unit) => unit.kind === "item-renderer")?.content,
-      behavioralTier: { enabled: false },
-    }),
-  );
+  gate = await notesFixtureGate({ enabled: false });
 });
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: the recovery matrix shares one isolated artifact/database fixture.
@@ -51,18 +43,16 @@ describe("reconcileCapabilityArtifacts", () => {
   let dir: string;
   let artifactsRoot: string;
   let conns: PlatformDatabase;
+  let env: ScratchDbEnv;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-reconcile-"));
+    env = createScratchDbEnv("omni-crud-reconcile-");
+    ({ dir, conns } = env);
     artifactsRoot = join(dir, "capabilities");
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   test("retains committed v1..vN, removes only proven staging/v>N, and enables retry", () => {
@@ -144,7 +134,7 @@ describe("reconcileCapabilityArtifacts", () => {
     };
     manifest.unit_provenance["read.ts"]?.dependencies.push({
       capability_id: "deleted_reference",
-      incarnation_id: "33333333-3333-4333-8333-333333333333",
+      incarnation_id: THIRD_INCARNATION_ID,
       version: 7,
       snapshot_content_digest: `sha256:${"a".repeat(64)}`,
     });
@@ -393,26 +383,4 @@ function start(conns: PlatformDatabase, buildId: string, incarnationId: string):
 
 function versionPath(root: string, incarnationId: string, version: number): string {
   return join(root, "notes", incarnationId, `v${version}`);
-}
-
-async function waitForLog(
-  stream: ReadableStream<Uint8Array>,
-  needle: string,
-  timeoutMs: number,
-): Promise<void> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let seen = "";
-  const deadline = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`timed out waiting for "${needle}"`)), timeoutMs),
-  );
-  const scan = (async () => {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) throw new Error(`stream ended before "${needle}" appeared`);
-      seen += decoder.decode(value, { stream: true });
-      if (seen.includes(needle)) return;
-    }
-  })();
-  await Promise.race([scan, deadline]);
 }

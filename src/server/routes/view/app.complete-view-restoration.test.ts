@@ -3,6 +3,7 @@ import type { ZodType } from "zod";
 import { behavioralResponseFor } from "../../../builder/gate/gate.test-support.ts";
 import type { RecordMetrics } from "../../../pipeline/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
+import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import { getCapability, insertCapability } from "../../../registry/index.ts";
 import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
 import {
@@ -168,7 +169,7 @@ test("a failed admitted build restores the captured live View through read", asy
     body: new URLSearchParams({
       prompt: "track recipes",
       __aluna_restore_capability_id: "notes",
-      __aluna_restore_incarnation_id: "11111111-1111-4111-8111-111111111111",
+      __aluna_restore_incarnation_id: FIRST_INCARNATION_ID,
     }),
   });
   const jobId = buildJobIdFromSubscriber(await responseText(post));
@@ -207,7 +208,7 @@ test("a connected cancellation restores the captured View before done", async ()
     body: new URLSearchParams({
       prompt: "track recipes",
       __aluna_restore_capability_id: "notes",
-      __aluna_restore_incarnation_id: "11111111-1111-4111-8111-111111111111",
+      __aluna_restore_incarnation_id: FIRST_INCARNATION_ID,
     }),
   });
   const jobId = buildJobIdFromSubscriber(await responseText(post));
@@ -256,7 +257,7 @@ test("cancellation before the stream opens preserves the descriptor for restorat
     body: new URLSearchParams({
       prompt: "track recipes",
       __aluna_restore_capability_id: "notes",
-      __aluna_restore_incarnation_id: "11111111-1111-4111-8111-111111111111",
+      __aluna_restore_incarnation_id: FIRST_INCARNATION_ID,
     }),
   });
   const jobId = buildJobIdFromSubscriber(await responseText(post));

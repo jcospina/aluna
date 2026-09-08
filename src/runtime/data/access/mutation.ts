@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
-
 import { db, type PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,
   capabilitySpecSchema,
+  PLATFORM_COLUMNS,
   type SpecField,
 } from "../../../registry/index.ts";
-import { sqlIdentifier } from "../internal.ts";
 import { deriveCapabilityTableDdl } from "../schema/ddl.ts";
 import {
   type CapabilityActionRecord,
@@ -51,7 +51,7 @@ export class RecordNotFoundError extends CapabilityDataValidationError {
   }
 }
 
-const PLATFORM_POPULATED_COLUMNS = new Set(["id", "created_at", "extra"]);
+const PLATFORM_POPULATED_COLUMNS = new Set<string>(PLATFORM_COLUMNS);
 
 export function createCapabilityMutationPort(
   spec: CapabilitySpec,

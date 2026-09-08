@@ -22,6 +22,7 @@ import {
 } from "../../app.test-support.ts";
 import { createApp } from "../../app.ts";
 import { BLANK_PROMPT_NOTICE, renderPromptNotice } from "../../http/index.ts";
+import { BLANK_PROMPT_PATTERN_SOURCE } from "./prompt-admission.test-support.ts";
 
 function rejectingProvider(prompts: string[]): Provider {
   const response = {
@@ -312,7 +313,7 @@ describe("blank-prompt refusal", () => {
     expect(field).toContain('name="prompt"');
     expect(field).not.toContain("required");
     expect(bar).toContain(`const BLANK_PROMPT_NOTICE = "${BLANK_PROMPT_NOTICE}";`);
-    expect(bar).toContain("/[\\p{White_Space}\\p{Default_Ignorable_Code_Point}\\p{Cc}]/gu");
+    expect(bar).toContain(BLANK_PROMPT_PATTERN_SOURCE);
   });
 
   test("a typed prompt still enters the build-job lifecycle unchanged", async () => {

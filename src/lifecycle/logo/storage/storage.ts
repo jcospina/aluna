@@ -21,8 +21,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-
 import { createSafeStagingParent } from "../../../builder/artifacts/publication/artifact-publication.ts";
+import { errorMessage } from "../../../platform/errors.ts";
 import {
   CAPABILITY_LOGO_FILENAME,
   CAPABILITY_LOGO_STAGING_PATTERN,
@@ -227,7 +227,7 @@ export function installCapabilityLogo(input: InstallCapabilityLogoInput): Instal
       linkSync(temporaryPath, finalPath);
     } catch (error) {
       throw new LogoInstallError(
-        `Refusing to install a second logo at ${finalPath}: ${error instanceof Error ? error.message : String(error)}`,
+        `Refusing to install a second logo at ${finalPath}: ${errorMessage(error)}`,
       );
     }
     return { path: finalPath, inode: statSync(finalPath).ino };

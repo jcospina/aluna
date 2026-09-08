@@ -6,12 +6,13 @@
 // and the store's placeholder for that absence must never escape into a caller's hands.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
-import { runMigrations } from "../persistence/migrations.ts";
+import { FIRST_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
+import type { PlatformDatabase } from "../persistence/db.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../persistence/scratch-db.test-support.ts";
 import {
   generationLifecycleSchema,
   getGenerationLifecycle,
@@ -20,26 +21,23 @@ import {
   writeStaleGenerationAdmission,
 } from "./lifecycle-store.ts";
 
-const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
+const NOTES_INCARNATION_ID = FIRST_INCARNATION_ID;
 const STALE_STAGES = [
   { stage: "spec_generation", state: "skipped" as const },
   { stage: "activation", state: "skipped" as const },
 ];
 
 describe("direct stale admission rows", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-stale-admission-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-stale-admission-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   test("an evolution refusal is filed under its expected incarnation", () => {

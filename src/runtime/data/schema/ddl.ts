@@ -7,6 +7,8 @@
 // scratch in-memory db.
 
 import type { Database } from "bun:sqlite";
+import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
+import { CAPABILITY_TABLE_PREFIX } from "../../../platform/persistence/table-names.ts";
 
 import {
   type CapabilitySpec,
@@ -15,7 +17,7 @@ import {
   PLATFORM_COLUMNS,
 } from "../../../registry/index.ts";
 
-export const CAPABILITY_TABLE_PREFIX = "cap_";
+export { CAPABILITY_TABLE_PREFIX } from "../../../platform/persistence/table-names.ts";
 
 export const SQLITE_TYPE_BY_FIELD_TYPE = {
   string: "TEXT",
@@ -137,8 +139,4 @@ function columnDefinition(name: string, fieldType: FieldType): string {
   // A choice gets plain TEXT and deliberately no `IN (…)` CHECK: option values are append-only
   // and SQLite cannot alter a column constraint, so a CHECK at birth would freeze the vocabulary.
   return parts.join(" ");
-}
-
-function sqlIdentifier(identifier: string): string {
-  return `"${identifier}"`;
 }

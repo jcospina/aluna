@@ -5,20 +5,13 @@
  * like it did nothing, so this asks the server what is true (CONTEXT.md, Ending).
  */
 
-import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
-import { registerRegionRelease } from "./region-scope.js";
-
-/**
- * The surface of the capability standing in the window: a direct child of the region, never a
- * descendant. Restated rather than shared, and a platform test pins the two copies.
- */
-const WINDOW_REGION_ID = "spec-build-output";
-
-/**
- * Asking a region's scope to release everything its content started, before that content is
- * replaced — the only moment an htmx request inside it can still be aborted (region-scope.js).
- */
-const RELEASE_REGION_EVENT = "aluna:release-region";
+import {
+  PROMPT_BAR_MESSAGE_EVENT,
+  PROMPT_NOTICE_ID,
+  PROMPT_REFUSAL_SELECTOR,
+} from "./prompt-bar.js";
+import { RELEASE_REGION_EVENT, registerRegionRelease } from "./region-scope.js";
+import { ACTIVE_CAPABILITY_ATTRIBUTE, WINDOW_CONTENT_ID } from "./shell-dom.js";
 
 /**
  * What marks a preflight as a recheck rather than an ordinary press. Restated from
@@ -26,8 +19,14 @@ const RELEASE_REGION_EVENT = "aluna:release-region";
  */
 const DELETION_RECHECK_PARAM = "after_confirm";
 
-/** @param {Element} region */
-function releaseRegionContent(region) {
+/**
+ * Ask the region's scope to release what its content started, the only moment an htmx request
+ * inside it can still be aborted. Dispatched rather than called: the scope owning this region may
+ * be an ancestor's, and the event is how `region-scope.js` finds it.
+ *
+ * @param {Element} region
+ */
+function askRegionToRelease(region) {
   region.dispatchEvent(new CustomEvent(RELEASE_REGION_EVENT, { bubbles: true }));
 }
 
@@ -40,9 +39,9 @@ function releaseRegionContent(region) {
  */
 function activeCapabilitySurface(root) {
   const output = /** @type {DeletionNode | null} */ (
-    /** @type {unknown} */ (root.getElementById(WINDOW_REGION_ID))
+    /** @type {unknown} */ (root.getElementById(WINDOW_CONTENT_ID))
   );
-  return output?.querySelector?.(":scope > [data-active-capability-id]") ?? null;
+  return output?.querySelector?.(`:scope > [${ACTIVE_CAPABILITY_ATTRIBUTE}]`) ?? null;
 }
 
 /**
@@ -158,7 +157,7 @@ async function recheckCapabilityDeletion(preflightUrl, attempt, claim) {
 
   // Something else may be standing in the slot now, which is the good ending: there is no panel
   // left to be stale. The answer is still owed, so it is read out of the reply and said anyway.
-  const output = document.getElementById(WINDOW_REGION_ID);
+  const output = document.getElementById(WINDOW_CONTENT_ID);
   const owned = claim.owned();
   claim.deregister();
   if (!owned || !(output instanceof HTMLElement)) {
@@ -174,7 +173,7 @@ async function recheckCapabilityDeletion(preflightUrl, attempt, claim) {
   // Retire the "checking" line first, so an out-of-band notice in the answer is what the user is
   // left reading.
   writeCapabilityDeletionRecheckNotice("");
-  releaseRegionContent(output);
+  askRegionToRelease(output);
   // `eventInfo` becomes `detail.target` on the `afterSwap` htmx fires, and two desk rules read it.
   // Without it htmx sends only `elt`, and both silently decline: no focus, and an empty frame.
   if (htmx) {
@@ -219,13 +218,13 @@ function answerIn(html, root) {
   // the bar's cue — unlike a rescued ending, which already had its moment on screen.
   if (held?.textContent?.trim()) return { sentence: held.textContent.trim(), refused: true };
   const notice = /** @type {{ textContent?: string, querySelector(s: string): unknown } | null} */ (
-    template.content.querySelector("#prompt-notice")
+    template.content.querySelector(`#${PROMPT_NOTICE_ID}`)
   );
   return {
     sentence: notice?.textContent?.trim() || "That’s sorted — the desk is up to date.",
     // Carried across rather than flattened, so a deletion Aluna turned down says so with the
     // bar's cue whichever way the answer reached us (`renderPromptNotice`).
-    refused: notice?.querySelector("[data-prompt-refusal]") != null,
+    refused: notice?.querySelector(PROMPT_REFUSAL_SELECTOR) != null,
   };
 }
 

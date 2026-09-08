@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-
 import { windowForOpening } from "#shell/desk-window.js";
 import { createRegionReleaseRegistry } from "#shell/region-scope.js";
+import { capabilityUrl } from "#shell/routes.js";
 import type { RenderableCapability } from "../../fields/field-renderer.ts";
 import { renderCollection } from "../../records/list-container.ts";
 import {
@@ -265,9 +265,10 @@ describe("every open is a fresh read", () => {
   test("the record view and the logo both ask the server again", () => {
     // Back out of a record, and a press on a logo, are the same fresh
     // `GET /capability/:id` aimed at the same region — never a restored snapshot.
-    expect(readSource("public/record-view.js")).toMatch(
-      /\.ajax\("GET", `\/capability\/\$\{capabilityId}`/,
+    expect(readSource("public/record-view.js")).toContain(
+      '.ajax("GET", capabilityUrl(capabilityId)',
     );
+    expect(capabilityUrl("notes")).toBe("/capability/notes");
     expect(readSource("public/desk-window.js")).toMatch(/\.ajax\?\.\("GET", pathname/);
     expect(readSource("src/server/http/fragments.ts")).toMatch(/hx-get="\$\{url}"/);
   });

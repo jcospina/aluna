@@ -8,8 +8,6 @@
 // can never become markup, and that `--signal` is not one of the five tints.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 import {
   clearStages,
   DEV_STAGES,
@@ -18,9 +16,8 @@ import {
   RESTING_PAYLOAD,
   writeStage,
 } from "#design/devpanel.js";
+import { readSource as read } from "../../safety/source.test-support.ts";
 
-const ROOT = resolve(import.meta.dir, "../../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 const MODULE = read("design/scripts/devpanel.js");
 const PANEL_CSS = read("design/styles/components/desk.css");
 

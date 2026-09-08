@@ -176,9 +176,12 @@ export function auditRepository(roots: readonly string[] = GOVERNED): Violation[
 }
 
 /** Narrow an audit to the paths a caller named, so one agent can check its own slice. */
-function within(violations: readonly Violation[], scopes: readonly string[]): Violation[] {
-  if (scopes.length === 0) return [...violations];
-  return violations.filter((one) => scopes.some((scope) => one.file.startsWith(scope)));
+export function within<T extends { readonly file: string }>(
+  found: readonly T[],
+  scopes: readonly string[],
+): T[] {
+  if (scopes.length === 0) return [...found];
+  return found.filter((one) => scopes.some((scope) => one.file.startsWith(scope)));
 }
 
 function report(violations: readonly Violation[]): void {

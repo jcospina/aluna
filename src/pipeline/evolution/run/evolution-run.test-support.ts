@@ -4,8 +4,7 @@
 // Not a test file itself; bun never runs it.
 
 import { expect } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { ZodType } from "zod";
 import { evolutionIntentFor } from "../../../builder/evolution/candidate/candidate.test-support.ts";
@@ -33,10 +32,15 @@ import {
 } from "../../../builder/index.ts";
 import type { StoredGenerationLifecycle } from "../../../platform/metrics/index.ts";
 import { makeMetricsRecorder } from "../../../platform/metrics/metrics-test-recorder.ts";
-import { openDatabase, type PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { runMigrations } from "../../../platform/persistence/migrations.ts";
+import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { createScratchDbEnv } from "../../../platform/persistence/scratch-db.test-support.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
-import { type CapabilitySpec, getCapability } from "../../../registry/index.ts";
+import { FIFTH_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
+import {
+  type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
+  getCapability,
+} from "../../../registry/index.ts";
 import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import type { SendBuildEvent } from "../../jobs/build-jobs.ts";
 import { createMetricsRecorder } from "../../metrics-recorder.ts";
@@ -46,7 +50,7 @@ import {
   runCapabilityEvolution,
 } from "./evolution-run.ts";
 
-export const INCARNATION_ID = "55555555-5555-4555-8555-555555555555";
+export const INCARNATION_ID = FIFTH_INCARNATION_ID;
 
 /** One unit's substitute bytes: fixed for every generation, or a queue answered in order. */
 export type UnitOverride = string | readonly string[];
@@ -106,10 +110,8 @@ export async function setUpCommitted(
   gate: CapabilityGateResult,
   spec: CapabilitySpec = committedSpec(),
 ): Promise<EngineEnv> {
-  const root = mkdtempSync(join(tmpdir(), "omni-crud-evolution-run-"));
+  const { dir: root, conns } = createScratchDbEnv("omni-crud-evolution-run-");
   const artifactsRoot = join(root, "capabilities");
-  const conns = openDatabase(join(root, "platform.db"));
-  runMigrations(conns.readwrite);
   const publication = publishCapabilitySnapshot({
     buildId: "v1",
     spec,
@@ -485,7 +487,7 @@ export function expectEveryFrozenSuiteSkipped(
   // tell "carried and re-proven" from "carried and left alone".
   expect(verifyCapabilitySnapshot(directory).manifest.behavioral_tests).toEqual({
     full_suite: false,
-    actions: (["create", "read", "update", "delete", "search"] as const).map((action) => ({
+    actions: FULL_CAPABILITY_TOOLS.map((action) => ({
       action,
       source: "copied",
       execution: "skipped",

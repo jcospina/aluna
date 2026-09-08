@@ -16,11 +16,13 @@ import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { DEFAULT_ARTIFACTS_ROOT } from "../../builder/artifacts/artifacts-root.ts";
+import { OBJECT_STORE_ROOT } from "../../platform/persistence/table-names.ts";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..", "..");
 /** Where capability artifacts, generated code and stored logos land, if they ever do. */
-const PLATFORM_ARTIFACT_ROOTS = ["artifacts", "capabilities", "storage"].map((root) =>
-  join(REPO_ROOT, root),
+const PLATFORM_ARTIFACT_ROOTS = ["artifacts", DEFAULT_ARTIFACTS_ROOT, OBJECT_STORE_ROOT].map(
+  (root) => join(REPO_ROOT, root),
 );
 
 export interface PlatformStoreEntry {

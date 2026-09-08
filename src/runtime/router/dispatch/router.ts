@@ -11,6 +11,7 @@
 // and never leaked to the UI (CONTEXT.md, ARCH §9.7).
 
 import type { Context, Hono } from "hono";
+import { CAPABILITY_PATH_PREFIX } from "#shell/routes.js";
 import { db, dbReadonly, type PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
   type ActiveCatalogReader,
@@ -117,13 +118,13 @@ export interface CapabilityRouterDeps {
 
 // The fixed route and the complete five-Action method/Action matrix. Every capability declares
 // all five, and a pair outside this matrix fails before any code loads.
-const CAPABILITY_ROUTE = "/capability/:id/:action";
-const CAPABILITY_VIEW_ROUTE = "/capability/:id";
+const CAPABILITY_ROUTE = `${CAPABILITY_PATH_PREFIX}/:id/:action`;
+const CAPABILITY_VIEW_ROUTE = `${CAPABILITY_PATH_PREFIX}/:id`;
 /**
  * The same address with a trailing slash, which is the same place (design D14). Without this
  * route `/capability/notes/` fell past every route here to Hono's bare-text 404: no shell.
  */
-const CAPABILITY_VIEW_TRAILING_SLASH_ROUTE = "/capability/:id/";
+const CAPABILITY_VIEW_TRAILING_SLASH_ROUTE = `${CAPABILITY_VIEW_ROUTE}/`;
 const METHOD_BY_ACTION = {
   create: "POST",
   delete: "POST",

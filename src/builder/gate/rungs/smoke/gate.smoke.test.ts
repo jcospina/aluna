@@ -5,6 +5,7 @@
 
 import { Database } from "bun:sqlite";
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
+import { SECOND_INCARNATION_ID } from "../../../../registry/incarnations.test-support.ts";
 import type { CapabilitySpec } from "../../../../registry/index.ts";
 import {
   applyCapabilityTableDdl,
@@ -146,7 +147,7 @@ describe("capability gate — smoke rung", () => {
 });
 
 describe("capability gate — generated five-Action scratch catalog", () => {
-  const dependencyIncarnation = "22222222-2222-4222-8222-222222222222";
+  const dependencyIncarnation = SECOND_INCARNATION_ID;
   const dependencySpec = notesSpec({
     id: "scratch_catalog",
     label: "Scratch catalog",

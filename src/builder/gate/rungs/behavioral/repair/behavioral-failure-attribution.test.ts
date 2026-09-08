@@ -8,6 +8,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { CapabilitySpec } from "../../../../../registry/index.ts";
+import { FULL_CAPABILITY_TOOLS } from "../../../../../registry/index.ts";
 import { notesSpec } from "../../../gate.test-support.ts";
 import type { BehavioralExecutionImpact } from "../freeze/behavioral-execution-plan.ts";
 import {
@@ -17,7 +18,7 @@ import {
   declaredHandlerSet,
 } from "./behavioral-failure-attribution.ts";
 
-const ALL_FIVE = ["create", "read", "update", "delete", "search"] as const;
+const ALL_FIVE = FULL_CAPABILITY_TOOLS;
 const RENDERER_UNMOVED: BehavioralExecutionImpact = {
   regeneratedHandlers: ["create"],
   regeneratedItemRenderer: false,

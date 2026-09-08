@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import { UNKNOWN_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import type { CapabilityRow } from "../../registry/index.ts";
 import { getCapability, listCapabilityDependents } from "../../registry/index.ts";
 import { createMutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
@@ -147,7 +148,7 @@ describe("capability-deletion front half", () => {
     let continued = false;
 
     const outcome = await admitCapabilityDeletion(
-      { capabilityId: target.id, incarnationId: "99999999-9999-4999-8999-999999999999" },
+      { capabilityId: target.id, incarnationId: UNKNOWN_INCARNATION_ID },
       {
         database: conns.readwrite,
         mutationCoordinator,

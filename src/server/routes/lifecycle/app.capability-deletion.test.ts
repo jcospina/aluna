@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createBuildJobQueue } from "../../../pipeline/jobs/build-jobs.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { UNKNOWN_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
 import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
 import { createReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
@@ -16,6 +17,7 @@ import {
 } from "../../../runtime/router/dispatch/router.test-support.ts";
 import { createApp } from "../../app.ts";
 import { NOT_FOUND_NOTICE } from "../../http/index.ts";
+import { confirmationRequest, deletionTarget } from "./deletion.test-support.ts";
 
 function dependentOnNotes(id = "reading_list", label = "Reading list"): CapabilityRow {
   const notes = notesRow();
@@ -30,23 +32,6 @@ function dependentOnNotes(id = "reading_list", label = "Reading list"): Capabili
       delete: [],
       search: [],
     },
-  };
-}
-
-function deletionTarget(dir: string): CapabilityRow {
-  const target = notesRow();
-  return {
-    ...target,
-    artifacts_path: join(dir, "artifacts", target.id, target.incarnation_id, "v1"),
-    seed: 184206,
-    logo: { status: "absent", attempts: 0 },
-  };
-}
-
-function confirmationRequest(incarnationId: string): RequestInit {
-  return {
-    method: "POST",
-    body: new URLSearchParams({ incarnation_id: incarnationId, restore_surface: "neutral" }),
   };
 }
 
@@ -189,7 +174,7 @@ describe("platform-owned capability deletion routes", () => {
     );
     expect(liveKeep.headers.get("HX-Replace-Url")).toBe("/capability/boom");
 
-    const replacementIncarnation = "99999999-9999-4999-8999-999999999999";
+    const replacementIncarnation = UNKNOWN_INCARNATION_ID;
     conns.readwrite.run("UPDATE capability_registry SET incarnation_id = ? WHERE id = ?", [
       replacementIncarnation,
       other.id,
@@ -300,7 +285,7 @@ describe("platform-owned capability deletion routes", () => {
 
     const stale = await app.request(
       "/capability-deletion/notes/confirm",
-      confirmationRequest("99999999-9999-4999-8999-999999999999"),
+      confirmationRequest(UNKNOWN_INCARNATION_ID),
     );
     expect(await stale.text()).toContain("changed after you opened this page");
 

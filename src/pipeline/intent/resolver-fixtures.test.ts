@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
+import {
+  SECOND_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
+} from "../../registry/incarnations.test-support.ts";
 import { type CapabilityRow, fingerprintActiveRegistryCatalog } from "../../registry/index.ts";
 import { notesCapabilityRow } from "../../server/app.test-support.ts";
 import { buildIntentPrompt, classifyIntent } from "./resolver.ts";
@@ -13,8 +17,8 @@ const contacts = notesCapabilityRow({
   ground: "grass_green",
   companion: "coral_orange",
   noun: "note",
-  incarnation_id: "22222222-2222-4222-8222-222222222222",
-  artifacts_path: "capabilities/contacts/22222222-2222-4222-8222-222222222222/v1/",
+  incarnation_id: SECOND_INCARNATION_ID,
+  artifacts_path: `capabilities/contacts/${SECOND_INCARNATION_ID}/v1/`,
   seed: 184206,
   logo: { status: "absent", attempts: 0 },
   prompt_context: "Stores personal contacts and how to reach them.",
@@ -26,8 +30,8 @@ const recipes = notesCapabilityRow({
   ground: "grass_green",
   companion: "coral_orange",
   noun: "note",
-  incarnation_id: "33333333-3333-4333-8333-333333333333",
-  artifacts_path: "capabilities/recipes/33333333-3333-4333-8333-333333333333/v1/",
+  incarnation_id: THIRD_INCARNATION_ID,
+  artifacts_path: `capabilities/recipes/${THIRD_INCARNATION_ID}/v1/`,
   seed: 184206,
   logo: { status: "absent", attempts: 0 },
   prompt_context: "Stores recipes, ingredients, genres, quotes, and source addresses.",

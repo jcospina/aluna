@@ -100,6 +100,7 @@ export {
   fieldLifecycleSchema,
   fieldTypeSchema,
   isListFieldType,
+  isSearchableTextType,
   LIST_FIELD_TYPES,
   LIST_INPUT_MODES,
   type ListFieldType,
@@ -124,7 +125,7 @@ export {
   uiFormIntentSchema,
   uiIntentSchema,
 } from "./spec/spec.ts";
-export { MAX_SQL_NAME_LENGTH, SQL_NAME_PATTERN } from "./spec/spec-text.ts";
+export { MAX_SQL_NAME_LENGTH, SQL_NAME_PATTERN, sameOrderedStrings } from "./spec/spec-text.ts";
 export {
   type ActiveCatalogReader,
   type ActiveRegistryCatalog,

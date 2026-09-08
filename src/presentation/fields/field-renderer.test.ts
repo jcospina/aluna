@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-
 import { fieldTypeSchema } from "../../registry/index.ts";
+import { ADDING_LABEL, busyLabelAttribute } from "../controls/busy-label.ts";
 import { oneField, probeField, SAMPLE, sampleFieldValue } from "./field-renderer.test-support.ts";
 import {
   CREATE_CANCELLED_EVENT,
@@ -58,10 +58,11 @@ describe("create form — platform wiring + close-on-success", () => {
       ` $el.ownerDocument.getElementById('${capabilityCreateErrorId("tasks")}').replaceChildren();` +
       ` $dispatch('${CREATE_CANCELLED_EVENT}')">Cancel</button>`;
     expect(form).toContain(cancel);
-    expect(form).toContain('<button class="btn btn--primary" type="submit">Add</button>');
-    expect(
-      form.indexOf('<button class="btn btn--primary" type="submit">Add</button>'),
-    ).toBeLessThan(form.indexOf(cancel));
+    const add =
+      `<button class="btn btn--primary" type="submit"` +
+      `${busyLabelAttribute(ADDING_LABEL)}>Add</button>`;
+    expect(form).toContain(add);
+    expect(form.indexOf(add)).toBeLessThan(form.indexOf(cancel));
   });
 
   test("cancel cannot be DOM-clobbered by a valid field named reset", () => {

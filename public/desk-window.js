@@ -51,6 +51,7 @@ import {
   startLeavingGuard,
 } from "./leaving-a-run.js";
 import { RELEASE_REGION_EVENT } from "./region-scope.js";
+import { ACTIVE_CAPABILITY_ATTRIBUTE, WINDOW_CONTENT_ID } from "./shell-dom.js";
 
 /** The desk's window layer — the ground the one window stands on. */
 export const WINDOW_LAYER_SELECTOR = ".desk__windows";
@@ -65,7 +66,7 @@ export const PROMPT_FORM_ID = "spec-build-form";
  * The window's content region. The id is the temporary shell's and every existing
  * swap still addresses it; what changed is where it lives and who makes it.
  */
-export const WINDOW_CONTENT_ID = "spec-build-output";
+export { WINDOW_CONTENT_ID } from "./shell-dom.js";
 
 /**
  * What `region-scope.js` reports this region as when it releases it. Named for the content, never
@@ -695,7 +696,7 @@ export function logoFor(root, id) {
 }
 
 /** The marker the server puts on the surface of the capability standing in a window. */
-export const ACTIVE_CAPABILITY_ATTRIBUTE = "data-active-capability-id";
+export { ACTIVE_CAPABILITY_ATTRIBUTE } from "./shell-dom.js";
 
 /* A direct child of the region and never a descendant: a build narrates beside what it displaced
    and nests its copy of that surface, which is why a build does not change the address. */

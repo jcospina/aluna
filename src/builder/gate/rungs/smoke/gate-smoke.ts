@@ -3,6 +3,8 @@
 // SQLite and the same mutation/query/presentation adapters as live routing.
 
 import type { Database } from "bun:sqlite";
+import { errorMessage } from "../../../../platform/errors.ts";
+import { sqlIdentifier } from "../../../../platform/persistence/sql-identifier.ts";
 import { activeSpecFields, type CapabilitySpec } from "../../../../registry/index.ts";
 import {
   type CapabilityDataColumnValue,
@@ -14,7 +16,7 @@ import {
   materializeCapabilityActionRecord,
   selectCapabilityRows,
 } from "../../../../runtime/data/index.ts";
-import type { CapabilityDeleteHandler, CapabilityInput } from "../../../../runtime/router/index.ts";
+import type { CapabilityDeleteHandler } from "../../../../runtime/router/index.ts";
 import type { HandlerUnitName } from "../../../units/generation/units.ts";
 import type { CapabilityGateInput, SmokeGateResult } from "../../gate.ts";
 import {
@@ -29,7 +31,6 @@ import {
   SMOKE_HANDLER_NAMES,
   sameSnapshot,
   snapshotCapabilityTables,
-  sqlIdentifier,
 } from "../../gate-internal.ts";
 import { runSmokeRepairLoop, SmokeActionFailure, type SmokeRungRun } from "./gate-smoke-repair.ts";
 import { buildSmokeInput, buildUpdateInputs } from "./gate-smoke-samples.ts";
@@ -38,6 +39,11 @@ import {
   type RecordingPresentation,
   runAdversarialSearchBaseline,
 } from "./gate-smoke-search.ts";
+import {
+  assertIdsEqual,
+  assertPresentedFragmentsReturned,
+  emptyInput,
+} from "./gate-smoke-shared.ts";
 
 /**
  * Run the unchanged fixture, repairing only the Handler a failure is attributed to. Attempt one
@@ -402,47 +408,12 @@ function assertObservedRows(
   }
 }
 
-function assertIdsEqual(
-  label: string,
-  actual: readonly string[],
-  expected: readonly string[],
-): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(
-      `${label} expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`,
-    );
-  }
-}
-
-function assertPresentedFragmentsReturned(
-  action: "create" | "update",
-  fragment: string,
-  presented: readonly string[],
-): void {
-  let cursor = 0;
-  for (const item of presented) {
-    const index = fragment.indexOf(item, cursor);
-    if (index < 0) {
-      throw new Error(`${action} Handler discarded or reordered a presented record fragment`);
-    }
-    cursor = index + item.length;
-  }
-}
-
-function emptyInput(): CapabilityInput {
-  return { values: {}, submittedFields: new Set() };
-}
-
 async function runAction<T>(action: HandlerUnitName, operation: () => T | Promise<T>): Promise<T> {
   try {
     return await operation();
   } catch (error) {
     if (error instanceof SmokeActionFailure) throw error;
-    throw new SmokeActionFailure(
-      action,
-      error instanceof Error ? error.message : String(error),
-      error,
-    );
+    throw new SmokeActionFailure(action, errorMessage(error), error);
   }
 }
 

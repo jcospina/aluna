@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import type { GateRungName, GateRungStatus } from "../../builder/index.ts";
+import { GATE_RUNG_ORDER, GATE_RUNG_STATUSES } from "../../builder/gate/gate-rungs.ts";
 
 export const FAILURE_STAGES = [
   "spec_gen",
@@ -19,23 +19,7 @@ export const FAILURE_STAGES = [
 export const failureStageSchema = z.enum(FAILURE_STAGES);
 export type FailureStage = z.infer<typeof failureStageSchema>;
 
-const GATE_RUNG_NAMES = [
-  "structural",
-  "smoke",
-  "behavioral",
-  "design-lint",
-] as const satisfies readonly GateRungName[];
-
-type ListedRungName = (typeof GATE_RUNG_NAMES)[number];
-const assertAllRungNames: (name: GateRungName) => ListedRungName = (name) => name;
-void assertAllRungNames;
-
-const GATE_RUNG_STATUSES = [
-  "passed",
-  "failed",
-  "skipped",
-] as const satisfies readonly GateRungStatus[];
-const gateRungNameSchema = z.enum(GATE_RUNG_NAMES);
+const gateRungNameSchema = z.enum(GATE_RUNG_ORDER);
 const gateRungStatusSchema = z.enum(GATE_RUNG_STATUSES);
 
 export const gateRungOutcomeSchema = z.strictObject({

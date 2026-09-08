@@ -7,12 +7,13 @@
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
 import { db, dbReadonly } from "../persistence/db.ts";
+import { INTENT_RESOLUTION_METRICS_TABLE } from "../persistence/table-names.ts";
 import {
   type CarriedResolverMeasurement,
   carriedResolverMeasurementSchema,
 } from "./lifecycle-store.ts";
 
-export const INTENT_RESOLUTION_METRICS_TABLE = "intent_resolution_metrics";
+export { INTENT_RESOLUTION_METRICS_TABLE } from "../persistence/table-names.ts";
 
 export const INTENT_RESOLUTION_OUTCOMES = ["completed", "cancelled", "expired"] as const;
 export const intentResolutionOutcomeSchema = z.enum(INTENT_RESOLUTION_OUTCOMES);

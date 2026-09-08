@@ -4,6 +4,7 @@ import type { ZodType } from "zod";
 import type { IntentClassification } from "../../../pipeline/intent/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
+import { SECOND_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import { insertCapability, listCapabilities } from "../../../registry/index.ts";
 import {
   buildJobIdFromSubscriber,
@@ -58,8 +59,8 @@ describe("resolver duplicate guard", () => {
       notesCapabilityRow({
         id: "personal_notes",
         label: "Tom & Jerry",
-        incarnation_id: "22222222-2222-4222-8222-222222222222",
-        artifacts_path: "capabilities/personal_notes/22222222-2222-4222-8222-222222222222/v1/",
+        incarnation_id: SECOND_INCARNATION_ID,
+        artifacts_path: `capabilities/personal_notes/${SECOND_INCARNATION_ID}/v1/`,
         seed: 184206,
         logo: { status: "absent", attempts: 0 },
       }),

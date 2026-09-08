@@ -5,6 +5,7 @@ import {
   SnapshotVerificationError,
   UnitGenerationError,
 } from "../../../builder/index.ts";
+import { errorMessage } from "../../../platform/errors.ts";
 import type { GenerationFailure } from "../../../platform/metrics/index.ts";
 
 export type EvolutionStage =
@@ -17,7 +18,7 @@ export type EvolutionStage =
 
 /** Map the exact stage where evolution stopped onto the durable metrics vocabulary. */
 export function classifyEvolutionFailure(error: unknown, stage: EvolutionStage): GenerationFailure {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   if (error instanceof CapabilityGateError) {
     return { stage: "gate", rung: error.failedRung, message };
   }

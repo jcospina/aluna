@@ -47,5 +47,8 @@
 	"biomeLint": {
 		"enabled": true,
 		"extensions": [".ts", ".tsx", ".js", ".jsx", ".json", ".jsonc", ".css"]
+	},
+	"biomeFormat": {
+		"enabled": true
 	}
 }

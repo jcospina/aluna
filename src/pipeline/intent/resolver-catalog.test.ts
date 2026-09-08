@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
+import { SECOND_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import {
   fingerprintActiveRegistryCatalog,
   insertCapability,
@@ -62,8 +63,8 @@ describe("intent resolver active catalog", () => {
         ground: "grass_green",
         companion: "coral_orange",
         noun: "note",
-        incarnation_id: "22222222-2222-4222-8222-222222222222",
-        artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v1/",
+        incarnation_id: SECOND_INCARNATION_ID,
+        artifacts_path: `capabilities/recipes/${SECOND_INCARNATION_ID}/v1/`,
         seed: 184206,
         logo: { status: "absent", attempts: 0 },
         prompt_context: "Stores recipes the user wants to cook again.",

@@ -11,6 +11,7 @@
 
 import type { Database } from "bun:sqlite";
 import { db, dbReadonly } from "../../platform/persistence/db.ts";
+import { REGISTRY_TABLE } from "../../platform/persistence/table-names.ts";
 import {
   type CapabilityLogoState,
   capabilityLogoStateSchema,
@@ -38,7 +39,7 @@ import { isCapabilityIdReservedByDeletion } from "./deletion-tombstones.ts";
  * The registry table, created by platform migration 0002. A fixed platform constant, never user
  * input, so interpolating it into the SQL below is safe.
  */
-export const REGISTRY_TABLE = "capability_registry";
+export { REGISTRY_TABLE } from "../../platform/persistence/table-names.ts";
 
 export type CapabilityRegistryExpectation =
   | { readonly state: "absent" }

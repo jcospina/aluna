@@ -17,6 +17,7 @@ import type {
   Provider,
   TokenUsage,
 } from "../../../platform/provider/index.ts";
+import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,
@@ -34,7 +35,7 @@ import {
 setDefaultTimeout(15_000);
 
 const STUB_USAGE: TokenUsage = { inputTokens: 3, outputTokens: 5, totalTokens: 8 };
-const JOURNALS_INCARNATION = "11111111-1111-4111-8111-111111111111";
+const JOURNALS_INCARNATION = FIRST_INCARNATION_ID;
 
 // The candidate under evolution: `text` and `pinned` stay active, `legacy_note` has been
 // hidden. The item renderer shows only `text`.

@@ -6,6 +6,7 @@ import {
   startGenerationLifecycle,
 } from "../../../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { FOURTH_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   createScratchDbEnv,
   makeMetricsRecorder,
@@ -30,7 +31,7 @@ afterEach(() => {
 });
 
 test("lease-head pre-build reconciliation removes a proven abandoned staging build", async () => {
-  const abandonedIncarnation = "44444444-4444-4444-8444-444444444444";
+  const abandonedIncarnation = FOURTH_INCARNATION_ID;
   const abandonedBuild = "abandoned-before-next-build";
   const abandoned = join(
     artifactsRoot,

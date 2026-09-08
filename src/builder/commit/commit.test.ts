@@ -4,18 +4,22 @@
 
 import type { Database } from "bun:sqlite";
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { type PlatformDatabase, withWriteTransaction } from "../../platform/persistence/db.ts";
 import {
-  openDatabase,
-  type PlatformDatabase,
-  withWriteTransaction,
-} from "../../platform/persistence/db.ts";
-import { runMigrations } from "../../platform/persistence/migrations.ts";
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../../platform/persistence/scratch-db.test-support.ts";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../registry/incarnations.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
   getCapability,
   insertCapability,
   logoSeedSchema,
@@ -23,12 +27,13 @@ import {
 } from "../../registry/index.ts";
 import { applyCapabilityTableDdl } from "../../runtime/data/index.ts";
 import { publishCapabilitySnapshot } from "../artifacts/publication/artifact-lifecycle.ts";
-import { gateInput, generatedUnitsFor } from "../gate/gate.test-support.ts";
-import { type CapabilityGateResult, runCapabilityGate } from "../gate/gate.ts";
+import { publishedSnapshotFiles } from "../artifacts/publication/snapshot-contract.test-support.ts";
+import { generatedUnitsFor, notesFixtureGate } from "../gate/gate.test-support.ts";
+import type { CapabilityGateResult } from "../gate/gate.ts";
 import type { GeneratedUnit } from "../units/generation/units.ts";
 import { commitCapability, FIRST_CAPABILITY_VERSION } from "./commit.ts";
 
-const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
+const INCARNATION_ID = FIRST_INCARNATION_ID;
 
 function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return {
@@ -72,7 +77,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
@@ -86,20 +91,7 @@ function notesUnits(): GeneratedUnit[] {
 let tierOffGate: CapabilityGateResult;
 
 beforeAll(async () => {
-  const units = notesUnits();
-  const handlers = Object.fromEntries(
-    units.filter((unit) => unit.kind === "handler").map((unit) => [unit.name, unit.content]),
-  );
-  const itemRenderer = units.find((unit) => unit.kind === "item-renderer")?.content;
-  if (!itemRenderer) throw new Error("Expected the item renderer fixture.");
-  tierOffGate = await runCapabilityGate(
-    gateInput({
-      spec: notesSpec(),
-      handlers,
-      itemRenderer,
-      behavioralTier: { enabled: false },
-    }),
-  );
+  tierOffGate = await notesFixtureGate({ enabled: false });
 });
 
 function publish(root: string, incarnationId = INCARNATION_ID) {
@@ -125,17 +117,15 @@ function capTableExists(database: Database, tableName: string): boolean {
 describe("commitCapability — verified publication boundary", () => {
   let dir: string;
   let conns: PlatformDatabase;
+  let env: ScratchDbEnv;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-commit-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-commit-");
+    ({ dir, conns } = env);
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   test("registers version 1 only after the complete published snapshot verifies", () => {
@@ -152,16 +142,7 @@ describe("commitCapability — verified publication boundary", () => {
     expect(result.artifactsPath).toBe(`${root}/notes/${INCARNATION_ID}/v1/`);
     expect(result.snapshotVerified).toBe(true);
     expect(result.buildId).toBe(`build-${INCARNATION_ID}`);
-    expect(result.files).toEqual([
-      "create.ts",
-      "delete.ts",
-      "item.ts",
-      "read.ts",
-      "search.ts",
-      "snapshot.json",
-      "spec.json",
-      "update.ts",
-    ]);
+    expect(result.files).toEqual(publishedSnapshotFiles("off"));
     for (const file of result.files) {
       expect(existsSync(resolve(root, "notes", INCARNATION_ID, "v1", file))).toBe(true);
     }
@@ -171,7 +152,7 @@ describe("commitCapability — verified publication boundary", () => {
     expect(row?.incarnation_id).toBe(INCARNATION_ID);
     expect(row?.version).toBe(1);
     expect(row?.artifacts_path).toBe(result.artifactsPath);
-    expect(row?.tools).toEqual(["create", "read", "update", "delete", "search"]);
+    expect(row?.tools).toEqual([...FULL_CAPABILITY_TOOLS]);
   });
 
   test("reverification rejects tampered published bytes before registry insertion", () => {
@@ -241,7 +222,7 @@ describe("commitCapability — verified publication boundary", () => {
       },
       conns.readwrite,
     );
-    const secondIncarnation = "22222222-2222-4222-8222-222222222222";
+    const secondIncarnation = SECOND_INCARNATION_ID;
     const publication = publish(root, secondIncarnation);
 
     expect(() =>
@@ -258,18 +239,16 @@ describe("commitCapability — verified publication boundary", () => {
 describe("commitCapability — the logo's inputs at birth", () => {
   let dir: string;
   let conns: PlatformDatabase;
+  let env: ScratchDbEnv;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-commit-logo-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-commit-logo-");
+    ({ dir, conns } = env);
     applyCapabilityTableDdl(notesSpec(), conns.readwrite);
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   test("v1 is born with a minted seed and a logo nobody has ordered yet", () => {

@@ -10,12 +10,14 @@
 // leaving another file's connections open. This module is not run as a test by bun.
 
 import type { Database } from "bun:sqlite";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rmSync } from "node:fs";
 
-import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
-import { runMigrations } from "../../platform/persistence/migrations.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import { createScratchDbEnv } from "../../platform/persistence/scratch-db.test-support.ts";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../registry/incarnations.test-support.ts";
 import { readActiveRegistryCatalog } from "../../registry/index.ts";
 import { validSpec } from "../../registry/spec/spec.test-support.ts";
 import { insertCapability } from "../../registry/store/store.ts";
@@ -29,11 +31,11 @@ import {
 
 export const NOTES = {
   capabilityId: "notes",
-  incarnationId: "11111111-1111-4111-8111-111111111111",
+  incarnationId: FIRST_INCARNATION_ID,
 };
 export const TASKS = {
   capabilityId: "tasks",
-  incarnationId: "22222222-2222-4222-8222-222222222222",
+  incarnationId: SECOND_INCARNATION_ID,
 };
 
 export interface ScratchPlatform {
@@ -55,13 +57,10 @@ export function createScratchPlatforms(): ScratchPlatforms {
   const directories: string[] = [];
 
   function migrated(): ScratchPlatform {
-    const directory = mkdtempSync(join(tmpdir(), "omni-crud-query-scope-"));
-    directories.push(directory);
-    const path = join(directory, "test.db");
-    const pair = openDatabase(path);
-    connections.push(pair);
-    runMigrations(pair.readwrite);
-    return { path, database: pair };
+    const { dir, path, conns } = createScratchDbEnv("omni-crud-query-scope-");
+    directories.push(dir);
+    connections.push(conns);
+    return { path, database: conns };
   }
 
   return {

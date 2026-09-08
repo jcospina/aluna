@@ -30,7 +30,11 @@ import {
   reconcileRunningGenerationLifecycles,
   startGenerationLifecycle,
 } from "../../../platform/metrics/index.ts";
-import { type CapabilitySpec, getCapability } from "../../../registry/index.ts";
+import {
+  type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
+  getCapability,
+} from "../../../registry/index.ts";
 import { hardEvolutionHandlerFixture } from "../matrix/hard-evolution-fixture.test-support.ts";
 import {
   activated,
@@ -237,7 +241,7 @@ describe("a repairable evolution ships", () => {
     expect(behavioral.repair.attempts[0]?.attribution).toEqual({
       total: false,
       reason: "fragment_with_regenerated_item_renderer",
-      handlers: ["create", "read", "update", "delete", "search"],
+      handlers: [...FULL_CAPABILITY_TOOLS],
     });
     // Every declared Handler was asked — that is what conservative means — but only the one whose
     // bytes came back different is recorded: a verbatim return is not a rewrite.

@@ -10,6 +10,7 @@ import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
 import { leaveRecordView } from "./record-view.js";
 import { refreshCommittedRecordsForMutation } from "./records-refresh.js";
 import { registerRegionRelease } from "./region-scope.js";
+import { BUSY_LABEL_ATTRIBUTE, IDLE_LABEL_ATTRIBUTE } from "./shell-dom.js";
 
 const EDIT_FORM_SELECTOR = "[data-record-edit-form]";
 const CREATE_FORM_SELECTOR = '[data-post-mutation-refresh][data-mutation-kind="create"]';
@@ -37,17 +38,44 @@ function requestForm(event, selector) {
 }
 
 /**
+ * Keep a control's idle text where the restore can find it, once. Reading it again after the
+ * busy sentence is showing would remember the busy sentence.
+ *
+ * @param {Element} control
+ */
+function rememberIdleLabel(control) {
+  if (control.hasAttribute(IDLE_LABEL_ATTRIBUTE)) return;
+  control.setAttribute(IDLE_LABEL_ATTRIBUTE, control.textContent ?? "");
+}
+
+/**
+ * Swap a submit control between its idle text and the sentence the server gave it to say. Both
+ * come off the markup: the browser restating either meant a renamed button reverted to the
+ * browser's spelling the first time it was pressed.
+ *
+ * @param {HTMLButtonElement} submit
+ * @param {boolean} pending
+ */
+function sayWhatItIsDoing(submit, pending) {
+  if (pending) {
+    rememberIdleLabel(submit);
+    submit.textContent = submit.getAttribute(BUSY_LABEL_ATTRIBUTE) ?? submit.textContent;
+    return;
+  }
+  const idle = submit.getAttribute(IDLE_LABEL_ATTRIBUTE);
+  if (idle !== null) submit.textContent = idle;
+}
+
+/**
  * @param {HTMLFormElement} form
  * @param {boolean} pending
- * @param {string} pendingLabel
- * @param {string} idleLabel
  * @param {string} cancelSelector
  */
-function setPending(form, pending, pendingLabel, idleLabel, cancelSelector) {
+function setPending(form, pending, cancelSelector) {
   form.setAttribute("aria-busy", pending ? "true" : "false");
   const submit = form.querySelector(SUBMIT_BUTTON_SELECTOR);
   if (submit instanceof HTMLButtonElement) {
-    submit.textContent = pending ? pendingLabel : idleLabel;
+    sayWhatItIsDoing(submit, pending);
     submit.disabled = pending;
   }
   const cancel = form.querySelector(cancelSelector);
@@ -60,17 +88,17 @@ function setPending(form, pending, pendingLabel, idleLabel, cancelSelector) {
 
 /** @param {HTMLFormElement} form @param {boolean} pending */
 function setEditPending(form, pending) {
-  setPending(form, pending, "I’m saving…", "Save", RECORD_CANCEL_SELECTOR);
+  setPending(form, pending, RECORD_CANCEL_SELECTOR);
 }
 
 /** @param {HTMLFormElement} form @param {boolean} pending */
 function setCreatePending(form, pending) {
-  setPending(form, pending, "I’m adding…", "Add", CREATE_CANCEL_SELECTOR);
+  setPending(form, pending, CREATE_CANCEL_SELECTOR);
 }
 
 /** @param {HTMLFormElement} form @param {boolean} pending */
 function setDeletePending(form, pending) {
-  setPending(form, pending, "I’m deleting…", "Delete record", DELETE_CANCEL_SELECTOR);
+  setPending(form, pending, DELETE_CANCEL_SELECTOR);
 }
 
 /**

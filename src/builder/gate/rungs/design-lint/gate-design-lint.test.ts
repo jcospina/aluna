@@ -17,18 +17,19 @@ import type {
   Provider,
   TokenUsage,
 } from "../../../../platform/provider/index.ts";
-import {
-  BEHAVIORAL_ERROR_MARKERS,
-  type CapabilitySpec,
-  MISSING_REQUIRED_FIELDS_ERROR_CODE,
-} from "../../../../registry/index.ts";
+import type { CapabilitySpec } from "../../../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../../../runtime/data/index.ts";
+import {
+  ESCAPE_HELPER,
+  itemRendererReturning as renderer,
+} from "../../../units/generation/unit-fixtures.test-support.ts";
 import type { HandlerUnitName } from "../../../units/generation/units.ts";
 import {
   DEFAULT_BEHAVIORAL_SUITE,
   frozenTierInput,
   fullHandlersFor,
   GOOD_HANDLERS,
+  notesSpec,
 } from "../../gate.test-support.ts";
 import {
   type BehavioralTierInput,
@@ -41,72 +42,6 @@ import { findDesignViolation } from "./gate-design-lint.ts";
 setDefaultTimeout(15_000);
 
 const STUB_USAGE: TokenUsage = { inputTokens: 3, outputTokens: 5, totalTokens: 8 };
-
-function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
-  return {
-    id: "notes",
-    label: "Notes",
-    subject: "an open notebook",
-    ground: "grass_green",
-    companion: "coral_orange",
-    noun: "note",
-    schema: {
-      fields: [
-        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
-        { name: "pinned", label: "Pinned", type: "boolean", required: false, lifecycle: "active" },
-      ],
-    },
-    ui_intent: {
-      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
-      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
-      collection: { layout: "feed" },
-    },
-    behavior: "Text is required. Newest notes appear first.",
-    behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["text"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-      {
-        action: "update",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["text"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-    ],
-    tools: ["create", "read", "update", "delete", "search"],
-    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
-    prompt_context: "Stores the user's text notes.",
-    ...overrides,
-  };
-}
-
-const ESCAPE_HELPER = [
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
-  "}",
-].join("\n");
-
-/** Assemble an item renderer whose body returns `bodyExpr` (an interpolated template). */
-function renderer(bodyExpr: string): string {
-  return [
-    "export default function renderItem(record: Record<string, unknown>): string {",
-    '  const text = escapeHtml(record.text ?? "");',
-    `  return ${bodyExpr};`,
-    "}",
-    "",
-    ESCAPE_HELPER,
-  ].join("\n");
-}
 
 // A design-clean renderer: allow-listed classes, token-disciplined inline style, every
 // record value escaped. Survives the enforcer byte-for-byte → passes the rung.

@@ -1,15 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { codeOf as code } from "../../safety/source.test-support.ts";
 
 // One record rule, kept by the two surfaces that keep a window: the product's desk and the
 // handbook's demo of it (design D9). Asked of both files at once.
 
-const ROOT = resolve(import.meta.dir, "../../../..");
-const code = (path: string) =>
-  readFileSync(join(ROOT, path), "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
-
-/** Where a window is remembered — its own module. */
+/** Where a window is remembered — a module of its own. */
 const STORE = code("public/desk-window-store.js");
 
 describe("what a remembered box is, asked in one place", () => {

@@ -8,11 +8,19 @@ import type { ZodType } from "zod";
 
 import type { IntentClassification } from "../../../pipeline/intent/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
-import { type CapabilityRow, capabilitySpecFromRow } from "../../../registry/index.ts";
+import {
+  SECOND_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
+import {
+  type CapabilityRow,
+  capabilitySpecFromRow,
+  FULL_CAPABILITY_TOOLS,
+} from "../../../registry/index.ts";
 import { buildDependencyGenerationCatalog } from "../dependency-catalog.ts";
 
-export const JOURNAL_INCARNATION_ID = "22222222-2222-4222-8222-222222222222";
-export const SHELVES_INCARNATION_ID = "33333333-3333-4333-8333-333333333333";
+export const JOURNAL_INCARNATION_ID = SECOND_INCARNATION_ID;
+export const SHELVES_INCARNATION_ID = THIRD_INCARNATION_ID;
 
 /** Overrides a suite may apply, narrowed to the two types an evolution can answer. */
 export type EvolutionIntentOverrides = Partial<Omit<IntentClassification, "type">> & {
@@ -122,7 +130,7 @@ export function journalCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
         },
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's journal entries.",
     incarnation_id: JOURNAL_INCARNATION_ID,
@@ -198,7 +206,7 @@ export function shelvesCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
         },
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's labelled shelves.",
     incarnation_id: SHELVES_INCARNATION_ID,

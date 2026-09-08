@@ -6,6 +6,11 @@
 // `validSpec` fixture lives in `spec.test-support.ts`.
 
 import { describe, expect, test } from "bun:test";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
+} from "../incarnations.test-support.ts";
 import { validSpec } from "./spec.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -97,8 +102,8 @@ describe("capability spec shape — Action tuple & read dependencies", () => {
       capability_id,
       incarnation_id,
     });
-    const a = dependency("recipes", "11111111-1111-4111-8111-111111111111");
-    const b = dependency("tasks", "22222222-2222-4222-8222-222222222222");
+    const a = dependency("recipes", FIRST_INCARNATION_ID);
+    const b = dependency("tasks", SECOND_INCARNATION_ID);
     const full = {
       ...base,
       tools: [...FULL_CAPABILITY_TOOLS],
@@ -123,7 +128,7 @@ describe("capability spec shape — Action tuple & read dependencies", () => {
         ...full,
         read_dependencies: {
           ...full.read_dependencies,
-          read: [dependency("notes", "33333333-3333-4333-8333-333333333333")],
+          read: [dependency("notes", THIRD_INCARNATION_ID)],
         },
       }).success,
     ).toBe(false);
@@ -305,7 +310,7 @@ describe("capability spec shape — top-level key strictness", () => {
 });
 
 describe("capability row shape", () => {
-  const incarnation_id = "11111111-1111-4111-8111-111111111111";
+  const incarnation_id = FIRST_INCARNATION_ID;
 
   test("a row is the spec plus platform-assigned incarnation, version, and artifacts_path", () => {
     const row = {

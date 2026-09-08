@@ -5,12 +5,15 @@
 // biome-ignore-all lint/nursery/noExcessiveLinesPerFile: the schema-adaptive fixture remains one frozen contract.
 
 import type { Database } from "bun:sqlite";
+import { errorMessage } from "../../../../platform/errors.ts";
+import { sqlIdentifier } from "../../../../platform/persistence/sql-identifier.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,
   choiceFieldOptions,
   isChoiceFieldType,
-  isListFieldType,
+  isSearchableTextType,
+  PLATFORM_COLUMNS,
   type SpecField,
   selectableChoiceValues,
 } from "../../../../registry/index.ts";
@@ -21,8 +24,13 @@ import {
 } from "../../../../runtime/data/index.ts";
 import type { CapabilityInput, CapabilityReadHandler } from "../../../../runtime/router/index.ts";
 import type { ScratchCatalogCapability } from "../../gate.ts";
-import { buildGateQueryPort, sqlIdentifier } from "../../gate-internal.ts";
+import { buildGateQueryPort } from "../../gate-internal.ts";
 import { SmokeActionFailure } from "./gate-smoke-repair.ts";
+import {
+  assertIdsEqual,
+  assertPresentedFragmentsReturned,
+  emptyInput,
+} from "./gate-smoke-shared.ts";
 
 export interface RecordingPresentation {
   readonly present: (record: CapabilityActionRecord) => string;
@@ -88,11 +96,7 @@ export async function runAdversarialSearchBaseline(input: SearchBaselineInput): 
       rawDefaultOrder(input.tableName, input.readwrite),
     );
   } catch (error) {
-    throw new SmokeActionFailure(
-      "read",
-      error instanceof Error ? error.message : String(error),
-      error,
-    );
+    throw new SmokeActionFailure("read", errorMessage(error), error);
   }
 
   for (const searchCase of fixture.cases) {
@@ -475,17 +479,13 @@ function setText(row: FixtureRow, location: TextLocation, value: string | readon
  * Searchable text, decided as the Diff Engine and the behavioral total inputs decide it. All
  * must move together, or an exclusion assertion claims something untrue.
  */
-function isSearchableTextType(type: SpecField["type"]): boolean {
-  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
-}
-
 function insertFixtureRow(
   spec: CapabilitySpec,
   tableName: string,
   row: FixtureRow,
   database: Database,
 ): void {
-  const columns = ["id", "created_at", "extra", ...spec.schema.fields.map((field) => field.name)];
+  const columns = [...PLATFORM_COLUMNS, ...spec.schema.fields.map((field) => field.name)];
   const values = [
     row.id,
     row.createdAt,
@@ -520,26 +520,7 @@ async function invokeRecordHandler(
     return rows;
   } catch (error) {
     if (error instanceof SmokeActionFailure) throw error;
-    throw new SmokeActionFailure(
-      label,
-      error instanceof Error ? error.message : String(error),
-      error,
-    );
-  }
-}
-
-function assertPresentedFragmentsReturned(
-  label: "read" | "search",
-  fragment: string,
-  presented: readonly string[],
-): void {
-  let cursor = 0;
-  for (const item of presented) {
-    const index = fragment.indexOf(item, cursor);
-    if (index < 0) {
-      throw new Error(`${label} Handler discarded or reordered a presented record fragment`);
-    }
-    cursor = index + item.length;
+    throw new SmokeActionFailure(label, errorMessage(error), error);
   }
 }
 
@@ -568,18 +549,6 @@ function assertRowsComplete(spec: CapabilitySpec, rows: readonly CapabilityDataR
   }
 }
 
-function assertIdsEqual(
-  label: string,
-  actual: readonly string[],
-  expected: readonly string[],
-): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(
-      `${label} expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`,
-    );
-  }
-}
-
 function assertSameIdSet(
   label: string,
   actual: readonly string[],
@@ -595,10 +564,6 @@ function assertSameIdSet(
       `${label} expected match set ${JSON.stringify(expectedSorted)}, received ${JSON.stringify(actualSorted)}`,
     );
   }
-}
-
-function emptyInput(): CapabilityInput {
-  return { values: {}, submittedFields: new Set() };
 }
 
 function searchInput(q: string | undefined): CapabilityInput {

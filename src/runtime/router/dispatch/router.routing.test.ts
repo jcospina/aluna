@@ -4,6 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { FULL_CAPABILITY_TOOLS } from "../../../registry/index.ts";
 import { createApp } from "../../../server/app.ts";
 import type { CapabilityContext, CapabilityInput } from "../contract.ts";
 import {
@@ -17,7 +18,7 @@ import {
 } from "./router.test-support.ts";
 import type { HandlerLoader } from "./router.ts";
 
-const FULL_ACTIONS = ["create", "read", "update", "delete", "search"] as const;
+const FULL_ACTIONS = FULL_CAPABILITY_TOOLS;
 
 function urlEncoded(entries: readonly [string, string][]): RequestInit {
   return {

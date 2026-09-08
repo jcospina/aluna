@@ -14,13 +14,19 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
-
 import {
   type CapabilityRow,
   type CapabilitySpec,
   capabilitySpecFromRow,
-  fieldTypeSchema,
 } from "../../../registry/index.ts";
+import {
+  formatDiagnostics,
+  HANDLER_CONTRACT_DECLARATIONS,
+  handlerContractType,
+  hasExportSurface,
+  ITEM_RENDERER_CONTRACT_DECLARATIONS,
+  STRICT_CHECK_OPTIONS,
+} from "../../generated-code-check.ts";
 import type {
   HandlerUnitName,
   UnitDescriptor,
@@ -67,7 +73,7 @@ function checkHandlerUnit(
 ): string | undefined {
   const sourceMessage = checkHandlerSourceContract(spec, action, content, dependencyCatalog);
   if (sourceMessage) return sourceMessage;
-  return typeCheckUnit(content, handlerContractDeclarations, handlerAssert(action));
+  return typeCheckUnit(content, HANDLER_CONTRACT_DECLARATIONS, handlerAssert(action));
 }
 
 /** The complete static Handler contract shared by unit generation and whole-snapshot Gate. */
@@ -86,7 +92,7 @@ export function checkHandlerSourceContract(
 function checkItemRendererUnit(spec: CapabilitySpec, content: string): string | undefined {
   const sourceMessage = checkItemRendererSourceContract(spec, content);
   if (sourceMessage) return sourceMessage;
-  return typeCheckUnit(content, itemRendererContractDeclarations, ITEM_RENDERER_ASSERT);
+  return typeCheckUnit(content, ITEM_RENDERER_CONTRACT_DECLARATIONS, ITEM_RENDERER_ASSERT);
 }
 
 /**
@@ -165,14 +171,6 @@ function validateFunctionModifiers(
   return undefined;
 }
 
-function hasExportSurface(statement: ts.Statement): boolean {
-  if (ts.isExportAssignment(statement) || ts.isExportDeclaration(statement)) return true;
-  if (!ts.canHaveModifiers(statement)) return false;
-  return (ts.getModifiers(statement) ?? []).some(
-    (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
-  );
-}
-
 /**
  * Type-check one generated unit in isolation: the platform contract declarations, the unit, and
  * an assertion binding its default export to the contract type, under the strict compiler.
@@ -190,24 +188,7 @@ function typeCheckUnit(
 
     const program = ts.createProgram(
       [join(dir, "contract.d.ts"), join(dir, "unit.ts"), join(dir, "assert.ts")],
-      {
-        allowImportingTsExtensions: true,
-        forceConsistentCasingInFileNames: true,
-        lib: ["lib.esnext.d.ts"],
-        module: ts.ModuleKind.ESNext,
-        moduleDetection: ts.ModuleDetectionKind.Force,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        noEmit: true,
-        noFallthroughCasesInSwitch: true,
-        noImplicitOverride: true,
-        noUncheckedIndexedAccess: true,
-        noUnusedLocals: true,
-        noUnusedParameters: true,
-        skipLibCheck: true,
-        strict: true,
-        target: ts.ScriptTarget.ESNext,
-        verbatimModuleSyntax: true,
-      },
+      STRICT_CHECK_OPTIONS,
     );
     const diagnostics = ts.getPreEmitDiagnostics(program);
     if (diagnostics.length === 0) return undefined;
@@ -222,122 +203,10 @@ function typeCheckUnit(
   }
 }
 
-function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
-  return diagnostics
-    .map((diagnostic) => {
-      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
-      if (!diagnostic.file || diagnostic.start === undefined) return message;
-
-      const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
-      return `${diagnostic.file.fileName}:${position.line + 1}:${position.character + 1} - ${message}`;
-    })
-    .join("\n");
-}
-
-/**
- * The query-result column types, derived from the registry pantry rather than restated: a
- * mirror missing a new field type would reject a projection the runtime accepts.
- */
-const QUERY_RESULT_TYPE_UNION = fieldTypeSchema.options
-  .map((type) => JSON.stringify(type))
-  .join(" | ");
-
-// The shared record shape both contracts speak — the capability data row seen
-// structurally (spec fields plus the platform-populated `id`/`created_at`).
-const RECORD_CONTRACT = `
-type CapabilityDataColumnValue = string | number | boolean | readonly string[] | null;
-interface CapabilityDataRow {
-  readonly id: string;
-  readonly created_at: string;
-  readonly [field: string]: CapabilityDataColumnValue;
-}
-type PresentableRecord = Readonly<Record<string, unknown>>;
-interface CapabilityRecordHandle { readonly __opaqueCapabilityRecord?: never; }
-interface CapabilityActionRecord {
-  readonly fields: Readonly<Record<string, CapabilityDataColumnValue>>;
-  readonly created_at: string;
-  readonly handle: CapabilityRecordHandle;
-}
-type PresentationAdapter = (record: CapabilityActionRecord) => string;
-`;
-
-// The handler contract, including ADR-0005 §2's injected `present` adapter — the shape
-// `src/runtime/router/contract.ts` declares and the gate's structural rung re-checks.
-const handlerContractDeclarations = `${RECORD_CONTRACT}
-type CapabilityInputValue = string | readonly string[];
-interface CapabilityInput {
-  readonly values: Readonly<Record<string, CapabilityInputValue>>;
-  readonly submittedFields: ReadonlySet<string>;
-}
-interface CapabilityMutationPort {
-  create(values: Record<string, unknown>): CapabilityActionRecord;
-}
-interface CapabilityUpdateMutationPort {
-  update(values: Record<string, unknown>): CapabilityActionRecord;
-}
-interface CapabilityDeleteMutationPort {
-  delete(): void;
-}
-type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
-interface CapabilityQueryResultColumn {
-  readonly alias: string;
-  readonly type: ${QUERY_RESULT_TYPE_UNION};
-}
-interface CapabilityQueryPort {
-  all(input: {
-    readonly sql: string;
-    readonly parameters?: readonly CapabilityQueryParameter[];
-    readonly result: readonly CapabilityQueryResultColumn[];
-  }): Readonly<Record<string, CapabilityDataColumnValue>>[];
-  records(input: {
-    readonly sql: string;
-    readonly parameters?: readonly CapabilityQueryParameter[];
-    readonly targetIdAlias?: string;
-    readonly result?: readonly CapabilityQueryResultColumn[];
-  }): readonly {
-    readonly record: CapabilityActionRecord;
-    readonly values: Readonly<Record<string, CapabilityDataColumnValue>>;
-  }[];
-}
-interface CapabilityContext {
-  readonly input: CapabilityInput;
-  readonly query: CapabilityQueryPort;
-  readonly present: PresentationAdapter;
-}
-interface CapabilityCreateContext extends CapabilityContext {
-  readonly mutation: CapabilityMutationPort;
-}
-interface CapabilityUpdateContext extends CapabilityContext {
-  readonly mutation: CapabilityUpdateMutationPort;
-}
-interface CapabilityDeleteContext {
-  readonly input: CapabilityInput;
-  readonly mutation: CapabilityDeleteMutationPort;
-  readonly query: CapabilityQueryPort;
-}
-type CapabilityCreateHandler = (context: CapabilityCreateContext) => Promise<string>;
-type CapabilityReadHandler = (context: CapabilityContext) => Promise<string>;
-type CapabilityUpdateHandler = (context: CapabilityUpdateContext) => Promise<string>;
-type CapabilityDeleteHandler = (context: CapabilityDeleteContext) => Promise<string>;
-`;
-
 function handlerAssert(action: HandlerUnitName): string {
   const type = handlerContractType(action);
   return `import handler from "./unit";\nconst assertHandler: ${type} = handler;\nvoid assertHandler;\n`;
 }
-
-function handlerContractType(action: HandlerUnitName): string {
-  if (action === "create") return "CapabilityCreateHandler";
-  if (action === "update") return "CapabilityUpdateHandler";
-  if (action === "delete") return "CapabilityDeleteHandler";
-  return "CapabilityReadHandler";
-}
-
-// The item-renderer contract: one record → its inner markup string (the composition
-// input the presentation adapter binds, src/presentation/records/adapter.ts `ItemRenderer`).
-const itemRendererContractDeclarations = `${RECORD_CONTRACT}
-type ItemRenderer = (record: PresentableRecord) => string;
-`;
 
 const ITEM_RENDERER_ASSERT =
   'import renderItem from "./unit";\nconst assertRenderer: ItemRenderer = renderItem;\nvoid assertRenderer;\n';

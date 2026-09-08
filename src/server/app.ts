@@ -12,6 +12,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { streamSSE } from "hono/streaming";
+import { capabilityUrl } from "#shell/routes.js";
 import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
 import {
   alreadyGoneResponse,
@@ -401,7 +402,7 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
     const row = restoration.kind === "capability" ? restoration.row : null;
     return c.html(row ? renderCachedCapabilitySurface(row) : "", 200, {
       "cache-control": "no-store",
-      "HX-Replace-Url": row ? `/capability/${encodeURIComponent(row.id)}` : "/",
+      "HX-Replace-Url": row ? capabilityUrl(row.id) : "/",
     });
   });
 

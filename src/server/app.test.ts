@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { READ_UNAVAILABLE_FRAGMENT } from "../runtime/router/wire/failure-responses.ts";
 import { responseText } from "./app.test-support.ts";
 import { createApp } from "./app.ts";
 
@@ -436,10 +437,9 @@ describe("GET / (shell) — prompt admission", () => {
       return detail.shouldSwap;
     };
 
-    // The exact bodies src/runtime/router/wire/failure-responses.ts returns for a closing
+    // The exact body src/runtime/router/wire/failure-responses.ts returns for a closing
     // incarnation.
-    const readRefusal =
-      '<p class="notice" data-role="error" data-error-code="read_unavailable">I’m making a careful change here. Give me a moment, then try that again.</p>';
+    const readRefusal = READ_UNAVAILABLE_FRAGMENT;
 
     expect(swapDecision(409, readRefusal)).toBe(true);
     expect(swapDecision(422, readRefusal)).toBe(true);

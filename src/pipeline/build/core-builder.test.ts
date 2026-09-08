@@ -17,6 +17,7 @@ import { notesSpec } from "../../builder/gate/gate.test-support.ts";
 import type { CapabilityGateResult } from "../../builder/index.ts";
 import { listGenerationLifecycles } from "../../platform/metrics/index.ts";
 import type { GenerateResult, Provider } from "../../platform/provider/index.ts";
+import { SEVENTH_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import {
   fingerprintActiveRegistryCatalog,
   getCapability,
@@ -42,7 +43,7 @@ import {
 } from "./admission/resolved-request.ts";
 import { type CoreBuilderPresenter, type CoreBuildTerminal, runCoreBuild } from "./core-builder.ts";
 
-const OTHER_INCARNATION_ID = "77777777-7777-4777-8777-777777777777";
+const OTHER_INCARNATION_ID = SEVENTH_INCARNATION_ID;
 const RESOLVER = {
   intent: { type: "extend_capability" as const, confidence: 0.94, targetCapability: "notes" },
   model: "test-model",

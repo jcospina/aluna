@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { compareStrings } from "../../../platform/canonical-json.ts";
+
 interface DigestEntry {
   readonly path: string;
   readonly content_digest: string;
@@ -21,10 +23,10 @@ export function canonicalJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+/**
+ * Codepoint order, matching the `[...paths].sort()` the snapshot contract verifies the published
+ * inventory against. A locale collation could order the same list differently and move the digest.
+ */
 export function compareFileEntries(left: { path: string }, right: { path: string }): number {
-  return left.path.localeCompare(right.path, "en");
-}
-
-export function sameOrderedStrings(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+  return compareStrings(left.path, right.path);
 }

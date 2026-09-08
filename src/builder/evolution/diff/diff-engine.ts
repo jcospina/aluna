@@ -10,6 +10,7 @@
 // silent no-op or an unproven copy. Equality is canonical — key order is ignored, set-like facts
 // use a defined order, and ordered product facts preserve order and therefore diff.
 
+import { compareStrings } from "../../../platform/canonical-json.ts";
 import {
   type CapabilitySpec,
   type CapabilityTool,
@@ -17,7 +18,9 @@ import {
   FULL_CAPABILITY_TOOLS,
   isChoiceFieldType,
   isListFieldType,
+  isSearchableTextType,
   type SpecField,
+  sameOrderedStrings,
 } from "../../../registry/index.ts";
 import { canonicalCapabilityLabel } from "../../../registry/labels.ts";
 import { detectChoiceFacts } from "./diff-choice.ts";
@@ -96,7 +99,7 @@ const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
  * The six generated units the diff selects between: the five Action handlers and
  * the item renderer. Every unit not selected is copied byte-for-byte.
  */
-export const GENERATED_UNITS = ["create", "read", "update", "delete", "search", "item"] as const;
+export const GENERATED_UNITS = [...FULL_CAPABILITY_TOOLS, "item"] as const;
 export type GeneratedUnitName = (typeof GENERATED_UNITS)[number];
 
 /**
@@ -233,7 +236,7 @@ function detectSchemaFacts(
   const candidateCommittedOrder = candidate.schema.fields
     .filter((field) => committedNames.has(field.name))
     .map((field) => field.name);
-  if (!sameSequence(committedOrder, candidateCommittedOrder)) {
+  if (!sameOrderedStrings(committedOrder, candidateCommittedOrder)) {
     facts.push({ kind: "field_order" });
   }
 
@@ -302,7 +305,7 @@ function detectPresentationFacts(
   const candidateItem = candidate.ui_intent.item;
   if (
     committedItem.direction !== candidateItem.direction ||
-    !sameSequence(committedItem.shows, candidateItem.shows)
+    !sameOrderedStrings(committedItem.shows, candidateItem.shows)
   ) {
     facts.push({ kind: "item_presentation" });
   }
@@ -321,7 +324,7 @@ function detectReadDependencyFacts(
   for (const action of FULL_CAPABILITY_TOOLS) {
     const before = canonicalDependencyKeys(committed.read_dependencies[action]);
     const after = canonicalDependencyKeys(candidate.read_dependencies[action]);
-    if (!sameSequence(before, after)) {
+    if (!sameOrderedStrings(before, after)) {
       facts.push({ kind: "read_dependencies", action });
     }
   }
@@ -574,10 +577,6 @@ function selectSearch(sink: WorkSink): void {
   sink.tests.add("search");
 }
 
-function isSearchableTextType(type: FieldType): boolean {
-  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
-}
-
 // ── Canonicalization + small helpers ────────────────────────────────────────
 
 function listInputModesByField(spec: CapabilitySpec): Map<string, string> {
@@ -633,12 +632,4 @@ function factSubject(fact: ChangeFact): string {
 
 function orderBy<T>(values: ReadonlySet<T>, order: readonly T[]): readonly T[] {
   return order.filter((value) => values.has(value));
-}
-
-function sameSequence(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function compareStrings(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

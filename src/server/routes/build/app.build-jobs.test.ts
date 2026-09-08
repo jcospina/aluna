@@ -10,6 +10,7 @@ import {
   type BuildPipeline,
   createBuildJobQueue,
 } from "../../../pipeline/jobs/build-jobs.ts";
+import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import { insertCapability } from "../../../registry/index.ts";
 import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
 import {
@@ -125,7 +126,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
       const body = new URLSearchParams({
         prompt: "track recipes",
         __aluna_restore_capability_id: "notes",
-        __aluna_restore_incarnation_id: "11111111-1111-4111-8111-111111111111",
+        __aluna_restore_incarnation_id: FIRST_INCARNATION_ID,
       });
 
       await app.request("/prompt", { method: "POST", body });
@@ -134,7 +135,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
       expect(capturedJob?.restoration).toEqual({
         kind: "capability",
         capabilityId: "notes",
-        incarnationId: "11111111-1111-4111-8111-111111111111",
+        incarnationId: FIRST_INCARNATION_ID,
       });
     } finally {
       teardownScratchDbEnv(env);

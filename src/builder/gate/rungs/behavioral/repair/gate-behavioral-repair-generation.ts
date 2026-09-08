@@ -1,8 +1,10 @@
+import { errorMessage } from "../../../../../platform/errors.ts";
 import {
   isProviderAbortError,
   type Provider,
   type TokenUsage,
 } from "../../../../../platform/provider/index.ts";
+import { sumTokenUsages } from "../../../../../platform/provider/usage.ts";
 import type { CapabilityRow } from "../../../../../registry/index.ts";
 import {
   generateUnitContent,
@@ -16,7 +18,6 @@ import type {
   BehavioralHandlerRepair,
   CapabilityGateInput,
 } from "../../../gate.ts";
-import { errorMessage } from "../../../gate-internal.ts";
 import type { BehavioralFailureAttribution } from "./behavioral-failure-attribution.ts";
 
 export interface HandlerRepair extends BehavioralHandlerRepair {
@@ -71,7 +72,7 @@ export async function repairAttributedHandlers(options: RepairRoundInput): Promi
     repaired,
     rejected,
     durationMs: performance.now() - startedAt,
-    usage: sumUsage(usages),
+    usage: sumTokenUsages(usages),
     generations,
   };
 }
@@ -223,17 +224,4 @@ function repairInstruction(attribution: BehavioralFailureAttribution, failure: s
     ? "A frozen behavioral test failed against this Handler."
     : `A frozen behavioral test failed and could not be attributed to one Handler (${attribution.reason}); every declared Handler is being rewritten conservatively, so this one may already be correct.`;
   return `${preamble} The test is frozen behavioral intent and cannot change: rewrite the Handler so it satisfies the assertion exactly as written. ${failure}`;
-}
-
-function sumUsage(usages: readonly TokenUsage[]): TokenUsage {
-  return {
-    inputTokens: sumDefined(usages.map((usage) => usage.inputTokens)),
-    outputTokens: sumDefined(usages.map((usage) => usage.outputTokens)),
-    totalTokens: sumDefined(usages.map((usage) => usage.totalTokens)),
-  };
-}
-
-function sumDefined(values: readonly (number | undefined)[]): number | undefined {
-  const present = values.filter((value): value is number => value !== undefined);
-  return present.length === 0 ? undefined : present.reduce((sum, value) => sum + value, 0);
 }

@@ -13,6 +13,7 @@
 
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
+import { canonicalizeJson } from "../../platform/canonical-json.ts";
 import { dbReadonly, type PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../spec/spec.ts";
 import { listCapabilities } from "./store.ts";
@@ -25,18 +26,8 @@ export interface ActiveRegistryCatalog {
 /** {@link readActiveRegistryCatalog}'s own shape, as a seam callers can substitute. */
 export type ActiveCatalogReader = (database: PlatformDatabase["readonly"]) => ActiveRegistryCatalog;
 
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (typeof value !== "object" || value === null) return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => [key, canonicalize(entry)]),
-  );
-}
-
 export function fingerprintActiveRegistryCatalog(capabilities: readonly CapabilityRow[]): string {
-  const canonical = JSON.stringify(canonicalize(capabilities.map(fingerprintedView)));
+  const canonical = JSON.stringify(canonicalizeJson(capabilities.map(fingerprintedView)));
   return `sha256:${createHash("sha256").update(canonical).digest("hex")}`;
 }
 

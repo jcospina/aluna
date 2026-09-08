@@ -7,22 +7,29 @@
 // streamed round-trip is proven by running the app and typing a prompt, not asserted
 // here — a test must not bill the BYO key on every run.
 
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { ZodType } from "zod";
 import {
   behavioralResponseFor,
   type FullBehavioralTestSuite,
 } from "../builder/gate/gate.test-support.ts";
+import {
+  DELETE_HANDLER,
+  ITEM_RENDERER,
+  READ_HANDLER,
+} from "../builder/units/generation/unit-fixtures.test-support.ts";
 import type { RecordMetrics } from "../pipeline/index.ts";
 import type { IntentClassification } from "../pipeline/intent/index.ts";
-import { openDatabase, type PlatformDatabase } from "../platform/persistence/db.ts";
-import { runMigrations } from "../platform/persistence/migrations.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../platform/persistence/scratch-db.test-support.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../platform/provider/index.ts";
+import { FIRST_INCARNATION_ID } from "../registry/incarnations.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,
+  FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
 import { createApp } from "./app.ts";
@@ -33,13 +40,16 @@ export interface SseEvent {
   readonly data: string;
 }
 
-export interface ScratchDbEnv {
-  dir: string;
-  conns: PlatformDatabase;
-  artifactsRoot: string;
-}
-
+export { wait } from "../platform/async.test-support.ts";
 export { makeMetricsRecorder } from "../platform/metrics/metrics-test-recorder.ts";
+export {
+  createScratchDbEnv,
+  DELETE_HANDLER,
+  ITEM_RENDERER,
+  READ_HANDLER,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+};
 
 /**
  * A fake provider: streams `greeting` a character at a time, then resolves the validated object.
@@ -126,10 +136,6 @@ export function lastEventData(events: SseEvent[], name: string): string {
   return events.filter((event) => event.event === name).at(-1)?.data ?? "";
 }
 
-export function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export function promptPost(prompt: string): RequestInit {
   return {
     method: "POST",
@@ -174,28 +180,11 @@ export async function runPromptBuild(
 }
 
 /**
- * The scratch db + temp artifacts lifecycle the build and rehydration describes share, keeping
- * the per-test beforeEach/afterEach lifecycle those describes established.
- */
-export function createScratchDbEnv(prefix: string): ScratchDbEnv {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
-  const conns = openDatabase(join(dir, "test.db"));
-  runMigrations(conns.readwrite);
-  return { dir, conns, artifactsRoot: join(dir, "artifacts") };
-}
-
-export function teardownScratchDbEnv(env: ScratchDbEnv): void {
-  env.conns.readwrite.close();
-  env.conns.readonly.close();
-  rmSync(env.dir, { recursive: true, force: true });
-}
-
-/**
  * Build the prompt app wired to commit against the scratch db and temp artifacts root, sharing
  * the scratch pair with the router so a committed capability is routable in the same test.
  */
 export function makeScratchApp(
-  env: ScratchDbEnv,
+  env: Partial<ScratchDbEnv> & Pick<ScratchDbEnv, "conns" | "artifactsRoot">,
   provider: Provider,
   recordMetrics: RecordMetrics,
 ) {
@@ -240,12 +229,12 @@ export const NOTES_SPEC = {
       expected_markers: BEHAVIORAL_ERROR_MARKERS,
     },
   ],
-  tools: ["create", "read", "update", "delete", "search"],
+  tools: [...FULL_CAPABILITY_TOOLS],
   read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
   prompt_context: "Stores the user's text notes.",
 };
 
-export const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
+export const NOTES_INCARNATION_ID = FIRST_INCARNATION_ID;
 
 /** A fixed seed: fixtures compare rows, so a random one would make them flaky. */
 export const NOTES_LOGO_SEED = 184206;
@@ -264,29 +253,9 @@ export function notesCapabilityRow(overrides: Partial<CapabilityRow> = {}): Capa
 }
 
 /**
- * The one generated presentation surface — record → inner markup, composed from the
- * closed primitive vocabulary and escaping the field value.
- */
-export const ITEM_RENDERER = [
-  "export default function renderItem(record: Record<string, unknown>): string {",
-  "  const text = escapeHtml(record.text);",
-  '  return `<div class="stack"><span class="text-lg text-bold truncate">$' +
-    "{text}</span></div>`;",
-  "}",
-  "",
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
-  "}",
-].join("\n");
-
-/**
- * The handlers render records through the injected `present` adapter — no row markup of
- * their own, so create and read cannot drift.
+ * The handlers render records through the injected `present` adapter — no row markup of their
+ * own. Create, update and search stay local: these three answer a blank field with the route's
+ * own refusal markup and search AND-across-terms, which the unit fixtures do not.
  */
 export const CREATE_HANDLER = [
   "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
@@ -296,28 +265,12 @@ export const CREATE_HANDLER = [
   "}",
 ].join("\n");
 
-export const READ_HANDLER = [
-  "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-  "  const notes = query.records({",
-  '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
-  "  });",
-  '  return notes.map(({ record }) => present(record)).join("");',
-  "}",
-].join("\n");
-
 export const UPDATE_HANDLER = [
   "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
   '  if (input.submittedFields.has("text") && String(input.values.text ?? "").trim().length === 0) return \'<div data-role="error" data-error-code="missing_required_fields" data-error-fields="text">Tell me what to save.</div>\';',
   "  const patch: Record<string, unknown> = {};",
   '  if (input.submittedFields.has("text")) patch.text = input.values.text;',
   "  return present(mutation.update(patch));",
-  "}",
-].join("\n");
-
-export const DELETE_HANDLER = [
-  "export default async function remove({ mutation }: CapabilityDeleteContext): Promise<string> {",
-  "  mutation.delete();",
-  '  return "";',
   "}",
 ].join("\n");
 

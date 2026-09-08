@@ -179,7 +179,7 @@ function mapDerivedUnits(
   };
 }
 
-function descriptorForFile(filename: DerivedUnitFile): UnitDescriptor {
+export function descriptorForFile(filename: DerivedUnitFile): UnitDescriptor {
   return filename === "item.ts"
     ? { kind: "item-renderer", name: "item" }
     : { kind: "handler", name: handlerActionForFile(filename) as CapabilityTool };

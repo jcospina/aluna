@@ -5,11 +5,11 @@ import { PROMPT_FORM_ID } from "#shell/desk-window.js";
 import {
   closeLogoMenu,
   closeRenameEditor,
-  isUsableCapabilityName,
   LONG_PRESS_MS,
   LONG_PRESS_SLOP_PX,
   labelNotice,
 } from "#shell/logo-menu.js";
+import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import { isCapabilityNameLabel, MAX_CAPABILITY_LABEL_CHARS } from "../../../registry/index.ts";
 import { renderCapabilityLogo } from "../../../server/http/fragments.ts";
 import { desk, type Node, pressAndHold, slotFor } from "./logo-menu.test-support.ts";
@@ -499,7 +499,7 @@ describe("the module and the markup agree", () => {
     id: "notes",
     label: "Notes",
     display_label_override: null,
-    incarnation_id: "11111111-1111-4111-8111-111111111111",
+    incarnation_id: FIRST_INCARNATION_ID,
     version: 1,
     logo: { status: "absent", attempts: 0 },
   });
@@ -533,29 +533,41 @@ describe("the module and the markup agree", () => {
     expect(rendered).toContain(`maxlength="${MAX_CAPABILITY_LABEL_CHARS}"`);
   });
 
-  test("the editor's reading of a name is the registry's reading of one", () => {
-    const corpus = [
-      "Notes",
-      "Reading list",
-      "  Journal  ",
-      "",
-      "   ",
-      "Notes.",
-      "Is this ok?",
-      "Wow!",
-      "I'll set that up",
-      "Got it — making it now",
-      "we will keep track of this",
-      "one two three four five",
-      "one two three four five six",
-      "x".repeat(MAX_CAPABILITY_LABEL_CHARS),
-      "x".repeat(MAX_CAPABILITY_LABEL_CHARS + 1),
+  test("what the rule takes, and what it turns down for which reason", () => {
+    // Named verdicts, not `f(x) === f(x)`: both readings are one function now, so comparing
+    // them to each other would assert nothing. Each row is what a person actually sees.
+    const corpus: readonly (readonly [string, boolean])[] = [
+      ["Notes", true],
+      ["Reading list", true],
+      ["  Journal  ", true],
+      ["Tom & Jerry's", true],
+      ["one two three four five", true],
+      ["x".repeat(MAX_CAPABILITY_LABEL_CHARS), true],
+      ["", false],
+      ["   ", false],
+      ["Notes.", false],
+      ["Is this ok?", false],
+      ["Wow!", false],
+      ["I'll set that up", false],
+      ["Got it — making it now", false],
+      ["we will keep track of this", false],
+      ["one two three four five six", false],
+      ["x".repeat(MAX_CAPABILITY_LABEL_CHARS + 1), false],
+      // The editor once enabled submit on this and the server then refused it.
+      ["<img src=x onerror=alert(1)>", false],
+      ["a > b", false],
     ];
 
-    for (const name of corpus) {
-      expect(isUsableCapabilityName(name), name).toBe(isCapabilityNameLabel(name));
-      expect(labelNotice(name) === "", name).toBe(isCapabilityNameLabel(name));
+    for (const [name, usable] of corpus) {
+      expect(isCapabilityNameLabel(name), name).toBe(usable);
+      expect(labelNotice(name) === "", name).toBe(usable);
     }
+  });
+
+  test("a name turned down for its brackets is not told it is too long", () => {
+    expect(labelNotice("a > b")).toContain("<");
+    expect(labelNotice("Is this ok?")).not.toContain("<");
+    expect(labelNotice("")).not.toBe(labelNotice("a > b"));
   });
 
   test("the floor it stops at is the prompt bar the desk actually ships", () => {

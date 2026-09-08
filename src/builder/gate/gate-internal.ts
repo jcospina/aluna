@@ -10,6 +10,9 @@
 import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import ts from "typescript";
+import { errorMessage } from "../../platform/errors.ts";
+import { sqlIdentifier } from "../../platform/persistence/sql-identifier.ts";
+import { renderableFromSpec } from "../../presentation/fields/renderable-capability.ts";
 import {
   createPresentationAdapter,
   type ItemRenderer,
@@ -39,6 +42,7 @@ import type {
   CapabilityReadHandler,
   CapabilityUpdateHandler,
 } from "../../runtime/router/index.ts";
+import { formatDiagnostics } from "../generated-code-check.ts";
 import type { HandlerUnitName } from "../units/generation/units.ts";
 import type { ScratchCatalogCapability } from "./gate.ts";
 
@@ -77,12 +81,7 @@ export class ItemRendererExecutionError extends Error {
  */
 export function buildGatePresent(spec: CapabilitySpec, itemRenderer: string): PresentationAdapter {
   const capability: RenderableCapability = {
-    id: spec.id,
-    label: spec.label,
-    noun: spec.noun,
-    schema: spec.schema,
-    form: spec.ui_intent.form,
-    actions: spec.tools,
+    ...renderableFromSpec(spec),
     item: spec.ui_intent.item,
   };
   const renderItem = loadItemRenderer(itemRenderer);
@@ -316,11 +315,6 @@ export function sameSnapshot(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-/** Quote a SQL identifier (table/column name) for safe interpolation. */
-export function sqlIdentifier(identifier: string): string {
-  return `"${identifier.replaceAll('"', '""')}"`;
-}
-
 /** Assert a handler returned a non-empty HTML fragment string (narrowing `fragment`). */
 export function assertFragment(
   action: HandlerUnitName,
@@ -351,24 +345,6 @@ function sameInstant(stored: unknown, expected: unknown): boolean {
   // equal — fall back to exact comparison so a genuinely malformed value still fails.
   if (Number.isNaN(storedMs) || Number.isNaN(expectedMs)) return stored === expected;
   return storedMs === expectedMs;
-}
-
-/** The message of an unknown error value. */
-export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/** Format TypeScript diagnostics with file:line:col positions for the gate's report. */
-export function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
-  return diagnostics
-    .map((diagnostic) => {
-      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
-      if (!diagnostic.file || diagnostic.start === undefined) return message;
-
-      const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
-      return `${diagnostic.file.fileName}:${position.line + 1}:${position.character + 1} - ${message}`;
-    })
-    .join("\n");
 }
 
 /** The structured `diagnostic` carried by an error, when present (e.g. a failed case). */

@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
-import { runMigrations } from "../persistence/migrations.ts";
+import type { PlatformDatabase } from "../persistence/db.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../persistence/scratch-db.test-support.ts";
 import {
   getIntentResolutionMetrics,
   intentResolutionMetrics,
@@ -13,19 +14,16 @@ import {
 } from "./intent-resolution-store.ts";
 
 describe("best-effort intent resolution metrics", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-resolution-metrics-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-resolution-metrics-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   test("stores content-free resolver classification, timing, usage, and catalog binding", () => {

@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import {
+  EIGHTH_INCARNATION_ID,
+  FIFTH_INCARNATION_ID,
+  FOURTH_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+  SEVENTH_INCARNATION_ID,
+  SIXTH_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
 import type { ReadDependencies } from "../../../registry/index.ts";
+import { FULL_CAPABILITY_TOOLS } from "../../../registry/index.ts";
 import { createApp } from "../../../server/app.ts";
 import { createMutationCoordinator } from "../../concurrency/mutation-coordinator.ts";
 import { createReadGateCoordinator, ReadGateReleasedError } from "../../concurrency/read-gates.ts";
@@ -14,16 +24,16 @@ import {
 } from "../dispatch/router.test-support.ts";
 import type { HandlerLoader } from "../dispatch/router.ts";
 
-const SHELVES_INCARNATION = "22222222-2222-4222-8222-222222222222";
-const TASKS_INCARNATION = "33333333-3333-4333-8333-333333333333";
-const ACTIONS = ["create", "read", "update", "delete", "search"] as const;
+const SHELVES_INCARNATION = SECOND_INCARNATION_ID;
+const TASKS_INCARNATION = THIRD_INCARNATION_ID;
+const ACTIONS = FULL_CAPABILITY_TOOLS;
 type TestAction = (typeof ACTIONS)[number];
 const ACTION_INCARNATIONS: Record<TestAction, string> = {
-  create: "44444444-4444-4444-8444-444444444444",
-  read: "55555555-5555-4555-8555-555555555555",
-  update: "66666666-6666-4666-8666-666666666666",
-  delete: "77777777-7777-4777-8777-777777777777",
-  search: "88888888-8888-4888-8888-888888888888",
+  create: FOURTH_INCARNATION_ID,
+  read: FIFTH_INCARNATION_ID,
+  update: SIXTH_INCARNATION_ID,
+  delete: SEVENTH_INCARNATION_ID,
+  search: EIGHTH_INCARNATION_ID,
 };
 
 function shelvesRow() {

@@ -8,7 +8,7 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-
+import { THIRD_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import { readActiveRegistryCatalog } from "../../registry/index.ts";
 import {
   ReadGateClosingError,
@@ -136,7 +136,7 @@ describe("what a whole-catalog read scope owns", () => {
     const seen = await withWholeCatalogReadScope(
       { readGates, database: database.readonly, createWorker },
       async (scope) => {
-        addCapability(database.readwrite, "recipes", "33333333-3333-4333-8333-333333333333");
+        addCapability(database.readwrite, "recipes", THIRD_INCARNATION_ID);
         await scope.read("SELECT 1 AS ok");
         return {
           ids: scope.catalog.capabilities.map((row) => row.id),

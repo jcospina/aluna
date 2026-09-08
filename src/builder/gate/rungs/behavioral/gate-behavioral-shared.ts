@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
 import type { BehavioralErrorCase, SpecField } from "../../../../registry/index.ts";
-import { behavioralErrorMarkersSchema } from "../../../../registry/index.ts";
+import { behavioralErrorMarkersSchema, capabilityToolSchema } from "../../../../registry/index.ts";
 import type { selectCapabilityRows } from "../../../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../../../units/generation/units.ts";
 import { fieldValueMatches } from "../../gate-internal.ts";
@@ -27,7 +27,7 @@ export const behavioralRowSchema = z.strictObject({
   values: z.array(behavioralFieldValueSchema),
 });
 export const behavioralExpectedErrorBaseSchema = z.strictObject({
-  action: z.enum(["create", "read", "update", "delete", "search"]),
+  action: capabilityToolSchema,
   trigger: nonEmptyStringSchema,
   code: nonEmptyStringSchema,
   fields: z.array(nonEmptyStringSchema),

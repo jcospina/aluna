@@ -4,7 +4,9 @@
 // use a distinct arbitrary-SQL port backed only by the physically read-only SQLite
 // connection. Live and Gate scratch execution construct these same interfaces.
 
+import { errorMessage } from "../../platform/errors.ts";
 import type { dbReadonly } from "../../platform/persistence/db.ts";
+import { sqlIdentifier } from "../../platform/persistence/sql-identifier.ts";
 import { registerPlatformSqlFunctions } from "../../platform/persistence/sqlite-functions.ts";
 import {
   type CapabilitySpec,
@@ -19,11 +21,7 @@ import {
   materializeCapabilityActionRecord,
 } from "./access/query-runtime.ts";
 import { assertReadOwnership } from "./access/read-ownership.ts";
-import {
-  CapabilityDataValidationError,
-  MissingRequiredFieldsError,
-  sqlIdentifier,
-} from "./internal.ts";
+import { CapabilityDataValidationError, MissingRequiredFieldsError } from "./internal.ts";
 import { assertAdmittedChoiceValues, normalizeChoiceValue } from "./schema/choice-values.ts";
 import { deriveCapabilityTableDdl } from "./schema/ddl.ts";
 import { assertAdmittedStringLengths } from "./schema/string-lengths.ts";
@@ -224,7 +222,7 @@ function projectQueryRow(
     try {
       projected.push([alias, normalizeQueryValue(alias, type, row[alias])]);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       throw new CapabilityDataValidationError(
         `Query result row ${rowIndex} has an invalid value for declared alias "${alias}": ${message}`,
       );

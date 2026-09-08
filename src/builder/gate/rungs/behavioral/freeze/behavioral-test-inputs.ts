@@ -10,6 +10,7 @@
 // label or a field's position hash to the same digest, so *a label-only change regenerates no
 // tests* is a fact about a content address rather than a claim about a prompt.
 
+import { canonicalizeJson, compareStrings } from "../../../../../platform/canonical-json.ts";
 import {
   activeSpecFields,
   type BehavioralErrorCase,
@@ -18,8 +19,7 @@ import {
   choiceFieldOptions,
   type FieldType,
   FULL_CAPABILITY_TOOLS,
-  isChoiceFieldType,
-  isListFieldType,
+  isSearchableTextType,
   type ReadDependency,
   type SpecField,
   selectableChoiceValues,
@@ -138,7 +138,7 @@ export function actionTestInputDigest(inputs: ActionTestInputs): string {
  * These bytes are both hashed into the snapshot and handed to the model verbatim.
  */
 export function canonicalTestInputJson(value: unknown): string {
-  return JSON.stringify(sortObjectKeysDeep(value), null, 2);
+  return JSON.stringify(canonicalizeJson(value), null, 2);
 }
 
 function canonicalSchemaInput(spec: CapabilitySpec, action: CapabilityTool): ActionSchemaTestInput {
@@ -203,14 +203,14 @@ function canonicalBehavioralErrors(
       code: errorCase.code,
       // `fields` is compared as a set everywhere it is honored, so its authored order
       // is not semantic and must not move the digest.
-      fields: [...errorCase.fields].sort(compareText),
+      fields: [...errorCase.fields].sort(compareStrings),
       expected_markers: errorCase.expected_markers,
     }))
     .sort(
       (left, right) =>
-        compareText(left.code, right.code) ||
-        compareText(left.trigger, right.trigger) ||
-        compareText(left.fields.join(" "), right.fields.join(" ")),
+        compareStrings(left.code, right.code) ||
+        compareStrings(left.trigger, right.trigger) ||
+        compareStrings(left.fields.join(" "), right.fields.join(" ")),
     );
 }
 
@@ -222,8 +222,8 @@ function canonicalReadDependencies(
     .map(({ capability_id, incarnation_id }) => ({ capability_id, incarnation_id }))
     .sort(
       (left, right) =>
-        compareText(left.capability_id, right.capability_id) ||
-        compareText(left.incarnation_id, right.incarnation_id),
+        compareStrings(left.capability_id, right.capability_id) ||
+        compareStrings(left.incarnation_id, right.incarnation_id),
     );
 }
 
@@ -231,26 +231,6 @@ function canonicalReadDependencies(
  * Searchability, decided as the Diff Engine decides it (`diff-engine.ts`). They must move
  * together: a new list type would otherwise leave this projection carrying a stale suite.
  */
-function isSearchableTextType(type: FieldType): boolean {
-  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
-}
-
 function byName(left: { readonly name: string }, right: { readonly name: string }): number {
-  return compareText(left.name, right.name);
-}
-
-/** Codepoint order — deliberately locale-independent, unlike `localeCompare`. */
-function compareText(left: string, right: string): number {
-  if (left === right) return 0;
-  return left < right ? -1 : 1;
-}
-
-function sortObjectKeysDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortObjectKeysDeep);
-  if (value === null || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => compareText(left, right))
-      .map(([key, entry]) => [key, sortObjectKeysDeep(entry)]),
-  );
+  return compareStrings(left.name, right.name);
 }

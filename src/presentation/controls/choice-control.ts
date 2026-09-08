@@ -8,6 +8,7 @@
 // nor an option note and is refused a spec that declares one. Create and edit share every path
 // here; the only difference is which option arrives already chosen.
 
+import { assertNever } from "../../platform/errors.ts";
 import {
   type ChoiceOption,
   type ChoiceOptionRun,
@@ -80,12 +81,8 @@ function controlFor(presentation: ChoicePresentation): ChoiceControl {
     case "segmented":
       return renderSegmented;
     default:
-      return assertNever(presentation);
+      return assertNever(presentation, "choice presentation");
   }
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled choice presentation: ${String(value)}`);
 }
 
 /* ── shared parts ──────────────────────────────────────────────────────────── */

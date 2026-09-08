@@ -8,6 +8,7 @@ import type {
   Provider,
 } from "../../../../../platform/provider/index.ts";
 import type { CapabilitySpec } from "../../../../../registry/index.ts";
+import { FULL_CAPABILITY_TOOLS } from "../../../../../registry/index.ts";
 import {
   behavioralResponseFor,
   DEFAULT_BEHAVIORAL_SUITE,
@@ -48,7 +49,7 @@ describe("freezing behavioral intent — generation", () => {
 
     const result = await freezeBehavioralTests({ provider, spec: NOTES });
 
-    expect(actionsOf(prompts)).toEqual(["create", "read", "update", "delete", "search"]);
+    expect(actionsOf(prompts)).toEqual([...FULL_CAPABILITY_TOOLS]);
     expect(result.report.map((entry) => `${entry.action}:${entry.status}`)).toEqual([
       "create:generated",
       "read:generated",
@@ -134,7 +135,7 @@ describe("freezing behavioral intent — bounded concurrency", () => {
     const result = await freezing;
 
     expect(peak).toBe(BEHAVIORAL_TEST_GENERATION_CONCURRENCY);
-    expect(started).toEqual(["create", "read", "update", "delete", "search"]);
+    expect(started).toEqual([...FULL_CAPABILITY_TOOLS]);
     expect(result.frozenTests.actions.map((entry) => entry.action)).toEqual([
       "create",
       "read",
@@ -402,7 +403,7 @@ describe("freezing behavioral intent — platform admission", () => {
 
     // create/update digests move. Read/delete/search digests do not, but their v1 fixture
     // rows name `pinned`, so candidate admission turns each stale carry into regeneration.
-    expect(actionsOf(prompts)).toEqual(["create", "read", "update", "delete", "search"]);
+    expect(actionsOf(prompts)).toEqual([...FULL_CAPABILITY_TOOLS]);
     expect(result.report.every((entry) => entry.status === "generated")).toBe(true);
     expect(JSON.stringify(result.frozenTests)).not.toContain("pinned");
   });

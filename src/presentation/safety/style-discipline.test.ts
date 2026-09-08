@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { PALETTE_COLOR_TOKENS } from "../tokens/design-tokens.ts";
 import { describeStyleViolation, sanitizeStyle } from "./style-discipline.ts";
 
 // Unit coverage for the inline-`style` token discipline (ADR-0005 §4, amended 2026-07-01 and
@@ -33,25 +34,9 @@ describe("sanitizeStyle — conforming values pass through unchanged", () => {
 
   test("every High Meadow token on each closed axis", () => {
     // The whole set, not a sample: a renamed or dropped token has to fail loudly here
-    // rather than quietly become an off-token value at build time.
-    for (const name of [
-      "ground",
-      "ground-deep",
-      "surface",
-      "surface-2",
-      "ink",
-      "ink-2",
-      "ink-3",
-      "leaf",
-      "shade",
-      "teal",
-      "sky",
-      "sun",
-      "ochre",
-      "clay",
-      "violet",
-      "signal",
-    ]) {
+    // rather than quietly become an off-token value at build time. `design-tokens.test.ts`
+    // is where the set's membership is pinned; this asks what the sanitizer does with it.
+    for (const name of PALETTE_COLOR_TOKENS) {
       expect(sanitizeStyle(`color: var(--${name})`)).toBe(`color: var(--${name})`);
     }
     for (const name of ["xs", "sm", "base", "md", "lg", "xl", "title", "display"]) {

@@ -9,6 +9,7 @@ import { describe, expect, test } from "bun:test";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   type SpecField,
 } from "../../../registry/index.ts";
@@ -45,7 +46,7 @@ function notesSpec(fields: readonly SpecField[]): CapabilitySpec {
             fields: required.map((field) => field.name),
             expected_markers: BEHAVIORAL_ERROR_MARKERS,
           })),
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
   };

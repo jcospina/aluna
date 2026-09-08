@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { THIRD_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   claimLogoGeneration,
   getCapabilityLogoState,
@@ -20,23 +21,21 @@ import {
 } from "../../../runtime/router/dispatch/router.test-support.ts";
 import { createApp } from "../../../server/app.ts";
 import { LogoGenerationError, type LogoGenerationProvider } from "../generation/provider.ts";
+import {
+  ARTWORK,
+  ATTEMPT,
+  ATTEMPT_PATH,
+  drawing,
+  GZIP,
+  LOGO_PATH,
+} from "../logo-routes.test-support.ts";
 import { capabilityLogoPath, installCapabilityLogo } from "./storage.ts";
 
 // The sweep, through the two real routes and the desk that names them: a fresh render arms one
 // attempt per `absent` tile. Every provider is injected; reaching the network spends real credits.
 
-const ARTWORK = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
-
 /** A second capability, so a desk with more than one faceless tile can be exercised. */
-const RECIPES_INCARNATION_ID = "33333333-3333-4333-8333-333333333333";
-
-const ATTEMPT_PATH = `/capability/notes/${NOTES_INCARNATION_ID}/logo-attempt`;
-const LOGO_PATH = `/capability/notes/${NOTES_INCARNATION_ID}/logo.svg`;
-
-const GZIP: RequestInit = { headers: { "accept-encoding": "gzip, deflate, br" } };
-
-// What the tile sends. The paid route requires it, so nothing cross-origin can reach it.
-const ATTEMPT: RequestInit = { method: "POST", headers: { "HX-Request": "true" } };
+const RECIPES_INCARNATION_ID = THIRD_INCARNATION_ID;
 
 let dir: string;
 let conns: PlatformDatabase;
@@ -64,8 +63,6 @@ function appWith(
     ...overrides,
   });
 }
-
-const drawing: LogoGenerationProvider = { generate: async () => ARTWORK };
 
 function logoState() {
   return getCapabilityLogoState("notes", NOTES_INCARNATION_ID, conns.readonly);

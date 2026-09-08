@@ -6,6 +6,8 @@
  */
 
 import { releaseRegionContent } from "./region-scope.js";
+import { capabilityUrl } from "./routes.js";
+import { FIRST_FIELD_SELECTOR } from "./shell-dom.js";
 
 const ITEM_SELECTOR = ".capability-item";
 const RECORD_VIEW_SELECTOR = "[data-record-view]";
@@ -15,11 +17,8 @@ const COLLECTION_SELECTOR = ".capability-collection";
 const SURFACE_SELECTOR = "[data-active-capability-id]";
 const RECORDS_REGION_SELECTOR = "[data-content-region='records']";
 const CONTENT_REGION_SELECTOR = "[data-content-region]";
-/* Hidden inputs are excluded because every field is preceded by its own `__aluna_present`
-   marker and focusing one silently does nothing; the last two are buttons, not form elements. */
-const FIRST_FIELD_SELECTOR =
-  "input:not([type=hidden]), textarea, select," +
-  " .listbox__button, .segmented button:not([disabled])";
+
+export { FIRST_FIELD_SELECTOR } from "./shell-dom.js";
 
 /**
  * @typedef {{
@@ -182,7 +181,7 @@ export function leaveRecordView(view) {
 
   releaseRegionContent(view);
   void transport
-    .ajax("GET", `/capability/${capabilityId}`, {
+    .ajax("GET", capabilityUrl(capabilityId), {
       source: region,
       target: region,
       swap: "innerHTML",

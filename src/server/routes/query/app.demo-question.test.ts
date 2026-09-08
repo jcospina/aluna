@@ -7,14 +7,15 @@
 // assertions here name what they are proving, so they can be re-homed rather than deleted.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { ZodType } from "zod";
 
 import { INTENT_RESOLVER_PROMPT_PREFIX } from "../../../pipeline/intent/index.ts";
-import { openDatabase, type PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { runMigrations } from "../../../platform/persistence/migrations.ts";
+import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../../../platform/persistence/scratch-db.test-support.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
 import {
   QUESTION_BUDGET_SPENT_SENTENCE,
@@ -97,7 +98,7 @@ function stagedProvider(intent: unknown, sql: string, reads = 1): Provider {
   };
 }
 
-let directory: string;
+let env: ScratchDbEnv;
 let databases: PlatformDatabase;
 const previousNodeEnv = process.env.NODE_ENV;
 
@@ -106,7 +107,7 @@ function app(intent: unknown, sql: string, reads = 1) {
   return createApp({
     getProvider: () => provider,
     buildDatabases: databases,
-    artifactsRoot: join(directory, "artifacts"),
+    artifactsRoot: env.artifactsRoot,
     capabilityRouter: { databases },
   });
 }
@@ -116,18 +117,15 @@ function ask(question: string): RequestInit {
 }
 
 beforeEach(() => {
-  directory = mkdtempSync(join(tmpdir(), "omni-crud-demo-question-"));
-  databases = openDatabase(join(directory, "test.db"));
-  runMigrations(databases.readwrite);
+  env = createScratchDbEnv("omni-crud-demo-question-");
+  databases = env.conns;
   catalogueWithRecords(databases.readwrite);
 });
 
 afterEach(() => {
   if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
   else process.env.NODE_ENV = previousNodeEnv;
-  databases.readwrite.close();
-  databases.readonly.close();
-  rmSync(directory, { recursive: true, force: true });
+  teardownScratchDbEnv(env);
 });
 
 describe("the one-question exercise", () => {
@@ -251,7 +249,7 @@ describe("the one-question exercise", () => {
         throw new Error("Missing OMNI_API_KEY");
       },
       buildDatabases: databases,
-      artifactsRoot: join(directory, "artifacts"),
+      artifactsRoot: env.artifactsRoot,
       capabilityRouter: { databases },
     });
 

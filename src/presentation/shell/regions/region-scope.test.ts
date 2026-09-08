@@ -216,13 +216,13 @@ describe("the shell's classic-script glue speaks the release vocabulary", () => 
 
   test("releases the content area before it replaces it wholesale", () => {
     // Re-answering a severed deletion confirmation is the one place the shell replaces the whole
-    // region itself, so `public/capability-deletion.js` restates the release vocabulary.
+    // region itself. It dispatches rather than calling, because the scope may be an ancestor's.
     const recovery = readFileSync(
       join(import.meta.dir, "../../../../public/capability-deletion.js"),
       "utf8",
     );
-    expect(recovery.match(/releaseRegionContent\(output\);/g)).toHaveLength(1);
-    expect(recovery).toContain(`RELEASE_REGION_EVENT = "${RELEASE_REGION_EVENT}"`);
+    expect(recovery.match(/askRegionToRelease\(output\);/g)).toHaveLength(1);
+    expect(recovery).toContain("import { RELEASE_REGION_EVENT, registerRegionRelease }");
   });
 
   test("promoting a build's ending releases through this rule and not around it", () => {

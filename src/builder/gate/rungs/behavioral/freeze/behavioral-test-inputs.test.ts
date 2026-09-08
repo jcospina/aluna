@@ -3,7 +3,7 @@
 // means: what is in, what is out, and which spec edits can and cannot move a digest.
 
 import { describe, expect, test } from "bun:test";
-
+import { SECOND_INCARNATION_ID } from "../../../../../registry/incarnations.test-support.ts";
 import {
   type CapabilitySpec,
   type ChoiceOption,
@@ -275,9 +275,7 @@ describe("per-Action behavioral test inputs — the closed set", () => {
     const withDependency = notesSpec({
       read_dependencies: {
         ...RICH_SPEC.read_dependencies,
-        read: [
-          { capability_id: "shelves", incarnation_id: "22222222-2222-4222-8222-222222222222" },
-        ],
+        read: [{ capability_id: "shelves", incarnation_id: SECOND_INCARNATION_ID }],
       },
     });
 
@@ -287,7 +285,7 @@ describe("per-Action behavioral test inputs — the closed set", () => {
         expect(errorCase.action).toBe(inputs.action);
     }
     expect(actionTestInputs(withDependency, "read").read_dependencies).toEqual([
-      { capability_id: "shelves", incarnation_id: "22222222-2222-4222-8222-222222222222" },
+      { capability_id: "shelves", incarnation_id: SECOND_INCARNATION_ID },
     ]);
     expect(actionTestInputs(withDependency, "create").read_dependencies).toEqual([]);
     expect(actionTestInputs(withDependency, "create").behavioral_errors[0]?.code).toBe(
@@ -414,9 +412,7 @@ describe("per-Action behavioral test inputs — digest equality", () => {
       ...RICH_SPEC,
       read_dependencies: {
         ...RICH_SPEC.read_dependencies,
-        search: [
-          { capability_id: "shelves", incarnation_id: "22222222-2222-4222-8222-222222222222" },
-        ],
+        search: [{ capability_id: "shelves", incarnation_id: SECOND_INCARNATION_ID }],
       },
     };
 

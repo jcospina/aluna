@@ -23,6 +23,7 @@ import {
   GOVERNED,
   REPO_ROOT,
   sourceFilesUnder,
+  within,
 } from "./comment-budget.ts";
 
 /** Written immediately after the one citation whose target is meant to be missing. */
@@ -195,12 +196,6 @@ export function auditRepository(roots: readonly string[] = GOVERNED): StaleRefer
     .map((path) => relative(REPO_ROOT, path))
     .filter((file) => !VENDORED.test(file))
     .flatMap((file) => staleReferences(file, readFileSync(join(REPO_ROOT, file), "utf8")));
-}
-
-/** Narrow an audit to the paths a caller named, so one agent can check its own slice. */
-function within(stale: readonly StaleReference[], scopes: readonly string[]): StaleReference[] {
-  if (scopes.length === 0) return [...stale];
-  return stale.filter((one) => scopes.some((scope) => one.file.startsWith(scope)));
 }
 
 function report(stale: readonly StaleReference[]): void {

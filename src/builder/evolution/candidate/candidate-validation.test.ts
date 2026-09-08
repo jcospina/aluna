@@ -7,7 +7,10 @@
 // additive fields, hides, and list-input-mode presentation changes.
 
 import { describe, expect, test } from "bun:test";
-
+import {
+  FOURTH_INCARNATION_ID,
+  UNKNOWN_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
 import { capabilitySpecSchema } from "../../../registry/index.ts";
 import {
   type CandidateDraft,
@@ -376,7 +379,7 @@ describe("the frozen dependency-generation catalog", () => {
   test("an undeclared dependency pair — stale incarnation — is rejected", () => {
     const draft = candidateFrom(journalCapabilityRow());
     draft.read_dependencies.read = [
-      { capability_id: "shelves", incarnation_id: "44444444-4444-4444-8444-444444444444" },
+      { capability_id: "shelves", incarnation_id: FOURTH_INCARNATION_ID },
     ];
     expectRejected(draft, "is not in the frozen dependency-generation catalog");
   });
@@ -384,7 +387,7 @@ describe("the frozen dependency-generation catalog", () => {
 
 describe("platform-owned lifecycle metadata and non-spec shapes", () => {
   test.each([
-    ["incarnation_id", "99999999-9999-4999-8999-999999999999"],
+    ["incarnation_id", UNKNOWN_INCARNATION_ID],
     ["version", 2],
     ["build_id", "build-123"],
     ["artifacts_path", "capabilities/journal/x/v2/"],

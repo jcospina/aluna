@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { UNKNOWN_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   compareAndSwapCapability,
   getCapability,
@@ -398,8 +399,8 @@ describe("two-phase capability destruction", () => {
     expect(tombstone?.manifest.map((entry) => entry.key)).toEqual(["inactive", "same"]);
 
     const recreatedWhilePending = notesRow({
-      incarnation_id: "99999999-9999-4999-8999-999999999999",
-      artifacts_path: "capabilities/notes/99999999-9999-4999-8999-999999999999/v1/",
+      incarnation_id: UNKNOWN_INCARNATION_ID,
+      artifacts_path: `capabilities/notes/${UNKNOWN_INCARNATION_ID}/v1/`,
       seed: 184206,
       logo: { status: "absent", attempts: 0 },
     });

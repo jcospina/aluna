@@ -3,6 +3,7 @@
 // an immutable region validation should have frozen, throws here rather than becoming a
 // silent no-op or an unproven copy.
 
+import { canonicalizeJson, compareStrings } from "../../../platform/canonical-json.ts";
 import type { CapabilitySpec, SpecField } from "../../../registry/index.ts";
 
 /**
@@ -41,7 +42,7 @@ export function assertTotalCoverage(committed: CapabilitySpec, candidate: Capabi
 // Reduce a spec to what no change fact explains: canonicalize, then blank every fact-bearing
 // region. A new admitted top-level key survives here, so an unextended matrix fails closed.
 function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<string>): unknown {
-  const canonical = canonicalize(spec) as Record<string, unknown>;
+  const canonical = canonicalizeJson(spec) as Record<string, unknown>;
   canonical.label = RESIDUAL_SENTINEL;
   canonical.noun = RESIDUAL_SENTINEL;
   canonical.prompt_context = RESIDUAL_SENTINEL;
@@ -63,7 +64,7 @@ function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<st
  * blanking: an added key would otherwise land last, and stringify differently for no reason.
  */
 function blankedField(field: SpecField): Record<string, unknown> {
-  return canonicalize({
+  return canonicalizeJson({
     ...field,
     label: RESIDUAL_SENTINEL,
     required: RESIDUAL_SENTINEL,
@@ -76,23 +77,4 @@ function blankedField(field: SpecField): Record<string, unknown> {
     ...(field.values === undefined ? {} : { values: RESIDUAL_SENTINEL }),
     ...(field.groups === undefined ? {} : { groups: RESIDUAL_SENTINEL }),
   }) as Record<string, unknown>;
-}
-
-// Deep clone with object keys sorted; arrays keep their order (an ordered product fact), so
-// reordering object keys is a no-op while ordered facts still diff.
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value !== null && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-      compareStrings(left, right),
-    );
-    return Object.fromEntries(entries.map(([key, nested]) => [key, canonicalize(nested)]));
-  }
-  return value;
-}
-
-/** Codepoint order — deliberately locale-independent, unlike `localeCompare`. */
-function compareStrings(left: string, right: string): number {
-  if (left === right) return 0;
-  return left < right ? -1 : 1;
 }
