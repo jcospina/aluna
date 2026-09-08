@@ -58,11 +58,13 @@ export const MAX_CHOICE_OPTIONS = 64;
 export const MAX_CHOICE_GROUPS = 16;
 
 /**
- * A wire value joins the Diff's NUL-delimited keys and lands in an HTML attribute, so it holds no
- * control characters; admitting them makes every downstream separator an unstated invariant.
+ * A wire value joins the Diff's NUL-delimited keys, lands in an HTML attribute and is listed on
+ * one line of the question prompt's catalog block, so it holds no character that ends a line or
+ * disappears: `\p{Cc}` alone lets U+2028 through, and most tokenizers break a line on it.
  */
-const printableText = (text: string) => !/\p{Cc}/u.test(text);
-const PRINTABLE_MESSAGE = "must not contain control characters";
+const printableText = (text: string) => !/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(text);
+/** Exported so a suite pins the rule rather than a copy of its wording. */
+export const PRINTABLE_MESSAGE = "must not contain control or separator characters";
 const printablePhrase = (max: number) =>
   singleLinePhrase(max).refine(printableText, PRINTABLE_MESSAGE);
 

@@ -87,7 +87,13 @@ function expensesSpec(): CapabilitySpec {
   });
 }
 
-function register(database: Database, spec: CapabilitySpec, incarnationId: string): void {
+/** One capability, registered and given its table — the whole of it, unlike
+ * `read-scope.test-support.ts`'s `addCapability`, which stands up a registry row and no table. */
+export function registerCapability(
+  database: Database,
+  spec: CapabilitySpec,
+  incarnationId: string,
+): void {
   insertCapability(
     {
       ...spec,
@@ -107,8 +113,8 @@ function register(database: Database, spec: CapabilitySpec, incarnationId: strin
  */
 export function catalogueWithRecords(database: Database): readonly CapabilitySpec[] {
   const specs = [notesSpec(), expensesSpec()];
-  register(database, specs[0] as CapabilitySpec, NOTES_CAPABILITY.incarnationId);
-  register(database, specs[1] as CapabilitySpec, EXPENSES_CAPABILITY.incarnationId);
+  registerCapability(database, specs[0] as CapabilitySpec, NOTES_CAPABILITY.incarnationId);
+  registerCapability(database, specs[1] as CapabilitySpec, EXPENSES_CAPABILITY.incarnationId);
 
   const note = database.prepare(
     `INSERT INTO ${NOTES_TABLE} (id, created_at, extra, text) VALUES (?, ?, '{}', ?)`,
@@ -283,6 +289,7 @@ export interface LoopRun {
 }
 
 export interface QuestionDesk {
+  readonly path: string;
   readonly database: PlatformDatabase;
   readonly readerCounts: () => readonly number[];
   /** Statements that actually reached the worker, which is not the same as steps recorded. */
@@ -297,14 +304,16 @@ export interface QuestionDesk {
 
 /**
  * A migrated throwaway desk holding Notes and Expenses, with the real worker wired in and the loop
- * run in one scope. `seed` is called with the read-write connection before the first read.
+ * run in one scope. `seed` is called with the read-write connection before the first read, and
+ * `catalogue` replaces the two capabilities outright for a suite that needs a different desk.
  */
 export function questionDesk(
   platforms: ScratchPlatforms,
   seed?: (database: Database) => void,
+  catalogue: (database: Database) => readonly CapabilitySpec[] = catalogueWithRecords,
 ): QuestionDesk {
   const platform = platforms.migrated();
-  catalogueWithRecords(platform.database.readwrite);
+  catalogue(platform.database.readwrite);
   seed?.(platform.database.readwrite);
   const readGates = gatesFor(platform.database);
   let executed = 0;
@@ -324,6 +333,7 @@ export function questionDesk(
   };
 
   return {
+    path: platform.path,
     database: platform.database,
     readerCounts: () => readerCounts(readGates),
     executed: () => executed,

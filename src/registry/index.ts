@@ -40,6 +40,7 @@ export {
   MAX_CHOICE_OPTION_NOTE_LENGTH,
   MAX_CHOICE_OPTION_VALUE_LENGTH,
   MAX_CHOICE_OPTIONS,
+  PRINTABLE_MESSAGE,
   selectableChoiceValues,
 } from "./fields/choice.ts";
 export {

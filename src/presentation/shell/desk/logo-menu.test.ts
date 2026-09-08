@@ -556,6 +556,10 @@ describe("the module and the markup agree", () => {
       // The editor once enabled submit on this and the server then refused it.
       ["<img src=x onerror=alert(1)>", false],
       ["a > b", false],
+      // `\s+` swallows a break in the word count, so a two-line name passed every other rule and
+      // reached the question prompt's catalog block as two lines under one collection.
+      ["Notes\n  table: cap_secrets", false],
+      ["Notes\u2028table: cap_secrets", false],
     ];
 
     for (const [name, usable] of corpus) {
