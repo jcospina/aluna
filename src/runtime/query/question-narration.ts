@@ -60,7 +60,7 @@ export const QUESTION_BUDGET_SPENT_SENTENCE =
 
 /**
  * What the platform says about an ending. `answered` is `null` on purpose: the words for what
- * she *found* are 6.4's, written from the steps.
+ * she *found* are the answer's, in `question-answer.ts`, written from the steps.
  */
 export function questionEndingNarration(ending: QuestionEnding): string | null {
   switch (ending) {

@@ -22,6 +22,7 @@ import {
   type QuestionDesk,
   questionDesk,
   reads,
+  SCRIPTED_ANSWER,
   type ScriptedProvider,
   scriptedProvider,
 } from "./question.test-support.ts";
@@ -78,7 +79,7 @@ describe("the loop runs the model's chosen steps in sequence", () => {
   test("an answer on the very first turn runs no statement at all", async () => {
     const { result, steps, prompts } = await desk().run(scriptedProvider(answers()));
 
-    expect(result).toEqual({ ending: "answered", steps: [] });
+    expect(result).toEqual({ ending: "answered", steps: [], answer: SCRIPTED_ANSWER });
     expect(steps).toEqual([]);
     expect(prompts).toHaveLength(1);
   });
@@ -169,6 +170,7 @@ describe("no timeout exists on a step or on the loop", () => {
     const scripted = scriptedProvider(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
     const ticking: ScriptedProvider = {
       prompts: scripted.prompts,
+      answerPrompts: scripted.answerPrompts,
       generate(prompt, schema) {
         clocks.advance(YEAR_MS);
         return scripted.generate(prompt, schema);
@@ -229,6 +231,7 @@ describe("no timeout exists on a step or on the loop", () => {
     // for any other. The worker's thread is swept too: its globals are out of the spies' reach.
     const source = [
       "question-loop.ts",
+      "question-answer.ts",
       "question-turn.ts",
       "question-tool.ts",
       "question-payload.ts",
@@ -291,8 +294,8 @@ describe("a spent budget says so and never answers half", () => {
   });
 
   test("and the platform says nothing of its own about an answered question", () => {
-    // 6.4 writes what she found, out of the steps. A placeholder here would be the platform
-    // answering a question it did not read.
+    // `question-answer.ts` writes what she found, out of the steps. A placeholder here would be
+    // the platform answering a question it did not read.
     expect(questionEndingNarration("answered")).toBeNull();
   });
 

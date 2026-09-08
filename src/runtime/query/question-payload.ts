@@ -51,8 +51,8 @@ export function questionPayloadBytes(rows: readonly QueryWorkerRow[]): number {
 }
 
 /**
- * What the model is told when one read returned more than a step may hand back; 6.4 writes what a
- * person reads. No refusal names a size: a digit here is one somebody later puts in a sentence.
+ * What the model is told when one read returned more than a step may hand back; `question-answer.ts`
+ * writes what a person reads. No refusal names a size: a digit is one somebody later says out loud.
  */
 export const QUESTION_STEP_RESULT_TOO_LARGE = [
   "That returned too much to read back, so you have none of it.",

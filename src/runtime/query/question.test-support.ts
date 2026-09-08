@@ -25,6 +25,7 @@ import { validSpec } from "../../registry/spec/spec.test-support.ts";
 import { insertCapability } from "../../registry/store/store.ts";
 import { applyCapabilityTableDdl } from "../data/index.ts";
 import { createQueryWorker, type QueryWorkerValue } from "./query-worker.ts";
+import { QUESTION_ANSWER_PROMPT_PREFIX } from "./question-answer.ts";
 import { QUESTION_STEP_BUDGET, type QuestionLoopResult, runQuestionLoop } from "./question-loop.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
@@ -151,10 +152,13 @@ export function reads(
   return { next: "read", read: { tool: READ_ONLY_QUERY_TOOL, sql, parameters, label } };
 }
 
-/** A decision to stop reading. What Aluna then says is 6.4's. */
+/** A decision to stop reading. The answer step then writes what she says, out of the steps. */
 export function answers(): QuestionDecision {
   return { next: "answer", read: null };
 }
+
+/** What a fake provider says when the loop asks for the answer; the words are 6.4/03's. */
+export const SCRIPTED_ANSWER = "Here is what I found.";
 
 /**
  * One turn that ran a statement, for a suite that scripts only `read` decisions: a turn coming
@@ -192,21 +196,33 @@ export function nextPrompt(
 export function providerResolving(...values: readonly unknown[]): Provider {
   let next = 0;
   return {
-    generate<T>(): GenerateResult<T> {
+    generate<T>(prompt: string): GenerateResult<T> {
+      // The answer is a second generation against a schema of its own, and a suite about a rogue
+      // *decision* is not about a rogue answer. It gets the ordinary one.
+      if (prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX))
+        return resolving({ answer: SCRIPTED_ANSWER });
       const value = values[Math.min(next, values.length - 1)];
       next += 1;
-      return {
-        partialStream: (async function* () {
-          yield value as DeepPartial<T>;
-        })(),
-        object: Promise.resolve(value as T),
-        usage: Promise.resolve({
-          inputTokens: undefined,
-          outputTokens: undefined,
-          totalTokens: undefined,
-        }),
-      };
+      return resolving(value);
     },
+  };
+}
+
+/** No usage figures: nothing on this path reads them, and a number here would be invented. */
+export const NO_USAGE = Object.freeze({
+  inputTokens: undefined,
+  outputTokens: undefined,
+  totalTokens: undefined,
+});
+
+/** A generation that resolves to exactly this value, without validating it against the schema. */
+function resolving<T>(value: unknown): GenerateResult<T> {
+  return {
+    partialStream: (async function* () {
+      yield value as DeepPartial<T>;
+    })(),
+    object: Promise.resolve(value as T),
+    usage: Promise.resolve(NO_USAGE),
   };
 }
 
@@ -219,19 +235,17 @@ export function providerFaulting(error: Error): Provider {
       return {
         partialStream: (async function* () {})(),
         object,
-        usage: Promise.resolve({
-          inputTokens: undefined,
-          outputTokens: undefined,
-          totalTokens: undefined,
-        }),
+        usage: Promise.resolve(NO_USAGE),
       };
     },
   };
 }
 
 export interface ScriptedProvider extends Provider {
-  /** Every prompt the turn built, in order. */
+  /** Every prompt a *turn* built, in order. The answer's is kept apart: it is not a decision,
+   * and every suite counting turns was written before there was a second kind of prompt. */
   readonly prompts: string[];
+  readonly answerPrompts: string[];
 }
 
 /**
@@ -240,14 +254,19 @@ export interface ScriptedProvider extends Provider {
  */
 export function scriptedProvider(...decisions: readonly QuestionDecision[]): ScriptedProvider {
   const prompts: string[] = [];
+  const answerPrompts: string[] = [];
   let next = 0;
 
   return {
     prompts,
+    answerPrompts,
     generate<T>(prompt: string, schema: Parameters<Provider["generate"]>[1]): GenerateResult<T> {
-      prompts.push(prompt);
-      const scripted = decisions[Math.min(next, decisions.length - 1)];
-      next += 1;
+      const answering = prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX);
+      (answering ? answerPrompts : prompts).push(prompt);
+      const scripted = answering
+        ? { answer: SCRIPTED_ANSWER }
+        : decisions[Math.min(next, decisions.length - 1)];
+      if (!answering) next += 1;
       const object = (async () => (schema as { parse(value: unknown): T }).parse(scripted))();
       // A rejected object with nothing awaiting it yet is an unhandled rejection, and the
       // turn awaits it one microtask later.
@@ -257,11 +276,7 @@ export function scriptedProvider(...decisions: readonly QuestionDecision[]): Scr
           yield scripted as DeepPartial<T>;
         })(),
         object,
-        usage: Promise.resolve({
-          inputTokens: undefined,
-          outputTokens: undefined,
-          totalTokens: undefined,
-        }),
+        usage: Promise.resolve(NO_USAGE),
       };
     },
   };
@@ -286,6 +301,8 @@ export interface LoopRun {
   /** Every step, watched through `onStep` — the only way a caller sees a spent budget's. */
   readonly steps: readonly QuestionStep[];
   readonly prompts: readonly string[];
+  /** The one prompt the answer was written from, or none when the budget ran out first. */
+  readonly answerPrompts: readonly string[];
 }
 
 export interface QuestionDesk {
@@ -293,6 +310,8 @@ export interface QuestionDesk {
   readonly database: PlatformDatabase;
   readonly readerCounts: () => readonly number[];
   /** Statements that actually reached the worker, which is not the same as steps recorded. */
+  readonly statements: () => readonly string[];
+  /** How many of them, which is what most suites here are asking. */
   readonly executed: () => number;
   run(
     provider: ScriptedProvider,
@@ -316,7 +335,7 @@ export function questionDesk(
   catalogue(platform.database.readwrite);
   seed?.(platform.database.readwrite);
   const readGates = gatesFor(platform.database);
-  let executed = 0;
+  const statements: string[] = [];
   const scopeDeps = {
     readGates,
     database: platform.database.readonly,
@@ -325,7 +344,7 @@ export function questionDesk(
       return {
         ...worker,
         read: (sql: string, parameters?: readonly QueryWorkerValue[]) => {
-          executed += 1;
+          statements.push(sql);
           return worker.read(sql, parameters);
         },
       };
@@ -336,7 +355,8 @@ export function questionDesk(
     path: platform.path,
     database: platform.database,
     readerCounts: () => readerCounts(readGates),
-    executed: () => executed,
+    statements: () => statements,
+    executed: () => statements.length,
     inScope: (body) => withWholeCatalogReadScope(scopeDeps, body),
     async run(provider, question = "how much did I spend on groceries?", onStep) {
       const steps: QuestionStep[] = [];
@@ -352,7 +372,7 @@ export function questionDesk(
           },
         ),
       );
-      return { result, steps, prompts: provider.prompts };
+      return { result, steps, prompts: provider.prompts, answerPrompts: provider.answerPrompts };
     },
   };
 }

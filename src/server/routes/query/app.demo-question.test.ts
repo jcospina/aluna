@@ -18,6 +18,7 @@ import {
 } from "../../../platform/persistence/scratch-db.test-support.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
 import {
+  QUESTION_ANSWER_PROMPT_PREFIX,
   QUESTION_BUDGET_SPENT_SENTENCE,
   QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
   QUESTION_STEP_BUDGET,
@@ -36,6 +37,7 @@ import {
 import { createApp } from "../../app.ts";
 import { escapeHtml } from "../../http/html.ts";
 import {
+  ANSWER_HEADING,
   BUDGET_SPENT_HEADING,
   DEMO_QUESTION_PATH,
   STEP_NARRATION_HEADING,
@@ -61,7 +63,13 @@ const NEW_CAPABILITY_INTENT = {
 };
 
 /**
- * One provider answering two different questions, told apart by the prompt each stage builds
+ * What the fake provider says once the reading is done. Carries the characters an escape has to
+ * catch: this is model-authored text rendered into the page, so it is the page's XSS surface.
+ */
+const DEMO_ANSWER = 'You spent £12.50 on groceries & tea <span onclick="x">last week</span>.';
+
+/**
+ * One provider answering three different prompts, told apart by the prompt each stage builds
  * rather than by call order. `reads` is how many statements it runs; `Infinity` never converges.
  */
 function stagedProvider(intent: unknown, sql: string, reads = 1): Provider {
@@ -80,7 +88,9 @@ function stagedProvider(intent: unknown, sql: string, reads = 1): Provider {
         ? intent
         : prompt.startsWith(QUESTION_TURN_PROMPT_PREFIX)
           ? decide()
-          : undefined;
+          : prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX)
+            ? { answer: DEMO_ANSWER }
+            : undefined;
       const object = (async () => schema.parse(answer))();
       object.catch(() => {});
       return {
@@ -146,7 +156,12 @@ describe("the one-question exercise", () => {
     expect(html).toContain("groceries");
     expect(html).toContain("&quot;total&quot;: 2");
     expect(html).toContain(`Step 1 of at most ${QUESTION_STEP_BUDGET}`);
-    expect(html).toContain("She stopped reading");
+    // And then the answer, written from that result and rendered as the last thing on the page.
+    expect(html).toContain(ANSWER_HEADING);
+    expect(html).toContain(escapeHtml(DEMO_ANSWER));
+    expect(html.indexOf(escapeHtml(DEMO_ANSWER))).toBeGreaterThan(html.indexOf("Rows (1)"));
+    // Escaped, not rendered: the answer is the one string on this page the model wrote.
+    expect(html).not.toContain("<span onclick=");
   });
 
   test("shows a failed statement rather than ending the exercise", async () => {
@@ -229,7 +244,9 @@ describe("the one-question exercise", () => {
     expect(response.status).toBe(200);
     expect(html).toContain(`Step ${QUESTION_STEP_BUDGET} of at most ${QUESTION_STEP_BUDGET}`);
     expect(html).not.toContain(`Step ${QUESTION_STEP_BUDGET + 1} of at most`);
-    expect(html).not.toContain("She stopped reading");
+    // A spent budget has no answer to render, and this is the block that would show one.
+    expect(html).not.toContain(ANSWER_HEADING);
+    expect(html).not.toContain(DEMO_ANSWER);
 
     // The ending is Aluna's sentence and nothing else. Asserting mere presence would stay green
     // with a total from the ten steps beside it, so this pins the whole block (decision 3).

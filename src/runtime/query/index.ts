@@ -1,7 +1,8 @@
 // The ephemeral whole-catalog read path: the worker SQL runs in, the scope that owns the
 // catalog for the length of one question, the one tool a question is offered, the size cap
 // that refuses a result too large to send back, the bounded loop that repeats a turn until the
-// model answers or its ten reads are spent, and the sentences Aluna says while it runs.
+// model answers or its ten reads are spent, the sentences Aluna says while it runs, and the
+// answer she writes at the end, out of what the loop's steps returned.
 
 export {
   createQueryWorker,
@@ -14,6 +15,9 @@ export {
   QueryWorkerStatementError,
   type QueryWorkerValue,
 } from "./query-worker.ts";
+// The answer's rules are not re-exported, for the reason `QUESTION_STEP_LABEL_HINTS` is not: they
+// are what the *model* is told. The prefix is, because a fake provider outside recognizes the call.
+export { QUESTION_ANSWER_PROMPT_PREFIX } from "./question-answer.ts";
 export {
   QUESTION_STEP_BUDGET,
   type QuestionEnding,

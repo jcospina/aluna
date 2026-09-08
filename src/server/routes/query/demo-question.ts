@@ -140,6 +140,10 @@ function renderVocabulary(): string {
   );
 }
 
+/** The heading the answer renders under. Exported so a test can pin the block a person reads,
+ * which is the one thing on this page written out of the steps rather than off a label. */
+export const ANSWER_HEADING = "What Aluna found";
+
 /** The heading a spent budget's ending renders under. Exported so a test can pin the whole block
  * rather than its presence: the ending must be Aluna's sentence and nothing else (decision 3). */
 export const BUDGET_SPENT_HEADING = "The reads ran out — what Aluna says";
@@ -153,10 +157,7 @@ function renderEnding(loop: QuestionLoopResult): string {
     // one thing this block exists to show render as an empty box.
     return renderSection(BUDGET_SPENT_HEADING, QUESTION_BUDGET_SPENT_SENTENCE, "failure");
   }
-  return renderSection(
-    "She stopped reading",
-    "The model has what it needs. What she then says is 6.4's.",
-  );
+  return renderSection(ANSWER_HEADING, loop.answer);
 }
 
 function renderExercise(exercise: QuestionExercise): string {
@@ -189,7 +190,9 @@ function renderPage(exercise?: QuestionExercise): string {
     "a whole-catalog read scope opens, and the model is offered one tool and up to ",
     `${QUESTION_STEP_BUDGET} reads — it decides each next step until it has enough or the `,
     "reads run out. Nothing is timed. A read that comes back too large is refused whole, never ",
-    "trimmed, and the model is told to narrow it. Scaffolding: this page comes down in 6.5/05.</p>",
+    "trimmed, and the model is told to narrow it. The statements count and total; when the model ",
+    "stops reading, its answer is written from what they returned and nothing else. ",
+    "Scaffolding: this page comes down in 6.5/05.</p>",
     renderVocabulary(),
     `<form method="post" action="${DEMO_QUESTION_PATH}">`,
     `<textarea name="question" placeholder="how many notes did I write last month?">${escapeHtml(exercise?.question ?? "")}</textarea>`,

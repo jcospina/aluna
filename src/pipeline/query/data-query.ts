@@ -52,7 +52,8 @@ export interface DataQuestion {
 
 /**
  * Opens the whole-catalog scope for a classified question and runs the loop inside it. Throws
- * `NotADataQuestionError`, `ReadGateUnavailableError` or a cancellation; a failed statement is not.
+ * `NotADataQuestionError`, `ReadGateUnavailableError`, `QuestionAnswerUnreadableError` or a
+ * cancellation; a failed statement is none of them.
  */
 export async function runDataQuery(
   deps: DataQueryDeps,
