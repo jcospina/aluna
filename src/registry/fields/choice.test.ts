@@ -13,6 +13,7 @@ import {
   choiceOptionRuns,
   INVALID_CHOICE_ERROR_CODE,
   isChoiceFieldType,
+  PRINTABLE_MESSAGE,
   selectableChoiceValues,
 } from "../index.ts";
 import { validSpec } from "../spec/spec.test-support.ts";
@@ -182,7 +183,7 @@ describe("what one row of a control may say", () => {
     ).toContain("must be one line");
   });
 
-  test("control characters are refused in a value, a label, a note and a heading", () => {
+  test("control and separator characters are refused in a value, a label, a note and a heading", () => {
     const cases: Record<string, unknown> = {
       value: choiceField({ values: [{ value: "a\u0000b", label: "A" }] }),
       label: choiceField({ values: [{ value: "a", label: "A\u0007" }] }),
@@ -191,10 +192,15 @@ describe("what one row of a control may say", () => {
         values: [{ value: "a", label: "A", group: "open" }],
         groups: [{ id: "open", heading: "O\u0002" }],
       }),
+      // A line separator is not a control character, and the question prompt lists a value on a
+      // line of its own — so a value carrying one forges a column that no collection declares.
+      "line separator": choiceField({ values: [{ value: "a\u2028b", label: "A" }] }),
+      "paragraph separator": choiceField({ values: [{ value: "a", label: "A\u2029b" }] }),
+      "bidi override": choiceField({ values: [{ value: "a", label: "A\u202eB" }] }),
     };
     for (const [where, field] of Object.entries(cases)) {
       expect(rejects(specWithChoice(field as Record<string, unknown>)), where).toContain(
-        "control characters",
+        PRINTABLE_MESSAGE,
       );
     }
   });

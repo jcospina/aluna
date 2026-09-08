@@ -25,6 +25,12 @@ const PRODUCT_VOICE_LABEL_START = /^(?:got it|i.?ll|i will|i.?m|we.?ll|we will|l
 const MARKUP_SHAPED = /[<>]/;
 
 /**
+ * A name is one line. `\s+` collapses a break into the word split, so a two-line name counts as
+ * few words and every sink that renders one on a line of its own gains a line nobody wrote.
+ */
+const LINE_BREAK = /[\r\n\u2028\u2029]/;
+
+/**
  * Whether a name is refused for its angle brackets rather than its shape or length. The editor
  * asks so it can say something true about why.
  *
@@ -47,6 +53,7 @@ export function isCapabilityNameLabel(value) {
   // Every sink escapes this label, so this is not what makes it safe. What it refuses is a name
   // that is not a name.
   if (MARKUP_SHAPED.test(label)) return false;
+  if (LINE_BREAK.test(label)) return false;
   if (PRODUCT_VOICE_LABEL_START.test(label)) return false;
   return label.split(/\s+/).length <= MAX_CAPABILITY_LABEL_WORDS;
 }
